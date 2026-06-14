@@ -1,0 +1,20 @@
+import { AbsoluteFill, useCurrentFrame, interpolate } from "remotion";
+
+type SceneFadeProps = {
+  duration: number;
+  outStart: number;
+  children: React.ReactNode;
+};
+
+export const SceneFade: React.FC<SceneFadeProps> = ({ duration, outStart, children }) => {
+  const frame = useCurrentFrame();
+
+  const opacity = interpolate(
+    frame,
+    [0, duration, outStart, outStart + duration],
+    [0, 1, 1, 0],
+    { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
+  );
+
+  return <AbsoluteFill style={{ opacity }}>{children}</AbsoluteFill>;
+};

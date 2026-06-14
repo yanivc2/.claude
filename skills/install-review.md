@@ -1,0 +1,159 @@
+---
+description: Deep pre-install analysis of any skill or hook. Checks trust level, conflicts with existing skills/hooks, and token cost. Always invoke before installing new skills or hooks.
+---
+
+# Pre-Install Review
+
+Perform a deep analysis before installing any skill or hook. Run this whenever the user asks to install, add, or enable a skill or hook from any source.
+
+You will receive one of:
+- A GitHub repo URL or raw file URL
+- A local file path to a `.md` or `.py`/`.sh` file
+- A collection name or description to research
+
+---
+
+## Step 1 — Collect what needs to be analyzed
+
+If the user provided a URL, fetch the file or repo contents using WebFetch.  
+If it's a repo, fetch: README, all `.md` files under `skills/`, all `.py`/`.sh` files under `hooks/`.  
+If it's a local path, read the file(s).  
+If it's a name, use WebSearch to find it first.
+
+List every item that needs to be installed (skills and hooks separately).
+
+---
+
+## Step 2 — Trust Analysis
+
+For each item, score trust on 3 dimensions:
+
+### 2a. Source Reputation
+- **Official Anthropic** (github.com/anthropics/*) → HIGH
+- **Known community author** with 50+ stars, active maintenance, MIT/Apache license → MEDIUM-HIGH
+- **Unknown author**, <10 stars, no license, or no recent activity → LOW — flag immediately
+- **No source** (user pasted raw content) → UNKNOWN — flag and request source
+
+### 2b. Code Safety Scan
+Read every line of skill `.md` files and hook scripts. Flag any of:
+- `WebFetch` or `WebSearch` calls to **non-GitHub, non-Microsoft, non-Anthropic** domains
+- Bash/PowerShell commands that write to system paths, modify PATH, touch `~/.ssh`, `~/.aws`, or registry
+- Base64-encoded strings (`[Convert]::FromBase64`, `atob`, `base64 -d`)
+- Obfuscated or minified code
+- Credential or token patterns (`sk-`, `ghp_`, `xoxb-`, `AKIA`)
+- `curl | sh` or `iwr | iex` patterns
+- Anything that reads from or writes to `~/.claude/` (other than the expected skill install path)
+
+For each flag: describe exactly what was found and on which line.
+
+### 2c. Behavioral Risk
+- Does the skill/hook auto-execute without user confirmation?
+- Does any hook run on `PreToolUse` with a broad matcher (`*` or `Bash|Write|Edit`) and modify behavior silently?
+- Does it spawn sub-agents that run Bash or Write tools autonomously?
+
+### Trust Verdict
+Rate each item:
+- ✅ **TRUSTED** — all clear
+- ⚠️ **REVIEW REQUIRED** — something needs manual inspection before installing; do not proceed until user approves
+- 🚫 **DO NOT INSTALL** — active risk detected; stop and explain clearly
+
+**If any item is ⚠️ or 🚫: stop, report findings, and wait for explicit user approval before proceeding to steps 3–4 or any installation.**
+
+---
+
+## Step 3 — Conflict Detection
+
+### 3a. Skill Name Conflicts & Version Comparison
+Read all files in `~/.claude/skills/` using:
+```powershell
+Get-ChildItem "$env:USERPROFILE\.claude\skills" -Filter "*.md" | Select-Object BaseName
+```
+Check every new skill filename against this list.
+
+**On exact name match — do NOT just warn. Run a full version comparison:**
+
+Read both files completely and evaluate on these criteria:
+1. **Coverage** — does one cover more use cases or edge cases than the other?
+2. **Instructions quality** — which gives clearer, more actionable guidance?
+3. **Structure** — is one better organized or easier to follow?
+4. **Source authority** — official Anthropic > established community > unknown
+5. **Currency** — which was updated more recently?
+6. **Extras** — license, metadata, examples, sub-agent support
+
+Score each on a 1–5 scale per criterion. Declare a winner with a one-line justification per criterion.
+
+**Then act on the verdict autonomously:**
+- If new > existing: delete the existing file, install the new one, report what was replaced and why.
+- If existing > new: skip installation, explain why the existing version is better.
+- If equal (scores within 1 point total): keep existing, no install needed, explain they are equivalent.
+
+Never ask the user to choose between two versions — make the call yourself and explain it.
+
+**On similar name** (e.g., `pdf.md` vs `pdf-extract.md`) — read both fully and apply the same comparison logic. If they overlap >70% in functionality, treat as a conflict and run the version comparison above. If they are genuinely complementary (<50% overlap), note the overlap but install both.
+
+### 3b. Functional Overlap
+For each new skill, read its `description:` frontmatter and first 30 lines.
+Compare against descriptions of all existing skills.
+If two skills do the same thing (even with different names), run the full version comparison from 3a and act on the verdict.
+> Do not leave two skills that do the same job installed side by side without a clear reason.
+
+### 3c. Hook Conflicts
+Read `~/.claude/settings.json` and extract all existing `PreToolUse` and `PostToolUse` matchers.
+For each new hook, check:
+- Does it use the same trigger event (PreToolUse/PostToolUse) AND the same matcher pattern?
+- Could two hooks both fire on the same event and produce conflicting behavior (e.g., two PreToolUse hooks that both block/modify Bash commands)?
+
+If a conflict is found, describe the execution order issue and its effect.
+
+### 3d. Flow Interference
+Check if any new hook would intercept or modify behavior that existing hooks already handle:
+- Multiple hooks writing to the same file
+- Hooks that both validate the same thing (redundant, wastes tokens)
+- A new PostToolUse hook that would run after the existing code-quality reviewer (may double-process)
+
+---
+
+## Step 4 — Token Cost Analysis
+
+For each skill, estimate cost per invocation:
+
+### Signals to check:
+1. **Sub-agent spawning** — count `Agent(` calls or references to "launch agent", "spawn", "sub-agent", "parallel agents"
+   - 1 agent = moderate cost
+   - 2–4 agents in parallel = high cost
+   - 5+ agents = very high; flag explicitly
+2. **File reads** — does it read many files? (`Get-ChildItem -Recurse`, "read all files", "for each file")
+   - Reading 10+ files per invocation = high cost
+3. **Web calls** — `WebFetch` or `WebSearch` per invocation adds ~2–5K tokens per call
+4. **Large context ingestion** — does it ask you to "read the entire codebase", "load all notes", or similar?
+5. **Loops** — does it iterate over a potentially unbounded list?
+
+### Cost rating:
+- 🟢 **LOW** — single-pass, reads ≤3 files, no agents, no web calls
+- 🟡 **MEDIUM** — 1 agent or 3–8 file reads or 1–2 web calls
+- 🔴 **HIGH** — 2+ agents, or 10+ file reads, or 3+ web calls — explain the cost clearly
+- 🔴🔴 **EXCESSIVE** — 5+ agents, or "read entire vault/codebase", or unbounded loops — strongly warn
+
+For EXCESSIVE items, write a specific explanation:
+> "This skill spawns 6 parallel agents each doing a WebSearch + 3 file reads. A single invocation could cost 40,000–80,000 tokens. Consider using `/summarize` instead which does the same in a single pass."
+
+---
+
+## Step 5 — Final Report
+
+Present a structured table for all items:
+
+```
+ITEM               | TRUST      | CONFLICTS          | TOKEN COST | RECOMMENDATION
+skill: /adr        | ✅ TRUSTED  | none               | 🟢 LOW      | INSTALL
+skill: /quality... | ✅ TRUSTED  | overlaps /score-.. | 🟡 MEDIUM   | INSTALL (note overlap)
+hook: secret-scan  | ✅ TRUSTED  | none               | 🟢 LOW      | INSTALL
+hook: context-load | ⚠️ REVIEW   | conflicts PostTool | 🔴 HIGH     | WAIT FOR APPROVAL
+```
+
+Then:
+- List all ✅ INSTALL items in a single block — ask "Install all of these?"
+- List each ⚠️ REVIEW item with a one-paragraph explanation — ask "Do you want to install this anyway?"
+- List each 🚫 DO NOT INSTALL item with full explanation — do not offer to install
+
+Only after the user explicitly approves each non-green item, proceed with installation.

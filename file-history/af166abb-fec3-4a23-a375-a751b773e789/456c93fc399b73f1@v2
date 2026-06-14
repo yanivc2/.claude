@@ -1,0 +1,72 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(if \\(-not $?\\) { \"not found\" })",
+      "PowerShell(Head -20)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\yaniv\\\\.antigravity-ide\\\\extensions\" -Directory | Where-Object { $_.Name -match \"claude|anthropic\" } | Select-Object Name)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "PowerShell(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" init)",
+      "PowerShell(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" add .gitignore .claude/ rules/)",
+      "PowerShell(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" commit -m \"chore: init repo with claude config and rules\")",
+      "WebSearch",
+      "Bash(npx pixa-mcp@latest init)",
+      "PowerShell(npx pixa-mcp@latest init 2>&1)",
+      "PowerShell(node --version; npm --version; \\(Get-Command npm\\).Source 2>$null)",
+      "PowerShell(\\(Get-Command claude\\).Source 2>$null; claude --version 2>&1)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\yaniv\\.claude",
+      "c:\\Users\\yaniv\\עיצוב חזית הדבקה על זכוכיות גוניור\\rules",
+      "C:\\Users\\yaniv\\.claude\\templates\\project"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[System.Media.SystemSounds]::Beep.Play()",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run typecheck 2>&1 | Select-Object -Last 20",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "Write-Output '{\"systemMessage\": \"Before compacting: note any open TODOs, architectural decisions, and lessons learned that should be saved to CLAUDE.md or rules/ before context is lost.\"}'",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$json = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; if ($json.tool_input.command -match 'rm -rf|reset --hard|drop table') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: destructive command\"}'; exit 1 }",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ]
+  }
+}

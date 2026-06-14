@@ -1,0 +1,12 @@
+# Memory Index
+
+- [critical-rules.md](critical-rules.md) — ⚠️ כללים קריטיים: install-review חובה, אין גישה ל-Google ללא אישור, הסברים בעברית
+
+- [user-profile.md](user-profile.md) — שפה עברית, Windows 11, Antigravity IDE, מעדיף הסברים בעברית
+- [project-gunior.md](project-gunior.md) — פרויקט גוניור: שלב הגדרה ראשוני, טק סטאק עדיין לא הוחלט
+- [feedback-hebrew-explanations.md](feedback-hebrew-explanations.md) — הסברים טכניים תמיד בעברית, לא באנגלית
+- [feedback-install-review.md](feedback-install-review.md) — חובה להפעיל /install-review לפני כל התקנה — ללא יוצא מן הכלל
+- [feedback-gws-access.md](feedback-gws-access.md) — אסור לגשת ל-gws/Google ללא אישור מפורש לכל פעולה
+- [project-pos-hdmi-ip.md](project-pos-hdmi-ip.md) — פרויקט POS→HDMI-to-IP→NVR: טופולוגיה, תרחישי תקלה, שלבי עבודה, ממתין לקובץ ממיר + תמונת POS
+- [session-log.md](session-log.md) — יומן סשנים: מה נעשה/הוחלט בכל שיחה, לרציפות בין sessions
+- [feedback-hooks-stability.md](feedback-hooks-stability.md) — אסור PostToolUse typecheck ללא package.json; מפתחות כפולים ב-.claude.json גורמים לשבירה

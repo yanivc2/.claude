@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(if \\(-not $?\\) { \"not found\" })",
+      "PowerShell(Head -20)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\yaniv\\\\.antigravity-ide\\\\extensions\" -Directory | Where-Object { $_.Name -match \"claude|anthropic\" } | Select-Object Name)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ]
+  }
+}

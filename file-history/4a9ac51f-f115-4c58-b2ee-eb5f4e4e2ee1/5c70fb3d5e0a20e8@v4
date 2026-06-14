@@ -1,0 +1,58 @@
+---
+name: session-log
+description: "יומן סשנים — מה נעשה בכל שיחה, לרציפות בין sessions"
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 3040aa33-1674-4681-95a2-62b20384ba8e
+---
+
+## 2026-06-08 06:22
+- הסרת PostToolUse hook בשביל typecheck — אין npm project, ה-hook נכשל בשקט וגרם לעיכוב סשנים
+- git commit f3162cd: "chore: remove PostToolUse typecheck hook — no npm project exists"
+
+## 2025-01-15 13:30
+- תיקון שתי בעיות קריטיות בסביבה ב-Claude Code: (1) הסרת `npm run typecheck` מ-project settings - אין package.json והפקודה נכשלה בשקט, (2) מחיקת מפתחות כפולים ב-.claude.json - PowerShell לא יכל לפרסר את הקובץ
+- git commit: "feat: initialize .claude/settings.json with security permissions, automation hooks, and session logging configuration"
+
+## 2026-06-08 06:05
+- שיחה ללא שינויי קוד — פתיחת סשן בלבד עם שלום
+
+## 2026-06-08 05:31
+- שיחה ללא שינויי קוד — שאלה על מיקום התיקייה הגלובלית של Claude
+- תשובה: `C:\Users\yaniv\.claude` היא התיקייה הגלובלית
+
+## 2026-06-08 07:37
+- שיחה על setup של פרויקטים חדשים וMCPs (Playwright, GitHub, Context7)
+- הבהרה על best practices להתחלה של פרויקט: git init, /init, הוספת MCPs לפי הצרך
+- הצעה להוסיף `.mcp.json` לתבנית ב-`~/.claude/templates/project/`
+
+## 2026-06-08 07:35
+- הוסף hook חדש: SessionStart שמעתיק template של settings.json לפרויקטים חדשים עם `.git` בלי `.claude/settings.json`
+- התראה אוטומטית: "settings.json הועתק מה-template — פרויקט חדש זוהה"
+- 4 hooks (SessionStart, session recorder, typecheck, PreCompact) יוערכו אוטומטית בפרויקטים חדשים
+
+## 2026-06-08 07:31
+- הוסף `.claude/session-log.md` ל-gitignore של template הפרויקט (כדי שתיקייה מקומית לא תעלה)
+- Sync המערכת לפרויקט ליו: template `~/.claude/templates/project/` עתיקים עם settings + gitignore
+- git push לקומט `chore: move universal hooks to global settings` — hooks גלובליים מוגדרים בהצלחה
+
+## 2026-06-08 07:24
+- העברת hooks גלובליים: Beep, ריוי, וחוסם פקודות הרסניות עברו ל-~/.claude/settings.json
+- הסדר סופי: hooks כלליים (כל הפרויקטים) לעומת hooks מקומיים (פרויקט בודד בלבד)
+- נשאר בפרויקט: session recorder, TypeScript typecheck, SessionStart reminder, PreCompact
+
+## 2026-06-08 04:26
+- דיון על template של settings.json לפרויקטים חדשים — שלא יצטרכו להגדיר hooks בחדש
+- הבהרה שה־4 hooks (ריוי, session-recorder, TypeScript typecheck, PreCompact) נמצאים רק בפרויקט הנוכחי, לא בגלובלי
+- הצעה להעביר אותם ל־template כדי לשמור עליהם בפרויקטים חדשים
+
+## 2026-06-08 07:16
+- שיחה על אדריכטורת הגדרות גלובליות vs פרויקט־ספציפיות — דיון סימטטרי בשתי שכבות
+- הבהרה שה־hooks (ריוי, session recorder) חיים בגלובלי אבל settings הפרויקט מקומי
+- הצעה: להוסיף ריוי וsession recorder לגלובלי להם תמיד בכל פרויקט
+
+## 2026-06-08 04:13
+- שיחה ארכיטקטורית — דיון על מבנה CLAUDE.md אופטימלי עם שכבות לפי תדירות שימוש
+- הסכמה שהמערכת הנוכחית קרובה לאידיאל, חסר למלא את tech stack אמיתי
+- הבהרה: משימה חדשה באותו פרויקט = שיחה חדשה, לא תיקיה חדשה

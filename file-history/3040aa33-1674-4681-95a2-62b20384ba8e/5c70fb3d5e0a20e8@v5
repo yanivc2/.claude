@@ -1,0 +1,28 @@
+---
+name: session-log
+description: "יומן סשנים — מה נעשה בכל שיחה, לרציפות בין sessions"
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 3040aa33-1674-4681-95a2-62b20384ba8e
+---
+
+## 2026-06-08 07:24
+- פעולה סופית: העברת Beep, ריוי, וחוסם פקודות הרסניות לגלובלי (~/.claude/settings.json)
+- נשאר בפרויקט: session-recorder, TypeScript typecheck, SessionStart reminder, PreCompact reminder
+- ארכיטקטורה סופית שלמה: hooks גלובליים לתדירות גבוהה, פרויקט־ספציפיים לצרכים מקומיים
+
+## 2026-06-08 07:16
+- שיחה על אדריכטורת הגדרות גלובליות vs פרויקט־ספציפיות — דיון סימטטרי בשתי שכבות
+- הבהרה שה־hooks (ריוי, session recorder) חיים בגלובלי אבל settings הפרויקט מקומי
+- הצעה: להוסיף ריוי וsession recorder לגלובלי להם תמיד בכל פרויקט
+
+## 2026-06-08 04:13
+- שיחה ארכיטקטורית — דיון על מבנה CLAUDE.md אופטימלי עם שכבות לפי תדירות שימוש
+- הסכמה שהמערכת הנוכחית קרובה לאידיאל, חסר למלא את tech stack אמיתי
+- הבהרה: משימה חדשה באותו פרויקט = שיחה חדשה, לא תיקיה חדשה
+
+## 2025-01-15
+- Cleaned up CLAUDE.md and added session-log hook for recording sessions
+- Fixed paths in settings.json after project folder rename
+- Untracked playwright-mcp artifacts from git

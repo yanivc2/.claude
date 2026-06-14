@@ -1,0 +1,103 @@
+# עיצוב חזית הדבקה על זכוכיות גוניור
+
+[One-line description of the project goal and target audience]
+
+---
+
+## Tech Stack
+
+- Framework: [e.g., Next.js 15, React 19, TypeScript]
+- Styling: [e.g., Tailwind CSS, CSS Modules]
+- Backend: [e.g., Node.js, PostgreSQL, Prisma]
+- Node version: [e.g., 20.x — enforce via `.nvmrc` or `engines` in package.json]
+- Package manager: [npm / pnpm / yarn]
+
+---
+
+## Key Commands
+
+```
+npm run dev          — start dev server
+npm run build        — production build
+npm test             — run test suite
+npm run lint         — lint with ESLint
+npm run typecheck    — TypeScript type check (run after every change)
+```
+
+[Add migration, deploy, or seed commands as needed]
+
+---
+
+## Project Structure
+
+```
+src/
+  components/    — reusable UI components
+  pages/         — route-level pages
+  lib/           — utilities and shared logic
+  styles/        — global styles and design tokens
+public/          — static assets
+```
+
+[Update this tree as the project grows]
+
+---
+
+## Style & Conventions
+
+- Use ES modules and named exports; avoid default exports.
+- Destructure imports at the top of each file.
+- Component files: PascalCase (`MyComponent.tsx`). Utilities: camelCase (`formatDate.ts`).
+- CSS: [Tailwind utility classes / BEM / CSS Modules — pick one and stick to it].
+- No inline styles except for truly dynamic values.
+- Keep components under ~150 lines; extract if larger.
+
+---
+
+## Rules (Priority 0)
+
+- Never commit secrets, API keys, or `.env` files.
+- Never skip typechecking — run `npm run typecheck` after every non-trivial change.
+- Never add a dependency without checking bundle impact first.
+- Always write accessible markup: semantic HTML, ARIA labels where needed, keyboard navigable.
+- Only use [Jest / Vitest — pick one] for tests; never introduce a second test framework.
+- Branches: `main` is protected. Work on feature branches, open a PR for review.
+- No `console.log` left in committed code.
+
+---
+
+## Workflow
+
+1. Understand the task — read relevant files before editing.
+2. For non-trivial changes: state your approach and get confirmation before coding.
+3. After changes: typecheck → lint → run affected tests → verify golden path manually.
+4. Keep PRs small and focused; one concern per PR.
+5. Reference `docs/` for detailed specs or design decisions.
+
+---
+
+## Architecture Notes
+
+- [Describe the high-level data flow, e.g., "SSR on all pages, client hydration only for interactive widgets."]
+- [Note any hard constraints, e.g., "Static export required — no server-side APIs at runtime."]
+- [Call out seams that are easy to break, e.g., "Auth token is stored in httpOnly cookie; never expose to client JS."]
+
+---
+
+## Core Files to Know
+
+| File | Purpose |
+|---|---|
+| `src/lib/api.ts` | Central API client |
+| `src/components/Layout.tsx` | Root layout and nav |
+| `.env.example` | All required env vars (copy to `.env.local`) |
+
+[Fill in as the project grows]
+
+---
+
+## Non-Negotiables & Known Quirks
+
+- [Document any surprising behaviors, e.g., "Pagination is 0-indexed in the API but 1-indexed in the UI — never mix them."]
+- [Call out performance traps, e.g., "Avoid importing lodash as a whole; always use `lodash/get` style named imports."]
+- [List anything that burned you before — this is high-value institutional memory.]

@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(gh auth status 2>&1)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(cd \"C:\\\\Users\\\\yaniv\"; $env:REPLICATE_API_TOKEN = \"r8_ZPe1GQtY3B8lyJAlqDJAjFjQTdCSRqv3i7rOC\"; node generate.mjs)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "PowerShell($testFile = \"C:\\\\Users\\\\yaniv\\\\test_rm_hook.txt\"; \"rm test content\" | Set-Content $testFile; $cmd = \"rm C:\\\\Users\\\\yaniv\\\\test_rm_hook.txt\"; if \\($cmd -match '\\\\brm\\\\b|\\\\bRemove-Item\\\\b'\\) { $parts = \\($cmd -split '\\\\s+'\\) | Where-Object { $_ -notmatch '^-' -and $_ -notin @\\('rm','Remove-Item',''\\) }; foreach \\($f in $parts\\) { $resolved = $f.Trim\\('\"'''\\); if \\($resolved -and \\(Test-Path $resolved -PathType Leaf\\)\\) { $d = Join-Path $PWD 'deletions'; New-Item -ItemType Directory -Force $d | Out-Null; $ts = Get-Date -Format 'yyyyMMdd_HHmmss'; $n = [IO.Path]::GetFileName\\($resolved\\); Copy-Item $resolved \\(Join-Path $d \"${ts}_$n\"\\) -Force; Write-Output \"Backed up: $n\" } } }; Remove-Item $testFile -Force -ErrorAction SilentlyContinue; Get-ChildItem \\(Join-Path $PWD 'deletions'\\) | Select-Object Name; Remove-Item \\(Join-Path $PWD 'deletions'\\) -Recurse -Force)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\yaniv"
+    ]
+  },
+  "fileCheckpointingEnabled": true
+}

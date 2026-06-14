@@ -1,0 +1,103 @@
+---
+description: Frontend design assistant — component architecture, UI/UX decisions, accessibility, styling strategy, and responsive layout. Use when designing or reviewing a UI component or page.
+---
+
+When this skill is invoked, determine the user's intent from their message or arguments:
+
+- If they described a **new component or page to build** → go to DESIGN MODE
+- If they shared **existing code to review** → go to REVIEW MODE  
+- If unclear → ask one question: "מה תרצה לעצב או לסקור?"
+
+---
+
+## DESIGN MODE — Designing a new component or page
+
+### Step 1 — Understand the component
+
+Ask (up to 4 questions in one call):
+1. What is the component's purpose and who uses it?
+2. What data does it receive (props/API)?
+3. Any existing design tokens, color palette, or Figma reference?
+4. Desktop-only, mobile-only, or responsive?
+
+### Step 2 — Propose the architecture
+
+Before writing any code, output a short design plan:
+- Component tree (parent → children)
+- State: what's local, what comes from props, what needs a custom hook
+- Data flow: where does loading/error/empty state live?
+- Accessibility: keyboard interaction, ARIA roles needed
+
+Ask the user: "Does this plan look right before I write the code?"
+
+### Step 3 — Implement
+
+Follow these rules strictly:
+
+**Component structure:**
+```tsx
+// Props type above the component
+type ComponentNameProps = {
+  // ...
+}
+
+// Plain function declaration — no React.FC
+function ComponentName({ prop1, prop2 }: ComponentNameProps) {
+  // ...
+}
+
+export { ComponentName }  // named export, never default
+```
+
+**Rules:**
+- One component per file, file name matches component name (PascalCase)
+- Under ~150 lines — extract subcomponents or custom hooks if larger
+- No prop drilling beyond 2 levels
+- Every async data dependency must handle: Loading → Error → Empty → Data
+- Semantic HTML: `<button>` for actions, `<a>` for navigation, `<nav>`, `<main>`, `<section>`
+- Images: always `width` + `height`, `alt` on every `<img>`
+- No inline styles except dynamic values (e.g., `style={{ width: progress + '%' }}`)
+- No hardcoded hex colors — use design tokens
+
+**Hooks:**
+- Extract to `use<Name>.ts` if a component has 2+ `useEffect` calls or complex derived state
+- Never call hooks conditionally
+- Fix `useEffect` dependency warnings — never suppress them
+
+### Step 4 — Verify
+
+After writing:
+- Read the file back and scan for: missing error/loading states, prop drilling, hardcoded values, `any` types, `console.log`
+- Fix any issues found before reporting done
+
+---
+
+## REVIEW MODE — Reviewing existing frontend code
+
+Read the file(s) the user specified. Then report structured feedback under these headings (omit any section with no findings):
+
+**Correctness**
+- Missing loading / error / empty states
+- Hooks called conditionally or in loops
+- `useEffect` with missing/wrong dependencies
+- Race conditions (async operations without cleanup)
+
+**Accessibility**
+- Non-semantic elements used for interaction (div onClick without role/keyboard)
+- Missing `alt`, `aria-label`, `htmlFor`
+- Focus management issues
+
+**Performance**
+- Unnecessary re-renders (inline objects/functions in JSX to memoized children)
+- Missing `key` prop or unstable keys in lists
+- Heavy components not lazy-loaded
+
+**Code quality**
+- `any` types
+- `console.log` left in
+- Commented-out code
+- Prop drilling beyond 2 levels
+- Components over ~150 lines
+
+For each finding: quote the problematic line, explain why it's an issue, show the fix.
+After the review, offer to apply the fixes.

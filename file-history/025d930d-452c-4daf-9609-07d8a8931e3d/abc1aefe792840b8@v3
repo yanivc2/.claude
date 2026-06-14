@@ -1,0 +1,382 @@
+---
+name: project-pos-hdmi-ip-stream
+description: "פרויקט חיבור מסך POS לרשת IP — הצגת המסך כמצלמת אבטחה ב-NVR דרך ממיר HDMI-to-IP. כולל ממצאי מחקר מלאים, פקודות PowerShell, ותרחישי תקלה."
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 025d930d-452c-4daf-9609-07d8a8931e3d
+---
+
+# פרויקט: הזרמת מסך קופת POS לרשת IP כמצלמת אבטחה
+
+## מטרה
+חיבור מסך קופת POS לרשת IP באמצעות ממיר HDMI-to-IP, והצגת תמונת המסך כחלק ממערכת מצלמות האבטחה ב-NVR.
+
+**Why:** לצפייה בפעילות הקופה דרך מערכת הריגול הקיימת, ללא התקנת מצלמה נוספת.
+**How to apply:** לפתוח זיכרון זה בתחילת כל שיחה הקשורה לפרויקט לפני כל פעולה.
+
+---
+
+## טופולוגיית חיבור
+```
+POS (DP out)
+    ↓
+DP-to-HDMI adapter
+    ↓
+HDMI-to-IP Encoder  ←→ LAN (Ethernet)
+    ↓ (אופציה: loop-out HDMI למסך)
+NVR / צופה ברשת
+```
+
+---
+
+## פרטי מכשירים
+
+### קופת POS
+- מערכת הפעלה: **Windows 10 Pro**
+- יציאה יחידה למסך: **DisplayPort (DP)**
+- **מפרט מחשב מלא**: ממתין לתמונה מהמשתמש ⏳
+
+### ממיר HDMI-to-IP
+- **מפרט / דגם**: ממתין לקובץ הוראות הפעלה ⏳
+- גישה דרך ממשק ווב ברשת המקומית
+
+### NVR — Provision-ISR NVR12-32800FAN(1U) ✅ מזוהה
+- **יצרן**: Provision-ISR (חברה ישראלית)
+- **דגם**: NVR12-32800FAN(1U) — 1U Rack, 32 ערוצים
+- **אחסון**: 2x SATA bays (max 10TB כל אחד, סה"כ 20TB), מגיע עם 2TB
+- **ערוצים**: 32 ערוצי IP
+- **רזולוציה מקסימלית**: 12MP (4000×3000)
+- **יציאות וידאו**: 2x HDMI (4K+FHD) + VGA
+- **ONVIF**: תומך ONVIF Profile T + Profile G (גרסה 20.12) ✅
+- **RTSP**: תמיכה מלאה ✅
+- **פורמט RTSP לגישה ל-NVR עצמו**:
+  - Main stream: `rtsp://<NVR-IP>:554/ch<מספר-ערוץ>/main/av_stream`
+  - Sub stream: `rtsp://<NVR-IP>:554/ch<מספר-ערוץ>/sub/av_stream`
+- **אתר יצרן**: provision-isr.com
+- **תמיכה**: ניתן לפנות לתמיכה ישראלית
+- **PDF רשמי**: https://provision-isr.com/wp-content/uploads/generatepdf/NVR12-32800FAN(1U).pdf
+
+### אביזרים זמינים
+- ✅ מתאם DP to HDMI
+- ✅ כבלים
+
+---
+
+## גישה מרחוק לרשת החנות
+
+### מצב נוכחי
+- לא ברור אם יש VPN או כלי גישה מרחוק מותקן בחנות
+- **לבדוק עם המשתמש**: AnyDesk / TeamViewer / Chrome Remote Desktop / RDP
+
+### זרימת העבודה עם גישה מרחוק
+1. פתיחת דפדפן (Playwright)
+2. כניסה לכלי גישה מרחוק (Chrome Remote Desktop מועדף — browser-based)
+3. המשתמש מאשר חיבור בחנות
+4. גישה לממשק הממיר ול-NVR דרך הרשת המקומית של החנות
+
+---
+
+## ממצאי מחקר — HDMI-to-IP Encoder
+
+### עקרון הפעולה
+ממיר HDMI-to-IP לוקח אות וידאו מ-HDMI (מקלדת, תמונה) וממיר אותו לזרם רשת IP.
+פרוטוקולים נפוצים: **RTSP**, **ONVIF**, HTTP-FLV, HLS.
+
+### תהליך הגדרה סטנדרטי (4 שלבים)
+```
+שלב 1: חיבור רשת
+  - ממיר מחובר לרשת ב-Ethernet (אותה subnet כמו NVR)
+  - HDMI מ-POS מחובר ל-HDMI In של הממיר
+
+שלב 2: גישה לממשק ואיתור RTSP URL
+  - מציאת IP של הממיר: ראות/DHCP של הראוטר
+  - גישה ל-http://[IP] בדפדפן
+  - אישורים ברירת מחדל: admin/admin  או  admin/0000
+  - ניווט לStream Settings
+  - RTSP URL לדוגמה: rtsp://[IP]:554/stream1
+
+שלב 3: בדיקה ב-VLC לפני הוספה ל-NVR
+  - פתח VLC → Media → Open Network Stream
+  - הדבק את RTSP URL → לחץ Play
+  - אם התמונה עולה — הממיר מוכן
+
+שלב 4: הוספה ל-NVR
+  - Camera Management → Add → Manual Add
+  - פרוטוקול: ONVIF (עדיף) או RTSP
+  - IP + Port 554 + Username + Password
+  - Apply/Save
+```
+
+### ONVIF vs RTSP ב-NVR
+| | ONVIF | RTSP ידני |
+|---|---|---|
+| גילוי אוטומטי | כן | לא |
+| תאימות | NVR חייב לתמוך | כמעט כל NVR |
+| קונפיגורציה | פשוטה יותר | דורש URL מדויק |
+| **המלצה** | נסה ONVIF ראשון | גיבוי אם ONVIF נכשל |
+
+### דגמים נפוצים בשוק
+| יצרן | דגמים | מאפיין מיוחד |
+|---|---|---|
+| **Kiloview** | N2, E1, E2 | ONVIF, loop-out בחלק מהדגמים |
+| **Magewell** | Pro Convert HDMI to NDI | איכות גבוהה, יקר |
+| **Lenkeng** | LKV383 | תקציבי, RTSP |
+| **AVMATRIX** | SE1217 | loop-out, RTSP+ONVIF |
+| **BZB Gear** | BG-STREAM-E | ONVIF, web UI נוח |
+| **CCTV Camera World** | HDMIP | PoE, ONVIF, תוכנן לNVR |
+
+---
+
+## ממצאי מחקר — Windows 10 Pro: Power Management
+
+### גורמי ניתוק תמונה — Windows
+
+#### 1. Monitor Timeout (הנפוץ ביותר)
+Windows מכבה את אות המסך לאחר X דקות. הממיר מאבד אות → NVR מציג offline.
+
+**פתרון מלא (PowerShell, כמנהל):**
+```powershell
+# כיבוי timeout כשהמחשב פועל ומחובר לחשמל:
+powercfg /change monitor-timeout-ac 0
+powercfg /change standby-timeout-ac 0
+powercfg /change hibernate-timeout-ac 0
+
+# כיבוי timeout גם כשהמסך נעול:
+powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_VIDEO VIDEOIDLE 0
+powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_VIDEO VIDEOCONLOCK 0
+powercfg.exe /setactive SCHEME_CURRENT
+```
+
+> **הערה חשובה:** Windows מכבה מסך לאחר **60 שניות** כאשר המחשב נעול — זה התנהגות by-design שאינה ניתן לשינוי מה-UI הרגיל. הפקודה VIDEOCONLOCK מתקנת זאת.
+
+#### 2. Windows Update Reboot
+Windows Update יכול להפעיל מחדש את המחשב בשעות הלילה.
+
+**פתרון:**
+```powershell
+# עיכוב עדכונים אוטומטיים (Group Policy):
+# gpedit.msc → Computer Configuration → Administrative Templates
+# → Windows Components → Windows Update
+# → "Configure Automatic Updates" → Disabled/Notify only
+```
+
+#### 3. Sleep / Hibernate
+```powershell
+# כיבוי hibernate לחלוטין:
+powercfg /h off
+# בחירת High Performance power plan:
+powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+```
+
+#### 4. Screen Saver
+- Settings → Personalization → Lock Screen → Screen Saver → None
+
+---
+
+## ממצאי מחקר — HDCP ו-DisplayPort
+
+### מה זה HDCP?
+High-bandwidth Digital Content Protection — הצפנת אות וידאו למניעת פיראטיות.
+בעברית: "נעילה" של אות HDMI/DP שמונעת מכשירים לא-מאושרים לצלם את התמונה.
+
+### האם HDCP מפריע לממיר HDMI-to-IP?
+
+**תשובה: כנראה שלא, לPOS.**
+
+| תוכן | HDCP? | השפעה על ממיר |
+|---|---|---|
+| Windows Desktop רגיל | **לא** | ✅ ממיר יעבוד |
+| תוכנת POS (רשת, קופה) | **לא** | ✅ ממיר יעבוד |
+| Netflix/DRM Video | **כן** | ❌ ממיר יחסם |
+| BluRay Playback | **כן** | ❌ ממיר יחסם |
+
+**מסקנה:** POS שמריץ תוכנת קופה — לא יהיה HDCP. **זה לא בעיה.**
+
+### DisplayPort Content Protection (DPCP)
+DPCP הוא המקבילה של HDCP עבור DisplayPort — אותו עיקרון, אותה מסקנה.
+
+---
+
+## ממצאי מחקר — DisplayPort Splitting ו-Loop-Out
+
+### הבעיה
+POS עם יציאת DP אחת בלבד — כיצד לחבר גם מסך רגיל וגם ממיר?
+
+### פתרון 1: HDMI Encoder עם Loop-Out ✅ (עדיף)
+חלק מהממירים (למשל AVMATRIX, Kiloview E2) כוללים יציאת HDMI loop-out:
+```
+POS (DP) → DP-to-HDMI → ממיר [HDMI In]
+                           ממיר [HDMI Loop-Out] → מסך רגיל
+                           ממיר [IP Stream] → רשת → NVR
+```
+**לבדוק בהוראות הממיר שנרכש: האם יש HDMI Loop-Out?** ⏳
+
+### פתרון 2: HDMI Splitter (1-to-2) אחרי DP-to-HDMI
+```
+POS (DP) → DP-to-HDMI adapter → HDMI Splitter 1-to-2
+                                      → מסך רגיל
+                                      → ממיר HDMI-to-IP
+```
+**יתרון:** פשוט, זול (~50-100 ש"ח)
+**חיסרון:** ה-Splitter צריך להיות **Active** (לא פסיבי), ותומך בRezolution הנדרשת
+
+### פתרון 3: DisplayPort MST Hub
+DP MST Hub מאפשר חיבור מספר מסכים ליציאת DP אחת (Multi-Stream Transport).
+**בעיה:** ממירי HDMI-to-IP לא תמיד מוכרים כ-MST display → עלול לא לעבוד.
+
+### פתרון 4: Headless Display Emulator (Dummy Plug)
+אם הממיר לא מדמה EDID כמו מסך — Windows לא ישלח אות.
+**פתרון:** DP Dummy Plug → מרמה את Windows לחשוב שמסך מחובר.
+- מחיר: 20-50 ש"ח
+- דרושים רק אם ה-POS לא שולח אות גם עם הממיר מחובר
+
+---
+
+## תוכנית פעולה לפי תרחיש (Case-Based)
+
+### תרחיש 0 — הכנה לפני כל עבודה
+```
+[ ] בדוק: האם לממיר יש HDMI Loop-Out?
+[ ] בדוק: מה כלי הגישה מרחוק לחנות?
+[ ] בדוק: מה IP-range של הרשת בחנות?
+[ ] בדוק: מה מדגם ה-NVR?
+```
+
+---
+
+### תרחיש 1 — ✅ All Good (ממיר עם Loop-Out)
+```
+1. POS → DP-to-HDMI → ממיר HDMI In
+2. ממיר HDMI Loop-Out → מסך קופה
+3. ממיר → Ethernet → Switch/Router
+4. גישה מרחוק לרשת החנות
+5. http://[ממיר-IP] → Stream Settings → RTSP URL
+6. VLC: נבדוק שהתמונה עולה
+7. NVR: Camera → Add → Manual → RTSP → הוסף URL
+8. PowerShell Power fixes ב-POS Windows
+```
+
+---
+
+### תרחיש 2 — ❌ ממיר ללא Loop-Out — צריך מסך גם
+```
+פתרון: רכישת HDMI Splitter 1-to-2 (Active)
+1. POS → DP-to-HDMI adapter → HDMI Splitter
+                               ├→ מסך קופה
+                               └→ ממיר HDMI In
+2. המשך כמו תרחיש 1
+```
+
+---
+
+### תרחיש 3 — ❌ NVR לא מזהה ממיר כמצלמה (ONVIF נכשל)
+```
+נסיון א: הוספה ידנית ב-RTSP
+  NVR → Add Camera → Manual → RTSP → rtsp://[IP]:554/stream1
+
+נסיון ב: אם NVR לא תומך RTSP ישיר
+  → התקנת Blue Iris (תוכנה) או iSpy על מחשב ברשת
+  → Blue Iris מקבל RTSP מהממיר ומשדר כ-ONVIF ל-NVR
+
+נסיון ג: בדיקת ONVIF Device Manager
+  → כלי חינמי שמאתר ומציג כל ONVIF device ברשת
+  → מאמת שהממיר מכריז על עצמו נכון
+```
+
+---
+
+### תרחיש 4 — ❌ תמונה נפסקת לאחר זמן
+```
+בדיקה מהירה: מה נפסק? NVR מציג offline, או הממיר עצמו אובד אות?
+
+אם Windows כיבה מסך:
+  → הפעל PowerShell Power fixes (ראה ממצאי מחקר)
+  → כבה screen saver
+  → כבה hibernate
+
+אם הממיר מאבד IP (DHCP lease):
+  → הגדר IP סטטי לממיר
+
+אם EDID negotiation נכשל:
+  → רכש DP Dummy Plug
+```
+
+---
+
+### תרחיש 5 — ❌ POS לא שולח אות ל-DP כלל
+```
+גורם: Windows לא "רואה" מסך → לא שולח אות DP
+פתרון: DisplayPort Dummy Plug (DP Emulator)
+  → מרמה את Windows לחשוב שמסך מחובר
+  → DP → Dummy Plug (עבור Windows לראות מסך)
+  → DP Splitter → ממיר + מסך אמיתי
+```
+
+---
+
+### תרחיש 6 — ❌ ניתוק אחרי כמה שעות (ספציפי)
+```
+בדיקת גורמים:
+1. Event Viewer → Windows Logs → System → מה קרה בשעה שנפסק?
+2. בדוק אם Windows Update הפעיל restart
+3. בדוק אם NVR הוא שניתק (ולא הממיר)
+4. הגדר Task Scheduler לשלוח ping לממיר כל שעה ולכתוב לוג
+```
+
+---
+
+## סקריפטים מוכנים לשימוש
+
+### הגדרת Power Management ב-Windows 10 (הפעל כמנהל)
+```powershell
+# מניעת כל ניתוק מסך:
+powercfg /change monitor-timeout-ac 0
+powercfg /change standby-timeout-ac 0
+powercfg /change hibernate-timeout-ac 0
+powercfg /h off
+powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_VIDEO VIDEOIDLE 0
+powercfg.exe /setacvalueindex SCHEME_CURRENT SUB_VIDEO VIDEOCONLOCK 0
+powercfg.exe /setactive SCHEME_CURRENT
+# הגדרת High Performance:
+powercfg /setactive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
+Write-Host "Power settings applied. Display will never turn off."
+```
+
+### בדיקת RTSP עם PowerShell (אם VLC זמין)
+```powershell
+# פתח VLC עם RTSP URL (החלף IP):
+$rtspUrl = "rtsp://192.168.1.100:554/stream1"
+Start-Process "C:\Program Files\VideoLAN\VLC\vlc.exe" -ArgumentList $rtspUrl
+```
+
+### איתור IP של הממיר ברשת
+```powershell
+# סריקת ה-subnet לאיתור מכשירים חדשים:
+1..254 | ForEach-Object {
+    $ip = "192.168.1.$_"
+    if (Test-Connection -ComputerName $ip -Count 1 -Quiet -ErrorAction SilentlyContinue) {
+        Write-Host "$ip — Online"
+    }
+}
+```
+
+---
+
+## שאלות פתוחות (ממתין לקבל מהמשתמש)
+
+| שאלה | סטטוס |
+|---|---|
+| מה דגם הממיר HDMI-to-IP? | ⏳ ממתין לקובץ הוראות |
+| יש HDMI Loop-Out לממיר? | ⏳ לבדוק בהוראות |
+| מה דגם/יצרן ה-NVR? | ⏳ לא ידוע |
+| מה מפרט מחשב ה-POS? | ⏳ ממתין לתמונה |
+| מה כלי הגישה מרחוק לחנות? | ⏳ לא ידוע |
+| מה ה-IP range של רשת החנות? | ⏳ לא ידוע |
+
+---
+
+## מצב כללי
+- שלב: **מחקר הושלם — ממתין לפרטים לפני יישום**
+- ❌ לא להתחיל שום שלב ביישום עד שהמשתמש שולח הוראות הממיר + תמונת POS
+- תאריך עדכון: 2026-06-08

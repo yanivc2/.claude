@@ -1,0 +1,119 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(gh auth status 2>&1)",
+      "PowerShell(node --version)",
+      "PowerShell(npm --version)",
+      "PowerShell(cd \"C:\\\\Users\\\\yaniv\"; $env:REPLICATE_API_TOKEN = \"r8_ZPe1GQtY3B8lyJAlqDJAjFjQTdCSRqv3i7rOC\"; node generate.mjs)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.claude\" -ErrorAction SilentlyContinue | Select-Object Name, PSIsContainer)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.claude\\\\skills\" -ErrorAction SilentlyContinue | Select-Object Name, PSIsContainer)",
+      "PowerShell(Remove-Item \"$env:TEMP\\\\anthropics-skills\" -Recurse -Force)",
+      "WebFetch(domain:github.com)",
+      "Bash(curl -s \"https://api.github.com/repos/DavidROliverBA/Daves-Claude-Code-Skills\")",
+      "Bash(curl -s \"https://api.github.com/repos/DavidROliverBA/Daves-Claude-Code-Skills/commits?per_page=10\")",
+      "PowerShell(if \\(Test-Path \"$env:USERPROFILE\\\\.claude\\\\skills\"\\) { Get-ChildItem -Path \"$env:USERPROFILE\\\\.claude\\\\skills\" -Recurse -File | Select-Object -ExpandProperty Name } else { \"No .claude/skills directory found\" })",
+      "WebFetch(domain:medium.com)",
+      "PowerShell(git clone https://github.com/DavidROliverBA/Daves-Claude-Code-Skills.git \"$env:TEMP\\\\daves-skills\" 2>&1)",
+      "PowerShell(Get-ChildItem \"$env:TEMP\\\\daves-skills\" | Select-Object Name, PSIsContainer)",
+      "PowerShell(Remove-Item \"$env:TEMP\\\\daves-skills\" -Recurse -Force)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(cd /c/Users/yaniv/.claude/skills && wc -l *.md | tail -1)",
+      "Read(//c/c/Users/yaniv/.claude/**)",
+      "Bash(python3)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/anthropics/skills/main/skills/internal-comms/SKILL.md\")",
+      "Read(//tmp/**)",
+      "Bash(gws gmail *)",
+      "Bash(npm show *)",
+      "Bash(npx skills *)",
+      "Skill(code-review)",
+      "Skill(code-review:*)",
+      "Bash(git diff *)",
+      "Skill(schedule)",
+      "Skill(schedule:*)",
+      "PowerShell(npx skills add unicodeveloper/shannon 2>&1)",
+      "PowerShell(git -C \"c:\\\\Users\\\\yaniv\\\\����� ���� ����� �� ������� ������\" remote -v 2>&1)",
+      "PowerShell(winget list GitHub.cli 2>&1)",
+      "PowerShell(winget install --id GitHub.cli --silent --accept-package-agreements --accept-source-agreements 2>&1)",
+      "PowerShell($env:PATH = $env:PATH + \";C:\\\\Program Files\\\\GitHub CLI\"; gh --version 2>&1)",
+      "PowerShell($env:PATH = $env:PATH + \";C:\\\\Program Files\\\\GitHub CLI\"; gh auth status 2>&1)",
+      "PowerShell($env:PATH = [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"PATH\",\"User\"\\); gh auth status 2>&1)",
+      "PowerShell(\\(Get-Command gh -ErrorAction SilentlyContinue\\).Source)",
+      "PowerShell(Get-Item \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" -ErrorAction SilentlyContinue | Select-Object FullName; Test-Path \"$env:APPDATA\\\\GitHub CLI\\\\hosts.yml\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\yaniv\\\\.claude\\\\settings.json\" -ErrorAction SilentlyContinue)",
+      "Bash(Get-ChildItem \"C:\\\\Users\\\\yaniv\\\\.antigravity-ide\\\\\" -ErrorAction SilentlyContinue | Select-Object Name, FullName)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\yaniv"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"import winsound; winsound.PlaySound(r'C:\\\\Windows\\\\Media\\\\tada.wav', winsound.SND_FILENAME | winsound.SND_SYNC)\"",
+            "shell": "powershell"
+          },
+          {
+            "type": "agent",
+            "prompt": "You are ריוי (Revi), the code quality guardian. First run: git diff HEAD --name-only to see what changed. If there are source code files changed (ignore .md, SKILL.md, .json, settings files — only review actual code like .ts, .tsx, .js, .jsx, .py, .css), then run /code-review to check for bugs, correctness issues, disorganized code, and things that should be simplified or shortened. Report findings concisely in Hebrew. If no relevant code changed in this turn, output nothing silently.",
+            "timeout": 120,
+            "statusMessage": "ריוי בודק את הקוד..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "agent",
+            "prompt": "You are a strict code quality reviewer. A file was just written or edited.\n\nEvent data: $ARGUMENTS\n\nInstructions:\n1. Parse the JSON. Get the file path from tool_input.file_path.\n2. Check the file extension. ONLY process these: .ts .tsx .js .jsx .py .go .rs .c .cpp .h .css .scss .java — skip everything else (JSON, markdown, config, lock files, images) and exit immediately.\n3. Read the file content.\n4. Scan for these issues and AUTO-FIX them if found:\n   a. console.log / console.error / console.warn calls — remove them entirely\n   b. Blocks of commented-out code (not explanatory comments, just dead code) — delete them\n   c. TypeScript `any` type — replace with `unknown` or a proper type\n   d. Obvious code duplication (3+ identical lines) — extract to a variable or helper\n5. For these issues, DO NOT auto-fix — add a comment ONLY if there is no comment already:\n   - Functions longer than ~30 lines (note: consider extracting)\n   - Magic numbers used in logic (note: consider naming as a constant)\n6. After each Edit you make, re-read the file to verify the fix looks correct and didn't introduce new issues.\n7. Repeat the scan-and-fix loop until a full scan finds no more auto-fixable issues.\n8. If you made no changes, do nothing and return silently.",
+            "timeout": 120,
+            "statusMessage": "Reviewing code quality..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$json = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; if ($json.tool_input.command -match 'rm -rf|reset --hard|drop table') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: destructive command\"}'; exit 1 }",
+            "shell": "powershell"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -and (Test-Path $f -PathType Leaf)) { $d = Join-Path $PWD 'deletions'; New-Item -ItemType Directory -Force $d | Out-Null; $ts = Get-Date -Format 'yyyyMMdd_HHmmss'; $n = [IO.Path]::GetFileName($f); Copy-Item $f (Join-Path $d \"${ts}_$n\") -Force }; exit 0",
+            "shell": "powershell",
+            "statusMessage": "Backing up file before overwrite..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $cmd = $j.tool_input.command; if ($cmd -match '\\brm\\b|\\bRemove-Item\\b') { $parts = $cmd -split '\\s+' | Where-Object { $_ -notmatch '^-' -and $_ -notin @('rm','Remove-Item','') }; foreach ($f in $parts) { if ($f -and (Test-Path $f -PathType Leaf)) { $d = Join-Path $PWD 'deletions'; New-Item -ItemType Directory -Force $d | Out-Null; $ts = Get-Date -Format 'yyyyMMdd_HHmmss'; $n = [IO.Path]::GetFileName($f); Copy-Item $f (Join-Path $d \"${ts}_$n\") -Force } } }; exit 0",
+            "shell": "powershell",
+            "statusMessage": "Backing up files before deletion..."
+          }
+        ]
+      }
+    ]
+  },
+  "fileCheckpointingEnabled": true
+}

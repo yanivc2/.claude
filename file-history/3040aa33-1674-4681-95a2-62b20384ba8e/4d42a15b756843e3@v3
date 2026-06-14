@@ -1,0 +1,140 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(if \\(-not $?\\) { \"not found\" })",
+      "PowerShell(Head -20)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\yaniv\\\\.antigravity-ide\\\\extensions\" -Directory | Where-Object { $_.Name -match \"claude|anthropic\" } | Select-Object Name)",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "PowerShell(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" init)",
+      "PowerShell(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" add .gitignore .claude/ rules/)",
+      "PowerShell(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" commit -m \"chore: init repo with claude config and rules\")",
+      "WebSearch",
+      "Bash(npx pixa-mcp@latest init)",
+      "PowerShell(npx pixa-mcp@latest init 2>&1)",
+      "PowerShell(node --version; npm --version; \\(Get-Command npm\\).Source 2>$null)",
+      "PowerShell(\\(Get-Command claude\\).Source 2>$null; claude --version 2>&1)",
+      "Bash(gh api *)",
+      "PowerShell(Invoke-WebRequest -Uri \"https://api.github.com/repos/alirezarezvani/claude-skills/contents/skills\" -UseBasicParsing)",
+      "PowerShell(git clone https://github.com/alirezarezvani/claude-skills.git \"$env:TEMP\\\\alireza-skills\" --depth 1 --quiet 2>&1; Write-Host \"alireza done: $?\")",
+      "PowerShell(git clone https://github.com/glebis/claude-skills.git \"$env:TEMP\\\\glebis-skills\" --depth 1 --quiet 2>&1; Write-Host \"glebis done: $?\")",
+      "PowerShell(Get-ChildItem \"$env:TEMP\\\\glebis-skills\" -Directory | Select-Object -ExpandProperty Name | Sort-Object)",
+      "PowerShell(python -m pip show browser-use 2>&1)",
+      "PowerShell(python --version 2>&1)",
+      "PowerShell(Get-Command python, python3, py -ErrorAction SilentlyContinue)",
+      "PowerShell(node --version 2>&1)",
+      "PowerShell(npm --version 2>&1)",
+      "PowerShell(uv --version 2>&1)",
+      "PowerShell(winget list python 2>&1)",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\yaniv\\\\.antigravity-ide\\\\extensions\\\\\" | Where-Object { $_.Name -match \"mcp|api|server|claude\" } | Select-Object Name)",
+      "PowerShell(Get-Process -Id 13988, 11892 -ErrorAction SilentlyContinue)",
+      "PowerShell($pkg = Get-Content \"C:\\\\Users\\\\yaniv\\\\.antigravity-ide\\\\extensions\\\\anthropic.claude-code-2.1.168-win32-x64\\\\package.json\" | ConvertFrom-Json; $pkg.contributes.PSObject.Properties.Name)",
+      "PowerShell($pkg = Get-Content \"C:\\\\Users\\\\yaniv\\\\.antigravity-ide\\\\extensions\\\\anthropic.claude-code-2.1.168-win32-x64\\\\package.json\" | ConvertFrom-Json; $pkg.contributes.configuration.properties.PSObject.Properties | Where-Object { $_.Name -match \"mcp|api|server|port\" } | Select-Object Name, @{N='Value';E={$_.Value.description}})",
+      "PowerShell(try { $r = Invoke-WebRequest \"http://127.0.0.1:22428\" -TimeoutSec 3 -ErrorAction Stop; $r.StatusCode; $r.Content.Substring\\(0, [Math]::Min\\(500, $r.Content.Length\\)\\) } catch { $_.Exception.Message })",
+      "PowerShell(try { $r = Invoke-WebRequest \"http://127.0.0.1:51256\" -TimeoutSec 3 -ErrorAction Stop; $r.StatusCode; $r.Content.Substring\\(0, [Math]::Min\\(500, $r.Content.Length\\)\\) } catch { $_.Exception.Message })",
+      "PowerShell(try { $r = Invoke-WebRequest \"http://127.0.0.1:51256/\" -TimeoutSec 5 -Method GET -Headers @{\"Accept\"=\"application/json\"} -ErrorAction Stop; $r.StatusCode; $r.RawContent.Substring\\(0, [Math]::Min\\(1000, $r.RawContent.Length\\)\\) } catch { $_.Exception.Response.StatusCode; $_.Exception.Message })",
+      "PowerShell($paths = @\\(\"/mcp\", \"/api\", \"/sse\", \"/health\", \"/v1\", \"/info\", \"/status\"\\); foreach \\($p in $paths\\) { try { $r = Invoke-WebRequest \"http://127.0.0.1:51256$p\" -TimeoutSec 3 -ErrorAction Stop; Write-Host \"$p -> $\\($r.StatusCode\\): $\\($r.Content.Substring\\(0, [Math]::Min\\(200, $r.Content.Length\\)\\)\\)\" } catch { Write-Host \"$p -> $\\($_.Exception.Response.StatusCode\\): $\\($_.Exception.Message.Substring\\(0, [Math]::Min\\(80, $_.Exception.Message.Length\\)\\)\\)\" } })",
+      "PowerShell(Get-ChildItem \"C:\\\\Users\\\\yaniv\\\\.antigravity-ide\\\\\" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -match \"mcp|api\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem \"$env:APPDATA\\\\Antigravity IDE\" -ErrorAction SilentlyContinue | Select-Object Name, PSIsContainer | Sort-Object Name)",
+      "PowerShell(Get-ChildItem \"$env:APPDATA\\\\Antigravity IDE\\\\User\\\\\" -ErrorAction SilentlyContinue | Select-Object Name, PSIsContainer | Sort-Object Name)",
+      "PowerShell(Get-Content \"$env:APPDATA\\\\Antigravity IDE\\\\User\\\\settings.json\" | Select-String \"mcp|server|api|port\" -CaseSensitive:$false | Select-Object -First 30)",
+      "PowerShell(Get-Content \"$env:APPDATA\\\\Antigravity IDE\\\\User\\\\settings.json\")",
+      "PowerShell(npm show @modelcontextprotocol/server-github version 2>&1)",
+      "PowerShell(npm show @upstash/context7-mcp version 2>&1)",
+      "PowerShell(npm show @playwright/mcp version 2>&1)",
+      "PowerShell(Start-Process \"C:\\\\Users\\\\yaniv\\\\����� ���� ����� �� ������� ������\\\\sticker-gunior.svg\")",
+      "PowerShell(explorer \"C:\\\\Users\\\\yaniv\\\\����� ���� ����� �� ������� ������\")",
+      "PowerShell(Start-Process \"C:\\\\Users\\\\Public\\\\sticker-gunior.svg\")",
+      "PowerShell(claude mcp add playwright npx @playwright/mcp@latest)",
+      "mcp__playwright__browser_snapshot",
+      "mcp__playwright__browser_navigate",
+      "mcp__claude_ai_Microsoft_Learn__microsoft_docs_search",
+      "Bash(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" log --oneline -6)",
+      "PowerShell(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\\\\.playwright-mcp\" | Out-Null; if \\(-not \\(Test-Path \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\\\\.playwright-mcp\\\\session.json\"\\)\\) { Set-Content -Path \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\\\\.playwright-mcp\\\\session.json\" -Value '{\"cookies\":[],\"origins\":[]}' -Encoding utf8 })",
+      "Bash(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" status)",
+      "Bash(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" diff)",
+      "Bash(git -C \"c:\\\\Users\\\\yaniv\\\\עיצוב חזית הדבקה על זכוכיות גוניור\" diff HEAD)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\yaniv\\.claude",
+      "c:\\Users\\yaniv\\ליו\\rules",
+      "C:\\Users\\yaniv\\.claude\\templates\\project",
+      "C:\\Users\\yaniv\\����� ���� ����� �� ������� ������",
+      "C:\\Users\\yaniv\\���\\.claude\\skills"
+    ]
+  },
+  "skillOverrides": {
+    "shannon": "user-invocable-only"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "Write-Output '{\"systemMessage\": \"⚠️ כללים קריטיים:\\n1. לפני כל התקנת סקיל/הוק — /install-review חובה (אם לא קיים — בדיקה ידנית + אישור מפורש)\\n2. אסור לגשת ל-Google/GWS ללא אישור מפורש\\n3. לא לעשות commit/push ללא בקשה מפורשת\\n4. הסברים תמיד בעברית\"}'",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[System.Media.SystemSounds]::Beep.Play()",
+            "shell": "powershell"
+          },
+          {
+            "type": "agent",
+            "prompt": "You are ריוי (Revi), the code quality guardian for this project. First run: git diff HEAD --name-only to see what changed. If there are source code files changed (ignore .md, SKILL.md, .json, settings files — only review actual code like .ts, .tsx, .js, .jsx, .py, .css), then run /code-review to check for bugs, correctness issues, disorganized code, and things that should be simplified or shortened. Report findings concisely in Hebrew. If no relevant code changed in this turn, output nothing silently.",
+            "timeout": 120,
+            "statusMessage": "ריוי בודק את הקוד..."
+          },
+          {
+            "type": "agent",
+            "prompt": "You are a silent session recorder for this project. Record what happened this session to memory.\n\nSteps:\n1. Run: git log --oneline --since='4 hours ago'\n2. Run: git diff HEAD --stat\n3. Read the file C:\\Users\\yaniv\\.claude\\projects\\c--Users-yaniv-----------------------------------\\memory\\session-log.md (it may not exist yet)\n4. Write an updated version of the file with a new entry appended at the top. Entry format:\n\n## YYYY-MM-DD HH:MM\n- [1-3 bullets: what was done, decided, or discussed. Be specific. If no commits, note the topic of the conversation based on git state clues or write 'שיחה ללא שינויי קוד'.]\n\nRules:\n- Keep the file under 80 lines total — remove entries older than 30 days.\n- The frontmatter must be preserved exactly as-is if the file exists.\n- If the file does not exist, create it with this frontmatter:\n---\nname: session-log\ndescription: יומן סשנים — מה נעשה בכל שיחה, לרציפות בין sessions\nmetadata:\n  type: project\n---\n\n- Output nothing to the user. Work silently.",
+            "timeout": 60,
+            "statusMessage": "מתעד סשן..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npm run typecheck 2>&1 | Select-Object -Last 20",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "Write-Output '{\"systemMessage\": \"Before compacting: note any open TODOs, architectural decisions, and lessons learned that should be saved to CLAUDE.md or rules/ before context is lost.\"}'",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$json = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; if ($json.tool_input.command -match 'rm -rf|reset --hard|drop table') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: destructive command\"}'; exit 1 }",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ]
+  }
+}
