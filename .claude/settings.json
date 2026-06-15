@@ -1,4 +1,16 @@
 {
+  "permissions": {
+    "allow": [
+      "Read(//c//**)",
+      "PowerShell(Get-ScheduledTask | Where-Object { $_.State -ne 'Disabled' } | Select-Object TaskName, TaskPath, State | Sort-Object TaskPath | Format-Table -AutoSize)",
+      "PowerShell(Get-Service | Where-Object { $_.StartType -eq 'Automatic' -and $_.Status -eq 'Running' } | Select-Object Name, DisplayName, Status | Sort-Object Name | Format-Table -AutoSize)",
+      "Read(//c/Program Files/Ossia VMS Standard/Server/configInfo/Config/**)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\\" -Depth 1 -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch '^\\(Windows|Program Files|Users|ProgramData|inetpub|Intel|Perflogs\\)' } | Select-Object FullName, LastWriteTime)",
+      "PowerShell(Stop-Service -Name StorageServerApp -ErrorAction SilentlyContinue)",
+      "PowerShell(Get-Service -Name StorageServerApp)",
+      "PowerShell(net stop StorageServerApp)"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {
