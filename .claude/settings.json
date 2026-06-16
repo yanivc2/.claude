@@ -32,9 +32,9 @@
       {
         "hooks": [
           {
-            "type": "agent",
-            "prompt": "You are a silent session recorder. Record what happened this session.\n\nSteps:\n1. Run: git log --oneline --since='4 hours ago'\n2. Run: git diff HEAD --stat\n3. Read the file C:\\\\Users\\\\yaniv\\\\.claude\\\\session-log.md if it exists\n4. Write an updated version of C:\\\\Users\\\\yaniv\\\\.claude\\\\session-log.md with a new entry at the top. Format:\n\n## YYYY-MM-DD HH:MM\n- [1-3 bullets: what was done or decided. If no commits, describe the topic or write 'שיחה ללא שינויי קוד'.]\n\nRules:\n- Keep the file under 80 lines total — remove entries older than 30 days.\n- Output nothing to the user. Work silently.",
-            "timeout": 60,
+            "type": "command",
+            "command": "$logFile = 'C:\\Users\\yaniv\\.claude\\session-log.md'; $date = Get-Date -Format 'yyyy-MM-dd HH:mm'; $log = git log --oneline --since='4 hours ago' 2>$null; $bullet = if ($log) { ($log | Select-Object -First 3) -join ' | ' } else { 'שיחה ללא שינויי קוד' }; $entry = \"## $date`n- $bullet`n\"; $existing = if (Test-Path $logFile) { Get-Content $logFile -Raw } else { '' }; $combined = ($entry + \"`n\" + $existing).TrimEnd() -split \"`n\" | Select-Object -First 80; Set-Content $logFile ($combined -join \"`n\") -Encoding utf8; exit 0",
+            "shell": "powershell",
             "statusMessage": "מתעד סשן..."
           }
         ]
