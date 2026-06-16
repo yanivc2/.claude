@@ -7,6 +7,8 @@
       "PowerShell(*node generate.mjs*)",
       "Bash(git add *)",
       "Bash(git commit *)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
       "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.claude\" -ErrorAction SilentlyContinue | Select-Object Name, PSIsContainer)",
       "PowerShell(Get-ChildItem \"$env:USERPROFILE\\\\.claude\\\\skills\" -ErrorAction SilentlyContinue | Select-Object Name, PSIsContainer)",
       "WebFetch(domain:raw.githubusercontent.com)",
