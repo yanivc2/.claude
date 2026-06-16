@@ -1,0 +1,15 @@
+# Secrets
+.credentials.json
+
+# Ephemeral state
+.last-cleanup
+shell-snapshots/
+deletions/
+
+# Auto-generated session data
+sessions/
+file-history/
+backups/
+
+# Project conversation logs
+projects/
