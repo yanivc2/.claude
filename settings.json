@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"import winsound; winsound.PlaySound(r'C:\\\\Windows\\\\Media\\\\tada.wav', winsound.SND_FILENAME | winsound.SND_SYNC)\"",
+            "command": "python -c \"import winsound; winsound.PlaySound(r'C:\\\\Windows\\\\Media\\\\tada.wav', winsound.SND_FILENAME)\"",
             "shell": "powershell"
           },
           {
