@@ -10,6 +10,10 @@ deletions/
 sessions/
 file-history/
 backups/
+cache/
 
 # Project conversation logs
 projects/
+
+# Skills — reinstallable via npx skills, no value in versioning
+skills/

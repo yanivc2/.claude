@@ -13,7 +13,8 @@
       "Bash(git log *)",
       "Bash(git diff *)",
       "Bash(python -c \"import winsound; print\\(dir\\(winsound\\)\\)\")",
-      "Write(C:\\Users\\yaniv\\.claude\\session-log.md)"
+      "Write(C:\\Users\\yaniv\\.claude\\session-log.md)",
+      "Bash(git rm *)"
     ]
   },
   "hooks": {
@@ -36,18 +37,6 @@
             "command": "$logFile = 'C:\\Users\\yaniv\\.claude\\session-log.md'; $date = Get-Date -Format 'yyyy-MM-dd HH:mm'; $log = git log --oneline --since='4 hours ago' 2>$null; $bullet = if ($log) { ($log | Select-Object -First 3) -join ' | ' } else { 'שיחה ללא שינויי קוד' }; $entry = \"## $date`n- $bullet`n\"; $existing = if (Test-Path $logFile) { Get-Content $logFile -Raw } else { '' }; $combined = ($entry + \"`n\" + $existing).TrimEnd() -split \"`n\" | Select-Object -First 80; Set-Content $logFile ($combined -join \"`n\") -Encoding utf8; exit 0",
             "shell": "powershell",
             "statusMessage": "מתעד סשן..."
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "npm run typecheck 2>&1 | Select-Object -Last 20",
-            "shell": "powershell"
           }
         ]
       }
