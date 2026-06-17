@@ -138,5 +138,6 @@
       }
     ]
   },
-  "fileCheckpointingEnabled": true
+  "fileCheckpointingEnabled": true,
+  "model": "opus"
 }

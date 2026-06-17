@@ -14,7 +14,12 @@
       "Bash(git diff *)",
       "Bash(python -c \"import winsound; print\\(dir\\(winsound\\)\\)\")",
       "Write(C:\\Users\\yaniv\\.claude\\session-log.md)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "mcp__claude_ai_Google_Drive__list_recent_files",
+      "mcp__claude_ai_Gmail__list_labels",
+      "WebSearch",
+      "Bash(notepad \"C:\\\\Users\\\\yaniv\\\\junior-market\\\\.env\")",
+      "mcp__claude_ai_Google_Drive__create_file"
     ]
   },
   "hooks": {
