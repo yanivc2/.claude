@@ -139,5 +139,6 @@
     ]
   },
   "fileCheckpointingEnabled": true,
-  "model": "opus"
+  "model": "opus",
+  "effortLevel": "xhigh"
 }

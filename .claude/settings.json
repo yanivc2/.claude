@@ -19,7 +19,8 @@
       "mcp__claude_ai_Gmail__list_labels",
       "WebSearch",
       "Bash(notepad \"C:\\\\Users\\\\yaniv\\\\junior-market\\\\.env\")",
-      "mcp__claude_ai_Google_Drive__create_file"
+      "mcp__claude_ai_Google_Drive__create_file",
+      "Bash(tasklist)"
     ]
   },
   "hooks": {
