@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "israeli-hr-system/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "israeli-hr-system/**"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  build:
+    name: Prisma validate + Next build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: israeli-hr-system
+    env:
+      # ערכי דמה — נדרשים כדי ש-Prisma ו-Next יעברו קומפילציה. אין חיבור אמיתי למסד.
+      DATABASE_URL: "postgresql://user:password@localhost:5432/db?schema=public"
+      ANTHROPIC_API_KEY: "sk-ci-placeholder"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: israeli-hr-system/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate Prisma schema
+        run: npx prisma validate
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build (type-check + compile)
+        run: npx next build
