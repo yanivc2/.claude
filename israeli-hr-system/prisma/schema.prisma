@@ -1,0 +1,276 @@
+// מערכת ניהול משאבי אנוש — סכמת מסד הנתונים
+// Prisma + PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── משתמשים והרשאות ─────────────────────────────
+
+enum Role {
+  ADMIN // מנהל מערכת / משאבי אנוש
+  MANAGER // מנהל ישיר
+  EMPLOYEE // עובד
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  role      Role     @default(EMPLOYEE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // עובד שקשור למשתמש זה (אם רלוונטי)
+  employee        Employee?  @relation("EmployeeUser")
+  // עובדים שמנהל זה אחראי עליהם
+  managedEmployees Employee[] @relation("EmployeeManager")
+  chatSessions    ChatSession[]
+}
+
+// ───────────────────────── מודול מחזור חיי עובד ─────────────────────────
+
+enum EmploymentStatus {
+  ONBOARDING // בתהליך קליטה
+  ACTIVE // מועסק
+  NOTICE_PERIOD // בתקופת הודעה מוקדמת
+  TERMINATED // סיום העסקה
+}
+
+model Employee {
+  id             String           @id @default(cuid())
+  // פרטים אישיים
+  firstName      String
+  lastName       String
+  nationalId     String           @unique // תעודת זהות
+  email          String           @unique
+  phone          String?
+  address        String?
+  birthDate      DateTime?
+  // פרטי העסקה
+  startDate      DateTime // מועד תחילת עבודה — בסיס לחישוב הודעה מוקדמת
+  endDate        DateTime?
+  jobTitle       String?
+  department     String?
+  monthlySalary  Int? // שכר חודשי (בש"ח)
+  status         EmploymentStatus @default(ONBOARDING)
+
+  // מנהל ישיר
+  managerId String?
+  manager   User?   @relation("EmployeeManager", fields: [managerId], references: [id])
+
+  // קישור לחשבון משתמש
+  userId String? @unique
+  user   User?   @relation("EmployeeUser", fields: [userId], references: [id])
+
+  form101         Form101?
+  documents       EmployeeDocument[]
+  signatures      Signature[]
+  surveys         RetentionSurvey[]
+  terminationDocs TerminationDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([managerId])
+}
+
+// טופס 101 דיגיטלי
+model Form101 {
+  id                 String   @id @default(cuid())
+  employeeId         String   @unique
+  employee           Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  taxYear            Int // שנת המס
+  maritalStatus      String? // מצב משפחתי
+  numberOfChildren   Int      @default(0)
+  isResidentOfIsrael Boolean  @default(true) // תושב ישראל
+  hasOtherIncome     Boolean  @default(false) // הכנסה נוספת
+  requestsCredits    Boolean  @default(false) // בקשת נקודות זיכוי
+  bankName           String?
+  bankBranch         String?
+  bankAccount        String?
+
+  // ספח ת.ז שהועלה
+  idAttachmentId String?
+  idAttachment   EmployeeDocument? @relation("Form101IdAttachment", fields: [idAttachmentId], references: [id])
+
+  signedAt DateTime? // מועד החתימה
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum DocumentType {
+  ID_CARD // ספח ת.ז
+  CONTRACT // הסכם עבודה
+  FORM_101 // טופס 101
+  HEARING_INVITATION // הזמנה לשימוע
+  TERMINATION_LETTER // מכתב סיום העסקה
+  OTHER
+}
+
+model EmployeeDocument {
+  id         String       @id @default(cuid())
+  employeeId String
+  employee   Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type       DocumentType
+  fileName   String
+  fileUrl    String // כתובת האחסון של הקובץ
+  mimeType   String?
+  createdAt  DateTime     @default(now())
+
+  form101Attachments Form101[] @relation("Form101IdAttachment")
+
+  @@index([employeeId, type])
+}
+
+enum SignatureContext {
+  CONTRACT // חתימה על הסכם עבודה
+  FORM_101 // חתימה על טופס 101
+  HEARING // אישור זימון לשימוע
+}
+
+model Signature {
+  id         String           @id @default(cuid())
+  employeeId String
+  employee   Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  context    SignatureContext
+  // חתימה כתמונת PNG בקידוד base64 (data URL)
+  imageData  String           @db.Text
+  signedAt   DateTime         @default(now())
+
+  @@index([employeeId, context])
+}
+
+// ─────────────────────────── שימור עובדים ───────────────────────────
+
+enum SurveyMilestone {
+  DAY_30
+  DAY_60
+  DAY_90
+}
+
+enum SurveyStatus {
+  SCHEDULED // מתוזמן
+  SENT // נשלח
+  COMPLETED // הושלם
+}
+
+model RetentionSurvey {
+  id            String          @id @default(cuid())
+  employeeId    String
+  employee      Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  milestone     SurveyMilestone
+  status        SurveyStatus    @default(SCHEDULED)
+  scheduledFor  DateTime // מתי אמור להישלח
+  sentAt        DateTime?
+  completedAt   DateTime?
+  // ציון שביעות רצון 1-10
+  score         Int?
+  feedback      String?         @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@unique([employeeId, milestone])
+  @@index([status, scheduledFor])
+}
+
+// ─────────────────────────── סיום העסקה ───────────────────────────
+
+enum TerminationDocType {
+  HEARING_INVITATION // הזמנה לשימוע
+  TERMINATION_LETTER // מכתב פיטורין / סיום העסקה
+}
+
+model TerminationDocument {
+  id         String             @id @default(cuid())
+  employeeId String
+  employee   Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type       TerminationDocType
+  // תוכן המסמך שנוצר אוטומטית (HTML/טקסט)
+  content    String             @db.Text
+  reason     String?            @db.Text
+  // חישוב אוטומטי של ההודעה המוקדמת
+  noticeDays        Int? // ימי הודעה מוקדמת שנדרשים בחוק
+  hearingDate       DateTime?
+  lastWorkingDay    DateTime?
+  createdAt         DateTime           @default(now())
+
+  @@index([employeeId, type])
+}
+
+// ─────────────────── מודול עדכוני חקיקה (Legal Updates) ───────────────────
+
+enum LegalCategory {
+  LEGISLATION // חקיקה
+  RULING // פסיקה
+  REGULATION // תקנות
+  GENERAL // כללי
+}
+
+model LegalUpdate {
+  id          String        @id @default(cuid())
+  title       String
+  summary     String        @db.Text
+  content     String        @db.Text
+  category    LegalCategory @default(GENERAL)
+  source      String // שם המקור (למשל "כל זכות", RSS feed)
+  sourceUrl   String?
+  publishedAt DateTime // מועד הפרסום במקור
+  fetchedAt   DateTime      @default(now())
+  // מזהה ייחודי מהמקור למניעת כפילויות (guid / hash)
+  externalId  String        @unique
+
+  @@index([publishedAt])
+  @@index([category])
+}
+
+// ───────────────────── בסיס ידע ל-RAG של הצ'אטבוט ─────────────────────
+
+// קטעי ידע משפטי (chunks) שהצ'אטבוט מסתמך עליהם בלבד
+model KnowledgeChunk {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @db.Text
+  category  String // תחום (למשל: פיטורין, חופשה, שכר)
+  source    String // מקור המידע
+  sourceUrl String?
+  // מילות מפתח לאחזור פשוט (ניתן להחליף בהמשך ב-embeddings/pgvector)
+  keywords  String[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+}
+
+model ChatSession {
+  id        String        @id @default(cuid())
+  userId    String?
+  user      User?         @relation(fields: [userId], references: [id])
+  createdAt DateTime      @default(now())
+  messages  ChatMessage[]
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      ChatRole
+  content   String      @db.Text
+  // מקורות שצוטטו בתשובה (JSON)
+  citations Json?
+  createdAt DateTime    @default(now())
+
+  @@index([sessionId])
+}
