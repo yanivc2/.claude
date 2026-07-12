@@ -14,17 +14,30 @@ export interface LegalSource {
   category: LegalCategory;
 }
 
-// רשימת המקורות למשיכה שבועית. יש להחליף בכתובות הפידים בפועל.
+// בונה כתובת פיד RSS של Google News עבור שאילתת חיפוש בעברית (ישראל).
+// Google News מספק פיד RSS יציב ומעודכן ומחזיר פריטי חדשות אמיתיים —
+// דרך מעשית ואמינה למשוך עדכונים שוטפים בנושאי דיני עבודה.
+function googleNewsRss(query: string): string {
+  const params = new URLSearchParams({ q: query, hl: "he", gl: "IL", ceid: "IL:he" });
+  return `https://news.google.com/rss/search?${params.toString()}`;
+}
+
+// רשימת המקורות למשיכה שבועית. ניתן להוסיף/להחליף מקורות ושאילתות.
 export const LEGAL_SOURCES: LegalSource[] = [
   {
-    name: "כל זכות — דיני עבודה",
-    url: "https://www.kolzchut.org.il/he/feed/labor-law.rss",
+    name: "חדשות דיני עבודה",
+    url: googleNewsRss('"דיני עבודה" OR "זכויות עובדים"'),
     category: "LEGISLATION",
   },
   {
-    name: "נבו — פסיקת בית הדין לעבודה",
-    url: "https://www.nevo.co.il/rss/labor-rulings.xml",
+    name: "פסיקת בית הדין לעבודה",
+    url: googleNewsRss('"בית הדין לעבודה"'),
     category: "RULING",
+  },
+  {
+    name: "תקנות וצווי הרחבה בעבודה",
+    url: googleNewsRss('"משרד העבודה" ("צו הרחבה" OR תקנות OR חקיקה)'),
+    category: "REGULATION",
   },
 ];
 
@@ -38,8 +51,8 @@ interface ParsedItem {
 }
 
 // מפענח RSS/Atom בסיסי ללא תלות בספריות חיצוניות. עבור פידים מורכבים
-// מומלץ להשתמש בספרייה ייעודית (למשל rss-parser).
-function parseFeed(xml: string): ParsedItem[] {
+// מומלץ להשתמש בספרייה ייעודית (למשל rss-parser). מיוצא לצורך בדיקות.
+export function parseFeed(xml: string): ParsedItem[] {
   const items: ParsedItem[] = [];
   const blocks = xml.match(/<item[\s\S]*?<\/item>|<entry[\s\S]*?<\/entry>/gi) ?? [];
 
@@ -49,7 +62,16 @@ function parseFeed(xml: string): ParsedItem[] {
       if (!m) return "";
       return m[1]
         .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+        // פענוח ישויות HTML (Google News מקודד — ולעיתים מקודד-כפול — את התוכן).
+        // מפענחים &amp; ראשון כדי לטפל בקידוד כפול (למשל &amp;nbsp;), ואז השאר.
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&nbsp;/g, " ")
         .replace(/<[^>]+>/g, "")
+        .replace(/\s+/g, " ")
         .trim();
     };
 
