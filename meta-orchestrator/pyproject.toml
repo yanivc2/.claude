@@ -14,6 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<10"]
+real = ["anthropic>=0.40"]  # only needed to run the live Anthropic adapter
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -7,7 +7,7 @@ real pass/fail signal and lets the bandit learn which model is better — with n
 """
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import Any, Optional, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -67,25 +67,98 @@ class MockAdapter:
         )
 
 
-class AnthropicAdapter:
-    """Placeholder real adapter (SPEC §9). Not wired in the offline Phase 1 MVP.
+def build_code_fix_prompt(case: BugCase) -> str:
+    """Prompt a real model to repair the module so its pytest suite passes."""
+    return (
+        "You are fixing a bug in a single Python module so its test suite passes.\n\n"
+        f"File: {case.module_filename}\n"
+        "```python\n"
+        f"{case.module_source}"
+        "```\n\n"
+        "Its pytest suite (do NOT modify the tests):\n"
+        "```python\n"
+        f"{case.test_source}"
+        "```\n\n"
+        "Return the COMPLETE corrected contents of "
+        f"{case.module_filename} as a single Python code block, and nothing else."
+    )
 
-    Kept as an explicit seam: selecting ``model_adapter="anthropic"`` would require an
-    API key and network; the mock adapter is the default so tests stay deterministic.
+
+def extract_code(text: str) -> Optional[str]:
+    """Pull the module source out of a model reply (fenced block preferred)."""
+    fence = "```"
+    if fence in text:
+        start = text.index(fence) + len(fence)
+        # drop an optional language tag on the opening fence line
+        nl = text.find("\n", start)
+        if nl != -1:
+            body_start = nl + 1
+            end = text.find(fence, body_start)
+            if end != -1:
+                return text[body_start:end]
+    stripped = text.strip()
+    return stripped or None
+
+
+class AnthropicAdapter:
+    """Real adapter (SPEC §9): calls the Claude Messages API via the official SDK.
+
+    The client is dependency-injected so the request-building and response-parsing
+    logic is fully testable offline; the default constructs ``anthropic.Anthropic()``,
+    which resolves credentials from the environment / ``ant auth login`` profile.
     """
 
     name = "anthropic"
 
-    def complete(self, model_id: str, request: AdapterRequest) -> AdapterResponse:  # pragma: no cover
-        raise NotImplementedError(
-            "Real model adapter is not enabled in the offline Phase 1 MVP. "
-            "Set META_ORCH_ADAPTER + credentials and implement complete()."
+    def __init__(self, client: Any = None, max_tokens: int = 16000, effort: str = "high") -> None:
+        self._client = client
+        self._max_tokens = max_tokens
+        self._effort = effort
+
+    def _ensure_client(self) -> Any:
+        if self._client is None:
+            import anthropic  # lazy: keep the SDK optional for the mock path
+            self._client = anthropic.Anthropic()
+        return self._client
+
+    def complete(self, model_id: str, request: AdapterRequest) -> AdapterResponse:
+        kind = request.get("kind")
+        if kind == "synthesize":
+            # Deterministic packaging of the already-verified candidate — no extra
+            # model call (avoids re-generating and corrupting the verified fix).
+            src = request["candidate_source"]
+            return AdapterResponse(
+                content={"artifact": src, "summary": f"Applied fix via {model_id}."},
+                tokens_in=0,
+                tokens_out=0,
+            )
+        if kind != "code_fix":
+            raise ValueError(f"AnthropicAdapter: unknown request kind {kind!r}")
+
+        case: BugCase = request["case"]
+        client = self._ensure_client()
+        msg = client.messages.create(
+            model=model_id,
+            max_tokens=self._max_tokens,
+            thinking={"type": "adaptive"},          # recommended for coding (claude-api)
+            output_config={"effort": self._effort},
+            messages=[{"role": "user", "content": build_code_fix_prompt(case)}],
+        )
+        text = "".join(
+            block.text for block in msg.content if getattr(block, "type", None) == "text"
+        )
+        candidate = extract_code(text) or case.module_source
+        usage = getattr(msg, "usage", None)
+        return AdapterResponse(
+            content={"candidate_source": candidate},
+            tokens_in=getattr(usage, "input_tokens", 0) or 0,
+            tokens_out=getattr(usage, "output_tokens", 0) or 0,
         )
 
 
-def make_adapter(name: str) -> ModelAdapter:
+def make_adapter(name: str, **kwargs: Any) -> ModelAdapter:
     if name == "mock":
         return MockAdapter()
     if name == "anthropic":
-        return AnthropicAdapter()
+        return AnthropicAdapter(**kwargs)
     raise ValueError(f"unknown model adapter {name!r}")

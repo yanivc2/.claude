@@ -19,7 +19,8 @@ and an eval harness that proves the playbook improves across runs.
 - **SQLite behind a `Store` abstraction** — zero-setup, runnable/testable offline;
   a PostgreSQL implementation can drop in later without touching orchestration logic.
 - **Model Gateway with a deterministic mock adapter** by default (offline tests);
-  a real adapter loads via the Registry per env.
+  a **real Anthropic adapter** (`claude-opus-4-8` / `claude-haiku-4-5`) loads via the
+  Registry when selected — see "Going live" below.
 
 ## Layout
 
@@ -58,6 +59,25 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/python examples/agent_run.py # C: full LangGraph agent loop
 .venv/bin/python examples/eval_run.py  # D: prove learning across runs
 ```
+
+## Going live (real Claude models)
+
+The default adapter is the offline mock. To run against real Claude models
+(`claude-opus-4-8` / `claude-haiku-4-5`, resolved via config → Registry — no model
+name is hardcoded in the loop):
+
+```bash
+.venv/bin/pip install -e ".[real]"     # installs the anthropic SDK
+export ANTHROPIC_API_KEY=...           # or: ant auth login
+.venv/bin/python examples/real_run.py [bug_id]
+# or set the adapter for any entry point:  META_ORCH_ADAPTER=anthropic
+```
+
+The real adapter (`gateway/adapters.py`) prompts the model to repair the module,
+extracts the corrected source, and the **same pytest verifier** grades it — so the
+verified success signal, bandit learning, and playbook are identical to the mock path.
+The adapter's client is dependency-injected, so its request-building and response-parsing
+are covered by offline tests without a network call or API key.
 
 ## Progress — Phase 1 complete
 

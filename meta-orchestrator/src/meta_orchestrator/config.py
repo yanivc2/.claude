@@ -2,7 +2,10 @@
 through the Registry — never hardcoded in orchestration logic.
 
 Phase 1 chosen backend/adapters (confirmed with the user, see SPEC appendix):
-SQLite persistence + a deterministic mock model adapter by default.
+SQLite persistence + a deterministic mock model adapter by default. Selecting the
+"anthropic" adapter (via env/config) seeds real Claude models into the Registry and
+routes candidate selection to them — see gateway/adapters.py. Model *ids* and prices
+here come from the claude-api reference (Opus 4.8 $5/$25, Haiku 4.5 $1/$5 per 1M).
 """
 from __future__ import annotations
 
@@ -43,10 +46,61 @@ class OrchestratorConfig(BaseModel):
     model_adapter: str = "mock"
 
 
-# Registry seed data (SPEC §9): the mock models, WITH provenance on their eval scores.
-# The gateway adapters for these are implemented in a later milestone; their Registry
-# metadata is seeded here so Milestone A can prove read/write of a row per table.
-def seed_registry_models() -> list[ModelSpec]:
+# Candidate model ids per adapter (SPEC §6: names resolved via config + Registry).
+def default_candidate_models(adapter: str) -> dict[str, list[str]]:
+    if adapter == "anthropic":
+        return {SEED_TASK_TYPE: ["claude-opus-4-8", "claude-haiku-4-5"]}
+    return {SEED_TASK_TYPE: ["mock-strong", "mock-weak"]}
+
+
+def seed_registry_models(adapter: str = "mock") -> list[ModelSpec]:
+    """Registry seed data (SPEC §9), WITH provenance on eval scores, per adapter."""
+    if adapter == "anthropic":
+        return _seed_real_models()
+    return _seed_mock_models()
+
+
+def _seed_real_models() -> list[ModelSpec]:
+    # Real Claude models. Prices are per-1k tokens = (per-1M price / 1000), from the
+    # claude-api model table. Priors are conservative seeds, corrected by verified runs.
+    date = today_iso()
+    return [
+        ModelSpec(
+            model_id="claude-opus-4-8",
+            provider="anthropic",
+            capabilities=["code", "debug", "reasoning"],
+            price_per_1k_in=0.005,
+            price_per_1k_out=0.025,
+            latency_ms=6000,
+            context_limit=1_000_000,
+            tool_support=True,
+            availability=True,
+            fallback_model="claude-haiku-4-5",
+            last_verified=date,
+            eval_scores=[
+                EvalScore(task_type=SEED_TASK_TYPE, score=0.85, n_samples=0, date=date, source="seed:prior")
+            ],
+        ),
+        ModelSpec(
+            model_id="claude-haiku-4-5",
+            provider="anthropic",
+            capabilities=["code"],
+            price_per_1k_in=0.001,
+            price_per_1k_out=0.005,
+            latency_ms=2000,
+            context_limit=200_000,
+            tool_support=True,
+            availability=True,
+            fallback_model=None,
+            last_verified=date,
+            eval_scores=[
+                EvalScore(task_type=SEED_TASK_TYPE, score=0.60, n_samples=0, date=date, source="seed:prior")
+            ],
+        ),
+    ]
+
+
+def _seed_mock_models() -> list[ModelSpec]:
     date = today_iso()
     return [
         ModelSpec(
@@ -84,17 +138,25 @@ def seed_registry_models() -> list[ModelSpec]:
     ]
 
 
-def load_config(db_path: Optional[str] = None) -> OrchestratorConfig:
-    """Load config with env overrides (SPEC §16.4)."""
+def load_config(db_path: Optional[str] = None, adapter: Optional[str] = None) -> OrchestratorConfig:
+    """Load config with env overrides (SPEC §16.4).
+
+    ``adapter`` (or env ``META_ORCH_ADAPTER``) selects mock vs anthropic; the candidate
+    model list is then derived to match, so callers never hardcode model names.
+    """
     cfg = OrchestratorConfig()
     if db_path is not None:
         cfg.db_path = db_path
     elif os.getenv("META_ORCH_DB"):
         cfg.db_path = os.environ["META_ORCH_DB"]
-    if os.getenv("META_ORCH_ADAPTER"):
+    if adapter is not None:
+        cfg.model_adapter = adapter
+    elif os.getenv("META_ORCH_ADAPTER"):
         cfg.model_adapter = os.environ["META_ORCH_ADAPTER"]
     if os.getenv("META_ORCH_AUTONOMY"):
         cfg.autonomy_mode = os.environ["META_ORCH_AUTONOMY"]
     if os.getenv("META_ORCH_BUDGET"):
         cfg.budget_tokens = int(os.environ["META_ORCH_BUDGET"])
+    # Derive candidates to match the adapter (mock ids vs real Claude ids).
+    cfg.candidate_models = default_candidate_models(cfg.model_adapter)
     return cfg

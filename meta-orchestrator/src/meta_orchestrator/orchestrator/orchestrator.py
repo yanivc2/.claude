@@ -59,13 +59,16 @@ class RunOutcome:
 
 
 class Orchestrator:
-    def __init__(self, store: Store, registry: ModelRegistry, config: OrchestratorConfig) -> None:
+    def __init__(self, store: Store, registry: ModelRegistry, config: OrchestratorConfig,
+                 adapter=None) -> None:
         self.store = store
         self.registry = registry
         self.config = config
         self.bandit = BanditBook(store)
         self.engine = DecisionEngine(config.decision_weights)
-        self.gateway = ModelGateway(registry, make_adapter(config.model_adapter))
+        # adapter override lets a caller inject a configured real client (or a fake in tests);
+        # otherwise build it from config (mock offline default, anthropic via env).
+        self.gateway = ModelGateway(registry, adapter or make_adapter(config.model_adapter))
         self.tools = default_tool_gateway()
         self.writer = MemoryWriter(store)
         self.reader = PlaybookReader(store)

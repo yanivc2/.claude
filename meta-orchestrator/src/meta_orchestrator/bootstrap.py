@@ -17,7 +17,7 @@ def seed_store(store: Store, config: OrchestratorConfig) -> ModelRegistry:
     for node in SEED_TAXONOMY:
         store.upsert_taxonomy(node)
     registry = ModelRegistry(store, config)
-    for spec in seed_registry_models():
+    for spec in seed_registry_models(config.model_adapter):
         registry.register(spec)
     return registry
 
