@@ -35,6 +35,12 @@ src/meta_orchestrator/
 ├── learning/          bandit/Bayesian updates (SPEC §6) + failure→update mapping (§5.6)
 ├── decision/          Decision/Utility Engine v1 (SPEC §4)
 ├── memory/            Tier-1 playbook write pipeline (gated) + compact read (§5)
+├── gateway/           Model Gateway + deterministic mock adapter (SPEC §9)
+├── tools/             Tool Gateway with permission tiers (SPEC §11)
+├── planner/           Planner: task decomposition into a task graph (SPEC §12)
+├── autonomy/          Budget ledger / circuit breaker (SPEC §10)
+├── postmortem.py      Predicted-vs-actual reflection → memory update (SPEC §5.7)
+├── orchestrator/      The single-agent LangGraph loop (SPEC §1)
 └── seed_task/         seed task definition, success rule, and bug corpus
 tests/                 pytest suite (offline, deterministic)
 examples/boot.py       Milestone A demo
@@ -52,5 +58,5 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 
 - [x] **Milestone A** — scaffold + persistence + schemas (Registry+provenance, Playbook, Decision Records, taxonomy)
 - [x] **Milestone B** — learning backbone (verify(), failure taxonomy, bandit, memory-write, Decision Engine v1)
-- [ ] **Milestone C** — single-agent LangGraph loop
+- [x] **Milestone C** — single-agent LangGraph loop (planner, tool tiers, synthesizer, independent verifier, post-mortem)
 - [ ] **Milestone D** — autonomy/circuit-breakers, tracing, eval harness (proves learning)
