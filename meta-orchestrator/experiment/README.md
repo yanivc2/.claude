@@ -34,7 +34,29 @@ Run `pytest tests/test_exp_*.py`. The harness is qualified when:
 4. The adversarial mock is fully contained on every attack; its leak/replay lesson is rejected.
 5. The protocol mock runs clean and is reproducible; the event log projects run state.
 
-## Not yet built (next, after corpus source is chosen)
+## Corpus & ingestion layer (`src/meta_orchestrator/corpus/`)
 
-Conditions A/B/C/D comparison harness, evidence-gated promotion, paired stats (McNemar),
-ablation + negative-learning + negative-transfer, calibration (Pilot-1), real corpus.
+Source-neutral corpus pipeline (v2-corpus contract), exercised against a synthetic
+`FixtureCorpusSource` — NOT real data:
+
+| v2-corpus § | Module | What it enforces |
+|---|---|---|
+| §1 interface | `corpus/source.py` | small `CorpusSource` protocol (fixture → PyBugHive → …) |
+| §11 schema | `corpus/models.py` | `CorpusTask` with evaluator-only fields marked |
+| §4 qualification | `corpus/qualification.py` | admit only if buggy+F2P fail, fixed+F2P pass, P2P clean, buggy compiles |
+| §5 split | `corpus/build.py` | hidden = empirical F2P; public = P2P |
+| §7 sanitize | `corpus/sanitize.py` | raw + sanitized + log; reject too-vague statements |
+| §6 isolation | `corpus/evaluator.py` | agent zone has NO hidden tests physically; evaluator runs them separately |
+| §8 patch guard | `corpus/patch_guard.py` | reject test/setup edits + test-only fixes |
+| §10 holdout lock | `corpus/manifest.py` | content-hashed signed manifest + tamper detection |
+| §3 report | `corpus/report.py` | per-candidate qualification table (baseline flagged, needs solver) |
+| §2 real source | `corpus/pybughive.py` | `PyBugHiveSource` seam — not live until fetched + §3-reported |
+
+Demo: `python examples/corpus_demo.py`.
+
+## Not yet built (next)
+
+- **Gating real step:** fetch PyBugHive, wire `PyBugHiveSource`, run `build_report()` +
+  a reproducibility pass (§3) — measure before choosing a slice.
+- Conditions A/B/C/D comparison harness (paired, McNemar), evidence-gated promotion,
+  ablation + negative-learning + negative-transfer, calibration (Pilot-1).
