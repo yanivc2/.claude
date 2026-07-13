@@ -3,5 +3,6 @@
 Full autonomy modes (full-auto / ask-on-expensive / plan-first) land in Milestone D.
 """
 from .budget import BudgetExhaustedError, BudgetLedger
+from .policy import AutonomyController, AutonomyMode
 
-__all__ = ["BudgetLedger", "BudgetExhaustedError"]
+__all__ = ["BudgetLedger", "BudgetExhaustedError", "AutonomyController", "AutonomyMode"]

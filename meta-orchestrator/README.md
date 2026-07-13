@@ -38,7 +38,9 @@ src/meta_orchestrator/
 ├── gateway/           Model Gateway + deterministic mock adapter (SPEC §9)
 ├── tools/             Tool Gateway with permission tiers (SPEC §11)
 ├── planner/           Planner: task decomposition into a task graph (SPEC §12)
-├── autonomy/          Budget ledger / circuit breaker (SPEC §10)
+├── autonomy/          Budget ledger + autonomy modes / circuit breaker (SPEC §10)
+├── observability/     Correlation-ID trace + run metrics (SPEC §15)
+├── evaluation/        Eval harness that proves learning across runs (SPEC §15)
 ├── postmortem.py      Predicted-vs-actual reflection → memory update (SPEC §5.7)
 ├── orchestrator/      The single-agent LangGraph loop (SPEC §1)
 └── seed_task/         seed task definition, success rule, and bug corpus
@@ -50,13 +52,23 @@ examples/boot.py       Milestone A demo
 
 ```bash
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest -q      # tests
-.venv/bin/python examples/boot.py  # boot demo
+.venv/bin/python -m pytest -q          # tests (60, offline)
+.venv/bin/python examples/boot.py      # A: boot + config-driven model choice
+.venv/bin/python examples/backbone.py  # B: verify→bandit→decision→memory
+.venv/bin/python examples/agent_run.py # C: full LangGraph agent loop
+.venv/bin/python examples/eval_run.py  # D: prove learning across runs
 ```
 
-## Progress
+## Progress — Phase 1 complete
 
 - [x] **Milestone A** — scaffold + persistence + schemas (Registry+provenance, Playbook, Decision Records, taxonomy)
 - [x] **Milestone B** — learning backbone (verify(), failure taxonomy, bandit, memory-write, Decision Engine v1)
 - [x] **Milestone C** — single-agent LangGraph loop (planner, tool tiers, synthesizer, independent verifier, post-mortem)
-- [ ] **Milestone D** — autonomy/circuit-breakers, tracing, eval harness (proves learning)
+- [x] **Milestone D** — autonomy modes + circuit breakers, correlation-ID tracing/metrics, eval harness
+
+**Phase 1 success criterion proven (D3):** starting from a *misleading* prior, the system
+corrects it from verified outcomes — first choice converges to the strong model, retry
+rounds drop (1.5→1.0), and playbook confidence grows (0.5→0.95). `PHASE1_PASS=True`.
+
+Out of scope by design (later phases per SPEC §14): multi-model ensemble, exploration (ε),
+cold-start panels, adaptive escalation, the innovation-update loop.

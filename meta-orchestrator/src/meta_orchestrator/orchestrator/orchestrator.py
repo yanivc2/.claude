@@ -17,6 +17,7 @@ from typing import Any, Callable, Optional
 from langgraph.graph import END, START, StateGraph
 
 from ..autonomy.budget import BudgetLedger
+from ..autonomy.policy import AutonomyController, AutonomyMode
 from ..config import OrchestratorConfig
 from ..decision.engine import DecisionEngine, build_model_options
 from ..gateway.adapters import make_adapter
@@ -24,7 +25,8 @@ from ..gateway.gateway import ModelGateway
 from ..learning.bandit import BanditBook
 from ..memory.reader import PlaybookReader
 from ..memory.writer import MemoryWriter
-from ..models import DecisionRecord
+from ..models import DecisionRecord, FailureCategory, VerifyResult
+from ..observability.tracing import RunMetrics, build_metrics
 from ..persistence.store import Store
 from ..planner.planner import plan_seed_task, topological_levels
 from ..postmortem import PostMortem
@@ -42,6 +44,7 @@ Approver = Callable[[str, dict], bool]
 @dataclass
 class RunOutcome:
     run_id: str
+    correlation_id: str
     passed: bool
     status: str
     selected_model: Optional[str]
@@ -52,6 +55,7 @@ class RunOutcome:
     playbook_key: str
     decision_records: list
     trace: list
+    metrics: Optional[RunMetrics] = None
 
 
 class Orchestrator:
@@ -66,6 +70,7 @@ class Orchestrator:
         self.writer = MemoryWriter(store)
         self.reader = PlaybookReader(store)
         self.postmortem = PostMortem(self.writer)
+        self.controller = AutonomyController(config.autonomy_mode)
         self._graph = self._build()
 
     # --- graph construction ---
@@ -74,17 +79,24 @@ class Orchestrator:
         g.add_node("classify", self._classify)
         g.add_node("read_memory", self._read_memory)
         g.add_node("plan", self._plan)
+        g.add_node("gate", self._gate)
         g.add_node("select_model", self._select_model)
         g.add_node("execute", self._execute)
         g.add_node("verify", self._verify)
         g.add_node("synthesize", self._synthesize)
         g.add_node("independent_verify", self._independent_verify)
         g.add_node("postmortem", self._postmortem)
+        g.add_node("abort", self._abort)
 
         g.add_edge(START, "classify")
         g.add_edge("classify", "read_memory")
         g.add_edge("read_memory", "plan")
-        g.add_edge("plan", "select_model")
+        g.add_edge("plan", "gate")
+        # Autonomy + budget circuit breaker gate (D1).
+        g.add_conditional_edges(
+            "gate", self._route_after_gate,
+            {"proceed": "select_model", "abort": "abort"},
+        )
         g.add_edge("select_model", "execute")
         g.add_edge("execute", "verify")
         g.add_conditional_edges(
@@ -94,16 +106,29 @@ class Orchestrator:
         g.add_edge("synthesize", "independent_verify")
         g.add_edge("independent_verify", "postmortem")
         g.add_edge("postmortem", END)
+        g.add_edge("abort", END)
         return g.compile()
 
     # --- helpers ---
     @staticmethod
     def _traced(state: OrchestratorState, event: dict) -> list:
-        return list(state.get("trace", [])) + [{"at": now_iso(), **event}]
+        # Every span carries the correlation id (SPEC §15).
+        return list(state.get("trace", [])) + [
+            {"at": now_iso(), "corr": state.get("correlation_id"), **event}
+        ]
 
     def _task_type(self, state: OrchestratorState) -> str:
         c = state["classification"]
         return c.labels[-1] if c.labels else SEED_TASK_TYPE
+
+    def _max_price(self) -> float:
+        return max((m.price_per_1k_out for m in self.registry.candidate_models(SEED_TASK_TYPE)),
+                   default=0.015)
+
+    @staticmethod
+    def _estimate_tokens(case: BugCase) -> int:
+        # Rough pre-flight estimate for one round (generate + synthesize).
+        return (len(case.module_source) + len(case.test_source)) // 4 + 40
 
     # --- nodes ---
     def _classify(self, state: OrchestratorState) -> dict:
@@ -113,6 +138,8 @@ class Orchestrator:
             "classification": classification,
             "tried_models": [],
             "cost": 0.0,
+            "status": "running",
+            "aborted": False,
             "trace": self._traced(state, {"node": "classify", "labels": classification.labels}),
         }
 
@@ -130,6 +157,53 @@ class Orchestrator:
         return {
             "plan": plan,
             "trace": self._traced(state, {"node": "plan", "levels": levels}),
+        }
+
+    def _gate(self, state: OrchestratorState) -> dict:
+        """Autonomy + hard budget circuit breaker before any paid work (D1)."""
+        case: BugCase = state["case"]
+        ledger: BudgetLedger = state["ledger"]
+        approver = state.get("approver")
+        est_tokens = self._estimate_tokens(case)
+        est_cost = est_tokens / 1000.0 * self._max_price()
+
+        # Hard budget ceiling (circuit breaker) — enforced in every mode.
+        if not ledger.can_afford(est_tokens):
+            return self._abort_update(state, "aborted_budget",
+                                      f"budget {ledger.remaining()} < est {est_tokens} tokens")
+        # Autonomy mode gate (may pause for approval; switchable mid-run).
+        proceed, reason = self.controller.gate(est_cost=est_cost, approver=approver)
+        if not proceed:
+            status = "aborted_plan" if self.controller.mode is AutonomyMode.PLAN_FIRST else "aborted_cost"
+            return self._abort_update(state, status, reason)
+        return {"trace": self._traced(state, {"node": "gate", "mode": self.controller.mode.value,
+                                              "est_tokens": est_tokens, "reason": reason})}
+
+    def _abort_update(self, state: OrchestratorState, status: str, reason: str) -> dict:
+        return {
+            "aborted": True,
+            "status": status,
+            "trace": self._traced(state, {"node": "gate", "aborted": True,
+                                          "status": status, "reason": reason}),
+        }
+
+    def _route_after_gate(self, state: OrchestratorState) -> str:
+        return "abort" if state.get("aborted") else "proceed"
+
+    def _abort(self, state: OrchestratorState) -> dict:
+        """Terminal node for an aborted run: produce the minimal shape run() expects."""
+        status = state.get("status", "aborted")
+        fv = VerifyResult(passed=False, confidence=1.0, evidence=[f"run {status}"],
+                          blocking=True, failure_category=FailureCategory.NONE)
+        pm = {
+            "aborted": True, "reason": status, "actual_passed": False,
+            "predicted_p_success": state.get("selected_p_success", 0.0), "calibration_gap": 0.0,
+            "failure_category": "none", "update_action": "none",
+            "root_cause": status, "playbook_updated": False,
+        }
+        return {
+            "final_verify": fv, "postmortem": pm,
+            "trace": self._traced(state, {"node": "abort", "status": status}),
         }
 
     def _select_model(self, state: OrchestratorState) -> dict:
@@ -167,6 +241,7 @@ class Orchestrator:
         case: BugCase = state["case"]
         ledger: BudgetLedger = state["ledger"]
         trace = list(state.get("trace", []))
+        corr = state.get("correlation_id")
         candidate_source = state.get("candidate_source")
         cost = state.get("cost", 0.0)
 
@@ -174,17 +249,17 @@ class Orchestrator:
             for sid in level:
                 sub = plan.by_id(sid)
                 if sub.kind == "analyze":
-                    trace = trace + [{"at": now_iso(), "node": "execute", "react": "reason→read",
-                                      "subtask": sid, "obs": sub.description}]
+                    trace = trace + [{"at": now_iso(), "corr": corr, "node": "execute",
+                                      "react": "reason→read", "subtask": sid, "obs": sub.description}]
                 elif sub.kind == "generate":
                     result = self.gateway.run(state["selected_model"],
                                               {"kind": "code_fix", "case": case})
                     candidate_source = result.response.content["candidate_source"]
                     ledger.charge(result.tokens)
                     cost += result.cost
-                    trace = trace + [{"at": now_iso(), "node": "execute", "react": "reason→act",
-                                      "subtask": sid, "model": result.model_used,
-                                      "tokens": result.tokens}]
+                    trace = trace + [{"at": now_iso(), "corr": corr, "node": "execute",
+                                      "react": "reason→act", "subtask": sid,
+                                      "model": result.model_used, "tokens": result.tokens}]
                 # 'verify' subtask is executed by the dedicated verify node.
         return {"candidate_source": candidate_source, "cost": cost, "trace": trace}
 
@@ -271,17 +346,20 @@ class Orchestrator:
 
     # --- public API ---
     def run(self, case: BugCase, *, run_id: str, approver: Optional[Approver] = None,
-            ledger: Optional[BudgetLedger] = None) -> RunOutcome:
+            ledger: Optional[BudgetLedger] = None,
+            correlation_id: Optional[str] = None) -> RunOutcome:
         ledger = ledger or BudgetLedger(self.config.budget_tokens, self.config.max_rounds)
+        corr = correlation_id or run_id
         init: OrchestratorState = {
-            "run_id": run_id, "case": case, "approver": approver, "ledger": ledger,
-            "trace": [], "decision_records": [],
+            "run_id": run_id, "correlation_id": corr, "case": case, "approver": approver,
+            "ledger": ledger, "trace": [], "decision_records": [],
         }
         final: dict[str, Any] = self._graph.invoke(init)
-        return RunOutcome(
+        outcome = RunOutcome(
             run_id=run_id,
+            correlation_id=corr,
             passed=final["final_verify"].passed,
-            status=final["status"],
+            status=final.get("status", "unknown"),
             selected_model=final.get("selected_model"),
             rounds=ledger.rounds,
             cost=round(final.get("cost", 0.0), 6),
@@ -291,3 +369,5 @@ class Orchestrator:
             decision_records=final.get("decision_records", []),
             trace=final.get("trace", []),
         )
+        outcome.metrics = build_metrics(outcome)
+        return outcome

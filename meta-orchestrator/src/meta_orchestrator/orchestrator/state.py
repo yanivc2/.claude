@@ -11,9 +11,11 @@ from typing import Any, Callable, Optional, TypedDict
 
 class OrchestratorState(TypedDict, total=False):
     run_id: str
+    correlation_id: str
     case: Any                       # BugCase
     approver: Optional[Callable[[str, dict], bool]]
     ledger: Any                     # BudgetLedger
+    aborted: bool
 
     classification: Any             # TaskClassification
     playbook_tier1: Optional[dict]
