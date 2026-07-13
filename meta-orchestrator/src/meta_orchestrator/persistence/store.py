@@ -8,7 +8,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from ..models import DecisionRecord, EvalScore, ModelSpec, PlaybookEntry, TaxonomyNode
+from ..models import (
+    BanditStat,
+    DecisionRecord,
+    EvalScore,
+    ModelSpec,
+    PlaybookEntry,
+    TaxonomyNode,
+)
 
 
 class Store(ABC):
@@ -62,6 +69,16 @@ class Store(ABC):
 
     @abstractmethod
     def list_taxonomy(self) -> list[TaxonomyNode]: ...
+
+    # --- Bandit stats (SPEC §6) ---
+    @abstractmethod
+    def upsert_bandit_stat(self, stat: BanditStat) -> None: ...
+
+    @abstractmethod
+    def get_bandit_stat(self, task_type: str, model_id: str) -> Optional[BanditStat]: ...
+
+    @abstractmethod
+    def list_bandit_stats(self, task_type: Optional[str] = None) -> list[BanditStat]: ...
 
     # --- context-manager sugar ---
     def __enter__(self) -> "Store":

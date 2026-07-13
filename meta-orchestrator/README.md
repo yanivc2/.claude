@@ -31,6 +31,10 @@ src/meta_orchestrator/
 ├── bootstrap.py       composition root: connect DB + seed taxonomy/Registry
 ├── persistence/       Store abstraction + SQLite implementation (swappable backend)
 ├── registry/          Model Registry (SPEC §9): names + metadata + provenance
+├── verification/      verify() layer (SPEC §5.4): pytest-backed code verifier
+├── learning/          bandit/Bayesian updates (SPEC §6) + failure→update mapping (§5.6)
+├── decision/          Decision/Utility Engine v1 (SPEC §4)
+├── memory/            Tier-1 playbook write pipeline (gated) + compact read (§5)
 └── seed_task/         seed task definition, success rule, and bug corpus
 tests/                 pytest suite (offline, deterministic)
 examples/boot.py       Milestone A demo
@@ -47,6 +51,6 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 ## Progress
 
 - [x] **Milestone A** — scaffold + persistence + schemas (Registry+provenance, Playbook, Decision Records, taxonomy)
-- [ ] **Milestone B** — learning backbone (verify(), failure taxonomy, bandit, memory-write, Decision Engine v1)
+- [x] **Milestone B** — learning backbone (verify(), failure taxonomy, bandit, memory-write, Decision Engine v1)
 - [ ] **Milestone C** — single-agent LangGraph loop
 - [ ] **Milestone D** — autonomy/circuit-breakers, tracing, eval harness (proves learning)

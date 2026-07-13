@@ -9,7 +9,14 @@ import json
 import sqlite3
 from typing import Optional
 
-from ..models import DecisionRecord, EvalScore, ModelSpec, PlaybookEntry, TaxonomyNode
+from ..models import (
+    BanditStat,
+    DecisionRecord,
+    EvalScore,
+    ModelSpec,
+    PlaybookEntry,
+    TaxonomyNode,
+)
 from ..utils import now_iso
 from .store import Store
 
@@ -63,6 +70,16 @@ CREATE TABLE IF NOT EXISTS taxonomy (
     parent      TEXT,
     kind        TEXT NOT NULL DEFAULT 'category',
     description TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS bandit_stats (
+    task_type TEXT NOT NULL,
+    model_id  TEXT NOT NULL,
+    alpha     REAL NOT NULL,
+    beta      REAL NOT NULL,
+    successes INTEGER NOT NULL DEFAULT 0,
+    failures  INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (task_type, model_id)
 );
 """
 
@@ -256,3 +273,34 @@ class SqliteStore(Store):
             TaxonomyNode(label=r["label"], parent=r["parent"], kind=r["kind"], description=r["description"])
             for r in rows
         ]
+
+    # --- Bandit stats ---
+    def upsert_bandit_stat(self, stat: BanditStat) -> None:
+        self.conn.execute(
+            """
+            INSERT INTO bandit_stats (task_type, model_id, alpha, beta, successes, failures)
+            VALUES (?,?,?,?,?,?)
+            ON CONFLICT(task_type, model_id) DO UPDATE SET
+                alpha=excluded.alpha, beta=excluded.beta,
+                successes=excluded.successes, failures=excluded.failures
+            """,
+            (stat.task_type, stat.model_id, stat.alpha, stat.beta, stat.successes, stat.failures),
+        )
+        self.conn.commit()
+
+    def get_bandit_stat(self, task_type: str, model_id: str) -> Optional[BanditStat]:
+        row = self.conn.execute(
+            "SELECT * FROM bandit_stats WHERE task_type=? AND model_id=?", (task_type, model_id)
+        ).fetchone()
+        if row is None:
+            return None
+        return BanditStat(**dict(row))
+
+    def list_bandit_stats(self, task_type: Optional[str] = None) -> list[BanditStat]:
+        if task_type is None:
+            rows = self.conn.execute("SELECT * FROM bandit_stats ORDER BY task_type, model_id").fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT * FROM bandit_stats WHERE task_type=? ORDER BY model_id", (task_type,)
+            ).fetchall()
+        return [BanditStat(**dict(r)) for r in rows]

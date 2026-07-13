@@ -128,3 +128,54 @@ class DecisionRecord(BaseModel):
     alternatives: list[dict[str, Any]] = Field(default_factory=list)
     reason: str = ""
     created_at: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
+# Verification (SPEC §5.4) + failure taxonomy (SPEC §5.6)
+# --------------------------------------------------------------------------- #
+class FailureCategory(str, Enum):
+    """A failure is not monolithic; each category updates memory differently (§5.6)."""
+
+    NONE = "none"
+    TESTS_FAILED = "TestsFailed"
+    USER_REJECTED = "UserRejected"
+    TOO_EXPENSIVE = "TooExpensive"
+    TOO_SLOW = "TooSlow"
+    CORRECT_BUT_INCOMPLETE = "CorrectButIncomplete"
+    FACTUAL_ERROR = "FactualError"
+
+
+class VerifyResult(BaseModel):
+    """Uniform verification result — no node invents its own shape (SPEC §5.4)."""
+
+    passed: bool
+    confidence: float
+    evidence: list[str] = Field(default_factory=list)
+    blocking: bool = True
+    failure_category: FailureCategory = FailureCategory.NONE
+
+
+# --------------------------------------------------------------------------- #
+# Bandit / Bayesian learning stats (SPEC §6) — per (task_type, model)
+# --------------------------------------------------------------------------- #
+class BanditStat(BaseModel):
+    """Beta-Binomial posterior over a model's verified success rate on a task type.
+
+    ``alpha``/``beta`` include the prior; ``successes``/``failures`` are the observed
+    counts (n_samples = successes + failures) for provenance.
+    """
+
+    task_type: str
+    model_id: str
+    alpha: float
+    beta: float
+    successes: int = 0
+    failures: int = 0
+
+    @property
+    def mean(self) -> float:
+        return self.alpha / (self.alpha + self.beta)
+
+    @property
+    def n_samples(self) -> int:
+        return self.successes + self.failures
