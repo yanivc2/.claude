@@ -1,0 +1,5 @@
+# Phase 1 MVP runtime + dev dependencies (pinned loosely for the MVP).
+# Persistence uses the Python stdlib `sqlite3` (no dependency) behind a Store abstraction.
+langgraph>=0.2,<0.7
+pydantic>=2.6,<3
+pytest>=8,<10

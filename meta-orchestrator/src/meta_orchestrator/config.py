@@ -1,0 +1,100 @@
+"""Configuration (SPEC §16.4, §6): model choice is read from config and resolved
+through the Registry — never hardcoded in orchestration logic.
+
+Phase 1 chosen backend/adapters (confirmed with the user, see SPEC appendix):
+SQLite persistence + a deterministic mock model adapter by default.
+"""
+from __future__ import annotations
+
+import os
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from .models import EvalScore, ModelSpec
+from .taxonomy import SEED_TASK_TYPE
+from .utils import today_iso
+
+
+class OrchestratorConfig(BaseModel):
+    """Runtime configuration. Model *ids* referenced here MUST exist in the Registry."""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    db_path: str = ":memory:"
+
+    # Candidate model ids per task type (Decision Engine picks among these — SPEC §4).
+    # Names live here as config + in the Registry, NOT baked into code paths.
+    candidate_models: dict[str, list[str]] = Field(
+        default_factory=lambda: {SEED_TASK_TYPE: ["mock-strong", "mock-weak"]}
+    )
+
+    # Decision Engine v1 weights (SPEC §4; used from Milestone B6).
+    decision_weights: dict[str, float] = Field(
+        default_factory=lambda: {"w_success": 1.0, "w_cost": 0.15, "w_risk": 0.30}
+    )
+
+    # Autonomy + budget (SPEC §10; enforced from Milestone D).
+    autonomy_mode: str = "full-auto"  # full-auto | ask-on-expensive | plan-first
+    budget_tokens: int = 100_000
+    max_rounds: int = 6
+
+    # Which model gateway adapter to use ("mock" offline default; "anthropic" via env).
+    model_adapter: str = "mock"
+
+
+# Registry seed data (SPEC §9): the mock models, WITH provenance on their eval scores.
+# The gateway adapters for these are implemented in a later milestone; their Registry
+# metadata is seeded here so Milestone A can prove read/write of a row per table.
+def seed_registry_models() -> list[ModelSpec]:
+    date = today_iso()
+    return [
+        ModelSpec(
+            model_id="mock-strong",
+            provider="mock",
+            capabilities=["code", "debug"],
+            price_per_1k_in=0.003,
+            price_per_1k_out=0.015,
+            latency_ms=800,
+            context_limit=200_000,
+            tool_support=True,
+            availability=True,
+            fallback_model="mock-weak",
+            last_verified=date,
+            eval_scores=[
+                EvalScore(task_type=SEED_TASK_TYPE, score=0.80, n_samples=0, date=date, source="seed:prior")
+            ],
+        ),
+        ModelSpec(
+            model_id="mock-weak",
+            provider="mock",
+            capabilities=["code"],
+            price_per_1k_in=0.0005,
+            price_per_1k_out=0.0015,
+            latency_ms=400,
+            context_limit=32_000,
+            tool_support=False,
+            availability=True,
+            fallback_model=None,
+            last_verified=date,
+            eval_scores=[
+                EvalScore(task_type=SEED_TASK_TYPE, score=0.45, n_samples=0, date=date, source="seed:prior")
+            ],
+        ),
+    ]
+
+
+def load_config(db_path: Optional[str] = None) -> OrchestratorConfig:
+    """Load config with env overrides (SPEC §16.4)."""
+    cfg = OrchestratorConfig()
+    if db_path is not None:
+        cfg.db_path = db_path
+    elif os.getenv("META_ORCH_DB"):
+        cfg.db_path = os.environ["META_ORCH_DB"]
+    if os.getenv("META_ORCH_ADAPTER"):
+        cfg.model_adapter = os.environ["META_ORCH_ADAPTER"]
+    if os.getenv("META_ORCH_AUTONOMY"):
+        cfg.autonomy_mode = os.environ["META_ORCH_AUTONOMY"]
+    if os.getenv("META_ORCH_BUDGET"):
+        cfg.budget_tokens = int(os.environ["META_ORCH_BUDGET"])
+    return cfg
