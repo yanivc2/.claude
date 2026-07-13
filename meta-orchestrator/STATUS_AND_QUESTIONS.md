@@ -17,6 +17,27 @@ harness השוואתי A/B/C/D.** זה החסם, והוא דורש החלטה ש
 
 ---
 
+## ⭐ סשן הבא — התחל כאן
+
+**מפתח `ANTHROPIC_API_KEY` חובר לסביבת הענן (Default)** דרך דיאלוג "Update cloud environment"
+(env-vars ב-`.env` format, בלי מרכאות; הוסף גם `META_ORCH_ADAPTER=anthropic`). ⚠️ המפתח נשמר בשדה
+שמסומן "visible to anyone using this environment" — זה מפתח ייעודי-לביטול (`meta-orch-phase1`, ~$5 קרדיט);
+**לבטל אותו ב-Console כשמסיימים את הפיילוט**.
+
+**צעד ראשון בסשן החדש — אימות חיבור** (בלי לחשוף את הערך):
+1. נוכחות: `printenv ANTHROPIC_API_KEY >/dev/null && echo set || echo unset`
+2. התקנת SDK אם חסר: `pip install -e ".[real]"` (מתוך `meta-orchestrator/`)
+3. בדיקת auth של 1-token מול Haiku (עלות זניחה), ואז הרצה מלאה: `python examples/real_run.py`
+
+**אחרי שהחיבור אומת — הרצף המוסכם:**
+1. **qualification הקורפוס** — הרצת ה-solver האמיתי כדי למלא `baseline_success` (כרגע `None`, "needs a solver run").
+2. **§2 — אימות למידה אמיתי** עם Haiku (החלפת ה-DeterministicMockAgent הטאוטולוגי במודל אמיתי) — *לפני* 1B.
+3. **1B** — learned מול D2 על ריפו אחד גדול.
+
+**החלטה פתוחה (סעיף 6):** מקור-הקורפוס הסופי (PyBugHive כברירת-מחדל, ממתין לדוח-qualification).
+
+---
+
 ## 1. מה נבנה — לפי שלבים
 
 ### חלק א' — ה-MVP המקורי (Milestones A–D + adapter אמיתי)
