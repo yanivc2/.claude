@@ -52,19 +52,22 @@ harness השוואתי A/B/C/D.** זה החסם, והוא דורש החלטה ש
 
 | שדה | ערך נוכחי | מקור / הערה |
 |---|---|---|
-| **model snapshot** | `claude-opus-4-8`, `claude-haiku-4-5` | `config.py:52` (`default_candidate_models`). מזהי-alias — Haiku full-id `claude-haiku-4-5-20251001`; Opus 4.8 ללא dated-id (alias הוא ה-id). **לפני §2: להצמיד full-id.** |
-| **thinking budget** | Opus: `adaptive` + `effort=high`. Haiku: `extended`, `budget_tokens=4000` | `adapters.py:86` `thinking_kwargs()`. Haiku = `min(4000, max_tokens//2)` עם `max_tokens=16000`. |
-| **max_tokens** | `16000` | `adapters.py:145` (`AnthropicAdapter.__init__` default). |
-| **temperature** | לא נשלח (N/A) | Opus 4.8 דוחה `temperature`/`top_p`/`top_k` ב-400. ההנחיה דרך prompt/effort בלבד. |
-| **effort** | `high` | `adapters.py:145` default. |
-| **routing disabled** | **לא** — routing פעיל (Decision-Engine + bandit בוחר בין המועמדים) | ל-§2 (הכללת-מדיניות) **צריך להחליט**: להקפיא למודל יחיד כדי לבודד למידה פרוצדורלית מבחירת-מודל. **TBD.** |
-| **verifier version** | 6-gate composite (static/scope/no-shortcut/protected/public/hidden) — **ללא קבוע-גרסה מפורש** | `experiment/verifier.py`. **TBD: להוסיף `VERIFIER_VERSION` מפורש לפני השוואות A/B/C/D.** |
-| **lesson schema version** | `v1` | `experiment/lesson.py:34` (`version: int = 1`). |
+| **registry_model_id** (לוגי) | `claude-opus-4-8`, `claude-haiku-4-5` | `config.py`. מפתח ל-bandit/cost. הופרד מ-snapshot. |
+| **provider_model_snapshot** (ל-API) | `claude-opus-4-8`, `claude-haiku-4-5-20251001` | ✅ **אומת מול הקטלוג הרשמי** (2026-07-15): Haiku full-id ד-dated; Opus 4.8 ללא dated (alias=id). `ModelSpec.provider_model_snapshot`. **לא מנוחש — מאומת.** |
+| **thinking budget** | Opus: `adaptive` + `effort=high`. Haiku: `extended`, `budget_tokens=4000` | `adapters.py` `thinking_kwargs()` (keyed on snapshot). Haiku = `min(4000, max_tokens//2)`, `max_tokens=16000`. |
+| **max_tokens** | `16000` | `adapters.py` `AnthropicAdapter.__init__` default. |
+| **temperature** | לא נשלח (N/A) | Opus 4.8 דוחה `temperature`/`top_p`/`top_k` ב-400. הנחיה דרך prompt/effort. |
+| **effort** | `high` | `adapters.py` default. |
+| **routing / EXPERIMENT_MODE** | ✅ מנגנון קיים. כברירת-מחדל routing פעיל (bandit); **`experiment_mode=True` מנטרל בחירה דינמית ו-fallback** | `config.py` (`experiment_mode`, `experiment_model_id`; env `META_ORCH_EXPERIMENT_MODE`/`_MODEL`). ל-§2: **להפעיל**. |
+| **no-fallback** | ✅ **fallback שקט חסום ב-experiment_mode** — מודל-נעול לא-זמין → `ModelUnavailableError` (נכשל בקול) | `gateway.py`. confound-guard: `test_experiment_mode_never_falls_back`. |
+| **verifier version** | ✅ `VERIFIER_VERSION = "6gate-v1"` + **content-hash** על כל verdict | `experiment/verifier.py` (`verifier_config_hash()`). שינוי לוגיקה בלי bump-ידני נתפס ע"י ה-hash. |
+| **lesson schema version** | `v1` | `experiment/lesson.py` (`version: int = 1`). |
 | **corpus version** | v2-corpus contract, `source=fixture` (סינתטי) | `corpus/`. **Real source = TBD** (PyBugHive, ממתין לדוח-qualification). |
 | **benchmark version** | Pilot-0 seed: `off_by_one_sum` (משימה יחידה טריוויאלית) | `seed_task/`. **Real benchmark (train/val/locked-holdout) = TBD.** |
-| **config snapshot** | תאריך `2026-07-15` · commit `352cc7e` (ה-HEAD בזמן הכתיבה) | לעדכן את שני אלה בכל שינוי לטבלה. |
+| **config snapshot** | תאריך `2026-07-15` · commit = ה-HEAD של קומיט זה | לעדכן בכל שינוי לטבלה. |
 
-**TBD מרוכז לפני §2:** full-model-ids · החלטת routing (הקפאה?) · `VERIFIER_VERSION` מפורש · מקור-קורפוס אמיתי · benchmark אמיתי עם holdout נעול.
+**נסגר בסשן זה (קוד + טסטים):** ✅ full provider-snapshots מאומתים · ✅ `EXPERIMENT_MODE` + no-fallback · ✅ `VERIFIER_VERSION` + hash · registry/snapshot מופרדים.
+**TBD שנותר (דורש נתונים, לא קוד):** מקור-קורפוס אמיתי (PyBugHive) · benchmark אמיתי עם holdout נעול · הרצת §2 עצמה עם `experiment_mode=True` על `experiment_model_id=claude-haiku-4-5`.
 
 ---
 

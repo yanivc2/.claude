@@ -29,7 +29,9 @@ class AdapterResponse(BaseModel):
 class ModelAdapter(Protocol):
     name: str
 
-    def complete(self, model_id: str, request: AdapterRequest) -> AdapterResponse: ...
+    def complete(
+        self, model_id: str, request: AdapterRequest, provider_model: Optional[str] = None
+    ) -> AdapterResponse: ...
 
 
 # Which bug categories each mock model can actually fix (fixed competence profile).
@@ -44,7 +46,9 @@ class MockAdapter:
 
     name = "mock"
 
-    def complete(self, model_id: str, request: AdapterRequest) -> AdapterResponse:
+    def complete(
+        self, model_id: str, request: AdapterRequest, provider_model: Optional[str] = None
+    ) -> AdapterResponse:
         kind = request.get("kind")
         if kind == "code_fix":
             return self._code_fix(model_id, request["case"])
@@ -165,7 +169,12 @@ class AnthropicAdapter:
                 self._client = anthropic.Anthropic()
         return self._client
 
-    def complete(self, model_id: str, request: AdapterRequest) -> AdapterResponse:
+    def complete(
+        self, model_id: str, request: AdapterRequest, provider_model: Optional[str] = None
+    ) -> AdapterResponse:
+        # `provider_model` is the exact provider snapshot (e.g. claude-haiku-4-5-20251001);
+        # fall back to the logical id when a caller doesn't supply one.
+        api_model = provider_model or model_id
         kind = request.get("kind")
         if kind == "synthesize":
             # Deterministic packaging of the already-verified candidate — no extra
@@ -183,11 +192,12 @@ class AnthropicAdapter:
         client = self._ensure_client()
         # Thinking params are model-aware: adaptive + effort where supported, extended
         # thinking (budget_tokens) on older models like Haiku 4.5 that reject adaptive.
+        # Keyed on the provider snapshot so a dated Haiku build still routes to extended.
         msg = client.messages.create(
-            model=model_id,
+            model=api_model,
             max_tokens=self._max_tokens,
             messages=[{"role": "user", "content": build_code_fix_prompt(case)}],
-            **thinking_kwargs(model_id, self._max_tokens, self._effort),
+            **thinking_kwargs(api_model, self._max_tokens, self._effort),
         )
         text = "".join(
             block.text for block in msg.content if getattr(block, "type", None) == "text"

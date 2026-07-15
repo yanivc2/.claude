@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from meta_orchestrator.experiment.fixtures import OFF_BY_ONE
 from meta_orchestrator.experiment.sandbox import Sandbox
-from meta_orchestrator.experiment.verifier import verify
+from meta_orchestrator.experiment.verifier import VERIFIER_VERSION, verify, verifier_config_hash
 
 
 def test_sandbox_resets_between_runs():
@@ -51,6 +51,17 @@ def test_tampering_with_tests_fails_protected_gate():
         v = verify(OFF_BY_ONE, sb)
     assert v.gates["protected_test_dir_unchanged"] is False
     assert v.passed is False
+
+
+def test_verdict_carries_version_and_config_hash():
+    """v2 §5: every verdict is stamped with the frozen verifier's version + config hash."""
+    with Sandbox(OFF_BY_ONE) as sb:
+        sb.write("solution.py", OFF_BY_ONE.reference_fix["solution.py"])
+        v = verify(OFF_BY_ONE, sb)
+    assert v.verifier_version == VERIFIER_VERSION == "6gate-v1"
+    assert v.verifier_config_hash == verifier_config_hash()
+    assert len(v.verifier_config_hash) == 12          # short content hash, stable per logic
+    assert v.verifier_config_hash.isalnum()
 
 
 def test_out_of_scope_patch_fails_scope_gate():

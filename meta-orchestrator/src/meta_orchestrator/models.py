@@ -85,7 +85,8 @@ class ModelSpec(BaseModel):
 
     model_config = ConfigDict(protected_namespaces=())  # allow the `model_id` field name
 
-    model_id: str
+    model_id: str                                   # logical/registry id (bandit key, cost lookup)
+    provider_model_snapshot: Optional[str] = None   # exact string sent to the provider API
     provider: str
     capabilities: list[str] = Field(default_factory=list)
     price_per_1k_in: float = 0.0

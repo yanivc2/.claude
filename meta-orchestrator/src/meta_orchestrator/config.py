@@ -45,6 +45,14 @@ class OrchestratorConfig(BaseModel):
     # Which model gateway adapter to use ("mock" offline default; "anthropic" via env).
     model_adapter: str = "mock"
 
+    # Controlled-experiment lock (v2 §5). When enabled, dynamic model selection
+    # (bandit / Decision Engine) and *silent* provider fallback are BOTH disabled:
+    # the run uses exactly `experiment_model_id`, and if that model is unavailable or
+    # its call fails, the run FAILS LOUDLY — no fallback to another model, which would
+    # be an undetectable confound. Each run records whether this mode was active.
+    experiment_mode: bool = False
+    experiment_model_id: Optional[str] = None
+
 
 # Candidate model ids per adapter (SPEC §6: names resolved via config + Registry).
 def default_candidate_models(adapter: str) -> dict[str, list[str]]:
@@ -67,6 +75,9 @@ def _seed_real_models() -> list[ModelSpec]:
     return [
         ModelSpec(
             model_id="claude-opus-4-8",
+            # Opus 4.8 has no dated snapshot in the official catalog — the alias IS the
+            # provider id (verified against the claude-api model catalog, 2026-07-15).
+            provider_model_snapshot="claude-opus-4-8",
             provider="anthropic",
             capabilities=["code", "debug", "reasoning"],
             price_per_1k_in=0.005,
@@ -83,6 +94,9 @@ def _seed_real_models() -> list[ModelSpec]:
         ),
         ModelSpec(
             model_id="claude-haiku-4-5",
+            # Full dated snapshot from the official catalog (verified 2026-07-15), so the
+            # frozen experiment pins an exact model build rather than a moving alias.
+            provider_model_snapshot="claude-haiku-4-5-20251001",
             provider="anthropic",
             capabilities=["code"],
             price_per_1k_in=0.001,
@@ -157,6 +171,10 @@ def load_config(db_path: Optional[str] = None, adapter: Optional[str] = None) ->
         cfg.autonomy_mode = os.environ["META_ORCH_AUTONOMY"]
     if os.getenv("META_ORCH_BUDGET"):
         cfg.budget_tokens = int(os.environ["META_ORCH_BUDGET"])
+    if os.getenv("META_ORCH_EXPERIMENT_MODE") in {"1", "true", "True"}:
+        cfg.experiment_mode = True
+    if os.getenv("META_ORCH_EXPERIMENT_MODEL"):
+        cfg.experiment_model_id = os.environ["META_ORCH_EXPERIMENT_MODEL"]
     # Derive candidates to match the adapter (mock ids vs real Claude ids).
     cfg.candidate_models = default_candidate_models(cfg.model_adapter)
     return cfg

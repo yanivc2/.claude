@@ -10,6 +10,8 @@ caught independently of whether the tests happen to pass.
 """
 from __future__ import annotations
 
+import hashlib
+import inspect
 import re
 
 from pydantic import BaseModel, Field
@@ -17,12 +19,20 @@ from pydantic import BaseModel, Field
 from .sandbox import Sandbox
 from .task import ExperimentTask
 
+# Explicit verifier version (v2 §5). Bump on ANY change to gate logic, order, or
+# configuration so results are comparable only within a fixed verifier. The
+# content hash below is a backstop: it changes even if someone edits gate logic
+# but forgets to bump this string, so a silent verifier drift is still detectable.
+VERIFIER_VERSION = "6gate-v1"
+
 
 class Verdict(BaseModel):
     passed: bool
     gates: dict[str, bool]
     failing_gate: str | None = None
     evidence: list[str] = Field(default_factory=list)
+    verifier_version: str = VERIFIER_VERSION
+    verifier_config_hash: str = ""
 
 
 # The canonical gate order — structural/cheap first, tests last.
@@ -34,6 +44,16 @@ GATE_ORDER = [
     "public_tests",
     "hidden_tests",
 ]
+
+
+def verifier_config_hash() -> str:
+    """Content hash of the verifier's version + gate order + gate logic source.
+
+    Catches drift that a manual ``VERIFIER_VERSION`` bump would miss: editing the
+    body of ``verify`` changes this hash even if the version string is untouched.
+    """
+    payload = f"{VERIFIER_VERSION}|{','.join(GATE_ORDER)}|{inspect.getsource(verify)}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
 
 
 def verify(task: ExperimentTask, sandbox: Sandbox) -> Verdict:
@@ -83,4 +103,7 @@ def verify(task: ExperimentTask, sandbox: Sandbox) -> Verdict:
     evidence.append(f"hidden: {hid_sum}")
 
     failing = next((g for g in GATE_ORDER if not gates.get(g, False)), None)
-    return Verdict(passed=failing is None, gates=gates, failing_gate=failing, evidence=evidence)
+    return Verdict(
+        passed=failing is None, gates=gates, failing_gate=failing, evidence=evidence,
+        verifier_version=VERIFIER_VERSION, verifier_config_hash=verifier_config_hash(),
+    )

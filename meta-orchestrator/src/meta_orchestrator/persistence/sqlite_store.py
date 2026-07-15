@@ -23,6 +23,7 @@ from .store import Store
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS models (
     model_id        TEXT PRIMARY KEY,
+    provider_model_snapshot TEXT,
     provider        TEXT NOT NULL,
     capabilities    TEXT NOT NULL DEFAULT '[]',
     price_per_1k_in REAL NOT NULL DEFAULT 0,
@@ -110,17 +111,25 @@ class SqliteStore(Store):
 
     def init_schema(self) -> None:
         self.conn.executescript(_SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        """Additive, idempotent column migrations for DBs created by older schemas."""
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(models)")}
+        if "provider_model_snapshot" not in cols:
+            self.conn.execute("ALTER TABLE models ADD COLUMN provider_model_snapshot TEXT")
 
     # --- Registry ---
     def upsert_model(self, spec: ModelSpec) -> None:
         self.conn.execute(
             """
-            INSERT INTO models (model_id, provider, capabilities, price_per_1k_in,
-                price_per_1k_out, latency_ms, context_limit, tool_support, availability,
-                fallback_model, last_verified)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            INSERT INTO models (model_id, provider_model_snapshot, provider, capabilities,
+                price_per_1k_in, price_per_1k_out, latency_ms, context_limit, tool_support,
+                availability, fallback_model, last_verified)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
             ON CONFLICT(model_id) DO UPDATE SET
+                provider_model_snapshot=excluded.provider_model_snapshot,
                 provider=excluded.provider, capabilities=excluded.capabilities,
                 price_per_1k_in=excluded.price_per_1k_in, price_per_1k_out=excluded.price_per_1k_out,
                 latency_ms=excluded.latency_ms, context_limit=excluded.context_limit,
@@ -128,10 +137,10 @@ class SqliteStore(Store):
                 fallback_model=excluded.fallback_model, last_verified=excluded.last_verified
             """,
             (
-                spec.model_id, spec.provider, json.dumps(spec.capabilities),
-                spec.price_per_1k_in, spec.price_per_1k_out, spec.latency_ms,
-                spec.context_limit, int(spec.tool_support), int(spec.availability),
-                spec.fallback_model, spec.last_verified,
+                spec.model_id, spec.provider_model_snapshot, spec.provider,
+                json.dumps(spec.capabilities), spec.price_per_1k_in, spec.price_per_1k_out,
+                spec.latency_ms, spec.context_limit, int(spec.tool_support),
+                int(spec.availability), spec.fallback_model, spec.last_verified,
             ),
         )
         for sc in spec.eval_scores:
@@ -170,6 +179,7 @@ class SqliteStore(Store):
     def _row_to_model(self, row: sqlite3.Row) -> ModelSpec:
         return ModelSpec(
             model_id=row["model_id"],
+            provider_model_snapshot=row["provider_model_snapshot"],
             provider=row["provider"],
             capabilities=json.loads(row["capabilities"]),
             price_per_1k_in=row["price_per_1k_in"],

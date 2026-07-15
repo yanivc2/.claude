@@ -68,7 +68,10 @@ class Orchestrator:
         self.engine = DecisionEngine(config.decision_weights)
         # adapter override lets a caller inject a configured real client (or a fake in tests);
         # otherwise build it from config (mock offline default, anthropic via env).
-        self.gateway = ModelGateway(registry, adapter or make_adapter(config.model_adapter))
+        self.gateway = ModelGateway(
+            registry, adapter or make_adapter(config.model_adapter),
+            experiment_mode=config.experiment_mode,  # no silent fallback when locked (v2 §5)
+        )
         self.tools = default_tool_gateway()
         self.writer = MemoryWriter(store)
         self.reader = PlaybookReader(store)
@@ -214,6 +217,20 @@ class Orchestrator:
         tried = list(state.get("tried_models", []))
         ledger: BudgetLedger = state["ledger"]
         ledger.rounds += 1
+
+        # Experiment lock (v2 §5): bypass dynamic selection entirely — the model is
+        # fixed, so procedural-learning effects are not confounded by model choice.
+        # Recorded on the trace so every run states whether the lock was active.
+        if self.config.experiment_mode and self.config.experiment_model_id:
+            locked = self.config.experiment_model_id
+            tried.append(locked)
+            return {
+                "selected_model": locked,
+                "selected_p_success": self.registry.prior_score(locked, task_type),
+                "tried_models": tried,
+                "trace": self._traced(state, {"node": "select_model", "chosen": locked,
+                                              "experiment_mode": True}),
+            }
 
         candidates = self.registry.candidate_models(task_type)
         untried = [m for m in candidates if m.model_id not in tried] or candidates
