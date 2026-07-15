@@ -64,7 +64,21 @@ def test_adapter_parses_reply_and_reports_usage():
     sent = client.messages.calls[0]
     assert sent["model"] == "claude-opus-4-8"
     assert sent["thinking"] == {"type": "adaptive"}
+    assert sent["output_config"] == {"effort": "high"}
     assert "temperature" not in sent and "top_p" not in sent
+
+
+def test_adapter_uses_extended_thinking_for_haiku():
+    # Haiku 4.5 rejects adaptive thinking + effort (400); it must get extended thinking
+    # with an explicit budget_tokens (< max_tokens) and no effort param.
+    case = get_case("off_by_one_sum")
+    client = _FakeClient(_fenced(case.reference_fix))
+    adapter = AnthropicAdapter(client=client, max_tokens=16000)
+    adapter.complete("claude-haiku-4-5", {"kind": "code_fix", "case": case})
+    sent = client.messages.calls[0]
+    assert sent["thinking"] == {"type": "enabled", "budget_tokens": 4000}
+    assert sent["thinking"]["budget_tokens"] < sent["max_tokens"]
+    assert "output_config" not in sent  # effort is unsupported on Haiku 4.5
 
 
 def test_synthesize_is_passthrough_without_api_call():

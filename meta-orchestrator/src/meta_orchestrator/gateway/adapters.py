@@ -68,6 +68,37 @@ class MockAdapter:
         )
 
 
+# Claude models that support adaptive thinking + the `effort` parameter (Opus 4.6+,
+# Sonnet 5 / 4.6, Fable / Mythos 5). Older models (Haiku 4.5, Sonnet 4.5) reject both
+# with a 400 ("adaptive thinking is not supported on this model") and must use extended
+# thinking with an explicit budget_tokens instead. See the claude-api reference.
+_ADAPTIVE_THINKING_MODELS = {
+    "claude-opus-4-8",
+    "claude-opus-4-7",
+    "claude-opus-4-6",
+    "claude-sonnet-5",
+    "claude-sonnet-4-6",
+    "claude-fable-5",
+    "claude-mythos-5",
+}
+
+
+def thinking_kwargs(model_id: str, max_tokens: int, effort: str) -> dict[str, Any]:
+    """Per-model thinking parameters for the Messages API (claude-api guidance).
+
+    Adaptive thinking + `effort` are only accepted on Opus 4.6+, Sonnet 5/4.6, and
+    Fable/Mythos 5. Older models (Haiku 4.5) reject them; they take extended thinking
+    with an explicit `budget_tokens` (which must be < max_tokens, min 1024) and no
+    `effort`. When max_tokens is too small to fit a valid budget, thinking is omitted.
+    """
+    if model_id in _ADAPTIVE_THINKING_MODELS:
+        return {"thinking": {"type": "adaptive"}, "output_config": {"effort": effort}}
+    budget = min(4000, max_tokens // 2)
+    if budget < 1024:
+        return {}
+    return {"thinking": {"type": "enabled", "budget_tokens": budget}}
+
+
 def build_code_fix_prompt(case: BugCase) -> str:
     """Prompt a real model to repair the module so its pytest suite passes."""
     return (
@@ -150,12 +181,13 @@ class AnthropicAdapter:
 
         case: BugCase = request["case"]
         client = self._ensure_client()
+        # Thinking params are model-aware: adaptive + effort where supported, extended
+        # thinking (budget_tokens) on older models like Haiku 4.5 that reject adaptive.
         msg = client.messages.create(
             model=model_id,
             max_tokens=self._max_tokens,
-            thinking={"type": "adaptive"},          # recommended for coding (claude-api)
-            output_config={"effort": self._effort},
             messages=[{"role": "user", "content": build_code_fix_prompt(case)}],
+            **thinking_kwargs(model_id, self._max_tokens, self._effort),
         )
         text = "".join(
             block.text for block in msg.content if getattr(block, "type", None) == "text"
