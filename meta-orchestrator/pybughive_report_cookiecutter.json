@@ -1,0 +1,62 @@
+{
+  "slice_name": "cookiecutter",
+  "total": 2,
+  "admitted": 1,
+  "rejected": 1,
+  "reproducible": 2,
+  "candidates": [
+    {
+      "candidate_id": "cookiecutter-1513",
+      "project": "cookiecutter",
+      "issue": 1513,
+      "installed": true,
+      "f2p_fail_on_buggy": true,
+      "f2p_pass_on_fixed": true,
+      "p2p_clean_on_buggy": true,
+      "stable": true,
+      "reproducible": true,
+      "patch": {
+        "files": 1,
+        "added": 1,
+        "deleted": 1,
+        "hunks": 1,
+        "locality": "single-file"
+      },
+      "fingerprint": "Logic",
+      "degenerate": true,
+      "runtime_s": 13.7,
+      "admitted": false,
+      "reject_reason": "degenerate_patch"
+    },
+    {
+      "candidate_id": "cookiecutter-18",
+      "project": "cookiecutter",
+      "issue": 18,
+      "installed": true,
+      "f2p_fail_on_buggy": true,
+      "f2p_pass_on_fixed": true,
+      "p2p_clean_on_buggy": true,
+      "stable": true,
+      "reproducible": true,
+      "patch": {
+        "files": 2,
+        "added": 28,
+        "deleted": 11,
+        "hunks": 6,
+        "locality": "multi-file"
+      },
+      "fingerprint": "Parser",
+      "degenerate": false,
+      "runtime_s": 5.2,
+      "admitted": true,
+      "reject_reason": ""
+    }
+  ],
+  "fingerprints_admitted": {
+    "Parser": 1
+  },
+  "fingerprints_rejected": {
+    "Logic": 1
+  },
+  "note": "Objective metadata only (no model judgment). Components are kept, not a composite score. Rejection is degenerate-only, frozen before baseline. baseline_success & failure_reason are NOT here — they require solver runs (a separate, budgeted step)."
+}
