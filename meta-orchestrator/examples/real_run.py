@@ -1,9 +1,11 @@
 """Run the orchestrator against a REAL Claude model on the seed task.
 
-Requires the `anthropic` SDK (`pip install -e ".[real]"`) and credentials —
-either ANTHROPIC_API_KEY in the environment or an `ant auth login` profile.
-The Model Gateway resolves the model from config → Registry (claude-opus-4-8 /
-claude-haiku-4-5); nothing is hardcoded in the loop.
+Requires the `anthropic` SDK (`pip install -e ".[real]"`) and credentials.
+Supply the key via META_ORCH_API_KEY (used verbatim, pointed at the real API) —
+the reserved ANTHROPIC_API_KEY is stripped from Claude-Code-on-the-web sessions,
+so a non-reserved name is needed there. Locally, ANTHROPIC_API_KEY or an
+`ant auth login` profile still work. The Model Gateway resolves the model from
+config → Registry (claude-opus-4-8 / claude-haiku-4-5); nothing is hardcoded.
 
 Run:  python examples/real_run.py [bug_id]
 """
@@ -36,7 +38,8 @@ def main() -> None:
         print("The 'anthropic' SDK is not installed. Run:  pip install -e \".[real]\"")
     except Exception as exc:  # most likely missing credentials
         print(f"Could not complete a live run ({type(exc).__name__}: {exc}).")
-        print("Set ANTHROPIC_API_KEY or run `ant auth login`, then retry.")
+        print("Set META_ORCH_API_KEY (or ANTHROPIC_API_KEY / `ant auth login` "
+              "locally), then retry.")
     finally:
         store.close()
 

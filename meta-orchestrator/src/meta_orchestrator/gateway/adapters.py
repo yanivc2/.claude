@@ -7,6 +7,7 @@ real pass/fail signal and lets the bandit learn which model is better — with n
 """
 from __future__ import annotations
 
+import os
 from typing import Any, Optional, Protocol
 
 from pydantic import BaseModel, Field
@@ -118,7 +119,19 @@ class AnthropicAdapter:
     def _ensure_client(self) -> Any:
         if self._client is None:
             import anthropic  # lazy: keep the SDK optional for the mock path
-            self._client = anthropic.Anthropic()
+            # On Claude Code on the web, ANTHROPIC_API_KEY is stripped from the
+            # session (requests authenticate via the account), so the dedicated
+            # pilot key is supplied under a non-reserved name and pointed at the
+            # real API explicitly. Locally, fall back to the SDK's default
+            # resolution (ANTHROPIC_API_KEY / `ant auth login`).
+            api_key = os.environ.get("META_ORCH_API_KEY")
+            if api_key:
+                base_url = os.environ.get(
+                    "META_ORCH_API_BASE_URL", "https://api.anthropic.com"
+                )
+                self._client = anthropic.Anthropic(api_key=api_key, base_url=base_url)
+            else:
+                self._client = anthropic.Anthropic()
         return self._client
 
     def complete(self, model_id: str, request: AdapterRequest) -> AdapterResponse:
