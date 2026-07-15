@@ -19,22 +19,52 @@ harness השוואתי A/B/C/D.** זה החסם, והוא דורש החלטה ש
 
 ## ⭐ סשן הבא — התחל כאן
 
-**מפתח `ANTHROPIC_API_KEY` חובר לסביבת הענן (Default)** דרך דיאלוג "Update cloud environment"
-(env-vars ב-`.env` format, בלי מרכאות; הוסף גם `META_ORCH_ADAPTER=anthropic`). ⚠️ המפתח נשמר בשדה
-שמסומן "visible to anyone using this environment" — זה מפתח ייעודי-לביטול (`meta-orch-phase1`, ~$5 קרדיט);
-**לבטל אותו ב-Console כשמסיימים את הפיילוט**.
+**חיבור ה-API אומת מקצה-לקצה ✅ (סשן 2026-07-15).** מפתח `META_ORCH_API_KEY` (שם לא-שמור; ראה למטה למה
+לא `ANTHROPIC_API_KEY`) חובר לסביבת הענן (Default). מה שבוצע והושלם:
+- אימות נוכחות (`key set`) + auth מול Haiku (`in/out=8/1`) בלי חשיפת הערך.
+- **באג אמיתי נחשף ותוקן** (commit `352cc7e`): האדפטר שלח `adaptive thinking + effort` לכל מודל, ו-Haiku 4.5
+  דוחה אותם ב-400. התיקון: `thinking_kwargs()` מודע-מודל. + טסט offline חדש. **103→104 טסטים עוברים.**
+- הרצה אמיתית מקצה-לקצה: `status=completed passed=True model=claude-opus-4-8 cost=$0.0017`.
 
-**צעד ראשון בסשן החדש — אימות חיבור** (בלי לחשוף את הערך):
-1. נוכחות: `printenv ANTHROPIC_API_KEY >/dev/null && echo set || echo unset`
-2. התקנת SDK אם חסר: `pip install -e ".[real]"` (מתוך `meta-orchestrator/`)
-3. בדיקת auth של 1-token מול Haiku (עלות זניחה), ואז הרצה מלאה: `python examples/real_run.py`
+> ⚠️ **מה שהוכח = plumbing בלבד, לא למידה.** ההרצה אישרה שה-`AnthropicAdapter` מדבר עם Claude אמיתי
+> (auth→run→verify→cost) ותפסה באג-API אמיתי. היא **לא** הוכיחה הכללת-מדיניות נלמדת — נבחר Opus על משימת
+> seed טריוויאלית ועבר. **אימות-הלמידה האמיתי (§2 מול Haiku) עדיין לפנינו.**
 
-**אחרי שהחיבור אומת — הרצף המוסכם:**
+> 💡 **למה `META_ORCH_API_KEY` ולא `ANTHROPIC_API_KEY`:** ב-Claude-Code-web ה-`ANTHROPIC_API_KEY` נחסם/מנותב
+> דרך auth-החשבון (`ANTHROPIC_BASE_URL` → proxy), אז מפתח משתמש לא מגיע לתהליך. הפתרון (commit `c67491d`):
+> שם env לא-שמור + `base_url='https://api.anthropic.com'` מפורש. ⚠️ המפתח `meta-orch-phase1` (~$5) שמור בשדה
+> "visible to anyone using this environment" — **לבטל ב-Console כשמסיימים.**
+
+**הרצף המוסכם (מכאן):**
 1. **qualification הקורפוס** — הרצת ה-solver האמיתי כדי למלא `baseline_success` (כרגע `None`, "needs a solver run").
 2. **§2 — אימות למידה אמיתי** עם Haiku (החלפת ה-DeterministicMockAgent הטאוטולוגי במודל אמיתי) — *לפני* 1B.
 3. **1B** — learned מול D2 על ריפו אחד גדול.
 
 **החלטה פתוחה (סעיף 6):** מקור-הקורפוס הסופי (PyBugHive כברירת-מחדל, ממתין לדוח-qualification).
+
+---
+
+## 🧊 Frozen Experimental Configuration (v2 §5)
+
+> **למה זה כאן:** הקפאת הקונפיג לא מספיקה — צריך גם **לתעד** אותו. בלי snapshot מפורש, שיפור עתידי
+> בלתי-ניתן-לייחוס: לא תדע אם התוצאה השתנתה בגלל הלמידה או בגלל שהמודל/קורפוס/verifier התחלפו. עדכן סעיף
+> זה **בכל שינוי** של אחד מהשדות, והצמד אותו ל-commit hash.
+
+| שדה | ערך נוכחי | מקור / הערה |
+|---|---|---|
+| **model snapshot** | `claude-opus-4-8`, `claude-haiku-4-5` | `config.py:52` (`default_candidate_models`). מזהי-alias — Haiku full-id `claude-haiku-4-5-20251001`; Opus 4.8 ללא dated-id (alias הוא ה-id). **לפני §2: להצמיד full-id.** |
+| **thinking budget** | Opus: `adaptive` + `effort=high`. Haiku: `extended`, `budget_tokens=4000` | `adapters.py:86` `thinking_kwargs()`. Haiku = `min(4000, max_tokens//2)` עם `max_tokens=16000`. |
+| **max_tokens** | `16000` | `adapters.py:145` (`AnthropicAdapter.__init__` default). |
+| **temperature** | לא נשלח (N/A) | Opus 4.8 דוחה `temperature`/`top_p`/`top_k` ב-400. ההנחיה דרך prompt/effort בלבד. |
+| **effort** | `high` | `adapters.py:145` default. |
+| **routing disabled** | **לא** — routing פעיל (Decision-Engine + bandit בוחר בין המועמדים) | ל-§2 (הכללת-מדיניות) **צריך להחליט**: להקפיא למודל יחיד כדי לבודד למידה פרוצדורלית מבחירת-מודל. **TBD.** |
+| **verifier version** | 6-gate composite (static/scope/no-shortcut/protected/public/hidden) — **ללא קבוע-גרסה מפורש** | `experiment/verifier.py`. **TBD: להוסיף `VERIFIER_VERSION` מפורש לפני השוואות A/B/C/D.** |
+| **lesson schema version** | `v1` | `experiment/lesson.py:34` (`version: int = 1`). |
+| **corpus version** | v2-corpus contract, `source=fixture` (סינתטי) | `corpus/`. **Real source = TBD** (PyBugHive, ממתין לדוח-qualification). |
+| **benchmark version** | Pilot-0 seed: `off_by_one_sum` (משימה יחידה טריוויאלית) | `seed_task/`. **Real benchmark (train/val/locked-holdout) = TBD.** |
+| **config snapshot** | תאריך `2026-07-15` · commit `352cc7e` (ה-HEAD בזמן הכתיבה) | לעדכן את שני אלה בכל שינוי לטבלה. |
+
+**TBD מרוכז לפני §2:** full-model-ids · החלטת routing (הקפאה?) · `VERIFIER_VERSION` מפורש · מקור-קורפוס אמיתי · benchmark אמיתי עם holdout נעול.
 
 ---
 
