@@ -289,11 +289,18 @@ recorded. B1 placebo built over the 6 present families (hash-locked, no fixed po
 Claude Code does **not** write D. `corpus/D_AUTHOR_PACKET.md` is the **blind** brief (goal,
 scope, the 6 family names, tools, general verifier constraints, hard schema + size caps) — with
 no task ids / statements / code / patches / hidden tests / per-bug results / future C lessons.
-`experiment/s2/playbook_d.py` defines the schema (`trigger_or_context / recommended_action /
-avoid / verification_step`) and a blind validator: schema + size caps + leak scan (rejects task
-ids, paths, code, patches, concrete values) + the **shared slot budget** (`SLOT_MAX_LINES/CHARS`,
-now enforced identically for C/B1/D in `render_lines`, so D gets no length/format edge). A clean
-submission freezes into an **immutable** `StaticPlaybook` (`author_frozen=true`, content hash,
-author provenance) via `examples/s2_validate_d.py`. 15 offline tests. **Next:** an independent
-author (human or another model) receives only the packet and returns a submission; then validate
-+ freeze. Real-bug wiring remains after that.
+`experiment/s2/playbook_d.py` defines the schema and a blind validator: schema + size caps +
+leak scan (rejects task ids, paths, code, patches, concrete values) + the **shared slot budget**
+(`SLOT_MAX_LINES/CHARS`, enforced identically for C/B1/D in `render_lines`, so D gets no
+length/format edge). A clean submission freezes into an **immutable** `StaticPlaybook`
+(`author_frozen=true`, content hash, author provenance) via `examples/s2_validate_d.py`.
+
+**D↔C symmetry fix (user review, 2026-07-16):** the injected D schema is now **identical** to C —
+only `recommended_action` + `avoid` are shown (bullets). `verification_step` was removed; any
+verification tip folds into `recommended_action`. `trigger_or_context` is source-only and never
+injected (mirroring C's unshown trigger). Schema is `extra="forbid"` so a stray field is rejected.
+The packet's verifier section is **neutral** ("the final patch must satisfy the independent
+verifier and may not modify or bypass tests, validation logic, or evaluation controls") — no
+explicit hard-coding failure-mode lesson, so the author gets rules-of-the-game, not a heuristic.
+16 offline tests. **Next (Step 2):** decide who the independent author is and exactly what they may
+receive; then validate + freeze. Real-bug wiring remains after that.

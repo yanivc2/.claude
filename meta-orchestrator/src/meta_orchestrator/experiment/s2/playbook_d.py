@@ -3,10 +3,12 @@
 Claude Code does NOT write D. An independent author (human or another model) receives only
 ``corpus/D_AUTHOR_PACKET.md`` — the blind spec — and returns a ``DSubmission``. This module:
 
-  * defines the hard D schema (trigger_or_context / recommended_action / avoid / verification_step);
+  * defines the hard D schema — `trigger_or_context` (source-only, never injected),
+    `recommended_action`, `avoid`; any verification advice is folded into recommended_action;
   * validates a submission — schema, size, and a leak scan that rejects task ids, code, paths,
     patches, test answers, or any bug-specific detail the author must never have seen;
-  * renders D into the SAME bullet shape and the SAME slot budget as C (no text/format edge);
+  * renders D into the SAME injected shape as C — actions + avoid — under the same slot budget,
+    so D gets no text/format edge (no extra "verify" line, no richer structure);
   * freezes a clean submission into a ``StaticPlaybook`` with ``author_frozen=True`` and a
     content hash — after which the immutable model blocks any field change.
 
@@ -19,7 +21,7 @@ import hashlib
 import json
 import re
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..lesson import _FORBIDDEN
 from .memory import SLOT_MAX_CHARS, SLOT_MAX_LINES, StaticPlaybook
@@ -36,13 +38,20 @@ _TASK_ID_RE = re.compile(r"\b(black|cookiecutter|discord\.py|poetry|scrapy|freqt
 
 
 class PlaybookEntry(BaseModel):
+    # `trigger_or_context` is SOURCE-ONLY organization — it is NEVER injected (mirroring how
+    # condition C's trigger is not injected). The injected shape is exactly C's: actions + avoid.
+    # Any verification advice must be folded INTO recommended_action, so D gets no richer format.
+    # extra="forbid": an unknown field (e.g. a stray verification_step) is rejected, not dropped.
+    model_config = ConfigDict(extra="forbid")
+
     trigger_or_context: str
     recommended_action: list[str] = Field(default_factory=list)
     avoid: list[str] = Field(default_factory=list)
-    verification_step: str = ""
 
 
 class DSubmission(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     author: str
     author_type: str                      # "human" | "model:<id>" — provenance, recorded on freeze
     families: dict[str, list[PlaybookEntry]] = Field(default_factory=dict)
@@ -55,12 +64,10 @@ class DValidationError(ValueError):
 
 
 def _render_family(entries: list[PlaybookEntry]) -> list[str]:
-    """Same bullet style as C's lessons: actions, a verify line, then avoids (trigger not shown)."""
+    """IDENTICAL bullet shape to C's lessons: actions, then avoids. Trigger is never shown."""
     lines: list[str] = []
     for e in entries:
         lines.extend(e.recommended_action)
-        if e.verification_step:
-            lines.append(f"verify: {e.verification_step}")
         lines.extend(f"avoid: {a}" for a in e.avoid)
     return lines
 
@@ -98,7 +105,6 @@ def validate_d_submission(sub: DSubmission, present_families: list[str]) -> list
             if not e.recommended_action:
                 errors.append(f"{fam}[{i}]: no recommended_action")
             fields = [("trigger_or_context", e.trigger_or_context),
-                      ("verification_step", e.verification_step),
                       *[("recommended_action", a) for a in e.recommended_action],
                       *[("avoid", a) for a in e.avoid]]
             for name, text in fields:

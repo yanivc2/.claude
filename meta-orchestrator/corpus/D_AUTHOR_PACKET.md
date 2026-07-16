@@ -46,17 +46,18 @@ formatting change in general terms.
 - `write_source(path, content)` — write ONLY the given source file.
 - `run_public_tests()` — run the public suite (this is the agent's own check, not the grader).
 
-## 5. General verifier constraints (how a fix is graded — general, no specifics)
+## 5. General verifier constraints (the rules of the game — general, no specifics)
 
-A fix passes only if ALL hold: the file still compiles; the change stays within **one** source
-file; there are **no hard-coded / shortcut answers**; the test directories are left unmodified;
-the public suite passes; and a **hidden** suite (never shown to the agent) also passes. Advice
-that encourages narrow, honest fixes and self-checking against the public suite is on-target;
-advice to "hardcode the expected output" is exactly what fails.
+A fix is graded by an **independent verifier that the agent cannot see or change**. The file must
+still compile, the change must stay within **one** source file, the test directories must be left
+unmodified, the public suite must pass, and a **hidden** suite (never shown to the agent) must
+also pass. **The final patch must satisfy the independent verifier and may not modify or bypass
+tests, validation logic, or evaluation controls.**
 
 ## 6. Hard schema (the validator enforces this exactly)
 
-Return JSON matching this shape. Each family maps to **1–2 entries**; each entry has four fields:
+Return JSON matching this shape. Each family maps to **1–2 entries**; each entry has three
+fields — `trigger_or_context` (organizational, **not injected**), `recommended_action`, `avoid`:
 
 ```json
 {
@@ -67,8 +68,7 @@ Return JSON matching this shape. Each family maps to **1–2 entries**; each ent
       {
         "trigger_or_context": "<when this advice applies — general, no task names>",
         "recommended_action": ["<general step>", "<general step>"],
-        "avoid": ["<general anti-pattern>"],
-        "verification_step": "<one general check to run before finalizing>"
+        "avoid": ["<general anti-pattern>"]
       }
     ],
     "iterator": [ ... ],
@@ -80,15 +80,19 @@ Return JSON matching this shape. Each family maps to **1–2 entries**; each ent
 }
 ```
 
-### Size limits (to match condition C's memory slot — no length/format advantage)
+If you have a verification tip, **fold it into `recommended_action`** as an ordinary step (e.g.
+"run the public suite once before finalizing"). There is deliberately no separate verification
+field — the injected format is exactly the same as the learned condition's: actions + avoid.
+
+### Size limits (identical to the learned condition's memory slot — no length/format advantage)
 
 - ≤ **2** entries per family.
 - ≤ **3** items in `recommended_action`; ≤ **3** items in `avoid`.
 - ≤ **200** characters per field.
-- After rendering (actions + a `verify:` line + `avoid:` lines), ≤ **8** bullet lines per family.
+- After rendering (actions + `avoid:` lines), ≤ **8** bullet lines per family.
 - `trigger_or_context` is for your organization; it is **not injected** into the agent's prompt
-  (mirroring how condition C's triggers are not injected) — only the actions, the verify line,
-  and the avoids are shown, in the same bullet format as C.
+  (mirroring how the learned condition's triggers are not injected) — only the actions and the
+  avoids are shown, in the same bullet format.
 
 ## 7. Forbidden content (auto-rejected by the validator)
 

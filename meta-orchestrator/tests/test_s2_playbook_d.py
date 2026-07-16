@@ -19,9 +19,8 @@ PRESENT = ["boundary", "condition_inversion", "iterator", "other_logic",
 def _entry():
     return PlaybookEntry(
         trigger_or_context="when the formatting output differs from what the public suite expects",
-        recommended_action=["prefer a minimal targeted edit", "match the surrounding style"],
+        recommended_action=["prefer a minimal targeted edit", "run the public suite before finalizing"],
         avoid=["sweeping edits across unrelated code"],
-        verification_step="run the public suite once before finalizing",
     )
 
 
@@ -53,15 +52,29 @@ def test_render_matches_c_bullet_shape_and_budget():
     lines = render_lines(mc)
     assert lines[0].startswith("@@MEM kind=static_playbook family=whitespace")
     assert all(ln.startswith("- ") for ln in lines[1:])       # same bullet shape as C
+    assert not any("verify:" in ln for ln in lines)           # no extra verify line (parity with C)
     assert len(lines) - 1 <= SLOT_MAX_LINES                    # within the shared slot budget
+
+
+def test_injected_shape_identical_to_C():
+    # D and C must render to the SAME shape: an @@MEM tag then "- <action>" / "- avoid: <x>" only.
+    from meta_orchestrator.experiment.s2 import learn_bank, synthetic_task
+    from meta_orchestrator.experiment.s2.lifecycle import MockLearner
+    pb = freeze_d(_clean_submission(), PRESENT)
+    d_lines = render_lines(resolve_memory("D", "whitespace", playbook=pb))
+    bank = learn_bank([synthetic_task("t", "whitespace")], MockLearner())
+    c_lines = render_lines(resolve_memory("C", "whitespace", bank=bank))
+    # same structural vocabulary: a tag line + bullet lines; D carries no field C lacks
+    assert d_lines[0].startswith("@@MEM kind=static_playbook")
+    assert c_lines[0].startswith("@@MEM kind=family_relevant")
+    assert all(ln.startswith("- ") for ln in d_lines[1:] + c_lines[1:])
 
 
 # --- leak scan ----------------------------------------------------------------------------
 def _one_bad(field_value):
     fams = {f: [_entry()] for f in PRESENT}
     fams["whitespace"] = [PlaybookEntry(trigger_or_context="ctx",
-                                        recommended_action=[field_value],
-                                        verification_step="check")]
+                                        recommended_action=[field_value])]
     return DSubmission(author="a", author_type="human", families=fams)
 
 
@@ -111,5 +124,5 @@ def test_freeze_raises_on_dirty_submission():
 def test_render_family_helper_shape():
     lines = _render_family([_entry()])
     assert lines[0] == "prefer a minimal targeted edit"
-    assert any(ln.startswith("verify: ") for ln in lines)
+    assert not any(ln.startswith("verify: ") for ln in lines)   # verification folded into actions
     assert any(ln.startswith("avoid: ") for ln in lines)
