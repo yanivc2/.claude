@@ -1,0 +1,62 @@
+{
+  "author_type": "external_model",
+  "author_name": "GPT-5.6 Thinking",
+  "author": "external_model:GPT-5.6 Thinking",
+  "author_frozen": true,
+  "independence_attested_by_operator": true,
+  "submission_hash": "29804f6c7f91",
+  "content_hash": "5bd2d42c2da9",
+  "present_families": [
+    "boundary",
+    "condition_inversion",
+    "iterator",
+    "other_logic",
+    "parser_normalization",
+    "whitespace"
+  ],
+  "family_map_content_hash": "4171f399373b",
+  "by_family": {
+    "whitespace": [
+      "Identify the smallest rule that controls the affected spacing or line break.",
+      "Preserve surrounding token order and formatting invariants.",
+      "Run the public suite after the focused change.",
+      "avoid: Broad cleanup unrelated to the observed formatting behavior.",
+      "avoid: Adding special cases tied to one visible input."
+    ],
+    "iterator": [
+      "Check whether the iterable may be single pass before inspecting it more than once.",
+      "Materialize only when repeated traversal is required and safe.",
+      "Preserve item order and empty iterable behavior.",
+      "avoid: Consuming an iterator during a preliminary check.",
+      "avoid: Assuming every iterable supports indexing or length."
+    ],
+    "parser_normalization": [
+      "Normalize equivalent parser outputs before branching on their shape.",
+      "Keep normalization idempotent and limited to representation, not meaning.",
+      "Test both already normalized and unnormalized public cases.",
+      "avoid: Scattering duplicate normalization across branches.",
+      "avoid: Changing semantic content while canonicalizing structure."
+    ],
+    "other_logic": [
+      "Trace inputs, state changes, and outputs through the smallest relevant control path.",
+      "Change the narrowest condition or transformation that restores the intended invariant.",
+      "Recheck nearby branches for preserved behavior.",
+      "avoid: Refactoring unrelated logic during the repair.",
+      "avoid: Masking the symptom with a broad fallback."
+    ],
+    "boundary": [
+      "Identify the exact boundary and compare behavior immediately before and after it.",
+      "Use explicit handling only when the boundary has distinct semantics.",
+      "Exercise empty and one element public cases when available.",
+      "avoid: Using an off by one adjustment without tracing indexes.",
+      "avoid: Assuming nonempty input or an interior position."
+    ],
+    "condition_inversion": [
+      "State each branch invariant in plain language before editing the condition.",
+      "Check operator precedence and negation scope.",
+      "Verify both true and false paths with the public suite.",
+      "avoid: Adding nested negations that obscure intent.",
+      "avoid: Flipping a condition without checking the else path."
+    ]
+  }
+}
