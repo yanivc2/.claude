@@ -243,3 +243,36 @@ evaluation.
 explicit user approval + no paid API until approved): build the offline-testable A/C/D/B1 harness
 over the 27-task frozen corpus with mocks, then a budget-capped micro-pilot on real Haiku, then
 the 3-fold run — each behind its own go/no-go.
+
+---
+
+## Step 1 — offline mock harness (BUILT 2026-07-16, $0, no API)
+
+Package `src/meta_orchestrator/experiment/s2/` + `tests/test_s2_harness.py` (23 tests) +
+runner `examples/s2_offline_harness.py` → report `corpus/s2_offline_report.json`. Uses the
+REAL Sandbox + composite verifier over tiny synthetic stand-in tasks; NO model, NO network.
+
+What it wires and proves offline (all 12 invariants PASS, `self_checks_passed=true`):
+- **Condition isolation** — only the injected memory slot varies (`memory.resolve_memory`);
+  A empty, C=family-relevant, B1=other-family, D=static-playbook, identical rendered shape.
+- **C lifecycle** — per fold: learn from the fold's train only → freeze bank → held-out
+  injection with **no writes** (frozen bank raises `MemoryFrozenError`).
+- **B1 placebo** — hash-locked family→other-family map, **no fixed point**, reuses C's own
+  bank objects (identical length/schema; only relevance differs).
+- **D** — content-hashed playbook with an `author_frozen` gate; the fixture is NOT frozen, so
+  a real run is refused until an independent author freezes the real D.
+- **Zero leakage** — hidden tests / reference fix / git are never in the agent's `TaskView`;
+  a mis-routed or harmful lesson is **nullified by the verifier** (fails `no_forbidden_shortcuts`).
+- **Zero cross-fold leakage** — fresh DB + fresh bank per fold.
+- **Sealed outcomes** — `effect_table()` raises until `finalize()`; the continue/stop gate
+  reads ONLY stability/cost/harness (sign-of-C−A exposed as a boolean, magnitude sealed).
+- **Resume-safe** — idempotent run keys: re-running a fold adds no runs and no cost.
+- **Balanced split** — 27 → **9/9/9** stratified folds, every task held-out exactly once.
+- **Real-run guard** — a non-mock contract raises `RealRunBlocked` while the family map is
+  SYNTHETIC or D is not author-frozen — the code cannot reach a paid API.
+
+Preconditions still open before the micro-pilot (enforced by the guard, tracked as risks):
+(1) replace the **SYNTHETIC** family map with the $0 `primary_sub_fingerprint`-derived map,
+frozen; (2) an independent author writes + freezes the real **D**; (3) the synthetic stand-in
+tasks are replaced by the real reproduced bugs (online, model-free). Awaiting user review of
+`corpus/s2_offline_report.json` before any real API.
