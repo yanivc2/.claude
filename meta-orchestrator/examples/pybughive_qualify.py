@@ -66,7 +66,7 @@ def _checkout(repo: str, ref: str, paths: list[str] | None = None) -> None:
         _run(["git", "checkout", "-q", "-f", ref], cwd=repo)
 
 
-def qualify_bug(project: str, issue: dict, workdir: str) -> CandidateMeta:
+def qualify_bug(project: str, issue: dict, workdir: str, owner: str) -> CandidateMeta:
     commit = issue["commits"][0]
     fixed = commit["hash"]
     buggy = commit["parents"].split(",")[0].strip()   # fix's parent = buggy revision
@@ -92,9 +92,8 @@ def qualify_bug(project: str, issue: dict, workdir: str) -> CandidateMeta:
     t0 = time.time()
     repo = os.path.join(workdir, project)
     if not os.path.isdir(repo):
-        gh = {"cookiecutter": "cookiecutter/cookiecutter", "scrapy": "scrapy/scrapy",
-              "discord.py": "Rapptz/discord.py", "poetry": "python-poetry/poetry"}[project]
-        _run(["git", "clone", "-q", f"https://github.com/{gh}", repo], timeout=600)
+        # GitHub slug comes from the dataset (owner/repo) — no hardcoded project list.
+        _run(["git", "clone", "-q", f"https://github.com/{owner}/{project}", repo], timeout=600)
     venv = os.path.join(repo, ".venv")
     if not os.path.isdir(venv):
         _run([sys.executable, "-m", "venv", venv], timeout=300)
@@ -207,7 +206,7 @@ def main() -> None:
         metas = []
         for iss in proj["issues"]:
             try:
-                metas.append(qualify_bug(project, iss, work))
+                metas.append(qualify_bug(project, iss, work, proj["username"]))
             except Exception as exc:  # a single bug's crash never kills the slice
                 metas.append(CandidateMeta(candidate_id=f"{project}-{iss['id']}", project=project,
                                            issue=iss["id"], reject_reason=f"error:{type(exc).__name__}"))

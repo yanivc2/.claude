@@ -173,7 +173,9 @@ def decide(meta: CandidateMeta) -> CandidateMeta:
     """Frozen gate: reproducible AND not degenerate → admitted. Non-reproduction keeps its
     3-way certainty class (never a bare "non-reproducible" claim). Also tags the descriptive
     high-learning-value tier (does NOT affect admission)."""
-    if not meta.installed:
+    if meta.reject_reason.startswith("error:"):   # unexpected harness crash — never mask as install
+        meta.admitted = False
+    elif not meta.installed:
         meta.admitted = False
         meta.reject_reason = "timeout_install" if meta.timed_out else "install_failed"
     elif meta.stable is False:
