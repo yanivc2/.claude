@@ -56,29 +56,28 @@ tests, validation logic, or evaluation controls.**
 
 ## 6. Hard schema (the validator enforces this exactly)
 
-Return JSON matching this shape. Each family maps to **1–2 entries**; each entry has three
-fields — `trigger_or_context` (organizational, **not injected**), `recommended_action`, `avoid`:
+Return JSON matching this shape — a flat `entries` list, **1–2 entries per family**, covering all
+six families. Each entry has: `family`, `trigger_or_context` (organizational, **not injected**),
+`recommended_action`, `avoid`. Author metadata (`author_type`, `author_name`) is provenance only
+and is **never** shown to the agent.
 
 ```json
 {
-  "author": "<your name/handle>",
-  "author_type": "human | model:<model-id>",
-  "families": {
-    "whitespace": [
-      {
-        "trigger_or_context": "<when this advice applies — general, no task names>",
-        "recommended_action": ["<general step>", "<general step>"],
-        "avoid": ["<general anti-pattern>"]
-      }
-    ],
-    "iterator": [ ... ],
-    "parser_normalization": [ ... ],
-    "other_logic": [ ... ],
-    "boundary": [ ... ],
-    "condition_inversion": [ ... ]
-  }
+  "author_type": "external_model | external_human",
+  "author_name": "<your name/handle — metadata only, never injected>",
+  "entries": [
+    {
+      "family": "whitespace",
+      "trigger_or_context": "<when this advice applies — general, no task names>",
+      "recommended_action": ["<general step>", "<general step>"],
+      "avoid": ["<general anti-pattern>"]
+    }
+  ]
 }
 ```
+
+Include entries for every family: `whitespace`, `iterator`, `parser_normalization`,
+`other_logic`, `boundary`, `condition_inversion`.
 
 If you have a verification tip, **fold it into `recommended_action`** as an ordinary step (e.g.
 "run the public suite once before finalizing"). There is deliberately no separate verification
@@ -108,3 +107,16 @@ Anything that could only come from seeing the tasks or their solutions:
 Keep every field to **general** procedural advice. Submit the JSON; the validator checks schema,
 size, and leaks, then freezes it with a content hash and `author_frozen=true`. After freeze the
 playbook is immutable and cannot be edited.
+
+## 8. How to respond (rules for your submission)
+
+- Use **only this packet and your own general knowledge**. **Do not** use the internet, and do
+  not search for Black, PyBugHive, its issues, patches, or known failure modes. Do not ask for
+  additional files or data.
+- Return **schema-only JSON** matching section 6 — **no** prose, reasoning, commentary,
+  explanations, or suggestions about the experiment. Anything outside the JSON is discarded and
+  may cause rejection.
+- Cover all six families, 1–2 entries each, within the size limits.
+- If your submission is rejected, you will receive only a short **technical** schema/validation
+  message (e.g. "too many entries", "field too long", "disallowed token"). Revise and resubmit;
+  you will not be given any hint about the tasks or expected content.

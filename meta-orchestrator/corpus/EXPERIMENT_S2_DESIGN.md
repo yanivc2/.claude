@@ -302,5 +302,18 @@ injected (mirroring C's unshown trigger). Schema is `extra="forbid"` so a stray 
 The packet's verifier section is **neutral** ("the final patch must satisfy the independent
 verifier and may not modify or bypass tests, validation logic, or evaluation controls") — no
 explicit hard-coding failure-mode lesson, so the author gets rules-of-the-game, not a heuristic.
-16 offline tests. **Next (Step 2):** decide who the independent author is and exactly what they may
-receive; then validate + freeze. Real-bug wiring remains after that.
+16 offline tests. 
+
+**D authoring process (FROZEN 2026-07-16, Step 2).** `corpus/D_AUTHORING_PROCESS.md` records the
+policy: author = an **independent** party who has not seen the corpus/tasks/results/C lessons —
+preferably a different-provider model (GPT/Gemini), else an unexposed Python dev, else (weakest) a
+separate clean Claude session. NOT Claude Code, the design chat, or anyone who saw status/qual
+docs. The author receives ONLY `D_AUTHOR_PACKET.md` + `D_SUBMISSION_SCHEMA.json`; never the repo,
+task ids, statements, tests, patches, family counts, folds, qual/baseline results, or C lessons —
+and **no content hints** and **no internet**. Output is **schema-only** (flat `entries` list with
+`family`; `author_type`/`author_name` are metadata kept OUT of the injected content). On
+validation failure the author gets ONLY the technical schema message (no content hint) and
+resubmits — never hand-edited. `examples/s2_validate_d.py` validates + freezes to
+`corpus/d_playbook.frozen.json` (`author_frozen=true`, content hash). 19 offline D tests.
+**Next:** the operator has GPT (fresh session) author D from the packet, then validate + freeze;
+then wire the 27 real bugs.
