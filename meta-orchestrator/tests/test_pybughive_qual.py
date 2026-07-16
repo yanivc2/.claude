@@ -11,6 +11,7 @@ from meta_orchestrator.corpus.pybughive_qual import (
     is_test_module,
     patch_metrics,
     plan_f2p_selection,
+    primary_sub_fingerprint,
     recommend,
     sub_fingerprints,
 )
@@ -22,6 +23,17 @@ def test_sub_fingerprints_multilabel_from_changed_lines():
     assert "state_mutation" in sub_fingerprints("@@\n+    items.append(y)\n")
     # only +/- lines are read, not context; empty change → unclassified
     assert sub_fingerprints("@@\n     unchanged_context_line\n") == ["unclassified_logic"]
+
+
+def test_primary_sub_fingerprint_specificity_order_and_tight_inversion():
+    # a bare `==` must NOT be read as an inversion (the old over-firing bug)
+    assert primary_sub_fingerprint("@@\n-    if a == b:\n+    if a == c:\n") == "other_logic"
+    # a real inversion (added `not`) is condition_inversion...
+    assert primary_sub_fingerprint("@@\n-    if ok:\n+    if not ok:\n") == "condition_inversion"
+    # ...but a more-specific signal in the same diff wins (iterator > condition)
+    assert primary_sub_fingerprint("@@\n-    if not ok:\n+    for x in ok:\n") == "iterator"
+    assert primary_sub_fingerprint("@@\n+        self.buf.append(x)\n") == "state_mutation"
+    assert primary_sub_fingerprint("@@\n-   blank_lines = 1\n+   blank_lines = 2\n") == "whitespace"
 
 
 # --- F2P test selection (frozen spec) ---------------------------------------------------

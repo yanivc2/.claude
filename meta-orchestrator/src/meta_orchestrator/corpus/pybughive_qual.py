@@ -164,16 +164,45 @@ _SUBFP_PATTERNS: list[tuple[str, "re.Pattern[str]"]] = [
 ]
 
 
+def _changed_text(patch_text: str) -> str:
+    return "\n".join(ln[1:] for ln in patch_text.splitlines()
+                     if ln[:1] in "+-" and ln[:3] not in ("+++", "---"))
+
+
 def sub_fingerprints(patch_text: str) -> list[str]:
     """Objective, multi-label semantic sub-categories from the diff's changed lines.
 
     Only +/- lines are inspected (the actual change, not surrounding context). Returns the
     sorted set of matched labels; empty → falls back to ``["unclassified_logic"]``.
     """
-    changed = "\n".join(ln[1:] for ln in patch_text.splitlines()
-                        if ln[:1] in "+-" and not ln[:3] in ("+++", "---"))
+    changed = _changed_text(patch_text)
     labels = [name for name, pat in _SUBFP_PATTERNS if pat.search(changed)]
     return sorted(labels) or ["unclassified_logic"]
+
+
+# PRIMARY label: exactly ONE dominant semantic category per fix, to test whether the coarse
+# `Logic` family actually merges distinct families (a measurement artifact) or is genuinely
+# homogeneous. Specificity-ordered — the FIRST (rarest/most-distinctive) match wins, so
+# generic signals (condition/boundary) only win when nothing more specific fired. Crucially,
+# `condition_inversion` requires a REAL inversion token (not / != / is not), never a bare `==`.
+# Descriptive heuristic (documented ordering), not a validated taxonomy; changes no gate.
+_PRIMARY_ORDER: list[tuple[str, "re.Pattern[str]"]] = [
+    ("whitespace",           re.compile(r"empty_line|EmptyLine|\bblank|\bnewline|whitespace|\\n|\bindent|\bdedent")),
+    ("iterator",             re.compile(r"\bfor \b|\bwhile \b|\byield\b|\bnext\(|enumerate\(|\[[^\]]+ for ")),
+    ("state_mutation",       re.compile(r"\.append\(|\.pop\(|\.add\(|\.update\(|\.extend\(|\.insert\(|\bdel \b")),
+    ("parser_normalization", re.compile(r"\.strip\(|\.lstrip\(|\.rstrip\(|\.replace\(|\.split\(|normaliz|\bparse|token|lexer|ast\.")),
+    ("boundary",             re.compile(r"[<>]=|(?<![<>!=])[<>](?!=)|\brange\(|\blen\(|[-+]\s*1\b")),
+    ("condition_inversion",  re.compile(r"\bnot \b|!=|\bis not\b")),
+]
+
+
+def primary_sub_fingerprint(patch_text: str) -> str:
+    """The single dominant semantic sub-category (specificity-ordered). Fallback: other_logic."""
+    changed = _changed_text(patch_text)
+    for name, pat in _PRIMARY_ORDER:
+        if pat.search(changed):
+            return name
+    return "other_logic"
 
 
 class PatchMetrics(BaseModel):

@@ -13,7 +13,7 @@ import sys
 import tempfile
 from collections import Counter
 
-from meta_orchestrator.corpus.pybughive_qual import sub_fingerprints
+from meta_orchestrator.corpus.pybughive_qual import primary_sub_fingerprint, sub_fingerprints
 
 PYBUGHIVE_REPO = "https://github.com/pybughive/pybughive"
 
@@ -41,23 +41,34 @@ def main() -> None:
     patch_by_id = {f"{p['repository']}-{iss['id']}": _src_patch_text(iss)
                    for p in data for iss in p["issues"]}
 
-    label_counter: Counter = Counter()
-    per_bug = []
+    multi: Counter = Counter()
+    primary: Counter = Counter()
     for cid in sorted(ids):
-        labels = sub_fingerprints(patch_by_id.get(cid, ""))
-        per_bug.append((cid, labels))
-        label_counter.update(labels)
-        print(f"  {cid:16s} -> {labels}")
+        diff = patch_by_id.get(cid, "")
+        pl = primary_sub_fingerprint(diff)
+        multi.update(sub_fingerprints(diff))
+        primary.update([pl])
+        print(f"  {cid:16s} primary={pl:22s} multi={sub_fingerprints(diff)}")
 
-    distinct = len(label_counter)
-    top = label_counter.most_common(1)[0] if label_counter else ("-", 0)
-    top_share = top[1] / len(admitted) if admitted else 0.0
-    print(f"\n  sub-fingerprint distribution (multi-label): {dict(label_counter.most_common())}")
-    print(f"  distinct sub-fingerprints: {distinct}")
-    print(f"  most common: {top[0]} in {top[1]}/{len(admitted)} bugs ({top_share:.0%})")
-    print("\n  interpretation: if the 'Logic' bugs spread across several sub-categories, "
-          "the diversity deficit is partly a TAXONOMY-granularity artifact, not a real "
-          "corpus limitation. (Descriptive only — main taxonomy and gates unchanged.)")
+    n = len(admitted)
+    p_distinct = len(primary)
+    p_top = primary.most_common(1)[0] if primary else ("-", 0)
+    p_top_share = p_top[1] / n if n else 0.0
+    print(f"\n  MULTI-label distribution : {dict(multi.most_common())}")
+    print(f"  PRIMARY-label distribution: {dict(primary.most_common())}")
+    print(f"  PRIMARY distinct families : {p_distinct}")
+    print(f"  PRIMARY top family        : {p_top[0]} = {p_top[1]}/{n} ({p_top_share:.0%})")
+    print("\n  READ:")
+    if p_distinct >= 3 and p_top_share <= 0.70:
+        print(f"    The coarse 'Logic' 85% DISSOLVES under a tight primary label: {p_distinct} families, "
+              f"top {p_top_share:.0%}. => the deficit was a MEASUREMENT artifact (coarse main taxonomy), "
+              "NOT a real corpus limitation. Real intra-Logic diversity exists.")
+    elif p_distinct >= 3:
+        print(f"    {p_distinct} families appear, but one still dominates ({p_top[0]} {p_top_share:.0%}). "
+              "Partial artifact: some real diversity, but a genuine concentration remains.")
+    else:
+        print(f"    Even under a tight primary label the bugs collapse to {p_distinct} families "
+              f"({p_top[0]} {p_top_share:.0%}). => the concentration is REAL, not a measurement artifact.")
 
 
 if __name__ == "__main__":
