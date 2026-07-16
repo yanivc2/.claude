@@ -91,6 +91,7 @@ def main() -> None:
                 "buggy_source_hash": _sha(task.buggy_source),
                 "reference_fix_hash": _sha(task.reference_fix),
                 "f2p_plan": task.f2p_plan, "p2p_count": len(task.p2p_nodes),
+                "public_suite_empty": task.public_suite_empty,
                 "sanitized_statement": task.sanitized_statement})
         results[tid] = entry
         print(f"  {tid:16s} {rep.status:26s} {rep.detail}")
@@ -108,16 +109,44 @@ def main() -> None:
     json.dump(doc, open(OUT, "w"), indent=2)
 
     print("\n--- status breakdown ---")
-    for st in [ReproStatus.REPRODUCED, ReproStatus.NON_REPRODUCIBLE,
-               ReproStatus.HARNESS_DEPENDENCY_FAILURE, ReproStatus.INVALID_F2P,
-               ReproStatus.INVALID_P2P, ReproStatus.LEAKAGE_REJECTED]:
-        print(f"  {st:28s} {by_status.get(st, 0)}")
+    for st in [ReproStatus.REPRODUCED_PUBLIC_NONEMPTY, ReproStatus.REPRODUCED_PUBLIC_EMPTY,
+               ReproStatus.NON_REPRODUCIBLE, ReproStatus.HARNESS_DEPENDENCY_FAILURE,
+               ReproStatus.INVALID_F2P, ReproStatus.INVALID_P2P, ReproStatus.LEAKAGE_REJECTED]:
+        print(f"  {st:30s} {by_status.get(st, 0)}")
     print(f"  wired manifest → {os.path.relpath(OUT, HERE)}")
+
+    _public_suite_stratum(results, fmap, scope)
 
     gate = [tid for tid in GATE_IDS if tid in results]
     if set(ids) == set(GATE_IDS) and gate:
-        ok = all(results[tid]["status"] == ReproStatus.REPRODUCED for tid in gate)
+        ok = all(results[tid]["status"] in ReproStatus.REPRODUCED for tid in gate)
         print(f"\nGATE ({', '.join(GATE_IDS)}): {'PASS ✓ — proceed to all 27' if ok else 'FAIL ✗ — stop and diagnose'}")
+
+
+def _public_suite_stratum(results, fmap, scope):
+    """Decision A: report the empty-public-suite stratum (interpretive warnings, NOT exclusion)."""
+    repro = {t: e for t, e in results.items() if e["status"] in ReproStatus.REPRODUCED}
+    if not repro:
+        return
+    empty = [t for t, e in repro.items() if e.get("public_suite_empty")]
+    n, k = len(repro), len(empty)
+    fold_of = {t: scope[t]["fold"] for t in repro}
+    from collections import Counter
+    p2p_counts = sorted(e.get("p2p_count", 0) for t, e in repro.items() if not e.get("public_suite_empty"))
+    med = p2p_counts[len(p2p_counts) // 2] if p2p_counts else 0
+    print("\n--- public_suite_empty stratum (decision A: valid, not excluded) ---")
+    print(f"  empty: {k}/{n} reproduced   nonempty P2P median={med} range={(p2p_counts[0], p2p_counts[-1]) if p2p_counts else '-'}")
+    print(f"  by fold  : {dict(sorted(Counter(fold_of[t] for t in empty).items()))}")
+    print(f"  by family: {dict(Counter(fmap[t] for t in empty))}")
+    print(f"  by repo  : {dict(Counter(t.rsplit('-', 1)[0] for t in empty))}")
+    print(f"  by scope : {dict(Counter(scope[t]['repair_scope'] for t in empty))}")
+    if k >= 14:
+        print("  ⚠️ STRONG WARNING: >half the corpus has no public suite — narrow the conclusion claim.")
+    elif k >= 9:
+        print("  ⚠️ WARNING: >=1/3 of the corpus has no public suite — note in interpretation.")
+    fam_conc = [f for f, c in Counter(fmap[t] for t in empty).items() if c >= 3]
+    if fam_conc:
+        print(f"  ⚠️ concentration: empty tasks cluster in families {fam_conc} — report as caveat.")
 
 
 if __name__ == "__main__":

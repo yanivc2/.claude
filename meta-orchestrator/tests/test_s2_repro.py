@@ -25,10 +25,22 @@ def test_leak_scan_flags_patch_hint():
 
 
 def test_status_codes_are_distinct():
-    codes = {ReproStatus.REPRODUCED, ReproStatus.NON_REPRODUCIBLE,
-             ReproStatus.HARNESS_DEPENDENCY_FAILURE, ReproStatus.INVALID_F2P,
-             ReproStatus.INVALID_P2P, ReproStatus.LEAKAGE_REJECTED}
-    assert len(codes) == 6
+    codes = {ReproStatus.REPRODUCED_PUBLIC_NONEMPTY, ReproStatus.REPRODUCED_PUBLIC_EMPTY,
+             ReproStatus.NON_REPRODUCIBLE, ReproStatus.HARNESS_DEPENDENCY_FAILURE,
+             ReproStatus.INVALID_F2P, ReproStatus.INVALID_P2P, ReproStatus.LEAKAGE_REJECTED}
+    assert len(codes) == 7
+    # both "reproduced" statuses count as reproduced (public suite is optional — decision A)
+    assert ReproStatus.REPRODUCED == {ReproStatus.REPRODUCED_PUBLIC_NONEMPTY,
+                                      ReproStatus.REPRODUCED_PUBLIC_EMPTY}
+
+
+def test_public_empty_task_is_valid():
+    t = RepoBackedTask(task_id="black-95", project="black", family="iterator", repo_url="u",
+                       buggy_rev="a", fixed_rev="b", allowed_source_files=["src/black/x.py"],
+                       repair_scope="single_file", buggy_source={"src/black/x.py": "bug"},
+                       reference_fix={"src/black/x.py": "fix"}, f2p_plan=[["tests/t.py", "k"]],
+                       p2p_nodes=[], public_suite_empty=True, sanitized_statement="a general one")
+    assert t.public_suite_empty is True and t.p2p_nodes == []
 
 
 def test_repo_backed_task_roundtrips():

@@ -24,16 +24,21 @@ from ...corpus.pybughive_qual import plan_f2p_selection
 from ...corpus.sanitize import sanitize_statement
 
 # --- frozen operational envelope -------------------------------------------------------------
-TIMEOUTS = {"clone": 600, "venv": 300, "pip": 600, "install": 600, "pytest": 300}
+TIMEOUTS = {"clone": 600, "venv": 300, "pip": 600, "install": 600, "pytest": 300,
+            "enrich_pytest": 120}
 
 
 class ReproStatus:
-    REPRODUCED = "reproduced"
+    # Two "reproduced" statuses (both VALID): the public (P2P) suite is optional (decision A).
+    REPRODUCED_PUBLIC_NONEMPTY = "reproduced_public_nonempty"
+    REPRODUCED_PUBLIC_EMPTY = "reproduced_public_empty"
     NON_REPRODUCIBLE = "non_reproducible"
     HARNESS_DEPENDENCY_FAILURE = "harness_dependency_failure"
     INVALID_F2P = "invalid_f2p"
-    INVALID_P2P = "invalid_p2p"
+    INVALID_P2P = "invalid_p2p"           # reserved (unreachable): P2P=∅ is valid, never invalid
     LEAKAGE_REJECTED = "leakage_rejected"
+
+    REPRODUCED = {REPRODUCED_PUBLIC_NONEMPTY, REPRODUCED_PUBLIC_EMPTY}  # both count as reproduced
 
 
 class RepoBackedTask(BaseModel):
@@ -50,6 +55,7 @@ class RepoBackedTask(BaseModel):
     reference_fix: dict[str, str]           # allowed files @ fixed (EVALUATOR-ONLY)
     f2p_plan: list[list] = Field(default_factory=list)   # hidden: [[test_file, keyword|None], ...]
     p2p_nodes: list[str] = Field(default_factory=list)   # public: node ids passing on both revs
+    public_suite_empty: bool = False                     # decision A: ∅ public suite is valid
     sanitized_statement: str
 
 
@@ -141,6 +147,50 @@ def statement_leak_scan(sanitized: str, hidden_test_names: list[str], fixed_rev:
     if re.search(r"(?i)\bthe fix is\b|\broot cause\b|@@|\bdiff\b", sanitized):
         hits.append("patch hint")
     return hits
+
+
+def _enrich_p2p(py, repo, plan, f2p_nodes, buggy, fixed, allowed) -> list[str]:
+    """Best-effort ONLY (decision B): when the in-plan P2P is empty, try ONE unfiltered run of
+    the plan's test files per revision, with a short fixed timeout, to find stable pass-on-both
+    public tests. Any timeout / collection error / instability → return [] (NEVER a failure).
+    General + deterministic — no per-bug tuning."""
+    files = sorted({f for f, _k in plan})
+    unfiltered = [[f, None] for f in files]
+    to = TIMEOUTS["enrich_pytest"]
+    try:
+        _checkout(repo, buggy)
+        # re-overlay fixed test artifacts is unnecessary here: the plan files already exist.
+        if _run([py, "-m", "pip", "install", "-q", "-e", "."], cwd=repo, timeout=TIMEOUTS["install"]).returncode != 0:
+            return []
+        bu, tb = _run_plan_timeout(py, repo, unfiltered, to)
+        for p in allowed:
+            _checkout(repo, fixed, [p])
+        if _run([py, "-m", "pip", "install", "-q", "-e", "."], cwd=repo, timeout=TIMEOUTS["install"]).returncode != 0:
+            return []
+        fu, tf = _run_plan_timeout(py, repo, unfiltered, to)
+        if tb or tf:
+            return []
+        common = set(bu) & set(fu)
+        return sorted(n for n in common
+                      if bu[n] == "PASSED" == fu[n] and n not in set(f2p_nodes))
+    except Exception:
+        return []
+
+
+def _run_plan_timeout(py, repo, plan, timeout):
+    nodes: dict[str, str] = {}
+    timed_out = False
+    for test_file, keyword in plan:
+        cmd = [py, "-m", "pytest", "-o", "addopts=", "-rA", "--tb=line", "-q", test_file]
+        if keyword:
+            cmd += ["-k", keyword]
+        r = _run(cmd, cwd=repo, timeout=timeout)
+        timed_out = timed_out or r.timed_out
+        for line in r.stdout.splitlines():
+            m = re.match(r"(PASSED|FAILED|ERROR)\s+(\S+)", line)
+            if m:
+                nodes[m.group(2)] = m.group(1)
+    return nodes, timed_out
 
 
 # --- the 8-gate reproduction driver ---------------------------------------------------------
@@ -235,7 +285,6 @@ def reproduce_bug(task_id, project, owner, issue, family, allowed_source_files,
     f2p = [n for n in common if b1[n] == b2[n] == "FAILED" and f1[n] == f2[n] == "PASSED"]
     p2p = [n for n in common if b1[n] == b2[n] == "PASSED" == f1[n] == f2[n]]
     rep.gates["4_f2p_fail_on_buggy_pass_on_fixed"] = bool(f2p)
-    rep.gates["5_p2p_pass_on_fixed"] = bool(p2p)
 
     if not stable:
         rep.status = ReproStatus.NON_REPRODUCIBLE
@@ -245,10 +294,13 @@ def reproduce_bug(task_id, project, owner, issue, family, allowed_source_files,
         rep.status = ReproStatus.INVALID_F2P
         rep.detail = "no test fails-on-buggy AND passes-on-fixed"
         return None, rep
+
+    # gate 5 (decision A): the public suite is OPTIONAL. If the in-plan P2P is empty, try a
+    # bounded best-effort enrichment; an empty result is VALID, not a failure.
     if not p2p:
-        rep.status = ReproStatus.INVALID_P2P
-        rep.detail = "no public (pass-on-both) test found"
-        return None, rep
+        p2p = _enrich_p2p(py, repo, plan, f2p, buggy, fixed, allowed_source_files)
+    public_empty = not p2p
+    rep.gates["5_public_suite_optional"] = True     # never a reject gate
 
     # gate 6: statement built ONLY from issue text, sanitized + leak-scanned.
     raw = (issue.get("title") or "").strip() + "\n" + (issue.get("body") or "").strip()
@@ -262,14 +314,15 @@ def reproduce_bug(task_id, project, owner, issue, family, allowed_source_files,
         rep.detail = f"usable={san.usable} leaks={leaks}"
         return None, rep
 
-    rep.status = ReproStatus.REPRODUCED
-    rep.detail = f"F2P={len(f2p)} P2P={len(p2p)} ({round(time.time()-t0,1)}s)"
+    rep.status = (ReproStatus.REPRODUCED_PUBLIC_EMPTY if public_empty
+                  else ReproStatus.REPRODUCED_PUBLIC_NONEMPTY)
+    rep.detail = f"F2P={len(f2p)} P2P={len(p2p)}{' (public suite empty — valid)' if public_empty else ''} ({round(time.time()-t0,1)}s)"
     task = RepoBackedTask(
         task_id=task_id, project=project, family=family,
         repo_url=f"https://github.com/{owner}/{project}", buggy_rev=buggy, fixed_rev=fixed,
         allowed_source_files=sorted(allowed_source_files), repair_scope=repair_scope,
         buggy_source=buggy_source, reference_fix=reference_fix,
         f2p_plan=[list(p) for p in plan], p2p_nodes=sorted(p2p),
-        sanitized_statement=san.sanitized,
+        public_suite_empty=public_empty, sanitized_statement=san.sanitized,
     )
     return task, rep

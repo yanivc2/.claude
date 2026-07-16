@@ -32,15 +32,45 @@ One clone per project, one venv per project (`<repo>/.venv`), reused across that
 checking out different revisions. `pip install -e .` per revision. No global installs; no shared
 interpreter state across projects.
 
+## Public vs hidden tests (decision A, 2026-07-16 — binding)
+
+> The public test bundle is an optional auxiliary regression suite. It may contain zero or more
+> tests that pass on both the buggy and reference-fixed states. Task validity is determined
+> independently by the hidden F2P suite.
+
+- **F2P (hidden):** grading tests that MUST fail on buggy and pass on fixed. Verifier-only.
+- **P2P (public):** zero or more visible regression tests that pass on both states. **Not** part
+  of the correctness definition. `P2P = ∅` is **valid**, never a rejection.
+- **Best-effort enrichment (decision B):** only when the in-plan P2P is empty, one deterministic
+  unfiltered run of the plan's test files per revision, with a fixed short timeout, may find
+  stable pass-on-both public tests. A timeout / collection error / instability → empty suite,
+  **never** a reproduction failure. No per-bug timeout tuning, no manual "rescue".
+- **`run_public_tests()` on an empty suite** must return a structured result
+  (`status: no_public_tests, passed: true, tests_run: 0`), **never** a pytest
+  "no tests collected" failure — otherwise it injects an artificial harness failure into the
+  agent's path. (Enforced by the repo-backed grading tool.)
+
 ## Reproduction status codes (mutually exclusive)
 
-- `reproduced` — passed all 8 gates.
+- `reproduced_public_nonempty` — passed all gates; has a non-empty public suite.
+- `reproduced_public_empty` — passed all gates; public suite is empty (**valid**, not a failure).
 - `non_reproducible` — F2P selectable but the bug/tests don't behave stably (or no F2P test found).
 - `harness_dependency_failure` — clone/venv/install/timeout/scope-mismatch/unreadable file.
 - `invalid_f2p` — no test fails-on-buggy AND passes-on-fixed.
-- `invalid_p2p` — no public (pass-on-both) test found.
+- `invalid_p2p` — **reserved / unreachable** (P2P=∅ is valid; a would-be public test that fails
+  on fixed is simply excluded, not an invalidity).
 - `leakage_rejected` — sanitized statement still leaks (hidden-test name, fix commit, patch hint,
   allowed-file path) or is too vague to be a fair task.
+
+## public_suite_empty stratum + interpretive thresholds (not exclusion)
+
+Report the empty-public-suite tasks as a stratum: count/share of the reproduced set, distribution
+by fold / family / repo / single-vs-multi, and the P2P median+range on non-empty tasks.
+Interpretive **warnings** (never drop tasks): ≥9/27 → note in interpretation; ≥14/27 → narrow the
+conclusion claim; a family with ≥3 empty tasks → report as a caveat. Analyses: **primary** = all
+reproduced tasks under their frozen feedback environment; **stratified** = A/C/D within
+public_nonempty vs public_empty; **sensitivity** = non-empty only; **interaction** = whether C's
+advantage differs with/without public feedback (descriptive at this n).
 
 ## The 8-point gate (all required for `reproduced`)
 
@@ -48,7 +78,8 @@ interpreter state across projects.
 2. `allowed_source_files` equals the reference patch's source files exactly (frozen scope).
 3. reference fix is built ONLY from the diff in the allowed files.
 4. F2P fails on buggy AND passes on fixed.
-5. P2P passes on fixed (and, where present, on buggy).
+5. public suite is **optional** — collected as pass-on-both tests (in-plan, then best-effort
+   enrichment); empty is valid and never a rejection (decision A).
 6. statement carries no patch hints, hidden-test names, or fixed-commit information.
 7. a clean re-run gives the same result (stable across the two runs of each revision).
 8. install/timeout failures are classified as harness failures, not repair failures.
