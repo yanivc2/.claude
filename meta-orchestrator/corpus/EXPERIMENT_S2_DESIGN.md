@@ -34,9 +34,36 @@ per fold.
 to the $4.89 ceiling. This constrains reps (Decision D), context strategy (C), and the
 micro-pilot-first plan (E) — to be resolved in those decisions.
 
-## Decisions B–E — OPEN
+## Decision B — conditions (DECIDED 2026-07-16)
 
-- B: conditions (A/C/D sufficient, or add a B condition, e.g. learned-without-gate?)
+**Four conditions: A / C / D / B1 (relevance placebo).** Add B1 now; defer B2 (gate isolation).
+
+- **A** — no-memory: solver attempts each test task fresh, no lessons.
+- **C** — learned: per fold, the solver attempts the 18 train tasks and writes **gated**
+  procedural lessons, tagged by semantic family → a **lesson-bank**; memory is then frozen and,
+  for a held-out test task of family X, the bank's **family-X** lessons are injected.
+- **D** — static playbook: a hand-written best-practice playbook (no learning) injected instead.
+- **B1** — **relevance placebo**: for a test task of family X, inject the SAME lesson-bank's
+  lessons but from a **different family Y≠X** (deterministic, frozen routing — e.g. the most-
+  distant family in a fixed rotation). Identical text/length/structure/quality to C's
+  injection — differs ONLY in relevance. B1 reuses C's bank, so it adds **no learning cost**,
+  only evaluation (~+$0.7 for 27 test evals).
+
+Rationale: the central validity threat is the "any extra text helps" confound (C>A might be
+mere added context). B1 is the direct control: if C > B1 while B1 ≈ A, the **relevant learned
+content** is what helps, not the presence of quality memory text. D controls a *different*
+thing (learned vs generic-expert advice); it does not neutralize the text confound — only B1
+does. **B2 (learned-without-gate)** answers a secondary question (does the write-gate improve
+lesson quality) and is deferred to a follow-up, after C's content is shown to be the cause.
+
+Placebo design (per user refinement): NOT randomly-scrambled lessons (that conflates
+"irrelevant" with "harmful/confusing"), but **quality lessons from another family**. Because
+B1 uses C's own bank mis-routed by family, text quality/length/structure are identical by
+construction. Conservative property: if cross-family lessons partially generalize, B1 gets
+partial help, making C>B1 *harder* to show — so a positive result is robust, not inflated.
+
+## Decisions C–E — OPEN
+
 - C: context strategy (whole target file vs region-only)
 - D: repetitions & max rounds (budget vs signal stability)
 - E: micro-pilot-first + whether to expand the corpus before spending, given low power
