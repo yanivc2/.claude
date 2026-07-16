@@ -1,0 +1,70 @@
+{
+  "gate": "GATE1",
+  "decision": "GO WITH DOCUMENTED EXCLUSIONS",
+  "frozen_for": "\u00a72 learning experiment \u2014 ONLY these admitted ids may enter; excluded never participate and never change A/C/D status",
+  "admitted_count": 27,
+  "admitted_sha256": "cee0c6028e94c6e15e3865eca8cc52819fd258143f965c8110d8f281b58e7f66",
+  "admitted_ids": [
+    "black-112",
+    "black-130",
+    "black-132",
+    "black-133",
+    "black-141",
+    "black-1632",
+    "black-183",
+    "black-185",
+    "black-193",
+    "black-215",
+    "black-224",
+    "black-232",
+    "black-234",
+    "black-238",
+    "black-273",
+    "black-329",
+    "black-334",
+    "black-335",
+    "black-385",
+    "black-389",
+    "black-593",
+    "black-60",
+    "black-74",
+    "black-80",
+    "black-95",
+    "cookiecutter-18",
+    "discord.py-7818"
+  ],
+  "harness_limited_excluded": {
+    "count": 10,
+    "likely_harness_gap": [
+      "black-1493",
+      "black-1596",
+      "black-1812",
+      "black-569",
+      "discord.py-7676",
+      "scrapy-1265"
+    ],
+    "not_reproduced_under_current_harness": [
+      "black-154",
+      "black-46",
+      "black-55",
+      "black-59"
+    ]
+  },
+  "other_rejections": {
+    "count": 11,
+    "ids": [
+      "black-111",
+      "black-2254",
+      "black-237",
+      "black-297",
+      "black-371",
+      "cookiecutter-1513",
+      "poetry-3224",
+      "poetry-3263",
+      "poetry-3303",
+      "poetry-5141",
+      "scrapy-2552"
+    ]
+  },
+  "known_limitation": "harness-limited exclusions skew to the Typing family (see condition-3 finding) \u2014 corpus under-samples Typing due to dynamic test discovery, NOT because Typing bugs are rare"
+}
