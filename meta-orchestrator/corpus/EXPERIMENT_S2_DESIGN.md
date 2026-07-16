@@ -62,8 +62,36 @@ B1 uses C's own bank mis-routed by family, text quality/length/structure are ide
 construction. Conservative property: if cross-family lessons partially generalize, B1 gets
 partial help, making C>B1 *harder* to show — so a positive result is robust, not inflated.
 
-## Decisions C–E — OPEN
+## Decision C — context strategy (DECIDED 2026-07-16)
 
-- C: context strategy (whole target file vs region-only)
+**Full target file, identical and content-hashed across all four conditions.** No region-only
+in the main experiment.
+
+Rationale: region-only injects new confounds — who picks the region? If from the reference
+patch → **oracle leakage** (you've told the agent where the bug is). If via a model/retriever →
+you now also measure retrieval quality, and the selector could help C more than A. Full file
+gives every condition exactly the same information and leaves diagnosis inside the file to the
+agent; the small extra cost is justified by validity.
+
+**Scope declaration (honest):** §2 tests **file-given single-file repair** — the target file is
+provided. It does **not** test repository navigation, file localization, or retrieval. Those
+are deferred to a separate experiment. (Legitimate here because the corpus is already filtered
+to single-file/near-single-hunk fixes.)
+
+**Frozen & identical across A / B1 / C / D:**
+- Same full target file (same content hash).
+- **Same SANITIZED problem statement** (no solution / file-name / solution-identifier leak — via
+  `corpus/sanitize.py`); never the raw issue text.
+- **Hidden (F2P) tests are NEVER in the prompt** — two-zone isolation; only the verifier sees
+  them. Prompt = buggy file + sanitized statement + public (P2P) tests only, same across
+  conditions.
+- Same problem statement, same prompt-component order, same context ceiling.
+- Lessons injected at the same position and formatting in every condition; **only the lesson
+  CONTENT differs** (none / family-relevant / other-family / static-playbook).
+- If a file exceeds the context ceiling: either the task is pre-excluded, or one **deterministic**
+  truncation strategy is applied **identically** to all conditions — never a manual region.
+
+## Decisions D–E — OPEN
+
 - D: repetitions & max rounds (budget vs signal stability)
 - E: micro-pilot-first + whether to expand the corpus before spending, given low power
