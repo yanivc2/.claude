@@ -37,7 +37,7 @@ def main() -> None:
             continue
         changed += 1
         pm = b.get("patch") or (a.get("patch") if a else None)
-        pmt = f"{pm['files']}f/{pm['changed_lines']}l/{pm['hunks']}h" if pm else "?"
+        pmt = f"{pm['files']}f/{pm['added'] + pm['deleted']}l/{pm['hunks']}h" if pm else "?"
         print(f"\n  {cid}   {sa}  ->  {sb}")
         print(f"      fp={b.get('fingerprint') if b else '-'}  patch={pmt}  "
               f"repro={b.get('reproducible') if b else '-'}  runtime={b.get('runtime_s') if b else '-'}s")
