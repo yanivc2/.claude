@@ -5,6 +5,9 @@ synthetic stand-in tasks. No network, no API.
 """
 from __future__ import annotations
 
+import json
+import os
+
 import pytest
 
 from meta_orchestrator.experiment.agent import AgentTools
@@ -265,3 +268,57 @@ def test_mock_provider_never_blocked():
 
 def test_verifier_config_hash_stable():
     assert verifier_config_hash() == verifier_config_hash()
+
+
+# --- REAL frozen family map (produced by examples/s2_build_family_map.py, $0, no model) ---
+_REAL_MAP = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "corpus", "s2_family_map.json")
+
+
+def _load_real_map():
+    if not os.path.exists(_REAL_MAP):
+        pytest.skip("real family map not generated yet")
+    doc = json.load(open(_REAL_MAP))
+    if doc.get("synthetic", True):
+        pytest.skip("family map is still synthetic")
+    return doc
+
+
+def test_real_map_frozen_27_balanced_no_gaps():
+    doc = _load_real_map()
+    fmap = doc["family_map"]
+    assert doc["synthetic"] is False and doc["frozen"] is True
+    assert len(fmap) == 27 and len(set(fmap)) == 27
+    assert doc["corpus_manifest_sha256"].startswith("cee0c602")
+    folds = stratified_folds(fmap, doc["k_folds"])
+    validate_folds(folds, sorted(fmap))
+    assert [len(f.test_ids) for f in folds] == [9, 9, 9]
+    from meta_orchestrator.experiment.s2 import train_representation_gaps
+    assert train_representation_gaps(folds, fmap) == []       # every test family in train
+
+
+def test_real_map_b1_placebo_over_present_families_no_fixed_point():
+    doc = _load_real_map()
+    present = sorted(set(doc["family_map"].values()))
+    p = PlaceboRouter.build(present)
+    for fam in present:
+        assert p.route(fam) != fam and p.route(fam) in present
+    # matches the frozen record
+    assert p.map_hash() == doc["b1_placebo"]["map_hash"]
+
+
+def test_real_map_real_run_guard_allows_when_playbook_frozen():
+    doc = _load_real_map()
+    fmap = doc["family_map"]
+    corpus = build_synthetic_corpus(fmap)
+    real = AgentContract(provider="anthropic", exact_model_id="claude-haiku-4-5-20251001",
+                         agent_version="0.1", tool_definitions=AgentTools.NAMES)
+    # frozen real map + fixture (unfrozen) D → still blocked on D
+    h = S2Harness(fmap, corpus, real, fixture_playbook(), k=3, synthetic_map=doc["synthetic"])
+    with pytest.raises(RealRunBlocked):
+        h.assert_real_run_allowed()
+    # frozen real map + author-frozen D → allowed
+    frozen_pb = StaticPlaybook(by_family={f: ["minimal edit"] for f in SEMANTIC_FAMILIES},
+                               author_frozen=True, author="independent")
+    S2Harness(fmap, corpus, real, frozen_pb, k=3,
+              synthetic_map=doc["synthetic"]).assert_real_run_allowed()

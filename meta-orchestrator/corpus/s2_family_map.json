@@ -1,34 +1,614 @@
 {
-  "_note": "SYNTHETIC placeholder family map for the OFFLINE mock harness ONLY. The REAL map must be produced by the $0 model-free primary_sub_fingerprint pass (examples/pybughive_subfingerprint.py) over the reference diffs and frozen BEFORE the micro-pilot. A non-synthetic map is a hard precondition for any real (non-mock) run.",
-  "synthetic": true,
+  "synthetic": false,
+  "frozen": true,
+  "frozen_at": "2026-07-16T15:25:47.953740Z",
   "taxonomy": "semantic primary-sub",
+  "fingerprinter": {
+    "version": "primary-sub-v1",
+    "source_hash": "e6cfa90966ae"
+  },
+  "corpus_manifest_sha256": "cee0c6028e94c6e15e3865eca8cc52819fd258143f965c8110d8f281b58e7f66",
+  "family_map_content_hash": "4171f399373b",
+  "split_version": 1,
   "k_folds": 3,
+  "dataset_provenance": {
+    "repo": "https://github.com/pybughive/pybughive",
+    "file": "dataset/pybughive_current.json",
+    "commit": "1a35712f98abcfd7933a0accfc93d808bfde5efa"
+  },
+  "family_counts": {
+    "whitespace": 9,
+    "iterator": 7,
+    "parser_normalization": 4,
+    "other_logic": 3,
+    "boundary": 2,
+    "condition_inversion": 2
+  },
+  "fold_split": [
+    {
+      "index": 0,
+      "n_train": 18,
+      "n_test": 9,
+      "test_ids": [
+        "black-112",
+        "black-141",
+        "black-185",
+        "black-224",
+        "black-232",
+        "black-238",
+        "black-335",
+        "black-593",
+        "discord.py-7818"
+      ]
+    },
+    {
+      "index": 1,
+      "n_train": 18,
+      "n_test": 9,
+      "test_ids": [
+        "black-133",
+        "black-1632",
+        "black-183",
+        "black-234",
+        "black-329",
+        "black-60",
+        "black-74",
+        "black-95",
+        "cookiecutter-18"
+      ]
+    },
+    {
+      "index": 2,
+      "n_train": 18,
+      "n_test": 9,
+      "test_ids": [
+        "black-130",
+        "black-132",
+        "black-193",
+        "black-215",
+        "black-273",
+        "black-334",
+        "black-385",
+        "black-389",
+        "black-80"
+      ]
+    }
+  ],
+  "train_representation_gaps": [],
+  "b1_placebo": {
+    "over_families": [
+      "boundary",
+      "condition_inversion",
+      "iterator",
+      "other_logic",
+      "parser_normalization",
+      "whitespace"
+    ],
+    "mapping": {
+      "boundary": "other_logic",
+      "condition_inversion": "parser_normalization",
+      "iterator": "whitespace",
+      "other_logic": "boundary",
+      "parser_normalization": "condition_inversion",
+      "whitespace": "iterator"
+    },
+    "map_hash": "47f7e3b45ca0",
+    "fixed_points": []
+  },
+  "tasks": [
+    {
+      "task_id": "black-112",
+      "primary_sub": "whitespace",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 2,
+          "added": 10,
+          "deleted": 4,
+          "hunks": 3,
+          "locality": "multi-file"
+        },
+        "dataset_issue": "black-112"
+      }
+    },
+    {
+      "task_id": "black-130",
+      "primary_sub": "other_logic",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 2,
+          "deleted": 2,
+          "hunks": 1,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-130"
+      }
+    },
+    {
+      "task_id": "black-132",
+      "primary_sub": "parser_normalization",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 42,
+          "deleted": 21,
+          "hunks": 6,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-132"
+      }
+    },
+    {
+      "task_id": "black-133",
+      "primary_sub": "iterator",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 50,
+          "deleted": 27,
+          "hunks": 7,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-133"
+      }
+    },
+    {
+      "task_id": "black-141",
+      "primary_sub": "parser_normalization",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 9,
+          "deleted": 0,
+          "hunks": 2,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-141"
+      }
+    },
+    {
+      "task_id": "black-1632",
+      "primary_sub": "whitespace",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 2,
+          "added": 25,
+          "deleted": 2,
+          "hunks": 3,
+          "locality": "multi-file"
+        },
+        "dataset_issue": "black-1632"
+      }
+    },
+    {
+      "task_id": "black-183",
+      "primary_sub": "parser_normalization",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 24,
+          "deleted": 11,
+          "hunks": 2,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-183"
+      }
+    },
+    {
+      "task_id": "black-185",
+      "primary_sub": "other_logic",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 8,
+          "deleted": 3,
+          "hunks": 1,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-185"
+      }
+    },
+    {
+      "task_id": "black-193",
+      "primary_sub": "iterator",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 27,
+          "deleted": 25,
+          "hunks": 5,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-193"
+      }
+    },
+    {
+      "task_id": "black-215",
+      "primary_sub": "whitespace",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 8,
+          "deleted": 2,
+          "hunks": 3,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-215"
+      }
+    },
+    {
+      "task_id": "black-224",
+      "primary_sub": "boundary",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 6,
+          "deleted": 1,
+          "hunks": 2,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-224"
+      }
+    },
+    {
+      "task_id": "black-232",
+      "primary_sub": "iterator",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 69,
+          "deleted": 15,
+          "hunks": 3,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-232"
+      }
+    },
+    {
+      "task_id": "black-234",
+      "primary_sub": "iterator",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 16,
+          "deleted": 28,
+          "hunks": 3,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-234"
+      }
+    },
+    {
+      "task_id": "black-238",
+      "primary_sub": "whitespace",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 2,
+          "deleted": 4,
+          "hunks": 2,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-238"
+      }
+    },
+    {
+      "task_id": "black-273",
+      "primary_sub": "parser_normalization",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 11,
+          "deleted": 4,
+          "hunks": 2,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-273"
+      }
+    },
+    {
+      "task_id": "black-329",
+      "primary_sub": "whitespace",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Path",
+        "patch_metrics": {
+          "files": 1,
+          "added": 102,
+          "deleted": 1,
+          "hunks": 6,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-329"
+      }
+    },
+    {
+      "task_id": "black-334",
+      "primary_sub": "whitespace",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 6,
+          "deleted": 11,
+          "hunks": 1,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-334"
+      }
+    },
+    {
+      "task_id": "black-335",
+      "primary_sub": "whitespace",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 60,
+          "deleted": 178,
+          "hunks": 14,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-335"
+      }
+    },
+    {
+      "task_id": "black-385",
+      "primary_sub": "condition_inversion",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 1,
+          "deleted": 13,
+          "hunks": 2,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-385"
+      }
+    },
+    {
+      "task_id": "black-389",
+      "primary_sub": "iterator",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 19,
+          "deleted": 10,
+          "hunks": 3,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-389"
+      }
+    },
+    {
+      "task_id": "black-593",
+      "primary_sub": "iterator",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 5,
+          "added": 105,
+          "deleted": 18,
+          "hunks": 13,
+          "locality": "multi-file"
+        },
+        "dataset_issue": "black-593"
+      }
+    },
+    {
+      "task_id": "black-60",
+      "primary_sub": "whitespace",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 13,
+          "deleted": 10,
+          "hunks": 3,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-60"
+      }
+    },
+    {
+      "task_id": "black-74",
+      "primary_sub": "other_logic",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 2,
+          "deleted": 2,
+          "hunks": 1,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-74"
+      }
+    },
+    {
+      "task_id": "black-80",
+      "primary_sub": "whitespace",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Parser",
+        "patch_metrics": {
+          "files": 1,
+          "added": 12,
+          "deleted": 12,
+          "hunks": 1,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-80"
+      }
+    },
+    {
+      "task_id": "black-95",
+      "primary_sub": "iterator",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Typing",
+        "patch_metrics": {
+          "files": 1,
+          "added": 10,
+          "deleted": 1,
+          "hunks": 2,
+          "locality": "single-file"
+        },
+        "dataset_issue": "black-95"
+      }
+    },
+    {
+      "task_id": "cookiecutter-18",
+      "primary_sub": "boundary",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Parser",
+        "patch_metrics": {
+          "files": 2,
+          "added": 28,
+          "deleted": 11,
+          "hunks": 6,
+          "locality": "multi-file"
+        },
+        "dataset_issue": "cookiecutter-18"
+      }
+    },
+    {
+      "task_id": "discord.py-7818",
+      "primary_sub": "condition_inversion",
+      "fingerprinter_version": "primary-sub-v1",
+      "provenance": {
+        "qualification_report": "pybughive_report_post_f2p_fix.json",
+        "admitted": true,
+        "legacy_fingerprint": "Logic",
+        "patch_metrics": {
+          "files": 1,
+          "added": 13,
+          "deleted": 2,
+          "hunks": 4,
+          "locality": "single-file"
+        },
+        "dataset_issue": "discord.py-7818"
+      }
+    }
+  ],
   "family_map": {
     "black-112": "whitespace",
-    "black-130": "iterator",
-    "black-132": "state_mutation",
-    "black-133": "parser_normalization",
-    "black-141": "boundary",
-    "black-1632": "condition_inversion",
-    "black-183": "other_logic",
-    "black-185": "whitespace",
+    "black-130": "other_logic",
+    "black-132": "parser_normalization",
+    "black-133": "iterator",
+    "black-141": "parser_normalization",
+    "black-1632": "whitespace",
+    "black-183": "parser_normalization",
+    "black-185": "other_logic",
     "black-193": "iterator",
-    "black-215": "state_mutation",
-    "black-224": "parser_normalization",
-    "black-232": "boundary",
-    "black-234": "condition_inversion",
-    "black-238": "other_logic",
-    "black-273": "whitespace",
-    "black-329": "iterator",
-    "black-334": "state_mutation",
-    "black-335": "parser_normalization",
-    "black-385": "boundary",
-    "black-389": "condition_inversion",
-    "black-593": "other_logic",
+    "black-215": "whitespace",
+    "black-224": "boundary",
+    "black-232": "iterator",
+    "black-234": "iterator",
+    "black-238": "whitespace",
+    "black-273": "parser_normalization",
+    "black-329": "whitespace",
+    "black-334": "whitespace",
+    "black-335": "whitespace",
+    "black-385": "condition_inversion",
+    "black-389": "iterator",
+    "black-593": "iterator",
     "black-60": "whitespace",
-    "black-74": "iterator",
-    "black-80": "state_mutation",
-    "black-95": "parser_normalization",
+    "black-74": "other_logic",
+    "black-80": "whitespace",
+    "black-95": "iterator",
     "cookiecutter-18": "boundary",
     "discord.py-7818": "condition_inversion"
   }

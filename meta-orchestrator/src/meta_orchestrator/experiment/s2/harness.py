@@ -159,7 +159,10 @@ class S2Harness:
         self.learner = learner or MockLearner()
         self.solver_factory = solver_factory
         self.synthetic_map = synthetic_map
-        self.placebo = PlaceboRouter.build()
+        # B1 routes only among families PRESENT in the corpus (each has learnable lessons in
+        # every fold's train). Routing to an absent family would inject nothing and collapse
+        # B1 into A. Built purely from the frozen family names — no model, no reference patch.
+        self.placebo = PlaceboRouter.build(sorted(set(family_map.values())))
         self.folds: list[Fold] = stratified_folds(family_map, k)
         self.outcomes = SealedOutcomes()
 

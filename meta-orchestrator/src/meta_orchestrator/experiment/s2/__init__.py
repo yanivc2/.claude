@@ -5,7 +5,7 @@ four conditions A / C / D / B1 over the 27-task corpus with the REAL Sandbox + v
 model / NO network. See ``examples/s2_offline_harness.py`` for the report runner.
 """
 from .families import SEMANTIC_FAMILIES, family_map_hash, is_known_family
-from .folds import Fold, FoldError, stratified_folds, validate_folds
+from .folds import Fold, FoldError, stratified_folds, train_representation_gaps, validate_folds
 from .gate import GateDecision, StabilitySignals, continue_decision
 from .harness import (FoldRun, Outcome, OutcomesSealedError, RealRunBlocked, S2Harness,
                       SealedOutcomes)
@@ -17,7 +17,7 @@ from .synthetic import build_synthetic_corpus, synthetic_task
 
 __all__ = [
     "SEMANTIC_FAMILIES", "family_map_hash", "is_known_family",
-    "Fold", "FoldError", "stratified_folds", "validate_folds",
+    "Fold", "FoldError", "stratified_folds", "train_representation_gaps", "validate_folds",
     "GateDecision", "StabilitySignals", "continue_decision",
     "FoldRun", "Outcome", "OutcomesSealedError", "RealRunBlocked", "S2Harness", "SealedOutcomes",
     "Learner", "MockLearner", "learn_bank",
