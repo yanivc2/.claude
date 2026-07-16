@@ -17,7 +17,14 @@ Running only the touched files misses that test → the bug is mislabeled `likel
 
 - **Fix test artifacts** = the files listed under the fix commit's `stat.tests` (PyBugHive).
 - **Test module** = a `.py` file whose text contains `def test` or `class Test` (pytest-
-  collectable). Detected by `is_test_module(text)`.
+  collectable) AND is **not** under a data/fixtures directory. Detected by `is_test_module(text)`
+  gated by `not _is_data_path(path)`.
+- **Data-path exclusion (spec v2, 2026-07-16).** Files under a `data/` or `fixtures/` directory
+  are TEST INPUT, never runnable tests — even a `.py` input that contains `def test…`. They are
+  only ever treated as **fixtures** (a token source), never run directly or as a consumer.
+  Rationale: black stores formatting inputs as `tests/data/*.py`; running them collects/errors
+  and mis-labels the real F2P test as a `likely_harness_gap`. This is a general structural rule,
+  not a per-bug exception. (Axis-A residual analysis motivated it; frozen before the re-run.)
 - **Fixture artifact** = any fix test artifact that is NOT a test module: data files
   (`.py`/`.yaml`/`.txt`/binary) under the tests tree, or `conftest.py`.
 - **tests index** = every `.py` file under the repo's top-level `tests/` directory, read AFTER

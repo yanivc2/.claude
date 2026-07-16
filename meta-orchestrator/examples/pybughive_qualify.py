@@ -221,14 +221,20 @@ def main() -> None:
     # Post-F2P-fix re-run of the EXACT pre-fix candidate set (small-slice 4 projects from
     # pybughive_small.json + black from current.json), all fresh under the new detector — so
     # pre/post are comparable and regressions on already-admitted bugs are visible.
+    args = sys.argv[1:]
     work = tempfile.mkdtemp(prefix="pbh_qual_")
     meta_repo = os.path.join(work, "_pybughive")
     _run(["git", "clone", "-q", "--depth", "1", PYBUGHIVE_REPO, meta_repo], timeout=300)
     small = json.load(open(os.path.join(meta_repo, "dataset", "pybughive_small.json")))
     current = json.load(open(os.path.join(meta_repo, "dataset", "pybughive_current.json")))
 
-    run_projects = list(small)  # cookiecutter, scrapy, discord.py, poetry (small.json bug sets)
-    run_projects.append(next(p for p in current if p["repository"] == "black"))  # + black (38)
+    if args:  # explicit project(s) — e.g. `freqtrade` (Axis B), fresh from current.json
+        run_projects = [next(p for p in current if p["repository"] == a) for a in args]
+        out_path = f"pybughive_report_{'_'.join(args)}.json"
+    else:     # default: the frozen post-fix set (small-slice 4 + black)
+        run_projects = list(small)
+        run_projects.append(next(p for p in current if p["repository"] == "black"))
+        out_path = "pybughive_report_post_f2p_fix.json"
 
     print("=== QUALIFIER INFRASTRUCTURE ===")
     print("  pure helpers unit-tested offline (`pytest tests/test_pybughive_qual.py`).")
@@ -267,9 +273,9 @@ def main() -> None:
     print(f"  flaky                : {sum(1 for m in metas if m.reject_reason == 'flaky')}  "
           f"timeout: {sum(1 for m in metas if m.timed_out)}")
     print(f"\n  RECOMMENDATION: {verdict}\n    {why}")
-    with open("pybughive_report_post_f2p_fix.json", "w") as fh:
+    with open(out_path, "w") as fh:
         fh.write(total.model_dump_json(indent=2))
-    print("  wrote pybughive_report_post_f2p_fix.json")
+    print(f"  wrote {out_path}")
 
 
 if __name__ == "__main__":

@@ -12,7 +12,16 @@ from meta_orchestrator.corpus.pybughive_qual import (
     patch_metrics,
     plan_f2p_selection,
     recommend,
+    sub_fingerprints,
 )
+
+
+def test_sub_fingerprints_multilabel_from_changed_lines():
+    assert "boundary" in sub_fingerprints("@@\n-    x = a[i]\n+    x = a[i - 1]\n")
+    assert "condition_inversion" in sub_fingerprints("@@\n-    if ok:\n+    if not ok:\n")
+    assert "state_mutation" in sub_fingerprints("@@\n+    items.append(y)\n")
+    # only +/- lines are read, not context; empty change → unclassified
+    assert sub_fingerprints("@@\n     unchanged_context_line\n") == ["unclassified_logic"]
 
 
 # --- F2P test selection (frozen spec) ---------------------------------------------------
@@ -43,6 +52,18 @@ def test_plan_empty_when_no_consumer():
     idx = {"tests/test_x.py": "def test_x(): pass"}
     plan, log = plan_f2p_selection(["tests/data/orphan_fixture.py"], idx)
     assert plan == [] and "no_relevant_test" in log             # → likely_harness_gap upstream
+
+
+def test_plan_excludes_data_dir_pyfiles_from_running(monkeypatch=None):
+    # a .py fixture under tests/data that *looks* like a test module must NOT be run;
+    # it is only a token source mapping to the real consumer test.
+    idx = {
+        "tests/data/fmtonoff.py": "def test_looks_like_a_test(): pass",   # actually a data input
+        "tests/test_black.py": "def test_fmtonoff(): assert fmtonoff",
+    }
+    plan, log = plan_f2p_selection(["tests/data/fmtonoff.py"], idx)
+    assert all(not f.startswith("tests/data/") for f, _ in plan)          # data file never run
+    assert ("tests/test_black.py", "fmtonoff") in plan                    # real consumer instead
 
 
 def test_plan_conftest_uses_declared_fixture_names():

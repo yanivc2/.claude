@@ -80,11 +80,20 @@ def fingerprint(f2p_error: str, patch_text: str, changed_files: list[str]) -> st
 _DEF_NAME = re.compile(r"^\s*def\s+([A-Za-z_]\w*)", re.MULTILINE)
 F2P_PLAN_CAP = 8
 _MIN_TOKEN_LEN = 3
+# Fixture/data directories hold TEST INPUT, never runnable tests — even when the input is a
+# `.py` file that happens to contain `def test...`. Running such a file collects/errors and
+# masks the real F2P test as a harness gap. Files here are only ever fixtures (token source).
+_DATA_DIR = re.compile(r"(^|/)(data|fixtures?)(/|$)")
 
 
 def is_test_module(text: str) -> bool:
     """A pytest-collectable module: contains a test function or Test class."""
     return bool(re.search(r"\bdef test|\bclass Test", text))
+
+
+def _is_data_path(path: str) -> bool:
+    """True for paths under a data/fixtures directory — inputs, not runnable tests."""
+    return bool(_DATA_DIR.search(path))
 
 
 def plan_f2p_selection(
@@ -102,7 +111,8 @@ def plan_f2p_selection(
     seen: set[tuple[str, str | None]] = set()
 
     direct = [a for a in fix_test_artifacts
-              if a.endswith(".py") and a in tests_index and is_test_module(tests_index[a])]
+              if a.endswith(".py") and a in tests_index and is_test_module(tests_index[a])
+              and not _is_data_path(a)]
     for a in direct:
         key = (a, None)
         if key not in seen:
@@ -119,7 +129,7 @@ def plan_f2p_selection(
                 continue
             pat = re.compile(rf"\b{re.escape(token)}\b")
             consumers = sorted(t for t, txt in tests_index.items()
-                               if is_test_module(txt) and pat.search(txt))
+                               if is_test_module(txt) and not _is_data_path(t) and pat.search(txt))
             if consumers:
                 token_consumers.append((token, consumers))
 
@@ -135,6 +145,35 @@ def plan_f2p_selection(
     if not plan:
         log.append("no_relevant_test")
     return plan, log
+
+
+# --------------------------------------------------------------------------- #
+# Semantic sub-fingerprints (Axis C): the main `Logic` family is too coarse. Decompose
+# the ADDED/REMOVED diff lines into objective semantic sub-categories. Multi-label (a fix
+# may carry several); model-free. This is a DESCRIPTIVE overlay — it does NOT change the
+# main fingerprint taxonomy or any gate.
+# --------------------------------------------------------------------------- #
+_SUBFP_PATTERNS: list[tuple[str, "re.Pattern[str]"]] = [
+    ("condition_inversion", re.compile(r"\bnot \b|!=|==|\bis not\b|\bis None\b|\bTrue\b|\bFalse\b|\band \b|\bor \b")),
+    ("boundary",            re.compile(r"[<>]=?|\blen\(|\brange\(|[-+]\s*1\b|\[[^\]]*[-+]\s*1\]")),
+    ("whitespace",          re.compile(r"whitespace|indent|newline|blank|empty_line|\bspaces?\b|\\n|\\t")),
+    ("parser_normalization", re.compile(r"\bparse|normaliz|\.strip\(|\.lstrip\(|\.rstrip\(|\.replace\(|\.split\(|token|lexer|ast\.")),
+    ("ordering",            re.compile(r"\bsort(ed)?\(|\breverse|\.reverse\(|reorder")),
+    ("iterator",            re.compile(r"\bfor \b|\bwhile \b|\byield\b|\bnext\(|enumerate\(|\[[^\]]* for ")),
+    ("state_mutation",      re.compile(r"\.append\(|\.pop\(|\.add\(|\.update\(|\.extend\(|\bdel \b|\.insert\(")),
+]
+
+
+def sub_fingerprints(patch_text: str) -> list[str]:
+    """Objective, multi-label semantic sub-categories from the diff's changed lines.
+
+    Only +/- lines are inspected (the actual change, not surrounding context). Returns the
+    sorted set of matched labels; empty → falls back to ``["unclassified_logic"]``.
+    """
+    changed = "\n".join(ln[1:] for ln in patch_text.splitlines()
+                        if ln[:1] in "+-" and not ln[:3] in ("+++", "---"))
+    labels = [name for name, pat in _SUBFP_PATTERNS if pat.search(changed)]
+    return sorted(labels) or ["unclassified_logic"]
 
 
 class PatchMetrics(BaseModel):
