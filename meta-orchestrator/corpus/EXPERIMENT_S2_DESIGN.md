@@ -91,7 +91,61 @@ to single-file/near-single-hunk fixes.)
 - If a file exceeds the context ceiling: either the task is pre-excluded, or one **deterministic**
   truncation strategy is applied **identically** to all conditions — never a manual region.
 
-## Decisions D–E — OPEN
+## Decision D — repetitions (DECIDED 2026-07-16)
 
-- D: repetitions & max rounds (budget vs signal stability)
-- E: micro-pilot-first + whether to expand the corpus before spending, given low power
+**Do NOT pre-commit reps=2 for the full experiment. Use the micro-pilot to MEASURE
+stability, then run the full 3-fold at reps=1 only if a stability gate passes.**
+
+- **Micro-pilot: reps=2** on the ~9 tasks of one fold. Run each condition twice
+  (A×2, B1×2, C×2, D×2) under byte-identical config: same model snapshot, thinking
+  budget, temperature, context, prompt, verifier, max rounds, tool permissions. The
+  pilot's purpose is NOT to estimate learning yet — only to answer: *does the same
+  system, under the same inputs, return a stable pass/fail?*
+- **Stability gate → admit reps=1 for the full run when ALL hold:**
+  1. In **A** and in **C**, at most **1 per-task pass/fail flip out of 9** between the
+     two reps. (Per-task flip count, NOT aggregate counts — 4/9 vs 4/9 can hide two
+     cancelling flips.)
+  2. The **sign of C−A does not reverse** between reps.
+  3. No nondeterminism in the verifier or the test environment.
+  4. Real cost stays inside the circuit-breaker ceiling.
+- **If the pilot is stable:** run the full 3-fold at **reps=1**, and label it
+  explicitly a **directional pilot**, not final proof. Justified because all 27 tasks
+  already serve as held-out once, four conditions are already costly, a full repeat
+  would double C's *learning* phase (not just evaluation), and the budget is tight.
+- **If the pilot is NOT stable:** STOP and diagnose — do not blindly double the budget.
+  Separate (1) **environment noise** (test timing / filesystem / dependency /
+  nondeterministic verifier → fix the harness) from (2) **model randomness** (different
+  patches under identical input → raise budget and run **all** conditions at equal reps).
+  **Never give only C more repetitions** — that manufactures an unfair advantage.
+- **Full replicate of C must relearn from scratch:** empty memory → learn the 18 train
+  → emit a fresh lesson-bank → freeze → then evaluate held-out. Re-running *test-only*
+  with the same bank measures **execution stability**, not **learning stability**.
+- A positive full-run result still **requires independent replication before any strong
+  claim** (deferred to follow-up).
+
+### Keep-honest addenda to Decision D (do not override the decision; feed Decision E)
+
+1. **The reps=1 gate is about EXECUTION stability, and that is the cheap axis.** The gate
+   criteria (per-task flips in A and C, C−A sign) test whether *identical inputs* yield a
+   stable pass/fail. Measuring that does **not** require relearning C's bank twice — it
+   requires re-running the *evaluation* twice against the **same frozen bank** (plus A
+   twice). The expensive double-relearn measures **learning** stability, which is exactly
+   the "independent replication before a strong claim" already deferred — it is **not** a
+   prerequisite for choosing reps=1. So the pilot's second rep should re-evaluate A and C
+   on the held-out with C's bank frozen, not relearn it.
+2. **Budget arithmetic — a naive pilot + full run overruns the $4.89 ceiling.** Counting
+   ~$0.025/attempt: full 3-fold reps=1 = 3×(A9+B1·9+D9+C[18 learn+9 eval]) = 3×54 = **162
+   attempts ≈ $4.05**. A pilot that re-runs all four conditions ×2 with C relearned each
+   rep = 2×54 = **108 ≈ $2.70**; pilot+full = **270 ≈ $6.75 — over budget.** Even an
+   A+C-only relearn pilot (72) overruns. **Feasible path (for Decision E):** run **fold 1
+   first at reps=1** (54 attempts) and treat it as *both* the pilot base *and* official
+   fold-1 data; add a **second execution-rep of A and C on fold-1's 9 held-out, bank
+   frozen** (+18 ≈ $0.45) to get the flip-count gate; if it passes, continue folds 2–3 at
+   reps=1 (+108). Total ≈ **180 attempts ≈ $4.50 — under ceiling.** This reuses the pilot
+   instead of paying for it twice; it is only valid if the pilot config is byte-identical
+   to fold 1 (which the pilot already requires).
+
+## Decision E — OPEN
+
+- E: run now vs expand the corpus first (given low power at n=27), and reconcile the
+  budget path above.
