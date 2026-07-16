@@ -315,5 +315,24 @@ and **no content hints** and **no internet**. Output is **schema-only** (flat `e
 validation failure the author gets ONLY the technical schema message (no content hint) and
 resubmits — never hand-edited. `examples/s2_validate_d.py` validates + freezes to
 `corpus/d_playbook.frozen.json` (`author_frozen=true`, content hash). 19 offline D tests.
-**Next:** the operator has GPT (fresh session) author D from the packet, then validate + freeze;
-then wire the 27 real bugs.
+D authored + frozen (`5bd2d42c`, external_model GPT-5.6 Thinking).
+
+**Scope amendment + real-corpus wiring (Blocker 3, DONE 2026-07-16).** Scope amendment A
+(`EXPERIMENT_S2_SCOPE_AMENDMENT.md`) corrected §2 to **target-file-set-given repair** (4/27 are
+multi-file); `s2_scope_metadata.json` freezes per-task `allowed_source_files` (`79fae38b4074`).
+The 27 bugs are wired to repo-backed tasks via the model-free 8-gate pipeline
+(`experiment/s2/repro.py`, `examples/s2_wire_real_corpus.py`) under the frozen envelope
+(`S2_REPRODUCTION_ENVELOPE.md`): deterministic buggy/fixed checkout, allowed-files==scope,
+reference-fix-from-allowed-only, F2P fail-on-buggy/pass-on-fixed, optional public P2P suite
+(decision A: `P2P=∅` valid; best-effort enrichment B), statement leak-scan, clean-rerun
+stability, install/timeout→harness failure. **Result: 27/27 `reproduced_public_nonempty`** (0
+non-reproducible / harness / invalid-F2P / invalid-P2P / leakage / public-empty; P2P median 39,
+range 1–123). One general pipeline fix (an over-broad `\bdiff\b` leak pattern that false-flagged
+black-130's "--diff" title) triggered a full re-run of all 27 — no per-bug edits. Manifest
+`corpus/s2_real_corpus.json` (lean: revs + allowed files + content hashes + F2P plan + P2P count
++ sanitized statement), bound to manifest `cee0c602` + family map `4171f399` + scope `79fae38b`;
+family map, folds, and D verified UNCHANGED.
+
+**Next:** build the repo-backed grading sandbox + A/C/D/B1 solver harness over the wired corpus,
+then the budget-capped micro-pilot on real Haiku (fold 1 + stability gate) — the first paid step,
+gated on explicit approval.
