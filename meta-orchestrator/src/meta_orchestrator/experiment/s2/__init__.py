@@ -13,6 +13,8 @@ from .lifecycle import Learner, MockLearner, learn_bank
 from .memory import (CONDITIONS, FrozenLessonBank, MemoryContext, MemoryFrozenError,
                      PlaceboRouter, StaticPlaybook, parse_mem_tag, render_lines, resolve_memory)
 from .mocks import LessonSensitiveMock
+from .playbook_d import (DSubmission, DValidationError, PlaybookEntry, freeze_d,
+                         submission_hash, validate_d_submission)
 from .synthetic import build_synthetic_corpus, synthetic_task
 
 __all__ = [
@@ -24,5 +26,7 @@ __all__ = [
     "CONDITIONS", "FrozenLessonBank", "MemoryContext", "MemoryFrozenError", "PlaceboRouter",
     "StaticPlaybook", "parse_mem_tag", "render_lines", "resolve_memory",
     "LessonSensitiveMock",
+    "DSubmission", "DValidationError", "PlaybookEntry", "freeze_d", "submission_hash",
+    "validate_d_submission",
     "build_synthetic_corpus", "synthetic_task",
 ]

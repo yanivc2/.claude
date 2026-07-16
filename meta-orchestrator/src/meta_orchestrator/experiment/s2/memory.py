@@ -20,12 +20,18 @@ import hashlib
 import json
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ..lesson import Lesson
 from .families import SEMANTIC_FAMILIES
 
 CONDITIONS = ["A", "C", "D", "B1"]
+
+# Shared memory-slot budget (Decision C: identical size/format across C/B1/D so no condition
+# gets a "more text / richer format" advantage). Enforced by render_lines for EVERY condition
+# via one deterministic truncation. D's validator enforces the same cap before freeze.
+SLOT_MAX_LINES = 8       # max content bullets injected (excludes the @@MEM tag line)
+SLOT_MAX_CHARS = 200     # max chars per bullet (deterministic hard truncation)
 
 # component_kind values — the machine-readable label of the injected slot.
 KIND_NONE = "none"
@@ -69,8 +75,11 @@ class StaticPlaybook(BaseModel):
 
     ``author_frozen`` must be True for a *real* run: it certifies the playbook was written by
     an independent author and frozen. Test fixtures set it False, which the harness's
-    real-run guard rejects — so a fixture can never masquerade as the final D.
+    real-run guard rejects — so a fixture can never masquerade as the final D. The model is
+    immutable (frozen) so no field can be reassigned after construction.
     """
+
+    model_config = ConfigDict(frozen=True)
 
     by_family: dict[str, list[str]] = Field(default_factory=dict)
     author_frozen: bool = False
@@ -172,7 +181,9 @@ def render_lines(mc: MemoryContext) -> list[str]:
     if mc.component_kind == KIND_NONE:
         return []
     tag = f"@@MEM kind={mc.component_kind} family={mc.source_family or '-'}"
-    return [tag, *(f"- {ln}" for ln in mc.lines)]
+    # One deterministic budget applied to EVERY condition → no length/format advantage.
+    capped = [ln[:SLOT_MAX_CHARS] for ln in mc.lines[:SLOT_MAX_LINES]]
+    return [tag, *(f"- {ln}" for ln in capped)]
 
 
 def parse_mem_tag(context_lines: list[str]) -> tuple[str, Optional[str]]:

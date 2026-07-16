@@ -276,3 +276,24 @@ Preconditions still open before the micro-pilot (enforced by the guard, tracked 
 frozen; (2) an independent author writes + freezes the real **D**; (3) the synthetic stand-in
 tasks are replaced by the real reproduced bugs (online, model-free). Awaiting user review of
 `corpus/s2_offline_report.json` before any real API.
+
+### Blocker 1 — real family map (CLOSED 2026-07-16)
+`corpus/s2_family_map.json` is now `synthetic:false, frozen:true`, derived purely by
+`primary_sub_fingerprint` (no manual mapping). 6 families (whitespace 9, iterator 7,
+parser_normalization 4, other_logic 3, boundary 2, condition_inversion 2), folds **9/9/9**, zero
+train-representation gaps. `content_hash=4171f399373b`, manifest `cee0c602…`, dataset commit
+recorded. B1 placebo built over the 6 present families (hash-locked, no fixed point,
+`map_hash=47f7e3b45ca0`). Generator: `examples/s2_build_family_map.py`.
+
+### Blocker 2 — D authoring infrastructure (BUILT 2026-07-16; D itself NOT written)
+Claude Code does **not** write D. `corpus/D_AUTHOR_PACKET.md` is the **blind** brief (goal,
+scope, the 6 family names, tools, general verifier constraints, hard schema + size caps) — with
+no task ids / statements / code / patches / hidden tests / per-bug results / future C lessons.
+`experiment/s2/playbook_d.py` defines the schema (`trigger_or_context / recommended_action /
+avoid / verification_step`) and a blind validator: schema + size caps + leak scan (rejects task
+ids, paths, code, patches, concrete values) + the **shared slot budget** (`SLOT_MAX_LINES/CHARS`,
+now enforced identically for C/B1/D in `render_lines`, so D gets no length/format edge). A clean
+submission freezes into an **immutable** `StaticPlaybook` (`author_frozen=true`, content hash,
+author provenance) via `examples/s2_validate_d.py`. 15 offline tests. **Next:** an independent
+author (human or another model) receives only the packet and returns a submission; then validate
++ freeze. Real-bug wiring remains after that.
