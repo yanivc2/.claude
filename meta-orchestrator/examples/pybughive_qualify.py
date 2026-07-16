@@ -26,6 +26,7 @@ from meta_orchestrator.corpus.pybughive_qual import (
     fingerprint,
     is_degenerate,
     patch_metrics,
+    plan_f2p_selection,
     recommend,
 )
 
@@ -47,16 +48,43 @@ def _run(cmd: list[str], cwd: str | None = None, env: dict | None = None, timeou
         return _Res(124, f"TIMEOUT after {timeout}s: {' '.join(cmd[:3])}", timed_out=True)
 
 
-def _pytest_nodes(py: str, cwd: str, test_files: list[str]) -> tuple[dict[str, str], str, bool]:
-    """Run the given test files → {nodeid: PASSED|FAILED|ERROR}, raw output, timed_out."""
-    r = _run([py, "-m", "pytest", "-o", "addopts=", "-rA", "--tb=line", "-q", *test_files],
-             cwd=cwd, timeout=300)
+def _run_plan(py: str, cwd: str, plan: list[tuple[str, str | None]]) -> tuple[dict[str, str], str, bool]:
+    """Run an F2P plan (each entry: a test file, optionally filtered by -k keyword).
+
+    Returns merged {nodeid: PASSED|FAILED|ERROR}, concatenated output, timed_out.
+    """
     nodes: dict[str, str] = {}
-    for line in r.stdout.splitlines():
-        m = re.match(r"(PASSED|FAILED|ERROR)\s+(\S+)", line)
-        if m:
-            nodes[m.group(2)] = m.group(1)
-    return nodes, r.stdout, r.timed_out
+    out: list[str] = []
+    timed_out = False
+    for test_file, keyword in plan:
+        cmd = [py, "-m", "pytest", "-o", "addopts=", "-rA", "--tb=line", "-q", test_file]
+        if keyword:
+            cmd += ["-k", keyword]
+        r = _run(cmd, cwd=cwd, timeout=300)
+        timed_out = timed_out or r.timed_out
+        out.append(r.stdout)
+        for line in r.stdout.splitlines():
+            m = re.match(r"(PASSED|FAILED|ERROR)\s+(\S+)", line)
+            if m:
+                nodes[m.group(2)] = m.group(1)
+    return nodes, "\n".join(out), timed_out
+
+
+def _build_tests_index(repo: str) -> dict[str, str]:
+    """Map every repo-relative test `.py` path under tests/ to its text (fixed tests overlaid)."""
+    idx: dict[str, str] = {}
+    tdir = os.path.join(repo, "tests")
+    if not os.path.isdir(tdir):
+        return idx
+    for base, _dirs, files in os.walk(tdir):
+        for fn in files:
+            if fn.endswith(".py"):
+                full = os.path.join(base, fn)
+                try:
+                    idx[os.path.relpath(full, repo)] = open(full, encoding="utf-8", errors="ignore").read()
+                except OSError:
+                    pass
+    return idx
 
 
 def _checkout(repo: str, ref: str, paths: list[str] | None = None) -> None:
@@ -74,17 +102,16 @@ def qualify_bug(project: str, issue: dict, workdir: str, owner: str) -> Candidat
     src_files = [f for f in files if not f["filename"].endswith((".md", ".rst", ".txt"))
                  and "test" not in f["filename"].lower()]
     src_paths = [f["filename"] for f in src_files]
-    # Overlay ALL fix test artifacts (including .yaml/.png/.txt fixtures the tests read);
-    # only .py files are actually run. Missing a fixture turns a clean F2P into an ERROR.
+    # Overlay ALL fix test artifacts (data fixtures included) so the F2P selector can map a
+    # fixture to the parametrized test that consumes it (see F2P_DETECTION_SPEC.md).
     test_overlay = [t["filename"] for t in commit["stat"].get("tests", [])]
-    test_paths = [t for t in test_overlay if t.endswith(".py")]
     patch_text = "\n".join(f.get("patch", "") for f in src_files)
     m = patch_metrics(src_files)
     meta = CandidateMeta(
         candidate_id=f"{project}-{issue['id']}", project=project, issue=issue["id"],
         patch=m, degenerate=is_degenerate(m),
     )
-    if not src_paths or not test_paths:
+    if not src_paths or not test_overlay:
         meta.installed, meta.reject_reason = False, "no_src_or_test_in_patch"
         meta.fingerprint = fingerprint("", patch_text, src_paths)
         return meta
@@ -114,13 +141,27 @@ def qualify_bug(project: str, issue: dict, workdir: str, owner: str) -> Candidat
         meta.fingerprint = fingerprint("", patch_text, src_paths)
         return meta
 
+    # F2P test selection (frozen spec): fix's data fixtures → the parametrized tests that
+    # consume them, not just the files the fix touched. Built on the buggy tree with fixed
+    # tests overlaid (so newly-added fixtures/tests are visible to the index).
+    plan, sel_log = plan_f2p_selection(test_overlay, _build_tests_index(repo))
+    meta.f2p_selection = [f"{f}{(' -k ' + k) if k else ''}" for f, k in plan] or sel_log
+    if not plan:                                            # no relevant test → harness gap
+        meta.reproducible = False
+        meta.stable = None
+        meta.collected_any = False
+        meta.nonrepro_class = "likely_harness_gap"
+        meta.fingerprint = fingerprint("", patch_text, src_paths)
+        meta.runtime_s = round(time.time() - t0, 1)
+        return meta
+
     tt = time.time()
-    buggy1, out_b1, to1 = _pytest_nodes(py, repo, test_paths)
-    buggy2, _, to2 = _pytest_nodes(py, repo, test_paths)
+    buggy1, out_b1, to1 = _run_plan(py, repo, plan)
+    buggy2, _, to2 = _run_plan(py, repo, plan)
     _checkout(repo, fixed, src_paths)                       # FIXED state: overlay fixed src too.
     _run([py, "-m", "pip", "install", "-q", "-e", "."], cwd=repo, timeout=600)
-    fixed1, _, to3 = _pytest_nodes(py, repo, test_paths)
-    fixed2, _, to4 = _pytest_nodes(py, repo, test_paths)
+    fixed1, _, to3 = _run_plan(py, repo, plan)
+    fixed2, _, to4 = _run_plan(py, repo, plan)
     meta.test_s = round(time.time() - tt, 1)
     meta.n_test_runs = 4
     meta.timed_out = meta.timed_out or any((to1, to2, to3, to4))
@@ -171,77 +212,64 @@ def _print_project(name, metas):
     return report
 
 
-def _load_prior(path: str):
-    """Load previously-saved candidate metadata (e.g. the small-slice run) for a cumulative view."""
-    if not os.path.exists(path):
-        return []
-    data = json.load(open(path))
-    return [CandidateMeta(**c) for c in data.get("candidates", [])]
+def _nonrepro_breakdown(metas):
+    from collections import Counter
+    return dict(Counter(m.nonrepro_class for m in metas if m.nonrepro_class))
 
 
 def main() -> None:
-    # This round's expansion: black ONLY (objective pre-registered pick: pure-Python, light
-    # install, large corpus). No auto-move to other projects. Cumulative view merges the prior
-    # pybughive_small slice so the GATE decision is on all evidence gathered so far.
-    projects = sys.argv[1:] or ["black"]
-
+    # Post-F2P-fix re-run of the EXACT pre-fix candidate set (small-slice 4 projects from
+    # pybughive_small.json + black from current.json), all fresh under the new detector — so
+    # pre/post are comparable and regressions on already-admitted bugs are visible.
     work = tempfile.mkdtemp(prefix="pbh_qual_")
     meta_repo = os.path.join(work, "_pybughive")
     _run(["git", "clone", "-q", "--depth", "1", PYBUGHIVE_REPO, meta_repo], timeout=300)
-    data = json.load(open(os.path.join(meta_repo, "dataset", "pybughive_current.json")))
+    small = json.load(open(os.path.join(meta_repo, "dataset", "pybughive_small.json")))
+    current = json.load(open(os.path.join(meta_repo, "dataset", "pybughive_current.json")))
+
+    run_projects = list(small)  # cookiecutter, scrapy, discord.py, poetry (small.json bug sets)
+    run_projects.append(next(p for p in current if p["repository"] == "black"))  # + black (38)
 
     print("=== QUALIFIER INFRASTRUCTURE ===")
     print("  pure helpers unit-tested offline (`pytest tests/test_pybughive_qual.py`).")
-    print(f"  this run: model-free, $0 API. Projects this round: {projects}.")
-    print("  harness interventions (bug-specific manual fixes): NONE — one GENERAL, documented "
-          "methodology fix only (overlay ALL fix test artifacts incl. fixtures).\n")
-    print("=== CORPUS QUALIFICATION RESULTS (real bugs) ===")
+    print("  this run: model-free, $0 API. POST F2P-detector-fix (spec: corpus/F2P_DETECTION_SPEC.md).")
+    print("  harness interventions (bug-specific): NONE — the fix is a GENERAL fixture->consumer "
+          "selector; no per-bug exceptions.\n")
+    print("=== CORPUS QUALIFICATION RESULTS (real bugs, post-fix) ===")
 
-    fresh = []
-    for project in projects:
-        proj = next((p for p in data if p["repository"] == project), None)
-        if proj is None:
-            print(f"\n--- {project}: not found in dataset, skipped ---")
-            continue
-        metas = []
+    metas = []
+    for proj in run_projects:
+        project = proj["repository"]
+        rows = []
         for iss in proj["issues"]:
             try:
-                metas.append(qualify_bug(project, iss, work, proj["username"]))
-            except Exception as exc:  # a single bug's crash never kills the slice
-                metas.append(CandidateMeta(candidate_id=f"{project}-{iss['id']}", project=project,
-                                           issue=iss["id"], reject_reason=f"error:{type(exc).__name__}"))
+                rows.append(qualify_bug(project, iss, work, proj["username"]))
+            except Exception as exc:  # a single bug's crash never kills the run
+                rows.append(CandidateMeta(candidate_id=f"{project}-{iss['id']}", project=project,
+                                          issue=iss["id"], reject_reason=f"error:{type(exc).__name__}"))
                 print(f"  {project}-{iss['id']}: ERROR {type(exc).__name__}: {exc}")
-        _print_project(project, metas)
-        fresh.extend(metas)
+        _print_project(project, rows)
+        metas.extend(rows)
 
-    prior = _load_prior("pybughive_report_small.json")
-    cumulative = prior + fresh
-    total = build_report("cumulative", cumulative)
+    total = build_report("post_f2p_fix", metas)
     verdict, why = recommend(total)
-
-    def _nonrepro_breakdown(metas):
-        cls = [m.nonrepro_class for m in metas if m.nonrepro_class]
-        from collections import Counter
-        return dict(Counter(cls))
-
     print("\n" + "=" * 70)
-    print(f"=== UNIFIED §3 REPORT (cumulative: prior small-slice + {projects}) ===")
-    print(f"  candidates          : {total.total}   (this round {len(fresh)}, prior {len(prior)})")
+    print("=== UNIFIED §3 REPORT (post F2P-fix; small-slice + black) ===")
+    print(f"  candidates          : {total.total}")
     print(f"  reproducible        : {total.reproducible}")
     print(f"  admitted            : {total.admitted}   yield={total.admitted}/{total.total}")
     print(f"  high-learning-value : {total.high_learning_value}  (descriptive tier, NOT a gate)")
     print(f"  fingerprints ADMITTED: {total.fingerprints_admitted}")
     print(f"  fingerprints REJECTED: {total.fingerprints_rejected}")
     print(f"  rejection reasons    : {total.reject_reasons}")
-    print(f"  non-repro breakdown  : {_nonrepro_breakdown(cumulative)}")
+    print(f"  non-repro breakdown  : {_nonrepro_breakdown(metas)}")
     print(f"  harness interventions (bug-specific): {total.harness_interventions}")
-    n_timeout = sum(1 for m in cumulative if m.timed_out)
-    n_flaky = sum(1 for m in cumulative if m.reject_reason == "flaky")
-    print(f"  flaky/timeout        : flaky={n_flaky} timeout={n_timeout}")
+    print(f"  flaky                : {sum(1 for m in metas if m.reject_reason == 'flaky')}  "
+          f"timeout: {sum(1 for m in metas if m.timed_out)}")
     print(f"\n  RECOMMENDATION: {verdict}\n    {why}")
-    with open("pybughive_report_cumulative.json", "w") as fh:
+    with open("pybughive_report_post_f2p_fix.json", "w") as fh:
         fh.write(total.model_dump_json(indent=2))
-    print("  wrote pybughive_report_cumulative.json")
+    print("  wrote pybughive_report_post_f2p_fix.json")
 
 
 if __name__ == "__main__":

@@ -8,9 +8,50 @@ from meta_orchestrator.corpus.pybughive_qual import (
     decide,
     fingerprint,
     is_degenerate,
+    is_test_module,
     patch_metrics,
+    plan_f2p_selection,
     recommend,
 )
+
+
+# --- F2P test selection (frozen spec) ---------------------------------------------------
+def test_is_test_module():
+    assert is_test_module("def test_x():\n    pass") is True
+    assert is_test_module("class TestFoo:\n    pass") is True
+    assert is_test_module("x = 1  # just a data fixture") is False
+
+
+def test_plan_direct_test_module():
+    idx = {"tests/test_a.py": "def test_a(): pass"}
+    plan, log = plan_f2p_selection(["tests/test_a.py"], idx)
+    assert plan == [("tests/test_a.py", None)]
+
+
+def test_plan_fixture_maps_to_consumer_with_keyword():
+    # fix adds a data fixture; the real F2P test is a parametrized test that names it
+    idx = {
+        "tests/test_format.py": "def test_simple_cases(case):\n    # runs fmtskip6\n    assert fmtskip6",
+        "tests/test_other.py": "def test_unrelated(): pass",
+    }
+    plan, log = plan_f2p_selection(["tests/data/fmtskip6.py"], idx)
+    assert ("tests/test_format.py", "fmtskip6") in plan          # consumer, filtered by -k token
+    assert all(f != "tests/test_other.py" for f, _ in plan)      # non-consumer excluded
+
+
+def test_plan_empty_when_no_consumer():
+    idx = {"tests/test_x.py": "def test_x(): pass"}
+    plan, log = plan_f2p_selection(["tests/data/orphan_fixture.py"], idx)
+    assert plan == [] and "no_relevant_test" in log             # → likely_harness_gap upstream
+
+
+def test_plan_conftest_uses_declared_fixture_names():
+    idx = {
+        "tests/conftest.py": "def make_widget():\n    return 1",
+        "tests/test_w.py": "def test_w(make_widget): assert make_widget",
+    }
+    plan, log = plan_f2p_selection(["tests/conftest.py"], idx)
+    assert ("tests/test_w.py", "make_widget") in plan
 
 
 def _adm(cid, fp):

@@ -19,6 +19,7 @@ Design constraints (frozen BEFORE any baseline is seen):
 """
 from __future__ import annotations
 
+import os
 import re
 from collections import Counter
 
@@ -71,6 +72,69 @@ def fingerprint(f2p_error: str, patch_text: str, changed_files: list[str]) -> st
     if _TYPING_HINT.search(patch_text):
         return "Typing"
     return "Logic"
+
+
+# --------------------------------------------------------------------------- #
+# F2P test selection (see corpus/F2P_DETECTION_SPEC.md — FROZEN)
+# --------------------------------------------------------------------------- #
+_DEF_NAME = re.compile(r"^\s*def\s+([A-Za-z_]\w*)", re.MULTILINE)
+F2P_PLAN_CAP = 8
+_MIN_TOKEN_LEN = 3
+
+
+def is_test_module(text: str) -> bool:
+    """A pytest-collectable module: contains a test function or Test class."""
+    return bool(re.search(r"\bdef test|\bclass Test", text))
+
+
+def plan_f2p_selection(
+    fix_test_artifacts: list[str], tests_index: dict[str, str]
+) -> tuple[list[tuple[str, str | None]], list[str]]:
+    """Which tests to run to catch the F2P transition (frozen spec).
+
+    Returns ``(plan, log)`` where plan is ``[(test_file, keyword|None), ...]``:
+      * direct test modules the fix touched  → (file, None)  (run the whole file)
+      * fixture artifacts → consuming test modules, run with ``-k <token>``
+    ``tests_index`` maps every repo test ``.py`` path to its text (fixed tests overlaid).
+    """
+    log: list[str] = []
+    plan: list[tuple[str, str | None]] = []
+    seen: set[tuple[str, str | None]] = set()
+
+    direct = [a for a in fix_test_artifacts
+              if a.endswith(".py") and a in tests_index and is_test_module(tests_index[a])]
+    for a in direct:
+        key = (a, None)
+        if key not in seen:
+            plan.append(key); seen.add(key); log.append(f"direct:{a}")
+
+    fixtures = [a for a in fix_test_artifacts if a not in direct]
+    token_consumers: list[tuple[str, list[str]]] = []
+    for fx in fixtures:
+        base = os.path.basename(fx)
+        tokens = _DEF_NAME.findall(tests_index.get(fx, "")) if base == "conftest.py" \
+            else [os.path.splitext(base)[0]]
+        for token in tokens:
+            if len(token) < _MIN_TOKEN_LEN:
+                continue
+            pat = re.compile(rf"\b{re.escape(token)}\b")
+            consumers = sorted(t for t, txt in tests_index.items()
+                               if is_test_module(txt) and pat.search(txt))
+            if consumers:
+                token_consumers.append((token, consumers))
+
+    for token, consumers in sorted(token_consumers, key=lambda kv: (-len(kv[1]), kv[0])):
+        for f in consumers:
+            key = (f, token)
+            if key not in seen:
+                plan.append(key); seen.add(key); log.append(f"fixture:{token}->{f}")
+
+    if len(plan) > F2P_PLAN_CAP:
+        log.append(f"capped {len(plan)}->{F2P_PLAN_CAP}")
+        plan = plan[:F2P_PLAN_CAP]
+    if not plan:
+        log.append("no_relevant_test")
+    return plan, log
 
 
 class PatchMetrics(BaseModel):
@@ -136,6 +200,7 @@ class CandidateMeta(BaseModel):
     nonrepro_class: str | None = None
     collected_any: bool = True            # did our overlay collect any target test node at all
     error_nodes_buggy: int = 0            # pytest ERROR (not FAIL) count on buggy = harness-gap signal
+    f2p_selection: list[str] = Field(default_factory=list)  # which tests were chosen to run (audit)
     harness_intervention: str = ""        # documented BUG-SPECIFIC harness fix, if any (else none)
     # descriptive tier (NOT a gate) — objective, transparent heuristic
     high_learning_value: bool = False
