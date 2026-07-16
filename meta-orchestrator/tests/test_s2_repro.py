@@ -21,7 +21,11 @@ def test_leak_scan_flags_fix_commit_and_path():
 def test_leak_scan_flags_patch_hint():
     assert any("patch hint" in h for h in
                statement_leak_scan("the root cause is X", [], "x", []))
+    assert any("patch hint" in h for h in
+               statement_leak_scan("@@ -1,2 +1,3 @@ context", [], "x", []))
     assert statement_leak_scan("Cannot parse input at the top level", [], "abc00000", []) == []
+    # the bare word "diff" (a CLI flag / normal English) must NOT be flagged as a patch hint
+    assert statement_leak_scan("--diff doesn't display full file path", [], "abc00000", []) == []
 
 
 def test_status_codes_are_distinct():

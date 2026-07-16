@@ -144,7 +144,9 @@ def statement_leak_scan(sanitized: str, hidden_test_names: list[str], fixed_rev:
     for path in allowed_files:
         if path.lower() in low or path.split("/")[-1].lower() in low:
             hits.append(f"allowed-file path '{path}'")
-    if re.search(r"(?i)\bthe fix is\b|\broot cause\b|@@|\bdiff\b", sanitized):
+    # Patch-paste markers only. NOT the bare word "diff" — it is normal English and a Black CLI
+    # flag ("--diff"), so flagging it wrongly rejects legitimate bug titles.
+    if re.search(r"(?i)\bthe fix is\b|\broot cause\b|@@|diff --git|^\s*[+-]{3}\s", sanitized):
         hits.append("patch hint")
     return hits
 
