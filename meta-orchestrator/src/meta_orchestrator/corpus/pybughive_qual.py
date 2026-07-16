@@ -131,6 +131,14 @@ class CandidateMeta(BaseModel):
     test_s: float = 0.0
     timed_out: bool = False
     n_test_runs: int = 0                  # how many pytest invocations ran (reruns incl.)
+    # non-reproduction is 3-way — never claim "non-reproducible" until a harness gap is ruled out:
+    #   likely_harness_gap | not_reproduced_under_current_harness | confirmed_non_reproducible
+    nonrepro_class: str | None = None
+    collected_any: bool = True            # did our overlay collect any target test node at all
+    error_nodes_buggy: int = 0            # pytest ERROR (not FAIL) count on buggy = harness-gap signal
+    harness_intervention: str = ""        # documented BUG-SPECIFIC harness fix, if any (else none)
+    # descriptive tier (NOT a gate) — objective, transparent heuristic
+    high_learning_value: bool = False
     # decision (NO composite score — components only)
     admitted: bool = False
     reject_reason: str = ""
@@ -142,9 +150,12 @@ class PyBugHiveReport(BaseModel):
     admitted: int
     rejected: int
     reproducible: int
+    high_learning_value: int = 0
+    harness_interventions: int = 0        # admitted tasks depending on a bug-specific harness fix
     candidates: list[CandidateMeta] = Field(default_factory=list)
     fingerprints_admitted: dict[str, int] = Field(default_factory=dict)
     fingerprints_rejected: dict[str, int] = Field(default_factory=dict)
+    reject_reasons: dict[str, int] = Field(default_factory=dict)
     note: str = (
         "Objective metadata only (no model judgment). Components are kept, not a composite "
         "score. Rejection is degenerate-only, frozen before baseline. baseline_success & "
@@ -152,51 +163,88 @@ class PyBugHiveReport(BaseModel):
     )
 
 
+# "high-learning-value" is a DESCRIPTIVE tier, never a gate — objective and transparent:
+# an admitted fix with real substance to diagnose (multi-hunk and non-trivial line count).
+HLV_MIN_HUNKS = 2
+HLV_MIN_LINES = 10
+
+
 def decide(meta: CandidateMeta) -> CandidateMeta:
-    """Apply the frozen gate: reproducible AND not degenerate → admitted. Records the reason."""
+    """Frozen gate: reproducible AND not degenerate → admitted. Non-reproduction keeps its
+    3-way certainty class (never a bare "non-reproducible" claim). Also tags the descriptive
+    high-learning-value tier (does NOT affect admission)."""
     if not meta.installed:
-        meta.admitted, meta.reject_reason = False, "install_failed"
+        meta.admitted = False
+        meta.reject_reason = "timeout_install" if meta.timed_out else "install_failed"
     elif meta.stable is False:
         meta.admitted, meta.reject_reason = False, "flaky"
     elif not meta.reproducible:
-        meta.admitted, meta.reject_reason = False, "not_reproducible"
+        meta.admitted = False
+        meta.reject_reason = meta.nonrepro_class or "not_reproduced_under_current_harness"
     elif meta.degenerate:
         meta.admitted, meta.reject_reason = False, "degenerate_patch"
     else:
         meta.admitted, meta.reject_reason = True, ""
+        if meta.patch and meta.patch.hunks >= HLV_MIN_HUNKS and meta.patch.changed_lines >= HLV_MIN_LINES:
+            meta.high_learning_value = True
     return meta
 
 
 # Frozen gate-decision thresholds (recorded before results are seen).
 GATE2_MIN_ADMITTED = 6
-GATE2_MIN_FINGERPRINTS = 3   # diversity guard — don't pass on ~6 near-identical bugs
+GATE2_MIN_FINGERPRINTS = 3      # diversity guard — don't pass on ~6 near-identical bugs
+GATE2_MAX_FP_SHARE = 0.70      # no single fingerprint may exceed 70% of admitted
+GATE2_MAX_ENV_SHARE = 0.50     # env failures (install/flaky/timeout) must not dominate the slice
 
 
 def recommend(report: "PyBugHiveReport") -> tuple[str, str]:
-    """One of three verdicts + reasoning. NEVER selects for learnability; purely counts.
+    """One of four verdicts + reasoning. NEVER selects for learnability; purely counts.
 
-    ENVIRONMENT/DEPENDENCY FAILURE — the slice couldn't be exercised (installs/timeouts
-        dominate and almost nothing reproduced): the environment is the blocker, not the
-        corpus, so yield is uninformative.
-    SUFFICIENT FOR GATE 2 — ≥ GATE2_MIN_ADMITTED admitted AND ≥ GATE2_MIN_FINGERPRINTS
-        distinct fingerprints among them (enough, and diverse enough, for §2).
-    INSUFFICIENT YIELD — reproduced fine but too few / too homogeneous admitted tasks.
+    ENVIRONMENT/DEPENDENCY FAILURE — installs/flaky/timeouts dominate and almost nothing
+        reproduced: the environment, not the corpus, is the blocker (yield is uninformative).
+    SUFFICIENT FOR GATE 2 — ALL of: ≥6 admitted; ≥3 distinct fingerprints; no single
+        fingerprint >70% of admitted; NO admitted task depends on a bug-specific harness fix;
+        the sample is stable (env failures ≤50% of candidates).
+    QUANTITATIVELY SUFFICIENT, DIVERSITY INSUFFICIENT — ≥6 admitted but the fingerprints are
+        too few / too concentrated.
+    INSUFFICIENT YIELD — fewer than 6 admitted.
     """
-    env_reasons = {"install_failed", "flaky", "no_src_or_test_in_patch"}
-    env_blocked = sum(1 for m in report.candidates if m.reject_reason in env_reasons or m.timed_out)
-    if report.total and report.reproducible <= 1 and env_blocked >= max(1, report.total // 2):
+    env_reasons = {"install_failed", "timeout_install", "flaky", "no_src_or_test_in_patch",
+                   "likely_harness_gap"}
+    env_blocked = sum(1 for m in report.candidates
+                      if m.reject_reason in env_reasons or m.timed_out)
+    env_share = env_blocked / report.total if report.total else 0.0
+    if report.reproducible <= 1 and env_share >= GATE2_MAX_ENV_SHARE:
         return ("ENVIRONMENT/DEPENDENCY FAILURE",
-                f"{env_blocked}/{report.total} candidates blocked on install/flaky/timeout and only "
-                f"{report.reproducible} reproduced — the environment, not the corpus, is the limiter.")
+                f"{env_blocked}/{report.total} candidates blocked on install/flaky/timeout/harness-gap "
+                f"and only {report.reproducible} reproduced — the environment, not the corpus, limits it.")
+
     n_fp = len(report.fingerprints_admitted)
-    if report.admitted >= GATE2_MIN_ADMITTED and n_fp >= GATE2_MIN_FINGERPRINTS:
+    top_share = (max(report.fingerprints_admitted.values()) / report.admitted
+                 if report.admitted else 0.0)
+    diverse = n_fp >= GATE2_MIN_FINGERPRINTS and top_share <= GATE2_MAX_FP_SHARE
+
+    if report.admitted >= GATE2_MIN_ADMITTED:
+        if not diverse:
+            return ("QUANTITATIVELY SUFFICIENT, DIVERSITY INSUFFICIENT",
+                    f"{report.admitted} admitted but only {n_fp} fingerprints "
+                    f"(top share {top_share:.0%}) — needs ≥{GATE2_MIN_FINGERPRINTS} and no fp >70%.")
+        if report.harness_interventions > 0:
+            return ("INSUFFICIENT YIELD",
+                    f"{report.admitted} admitted / {n_fp} fingerprints, but "
+                    f"{report.harness_interventions} depend on bug-specific harness fixes — "
+                    "not a clean corpus signal.")
+        if env_share >= GATE2_MAX_ENV_SHARE:
+            return ("INSUFFICIENT YIELD",
+                    f"{report.admitted} admitted but env failures are {env_share:.0%} of the slice "
+                    "(≥50%) — sample not stable enough to trust.")
         return ("SUFFICIENT FOR GATE 2",
-                f"{report.admitted} admitted across {n_fp} distinct fingerprints "
-                f"(≥{GATE2_MIN_ADMITTED} and ≥{GATE2_MIN_FINGERPRINTS}).")
+                f"{report.admitted} admitted, {n_fp} fingerprints (top {top_share:.0%}), "
+                f"0 harness-dependent, env failures {env_share:.0%} — all criteria met.")
+
     return ("INSUFFICIENT YIELD",
             f"{report.admitted} admitted / {n_fp} fingerprints — below the "
-            f"{GATE2_MIN_ADMITTED}-admitted, {GATE2_MIN_FINGERPRINTS}-fingerprint bar. "
-            "Reproducibility is fine; the bounded slice simply doesn't yield enough diverse tasks.")
+            f"{GATE2_MIN_ADMITTED}-admitted bar. Reproducibility works; the slice is just too thin.")
 
 
 def build_report(slice_name: str, metas: list[CandidateMeta]) -> PyBugHiveReport:
@@ -210,7 +258,10 @@ def build_report(slice_name: str, metas: list[CandidateMeta]) -> PyBugHiveReport
         admitted=len(adm),
         rejected=len(rej),
         reproducible=sum(1 for m in metas if m.reproducible),
+        high_learning_value=sum(1 for m in adm if m.high_learning_value),
+        harness_interventions=sum(1 for m in adm if m.harness_intervention),
         candidates=metas,
         fingerprints_admitted=dict(Counter(m.fingerprint for m in adm if m.fingerprint)),
         fingerprints_rejected=dict(Counter(m.fingerprint for m in rej if m.fingerprint)),
+        reject_reasons=dict(Counter(m.reject_reason for m in rej if m.reject_reason)),
     )

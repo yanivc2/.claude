@@ -57,7 +57,9 @@ def test_decide_records_reject_reasons():
     assert decide(CandidateMeta(**base, installed=False)).reject_reason == "install_failed"
     assert decide(CandidateMeta(**base, installed=True, stable=False)).reject_reason == "flaky"
     assert decide(CandidateMeta(**base, installed=True, stable=True,
-                                reproducible=False)).reject_reason == "not_reproducible"
+                                reproducible=False)).reject_reason == "not_reproduced_under_current_harness"
+    assert decide(CandidateMeta(**base, installed=True, stable=True, reproducible=False,
+                                nonrepro_class="likely_harness_gap")).reject_reason == "likely_harness_gap"
     deg = {**base, "degenerate": True}
     assert decide(CandidateMeta(**deg, installed=True, stable=True,
                                 reproducible=True)).reject_reason == "degenerate_patch"
@@ -88,9 +90,9 @@ def test_recommend_sufficient_needs_count_and_diversity():
     diverse = build_report("s", [_adm(f"a{i}", fp) for i, fp in
                                  enumerate(["Logic", "Parser", "Path", "Async", "Attribute", "Typing"])])
     assert recommend(diverse)[0] == "SUFFICIENT FOR GATE 2"
-    # 6 admitted but all identical fingerprint → diversity guard fails
+    # 6 admitted but all identical fingerprint → quantitatively enough, not diverse enough
     homogeneous = build_report("s", [_adm(f"b{i}", "Logic") for i in range(6)])
-    assert recommend(homogeneous)[0] == "INSUFFICIENT YIELD"
+    assert recommend(homogeneous)[0] == "QUANTITATIVELY SUFFICIENT, DIVERSITY INSUFFICIENT"
 
 
 def test_recommend_insufficient_when_few_admitted():

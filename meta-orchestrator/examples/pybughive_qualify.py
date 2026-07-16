@@ -138,83 +138,111 @@ def qualify_bug(project: str, issue: dict, workdir: str) -> CandidateMeta:
     meta.f2p_pass_on_fixed = len(f2p) > 0
     meta.p2p_clean_on_buggy = len(p2p) > 0
     meta.reproducible = bool(f2p) and stable
+    meta.collected_any = bool(common)
+    meta.error_nodes_buggy = sum(1 for s in buggy1.values() if s == "ERROR")
+    # 3-way non-reproduction certainty (never claim "non-reproducible" over a harness gap):
+    if not meta.reproducible and stable:
+        if not common:
+            meta.nonrepro_class = "likely_harness_gap"          # nothing collected → overlay/import
+        elif meta.error_nodes_buggy >= max(1, len(buggy1) // 2):
+            meta.nonrepro_class = "likely_harness_gap"          # majority ERROR → fixture/dep gap
+        elif not f2p and buggy1 and all(v == "PASSED" for v in buggy1.values()):
+            meta.nonrepro_class = "confirmed_non_reproducible"  # tests ran clean, bug not exposed
+        else:
+            meta.nonrepro_class = "not_reproduced_under_current_harness"
     meta.fingerprint = fingerprint(out_b1 if f2p else "", patch_text, src_paths)
     meta.runtime_s = round(time.time() - t0, 1)
     return meta
 
 
-def _reject_reasons(metas):
-    return dict(sorted(((r, sum(1 for m in metas if m.reject_reason == r))
-                        for r in {m.reject_reason for m in metas if m.reject_reason}),
-                       key=lambda kv: -kv[1]))
-
-
 def _print_project(name, metas):
     report = build_report(name, metas)
-    yield_rate = f"{report.admitted}/{report.total}"
-    print(f"\n--- {name}: candidates={report.total} admitted={report.admitted} "
-          f"(yield {yield_rate}) reproducible={report.reproducible} ---")
+    print(f"\n--- {name}: candidates={report.total} reproducible={report.reproducible} "
+          f"admitted={report.admitted} (yield {report.admitted}/{report.total}) "
+          f"high-learning-value={report.high_learning_value} ---")
     for m in metas:
         p = m.patch
+        pm = f"patch={p.files}f/{p.changed_lines}l/{p.hunks}h" if p else "patch=?"
+        tag = "ADMIT" + ("*HLV" if m.high_learning_value else "") if m.admitted else "reject:" + m.reject_reason
         print(f"  {m.candidate_id:22s} inst={m.installed!s:5s} repro={m.reproducible!s:5s} "
-              f"stable={m.stable!s:5s} fp={m.fingerprint or '-':11s} "
-              f"patch={p.files}f/{p.changed_lines}l/{p.hunks}h deg={m.degenerate!s:5s} "
+              f"stable={m.stable!s:5s} fp={m.fingerprint or '-':11s} {pm} deg={m.degenerate!s:5s} "
               f"inst_s={m.install_s} test_s={m.test_s} runs={m.n_test_runs} "
-              f"{'TIMEOUT ' if m.timed_out else ''}{'ADMIT' if m.admitted else 'reject:'+m.reject_reason}")
-    print(f"  reject reasons: {_reject_reasons(metas)}")
+              f"{'TIMEOUT ' if m.timed_out else ''}{tag}")
+    print(f"  reject reasons: {report.reject_reasons}")
     return report
 
 
+def _load_prior(path: str):
+    """Load previously-saved candidate metadata (e.g. the small-slice run) for a cumulative view."""
+    if not os.path.exists(path):
+        return []
+    data = json.load(open(path))
+    return [CandidateMeta(**c) for c in data.get("candidates", [])]
+
+
 def main() -> None:
-    # Bounded slice = the 4 projects in pybughive_small.json. NO expansion beyond these.
-    SLICE = ["cookiecutter", "scrapy", "discord.py", "poetry"]
-    only = sys.argv[1:] or SLICE
+    # This round's expansion: black ONLY (objective pre-registered pick: pure-Python, light
+    # install, large corpus). No auto-move to other projects. Cumulative view merges the prior
+    # pybughive_small slice so the GATE decision is on all evidence gathered so far.
+    projects = sys.argv[1:] or ["black"]
 
     work = tempfile.mkdtemp(prefix="pbh_qual_")
     meta_repo = os.path.join(work, "_pybughive")
     _run(["git", "clone", "-q", "--depth", "1", PYBUGHIVE_REPO, meta_repo], timeout=300)
-    data = json.load(open(os.path.join(meta_repo, "dataset", "pybughive_small.json")))
+    data = json.load(open(os.path.join(meta_repo, "dataset", "pybughive_current.json")))
 
     print("=== QUALIFIER INFRASTRUCTURE ===")
-    print("  offline unit tests: run `pytest tests/test_pybughive_qual.py` (pure helpers).")
-    print("  this run: model-free, $0 API. Bounded to pybughive_small.json (4 projects).\n")
+    print("  pure helpers unit-tested offline (`pytest tests/test_pybughive_qual.py`).")
+    print(f"  this run: model-free, $0 API. Projects this round: {projects}.")
+    print("  harness interventions (bug-specific manual fixes): NONE — one GENERAL, documented "
+          "methodology fix only (overlay ALL fix test artifacts incl. fixtures).\n")
     print("=== CORPUS QUALIFICATION RESULTS (real bugs) ===")
 
-    all_metas = []
-    for project in only:
+    fresh = []
+    for project in projects:
         proj = next((p for p in data if p["repository"] == project), None)
         if proj is None:
-            print(f"\n--- {project}: not in pybughive_small.json, skipped ---")
+            print(f"\n--- {project}: not found in dataset, skipped ---")
             continue
         metas = []
         for iss in proj["issues"]:
             try:
                 metas.append(qualify_bug(project, iss, work))
             except Exception as exc:  # a single bug's crash never kills the slice
-                m = CandidateMeta(candidate_id=f"{project}-{iss['id']}", project=project,
-                                  issue=iss["id"], reject_reason=f"error:{type(exc).__name__}")
-                metas.append(m)
-                print(f"  {m.candidate_id}: ERROR {type(exc).__name__}: {exc}")
+                metas.append(CandidateMeta(candidate_id=f"{project}-{iss['id']}", project=project,
+                                           issue=iss["id"], reject_reason=f"error:{type(exc).__name__}"))
+                print(f"  {project}-{iss['id']}: ERROR {type(exc).__name__}: {exc}")
         _print_project(project, metas)
-        all_metas.extend(metas)
+        fresh.extend(metas)
 
-    total = build_report("small", all_metas)
+    prior = _load_prior("pybughive_report_small.json")
+    cumulative = prior + fresh
+    total = build_report("cumulative", cumulative)
     verdict, why = recommend(total)
+
+    def _nonrepro_breakdown(metas):
+        cls = [m.nonrepro_class for m in metas if m.nonrepro_class]
+        from collections import Counter
+        return dict(Counter(cls))
+
     print("\n" + "=" * 70)
-    print(f"=== UNIFIED §3 REPORT (slice=pybughive_small, {len(only)} projects) ===")
-    print(f"  candidates={total.total}  admitted={total.admitted}  "
-          f"yield={total.admitted}/{total.total}  reproducible={total.reproducible}")
-    print(f"  fingerprints ADMITTED (diversity): {total.fingerprints_admitted}")
-    print(f"  fingerprints REJECTED:             {total.fingerprints_rejected}")
-    print(f"  reject reasons (all): {_reject_reasons(all_metas)}")
+    print(f"=== UNIFIED §3 REPORT (cumulative: prior small-slice + {projects}) ===")
+    print(f"  candidates          : {total.total}   (this round {len(fresh)}, prior {len(prior)})")
+    print(f"  reproducible        : {total.reproducible}")
+    print(f"  admitted            : {total.admitted}   yield={total.admitted}/{total.total}")
+    print(f"  high-learning-value : {total.high_learning_value}  (descriptive tier, NOT a gate)")
+    print(f"  fingerprints ADMITTED: {total.fingerprints_admitted}")
+    print(f"  fingerprints REJECTED: {total.fingerprints_rejected}")
+    print(f"  rejection reasons    : {total.reject_reasons}")
+    print(f"  non-repro breakdown  : {_nonrepro_breakdown(cumulative)}")
+    print(f"  harness interventions (bug-specific): {total.harness_interventions}")
+    n_timeout = sum(1 for m in cumulative if m.timed_out)
+    n_flaky = sum(1 for m in cumulative if m.reject_reason == "flaky")
+    print(f"  flaky/timeout        : flaky={n_flaky} timeout={n_timeout}")
     print(f"\n  RECOMMENDATION: {verdict}\n    {why}")
-    print("\n  Tiers are distinct: reproducible ⊇ admitted ⊇ (high-learning-value, NOT yet a "
-          "gate). Learning-value components shown per-candidate (patch size, hunks, fingerprint) "
-          "but NOT auto-thresholded. baseline_success & failure_reason require budgeted solver "
-          "runs — NOT run here.")
-    with open("pybughive_report_small.json", "w") as fh:
+    with open("pybughive_report_cumulative.json", "w") as fh:
         fh.write(total.model_dump_json(indent=2))
-    print("  wrote pybughive_report_small.json")
+    print("  wrote pybughive_report_cumulative.json")
 
 
 if __name__ == "__main__":
