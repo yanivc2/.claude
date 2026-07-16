@@ -127,6 +127,10 @@ class CandidateMeta(BaseModel):
     fingerprint: str | None = None
     degenerate: bool | None = None
     runtime_s: float = 0.0
+    install_s: float = 0.0
+    test_s: float = 0.0
+    timed_out: bool = False
+    n_test_runs: int = 0                  # how many pytest invocations ran (reruns incl.)
     # decision (NO composite score — components only)
     admitted: bool = False
     reject_reason: str = ""
@@ -161,6 +165,38 @@ def decide(meta: CandidateMeta) -> CandidateMeta:
     else:
         meta.admitted, meta.reject_reason = True, ""
     return meta
+
+
+# Frozen gate-decision thresholds (recorded before results are seen).
+GATE2_MIN_ADMITTED = 6
+GATE2_MIN_FINGERPRINTS = 3   # diversity guard — don't pass on ~6 near-identical bugs
+
+
+def recommend(report: "PyBugHiveReport") -> tuple[str, str]:
+    """One of three verdicts + reasoning. NEVER selects for learnability; purely counts.
+
+    ENVIRONMENT/DEPENDENCY FAILURE — the slice couldn't be exercised (installs/timeouts
+        dominate and almost nothing reproduced): the environment is the blocker, not the
+        corpus, so yield is uninformative.
+    SUFFICIENT FOR GATE 2 — ≥ GATE2_MIN_ADMITTED admitted AND ≥ GATE2_MIN_FINGERPRINTS
+        distinct fingerprints among them (enough, and diverse enough, for §2).
+    INSUFFICIENT YIELD — reproduced fine but too few / too homogeneous admitted tasks.
+    """
+    env_reasons = {"install_failed", "flaky", "no_src_or_test_in_patch"}
+    env_blocked = sum(1 for m in report.candidates if m.reject_reason in env_reasons or m.timed_out)
+    if report.total and report.reproducible <= 1 and env_blocked >= max(1, report.total // 2):
+        return ("ENVIRONMENT/DEPENDENCY FAILURE",
+                f"{env_blocked}/{report.total} candidates blocked on install/flaky/timeout and only "
+                f"{report.reproducible} reproduced — the environment, not the corpus, is the limiter.")
+    n_fp = len(report.fingerprints_admitted)
+    if report.admitted >= GATE2_MIN_ADMITTED and n_fp >= GATE2_MIN_FINGERPRINTS:
+        return ("SUFFICIENT FOR GATE 2",
+                f"{report.admitted} admitted across {n_fp} distinct fingerprints "
+                f"(≥{GATE2_MIN_ADMITTED} and ≥{GATE2_MIN_FINGERPRINTS}).")
+    return ("INSUFFICIENT YIELD",
+            f"{report.admitted} admitted / {n_fp} fingerprints — below the "
+            f"{GATE2_MIN_ADMITTED}-admitted, {GATE2_MIN_FINGERPRINTS}-fingerprint bar. "
+            "Reproducibility is fine; the bounded slice simply doesn't yield enough diverse tasks.")
 
 
 def build_report(slice_name: str, metas: list[CandidateMeta]) -> PyBugHiveReport:

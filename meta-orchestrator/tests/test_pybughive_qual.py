@@ -9,7 +9,14 @@ from meta_orchestrator.corpus.pybughive_qual import (
     fingerprint,
     is_degenerate,
     patch_metrics,
+    recommend,
 )
+
+
+def _adm(cid, fp):
+    return CandidateMeta(candidate_id=cid, project="p", issue=1, installed=True, stable=True,
+                         reproducible=True, degenerate=False, fingerprint=fp,
+                         patch=PatchMetrics(files=1, added=5, deleted=0, hunks=2, locality="single-file"))
 
 
 # --- fingerprint: empirical family from the real F2P exception, then patch shape --------
@@ -74,3 +81,23 @@ def test_report_splits_fingerprint_distributions():
     assert (r.total, r.admitted, r.rejected, r.reproducible) == (3, 1, 2, 2)
     assert r.fingerprints_admitted == {"Logic": 1}
     assert r.fingerprints_rejected == {"Packaging": 1, "ImportError": 1}   # rejected tracked too
+
+
+# --- recommend: the three frozen verdicts -----------------------------------------------
+def test_recommend_sufficient_needs_count_and_diversity():
+    diverse = build_report("s", [_adm(f"a{i}", fp) for i, fp in
+                                 enumerate(["Logic", "Parser", "Path", "Async", "Attribute", "Typing"])])
+    assert recommend(diverse)[0] == "SUFFICIENT FOR GATE 2"
+    # 6 admitted but all identical fingerprint → diversity guard fails
+    homogeneous = build_report("s", [_adm(f"b{i}", "Logic") for i in range(6)])
+    assert recommend(homogeneous)[0] == "INSUFFICIENT YIELD"
+
+
+def test_recommend_insufficient_when_few_admitted():
+    assert recommend(build_report("s", [_adm("a", "Logic"), _adm("b", "Parser")]))[0] == "INSUFFICIENT YIELD"
+
+
+def test_recommend_environment_failure_when_installs_dominate():
+    metas = [CandidateMeta(candidate_id=f"c{i}", project="p", issue=i, installed=False)
+             for i in range(4)]
+    assert recommend(build_report("s", metas))[0] == "ENVIRONMENT/DEPENDENCY FAILURE"
