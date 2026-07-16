@@ -145,7 +145,101 @@ stability, then run the full 3-fold at reps=1 only if a stability gate passes.**
    instead of paying for it twice; it is only valid if the pilot config is byte-identical
    to fold 1 (which the pilot already requires).
 
-## Decision E — OPEN
+## Decision E — run-now vs expand-first (DECIDED 2026-07-16)
 
-- E: run now vs expand the corpus first (given low power at n=27), and reconcile the
-  budget path above.
+**Sequential hybrid (ג).** Run §2 now on the 27 tasks as a **directional pilot**, stop and
+interpret, and only THEN decide whether/how to expand — expansion must be a **response to a
+defined pilot finding**, never a blind automatic activity. Budget is not the limiter for
+expansion; the limiter is engineering/environment. The pilot uses the existing credit; a
+confirmatory study gets a **separate** budget after empirical justification.
+
+**Why n=27 is not a waste (what the pilot IS for).** It is the first real-world measurement of:
+is there any headroom (or does A already almost always pass); does C produce *transferable*
+lessons; does the agent actually *use* them; is C directionally > A and > B1; does C approach or
+beat D; how many discordant pairs per comparison; how much the result swings across the 3 folds;
+the *real* (not estimated) cost; the main failure reasons; and whether a mechanism validated so
+far only with mocks works with a real model + real corpus. All valuable even with a wide CI and
+no meaningful p-value.
+
+**What the pilot may NOT claim.** Never "learning is proven in general." The only admissible
+conclusion form: *"On Black formatting-repair tasks, in a file-given single-file configuration
+with Haiku locked, a directional signal was / was not observed that relevant procedural memory
+improves performance."*
+
+**Statistical caveats (binding on the pilot report).**
+- The 27 held-out results are **not 27 fully-independent observations**: the 9 tasks in a fold
+  share C's single lesson-bank. Report the pooled paired table **and** each fold separately.
+- Do **not** rely on McNemar alone; treat any p-value as **secondary** in the pilot.
+- **Winner's curse:** a small-sample effect is biased upward. Do not design the next study as if
+  the 27-task effect is the true effect — use a conservative assumption or a range of scenarios.
+
+**Why NOT expand blind now.** Extra tasks cannot fix the three failure modes the pilot exists to
+detect: (1) no headroom (A already near-ceiling); (2) no transfer (lessons don't help other
+bugs); (3) application mechanism broken (lessons retrieved but ignored). In each, +30 tasks only
+buy a more precise estimate of a **zero** effect. Expansion is also env/harness-blocked, would
+raise model cost, and mixing in a new project conflates two questions (power vs cross-project
+generalization). First learn which problem, if any, the pilot says is worth solving.
+
+**Post-pilot decision tree (frozen — determines the next step, not the pilot itself):**
+1. **Consistent positive signal** (C>A and C>B1 same direction; direction holds in ≥2/3 folds; C
+   not carried by one family; lessons actually fire; no regressions; C approaches/beats D) →
+   justified to expand and build a properly-powered **confirmatory** study.
+2. **C>A but C≈B1** → no evidence the *relevant content* is the cause (could be added-text /
+   prompt-structure). Do NOT expand; investigate the application mechanism and the placebo.
+3. **C>A but C<D** → mechanism may learn but still loses to a hand-written playbook. Important,
+   but not necessarily a corpus-expansion trigger; first resolve the product goal (learn without
+   an expert vs beat a static expert playbook).
+4. **C≈A while lessons ARE retrieved+applied** → likely too little transferable procedural
+   knowledge inside Black-formatting; move to a **richer arena** rather than more-of-the-same.
+5. **High instability** → fix noise/harness **before** any expansion.
+
+**Corpus-size guidance (rules of thumb; real power analysis is computed FROM the pilot's paired
+data, not from the raw difference):** 27→35 likely changes little; ~50–60 unique tasks is a
+reasonable minimum to materially improve a *directional* pilot; a confirmatory study on a medium
+effect plausibly needs ~80–120 tasks (depends on the shared-pair rate and effect size); per-family
+claims need ≈10+ tasks per reported family, else family reporting stays descriptive only.
+
+**Cost is for the FUTURE confirmatory budget, not a blocker now** (~6 model attempts/task = 4
+evals + task appears twice in C-train): 27≈$4.05, 60≈$9, 80≈$12, 100≈$15 — excluding reps,
+retries, stability runs, engineering qualification, and independent replication (replication may
+double model cost). Hence: don't expand under the current credit; the pilot uses existing credit,
+confirmatory gets separate budget after justification.
+
+**External-validity ceiling (NOT fixed by more Black bugs).** Even at 100 Black bugs it is still:
+one project, one formatting family, file-given, single-file repair, no navigation/localization,
+Haiku-and-snapshot specific, with public-code contamination risk, and a D that may be influenced
+by playbook-author identity. Cross-project generalization requires a **second project's corpus**
+in future — not more Black.
+
+**Fold-1-reuse pre-registration condition (critical).** Using fold 1 as *both* pilot and official
+datum is valid ONLY if the continue-to-folds-2–3 decision is pre-declared as a function of
+**stability, real cost, harness health, and circuit-breakers** — **never** of "does C look good."
+If fold-1's effect is inspected and used to change prompts/thresholds/lessons/split/continue-
+decision, fold 1 becomes **exploratory** and may not later be presented as part of a frozen clean
+evaluation.
+
+- **Keep-honest operationalization (added):** the continue/stop evaluator reads ONLY the
+  {stability, cost, harness-health, circuit-breaker} signals; the **outcome table (C/A/B1/D
+  pass-fail) is sealed** and not surfaced to any continue/stop logic (or to the operator's
+  decision) until either all 3 folds complete or the run halts on a pre-declared stop trigger.
+  The pilot's second execution-rep (Decision D's stability gate) runs on fold-1's A and C with C's
+  bank **frozen** — no relearn — so it measures execution stability without becoming a learning
+  replicate.
+
+**Practical procedure (frozen):**
+1. Freeze the analysis rules and the continue/stop rules **before** running (this doc + a
+   pre-registration note).
+2. Run fold 1 + the stability gate.
+3. If the gate passes and real cost leaves a safety margin → complete folds 2–3 unchanged.
+4. Report all 27 as a **directional pilot**.
+5. Stop and interpret the four conditions.
+6. Only then decide: expand the same corpus / move to a richer arena / stop (no signal to justify
+   investment). **Do not expand now** — the pilot exists precisely to make any future expansion
+   non-blind.
+
+---
+
+**§2 design is now fully specified (Decisions A–E frozen).** Next engineering step (gated on
+explicit user approval + no paid API until approved): build the offline-testable A/C/D/B1 harness
+over the 27-task frozen corpus with mocks, then a budget-capped micro-pilot on real Haiku, then
+the 3-fold run — each behind its own go/no-go.
