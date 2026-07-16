@@ -1,6 +1,6 @@
 {
   "gate": "GATE1",
-  "decision": "GO WITH DOCUMENTED EXCLUSIONS",
+  "decision": "GO FOR SCOPED \u00a72",
   "frozen_for": "\u00a72 learning experiment \u2014 ONLY these admitted ids may enter; excluded never participate and never change A/C/D status",
   "admitted_count": 27,
   "admitted_sha256": "cee0c6028e94c6e15e3865eca8cc52819fd258143f965c8110d8f281b58e7f66",
@@ -66,5 +66,6 @@
       "scrapy-2552"
     ]
   },
-  "known_limitation": "harness-limited exclusions skew to the Typing family (see condition-3 finding) \u2014 corpus under-samples Typing due to dynamic test discovery, NOT because Typing bugs are rare"
+  "known_limitation": "harness-limited exclusions are semantically-spread black formatting bugs (iterator/other/whitespace/state_mutation/parser), NOT a Typing family \u2014 the exception-based main label mislabels them. Coverage gap is semantically symmetric. black-95 retained (formatting bug mislabeled Typing).",
+  "reporting_taxonomy": "semantic primary-sub (legacy exception-based fingerprint retained for compatibility only, NOT used for experimental interpretation)"
 }
