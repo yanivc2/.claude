@@ -30,7 +30,13 @@ from .b1_selector import (B1_SELECTOR_ALGO_VERSION, PROXY_SOURCE, REAL_SOURCE, B
 from .prompt import (build_agent_prompt, mask_memory_region, prompt_carries_condition_label,
                     render_memory_payload)
 from .preflight import (ContextCapReport, TaskContextCount, context_cap_preflight,
-                       full_request_metrics_fn, proxy_request_tokens)
+                       full_request_metrics_fn)
+from .canonical import CanonicalS2Request, build_canonical, differential_fields_match
+from .token_counter import (AnthropicTokenCounter, CountResult, CounterProvenanceError,
+                           ProxyTokenCounter, is_production_count)
+from .gates import (CallContext, GateError, assert_b1_selection_production_valid,
+                   assert_call_allowed, assert_context_cap_production_valid,
+                   assert_training_complete)
 from .ordering import (CONDITION_ORDER_VERSION, INFRA_FAILURES, PRIMARY_CONDITIONS, RETRY_POLICY,
                       SOLVER_OUTPUT_FAILURES, STABILITY_CONDITIONS, AttemptOutcome,
                       classify_attempt_outcome, condition_order, is_primary, rep_role, train_order)
@@ -65,7 +71,11 @@ __all__ = [
     "build_agent_prompt", "mask_memory_region", "prompt_carries_condition_label",
     "render_memory_payload",
     "ContextCapReport", "TaskContextCount", "context_cap_preflight", "full_request_metrics_fn",
-    "proxy_request_tokens",
+    "CanonicalS2Request", "build_canonical", "differential_fields_match",
+    "AnthropicTokenCounter", "CountResult", "CounterProvenanceError", "ProxyTokenCounter",
+    "is_production_count",
+    "CallContext", "GateError", "assert_b1_selection_production_valid", "assert_call_allowed",
+    "assert_context_cap_production_valid", "assert_training_complete",
     "CONDITION_ORDER_VERSION", "INFRA_FAILURES", "PRIMARY_CONDITIONS", "RETRY_POLICY",
     "SOLVER_OUTPUT_FAILURES", "STABILITY_CONDITIONS", "AttemptOutcome", "classify_attempt_outcome",
     "condition_order", "is_primary", "rep_role", "train_order",

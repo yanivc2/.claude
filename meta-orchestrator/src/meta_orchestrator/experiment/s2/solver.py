@@ -39,6 +39,7 @@ from .memory import (CONDITIONS, FrozenLessonBank, PlaceboRouter, StaticPlaybook
                      resolve_memory)
 from .b1_selector import PROXY_SOURCE, select_b1_derangement
 from .ordering import condition_order, train_order
+from .preflight import full_request_metrics_fn
 from .write_gate import assert_bank_within_train
 
 
@@ -331,8 +332,11 @@ class SolverHarness:
         # a production gate); the pilot injects a full-request count_tokens oracle at Gate 2.
         present = sorted(set(self.family_map.values()))
         held_out_tasks = [(t, self.family_map[t]) for t in fold.test_ids]
+        # Offline dry-run uses the FULL-request oracle with the proxy counter (exercises the real
+        # code path); the pilot injects an AnthropicTokenCounter at Gate 2 for real counts.
+        metrics = full_request_metrics_fn(bank, self.corpus)
         selection = select_b1_derangement(bank, present, held_out_tasks, fold=fold.index,
-                                          token_count_source=PROXY_SOURCE)
+                                          metrics_fn=metrics, token_count_source=PROXY_SOURCE)
         self.b1_selections[fold.index] = selection
         b1_router = selection.router()
         for tid in fold.test_ids:

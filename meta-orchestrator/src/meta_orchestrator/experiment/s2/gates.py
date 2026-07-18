@@ -1,0 +1,115 @@
+"""Pilot gate checks (P0.3) + the per-call runtime invariant (P0.4).
+
+Human authorization is split into Gate 1 (before paid C-training) and Gate 2 (after the bank is
+frozen, before held-out). But a human gate is a point-in-time check; a runtime bug can still build
+an illegal request afterward. ``assert_call_allowed`` is the machine-enforced invariant checked
+before EVERY paid Messages call: a preflight proves the legal DESIGN fits; this proves the ACTUAL
+request is legal. Any violation blocks the call (never truncates, never falls back).
+"""
+from __future__ import annotations
+
+from typing import Optional
+
+from pydantic import BaseModel
+
+from .b1_selector import REAL_SOURCE, B1Selection
+from .preflight import ContextCapReport
+
+
+class GateError(RuntimeError):
+    """A gate or runtime invariant was violated — the paid call is blocked."""
+
+
+# --- Gate 2 training completeness (P0.3) -------------------------------------------------
+_TERMINAL = {"solver_pass", "solver_fail"}
+
+
+def assert_training_complete(train_outcomes: dict[str, str], expected_train_ids: list[str]) -> None:
+    """A bank may open held-out ONLY if all train tasks reached a terminal, non-infra state.
+
+    A bank learned from 15/18 tasks because 3 hit unresolved infrastructure errors is NOT the
+    pre-registered treatment. Absent a pre-frozen partial-training rule, this blocks.
+    """
+    missing = [t for t in expected_train_ids if t not in train_outcomes]
+    if missing:
+        raise GateError(f"training outcomes missing for {missing}")
+    non_terminal = [t for t in expected_train_ids if train_outcomes[t] not in _TERMINAL]
+    if non_terminal:
+        raise GateError(
+            f"training not complete for {non_terminal} (unresolved infrastructure missingness); "
+            "block held-out — no partial-training bank without a pre-frozen rule.")
+
+
+# --- production-validity guards ----------------------------------------------------------
+def assert_context_cap_production_valid(report: ContextCapReport) -> None:
+    if report.token_count_source != REAL_SOURCE:
+        raise GateError(
+            f"context_cap token_count_source={report.token_count_source!r}; a production cap "
+            f"requires {REAL_SOURCE!r} (a proxy dry-run cannot freeze the live cap).")
+    if not report.fits_model_context:
+        raise GateError("context_cap + max_tokens exceeds the model context window")
+    if report.over_cap_tasks:
+        raise GateError(f"tasks exceed context_cap: {report.over_cap_tasks} — decide + re-version "
+                        "the manifest; never truncate target source.")
+
+
+def assert_b1_selection_production_valid(selection: B1Selection, *, bank_hash: str,
+                                         fold: int) -> None:
+    if selection.token_count_source != REAL_SOURCE:
+        raise GateError(f"B1 selection token_count_source={selection.token_count_source!r}; "
+                        f"a production mapping requires {REAL_SOURCE!r} (not the proxy pick).")
+    if selection.fold != fold:
+        raise GateError(f"B1 selection is for fold {selection.fold}, not fold {fold} "
+                        "(a fold's mapping can never authorize another fold).")
+    if selection.c_bank_hash != bank_hash:
+        raise GateError("B1 mapping is bound to a DIFFERENT bank hash than the active bank "
+                        "(stale mapping — the bank changed after selection).")
+
+
+# --- per-call runtime invariant (P0.4) ---------------------------------------------------
+class CallContext(BaseModel):
+    fold: int
+    condition: str
+    is_held_out: bool
+    request_tokens: int
+    context_cap: int
+    remaining_budget: float
+    max_call_cost: float
+    env_hash_expected: str
+    env_hash_actual: str
+    contract_expected: str
+    contract_actual: str
+    active_bank_hash: str
+    b1_mapping_bank_hash: Optional[str] = None      # required for held-out B1 calls
+    b1_source: Optional[str] = None                  # token_count_source of the active B1 mapping
+    model_calls_used: int
+    max_model_calls: int
+    gate1_ok: bool
+    gate2_ok: bool                                    # required True for held-out calls
+    context_cap_source: str                          # must be REAL_SOURCE for a paid call
+
+
+def assert_call_allowed(ctx: CallContext) -> None:
+    """The invariant checked before every paid Messages request. Blocks on ANY violation."""
+    if not ctx.gate1_ok:
+        raise GateError("Gate 1 not satisfied")
+    if ctx.env_hash_actual != ctx.env_hash_expected:
+        raise GateError("environment hash mismatch (SDK/config changed since the gate)")
+    if ctx.contract_actual != ctx.contract_expected:
+        raise GateError("agent-contract snapshot mismatch")
+    if ctx.context_cap_source != REAL_SOURCE:
+        raise GateError("context_cap came from a non-production (proxy) source")
+    if ctx.request_tokens > ctx.context_cap:
+        raise GateError(f"request {ctx.request_tokens} tok > frozen context_cap {ctx.context_cap} "
+                        "— block, do not truncate or send")
+    if ctx.remaining_budget < ctx.max_call_cost:
+        raise GateError("remaining budget below the maximum authorized call exposure")
+    if ctx.model_calls_used >= ctx.max_model_calls:
+        raise GateError("attempt model-call cap already reached")
+    if ctx.is_held_out:
+        if not ctx.gate2_ok:
+            raise GateError("Gate 2 not satisfied for a held-out call")
+        if ctx.b1_source != REAL_SOURCE:
+            raise GateError("held-out call references a non-production B1 mapping (proxy artifact)")
+        if ctx.b1_mapping_bank_hash != ctx.active_bank_hash:
+            raise GateError("B1 mapping bank hash != active bank hash (stale/cross-fold artifact)")

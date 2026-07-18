@@ -72,27 +72,14 @@ def s2_run_policy() -> RunPolicy:
 def anthropic_request_kwargs(
     contract: AgentContract, *, prompt: str, system: Optional[str] = None
 ) -> dict[str, Any]:
-    """Build the EXACT kwargs that would go to ``client.messages.create`` — and never send them.
+    """Build the EXACT Messages kwargs — via the ONE canonical builder (P0.1, no drift).
 
-    This is the honest, $0 way to prove the adapter is faithful to the frozen contract: the test
-    inspects this dict. It intentionally never emits ``output_config``/``effort``,
-    ``temperature``, ``top_p`` or ``top_k`` — Decision A omits all of them on Haiku 4.5.
+    Delegates to ``CanonicalS2Request`` so the Messages path and the count_tokens path can never
+    diverge. It still never emits ``output_config``/``effort``/``temperature``/``top_p``/``top_k``
+    — the canonical builder omits all of them on Haiku 4.5. Deferred import avoids an import cycle.
     """
-    kwargs: dict[str, Any] = {
-        "model": contract.exact_model_id,
-        "max_tokens": contract.api_config["max_tokens"],
-        "messages": [{"role": "user", "content": prompt}],
-    }
-    if system is not None:
-        kwargs["system"] = system
-    # thinking is copied verbatim from the frozen contract; no effort is ever synthesised.
-    thinking = contract.reasoning_settings.get("thinking")
-    if thinking is not None:
-        kwargs["thinking"] = dict(thinking)
-    # temperature ONLY if the contract explicitly pins one (it does not, for §2).
-    if contract.temperature is not None:
-        kwargs["temperature"] = contract.temperature
-    return kwargs
+    from .canonical import build_canonical
+    return build_canonical(contract, prompt=prompt, system=system).messages_kwargs()
 
 
 def _deep_key_present(obj: Any, key: str) -> bool:

@@ -1,59 +1,37 @@
-"""count_tokens context-cap preflight tool + the full-request B1 metrics oracle.
+"""count_tokens context-cap preflight + the full-request B1 metrics oracle.
 
-Built OFFLINE ($0) and dry-run with the deterministic proxy; the REAL run happens in the pinned
-pilot environment where `count_tokens` (free, but SDK + network) is available. A proxy artifact is
-tagged ``token_count_source="offline_proxy"`` and can NEVER open a production gate
-(see ``b1_selector.assert_production_valid``).
-
-Two pieces:
-  * ``full_request_metrics_fn`` — the B1 oracle that counts the COMPLETE C/B1 held-out request
-    (system + tools + source + memory + response schema), not just the memory block. Cache-keyed
-    by (request hash, model, token-source).
-  * ``context_cap_preflight`` — builds worst-case Round-1 and Round-2 legal requests for every
-    task × condition, counts them, and applies the frozen cap formula. Never truncates target
-    source: a task over the cap forces a documented decision + a new manifest version.
+Built OFFLINE ($0) and dry-run with the proxy counter; the REAL run happens in the pinned pilot
+env where ``count_tokens`` is available. Both the Messages request and the counted request come
+from ONE ``CanonicalS2Request`` (canonical.py), and counts flow through a source-isolated
+``TokenCounter`` (token_counter.py), so a proxy count can never masquerade as a real one.
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import math
-from typing import Callable, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
 from ..task import ExperimentTask
-from .b1_selector import PROXY_SOURCE, MetricsFn, local_token_estimate
-from .contract_s2 import S2_MAX_TOKENS, S2_SYSTEM_PROMPT, anthropic_request_kwargs, frozen_s2_contract
-from .memory import (SLOT_MAX_CHARS, SLOT_MAX_LINES, FrozenLessonBank, MemoryContext,
-                     StaticPlaybook)
+from .b1_selector import PROXY_SOURCE, MetricsFn
+from .canonical import CanonicalS2Request, build_canonical
+from .contract_s2 import S2_MAX_TOKENS, S2_SYSTEM_PROMPT
+from .memory import SLOT_MAX_CHARS, SLOT_MAX_LINES, FrozenLessonBank, MemoryContext
 from .prompt import build_agent_prompt, render_memory_payload
+from .token_counter import ProxyTokenCounter, _BaseCounter
 
 MODEL_TOTAL_CONTEXT = 200_000            # Haiku 4.5 context window
 HEADROOM_FLOOR = 2048
 HEADROOM_FRACTION = 0.10
 
-# A request-token function counts a full messages.create kwargs dict → tokens.
-RequestTokenFn = Callable[[dict], int]
 
-
-def proxy_request_tokens(kwargs: dict) -> int:
-    """Deterministic offline proxy over the FULL serialized request (dry-run only)."""
-    blob = json.dumps(kwargs, sort_keys=True)
-    return local_token_estimate(blob)
-
-
-def _request_for(task: ExperimentTask, memory_payload: list[str],
-                 public_feedback: Optional[str] = None) -> dict:
+def _canonical_for(task: ExperimentTask, memory_payload: list[str],
+                   public_feedback: Optional[str] = None) -> CanonicalS2Request:
     prompt = build_agent_prompt(source=dict(task.source), public_tests=dict(task.public_tests),
                                 memory_payload=memory_payload, public_feedback=public_feedback)
-    return anthropic_request_kwargs(frozen_s2_contract(), prompt=prompt, system=S2_SYSTEM_PROMPT)
-
-
-def _payload_for_family(bank: FrozenLessonBank, family: str) -> list[str]:
-    mc = MemoryContext(condition="X", component_kind="x", source_family=family,
-                       lines=_lesson_lines(bank.lessons_for(family)))
-    return render_memory_payload(mc)
+    return build_canonical(prompt=prompt, system=S2_SYSTEM_PROMPT)
 
 
 def _lesson_lines(lessons) -> list[str]:
@@ -64,27 +42,30 @@ def _lesson_lines(lessons) -> list[str]:
     return out
 
 
+def _payload_for_family(bank: FrozenLessonBank, family: str) -> list[str]:
+    mc = MemoryContext(condition="X", component_kind="x", source_family=family,
+                       lines=_lesson_lines(bank.lessons_for(family)))
+    return render_memory_payload(mc)
+
+
 def full_request_metrics_fn(
     bank: FrozenLessonBank,
     corpus: dict[str, ExperimentTask],
     *,
-    request_token_fn: RequestTokenFn = proxy_request_tokens,
+    counter: Optional[_BaseCounter] = None,
 ) -> MetricsFn:
-    """B1 oracle that counts the COMPLETE request for (task, injected_family). Entries/lines from
-    the bank; tokens from the full request. Cache-keyed by the serialized request hash."""
-    cache: dict[str, tuple[int, int, int]] = {}
+    """B1 oracle counting the COMPLETE R1 request for (task, injected_family). Entries/lines from
+    the bank; tokens from the canonical request via the source-isolated ``counter`` (proxy by
+    default). The memory-injection point is identical for C and B1, and worst-case R2 appends
+    memory-independent transcript, so R1-template parity is the binding parity check."""
+    counter = counter or ProxyTokenCounter()
 
     def metrics(task_id: str, injected_family: str) -> tuple[int, int, int]:
         task = corpus[task_id]
         lessons = bank.lessons_for(injected_family)
-        entries = len(lessons)
         payload = _payload_for_family(bank, injected_family)
-        lines = len(payload)
-        kwargs = _request_for(task, payload)
-        req_hash = hashlib.sha256(json.dumps(kwargs, sort_keys=True).encode()).hexdigest()[:16]
-        if req_hash not in cache:
-            cache[req_hash] = (entries, lines, request_token_fn(kwargs))
-        return cache[req_hash]
+        req = _canonical_for(task, payload)
+        return len(lessons), len(payload), counter.count(req).tokens
 
     return metrics
 
@@ -122,8 +103,7 @@ def _max_legal_memory_payload() -> list[str]:
 def context_cap_preflight(
     corpus: dict[str, ExperimentTask],
     *,
-    request_token_fn: RequestTokenFn = proxy_request_tokens,
-    token_count_source: str = PROXY_SOURCE,
+    counter: Optional[_BaseCounter] = None,
     max_public_feedback: Optional[str] = None,
     max_r1_assistant_output: Optional[str] = None,
 ) -> ContextCapReport:
@@ -131,18 +111,19 @@ def context_cap_preflight(
 
     Worst case uses the MAXIMUM legal memory slot (the real C bank does not exist at preflight),
     the maximum sanitized public feedback, and the maximum prior assistant/tool transcript for R2.
+    The report's ``token_count_source`` is the counter's source — a proxy report can NOT open a
+    production gate (see gates.assert_context_cap_production_valid).
     """
+    counter = counter or ProxyTokenCounter()
     mem = _max_legal_memory_payload()
-    feedback = max_public_feedback or ("F" * 2000)               # max sanitized public summary
-    # worst-case R2 carries the largest legal prior assistant output in the visible transcript.
+    feedback = max_public_feedback or ("F" * 2000)
     r1_out = max_r1_assistant_output or ("O" * (S2_MAX_TOKENS * 4))
     per: list[TaskContextCount] = []
     estimated_max = 0
     over: list[str] = []
     for tid, task in corpus.items():
-        r1 = request_token_fn(_request_for(task, mem))
-        # R2 = R1 context + prior assistant output + sanitized public feedback (as a fed-back turn)
-        r2 = request_token_fn(_request_for(task, mem, public_feedback=(r1_out + "\n" + feedback)))
+        r1 = counter.count(_canonical_for(task, mem)).tokens
+        r2 = counter.count(_canonical_for(task, mem, public_feedback=(r1_out + "\n" + feedback))).tokens
         per.append(TaskContextCount(task_id=tid, condition="worst-case",
                                     round1_tokens=r1, round2_worst_tokens=r2))
         estimated_max = max(estimated_max, r1, r2)
@@ -152,6 +133,6 @@ def context_cap_preflight(
     for p in per:
         if max(p.round1_tokens, p.round2_worst_tokens) > context_cap:
             over.append(p.task_id)                                # never truncate → documented block
-    return ContextCapReport(token_count_source=token_count_source, estimated_max=estimated_max,
+    return ContextCapReport(token_count_source=counter.source, estimated_max=estimated_max,
                             headroom=headroom, context_cap=context_cap, fits_model_context=fits,
                             over_cap_tasks=over, per_request=per)

@@ -173,6 +173,27 @@ is skipped here; in the pinned pilot env it MUST run green (0 skipped / 0 failed
 network call, and it also asserts a retryable status (429/500) produces exactly ONE HTTP request
 (`max_retries=0`).
 
+## Final offline safeguards (3rd review — closed at $0)
+
+- **One canonical request (P0.1)** — `canonical.py::CanonicalS2Request` is the single source of
+  truth; the Messages adapter and the count_tokens adapter differ ONLY by `max_tokens` (which the
+  counting endpoint rejects). `differential_fields_match` asserts every semantic field (model /
+  system / messages / tools / thinking) is identical, so the counted request is exactly the one
+  sent. `anthropic_request_kwargs` now delegates to it (no second builder to drift).
+- **Counter cache isolation (P0.2)** — `token_counter.py`: proxy and real counters use separate,
+  provenance-stamped caches; a read verifies the stored source and raises `CounterProvenanceError`
+  on a mismatch; a proxy miss never falls through to the real namespace. `AnthropicTokenCounter`
+  never falls back to the proxy — a missing real count BLOCKS.
+- **Gate-2 training completeness (P0.3)** — `assert_training_complete` requires all 18 train tasks
+  to reach a terminal non-infra outcome before a bank may open held-out (no partial-training bank
+  without a pre-frozen rule).
+- **Per-call runtime invariant (P0.4)** — `gates.py::assert_call_allowed` is checked before EVERY
+  paid Messages call: Gate 1 satisfied; env/contract hashes match; `context_cap` from a REAL
+  source; `request_tokens ≤ context_cap` (block, never truncate); budget ≥ max call exposure;
+  attempt caps not exceeded; and for held-out — Gate 2 satisfied, the active B1 mapping is a REAL
+  (non-proxy) artifact whose bank hash equals the active bank (blocks stale / cross-fold). B1
+  selection production-validity is also guarded (`assert_b1_selection_production_valid`).
+
 ## What remains before authorizing paid fold 1
 
 1. ✅ B1 parity selector on the COMPLETE request + hard block + proxy/production source guard.
