@@ -1,0 +1,88 @@
+================================================================================
+§2 SOLVER-HARNESS REPORT — provider=mock  paid_api_called=false
+================================================================================
+corpus: n=27 synthetic_map=False family_map_hash=4171f399373b
+attempt_contract: {'max_model_calls': 2, 'max_patches': 2, 'max_public_runs': 2, 'hidden_verifications': 1, 'round2_only_after_public_fail': True, 'f2p_feedback_to_agent': False, 'public_feedback_char_cap': 2000}
+
+folds:
+  fold 0: bank=022d5e616ecf families=['boundary', 'condition_inversion', 'iterator', 'other_logic', 'parser_normalization', 'whitespace'] n_test=9
+  fold 1: bank=022d5e616ecf families=['boundary', 'condition_inversion', 'iterator', 'other_logic', 'parser_normalization', 'whitespace'] n_test=9
+  fold 2: bank=022d5e616ecf families=['boundary', 'condition_inversion', 'iterator', 'other_logic', 'parser_normalization', 'whitespace'] n_test=9
+
+per-condition pass rate (sealed effect table, post-finalize):
+  A: 0/27
+  C: 27/27
+  D: 0/27
+  B1: 0/27
+
+cost signals (OFFLINE, $0): {'attempts': 108, 'model_calls': 189, 'public_runs': 189, 'round2_opened': 81}
+harness signals: {'verifier_config_hash': '5885767ee0c7', 'blocked_tool_attempts': 0, 'f2p_feedback_leaked': False}
+
+frozen Haiku contract — INSPECTED, NOT SENT:
+  [PASS] thinking_enabled_budget_1024
+  [PASS] no_effort
+  [PASS] no_temperature
+  [PASS] no_top_p_top_k
+  [PASS] exact_snapshot
+  [PASS] max_tokens_4096
+  [PASS] fallback_off
+
+run invariants:
+  [PASS] C_passes_all_held_out
+  [PASS] A_B1_D_no_relevant_help
+  [PASS] no_f2p_feedback_leaked
+  [PASS] caps_respected
+  [PASS] outcomes_were_sealed
+
+contract clause → proving test (acceptance criterion 8):
+  - A: thinking enabled + budget_tokens=1024
+      → test_s2_contract::test_adapter_sends_enabled_thinking_with_budget_1024
+  - A: never sends effort (errors on Haiku 4.5)
+      → test_s2_contract::test_adapter_never_sends_effort
+  - A: never sends temperature/top_p/top_k
+      → test_s2_contract::test_adapter_never_sends_temperature_or_sampling
+  - A: exact snapshot + max_tokens 4096
+      → test_s2_contract::test_adapter_pins_exact_snapshot_and_max_tokens
+  - A: no silent fallback
+      → test_s2_contract::test_run_policy_disables_fallback
+  - B: Round 1 success stops (no Round 2)
+      → test_s2_solver::test_round1_success_stops_without_round2
+  - B: public failure opens exactly one Round 2
+      → test_s2_solver::test_public_failure_allows_exactly_one_round2
+  - B: <=2 model calls / patches / public runs
+      → test_s2_solver::test_caps_hold_for_a_greedy_solver
+  - B: exactly one hidden verification
+      → test_s2_solver::test_hidden_verifier_runs_exactly_once
+  - B: invalid patch blocked + handled
+      → test_s2_solver::test_invalid_patch_is_blocked_and_handled
+  - B: no F2P feedback to the agent
+      → test_s2_solver::test_no_f2p_feedback_reaches_the_solver
+  - C: deterministic write-gate (8 checks)
+      → test_s2_write_gate::test_clean_candidate_is_written (+ per-check rejections)
+  - C: learn from train only; bank frozen
+      → test_s2_write_gate::test_learn_gated_bank_admits_only_clean_train_passes
+  - C: held-out write raises (noisy)
+      → test_s2_write_gate::test_frozen_bank_refuses_held_out_write
+  - C/B1/D: only memory content differs
+      → test_s2_solver::test_only_memory_differs_c_passes_a_b1_d_fail
+  - B1: same bank, frozen mis-routing
+      → test_s2_harness::test_real_map_b1_placebo_over_present_families_no_fixed_point
+  - D: loaded from frozen file, unmodified
+      → test_s2_playbook_d::(freeze + content-hash suite)
+  - E: outcomes sealed until finalize
+      → test_s2_solver::test_effect_table_sealed_until_finalize
+  - resume: no duplicate attempt / cost
+      → test_s2_solver::test_resume_does_not_duplicate_attempts_or_calls
+  - provenance: all frozen hashes recorded
+      → test_s2_solver::test_provenance_records_all_frozen_hashes
+
+residual risks:
+  - synthetic stand-in tasks exercise the PLUMBING only; the real bugs need a cloned repo + real test run (repo-backed reproduction) to become the graded corpus.
+  - MemorySensitiveRoundSolver is a ROUTING test-double — it makes no claim a real Haiku session behaves this way; the micro-pilot replaces it.
+  - D's effectiveness is not exercised by the routing double (it only responds to a relevant-family C lesson); D vs A/C is a real-model question for the pilot.
+  - n=27, per-fold n=9 — a directional pilot only (Decision E); no confirmatory claim.
+  - training-cutoff contamination stratum still needs the official Haiku 4.5 model card (snapshot date 2025-10-01 != cutoff) before it can be relied on.
+
+paid_api_called = false
+SELF-CHECKS PASSED ✓ — STOP before count_tokens and before any real Haiku call (both are separate, approval-gated steps).
+================================================================================
