@@ -13,9 +13,16 @@ from .lifecycle import Learner, MockLearner, learn_bank
 from .memory import (CONDITIONS, FrozenLessonBank, MemoryContext, MemoryFrozenError,
                      PlaceboRouter, StaticPlaybook, parse_mem_tag, render_lines, resolve_memory)
 from .mocks import LessonSensitiveMock
+from .contract_s2 import (RunPolicy, anthropic_request_kwargs, frozen_s2_contract, s2_run_policy,
+                          S2_EXACT_MODEL_ID, S2_MAX_TOKENS, S2_THINKING_BUDGET_TOKENS)
 from .playbook_d import (DSubmission, DValidationError, PlaybookEntry, freeze_d,
                          submission_hash, validate_d_submission)
+from .solver import (AttemptContract, AttemptContractViolation, AttemptResult, FixOnRoundSolver,
+                     InvalidPatchSolver, MemorySensitiveRoundSolver, RoundOutput, RoundView,
+                     SolverHarness, SolverOutcomes, SolverOutcomesSealedError, run_attempt)
 from .synthetic import build_synthetic_corpus, synthetic_task
+from .write_gate import (HeldOutWriteError, MAX_ACTIVE_ENTRIES_PER_FAMILY, WriteGateResult,
+                        evaluate_write_gate, learn_gated_bank)
 
 __all__ = [
     "SEMANTIC_FAMILIES", "family_map_hash", "is_known_family",
@@ -26,7 +33,14 @@ __all__ = [
     "CONDITIONS", "FrozenLessonBank", "MemoryContext", "MemoryFrozenError", "PlaceboRouter",
     "StaticPlaybook", "parse_mem_tag", "render_lines", "resolve_memory",
     "LessonSensitiveMock",
+    "RunPolicy", "anthropic_request_kwargs", "frozen_s2_contract", "s2_run_policy",
+    "S2_EXACT_MODEL_ID", "S2_MAX_TOKENS", "S2_THINKING_BUDGET_TOKENS",
     "DSubmission", "DValidationError", "PlaybookEntry", "freeze_d", "submission_hash",
     "validate_d_submission",
+    "AttemptContract", "AttemptContractViolation", "AttemptResult", "FixOnRoundSolver",
+    "InvalidPatchSolver", "MemorySensitiveRoundSolver", "RoundOutput", "RoundView",
+    "SolverHarness", "SolverOutcomes", "SolverOutcomesSealedError", "run_attempt",
+    "HeldOutWriteError", "MAX_ACTIVE_ENTRIES_PER_FAMILY", "WriteGateResult",
+    "evaluate_write_gate", "learn_gated_bank",
     "build_synthetic_corpus", "synthetic_task",
 ]
