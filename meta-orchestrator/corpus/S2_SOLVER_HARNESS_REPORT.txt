@@ -98,6 +98,20 @@ contract clause → proving test (acceptance criterion 8):
       → test_s2_hardening::test_memory_ignoring_double_shows_no_separation
   - neg-control: leaking lesson → gate rejects
       → test_s2_hardening::test_leaking_lesson_is_rejected_by_the_gate
+  - B1 parity-optimized derangement + hard block
+      → test_s2_b1_selector::test_selection_succeeds_with_equal_occupancy / test_block_when_no_mapping_meets_tolerance
+  - held-out request byte-identical except memory
+      → test_s2_prepaid::test_held_out_requests_are_byte_identical_except_memory
+  - prompt carries no condition/family label
+      → test_s2_prepaid::test_prompt_carries_no_condition_or_family_label
+  - counterbalanced condition order
+      → test_s2_prepaid::test_condition_order_is_balanced_across_tasks
+  - infra error → incomplete, never a condition FAIL
+      → test_s2_prepaid::test_infra_error_is_incomplete_not_a_fail
+  - response-parser robustness
+      → test_s2_prepaid::test_parser_handles_response_variants
+  - SDK-serialized body omits effort (pilot env)
+      → test_s2_prepaid::test_sdk_serialized_body_omits_effort_and_temperature [skipped offline]
 
 residual risks:
   - synthetic stand-in tasks exercise the PLUMBING only; the real bugs need a cloned repo + real test run (repo-backed reproduction) to become the graded corpus.

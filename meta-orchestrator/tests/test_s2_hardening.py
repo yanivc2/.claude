@@ -28,7 +28,9 @@ def _map(ids, fams=SEMANTIC_FAMILIES):
 
 
 def _small_map():
-    return _map([f"t-{i}" for i in range(6)])
+    # 2 families × 3 tasks: every held-out family stays represented in train (no gap), so the
+    # B1 parity selector has a valid derangement (matches the real 27-map invariant).
+    return {f"t-{i}": ("whitespace" if i % 2 == 0 else "iterator") for i in range(6)}
 
 
 # --- P0.3: held-out response-schema parity ------------------------------------------------

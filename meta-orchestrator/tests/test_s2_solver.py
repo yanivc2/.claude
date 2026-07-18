@@ -34,7 +34,10 @@ def _map(ids, fams=SEMANTIC_FAMILIES):
 
 
 def _small_map():
-    return _map([f"t-{i}" for i in range(6)])
+    # 2 families × 3 tasks so EVERY held-out family is also in train (no representation gap),
+    # matching the real 27-task map's invariant. A gap would leave C empty and — correctly —
+    # trip the B1 parity block, which is a fixture artefact, not the behaviour under test.
+    return {f"t-{i}": ("whitespace" if i % 2 == 0 else "iterator") for i in range(6)}
 
 
 # --- Decision-B loop mechanics -----------------------------------------------------------

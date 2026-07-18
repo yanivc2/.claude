@@ -23,6 +23,12 @@ from .solver import (AttemptContract, AttemptContractViolation, AttemptResult, F
                      MemorySensitiveRoundSolver, RoundOutput, RoundView, SolverHarness,
                      SolverOutcomes, SolverOutcomesSealedError, run_attempt)
 from .model_client import ModelUnavailableError, S2ModelClient, S2ModelResponse
+from .b1_selector import (B1_SELECTOR_ALGO_VERSION, B1Selection, B1SelectionBlocked, FamilyParity,
+                         enumerate_derangements, local_token_estimate, select_b1_derangement)
+from .prompt import (build_agent_prompt, mask_memory_region, prompt_carries_condition_label,
+                    render_memory_payload)
+from .ordering import (CONDITION_ORDER_VERSION, RETRY_POLICY, AttemptOutcome,
+                      classify_attempt_outcome, condition_order, train_order)
 from .synthetic import build_synthetic_corpus, synthetic_task
 from .write_gate import (FoldLeakageError, HeldOutWriteError, MAX_ACTIVE_ENTRIES_PER_FAMILY,
                         WriteGateResult, assert_bank_within_train, bank_provenance,
@@ -47,6 +53,12 @@ __all__ = [
     "MemorySensitiveRoundSolver", "RoundOutput", "RoundView",
     "SolverHarness", "SolverOutcomes", "SolverOutcomesSealedError", "run_attempt",
     "ModelUnavailableError", "S2ModelClient", "S2ModelResponse",
+    "B1_SELECTOR_ALGO_VERSION", "B1Selection", "B1SelectionBlocked", "FamilyParity",
+    "enumerate_derangements", "local_token_estimate", "select_b1_derangement",
+    "build_agent_prompt", "mask_memory_region", "prompt_carries_condition_label",
+    "render_memory_payload",
+    "CONDITION_ORDER_VERSION", "RETRY_POLICY", "AttemptOutcome", "classify_attempt_outcome",
+    "condition_order", "train_order",
     "FoldLeakageError", "HeldOutWriteError", "MAX_ACTIVE_ENTRIES_PER_FAMILY", "WriteGateResult",
     "assert_bank_within_train", "bank_provenance", "evaluate_write_gate", "learn_gated_bank",
     "reference_patch_tokens",

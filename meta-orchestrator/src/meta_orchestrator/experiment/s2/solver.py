@@ -37,6 +37,8 @@ from .folds import Fold, stratified_folds
 from .lifecycle import Learner, MockLearner, learn_bank
 from .memory import (CONDITIONS, FrozenLessonBank, PlaceboRouter, StaticPlaybook, render_lines,
                      resolve_memory)
+from .b1_selector import select_b1_derangement
+from .ordering import condition_order, train_order
 from .write_gate import assert_bank_within_train
 
 
@@ -98,6 +100,7 @@ class AttemptResult(BaseModel):
     hidden_verifications: int = 0
     public_pass_round1: Optional[bool] = None
     round1_public_status: Optional[str] = None      # PASS | FAIL | NO_PUBLIC_TESTS | INFRA_ERROR
+    infra_incomplete: bool = False                   # infra error → withheld from paired analysis
     round2_opened: bool = False
     blocked_attempts: int = 0
     candidate_lessons: list[Lesson] = Field(default_factory=list)
@@ -199,6 +202,7 @@ def run_attempt(
         patches_submitted=patches_submitted, patches_applied=patches_applied,
         public_runs=public_runs, hidden_verifications=1, public_pass_round1=public_pass_round1,
         round1_public_status=round1_status,
+        infra_incomplete=(round1_status == "INFRA_ERROR"),
         round2_opened=round2_opened, blocked_attempts=blocked, candidate_lessons=candidates,
         f2p_feedback_leaked=False, provenance=provenance,
     )
@@ -306,9 +310,11 @@ class SolverHarness:
         self.placebo = PlaceboRouter.build(sorted(set(family_map.values())))
         self.folds: list[Fold] = stratified_folds(family_map, k)
         self.outcomes = SolverOutcomes()
+        self.b1_selections: dict = {}                  # per-fold frozen B1 parity artifact
 
     def _learn_fold_bank(self, fold: Fold) -> FrozenLessonBank:
-        return learn_bank([self.corpus[t] for t in fold.train_ids], self.learner)
+        # frozen curriculum order (C learns sequentially → bank depends on train order).
+        return learn_bank([self.corpus[t] for t in train_order(fold.train_ids)], self.learner)
 
     def occupancy_parity(self, fold: Fold) -> list:
         """P0.5: per-family C-vs-B1 slot occupancy for this fold's bank (a length-confound probe)."""
@@ -320,14 +326,20 @@ class SolverHarness:
         reps = reps or {c: 1 for c in CONDITIONS}
         bank = self._learn_fold_bank(fold)             # fresh per fold; frozen before held-out
         assert_bank_within_train(bank, fold.train_ids)  # P0.2 tripwire: no cross-fold leakage
+        # B1: parity-optimized wrong-family mapping from the FROZEN bank (may hard-block the fold).
+        present = sorted(set(self.family_map.values()))
+        held_out_fams = [self.family_map[t] for t in fold.test_ids]
+        selection = select_b1_derangement(bank, present, held_out_fams, fold=fold.index)
+        self.b1_selections[fold.index] = selection
+        b1_router = selection.router()
         for tid in fold.test_ids:
             task = self.corpus[tid]
-            for condition in CONDITIONS:
+            for condition in condition_order(tid, CONDITIONS):   # counterbalanced per task
                 for rep in range(reps.get(condition, 1)):
                     if self.outcomes.has(fold.index, condition, tid, rep):
                         continue                       # resume-safe
                     mc = resolve_memory(condition, task.task_family, bank=bank,
-                                        playbook=self.playbook, placebo=self.placebo)
+                                        playbook=self.playbook, placebo=b1_router)
                     lines = render_lines(mc)
                     solver = self.round_solver_factory(task, condition)
                     result = run_attempt(
