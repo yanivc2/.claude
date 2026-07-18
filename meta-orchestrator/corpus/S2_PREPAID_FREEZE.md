@@ -109,16 +109,82 @@ diagnostics).
 
 ---
 
+## Two separate pilot gates (user decision — the paid pilot is NOT one approval)
+
+The real B1 mapping cannot be computed before the first paid call, because C's real bank does not
+exist until the 18 paid train tasks run. So authorization is split:
+
+**Gate 1 — before paid C-training**
+- all offline tests pass; the SDK-serialized-body test passes with **0 skipped / 0 failed**;
+  `max_retries=0` proven on the production path;
+- real `count_tokens` sets `context_cap` from the maximum legal complete requests;
+- all hashes/config match; budget covers C-training + margin.
+
+**Gate 2 — after C-training, before held-out**
+- C's bank is frozen; the B1 mapping is **recomputed with real `count_tokens` on the COMPLETE
+  requests**; a qualifying derangement exists (entries+lines parity, token diff ≤16 & ≤5%);
+- the per-fold B1 artifact is hash-locked to the bank and tagged
+  `token_count_source="anthropic_count_tokens"`;
+- remaining budget covers the whole planned held-out block;
+- **no qualifying mapping ⇒ STOP the experiment** — no partial held-out, no dropping B1, no
+  B1→A, no re-version of the fold in isolation.
+
+## Proxy artifacts are never production-valid (user rule 2)
+
+Every token count carries a `token_count_source`. The offline proxy (`offline_proxy`) is for
+**algorithm checks only**; `assert_production_valid` rejects it. A proxy artifact can NEVER freeze
+a live `context_cap`, select a live B1 mapping, or open Gate 1 / Gate 2 — only a real
+`anthropic_count_tokens` artifact can, and it records model snapshot, request hash, API version,
+and prompt/tool/bank/mapping/round in its cache key.
+
+## Reps: primary vs stability roles (user rule 3)
+
+Six sessions per held-out task, in TWO blocks, never pooled:
+- **Primary (counterbalanced four-condition block):** A-primary, C-primary, D, B1 — the ONLY runs
+  in the C-vs-A / C-vs-B1 / C-vs-D effect estimates.
+- **Stability (separate block):** A-stability, C-stability — used ONLY to assess A/C rep-to-rep
+  stability; A/C order alternated across tasks; task order frozen; results not exposed until the
+  block completes.
+Forbidden: pooling the two A/C reps against one B1/D obs without a frozen estimand; picking the
+"better" A/C replicate; using one replicate for C-vs-A and another for C-vs-D; relabelling a
+stability run as primary after seeing outcomes.
+
+## Infra vs solver taxonomy (frozen, deterministic)
+
+**Solver outcomes (count as solver_fail):** malformed response, refusal, invalid patch, empty
+output, max_tokens exceeded, tool misuse, non-compiling patch.
+**Infrastructure (→ incomplete, withheld, retried condition-blind):** provider outage, connection
+failure before a usable response, sandbox startup failure, verifier crash unrelated to the patch,
+api timeout, rate limit. A model-output failure is NEVER laundered into "infra missingness".
+
+## Analysis spec (frozen)
+
+Report separate paired datasets over tasks with BOTH outcomes available: C-vs-A, C-vs-B1, C-vs-D;
+plus a complete-block analysis where all four are available. Exact McNemar at small n; effect size
++ per-fold reporting; contamination flags (pre/post cutoff, patch similarity computed AFTER the
+run). No threshold / mapping / retry / context rule changes after outcomes are visible. Proxy
+artifacts are explicitly not production-valid.
+
+## Correction on the SDK-serialized-body test
+
+`httpx.MockTransport` needs **no API key, no network, no paid call** — only the pinned `anthropic`
++ `httpx` installed. It is $0. This offline env simply lacks the `anthropic` package, so the test
+is skipped here; in the pinned pilot env it MUST run green (0 skipped / 0 failed) before any
+network call, and it also asserts a retryable status (429/500) produces exactly ONE HTTP request
+(`max_retries=0`).
+
 ## What remains before authorizing paid fold 1
 
-1. ✅ B1 parity selector + hard block (frozen, tested).
-2. ✅ Counterbalanced condition order + frozen curriculum order.
-3. ✅ Infra-error paired handling + retry policy.
+1. ✅ B1 parity selector on the COMPLETE request + hard block + proxy/production source guard.
+2. ✅ Counterbalanced condition order + frozen curriculum order + primary/stability rep roles.
+3. ✅ Infra-vs-solver taxonomy + retry policy.
 4. ✅ Whole-request parity + label-free prompt.
-5. ✅ Response-parser robustness + cross-fold canary.
-6. ⏳ **count_tokens preflight** (worst-case Round 2) → freeze `context_cap` — the next $0 step.
-7. ⏳ **SDK-serialized-body test green in the pilot env** (anthropic installed + pinned).
-8. ⏳ Optional exact-path paid protocol smoke (FIRST paid call — explicit sign-off; labelled
+5. ✅ Response-parser robustness + cross-fold canary + `max_retries=0` (harness owns retries).
+6. ✅ count_tokens preflight TOOL built + proxy dry-run (worst-case Round 2, max-legal memory).
+7. ⏳ **Pilot env (Gate 1):** SDK-body test green (0 skips) · real count_tokens `context_cap` ·
+   real budget check.
+8. ⏳ **Pilot env (Gate 2):** real-count B1 mapping per fold, or STOP.
+9. ⏳ Optional exact-path paid protocol smoke (FIRST paid call — explicit sign-off; labelled
    protocol-smoke, not pilot data; not reused in fold 1).
 
 ## Invalidators (do not start / discard the affected run)

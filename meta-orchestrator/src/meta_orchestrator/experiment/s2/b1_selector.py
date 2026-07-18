@@ -32,11 +32,17 @@ from pydantic import BaseModel, Field
 
 from .memory import SLOT_MAX_CHARS, SLOT_MAX_LINES, FrozenLessonBank, PlaceboRouter
 
-B1_SELECTOR_ALGO_VERSION = "b1-parity-v1"
+B1_SELECTOR_ALGO_VERSION = "b1-parity-v2-fullrequest"
 TOKEN_ABS_TOLERANCE = 16
 TOKEN_REL_TOLERANCE = 0.05
 
+# token_count_source values — a PROXY artifact may NEVER open a production gate (user rule 2).
+PROXY_SOURCE = "offline_proxy"
+REAL_SOURCE = "anthropic_count_tokens"
+
 TokenFn = Callable[[str], int]
+# (task_id, injected_family) -> (entries, lines, tokens-of-the-COMPLETE-request)
+MetricsFn = Callable[[str, str], "tuple[int, int, int]"]
 
 
 def local_token_estimate(text: str) -> int:
@@ -47,26 +53,39 @@ def local_token_estimate(text: str) -> int:
 local_token_estimate.fn_name = "local-v1"          # type: ignore[attr-defined]
 
 
+class ProxyArtifactNotProductionValid(RuntimeError):
+    """A production gate was handed a B1 selection whose tokens came from the offline proxy."""
+
+
+def assert_production_valid(selection: "B1Selection") -> None:
+    """Gate guard (user rule 2): only a real anthropic_count_tokens artifact may open a gate."""
+    if selection.token_count_source != REAL_SOURCE:
+        raise ProxyArtifactNotProductionValid(
+            f"B1 selection token_count_source={selection.token_count_source!r}; a production gate "
+            f"requires {REAL_SOURCE!r} (proxy artifacts are for offline algorithm checks only).")
+
+
 class B1SelectionBlocked(RuntimeError):
     """No wrong-family derangement met the parity bar — the fold is blocked before held-out."""
 
 
 class FamilyParity(BaseModel):
+    task_id: str
     family: str
     mapped_family: str
     c_entries: int
     b1_entries: int
     c_lines: int
     b1_lines: int
-    c_tokens: int
-    b1_tokens: int
+    c_tokens: int          # tokens of the COMPLETE C request (not just the memory block)
+    b1_tokens: int         # tokens of the COMPLETE B1 request
     token_diff: int
 
 
 class B1Selection(BaseModel):
     fold: int
     algo_version: str = B1_SELECTOR_ALGO_VERSION
-    token_fn_name: str
+    token_count_source: str                          # offline_proxy | anthropic_count_tokens
     c_bank_hash: str
     mapping: dict[str, str]
     metrics: list[FamilyParity]
@@ -110,42 +129,66 @@ def _within_tolerance(c_tokens: int, b1_tokens: int) -> bool:
     return diff <= TOKEN_REL_TOLERANCE * c_tokens
 
 
+def memory_only_metrics_fn(bank: FrozenLessonBank, token_fn: Optional[TokenFn] = None) -> MetricsFn:
+    """A metrics oracle that counts ONLY the rendered memory block (offline algorithm checks).
+
+    This is NOT production-valid — it ignores request context (system/tools/source), exactly the
+    additivity assumption the review warned against. Use it to unit-test the selection algorithm;
+    the pilot uses ``full_request_metrics_fn`` with real ``count_tokens``.
+    """
+    token_fn = token_fn or local_token_estimate
+
+    def metrics(_task_id: str, injected_family: str) -> tuple[int, int, int]:
+        e, ln, text = _payload(bank.lessons_for(injected_family))
+        return e, ln, token_fn(text)
+
+    return metrics
+
+
 def select_b1_derangement(
     bank: FrozenLessonBank,
     present_families: list[str],
-    held_out_families: list[str],
+    held_out_tasks: list[tuple[str, str]],
     *,
     fold: int,
-    token_fn: Optional[TokenFn] = None,
+    metrics_fn: Optional[MetricsFn] = None,
+    token_count_source: str = PROXY_SOURCE,
 ) -> B1Selection:
-    """Pick the parity-optimized wrong-family mapping for one fold, or raise B1SelectionBlocked."""
-    token_fn = token_fn or local_token_estimate
-    token_fn_name = getattr(token_fn, "fn_name", getattr(token_fn, "__name__", "custom"))
-    held = sorted(set(held_out_families))
+    """Pick the parity-optimized wrong-family mapping for one fold, or raise B1SelectionBlocked.
 
-    # C's per-family injection is mapping-independent; compute once.
-    c_metrics = {}
-    for fam in held:
-        e, ln, text = _payload(bank.lessons_for(fam))
-        c_metrics[fam] = (e, ln, token_fn(text))
+    ``held_out_tasks`` is a list of ``(task_id, family)``. Parity is checked PER held-out task on
+    the COMPLETE request tokens returned by ``metrics_fn(task_id, injected_family)``; entries and
+    lines come from the bank. ``token_count_source`` tags the artifact so a proxy result can never
+    open a production gate (see ``assert_production_valid``).
+    """
+    metrics_fn = metrics_fn or memory_only_metrics_fn(bank)
+    cache: dict[tuple[str, str], tuple[int, int, int]] = {}
 
-    best: Optional[tuple] = None                    # (max_diff, sum_diff, mapping_key, mapping, metrics)
+    def M(task_id: str, fam: str) -> tuple[int, int, int]:
+        key = (task_id, fam)
+        if key not in cache:
+            cache[key] = metrics_fn(task_id, fam)
+        return cache[key]
+
+    held = list(held_out_tasks)
+    c = {tid: M(tid, fam) for tid, fam in held}      # C injection is mapping-independent
+
+    best: Optional[tuple] = None                     # (max_diff, sum_diff, key, mapping, rows)
     for mapping in enumerate_derangements(present_families):
         rows: list[FamilyParity] = []
-        ok = True
         diffs: list[int] = []
-        for fam in held:
-            ce, cl, ct = c_metrics[fam]
-            be, bl, btext = _payload(bank.lessons_for(mapping[fam]))
-            bt = token_fn(btext)
+        ok = True
+        for tid, fam in held:
+            ce, cl, ct = c[tid]
+            be, bl, bt = M(tid, mapping[fam])
             diff = abs(bt - ct)
             if be != ce or bl != cl or not _within_tolerance(ct, bt):
                 ok = False
                 break
             diffs.append(diff)
-            rows.append(FamilyParity(family=fam, mapped_family=mapping[fam], c_entries=ce,
-                                     b1_entries=be, c_lines=cl, b1_lines=bl, c_tokens=ct,
-                                     b1_tokens=bt, token_diff=diff))
+            rows.append(FamilyParity(task_id=tid, family=fam, mapped_family=mapping[fam],
+                                     c_entries=ce, b1_entries=be, c_lines=cl, b1_lines=bl,
+                                     c_tokens=ct, b1_tokens=bt, token_diff=diff))
         if not ok:
             continue
         max_diff, sum_diff = (max(diffs) if diffs else 0), sum(diffs)
@@ -158,8 +201,9 @@ def select_b1_derangement(
         raise B1SelectionBlocked(
             f"fold {fold}: no wrong-family derangement meets entries/lines parity + token "
             f"tolerance (<= {TOKEN_ABS_TOLERANCE} and <= {TOKEN_REL_TOLERANCE:.0%}); "
-            "fold blocked before held-out (no padding/truncation/fallback).")
+            "fold blocked before held-out (no padding/truncation/fallback). The planned "
+            "experiment cannot proceed with this fold — stop, do not run partial held-out.")
     max_diff, sum_diff, _key, mapping, rows = best
-    return B1Selection(fold=fold, token_fn_name=token_fn_name, c_bank_hash=bank.content_hash(),
-                       mapping=mapping, metrics=rows, max_token_diff=max_diff,
-                       sum_token_diff=sum_diff)
+    return B1Selection(fold=fold, token_count_source=token_count_source,
+                       c_bank_hash=bank.content_hash(), mapping=mapping, metrics=rows,
+                       max_token_diff=max_diff, sum_token_diff=sum_diff)

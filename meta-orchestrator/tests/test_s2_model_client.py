@@ -42,8 +42,10 @@ class _RecordingClient:
 class _RaisingClient:
     def __init__(self):
         self.messages = self
+        self.calls = 0
 
     def create(self, **kwargs):
+        self.calls += 1
         raise RuntimeError("503 overloaded")
 
 
@@ -69,6 +71,16 @@ def test_no_fallback_raises_model_unavailable():
     client = S2ModelClient(frozen_s2_contract(), client=_RaisingClient())
     with pytest.raises(ModelUnavailableError):
         client.complete("x")                       # no second model is ever tried
+
+
+def test_harness_does_not_retry_on_error():
+    """The harness issues exactly ONE attempt per complete(); it never adds its own retry loop.
+    (SDK-level retries are separately disabled via max_retries=0 — see the pilot-env test.)"""
+    raising = _RaisingClient()
+    client = S2ModelClient(frozen_s2_contract(), client=raising)
+    with pytest.raises(ModelUnavailableError):
+        client.complete("x")
+    assert raising.calls == 1
 
 
 def test_model_mismatch_is_surfaced_loudly():

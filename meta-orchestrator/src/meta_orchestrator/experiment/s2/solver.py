@@ -37,7 +37,7 @@ from .folds import Fold, stratified_folds
 from .lifecycle import Learner, MockLearner, learn_bank
 from .memory import (CONDITIONS, FrozenLessonBank, PlaceboRouter, StaticPlaybook, render_lines,
                      resolve_memory)
-from .b1_selector import select_b1_derangement
+from .b1_selector import PROXY_SOURCE, select_b1_derangement
 from .ordering import condition_order, train_order
 from .write_gate import assert_bank_within_train
 
@@ -327,9 +327,12 @@ class SolverHarness:
         bank = self._learn_fold_bank(fold)             # fresh per fold; frozen before held-out
         assert_bank_within_train(bank, fold.train_ids)  # P0.2 tripwire: no cross-fold leakage
         # B1: parity-optimized wrong-family mapping from the FROZEN bank (may hard-block the fold).
+        # Offline the harness uses the memory-only proxy oracle (a plumbing double that never opens
+        # a production gate); the pilot injects a full-request count_tokens oracle at Gate 2.
         present = sorted(set(self.family_map.values()))
-        held_out_fams = [self.family_map[t] for t in fold.test_ids]
-        selection = select_b1_derangement(bank, present, held_out_fams, fold=fold.index)
+        held_out_tasks = [(t, self.family_map[t]) for t in fold.test_ids]
+        selection = select_b1_derangement(bank, present, held_out_tasks, fold=fold.index,
+                                          token_count_source=PROXY_SOURCE)
         self.b1_selections[fold.index] = selection
         b1_router = selection.router()
         for tid in fold.test_ids:

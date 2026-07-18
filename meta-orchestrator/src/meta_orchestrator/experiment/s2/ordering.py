@@ -32,6 +32,32 @@ RETRY_POLICY = {
 
 CONDITION_ORDER_VERSION = "latin-square-v1"
 
+# Rep roles (user rule 3): the primary four-condition block vs the A/C-only stability block.
+# Stability reps are NEVER pooled into the primary effect estimate and never replace a primary
+# run based on its result.
+PRIMARY_CONDITIONS = ["A", "C", "D", "B1"]
+STABILITY_CONDITIONS = ["A", "C"]
+
+# Failure taxonomy (user rule / GPT review): model-OUTPUT failures are SOLVER outcomes, not infra.
+SOLVER_OUTPUT_FAILURES = {
+    "malformed_response", "refusal", "invalid_patch", "empty_output",
+    "max_tokens_exceeded", "tool_misuse", "patch_compile_error",
+}
+# Genuine infrastructure = NOT a function of the agent's behaviour or output.
+INFRA_FAILURES = {
+    "provider_outage", "connection_failure", "sandbox_startup_failure",
+    "verifier_crash", "api_timeout", "rate_limit", "INFRA_ERROR",
+}
+
+
+def rep_role(condition: str, rep: int) -> str:
+    """'primary' for the counterbalanced four-condition block (rep 0); 'stability' for A/C rep 1."""
+    return "primary" if rep == 0 else "stability"
+
+
+def is_primary(condition: str, rep: int) -> bool:
+    return rep == 0
+
 
 def condition_order(task_id: str, conditions: Optional[list[str]] = None) -> list[str]:
     """Deterministic per-task rotation of the conditions (a Latin-square row). Outcome-independent.
@@ -60,16 +86,22 @@ class AttemptOutcome(BaseModel):
 
 
 def classify_attempt_outcome(public_status: str, verdict_passed: Optional[bool],
-                             *, infra: bool = False) -> AttemptOutcome:
-    """Map a bounded attempt's signals into an outcome that NEVER turns infra into a FAIL.
+                             *, failure_kind: Optional[str] = None) -> AttemptOutcome:
+    """Map a bounded attempt's signals into an outcome that NEVER turns infra into a FAIL — and
+    NEVER launders a model-output failure into 'infra missingness'.
 
-    - INFRA_ERROR (or explicit infra flag) → incomplete, withheld from the paired analysis.
+    - a ``failure_kind`` in ``SOLVER_OUTPUT_FAILURES`` (malformed / refusal / invalid patch /
+      empty / max_tokens / tool misuse / non-compiling patch) → **solver_fail** (counts).
+    - a ``failure_kind`` in ``INFRA_FAILURES`` (or public status INFRA_ERROR) → **incomplete**,
+      withheld from the paired analysis (retried under the frozen condition-blind policy first).
     - otherwise the hidden verifier decides: passed → solver_pass, else → solver_fail.
-    A NO_PUBLIC_TESTS public status is NOT infra and NOT a fail on its own — the hidden verifier
-    still decides correctness.
+    NO_PUBLIC_TESTS is neither infra nor a fail — the hidden verifier still decides correctness.
     """
-    if infra or public_status == "INFRA_ERROR":
-        return AttemptOutcome(status="incomplete", reason="infrastructure error (retry policy)",
+    if failure_kind in SOLVER_OUTPUT_FAILURES:
+        return AttemptOutcome(status="solver_fail", reason=f"solver output: {failure_kind}")
+    if failure_kind in INFRA_FAILURES or public_status == "INFRA_ERROR":
+        return AttemptOutcome(status="incomplete",
+                              reason=f"infrastructure: {failure_kind or 'INFRA_ERROR'}",
                               counts_in_paired_analysis=False)
     if verdict_passed is None:
         return AttemptOutcome(status="incomplete", reason="no verdict",

@@ -53,12 +53,17 @@ class S2ModelClient:
     def _ensure_client(self) -> Any:
         if self._client is None:                       # real construction is lazy; tests inject.
             import anthropic
+            # max_retries=0: the SDK retries connection errors / 408 / 409 / 429 / 5xx TWICE by
+            # default, so "one harness call" could silently become up to THREE HTTP requests —
+            # breaking attempt accounting and cost control. The HARNESS owns all retries under the
+            # frozen, condition-blind RETRY_POLICY; the SDK does none.
             api_key = os.environ.get("META_ORCH_API_KEY")
             if api_key:
                 base_url = os.environ.get("META_ORCH_API_BASE_URL", "https://api.anthropic.com")
-                self._client = anthropic.Anthropic(api_key=api_key, base_url=base_url)
+                self._client = anthropic.Anthropic(api_key=api_key, base_url=base_url,
+                                                   max_retries=0)
             else:
-                self._client = anthropic.Anthropic()
+                self._client = anthropic.Anthropic(max_retries=0)
         return self._client
 
     def complete(self, prompt: str) -> S2ModelResponse:

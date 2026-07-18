@@ -1,31 +1,38 @@
-"""B1 parity-optimized derangement selector (user decision A, frozen algorithm).
+"""B1 parity-optimized derangement selector (frozen algorithm) + adversarial bank shapes.
 
-Pure and offline. Proves: parity-qualified selection, determinism, hard block when no mapping
-meets the tolerance, no fixed point, and that the artifact is derived only from the frozen bank.
+Pure and offline. The selector counts the COMPLETE request via an injectable metrics oracle; here
+the oracle is a memory-only proxy so the ALGORITHM is exercised in isolation. Proves parity
+qualification, determinism, hard block on impossible shapes, tie-break, proxy-vs-production
+tagging, and that a bank mutation breaks the artifact hash.
 """
 from __future__ import annotations
 
 import pytest
 
 from meta_orchestrator.experiment.lesson import Lesson, LessonEvidence, LessonTrigger
-from meta_orchestrator.experiment.s2 import (B1_SELECTOR_ALGO_VERSION, B1SelectionBlocked,
-                                             FrozenLessonBank, SEMANTIC_FAMILIES,
-                                             enumerate_derangements, local_token_estimate,
-                                             select_b1_derangement)
+from meta_orchestrator.experiment.s2 import (B1_SELECTOR_ALGO_VERSION, PROXY_SOURCE, REAL_SOURCE,
+                                             B1SelectionBlocked, FrozenLessonBank,
+                                             ProxyArtifactNotProductionValid, SEMANTIC_FAMILIES,
+                                             assert_production_valid, enumerate_derangements,
+                                             memory_only_metrics_fn, select_b1_derangement)
 
 FAMS = sorted(SEMANTIC_FAMILIES)[:6]
 
 
-def _lesson(family, rec):
-    return Lesson(lesson_id=f"L-{family}", task_family=family,
+def _lesson(family, rec, lid=None):
+    return Lesson(lesson_id=lid or f"L-{family}", task_family=family,
                   trigger=LessonTrigger(symptoms=[f"s {family}"]),
                   recommended_action=rec, evidence=LessonEvidence(successes=1), status="active")
 
 
 def _equal_bank():
-    # one lesson per family, all with the SAME token length → parity trivially achievable.
     return FrozenLessonBank(by_family={f: [_lesson(f, ["apply a minimal targeted edit here"])]
                                        for f in FAMS}, frozen=True)
+
+
+def _tasks(families):
+    # one held-out task per family (task id embeds the family)
+    return [(f"task-{f}", f) for f in families]
 
 
 def test_enumerate_derangements_have_no_fixed_point():
@@ -35,48 +42,96 @@ def test_enumerate_derangements_have_no_fixed_point():
 
 def test_selection_succeeds_with_equal_occupancy():
     bank = _equal_bank()
-    sel = select_b1_derangement(bank, FAMS, FAMS, fold=0)
+    sel = select_b1_derangement(bank, FAMS, _tasks(FAMS), fold=0,
+                                metrics_fn=memory_only_metrics_fn(bank))
     assert sel.algo_version == B1_SELECTOR_ALGO_VERSION
-    assert sel.token_fn_name == "local-v1"
-    assert all(sel.mapping[f] != f for f in FAMS)          # no fixed point
-    for row in sel.metrics:                                 # exact entries+lines parity
-        assert row.c_entries == row.b1_entries
-        assert row.c_lines == row.b1_lines
+    assert sel.token_count_source == PROXY_SOURCE
+    assert all(sel.mapping[f] != f for f in FAMS)
+    for row in sel.metrics:
+        assert row.c_entries == row.b1_entries and row.c_lines == row.b1_lines
         assert row.token_diff <= 16
 
 
 def test_selection_is_deterministic():
     bank = _equal_bank()
-    a = select_b1_derangement(bank, FAMS, FAMS, fold=1)
-    b = select_b1_derangement(bank, FAMS, FAMS, fold=1)
+    a = select_b1_derangement(bank, FAMS, _tasks(FAMS), fold=1, metrics_fn=memory_only_metrics_fn(bank))
+    b = select_b1_derangement(bank, FAMS, _tasks(FAMS), fold=1, metrics_fn=memory_only_metrics_fn(bank))
     assert a.mapping == b.mapping and a.content_hash() == b.content_hash()
 
 
-def test_block_when_no_mapping_meets_tolerance():
-    # one family carries a MUCH longer lesson; a held-out task in that family can never be
-    # length-matched by any OTHER (short) family → hard block, no fallback.
-    long_rec = ["apply a very long and detailed multi clause corrective procedure " * 3]
-    by_family = {f: [_lesson(f, ["short edit"])] for f in FAMS}
-    by_family[FAMS[0]] = [_lesson(FAMS[0], long_rec)]
-    bank = FrozenLessonBank(by_family=by_family, frozen=True)
-    with pytest.raises(B1SelectionBlocked):
-        select_b1_derangement(bank, FAMS, FAMS, fold=2)
-
-
-def test_artifact_hash_locked_to_bank():
+# --- proxy vs production source (user rule 2) --------------------------------------------
+def test_proxy_artifact_is_not_production_valid():
     bank = _equal_bank()
-    sel = select_b1_derangement(bank, FAMS, FAMS, fold=0)
-    assert sel.c_bank_hash == bank.content_hash()
-    # a router built from the selection routes exactly the chosen mapping, no self-map
+    sel = select_b1_derangement(bank, FAMS, _tasks(FAMS), fold=0,
+                                metrics_fn=memory_only_metrics_fn(bank))  # default source = proxy
+    with pytest.raises(ProxyArtifactNotProductionValid):
+        assert_production_valid(sel)
+
+
+def test_real_source_artifact_passes_the_gate_guard():
+    bank = _equal_bank()
+    sel = select_b1_derangement(bank, FAMS, _tasks(FAMS), fold=0,
+                                metrics_fn=memory_only_metrics_fn(bank),
+                                token_count_source=REAL_SOURCE)
+    assert_production_valid(sel)                    # must not raise
+
+
+# --- adversarial bank shapes -------------------------------------------------------------
+def test_block_when_one_family_is_much_longer():
+    long_rec = ["apply a very long and detailed multi clause corrective procedure " * 3]
+    by = {f: [_lesson(f, ["short edit"])] for f in FAMS}
+    by[FAMS[0]] = [_lesson(FAMS[0], long_rec)]
+    bank = FrozenLessonBank(by_family=by, frozen=True)
+    with pytest.raises(B1SelectionBlocked):
+        select_b1_derangement(bank, FAMS, _tasks(FAMS), fold=2, metrics_fn=memory_only_metrics_fn(bank))
+
+
+def test_block_on_zero_entry_family():
+    by = {f: [_lesson(f, ["short edit"])] for f in FAMS[1:]}       # FAMS[0] absent → empty
+    bank = FrozenLessonBank(by_family=by, frozen=True)
+    with pytest.raises(B1SelectionBlocked):
+        select_b1_derangement(bank, FAMS, [(f"task-{FAMS[0]}", FAMS[0])], fold=0,
+                              metrics_fn=memory_only_metrics_fn(bank))
+
+
+def test_block_on_equal_entries_but_unequal_lines():
+    # two families each have 1 entry, but one entry renders 2 lines (an avoid line) vs 1.
+    by = {f: [_lesson(f, ["one line edit"])] for f in FAMS}
+    by[FAMS[1]] = [Lesson(lesson_id="L-two", task_family=FAMS[1],
+                          trigger=LessonTrigger(symptoms=["s"]),
+                          recommended_action=["one line edit"], avoid=["a second rendered line"],
+                          evidence=LessonEvidence(successes=1), status="active")]
+    bank = FrozenLessonBank(by_family=by, frozen=True)
+    # held out only the two mismatched families → no mapping can match lines both ways.
+    with pytest.raises(B1SelectionBlocked):
+        select_b1_derangement(bank, FAMS, _tasks([FAMS[0], FAMS[1]]), fold=0,
+                              metrics_fn=memory_only_metrics_fn(bank))
+
+
+def test_tie_break_is_deterministic_with_multiple_qualifiers():
+    # a fully uniform bank has many qualifying derangements; the frozen tie-break picks one.
+    bank = _equal_bank()
+    picks = {select_b1_derangement(bank, FAMS, _tasks(FAMS), fold=0,
+                                   metrics_fn=memory_only_metrics_fn(bank)).content_hash()
+             for _ in range(5)}
+    assert len(picks) == 1
+
+
+def test_bank_mutation_breaks_the_artifact_hash():
+    bank = _equal_bank()
+    sel = select_b1_derangement(bank, FAMS, _tasks(FAMS), fold=0,
+                                metrics_fn=memory_only_metrics_fn(bank))
+    # the artifact is bound to the exact bank; a different bank yields a different bank hash.
+    mutated = FrozenLessonBank(
+        by_family={**bank.by_family, FAMS[0]: [_lesson(FAMS[0], ["a DIFFERENT edit entirely"])]},
+        frozen=True)
+    assert sel.c_bank_hash != mutated.content_hash()
+
+
+def test_router_routes_the_chosen_mapping():
+    bank = _equal_bank()
+    sel = select_b1_derangement(bank, FAMS, _tasks(FAMS), fold=0,
+                                metrics_fn=memory_only_metrics_fn(bank))
     router = sel.router()
     for f in FAMS:
         assert router.route(f) == sel.mapping[f] != f
-
-
-def test_empty_held_out_family_requires_empty_b1():
-    # a family with NO lessons in the bank: C injects nothing, so B1 must inject nothing too.
-    by_family = {f: [_lesson(f, ["short edit"])] for f in FAMS[1:]}   # FAMS[0] absent → empty
-    bank = FrozenLessonBank(by_family=by_family, frozen=True)
-    # held-out is only the empty family → any mapping to a NON-empty family fails parity → block.
-    with pytest.raises(B1SelectionBlocked):
-        select_b1_derangement(bank, FAMS, [FAMS[0]], fold=0)
