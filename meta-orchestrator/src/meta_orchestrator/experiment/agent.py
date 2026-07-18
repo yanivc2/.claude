@@ -75,6 +75,11 @@ class AgentTools:
         self._log("run_public_tests", "tests_public", True)
         return self._sb.run_pytest("tests_public")
 
+    def run_public_tests_status(self) -> tuple[str, str]:
+        # Four-state variant (PASS/FAIL/NO_PUBLIC_TESTS/INFRA_ERROR) for the bounded attempt.
+        self._log("run_public_tests", "tests_public", True)
+        return self._sb.run_pytest_status("tests_public")
+
     def blocked_attempts(self) -> list[dict[str, Any]]:
         return [a for a in self.audit if not a["allowed"]]
 

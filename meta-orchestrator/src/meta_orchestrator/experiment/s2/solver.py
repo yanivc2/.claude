@@ -37,6 +37,7 @@ from .folds import Fold, stratified_folds
 from .lifecycle import Learner, MockLearner, learn_bank
 from .memory import (CONDITIONS, FrozenLessonBank, PlaceboRouter, StaticPlaybook, render_lines,
                      resolve_memory)
+from .write_gate import assert_bank_within_train
 
 
 class AttemptContract(BaseModel):
@@ -96,6 +97,7 @@ class AttemptResult(BaseModel):
     public_runs: int = 0
     hidden_verifications: int = 0
     public_pass_round1: Optional[bool] = None
+    round1_public_status: Optional[str] = None      # PASS | FAIL | NO_PUBLIC_TESTS | INFRA_ERROR
     round2_opened: bool = False
     blocked_attempts: int = 0
     candidate_lessons: list[Lesson] = Field(default_factory=list)
@@ -124,15 +126,17 @@ def run_attempt(
     blocked = 0
     round2_opened = False
     public_pass_round1: Optional[bool] = None
+    round1_status: Optional[str] = None
     candidates: list[Lesson] = []
     feedback: Optional[str] = None
 
     with Sandbox(task) as sb:
         tools = AgentTools(sb, task)
         for round_index in range(1, attempt_contract.max_model_calls + 1):
-            # Round 2 opens only after a Round-1 PUBLIC failure (Decision B).
+            # Round 2 opens ONLY after a genuine Round-1 behavioural PUBLIC FAIL (Decision B +
+            # P0.4). A pass, an empty suite, or an infra error must NOT buy an extra model call.
             if round_index == 2:
-                if attempt_contract.round2_only_after_public_fail and public_pass_round1 is not False:
+                if attempt_contract.round2_only_after_public_fail and round1_status != "FAIL":
                     break
                 round2_opened = True
 
@@ -164,15 +168,16 @@ def run_attempt(
             if condition == "C" and is_train and out.candidate_lesson is not None:
                 candidates.append(out.candidate_lesson)
 
-            # The agent's own PUBLIC run (NOT the final verifier).
+            # The agent's own PUBLIC run (NOT the final verifier), four-state (P0.4).
             if public_runs >= attempt_contract.max_public_runs:
                 raise AttemptContractViolation("public-run cap exceeded")
-            pub_ok, pub_summary = tools.run_public_tests()
+            pub_status, pub_summary = tools.run_public_tests_status()
             public_runs += 1
             if round_index == 1:
-                public_pass_round1 = pub_ok
-            if pub_ok:
-                break                              # PUBLIC pass stops the attempt
+                round1_status = pub_status
+                public_pass_round1 = (pub_status == "PASS")
+            if pub_status != "FAIL":
+                break                              # only a genuine FAIL keeps the attempt going
             feedback = _sanitize_public(pub_summary, attempt_contract.public_feedback_char_cap)
 
         # Exactly one hidden verification, at the very end; its result is never fed back.
@@ -193,6 +198,7 @@ def run_attempt(
         failing_gate=verdict.failing_gate, rounds_used=model_calls, model_calls=model_calls,
         patches_submitted=patches_submitted, patches_applied=patches_applied,
         public_runs=public_runs, hidden_verifications=1, public_pass_round1=public_pass_round1,
+        round1_public_status=round1_status,
         round2_opened=round2_opened, blocked_attempts=blocked, candidate_lessons=candidates,
         f2p_feedback_leaked=False, provenance=provenance,
     )
@@ -304,9 +310,16 @@ class SolverHarness:
     def _learn_fold_bank(self, fold: Fold) -> FrozenLessonBank:
         return learn_bank([self.corpus[t] for t in fold.train_ids], self.learner)
 
+    def occupancy_parity(self, fold: Fold) -> list:
+        """P0.5: per-family C-vs-B1 slot occupancy for this fold's bank (a length-confound probe)."""
+        from .memory import occupancy_parity
+        bank = self._learn_fold_bank(fold)
+        return occupancy_parity(bank, self.placebo, sorted(set(self.family_map.values())))
+
     def run_fold(self, fold: Fold, *, reps: Optional[dict[str, int]] = None) -> dict:
         reps = reps or {c: 1 for c in CONDITIONS}
         bank = self._learn_fold_bank(fold)             # fresh per fold; frozen before held-out
+        assert_bank_within_train(bank, fold.train_ids)  # P0.2 tripwire: no cross-fold leakage
         for tid in fold.test_ids:
             task = self.corpus[tid]
             for condition in CONDITIONS:
@@ -323,6 +336,11 @@ class SolverHarness:
                         provenance_extra={"fold": fold.index, "rep": rep,
                                           "bank_hash": bank.content_hash(),
                                           "family_map_hash": family_map_hash(self.family_map)})
+                    # P0.3 held-out schema parity: NO condition writes/collects a lesson here.
+                    if result.candidate_lessons:
+                        raise AttemptContractViolation(
+                            f"held-out attempt {condition}/{tid} produced a candidate lesson "
+                            "— response-schema parity broken (only train may propose)")
                     self.outcomes.record(fold.index, condition, tid, rep, result)
         return {"fold": fold.index, "bank_hash": bank.content_hash(),
                 "bank_families": bank.families_present(), "n_test": len(fold.test_ids)}
@@ -405,3 +423,42 @@ class InvalidPatchSolver:
         if self._fix_round is not None and view.round_index >= self._fix_round:
             return RoundOutput(patch=dict(self._task.reference_fix), claimed_done=True)
         return RoundOutput(patch={}, notes="no fix")
+
+
+# --- negative-control doubles: prove the harness can represent NO effect and REJECTION --------
+class MemoryIgnoringRoundSolver:
+    """Applies the fix on Round 1 regardless of the memory slot → A=C=D=B1 all PASS.
+
+    Negative control: if the harness ever showed separation with THIS double, the separation
+    would be an artefact. Its all-pass result proves the harness does not manufacture an effect.
+    """
+
+    def __init__(self, task: ExperimentTask, condition: str = "A", name: str = "mem-ignoring"):
+        self.name = name
+        self._task = task
+
+    def solve_round(self, view: RoundView) -> RoundOutput:
+        return RoundOutput(patch=dict(self._task.reference_fix), claimed_done=True,
+                           notes="fix regardless of memory (negative control)")
+
+
+class LeakingLessonSolver:
+    """On a TRAIN task, proposes a candidate lesson that LEAKS a path/value → write-gate rejects.
+
+    Negative control for the learning path: proves the deterministic gate blocks a memorised /
+    replayed 'lesson' rather than admitting anything the model emits.
+    """
+
+    def __init__(self, task: ExperimentTask, condition: str = "C", name: str = "leaking-lesson"):
+        self.name = name
+        self._task = task
+
+    def solve_round(self, view: RoundView) -> RoundOutput:
+        from ..lesson import Lesson, LessonTrigger
+        leaking = Lesson(
+            lesson_id=f"L-leak-{view.task_id}", task_family=view.task_family,
+            trigger=LessonTrigger(symptoms=["x"]),
+            recommended_action=["edit solution.py at line 42 and return 15"],  # path+line+value
+            avoid=[], status="candidate")
+        return RoundOutput(patch=dict(self._task.reference_fix), claimed_done=True,
+                           candidate_lesson=leaking, notes="emits a leaking lesson (negative ctrl)")

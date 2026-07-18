@@ -84,3 +84,28 @@ class Sandbox:
         out = proc.stdout.strip()
         summary = out.splitlines()[-1] if out else ""
         return proc.returncode == 0, summary
+
+    def run_pytest_status(self, subdir: str, timeout_s: int = 30) -> tuple[str, str]:
+        """Four-state public result (P0.4): distinguish a genuine behavioural FAIL from an empty
+        suite or an infrastructure error, so the attempt loop opens Round 2 ONLY on a real FAIL.
+
+        pytest return codes: 0=all passed, 1=tests failed, 5=no tests collected, others=internal
+        error / usage error → infra. A timeout is an infra error, never a repair failure.
+        """
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", subdir],
+                cwd=self.root, capture_output=True, text=True, timeout=timeout_s,
+            )
+        except subprocess.TimeoutExpired:
+            return "INFRA_ERROR", f"timeout after {timeout_s}s"
+        out = proc.stdout.strip()
+        summary = out.splitlines()[-1] if out else ""
+        rc = proc.returncode
+        if rc == 0:
+            return "PASS", summary
+        if rc == 1:
+            return "FAIL", summary
+        if rc == 5:
+            return "NO_PUBLIC_TESTS", summary or "no tests collected"
+        return "INFRA_ERROR", summary or f"pytest exit {rc}"

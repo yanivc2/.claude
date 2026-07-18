@@ -47,6 +47,16 @@ CONTRACT_CLAUSE_TESTS = {
     "E: outcomes sealed until finalize": "test_s2_solver::test_effect_table_sealed_until_finalize",
     "resume: no duplicate attempt / cost": "test_s2_solver::test_resume_does_not_duplicate_attempts_or_calls",
     "provenance: all frozen hashes recorded": "test_s2_solver::test_provenance_records_all_frozen_hashes",
+    # hardening batch (consultation review):
+    "P0.1 production-path body (not just builder)": "test_s2_model_client::test_production_path_sends_exact_contract_body",
+    "P0.1 no silent fallback on the call path": "test_s2_model_client::test_no_fallback_raises_model_unavailable",
+    "P0.2 fold banks distinct + provenance ⊆ train": "test_s2_fold_leakage::test_bank_provenance_is_within_train_and_excludes_held_out",
+    "P0.2 cross-fold injection fails loudly": "test_s2_fold_leakage::test_injecting_another_folds_bank_fails_loudly",
+    "P0.3 held-out proposes no lesson (schema parity)": "test_s2_hardening::test_held_out_c_emits_no_candidate_lesson",
+    "P0.4 empty public suite ≠ FAIL (no free Round 2)": "test_s2_hardening::test_no_public_tests_does_not_open_round2",
+    "P0.5 C/B1 occupancy-parity confound detector": "test_s2_hardening::test_occupancy_parity_flags_length_confound",
+    "neg-control: memory-ignoring → no separation": "test_s2_hardening::test_memory_ignoring_double_shows_no_separation",
+    "neg-control: leaking lesson → gate rejects": "test_s2_hardening::test_leaking_lesson_is_rejected_by_the_gate",
 }
 
 
@@ -108,13 +118,17 @@ def main() -> None:
         "fallback_off": s2_run_policy().fallback == "off",
     }
 
+    parity = harness.occupancy_parity(harness.folds[0])
     invariants = {
-        "C_passes_all_held_out": all(v["pass"] == v["n"] for c, v in per_condition.items()
-                                     if c == "C"),
-        "A_B1_D_no_relevant_help": all(per_condition[c]["pass"] == 0 for c in ("A", "D", "B1")),
+        "routing_double_C_passes_all_held_out": all(v["pass"] == v["n"]
+                                                    for c, v in per_condition.items() if c == "C"),
+        "routing_double_A_B1_D_no_relevant_help": all(per_condition[c]["pass"] == 0
+                                                      for c in ("A", "D", "B1")),
         "no_f2p_feedback_leaked": hsig["f2p_feedback_leaked"] is False,
         "caps_respected": True,   # structurally enforced by run_attempt (see solver tests)
         "outcomes_were_sealed": True,
+        "c_b1_occupancy_parity": all(p.equal for p in parity),   # P0.5
+        "no_cross_fold_leakage": True,   # P0.2 tripwire runs inside run_fold (raises otherwise)
     }
 
     print("=" * 80)
@@ -128,10 +142,16 @@ def main() -> None:
         print(f"  fold {fr['fold']}: bank={fr['bank_hash']} families={fr['bank_families']} "
               f"n_test={fr['n_test']}")
     print("")
-    print("per-condition pass rate (sealed effect table, post-finalize):")
+    print("routing_fixture_expected_outcome (NOT a scientific result — a plumbing test-double):")
+    print("  ** these numbers come from a routing double, not a model; they must NEVER enter")
+    print("     scientific results, mechanism claims, or summaries. **")
     for c in ("A", "C", "D", "B1"):
         v = per_condition[c]
-        print(f"  {c}: {v['pass']}/{v['n']}")
+        print(f"    {c}: {v['pass']}/{v['n']}")
+    # P0.5 occupancy parity across the pilot fold's bank
+    parity = harness.occupancy_parity(harness.folds[0])
+    parity_ok = all(p.equal for p in parity)
+    print(f"  C/B1 occupancy parity (fold 0): {'EQUAL' if parity_ok else 'MISMATCH — confound!'}")
     print("")
     print(f"cost signals (OFFLINE, $0): {cost}")
     print(f"harness signals: {hsig}")

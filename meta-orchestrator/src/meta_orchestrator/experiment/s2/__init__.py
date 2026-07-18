@@ -11,18 +11,22 @@ from .harness import (FoldRun, Outcome, OutcomesSealedError, RealRunBlocked, S2H
                       SealedOutcomes)
 from .lifecycle import Learner, MockLearner, learn_bank
 from .memory import (CONDITIONS, FrozenLessonBank, MemoryContext, MemoryFrozenError,
-                     PlaceboRouter, StaticPlaybook, parse_mem_tag, render_lines, resolve_memory)
+                     OccupancyParity, PlaceboRouter, StaticPlaybook, occupancy_parity,
+                     parse_mem_tag, render_lines, resolve_memory)
 from .mocks import LessonSensitiveMock
 from .contract_s2 import (RunPolicy, anthropic_request_kwargs, frozen_s2_contract, s2_run_policy,
                           S2_EXACT_MODEL_ID, S2_MAX_TOKENS, S2_THINKING_BUDGET_TOKENS)
 from .playbook_d import (DSubmission, DValidationError, PlaybookEntry, freeze_d,
                          submission_hash, validate_d_submission)
 from .solver import (AttemptContract, AttemptContractViolation, AttemptResult, FixOnRoundSolver,
-                     InvalidPatchSolver, MemorySensitiveRoundSolver, RoundOutput, RoundView,
-                     SolverHarness, SolverOutcomes, SolverOutcomesSealedError, run_attempt)
+                     InvalidPatchSolver, LeakingLessonSolver, MemoryIgnoringRoundSolver,
+                     MemorySensitiveRoundSolver, RoundOutput, RoundView, SolverHarness,
+                     SolverOutcomes, SolverOutcomesSealedError, run_attempt)
+from .model_client import ModelUnavailableError, S2ModelClient, S2ModelResponse
 from .synthetic import build_synthetic_corpus, synthetic_task
-from .write_gate import (HeldOutWriteError, MAX_ACTIVE_ENTRIES_PER_FAMILY, WriteGateResult,
-                        evaluate_write_gate, learn_gated_bank)
+from .write_gate import (FoldLeakageError, HeldOutWriteError, MAX_ACTIVE_ENTRIES_PER_FAMILY,
+                        WriteGateResult, assert_bank_within_train, bank_provenance,
+                        evaluate_write_gate, learn_gated_bank, reference_patch_tokens)
 
 __all__ = [
     "SEMANTIC_FAMILIES", "family_map_hash", "is_known_family",
@@ -30,17 +34,21 @@ __all__ = [
     "GateDecision", "StabilitySignals", "continue_decision",
     "FoldRun", "Outcome", "OutcomesSealedError", "RealRunBlocked", "S2Harness", "SealedOutcomes",
     "Learner", "MockLearner", "learn_bank",
-    "CONDITIONS", "FrozenLessonBank", "MemoryContext", "MemoryFrozenError", "PlaceboRouter",
-    "StaticPlaybook", "parse_mem_tag", "render_lines", "resolve_memory",
+    "CONDITIONS", "FrozenLessonBank", "MemoryContext", "MemoryFrozenError", "OccupancyParity",
+    "PlaceboRouter", "StaticPlaybook", "occupancy_parity", "parse_mem_tag", "render_lines",
+    "resolve_memory",
     "LessonSensitiveMock",
     "RunPolicy", "anthropic_request_kwargs", "frozen_s2_contract", "s2_run_policy",
     "S2_EXACT_MODEL_ID", "S2_MAX_TOKENS", "S2_THINKING_BUDGET_TOKENS",
     "DSubmission", "DValidationError", "PlaybookEntry", "freeze_d", "submission_hash",
     "validate_d_submission",
     "AttemptContract", "AttemptContractViolation", "AttemptResult", "FixOnRoundSolver",
-    "InvalidPatchSolver", "MemorySensitiveRoundSolver", "RoundOutput", "RoundView",
+    "InvalidPatchSolver", "LeakingLessonSolver", "MemoryIgnoringRoundSolver",
+    "MemorySensitiveRoundSolver", "RoundOutput", "RoundView",
     "SolverHarness", "SolverOutcomes", "SolverOutcomesSealedError", "run_attempt",
-    "HeldOutWriteError", "MAX_ACTIVE_ENTRIES_PER_FAMILY", "WriteGateResult",
-    "evaluate_write_gate", "learn_gated_bank",
+    "ModelUnavailableError", "S2ModelClient", "S2ModelResponse",
+    "FoldLeakageError", "HeldOutWriteError", "MAX_ACTIVE_ENTRIES_PER_FAMILY", "WriteGateResult",
+    "assert_bank_within_train", "bank_provenance", "evaluate_write_gate", "learn_gated_bank",
+    "reference_patch_tokens",
     "build_synthetic_corpus", "synthetic_task",
 ]

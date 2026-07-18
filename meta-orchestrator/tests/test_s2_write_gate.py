@@ -10,7 +10,7 @@ import pytest
 
 from meta_orchestrator.experiment.lesson import Lesson, LessonEvidence, LessonTrigger
 from meta_orchestrator.experiment.s2 import (MAX_ACTIVE_ENTRIES_PER_FAMILY, evaluate_write_gate,
-                                             learn_gated_bank)
+                                             learn_gated_bank, reference_patch_tokens)
 from meta_orchestrator.experiment.s2.memory import MemoryFrozenError
 
 
@@ -130,6 +130,17 @@ def test_frozen_bank_refuses_held_out_write():
         [("black-1", "whitespace", True, _lesson(lid="L-w1", rec=["minimal edit"]))])
     with pytest.raises(MemoryFrozenError):
         bank.add("whitespace", _lesson(lid="L-x", rec=["late write"]))
+
+
+def test_reference_patch_tokens_screen_rejects_replayed_identifier():
+    # a rare identifier that appears in the (evaluator-only) reference fix
+    ref = {"solution.py": "def compute_indentation_offset(node):\n    return node.width\n"}
+    toks = reference_patch_tokens(ref)
+    assert "compute_indentation_offset" in toks and "return" not in toks
+    replay = _lesson(rec=["always compute_indentation_offset first"])
+    res = evaluate_write_gate(replay, is_train=True, verifier_passed=True,
+                              task_family="whitespace", existing=[], forbidden_values=toks)
+    assert any(r.startswith("leak:") for r in res.reasons)
 
 
 def test_slot_budget_enforced_in_gated_learning():

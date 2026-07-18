@@ -36,6 +36,39 @@ class HeldOutWriteError(RuntimeError):
     """A learning write was attempted from a held-out task — forbidden (Decision C/D)."""
 
 
+class FoldLeakageError(RuntimeError):
+    """A fold's bank carries a lesson whose provenance is outside that fold's train set."""
+
+
+_PROV_SEP = "::"                                     # provenance tag: "fold{idx}::{source_task_id}"
+
+
+def _stamp_provenance(lesson: Lesson, source_task_id: str, fold: Optional[int]) -> Lesson:
+    """Return a copy of ``lesson`` whose evidence records where it came from (never mutate input)."""
+    tag = f"fold{fold}{_PROV_SEP}{source_task_id}" if fold is not None else source_task_id
+    ev = lesson.evidence.model_copy(update={"supporting_runs": [tag]})
+    return lesson.model_copy(update={"evidence": ev})
+
+
+def bank_provenance(bank: FrozenLessonBank) -> set[str]:
+    """The set of SOURCE TASK IDS every lesson in the bank was learned from."""
+    out: set[str] = set()
+    for lessons in bank.by_family.values():
+        for l in lessons:
+            for run in l.evidence.supporting_runs:
+                out.add(run.split(_PROV_SEP)[-1])    # strip the optional fold tag
+    return out
+
+
+def assert_bank_within_train(bank: FrozenLessonBank, train_ids: list[str]) -> None:
+    """Loud tripwire: a fold bank must only carry lessons learned from that fold's TRAIN tasks."""
+    train = set(train_ids)
+    leaked = bank_provenance(bank) - train
+    if leaked:
+        raise FoldLeakageError(
+            f"bank carries lessons from non-train tasks {sorted(leaked)} (cross-fold leakage)")
+
+
 class WriteGateResult(BaseModel):
     written: bool
     reasons: list[str] = Field(default_factory=list)   # failed-check labels; empty when written
@@ -101,6 +134,26 @@ def evaluate_write_gate(
     return WriteGateResult(written=not reasons, reasons=reasons)
 
 
+def reference_patch_tokens(reference_fix: dict[str, str], *, min_len: int = 5) -> list[str]:
+    """Evaluator-side leak screen (P0.review): rare identifiers unique to the reference fix.
+
+    A real model can replay a memorised fix WITHOUT using a path or line number, so the pilot
+    passes these tokens as ``forbidden_values`` to ``evaluate_write_gate`` — a candidate lesson
+    that echoes a rare fix identifier is rejected. The model never sees this list; it is derived
+    from the EVALUATOR-ONLY reference fix. Common short/keyword tokens are excluded.
+    """
+    import keyword
+    import re
+    common = set(keyword.kwlist) | {"return", "value", "result", "output", "input", "print",
+                                    "self", "None", "True", "False", "assert", "range"}
+    toks: set[str] = set()
+    for body in reference_fix.values():
+        for m in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", body):
+            if len(m) >= min_len and m not in common:
+                toks.add(m)
+    return sorted(toks)
+
+
 def _rank_key(item: tuple[str, Lesson]) -> tuple:
     """(8) Deterministic ranking: more support first, then stable by source_task_id then id."""
     source_task_id, lesson = item
@@ -113,13 +166,15 @@ def learn_gated_bank(
     *,
     forbidden_values: Optional[list[str]] = None,
     max_active: int = MAX_ACTIVE_ENTRIES_PER_FAMILY,
+    fold: Optional[int] = None,
 ) -> tuple[FrozenLessonBank, list[dict]]:
     """Build a frozen bank from TRAIN proposals through the deterministic write-gate.
 
     ``proposals`` is a list of ``(source_task_id, task_family, verifier_passed, candidate)``
     from train tasks only. Candidates are ranked deterministically, then admitted one by one
-    (so the slot-budget and dedup checks see already-admitted lessons). Returns the frozen bank
-    plus a per-candidate audit trail. Nothing here is held-out; the bank is frozen on return.
+    (so the slot-budget and dedup checks see already-admitted lessons). Every written lesson is
+    stamped with its provenance (``fold`` + ``source_task_id``) so a cross-fold leak is
+    detectable by ``assert_bank_within_train``. Nothing here is held-out; the bank is frozen.
     """
     ranked = sorted(
         [(stid, fam, ok, cand) for (stid, fam, ok, cand) in proposals if cand is not None],
@@ -135,5 +190,5 @@ def learn_gated_bank(
         audit.append({"source_task_id": stid, "family": fam, "lesson_id": cand.lesson_id,
                       "written": res.written, "reasons": res.reasons})
         if res.written:
-            by_family.setdefault(fam, []).append(cand)
+            by_family.setdefault(fam, []).append(_stamp_provenance(cand, stid, fold))
     return FrozenLessonBank(by_family=by_family, frozen=True), audit

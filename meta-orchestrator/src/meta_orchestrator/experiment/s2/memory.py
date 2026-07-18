@@ -186,6 +186,36 @@ def render_lines(mc: MemoryContext) -> list[str]:
     return [tag, *(f"- {ln}" for ln in capped)]
 
 
+class OccupancyParity(BaseModel):
+    """Per-family C-vs-B1 slot-occupancy comparison (P0.5). ``equal`` False ⇒ a length confound:
+    B1 gets more/less text than C, so 'relevance' is no longer the only thing that varies."""
+
+    family: str
+    c_lines: int
+    b1_lines: int
+    c_family: str
+    b1_family: str
+    equal: bool
+
+
+def occupancy_parity(bank: "FrozenLessonBank", placebo: "PlaceboRouter",
+                     families: list[str]) -> list[OccupancyParity]:
+    """For each task family, compare the number of rendered memory lines C vs B1 would inject.
+
+    B1 reuses C's bank keyed to a DIFFERENT family; if that family holds a different number of
+    lessons, B1's injected text length differs from C's and the placebo stops being a clean
+    relevance control. This surfaces that mismatch so the harness can log/flag it.
+    """
+    reports: list[OccupancyParity] = []
+    for fam in families:
+        c_lines = len(render_lines(resolve_memory("C", fam, bank=bank)))
+        b1_lines = len(render_lines(resolve_memory("B1", fam, bank=bank, placebo=placebo)))
+        reports.append(OccupancyParity(
+            family=fam, c_lines=c_lines, b1_lines=b1_lines, c_family=fam,
+            b1_family=placebo.route(fam), equal=(c_lines == b1_lines)))
+    return reports
+
+
 def parse_mem_tag(context_lines: list[str]) -> tuple[str, Optional[str]]:
     """Inverse of the tag line: (component_kind, source_family). ('none', None) if absent."""
     for ln in context_lines:

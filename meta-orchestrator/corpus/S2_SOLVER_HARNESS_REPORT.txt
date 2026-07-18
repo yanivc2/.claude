@@ -9,11 +9,14 @@ folds:
   fold 1: bank=022d5e616ecf families=['boundary', 'condition_inversion', 'iterator', 'other_logic', 'parser_normalization', 'whitespace'] n_test=9
   fold 2: bank=022d5e616ecf families=['boundary', 'condition_inversion', 'iterator', 'other_logic', 'parser_normalization', 'whitespace'] n_test=9
 
-per-condition pass rate (sealed effect table, post-finalize):
-  A: 0/27
-  C: 27/27
-  D: 0/27
-  B1: 0/27
+routing_fixture_expected_outcome (NOT a scientific result — a plumbing test-double):
+  ** these numbers come from a routing double, not a model; they must NEVER enter
+     scientific results, mechanism claims, or summaries. **
+    A: 0/27
+    C: 27/27
+    D: 0/27
+    B1: 0/27
+  C/B1 occupancy parity (fold 0): EQUAL
 
 cost signals (OFFLINE, $0): {'attempts': 108, 'model_calls': 189, 'public_runs': 189, 'round2_opened': 81}
 harness signals: {'verifier_config_hash': '5885767ee0c7', 'blocked_tool_attempts': 0, 'f2p_feedback_leaked': False}
@@ -28,11 +31,13 @@ frozen Haiku contract — INSPECTED, NOT SENT:
   [PASS] fallback_off
 
 run invariants:
-  [PASS] C_passes_all_held_out
-  [PASS] A_B1_D_no_relevant_help
+  [PASS] routing_double_C_passes_all_held_out
+  [PASS] routing_double_A_B1_D_no_relevant_help
   [PASS] no_f2p_feedback_leaked
   [PASS] caps_respected
   [PASS] outcomes_were_sealed
+  [PASS] c_b1_occupancy_parity
+  [PASS] no_cross_fold_leakage
 
 contract clause → proving test (acceptance criterion 8):
   - A: thinking enabled + budget_tokens=1024
@@ -75,6 +80,24 @@ contract clause → proving test (acceptance criterion 8):
       → test_s2_solver::test_resume_does_not_duplicate_attempts_or_calls
   - provenance: all frozen hashes recorded
       → test_s2_solver::test_provenance_records_all_frozen_hashes
+  - P0.1 production-path body (not just builder)
+      → test_s2_model_client::test_production_path_sends_exact_contract_body
+  - P0.1 no silent fallback on the call path
+      → test_s2_model_client::test_no_fallback_raises_model_unavailable
+  - P0.2 fold banks distinct + provenance ⊆ train
+      → test_s2_fold_leakage::test_bank_provenance_is_within_train_and_excludes_held_out
+  - P0.2 cross-fold injection fails loudly
+      → test_s2_fold_leakage::test_injecting_another_folds_bank_fails_loudly
+  - P0.3 held-out proposes no lesson (schema parity)
+      → test_s2_hardening::test_held_out_c_emits_no_candidate_lesson
+  - P0.4 empty public suite ≠ FAIL (no free Round 2)
+      → test_s2_hardening::test_no_public_tests_does_not_open_round2
+  - P0.5 C/B1 occupancy-parity confound detector
+      → test_s2_hardening::test_occupancy_parity_flags_length_confound
+  - neg-control: memory-ignoring → no separation
+      → test_s2_hardening::test_memory_ignoring_double_shows_no_separation
+  - neg-control: leaking lesson → gate rejects
+      → test_s2_hardening::test_leaking_lesson_is_rejected_by_the_gate
 
 residual risks:
   - synthetic stand-in tasks exercise the PLUMBING only; the real bugs need a cloned repo + real test run (repo-backed reproduction) to become the graded corpus.
