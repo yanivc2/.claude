@@ -131,16 +131,24 @@ def _bug_resp(task):
     return f"### FILE: solution.py\n```python\n{body}\n```\n"
 
 
-def _canary(tmp_path, responses, *, task):
+def _grant_for(task, *, fold=1, condition="C"):
+    from meta_orchestrator.experiment.s2.execution_grant import build_execution_grant
+    return build_execution_grant(anchor_commit="HEAD", anchor_report_hash="rh", fold=fold,
+                                 condition=condition, phase="training", task_id=task.task_id,
+                                 granted_at="2026-07-19T00:00:00Z")
+
+
+def _canary(tmp_path, responses, *, task, execution_grant="__default__"):
     sc = _Scripted(responses)
     client = S2ModelClient(frozen_s2_contract(), client=sc.anthropic)
     pricing = load_frozen_pricing(CORPUS)
     ep = resolve_endpoint_attestation(provider=pricing.provider, model=pricing.model,
                                       client=sc.anthropic)
+    grant = _grant_for(task) if execution_grant == "__default__" else execution_grant
     rep = run_canary(task, client=client, statement="Fix the off-by-one.", pricing=pricing,
                      endpoint_att=ep, work_dir=str(tmp_path / "canary"),
                      count_fn=lambda kw: len(json.dumps(kw)) // 4, env_hash="e",
-                     non_authoritative=True)
+                     non_authoritative=True, execution_grant=grant)
     return rep, sc, client
 
 
@@ -205,11 +213,16 @@ def test_ambiguous_after_send_holds_reservation(tmp_path):
     ledger = BudgetLedger(str(tmp_path / "l.json"), total_budget=10.0)
     journal = CallJournal(str(tmp_path / "j.jsonl"))
     from meta_orchestrator.experiment.s2.solver import RoundView
+    from meta_orchestrator.experiment.s2.execution_grant import build_execution_grant
+    grant = build_execution_grant(anchor_commit="HEAD", anchor_report_hash="rh", fold=1,
+                                  condition="C", phase="training", task_id="t",
+                                  granted_at="2026-07-19T00:00:00Z")
     solver = ModelBackedRoundSolver(client=_Boom(), statement="s", allowed_source_files=["solution.py"],
                                     task_family="whitespace", is_train=True, pricing=pricing,
                                     endpoint_att=ep, ledger=ledger, journal=journal, fold=1,
                                     condition="C", context_cap=60416, count_fn=lambda kw: 100,
-                                    run_id="amb", env_hash="e", contract_hash="k", active_bank_hash="b")
+                                    run_id="amb", env_hash="e", contract_hash="k", active_bank_hash="b",
+                                    task_id="t", execution_grant=grant)
     view = RoundView(round_index=1, task_id="t", task_family="whitespace",
                      source={"solution.py": "x=1"}, public_tests={}, memory_lines=[])
     before = ledger.available()

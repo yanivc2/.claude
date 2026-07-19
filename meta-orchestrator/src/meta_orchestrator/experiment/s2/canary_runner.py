@@ -46,7 +46,8 @@ def run_canary(task: ExperimentTask, *, client, statement: str, pricing: Pricing
                remaining_train_tasks: int = 17, per_task_original_estimate_usd: float = 0.25,
                non_authoritative: bool = True,
                agent_contract: Optional[AgentContract] = None,
-               frozen_template: Optional[dict] = None) -> dict:
+               frozen_template: Optional[dict] = None,
+               execution_grant=None) -> dict:
     os.makedirs(work_dir, exist_ok=True)
     agent_contract = agent_contract or frozen_s2_contract()
     if frozen_template is not None:
@@ -62,7 +63,7 @@ def run_canary(task: ExperimentTask, *, client, statement: str, pricing: Pricing
         task_family=task.task_family, is_train=is_train, pricing=pricing, endpoint_att=endpoint_att,
         ledger=ledger, journal=journal, fold=fold, condition=condition, context_cap=context_cap,
         count_fn=count_fn, run_id=run_id, env_hash=env_hash, contract_hash=contract_hash,
-        active_bank_hash=_bank_hash([]))
+        active_bank_hash=_bank_hash([]), task_id=task.task_id, execution_grant=execution_grant)
 
     attempt = run_attempt(task, condition, list(memory_lines or []), solver, agent_contract,
                           AttemptContract(), is_train=is_train,

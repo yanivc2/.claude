@@ -87,6 +87,12 @@ class CallContext(BaseModel):
     gate1_ok: bool
     gate2_ok: bool                                    # required True for held-out calls
     context_cap_source: str                          # must be REAL_SOURCE for a paid call
+    # execution grant (P0.5): a SECOND, narrow authorization required IN ADDITION to the Gate-1
+    # anchor. A passed Gate 1 proves the DESIGN is fundable; it must NOT by itself open spending.
+    # Every paid call also requires a live, task-scoped execution grant. Defaults are fail-CLOSED:
+    # an anchor without a matching grant blocks every messages.create.
+    execution_grant_present: bool = False            # a live execution grant exists
+    requested_task_within_grant: bool = False        # this fold/condition/task is inside its scope
     # a5 pricing + endpoint binding: hashes are compared as primitives here (the artifacts are
     # resolved upstream), so this module stays dependency-free and cannot import a cycle.
     pricing_artifact_hash_expected: str = ""          # the price Gate 1 was authorized under
@@ -99,6 +105,13 @@ def assert_call_allowed(ctx: CallContext) -> None:
     """The invariant checked before every paid Messages request. Blocks on ANY violation."""
     if not ctx.gate1_ok:
         raise GateError("Gate 1 not satisfied")
+    # P0.5: a passed Gate 1 authorizes the DESIGN, never spending. A live, task-scoped execution
+    # grant is required for EVERY paid call; without it (or outside its scope) the call is blocked.
+    if not ctx.execution_grant_present:
+        raise GateError("no execution grant — Gate 1 authorizes the design, not spending; a separate "
+                        "task-scoped execution grant is required before any messages.create")
+    if not ctx.requested_task_within_grant:
+        raise GateError("requested fold/condition/task is outside the active execution grant scope")
     if ctx.env_hash_actual != ctx.env_hash_expected:
         raise GateError("environment hash mismatch (SDK/config changed since the gate)")
     if ctx.contract_actual != ctx.contract_expected:

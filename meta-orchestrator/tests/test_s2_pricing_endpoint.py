@@ -159,7 +159,8 @@ def _ctx(**over) -> CallContext:
                 remaining_budget=10.0, max_call_cost=0.075, env_hash_expected="e",
                 env_hash_actual="e", contract_expected="k", contract_actual="k",
                 active_bank_hash="b", model_calls_used=0, max_model_calls=2, gate1_ok=True,
-                gate2_ok=True, context_cap_source="anthropic_count_tokens",
+                gate2_ok=True, execution_grant_present=True, requested_task_within_grant=True,
+                context_cap_source="anthropic_count_tokens",
                 pricing_artifact_hash_expected="ph", pricing_artifact_hash_actual="ph",
                 endpoint_hash_expected="eh", endpoint_hash_actual="eh")
     base.update(over)

@@ -43,14 +43,15 @@ class ModelBackedRoundSolver:
                  ledger: BudgetLedger, journal: CallJournal, fold: int, condition: str,
                  context_cap: int, count_fn: Callable[[dict], int], run_id: str,
                  env_hash: str, contract_hash: str, active_bank_hash: str, max_model_calls: int = 2,
-                 gate1_ok: bool = True, gate2_ok: bool = True, name: str = "model-backed") -> None:
+                 gate1_ok: bool = True, gate2_ok: bool = True, task_id: str = "",
+                 execution_grant=None, name: str = "model-backed") -> None:
         self.name = name
         self._c = dict(client=client, statement=statement, allowed=allowed_source_files,
                        family=task_family, is_train=is_train, pricing=pricing, endpoint=endpoint_att,
                        ledger=ledger, journal=journal, fold=fold, condition=condition,
                        context_cap=context_cap, count_fn=count_fn, run_id=run_id, env_hash=env_hash,
                        contract_hash=contract_hash, bank=active_bank_hash, max_calls=max_model_calls,
-                       gate1=gate1_ok, gate2=gate2_ok)
+                       gate1=gate1_ok, gate2=gate2_ok, task_id=task_id, grant=execution_grant)
         self._r1_prompt: Optional[str] = None
         self._assistant_text: str = ""
         self.calls: list[dict] = []                    # per-round accounting for the runner's report
@@ -81,6 +82,13 @@ class ModelBackedRoundSolver:
                                    canonical_request_hash=canonical_hash,
                                    outbound_body_hash=outbound_hash)
 
+        # P0.5: a live, task-scoped execution grant is required IN ADDITION to Gate 1 (fail-closed).
+        grant = c.get("grant")
+        grant_present = grant is not None and grant.is_sealed()
+        within_grant = grant_present and grant.covers(
+            fold=c["fold"], condition=c["condition"], task_id=c["task_id"],
+            calls_used=self._calls_used)
+
         # --- runtime invariant (a5 pricing+endpoint bound) ---
         ctx = CallContext(
             fold=c["fold"], condition=c["condition"], is_held_out=False,
@@ -90,6 +98,7 @@ class ModelBackedRoundSolver:
             contract_expected=c["contract_hash"], contract_actual=c["contract_hash"],
             active_bank_hash=c["bank"], model_calls_used=self._calls_used,
             max_model_calls=c["max_calls"], gate1_ok=c["gate1"], gate2_ok=c["gate2"],
+            execution_grant_present=grant_present, requested_task_within_grant=within_grant,
             context_cap_source=REAL_SOURCE,
             pricing_artifact_hash_expected=c["pricing"].content_hash,
             pricing_artifact_hash_actual=c["pricing"].content_hash,

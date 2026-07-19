@@ -104,6 +104,7 @@ def _ok_ctx(**over):
                 env_hash_actual="E", contract_expected="K", contract_actual="K",
                 active_bank_hash="B", b1_mapping_bank_hash="B", b1_source=REAL_SOURCE,
                 model_calls_used=0, max_model_calls=2, gate1_ok=True, gate2_ok=True,
+                execution_grant_present=True, requested_task_within_grant=True,
                 context_cap_source=REAL_SOURCE,
                 pricing_artifact_hash_expected="PH", pricing_artifact_hash_actual="PH",
                 endpoint_hash_expected="EH", endpoint_hash_actual="EH")
@@ -113,6 +114,17 @@ def _ok_ctx(**over):
 
 def test_call_allowed_happy_path():
     assert_call_allowed(_ok_ctx())                           # must not raise
+
+
+def test_call_blocked_without_execution_grant():
+    """P0.5: a fully-valid Gate-1 context still blocks with no live execution grant."""
+    with pytest.raises(GateError):
+        assert_call_allowed(_ok_ctx(execution_grant_present=False))
+
+
+def test_call_blocked_when_task_outside_grant_scope():
+    with pytest.raises(GateError):
+        assert_call_allowed(_ok_ctx(requested_task_within_grant=False))
 
 
 def test_call_blocked_on_oversize_request():
