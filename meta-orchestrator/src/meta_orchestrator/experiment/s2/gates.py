@@ -87,6 +87,12 @@ class CallContext(BaseModel):
     gate1_ok: bool
     gate2_ok: bool                                    # required True for held-out calls
     context_cap_source: str                          # must be REAL_SOURCE for a paid call
+    # a5 pricing + endpoint binding: hashes are compared as primitives here (the artifacts are
+    # resolved upstream), so this module stays dependency-free and cannot import a cycle.
+    pricing_artifact_hash_expected: str = ""          # the price Gate 1 was authorized under
+    pricing_artifact_hash_actual: str = ""            # the live frozen-pricing hash at call time
+    endpoint_hash_expected: str = ""                  # the approved endpoint attestation
+    endpoint_hash_actual: str = ""                    # the live endpoint attestation at call time
 
 
 def assert_call_allowed(ctx: CallContext) -> None:
@@ -99,6 +105,16 @@ def assert_call_allowed(ctx: CallContext) -> None:
         raise GateError("agent-contract snapshot mismatch")
     if ctx.context_cap_source != REAL_SOURCE:
         raise GateError("context_cap came from a non-production (proxy) source")
+    # a5: a silent price change or an endpoint/gateway swap must block, not proceed on the old
+    # estimate. Both hashes are bound into the authorization anchor's evidence bundle.
+    if not ctx.pricing_artifact_hash_expected or not ctx.pricing_artifact_hash_actual:
+        raise GateError("pricing artifact hash not bound to this call (a5 binding absent)")
+    if ctx.pricing_artifact_hash_actual != ctx.pricing_artifact_hash_expected:
+        raise GateError("pricing artifact hash drift since Gate 1 — re-project and re-authorize")
+    if not ctx.endpoint_hash_expected or not ctx.endpoint_hash_actual:
+        raise GateError("endpoint attestation not bound to this call (a5 binding absent)")
+    if ctx.endpoint_hash_actual != ctx.endpoint_hash_expected:
+        raise GateError("endpoint changed since Gate 1 (base_url / gateway / model) — re-authorize")
     if ctx.request_tokens > ctx.context_cap:
         raise GateError(f"request {ctx.request_tokens} tok > frozen context_cap {ctx.context_cap} "
                         "— block, do not truncate or send")

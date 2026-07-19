@@ -104,7 +104,9 @@ def _ok_ctx(**over):
                 env_hash_actual="E", contract_expected="K", contract_actual="K",
                 active_bank_hash="B", b1_mapping_bank_hash="B", b1_source=REAL_SOURCE,
                 model_calls_used=0, max_model_calls=2, gate1_ok=True, gate2_ok=True,
-                context_cap_source=REAL_SOURCE)
+                context_cap_source=REAL_SOURCE,
+                pricing_artifact_hash_expected="PH", pricing_artifact_hash_actual="PH",
+                endpoint_hash_expected="EH", endpoint_hash_actual="EH")
     base.update(over)
     return CallContext(**base)
 
@@ -167,3 +169,16 @@ def test_b1_selection_rejects_proxy_stale_and_cross_fold():
     with pytest.raises(GateError):        # stale bank
         assert_b1_selection_production_valid(_sel(bank_hash="OLD"), bank_hash="NEW", fold=0)
     assert_b1_selection_production_valid(_sel(), bank_hash="B", fold=0)   # valid → no raise
+
+
+# --- a5: pricing + endpoint binding is mandatory before a paid call -----------------------
+def test_call_blocked_on_absent_or_drifted_a5_binding():
+    with pytest.raises(GateError):        # pricing binding absent
+        assert_call_allowed(_ok_ctx(pricing_artifact_hash_expected="",
+                                    pricing_artifact_hash_actual=""))
+    with pytest.raises(GateError):        # price drift since Gate 1
+        assert_call_allowed(_ok_ctx(pricing_artifact_hash_actual="OTHER"))
+    with pytest.raises(GateError):        # endpoint binding absent
+        assert_call_allowed(_ok_ctx(endpoint_hash_expected="", endpoint_hash_actual=""))
+    with pytest.raises(GateError):        # endpoint drift since Gate 1
+        assert_call_allowed(_ok_ctx(endpoint_hash_actual="OTHER"))

@@ -224,6 +224,76 @@ def verify_snapshot_evidence(ev: SnapshotEvidence, *, expected_model: str) -> Pr
     return Predicate(name="snapshot", ok=not reasons, reasons=reasons)
 
 
+# --- a5: pricing + endpoint binding evidence ---------------------------------------------
+class PricingDerivationSample(BaseModel):
+    input_tokens: int
+    output_tokens: int
+    claimed_cost_usd: str               # the projection's own figure, as a Decimal string
+
+
+class PricingEvidence(BaseModel):
+    """Observations proving every cost figure was DERIVED from the frozen pricing artifact."""
+
+    pricing_artifact_hash: str
+    input_usd_per_mtok: str
+    output_usd_per_mtok: str
+    samples: list[PricingDerivationSample] = Field(default_factory=list)
+
+
+def verify_pricing_evidence(ev: PricingEvidence, *, corpus_dir: Optional[str], expected_model: str,
+                            expected_provider: str) -> Predicate:
+    """Gate-derived: load the frozen artifact, confirm the hash/prices, and RE-DERIVE each cost."""
+    from decimal import Decimal
+
+    from .pricing import call_cost_usd, load_frozen_pricing
+    reasons: list[str] = []
+    if not corpus_dir:
+        return Predicate(name="pricing", ok=False, reasons=["no_corpus_dir"])
+    try:
+        art = load_frozen_pricing(corpus_dir)
+    except Exception as exc:                          # missing / stale-hash / wrong-schema
+        return Predicate(name="pricing", ok=False, reasons=[f"artifact_invalid:{str(exc)[:60]}"])
+    if ev.pricing_artifact_hash != art.content_hash:
+        reasons.append("pricing_hash_mismatch")
+    if Decimal(ev.input_usd_per_mtok) != Decimal(art.input_usd_per_mtok):
+        reasons.append("input_price_mismatch")
+    if Decimal(ev.output_usd_per_mtok) != Decimal(art.output_usd_per_mtok):
+        reasons.append("output_price_mismatch")
+    if art.model != expected_model:
+        reasons.append("pricing_model_mismatch")
+    if art.provider != expected_provider:
+        reasons.append("pricing_provider_mismatch")
+    if not ev.samples:
+        reasons.append("no_derivation_samples")
+    for s in ev.samples:                              # every claimed cost must re-derive exactly
+        want = call_cost_usd(art, input_tokens=s.input_tokens, output_tokens=s.output_tokens)
+        if Decimal(s.claimed_cost_usd) != want:
+            reasons.append("cost_not_derived_from_artifact")
+            break
+    return Predicate(name="pricing", ok=not reasons, reasons=reasons)
+
+
+class EndpointEvidence(BaseModel):
+    """The live endpoint attestation (provider/scheme/host/model) resolved from the SDK client."""
+
+    attestation: dict                    # EndpointAttestation.model_dump()
+
+
+def verify_endpoint_evidence(ev: EndpointEvidence, *, corpus_dir: Optional[str]) -> Predicate:
+    """Gate-derived: rebuild the attestation and assert it is the approved endpoint for the price."""
+    from .endpoint import EndpointAttestation, assert_endpoint_approved
+    from .pricing import load_frozen_pricing
+    if not corpus_dir:
+        return Predicate(name="endpoint", ok=False, reasons=["no_corpus_dir"])
+    try:
+        art = load_frozen_pricing(corpus_dir)
+        att = EndpointAttestation(**ev.attestation)
+        assert_endpoint_approved(att, art)
+    except Exception as exc:
+        return Predicate(name="endpoint", ok=False, reasons=[f"endpoint_blocked:{str(exc)[:70]}"])
+    return Predicate(name="endpoint", ok=True)
+
+
 class TrainingEvidence(BaseModel):
     fold: int
     outcomes: dict[str, str]            # task_id -> solver_pass | solver_fail | incomplete
@@ -254,8 +324,16 @@ def gate1_from_evidence(*, manifest, corpus_dir: Optional[str], pytest_ev: Pytes
                         environment_hash: str, required_node_ids: list[str],
                         count_obs: list[CountEvidence], expected_request_hashes: set[str],
                         model: str, context_cap: int, budget_ev: BudgetEvidence,
-                        snapshot_ev: SnapshotEvidence):
-    """PRODUCTION Gate-1 entry: derive every predicate from OBSERVATIONS (no summary booleans)."""
+                        snapshot_ev: SnapshotEvidence,
+                        pricing_ev: Optional[PricingEvidence] = None,
+                        endpoint_ev: Optional[EndpointEvidence] = None,
+                        provider: str = "anthropic", require_pricing_binding: bool = False):
+    """PRODUCTION Gate-1 entry: derive every predicate from OBSERVATIONS (no summary booleans).
+
+    a5: when ``require_pricing_binding`` is set (the production path), the frozen-pricing and
+    endpoint attestations are MANDATORY — absent ones fail the gate, so no paid call can be
+    authorized on cost figures that were not derived from the frozen price at the approved endpoint.
+    """
     from .pilot import GateReport
     preds = [
         verify_pytest_evidence(pytest_ev, run_id=manifest.run_id,
@@ -266,8 +344,27 @@ def gate1_from_evidence(*, manifest, corpus_dir: Optional[str], pytest_ev: Pytes
         verify_budget_evidence(budget_ev),
         verify_snapshot_evidence(snapshot_ev, expected_model=model),
     ]
+    pricing_ok = True
+    if require_pricing_binding or pricing_ev is not None:
+        if pricing_ev is None:
+            preds.append(Predicate(name="pricing", ok=False, reasons=["pricing_binding_absent"]))
+            pricing_ok = False
+        else:
+            p = verify_pricing_evidence(pricing_ev, corpus_dir=corpus_dir, expected_model=model,
+                                        expected_provider=provider)
+            preds.append(p)
+            pricing_ok = pricing_ok and p.ok
+    if require_pricing_binding or endpoint_ev is not None:
+        if endpoint_ev is None:
+            preds.append(Predicate(name="endpoint", ok=False, reasons=["endpoint_binding_absent"]))
+            pricing_ok = False
+        else:
+            e = verify_endpoint_evidence(endpoint_ev, corpus_dir=corpus_dir)
+            preds.append(e)
+            pricing_ok = pricing_ok and e.ok
     reasons = _aggregate(preds)
-    production_valid = bool(count_obs) and all(o.counter_source == REAL_SOURCE for o in count_obs)
+    production_valid = (bool(count_obs) and all(o.counter_source == REAL_SOURCE for o in count_obs)
+                        and pricing_ok)
     source = count_obs[0].counter_source if count_obs else "none"
     return GateReport(gate="gate1", passed=(not reasons and production_valid),
                       production_valid=production_valid, token_count_source=source, reasons=reasons)

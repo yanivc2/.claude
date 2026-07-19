@@ -96,6 +96,7 @@ def collect_frozen_hashes(corpus_dir: Optional[str] = None) -> dict[str, str]:
         "family_map": ("s2_family_map.json", "family_map_content_hash"),
         "scope": ("s2_scope_metadata.json", "scope_content_hash"),
         "d_playbook": ("d_playbook.frozen.json", "content_hash"),
+        "pricing": ("s2_pricing.frozen.json", "content_hash"),      # a5: frozen price binding
     }
     if corpus_dir:
         for key, (fname, field) in files.items():
