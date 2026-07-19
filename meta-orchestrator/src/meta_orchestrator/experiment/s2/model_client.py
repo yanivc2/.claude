@@ -66,8 +66,18 @@ class S2ModelClient:
                 self._client = anthropic.Anthropic(max_retries=0)
         return self._client
 
+    def build_request_messages(self, messages: list[dict]) -> dict[str, Any]:
+        """R1/R2 unified: the frozen kwargs shape (model/system/thinking/max_tokens) with a given
+        multi-turn ``messages`` list. R2 is a 3-turn history; R1 is a single user message."""
+        kwargs = dict(self.build_request(""))          # frozen model/system/thinking/max_tokens
+        kwargs["messages"] = list(messages)
+        return kwargs
+
     def complete(self, prompt: str) -> S2ModelResponse:
-        kwargs = self.build_request(prompt)
+        return self.complete_messages([{"role": "user", "content": prompt}])
+
+    def complete_messages(self, messages: list[dict]) -> S2ModelResponse:
+        kwargs = self.build_request_messages(messages)
         self.last_request_kwargs = kwargs
         self.last_request_json = json.dumps(kwargs, sort_keys=True)   # exact serialized body
         client = self._ensure_client()

@@ -52,6 +52,13 @@ from .pricing import (FROZEN_PRICING_FILENAME, PRICING_SCHEMA_VERSION, PricingAr
                      assert_pricing_matches, build_pricing_artifact, call_cost_usd,
                      frozen_pricing_hash, load_frozen_pricing, max_call_cost_usd)
 from .endpoint import (EndpointAttestation, assert_endpoint_approved, resolve_endpoint_attestation)
+from .canary_prompt import (LESSON_SCHEMA, REPAIR_INSTRUCTION, RESPONSE_SCHEMA,
+                           assert_frozen_pieces_match, build_r1_user_prompt,
+                           build_r1_worstcase_prompt, build_r2_messages, max_memory_payload,
+                           render_memory_slot)
+from .response_parser import ParsedResponse, parse_model_response
+from .live_solver import ModelBackedRoundSolver
+from .canary_runner import NON_AUTHORITATIVE_TAG, run_canary
 from .runlog import (AuthorizationAnchor, ChainedTransition, RunLog, make_anchor, verify_anchor)
 from .call_journal import (BUDGET_RESERVED, CALL_ACKNOWLEDGED, CALL_AMBIGUOUS_AFTER_SEND,
                           CALL_FAILED_BEFORE_SEND, CALL_PREPARED, CALL_SENT, COST_RECONCILED,
@@ -116,6 +123,10 @@ __all__ = [
     "build_pricing_artifact", "call_cost_usd", "frozen_pricing_hash", "load_frozen_pricing",
     "max_call_cost_usd", "EndpointAttestation", "assert_endpoint_approved",
     "resolve_endpoint_attestation",
+    "LESSON_SCHEMA", "REPAIR_INSTRUCTION", "RESPONSE_SCHEMA", "assert_frozen_pieces_match",
+    "build_r1_user_prompt", "build_r1_worstcase_prompt", "build_r2_messages", "max_memory_payload",
+    "render_memory_slot", "ParsedResponse", "parse_model_response", "ModelBackedRoundSolver",
+    "NON_AUTHORITATIVE_TAG", "run_canary",
     "gate1_from_evidence", "gate2_from_evidence", "recompute_frozen_hashes_predicate",
     "verify_budget_evidence", "verify_count_evidence", "verify_pytest_evidence",
     "verify_snapshot_evidence", "verify_training_evidence",
