@@ -57,6 +57,7 @@ def main() -> None:
     import anthropic
 
     from meta_orchestrator.experiment.s2 import gate1_runner as G
+    from meta_orchestrator.experiment.s2.budget_policy import ReportedCredits
     from meta_orchestrator.experiment.s2.endpoint import resolve_endpoint_attestation
     from meta_orchestrator.experiment.s2.evidence import attest_environment
     from meta_orchestrator.experiment.s2.model_client import S2ModelClient
@@ -80,13 +81,18 @@ def main() -> None:
     print(f"  suite: exit={pytest_ev.exit_code} failed={pytest_ev.failed} skipped={pytest_ev.skipped} "
           f"passed_nodes={len(pytest_ev.passed_node_ids)}")
 
+    # Operator-reported credit balance (runtime state, NOT a policy cap). Approved caps live in the
+    # frozen s2_budget_policy.frozen.json (fold-1 $10 / global $30).
+    credits = ReportedCredits(available_api_credits_usd="4.75", verified_at="2026-07-19",
+                              machine_verified=False)
+
     print("running real count_tokens Gate-1 preflight over the frozen corpus ($0)…")
     art = G.run_gate1(
         corpus_json_path=CORPUS_JSON, scope_json_path=SCOPE_JSON, corpus_dir=CORPUS,
         cache_dir=os.path.join(out_dir, "src_cache"), request_builder=request_builder,
         count_fn=count_fn, model=MODEL, count_model=MODEL,
         endpoint_attestation=endpoint_att.model_dump(), pytest_ev=pytest_ev, env_hash=env_hash,
-        available_budget_usd=4.89, run_id="s2-gate1-real", git_commit=git_commit,
+        reported_credits=credits, run_id="s2-gate1-real", git_commit=git_commit,
         required_node_ids=REQUIRED, heldout_fold=1)
 
     art_path = os.path.join(out_dir, "gate1_artifact.json")
@@ -99,9 +105,14 @@ def main() -> None:
     print(f"context_cap={art.context_cap}  estimated_max={art.estimated_max_tokens}  "
           f"headroom={art.headroom}  fits_model_context={art.fits_model_context}")
     print(f"max_envelope_overshoot={art.max_overshoot_seen} (floor={art.envelope_floor})")
+    bp = art.budget_policy
+    print(f"budget policy [{art.budget_policy_hash}]: fold1_cap=${bp.get('fold1_hard_cap_usd')} "
+          f"global_cap=${bp.get('global_hard_cap_usd')}  "
+          f"credits(reported, not a cap)=${art.reported_credits.get('available_api_credits_usd')}")
     print(f"fold-{art.heldout_fold} train tasks={len(art.train_task_ids)}  "
-          f"worst_fold_cost=${art.projection.get('worst_fold_cost_usd')}  "
-          f"+25%=${art.projection.get('worst_fold_cost_with_reserve_usd')}  budget=$4.89")
+          f"worst+25%=${art.projection.get('worst_fold_cost_with_reserve_usd')} (<= fold1_cap)")
+    print(f"experiment worst+25%=${art.experiment_projection.get('experiment_worst_with_reserve_usd')} "
+          f"(<= global_cap)")
     print(f"max_single_call_exposure=${art.projection.get('max_single_call_exposure_usd')}")
     print("gate reasons:", r["reasons"] or "none")
     print("blocking notes:", art.blocking_notes or "none")

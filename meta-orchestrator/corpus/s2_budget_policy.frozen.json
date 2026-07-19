@@ -1,0 +1,9 @@
+{
+  "approved_at": "2026-07-19",
+  "approved_by": "operator",
+  "content_hash": "ca7ac7066c0313b1",
+  "fold1_hard_cap_usd": "10.00",
+  "global_hard_cap_usd": "30.00",
+  "policy_version": "s2-budget-policy-v2",
+  "supersedes": "pre-gate-under-5-guard"
+}

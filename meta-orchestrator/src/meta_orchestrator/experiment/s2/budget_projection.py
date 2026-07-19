@@ -36,6 +36,14 @@ GATE_ROUND2_RATE = Decimal("1.00")            # 100% of tasks reach Round 2
 GATE_OUTPUT_TOKENS_PER_CALL = S2_MAX_TOKENS   # full max_tokens billed as output (thinking incl.)
 GATE_RESERVE_FRACTION = Decimal("0.25")       # >= 20-25% reserve (runbook)
 
+# Whole-experiment call structure (frozen; used ONLY for the global-cap worst case). In 3-fold CV
+# each task is a TRAIN task in exactly 2 folds (C-training R1+R2) and a HELD-OUT task in exactly 1
+# fold. A held-out task runs 6 condition-runs — primary A/C/D/B1 + stability A/C — each R1+R2 worst
+# case. So the per-task worst (R1+R2 full output) is billed 2× (train) + 6× (held-out) = 8×.
+TRAIN_FOLDS_PER_TASK = 2
+HELDOUT_CONDITION_RUNS_PER_TASK = 6
+EXPERIMENT_WORST_MULTIPLIER = TRAIN_FOLDS_PER_TASK + HELDOUT_CONDITION_RUNS_PER_TASK  # = 8
+
 
 def _d(x: Decimal) -> str:
     return format(x, "f")
@@ -150,3 +158,39 @@ def project_fold_cost(
         worst_fold_cost_with_reserve_usd=_d(worst_with_reserve),
         max_single_call_exposure_usd=_d(max_single),
         planning_scenarios=scenarios)
+
+
+class ExperimentCostProjection(BaseModel):
+    """Whole-experiment worst case for the GLOBAL cap (all folds, train + held-out)."""
+
+    n_tasks: int
+    worst_multiplier: int = EXPERIMENT_WORST_MULTIPLIER
+    reserve_fraction: str = _d(GATE_RESERVE_FRACTION)
+    per_task_worst_sum_usd: str                        # S = Σ (full_cost(R1)+full_cost(R2))
+    experiment_worst_usd: str                          # 8·S
+    experiment_worst_with_reserve_usd: str
+
+    def fits_global_cap(self, global_cap_usd: str | float) -> bool:
+        return Decimal(self.experiment_worst_with_reserve_usd) <= Decimal(str(global_cap_usd))
+
+
+def project_experiment_worst(
+    pricing: PricingArtifact, *, r1_input_tokens: list[int], r2_input_tokens: list[int],
+    reserve_fraction: Decimal = GATE_RESERVE_FRACTION,
+) -> ExperimentCostProjection:
+    """Global-cap worst case from the per-task worst (R1+R2 full output) × the frozen 8× structure.
+
+    ``r1/r2_input_tokens`` are the per-task worst counts for ALL corpus tasks (not one fold), since
+    the multiplier already accounts for each task's train (×2) and held-out (×6) appearances.
+    """
+    if len(r1_input_tokens) != len(r2_input_tokens):
+        raise ValueError("r1/r2 input-token lists must be per-task and equal length")
+    out = GATE_OUTPUT_TOKENS_PER_CALL
+    s = Decimal(0)
+    for r1, r2 in zip(r1_input_tokens, r2_input_tokens):
+        s += _full_cost(pricing, r1, out) + _full_cost(pricing, r2, out)
+    worst = s * Decimal(EXPERIMENT_WORST_MULTIPLIER)
+    return ExperimentCostProjection(
+        n_tasks=len(r1_input_tokens), reserve_fraction=_d(reserve_fraction),
+        per_task_worst_sum_usd=_d(s), experiment_worst_usd=_d(worst),
+        experiment_worst_with_reserve_usd=_d(worst * (Decimal(1) + reserve_fraction)))

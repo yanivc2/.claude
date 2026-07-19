@@ -29,7 +29,8 @@ from typing import Any, Callable, Optional
 from pydantic import BaseModel, Field
 
 from .b1_selector import REAL_SOURCE
-from .budget_projection import project_fold_cost
+from .budget_policy import ReportedCredits, load_frozen_budget_policy
+from .budget_projection import project_experiment_worst, project_fold_cost
 from .canary_prompt import (PUBLIC_FEEDBACK_CAP, build_r1_worstcase_prompt, build_r2_messages,
                             max_r1_assistant_envelope)
 from .contract_s2 import S2_MAX_TOKENS
@@ -98,6 +99,10 @@ class Gate1RunArtifact(BaseModel):
     heldout_fold: int
     train_task_ids: list[str]
     projection: dict
+    experiment_projection: dict = Field(default_factory=dict)
+    budget_policy: dict = Field(default_factory=dict)
+    budget_policy_hash: str = ""
+    reported_credits: dict = Field(default_factory=dict)
     per_task: list[TaskCount] = Field(default_factory=list)
     gate_report: dict
     blocking_notes: list[str] = Field(default_factory=list)
@@ -180,7 +185,7 @@ def _context_cap(estimated_max: int) -> tuple[int, int, bool]:
 def run_gate1(*, corpus_json_path: str, scope_json_path: str, corpus_dir: str, cache_dir: str,
               request_builder, count_fn: Callable[[dict], int], model: str, count_model: str,
               endpoint_attestation: dict, pytest_ev: PytestEvidence, env_hash: str,
-              available_budget_usd: float, run_id: str, git_commit: str,
+              reported_credits: ReportedCredits, run_id: str, git_commit: str,
               required_node_ids: list[str], heldout_fold: int = 1,
               task_ids: Optional[list[str]] = None,
               provider: str = "anthropic") -> Gate1RunArtifact:
@@ -250,15 +255,26 @@ def run_gate1(*, corpus_json_path: str, scope_json_path: str, corpus_dir: str, c
     if not fits:
         blocking.append("context_cap_plus_output_exceeds_model_context")
 
-    # (5) fold-1 projection: train = tasks NOT in the held-out fold
+    # (5) budget: approved policy caps (frozen) vs projections; reported credits kept SEPARATE.
+    pricing = load_frozen_pricing(corpus_dir)
+    policy = load_frozen_budget_policy(corpus_dir)
     train_tasks = [t for t in per_task if t.fold != heldout_fold]
-    proj = project_fold_cost(load_frozen_pricing(corpus_dir), fold=heldout_fold,
+    proj = project_fold_cost(pricing, fold=heldout_fold,
                              r1_input_tokens=[t.r1_tokens for t in train_tasks],
                              r2_input_tokens=[t.r2_tokens for t in train_tasks])
-    budget_ev = proj.to_budget_evidence(available_budget_usd)
+    exp = project_experiment_worst(pricing, r1_input_tokens=[t.r1_tokens for t in per_task],
+                                   r2_input_tokens=[t.r2_tokens for t in per_task])
+    budget_ev = proj.to_budget_evidence(str(policy.fold1_cap()))     # gate binds fold-1 to the cap
+    from decimal import Decimal as _Dec
+    if not proj.fits_budget(str(policy.fold1_cap())):
+        blocking.append(f"fold1_worst_reserve>{policy.fold1_hard_cap_usd}")
+    if not exp.fits_global_cap(str(policy.global_cap())):
+        blocking.append(f"experiment_worst_reserve>{policy.global_hard_cap_usd}")
+    # credits (operator-reported runtime state) must cover the block Gate 1 authorizes (fold-1).
+    if reported_credits.amount() < _Dec(proj.worst_fold_cost_with_reserve_usd):
+        blocking.append("reported_credits_below_fold1_max_exposure")
 
     # (6) pricing + endpoint evidence (production binding)
-    pricing = load_frozen_pricing(corpus_dir)
     samples = [PricingDerivationSample(
         input_tokens=context_cap, output_tokens=S2_MAX_TOKENS,
         claimed_cost_usd=format(call_cost_usd(pricing, input_tokens=context_cap,
@@ -269,7 +285,7 @@ def run_gate1(*, corpus_json_path: str, scope_json_path: str, corpus_dir: str, c
     endpoint_ev = EndpointEvidence(attestation=endpoint_attestation)
 
     from .pilot import build_run_manifest
-    manifest = build_run_manifest(run_id, git_commit, budget_usd=available_budget_usd,
+    manifest = build_run_manifest(run_id, git_commit, budget_usd=float(policy.fold1_cap()),
                                   corpus_dir=corpus_dir)
     expected_hashes = {o.canonical_request_hash for o in count_obs}
     report = gate1_from_evidence(
@@ -286,6 +302,8 @@ def run_gate1(*, corpus_json_path: str, scope_json_path: str, corpus_dir: str, c
         estimated_max_tokens=estimated_max, headroom=headroom, context_cap=context_cap,
         fits_model_context=fits, heldout_fold=heldout_fold,
         train_task_ids=[t.task_id for t in train_tasks], projection=proj.model_dump(),
+        experiment_projection=exp.model_dump(), budget_policy=policy.model_dump(),
+        budget_policy_hash=policy.content_hash, reported_credits=reported_credits.model_dump(),
         per_task=per_task, gate_report=report.model_dump(), blocking_notes=blocking)
 
 

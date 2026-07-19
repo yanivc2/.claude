@@ -111,19 +111,26 @@ def test_run_gate1_passes_with_good_evidence(tmp_path, monkeypatch):
                                 cache_index_hash="idx")
     monkeypatch.setattr(G, "materialize_buggy_sources", lambda *a, **k: (sources, rep))
 
+    from meta_orchestrator.experiment.s2.budget_policy import ReportedCredits
     required = ["tests/test_s2_prepaid.py::test_sdk_serialized_body_omits_effort_and_temperature"]
     art = G.run_gate1(corpus_json_path=cj, scope_json_path=sj, corpus_dir=_corpus_dir(),
                       cache_dir=str(tmp_path / "cache"), request_builder=FakeBuilder(),
                       count_fn=distinct_token_count, model=MODEL, count_model=MODEL,
                       endpoint_attestation=_endpoint_att(),
                       pytest_ev=_good_pytest_ev("envhash", required), env_hash="envhash",
-                      available_budget_usd=4.89, run_id="gate1-offline", git_commit="HEAD",
+                      reported_credits=ReportedCredits(available_api_credits_usd="4.75"),
+                      run_id="gate1-offline", git_commit="HEAD",
                       required_node_ids=required, heldout_fold=1)
 
     assert art.blocking_notes == []
     assert art.context_cap % 1024 == 0 and art.context_cap + S2_MAX_TOKENS <= 200_000
     assert art.max_overshoot_seen <= G.MAX_ENVELOPE_OVERSHOOT
     assert len(art.train_task_ids) == 6                        # 9 tasks, held-out fold 1 (3) → 6 train
+    # approved caps bound from the frozen policy; both projections fit; credits recorded separately
+    assert art.budget_policy["fold1_hard_cap_usd"] == "10.00"
+    assert art.budget_policy["global_hard_cap_usd"] == "30.00"
+    assert art.budget_policy_hash and art.reported_credits["is_budget_cap"] is False
+    assert art.experiment_projection["worst_multiplier"] == 8
     assert art.gate_report["production_valid"] is True
     assert art.gate_report["passed"] is True                  # good evidence → PASS
     assert art.gate_report["token_count_source"] == "anthropic_count_tokens"
@@ -136,11 +143,12 @@ def test_run_gate1_blocks_on_unverified_materialization(tmp_path, monkeypatch):
                                 all_verified=False, cache_dir="x", cache_index_hash="idx",
                                 mismatches=["black-0:hash aa!=bb"])
     monkeypatch.setattr(G, "materialize_buggy_sources", lambda *a, **k: ({}, rep))
+    from meta_orchestrator.experiment.s2.budget_policy import ReportedCredits
     art = G.run_gate1(corpus_json_path=cj, scope_json_path=sj, corpus_dir=_corpus_dir(),
                       cache_dir=str(tmp_path / "cache"), request_builder=FakeBuilder(),
                       count_fn=distinct_token_count, model=MODEL, count_model=MODEL,
                       endpoint_attestation=_endpoint_att(),
                       pytest_ev=_good_pytest_ev("envhash", []), env_hash="envhash",
-                      available_budget_usd=4.89, run_id="g", git_commit="HEAD",
-                      required_node_ids=[], heldout_fold=1)
+                      reported_credits=ReportedCredits(available_api_credits_usd="4.75"),
+                      run_id="g", git_commit="HEAD", required_node_ids=[], heldout_fold=1)
     assert any("materialization_unverified" in n for n in art.blocking_notes)
