@@ -61,17 +61,33 @@ def test_public_status_mapping(tmp_path, monkeypatch):
     assert R.run_public_tests(_ctx(tmp_path, p2p_nodes=[])).status == "NO_PUBLIC_TESTS"
 
 
-def test_hidden_verify_uses_keyword_plan_and_returns_bool_only(tmp_path, monkeypatch):
+_F2P_NODE = "tests/test_black.py::BlackTestCase::test_comments2"
+
+
+def test_hidden_verify_guards_selector_and_returns_bool_only(tmp_path, monkeypatch):
     ctx = _ctx(tmp_path)
-    seen = {}
-    def fake_plan(c, plan):
-        seen["plan"] = plan                                  # proves F2P runs via the -k plan, not node ids
-        return {"tests/test_black.py::real_node": "PASSED"}, False, "tb: secret assertion detail"
-    monkeypatch.setattr(R, "_pytest_plan", fake_plan)
-    assert R.hidden_verify(ctx) is True                      # bool only; no traceback leaks out
-    assert seen["plan"] == F2P
-    monkeypatch.setattr(R, "_pytest_plan", lambda c, plan: ({"n": "FAILED"}, False, "x"))
+    monkeypatch.setattr(R, "collect_hidden_nodes", lambda c: [_F2P_NODE])   # exactly one node
+    monkeypatch.setattr(R, "_pytest", lambda c, args: ({args[0]: "PASSED"}, False, "tb: secret"))
+    assert R.hidden_verify(ctx) is True                      # bool only; no traceback leaks
+    monkeypatch.setattr(R, "_pytest", lambda c, args: ({args[0]: "FAILED"}, False, "x"))
     assert R.hidden_verify(ctx) is False
+
+
+def test_hidden_selector_matching_not_exactly_one_is_config_failure(tmp_path, monkeypatch):
+    ctx = _ctx(tmp_path)
+    monkeypatch.setattr(R, "collect_hidden_nodes", lambda c: [_F2P_NODE, "tests/test_black.py::x"])
+    with pytest.raises(R.GateError):                         # 2 matches → config failure, not FAIL
+        R.hidden_verify(ctx)
+    monkeypatch.setattr(R, "collect_hidden_nodes", lambda c: [])            # 0 matches
+    with pytest.raises(R.GateError):
+        R.hidden_verify(ctx)
+
+
+def test_hidden_selection_overlap_with_p2p_is_blocked(tmp_path, monkeypatch):
+    ctx = _ctx(tmp_path, p2p_nodes=[_F2P_NODE, "tests/test_black.py::t1"])   # F2P also in P2P
+    monkeypatch.setattr(R, "collect_hidden_nodes", lambda c: [_F2P_NODE])
+    with pytest.raises(R.GateError):
+        R.assert_hidden_selection_valid(ctx)
 
 
 def _dry(tmp_path, monkeypatch, *, pub_seq, verdict):

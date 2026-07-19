@@ -16,12 +16,16 @@ this boundary (in the solver), never here.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import re
 import subprocess
 from typing import Optional
 
 from pydantic import BaseModel
+
+from .gates import GateError
 
 PUBLIC_FEEDBACK_CAP = 2000
 _PYTEST_TIMEOUT = 300
@@ -119,12 +123,58 @@ def run_public_tests(ctx: RealTaskContext) -> PublicResult:
                         sanitized_summary="" if passed else _sanitize(raw))
 
 
+def _sha_list(items: list) -> str:
+    return hashlib.sha256(json.dumps(sorted(items), sort_keys=True).encode()).hexdigest()[:16]
+
+
+def collect_hidden_nodes(ctx: RealTaskContext) -> list[str]:
+    """The EXACT test node ids the F2P ``-k`` selector collects (``--collect-only``)."""
+    nodes: list[str] = []
+    for test_file, keyword in ctx.f2p_plan:
+        args = ["--collect-only", test_file] + (["-k", keyword] if keyword else [])
+        _res, _to, out = _pytest(ctx, args)
+        for line in out.splitlines():
+            line = line.strip()
+            if "::" in line and " " not in line and "PASSED" not in line and "FAILED" not in line:
+                nodes.append(line)
+    return sorted(set(nodes))
+
+
+def hidden_selection_evidence(ctx: RealTaskContext) -> dict:
+    """Freeze-able proof that the ``-k`` selector is well-formed (exactly the frozen F2P, no P2P)."""
+    collected = collect_hidden_nodes(ctx)
+    overlap = sorted(set(collected) & set(ctx.p2p_nodes))
+    return {"f2p_plan": ctx.f2p_plan, "collected_hidden_nodes": collected,
+            "hidden_match_count": len(collected), "p2p_count": len(ctx.p2p_nodes),
+            "overlap_with_p2p": overlap,
+            "hidden_node_plan_hash": _sha_list(collected),
+            "public_node_plan_hash": _sha_list(list(ctx.p2p_nodes))}
+
+
+def assert_hidden_selection_valid(ctx: RealTaskContext) -> dict:
+    """Guard the ``-k`` selector: it MUST collect exactly one node, disjoint from the P2P suite.
+
+    A 0- or >1-match is a CONFIGURATION failure (raises), NEVER a silent hidden FAIL — otherwise a
+    mis-scoped selector could fabricate or hide a verdict.
+    """
+    ev = hidden_selection_evidence(ctx)
+    if ev["hidden_match_count"] != 1:
+        raise GateError(f"hidden -k selector matched {ev['hidden_match_count']} tests, expected "
+                        "exactly 1 — configuration failure (not a hidden FAIL)")
+    if ev["overlap_with_p2p"]:
+        raise GateError(f"hidden selection overlaps the P2P suite {ev['overlap_with_p2p']} — blocked")
+    return ev
+
+
 def hidden_verify(ctx: RealTaskContext) -> bool:
-    """Run ONLY the frozen F2P plan (``-k`` keyword), ONCE. Return a boolean verdict — NO content
-    (traceback / node id / assertion) ever leaves this call."""
-    res, timed_out, _raw = _pytest_plan(ctx, ctx.f2p_plan)
+    """Run ONLY the frozen F2P node, ONCE. Return a boolean verdict — NO content (traceback / node
+    id / assertion) ever leaves this call. The ``-k`` selection is guarded to exactly one node first;
+    a mis-scoped selector raises a configuration failure rather than returning a false FAIL."""
+    ev = assert_hidden_selection_valid(ctx)
+    node = ev["collected_hidden_nodes"][0]
+    res, timed_out, _raw = _pytest(ctx, [node])           # run the EXACT collected node id
     if timed_out or not res:
-        return False
+        raise GateError("hidden node did not produce a result — infrastructure failure, not a FAIL")
     return all(v == "PASSED" for v in res.values())
 
 

@@ -38,6 +38,12 @@ class ExecutionGrant(BaseModel):
     max_total_exposure_usd: str = ""       # the frozen R1+R2 worst exposure reserved atomically
     model_id: str = ""
     reproduction_digest: str = ""          # the task's verified reproduction-environment digest
+    anchor_content_hash: str = ""          # the exact authorization anchor this grant runs under
+    public_node_plan_hash: str = ""        # frozen P2P node set
+    hidden_node_plan_hash: str = ""        # frozen F2P selection (exactly one node, disjoint from P2P)
+    source_bundle_hash: str = ""           # buggy allowed-source bundle
+    test_materialization_hash: str = ""    # public/hidden selection materialisation
+    network_isolation: str = "unshare -rn" # the OS boundary the graded tests run under
     task_2_authorized: bool = False        # the next task is NEVER authorized by this grant
     expires_at: str = ""                   # optional run-session binding
     granted_by: str = "operator"
