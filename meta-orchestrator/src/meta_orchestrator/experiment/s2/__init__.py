@@ -37,6 +37,10 @@ from .token_counter import (AnthropicTokenCounter, CountResult, CounterProvenanc
 from .gates import (CallContext, GateError, assert_b1_selection_production_valid,
                    assert_call_allowed, assert_context_cap_production_valid,
                    assert_training_complete)
+from .pilot import (AUTHORIZED_FOLD1, BLOCKED, UNAUTHORIZED, Gate1Inputs, Gate2Inputs, GateReport,
+                   RunManifest, Transition, assert_no_secrets, authorize_after_gate1,
+                   build_run_manifest, collect_frozen_hashes, gate1_evaluate, gate2_evaluate,
+                   gate2_passed_status, record_gate2_pass)
 from .ordering import (CONDITION_ORDER_VERSION, INFRA_FAILURES, PRIMARY_CONDITIONS, RETRY_POLICY,
                       SOLVER_OUTPUT_FAILURES, STABILITY_CONDITIONS, AttemptOutcome,
                       classify_attempt_outcome, condition_order, is_primary, rep_role, train_order)
@@ -76,6 +80,10 @@ __all__ = [
     "is_production_count",
     "CallContext", "GateError", "assert_b1_selection_production_valid", "assert_call_allowed",
     "assert_context_cap_production_valid", "assert_training_complete",
+    "AUTHORIZED_FOLD1", "BLOCKED", "UNAUTHORIZED", "Gate1Inputs", "Gate2Inputs", "GateReport",
+    "RunManifest", "Transition", "assert_no_secrets", "authorize_after_gate1",
+    "build_run_manifest", "collect_frozen_hashes", "gate1_evaluate", "gate2_evaluate",
+    "gate2_passed_status", "record_gate2_pass",
     "CONDITION_ORDER_VERSION", "INFRA_FAILURES", "PRIMARY_CONDITIONS", "RETRY_POLICY",
     "SOLVER_OUTPUT_FAILURES", "STABILITY_CONDITIONS", "AttemptOutcome", "classify_attempt_outcome",
     "condition_order", "is_primary", "rep_role", "train_order",

@@ -1,0 +1,63 @@
+================================================================================
+§2 PILOT READINESS — manifest status=UNAUTHORIZED_FOR_MESSAGES  budget=$4.89  paid=false
+================================================================================
+Offline gate: CLOSED (all $0 checks green). Pilot gate: intentionally OPEN until the
+pinned env runs Gate 1 (real count_tokens, SDK-body green, 0 skips, budget).
+
+[GATE 1]
+  GO/NO-GO: 0 failed / 0 skipped required
+            → test_s2_pilot::test_gate1_blocks_on_each_condition[tests_skipped]
+  GO/NO-GO: SDK serialized-body proven
+            → test_s2_pilot::...[serialized_body] + test_s2_prepaid::test_sdk_serialized_body_omits_effort_and_temperature (pilot)
+  GO/NO-GO: max_retries=0 (one HTTP request)
+            → test_s2_prepaid::test_sdk_max_retries_zero_means_one_http_request (pilot) + test_s2_model_client::test_harness_does_not_retry_on_error
+  GO/NO-GO: context_cap from anthropic_count_tokens
+            → test_s2_pilot::test_gate1_proxy_cap_never_production_valid
+  GO/NO-GO: cost projection fits budget
+            → test_s2_pilot::test_gate1_blocks_on_each_condition[cost_projection_over_budget]
+  GO/NO-GO: snapshot available + not retired
+            → test_s2_pilot::test_gate1_blocks_on_each_condition[snapshot_past_retirement]
+  GO/NO-GO: offline can NEVER authorize
+            → test_s2_pilot::test_offline_gate1_cannot_authorize
+
+[GATE 2]
+  GO/NO-GO: 18/18 terminal non-infra train
+            → test_s2_pilot::test_gate2_blocks_on_each_condition[training_incomplete] + test_s2_gates::test_training_incomplete_blocks_held_out
+  GO/NO-GO: no held-out call before Gate 2
+            → test_s2_pilot::...[held_out_already_started]
+  GO/NO-GO: qualifying B1 derangement or STOP
+            → test_s2_pilot::...[no_qualifying_b1_derangement] + test_s2_b1_selector::test_block_when_one_family_is_much_longer
+  GO/NO-GO: B1 from real counts only
+            → test_s2_pilot::test_proxy_gate2_cannot_pass
+  GO/NO-GO: B1 bound to bank + builder
+            → test_s2_gates::test_b1_selection_rejects_proxy_stale_and_cross_fold
+  GO/NO-GO: all held-out fit context_cap
+            → test_s2_pilot::...[held_out_request_over_context_cap]
+
+[RUNTIME (every paid call)]
+  GO/NO-GO: request ≤ context_cap (block, no truncate)
+            → test_s2_gates::test_call_blocked_on_oversize_request
+  GO/NO-GO: no stale / cross-fold bank
+            → test_s2_gates::test_call_blocked_on_stale_or_cross_fold_bank
+  GO/NO-GO: no proxy B1 artifact
+            → test_s2_gates::test_call_blocked_on_proxy_b1_artifact
+  GO/NO-GO: env/contract hash match
+            → test_s2_gates::test_call_blocked_on_wrong_environment
+  GO/NO-GO: budget ≥ max exposure
+            → test_s2_gates::test_call_blocked_on_budget
+  GO/NO-GO: attempt caps not exceeded
+            → test_s2_gates::test_call_blocked_when_caps_exhausted
+
+[MANIFEST / SECRETS]
+  GO/NO-GO: append-only + illegal transition blocked
+            → test_s2_pilot::test_illegal_transition_is_rejected + test_transitions_are_append_only
+  GO/NO-GO: no secrets / hidden data persisted
+            → test_s2_pilot::test_assert_no_secrets_blocks_a_key
+  GO/NO-GO: one canonical request (no drift)
+            → test_s2_gates::test_one_canonical_feeds_both_adapters
+  GO/NO-GO: proxy/real counter isolation
+            → test_s2_gates::test_proxy_and_real_counters_do_not_share_cache
+
+Next action (yours): stand up the pinned pilot env, then run examples/s2_gate1.py with an
+AnthropicTokenCounter. No paid call is authorized until the Gate 1 report passes.
+================================================================================
