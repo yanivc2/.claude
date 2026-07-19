@@ -1,0 +1,82 @@
+{
+  "content_hash": "cd42d5d18585330c",
+  "corpus_manifest_sha256": "cee0c6028e94c6e15e3865eca8cc52819fd258143f965c8110d8f281b58e7f66",
+  "curriculum_version": "s2-curriculum-v1",
+  "folds": {
+    "0": {
+      "condition": "C",
+      "fold": 0,
+      "phase": "training",
+      "train_order": [
+        "black-130",
+        "black-132",
+        "black-133",
+        "black-1632",
+        "black-183",
+        "black-193",
+        "black-215",
+        "black-234",
+        "black-273",
+        "black-329",
+        "black-334",
+        "black-385",
+        "black-389",
+        "black-60",
+        "black-74",
+        "black-80",
+        "black-95",
+        "cookiecutter-18"
+      ]
+    },
+    "1": {
+      "condition": "C",
+      "fold": 1,
+      "phase": "training",
+      "train_order": [
+        "black-112",
+        "black-130",
+        "black-132",
+        "black-141",
+        "black-185",
+        "black-193",
+        "black-215",
+        "black-224",
+        "black-232",
+        "black-238",
+        "black-273",
+        "black-334",
+        "black-335",
+        "black-385",
+        "black-389",
+        "black-593",
+        "black-80",
+        "discord.py-7818"
+      ]
+    },
+    "2": {
+      "condition": "C",
+      "fold": 2,
+      "phase": "training",
+      "train_order": [
+        "black-112",
+        "black-133",
+        "black-141",
+        "black-1632",
+        "black-183",
+        "black-185",
+        "black-224",
+        "black-232",
+        "black-234",
+        "black-238",
+        "black-329",
+        "black-335",
+        "black-593",
+        "black-60",
+        "black-74",
+        "black-95",
+        "cookiecutter-18",
+        "discord.py-7818"
+      ]
+    }
+  }
+}

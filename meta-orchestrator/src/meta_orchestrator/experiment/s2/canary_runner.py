@@ -47,7 +47,7 @@ def run_canary(task: ExperimentTask, *, client, statement: str, pricing: Pricing
                non_authoritative: bool = True,
                agent_contract: Optional[AgentContract] = None,
                frozen_template: Optional[dict] = None,
-               execution_grant=None) -> dict:
+               execution_grant=None, grant_ledger_path: Optional[str] = None) -> dict:
     os.makedirs(work_dir, exist_ok=True)
     agent_contract = agent_contract or frozen_s2_contract()
     if frozen_template is not None:
@@ -58,17 +58,32 @@ def run_canary(task: ExperimentTask, *, client, statement: str, pricing: Pricing
     journal = CallJournal(os.path.join(work_dir, "journal.jsonl"))
     contract_hash = agent_contract.snapshot()[:16]
 
+    # Persistent, restart-safe grant usage ledger (makes the grant non-replayable). When a grant is
+    # supplied it MUST have a ledger; the path is derived from the grant so a restart re-opens it.
+    grant_ledger = None
+    if execution_grant is not None:
+        from .execution_grant import GrantUsageLedger
+        grant_ledger = GrantUsageLedger(grant_ledger_path
+                                        or os.path.join(work_dir, "grant_ledger.json"))
+
     solver = ModelBackedRoundSolver(
         client=client, statement=statement, allowed_source_files=list(task.source),
         task_family=task.task_family, is_train=is_train, pricing=pricing, endpoint_att=endpoint_att,
         ledger=ledger, journal=journal, fold=fold, condition=condition, context_cap=context_cap,
         count_fn=count_fn, run_id=run_id, env_hash=env_hash, contract_hash=contract_hash,
-        active_bank_hash=_bank_hash([]), task_id=task.task_id, execution_grant=execution_grant)
+        active_bank_hash=_bank_hash([]), task_id=task.task_id, execution_grant=execution_grant,
+        grant_ledger=grant_ledger)
 
-    attempt = run_attempt(task, condition, list(memory_lines or []), solver, agent_contract,
-                          AttemptContract(), is_train=is_train,
-                          provenance_extra={"run_kind": NON_AUTHORITATIVE_TAG if non_authoritative
-                                            else "authoritative_canary"})
+    try:
+        attempt = run_attempt(task, condition, list(memory_lines or []), solver, agent_contract,
+                              AttemptContract(), is_train=is_train,
+                              provenance_extra={"run_kind": NON_AUTHORITATIVE_TAG if non_authoritative
+                                                else "authoritative_canary"})
+    finally:
+        # Seal the grant against replay once the task is done (terminal outcome OR a raise): the same
+        # grant can never re-run this task, and task 2 was never authorized by it.
+        if grant_ledger is not None:
+            grant_ledger.mark_complete(execution_grant)
 
     # --- write-gate on the candidate lesson (bank starts empty for the first C-training task) ---
     bank_before = _bank_hash([])

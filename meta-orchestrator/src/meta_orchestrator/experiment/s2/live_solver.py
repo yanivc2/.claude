@@ -44,14 +44,15 @@ class ModelBackedRoundSolver:
                  context_cap: int, count_fn: Callable[[dict], int], run_id: str,
                  env_hash: str, contract_hash: str, active_bank_hash: str, max_model_calls: int = 2,
                  gate1_ok: bool = True, gate2_ok: bool = True, task_id: str = "",
-                 execution_grant=None, name: str = "model-backed") -> None:
+                 execution_grant=None, grant_ledger=None, name: str = "model-backed") -> None:
         self.name = name
         self._c = dict(client=client, statement=statement, allowed=allowed_source_files,
                        family=task_family, is_train=is_train, pricing=pricing, endpoint=endpoint_att,
                        ledger=ledger, journal=journal, fold=fold, condition=condition,
                        context_cap=context_cap, count_fn=count_fn, run_id=run_id, env_hash=env_hash,
                        contract_hash=contract_hash, bank=active_bank_hash, max_calls=max_model_calls,
-                       gate1=gate1_ok, gate2=gate2_ok, task_id=task_id, grant=execution_grant)
+                       gate1=gate1_ok, gate2=gate2_ok, task_id=task_id, grant=execution_grant,
+                       grant_ledger=grant_ledger)
         self._r1_prompt: Optional[str] = None
         self._assistant_text: str = ""
         self.calls: list[dict] = []                    # per-round accounting for the runner's report
@@ -82,12 +83,14 @@ class ModelBackedRoundSolver:
                                    canonical_request_hash=canonical_hash,
                                    outbound_body_hash=outbound_hash)
 
-        # P0.5: a live, task-scoped execution grant is required IN ADDITION to Gate 1 (fail-closed).
+        # P0.5: a live, task-scoped execution grant + PERSISTENT usage ledger is required IN ADDITION
+        # to Gate 1 (fail-closed). The ledger's per-grant counter is the authoritative, restart-safe,
+        # non-replayable call count — not the in-memory attempt counter.
         grant = c.get("grant")
-        grant_present = grant is not None and grant.is_sealed()
-        within_grant = grant_present and grant.covers(
-            fold=c["fold"], condition=c["condition"], task_id=c["task_id"],
-            calls_used=self._calls_used)
+        grant_ledger = c.get("grant_ledger")
+        grant_present = grant is not None and grant.is_sealed() and grant_ledger is not None
+        within_grant = grant_present and grant_ledger.would_authorize(
+            grant, fold=c["fold"], condition=c["condition"], task_id=c["task_id"])
 
         # --- runtime invariant (a5 pricing+endpoint bound) ---
         ctx = CallContext(
@@ -107,9 +110,15 @@ class ModelBackedRoundSolver:
         assert_call_allowed(ctx)
         assert_endpoint_approved(c["endpoint"], c["pricing"])   # GO3: re-check right before send
 
+        # Atomically CONSUME one call from the persistent grant ledger (raises on cap/replay) BEFORE
+        # any send — the restart-safe counter, not the in-memory one, is authoritative.
+        grant_calls_used = grant_ledger.authorize_and_record(
+            grant, fold=c["fold"], condition=c["condition"], task_id=c["task_id"])
+
         j: CallJournal = c["journal"]
         j.record(call_id, CALL_PREPARED, detail={"round": view.round_index,
-                                                 "request_tokens": request_tokens})
+                                                 "request_tokens": request_tokens,
+                                                 "grant_calls_used": grant_calls_used})
         c["ledger"].reserve(call_id, max_exposure)
         j.record(call_id, BUDGET_RESERVED, detail={"reserved_usd": max_exposure})
         j.record(call_id, CALL_SENT)

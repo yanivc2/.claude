@@ -9,7 +9,8 @@ import json
 
 import pytest
 
-from meta_orchestrator.experiment.s2.execution_grant import build_execution_grant
+from meta_orchestrator.experiment.s2.execution_grant import (GrantUsageLedger,
+                                                             build_execution_grant)
 from meta_orchestrator.experiment.s2.gates import GateError, assert_call_allowed
 from meta_orchestrator.experiment.s2.live_solver import ModelBackedRoundSolver
 from meta_orchestrator.experiment.s2.call_journal import BudgetLedger, CallJournal
@@ -22,8 +23,9 @@ CORPUS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))
 
 
 def _grant(**over):
-    base = dict(anchor_commit="8412953", anchor_report_hash="bbb3a57fb695", fold=1, condition="C",
-                phase="training", task_id="black-1", granted_at="2026-07-19T00:00:00Z")
+    base = dict(grant_id="g-black-1", anchor_commit="752f60d", anchor_report_hash="bbb3a57fb695",
+                fold=1, condition="C", phase="training", task_id="black-1", curriculum_hash="cur",
+                curriculum_position=0, granted_at="2026-07-19T00:00:00Z")
     base.update(over)
     return build_execution_grant(**base)
 
@@ -69,17 +71,53 @@ class _RecordingClient:
         return _R()
 
 
-def _solver(tmp_path, client, *, grant):
+def _solver(tmp_path, client, *, grant, grant_ledger="__auto__"):
     pricing = load_frozen_pricing(CORPUS)
     ep = resolve_endpoint_attestation(provider=pricing.provider, model=pricing.model,
                                       env={"ANTHROPIC_BASE_URL": "https://api.anthropic.com"})
+    if grant_ledger == "__auto__":
+        grant_ledger = GrantUsageLedger(str(tmp_path / "grant_ledger.json")) if grant else None
     return ModelBackedRoundSolver(
         client=client, statement="s", allowed_source_files=["solution.py"], task_family="whitespace",
         is_train=True, pricing=pricing, endpoint_att=ep,
         ledger=BudgetLedger(str(tmp_path / "l.json"), total_budget=10.0),
         journal=CallJournal(str(tmp_path / "j.jsonl")), fold=1, condition="C", context_cap=60416,
         count_fn=lambda kw: 100, run_id="grant-test", env_hash="e", contract_hash="k",
-        active_bank_hash="b", task_id="black-1", execution_grant=grant)
+        active_bank_hash="b", task_id="black-1", execution_grant=grant, grant_ledger=grant_ledger)
+
+
+def test_persistent_ledger_is_non_replayable_and_restart_safe(tmp_path):
+    """call 1 & 2 allowed; call 3 blocked (cap 2); replay after completion blocked; restart persists."""
+    g = _grant()
+    path = str(tmp_path / "gl.json")
+    led = GrantUsageLedger(path)
+    assert led.authorize_and_record(g, fold=1, condition="C", task_id="black-1") == 1
+    assert led.authorize_and_record(g, fold=1, condition="C", task_id="black-1") == 2
+    with pytest.raises(GateError):                               # call 3 > max_messages_calls(2)
+        led.authorize_and_record(g, fold=1, condition="C", task_id="black-1")
+    # a fresh ledger over the SAME file (process restart) still sees 2 and still blocks
+    assert GrantUsageLedger(path).calls_used(g.grant_id) == 2
+    with pytest.raises(GateError):
+        GrantUsageLedger(path).authorize_and_record(g, fold=1, condition="C", task_id="black-1")
+
+
+def test_completed_grant_cannot_be_replayed(tmp_path):
+    g = _grant()
+    path = str(tmp_path / "gl.json")
+    led = GrantUsageLedger(path)
+    led.authorize_and_record(g, fold=1, condition="C", task_id="black-1")
+    led.mark_complete(g)
+    assert GrantUsageLedger(path).is_completed(g.grant_id)       # survives restart
+    with pytest.raises(GateError):                               # replay after completion → blocked
+        GrantUsageLedger(path).authorize_and_record(g, fold=1, condition="C", task_id="black-1")
+
+
+def test_ledger_blocks_wrong_task_and_task2(tmp_path):
+    g = _grant(task_id="black-1")
+    led = GrantUsageLedger(str(tmp_path / "gl.json"))
+    with pytest.raises(GateError):                               # task 2 is never authorized
+        led.authorize_and_record(g, fold=1, condition="C", task_id="black-2")
+    assert g.task_2_authorized is False
 
 
 def _view():

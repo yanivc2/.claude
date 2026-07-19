@@ -133,9 +133,10 @@ def _bug_resp(task):
 
 def _grant_for(task, *, fold=1, condition="C"):
     from meta_orchestrator.experiment.s2.execution_grant import build_execution_grant
-    return build_execution_grant(anchor_commit="HEAD", anchor_report_hash="rh", fold=fold,
-                                 condition=condition, phase="training", task_id=task.task_id,
-                                 granted_at="2026-07-19T00:00:00Z")
+    return build_execution_grant(grant_id=f"g-{task.task_id}", anchor_commit="HEAD",
+                                 anchor_report_hash="rh", fold=fold, condition=condition,
+                                 phase="training", task_id=task.task_id, curriculum_hash="cur",
+                                 curriculum_position=0, granted_at="2026-07-19T00:00:00Z")
 
 
 def _canary(tmp_path, responses, *, task, execution_grant="__default__"):
@@ -213,16 +214,19 @@ def test_ambiguous_after_send_holds_reservation(tmp_path):
     ledger = BudgetLedger(str(tmp_path / "l.json"), total_budget=10.0)
     journal = CallJournal(str(tmp_path / "j.jsonl"))
     from meta_orchestrator.experiment.s2.solver import RoundView
-    from meta_orchestrator.experiment.s2.execution_grant import build_execution_grant
-    grant = build_execution_grant(anchor_commit="HEAD", anchor_report_hash="rh", fold=1,
-                                  condition="C", phase="training", task_id="t",
+    from meta_orchestrator.experiment.s2.execution_grant import (GrantUsageLedger,
+                                                                 build_execution_grant)
+    grant = build_execution_grant(grant_id="g-t", anchor_commit="HEAD", anchor_report_hash="rh",
+                                  fold=1, condition="C", phase="training", task_id="t",
+                                  curriculum_hash="cur", curriculum_position=0,
                                   granted_at="2026-07-19T00:00:00Z")
+    gled = GrantUsageLedger(str(tmp_path / "gl.json"))
     solver = ModelBackedRoundSolver(client=_Boom(), statement="s", allowed_source_files=["solution.py"],
                                     task_family="whitespace", is_train=True, pricing=pricing,
                                     endpoint_att=ep, ledger=ledger, journal=journal, fold=1,
                                     condition="C", context_cap=60416, count_fn=lambda kw: 100,
                                     run_id="amb", env_hash="e", contract_hash="k", active_bank_hash="b",
-                                    task_id="t", execution_grant=grant)
+                                    task_id="t", execution_grant=grant, grant_ledger=gled)
     view = RoundView(round_index=1, task_id="t", task_family="whitespace",
                      source={"solution.py": "x=1"}, public_tests={}, memory_lines=[])
     before = ledger.available()
@@ -239,5 +243,5 @@ def test_isolation_only_workdir_touched(tmp_path):
     task = synthetic_task("black-canary", "whitespace")
     rep, _, _ = _canary(tmp_path, [(_fix_resp(task), 9000, 50)], task=task)
     files = set(os.listdir(tmp_path / "canary"))
-    assert files <= {"ledger.json", "journal.jsonl"}              # only the isolated ledger + journal
+    assert files <= {"ledger.json", "journal.jsonl", "grant_ledger.json"}   # isolated ledgers + journal
     assert rep["tag"] == NON_AUTHORITATIVE_TAG
