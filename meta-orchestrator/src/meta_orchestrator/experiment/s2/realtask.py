@@ -48,6 +48,7 @@ class RealTaskContext(BaseModel):
     p2p_nodes: list[str]             # PUBLIC node ids (visible-suite)
     f2p_plan: list[list]            # HIDDEN [[test_file, keyword|None], ...] — verifier-only
     buggy_source: dict[str, str]
+    reference_fix: dict[str, str] = {}   # EVALUATOR-ONLY (write-gate leak screen); never solver-visible
     network_isolated: bool = True
 
     def netns(self) -> list[str]:
@@ -206,7 +207,7 @@ def _materialize(task_id: str, workdir: str) -> RealTaskContext:
     return RealTaskContext(task_id=task_id, repo=repo, py=os.path.join(repo, ".venv", "bin", "python"),
                            allowed_source_files=list(task.allowed_source_files),
                            p2p_nodes=list(task.p2p_nodes), f2p_plan=[list(p) for p in task.f2p_plan],
-                           buggy_source=dict(task.buggy_source))
+                           buggy_source=dict(task.buggy_source), reference_fix=dict(task.reference_fix))
 
 
 def materialize_real_task(task_id: str, workdir: str) -> RealTaskContext:

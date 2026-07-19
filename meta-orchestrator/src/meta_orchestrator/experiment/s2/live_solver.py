@@ -44,7 +44,8 @@ class ModelBackedRoundSolver:
                  context_cap: int, count_fn: Callable[[dict], int], run_id: str,
                  env_hash: str, contract_hash: str, active_bank_hash: str, max_model_calls: int = 2,
                  gate1_ok: bool = True, gate2_ok: bool = True, task_id: str = "",
-                 execution_grant=None, grant_ledger=None, name: str = "model-backed") -> None:
+                 execution_grant=None, grant_ledger=None, task_reservation: bool = False,
+                 name: str = "model-backed") -> None:
         self.name = name
         self._c = dict(client=client, statement=statement, allowed=allowed_source_files,
                        family=task_family, is_train=is_train, pricing=pricing, endpoint=endpoint_att,
@@ -52,7 +53,7 @@ class ModelBackedRoundSolver:
                        context_cap=context_cap, count_fn=count_fn, run_id=run_id, env_hash=env_hash,
                        contract_hash=contract_hash, bank=active_bank_hash, max_calls=max_model_calls,
                        gate1=gate1_ok, gate2=gate2_ok, task_id=task_id, grant=execution_grant,
-                       grant_ledger=grant_ledger)
+                       grant_ledger=grant_ledger, task_reservation=task_reservation)
         self._r1_prompt: Optional[str] = None
         self._assistant_text: str = ""
         self.calls: list[dict] = []                    # per-round accounting for the runner's report
@@ -115,12 +116,18 @@ class ModelBackedRoundSolver:
         grant_calls_used = grant_ledger.authorize_and_record(
             grant, fold=c["fold"], condition=c["condition"], task_id=c["task_id"])
 
+        # task_reservation mode: a SINGLE task-level reservation is held by the runner and the
+        # runner reconciles it once at the end — so this call neither reserves nor reconciles
+        # per-call (no double reservation). It still journals, checks prepared==sent, and consumes
+        # the grant. Otherwise (legacy synthetic path) it reserves + reconciles per call.
+        task_res = c.get("task_reservation")
         j: CallJournal = c["journal"]
         j.record(call_id, CALL_PREPARED, detail={"round": view.round_index,
                                                  "request_tokens": request_tokens,
                                                  "grant_calls_used": grant_calls_used})
-        c["ledger"].reserve(call_id, max_exposure)
-        j.record(call_id, BUDGET_RESERVED, detail={"reserved_usd": max_exposure})
+        if not task_res:
+            c["ledger"].reserve(call_id, max_exposure)
+            j.record(call_id, BUDGET_RESERVED, detail={"reserved_usd": max_exposure})
         j.record(call_id, CALL_SENT)
         try:
             resp = client.complete_messages(messages)
@@ -133,8 +140,9 @@ class ModelBackedRoundSolver:
 
         actual_cost = float(call_cost_usd(c["pricing"], input_tokens=resp.input_tokens,
                                           output_tokens=resp.output_tokens))
-        c["ledger"].reconcile(call_id, actual_cost)
-        j.record(call_id, COST_RECONCILED, detail={"actual_cost_usd": actual_cost})
+        if not task_res:
+            c["ledger"].reconcile(call_id, actual_cost)
+            j.record(call_id, COST_RECONCILED, detail={"actual_cost_usd": actual_cost})
         self.calls.append({"round": view.round_index, "call_id": call_id,
                            "input_tokens": resp.input_tokens, "output_tokens": resp.output_tokens,
                            "request_tokens_estimate": request_tokens, "actual_cost_usd": actual_cost,
