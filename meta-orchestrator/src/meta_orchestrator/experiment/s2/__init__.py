@@ -52,6 +52,8 @@ from .call_journal import (BUDGET_RESERVED, CALL_ACKNOWLEDGED, CALL_AMBIGUOUS_AF
                           CALL_FAILED_BEFORE_SEND, CALL_PREPARED, CALL_SENT, COST_RECONCILED,
                           BudgetLedger, CallJournal, PreparedRequest, assert_sent_body_matches,
                           classify_journal_terminal)
+from .handoff import (CRITICAL_GLOBS, REQUIRED_PILOT_NODE_IDS, FileEntry, VerifyResult,
+                     build_handoff_manifest, verify_handoff)
 from .ordering import (CONDITION_ORDER_VERSION, INFRA_FAILURES, PRIMARY_CONDITIONS, RETRY_POLICY,
                       SOLVER_OUTPUT_FAILURES, STABILITY_CONDITIONS, AttemptOutcome,
                       classify_attempt_outcome, condition_order, is_primary, rep_role, train_order)
@@ -110,5 +112,7 @@ __all__ = [
     "BUDGET_RESERVED", "CALL_ACKNOWLEDGED", "CALL_AMBIGUOUS_AFTER_SEND", "CALL_FAILED_BEFORE_SEND",
     "CALL_PREPARED", "CALL_SENT", "COST_RECONCILED", "BudgetLedger", "CallJournal",
     "PreparedRequest", "assert_sent_body_matches", "classify_journal_terminal",
+    "CRITICAL_GLOBS", "REQUIRED_PILOT_NODE_IDS", "FileEntry", "VerifyResult",
+    "build_handoff_manifest", "verify_handoff",
     "build_synthetic_corpus", "synthetic_task",
 ]
