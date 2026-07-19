@@ -15,6 +15,7 @@ sent; public tests run harness-side and only their sanitized, capped output retu
 from __future__ import annotations
 
 import hashlib
+import json
 from typing import Optional
 
 from .memory import SLOT_MAX_CHARS, SLOT_MAX_LINES
@@ -75,6 +76,48 @@ def build_r1_worstcase_prompt(statement: str, source: dict[str, str], *, train: 
     """Reconstruct the EXACT request the counter measured (max-padded memory) — for the parity proof."""
     line = "- " + ("m" * (SLOT_MAX_CHARS - 2))
     return build_r1_user_prompt(statement, source, [line for _ in range(SLOT_MAX_LINES)], train=train)
+
+
+def max_r1_assistant_envelope(allowed_source_files: list[str], *, train: bool, units: int) -> str:
+    """A CONSERVATIVE, deterministic, non-degenerate stand-in for the Round-1 assistant output that
+    returns as INPUT inside the worst-case Round-2 request (used to derive ``context_cap``).
+
+    It is NOT the real fix and NOT a claim about what the model can emit in 4096 output tokens — it
+    is a conservative INPUT envelope (see ``conservative_r1_assistant_input_envelope`` in the gate
+    runner). Properties enforced here so the runner's delta measurement is meaningful:
+
+      * parser-valid under ``response_parser.parse_model_response`` (one FILE block per allowed
+        path; a LESSON block when ``train``);
+      * uses ONLY the task's ``allowed_source_files`` — never a fixed source / reference patch;
+      * varied, non-repeating content (numbered identifiers + changing literals) so BPE cannot
+        collapse it into far fewer tokens than its size (the failure mode of ``"O"*N`` filler);
+      * a pure function of (paths, train, units) — no randomness, no network — so the frozen
+        envelope reproduces byte-for-byte. The runner picks the SMALLEST ``units`` whose measured
+        R2 token delta reaches the floor.
+    """
+    paths = sorted(allowed_source_files)
+    if not paths:
+        raise ValueError("allowed_source_files is empty — cannot build a scoped envelope")
+    per = [units // len(paths)] * len(paths)
+    for i in range(units % len(paths)):
+        per[i] += 1
+    blocks: list[str] = []
+    k = 0
+    for pi, path in enumerate(paths):
+        # one diverse line per unit → fine granularity so the runner can land the R2 delta close to
+        # the floor (small overshoot). Numbers/identifiers change every line so BPE cannot collapse it.
+        lines = ["# conservative R1-output envelope — synthetic, non-degenerate; NOT the real fix"]
+        for _ in range(per[pi]):
+            k += 1
+            lines.append(f"acc_{k} = fold_{k}(state_{k}, {(k * 7) % 97}) + norm_{k}(delta_{k}, "
+                         f"{(k * 13) % 101})  # step {k}: reconcile branch {k % 17}")
+        blocks.append(f"### FILE: {path}\n```python\n" + "\n".join(lines) + "\n```")
+    text = "\n".join(blocks)
+    if train:                                          # C-training worst case carries a lesson too
+        lesson = {"recommended_action": [f"generalize the fold-{i} invariant" for i in range(3)],
+                  "avoid": [f"do not hardcode the step-{i} literal" for i in range(2)]}
+        text += "\n### LESSON\n" + json.dumps(lesson)
+    return text
 
 
 def build_r2_messages(r1_user_prompt: str, assistant_text: str, public_feedback: str, *,
