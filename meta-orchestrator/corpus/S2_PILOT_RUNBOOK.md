@@ -116,6 +116,31 @@ a budget increase (not before).
 
 ---
 
+## Evidence & integrity chain (proof between the checks and a paid call)
+- **Evidence-backed gates** (`evidence.py`): the gate consumes raw OBSERVATIONS (pytest node-ids /
+  exit code / failed / skipped / pinned versions; per-count request hash + source) and DERIVES the
+  predicate itself; `all_hashes_match` is RECOMPUTED by the gate, never a supplied boolean. A
+  summary that doesn't match its own observations' self-hash is rejected. The scripts gather
+  evidence; the gate concludes; the CLI offers no `--serialized-body-ok` flag.
+- **Hash-chained run log + Authorization Anchor** (`runlog.py`): append-only JSONL with
+  sequence + previous-hash + transition-hash (edits break the chain; partial last line blocks).
+  Because a chain alone can't detect TAIL deletion, each Gate-1/Gate-2 authorization mints a
+  separate anchor bound to the chain head + sequence + state; the runtime guard requires an exact
+  match before every paid call, catching a deleted tail or a restored old file. *Scope: corruption
+  / accidental-edit / stale-restore detection within the protocol — not defence against an
+  adversary who rewrites chain + anchors together.*
+- **Runtime re-attestation** (`evidence.attest_environment`): before every paid call, recompute
+  git-clean + commit + package/SDK/httpx + contract/builder/verifier hashes + required-env-var
+  presence (never secret values); any drift blocks. `git status` clean alone is insufficient — env
+  vars and installed packages are attested too.
+- **Single immutable request** (`call_journal.PreparedRequest`): build/serialize/hash ONCE; the sent
+  `outbound_body_hash` must equal the prepared one (a change after the guard is a protocol block).
+- **Call journal + atomic budget reservation** (`call_journal.py`): CALL_PREPARED → BUDGET_RESERVED
+  → CALL_SENT → CALL_ACKNOWLEDGED, or …_FAILED_BEFORE_SEND / …_AMBIGUOUS_AFTER_SEND, then
+  COST_RECONCILED. On AMBIGUOUS the reservation is NOT released, there is NO auto-retry, it is NOT a
+  solver_fail, and a human may not re-run and keep both as one attempt. Reservation is file-locked
+  so two processes / a restart / a double-click cannot spend the same balance.
+
 ## Comparison invalidators (any ⇒ stop / discard the affected run)
 Starting with skipped tests · a model alias instead of the frozen snapshot · a hidden SDK retry ·
 a code change after the first paid call with prior data retained · a proxy count used for

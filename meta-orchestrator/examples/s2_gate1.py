@@ -1,65 +1,59 @@
-"""Gate 1 orchestration — before paid C-training. Ready for the pilot env; DRY-RUN offline.
+"""Gate 1 orchestration — before paid C-training. Evidence-based; DRY-RUN offline.
 
-This script calls the SAME production decision function (`pilot.gate1_evaluate`) that the tests
-and the real run use — it is NOT a parallel re-implementation. Offline it can only DRY-RUN: it
-feeds the offline/proxy context-cap source, so `gate1_evaluate` returns production_valid=False and
-`authorize_after_gate1` REFUSES to move the manifest to AUTHORIZED_FOR_FOLD1_C_TRAINING. Only the
-pinned pilot env (real count_tokens, SDK-body green, 0 skips, budget OK) can pass Gate 1.
+Refinement 1: the script GATHERS evidence (observations) and the gate DERIVES the predicates —
+the script never passes a `serialized_body_ok=True` boolean. Offline it feeds a proxy count
+observation + a suite report with skips, so `gate1_from_evidence` returns
+passed=False / production_valid=False and nothing is authorized.
 
-Usage: python examples/s2_gate1.py            # offline dry-run (never authorizes)
+Usage: python examples/s2_gate1.py     # offline dry-run (never authorizes)
 """
 from __future__ import annotations
 
 import os
 
-from meta_orchestrator.experiment.s2 import (Gate1Inputs, GateError, authorize_after_gate1,
-                                             build_run_manifest, context_cap_preflight,
-                                             gate1_evaluate)
-from meta_orchestrator.experiment.s2 import build_synthetic_corpus
-from meta_orchestrator.experiment.s2.token_counter import ProxyTokenCounter
+from meta_orchestrator.experiment.s2 import (BudgetEvidence, CountEvidence, GateError,
+                                             PytestEvidence, SnapshotEvidence, authorize_after_gate1,
+                                             build_run_manifest, gate1_from_evidence)
 
 _CORPUS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "corpus")
-
-
-def gather_gate1_inputs(*, counter, tests_failed: int, tests_skipped: int, sdk_version: str,
-                        httpx_version: str, serialized_body_ok: bool, max_retries_zero: bool,
-                        budget_ok: bool, hashes_match: bool, snapshot_available: bool,
-                        snapshot_within_retirement: bool, corpus) -> Gate1Inputs:
-    """Assemble Gate-1 inputs. The context-cap preflight runs through the SAME counter the pilot
-    injects; offline that is a ProxyTokenCounter (source=offline_proxy → cannot be production)."""
-    cap = context_cap_preflight(corpus, counter=counter)
-    return Gate1Inputs(
-        tests_failed=tests_failed, tests_skipped=tests_skipped, sdk_version=sdk_version,
-        httpx_version=httpx_version, serialized_body_ok=serialized_body_ok,
-        max_retries_zero_proven=max_retries_zero, context_cap_source=cap.token_count_source,
-        context_cap_fits_budget=budget_ok, all_hashes_match=hashes_match,
-        snapshot_available=snapshot_available, snapshot_within_retirement=snapshot_within_retirement)
+MODEL = "claude-haiku-4-5-20251001"
+REQUIRED = ["tests/test_s2_prepaid.py::test_sdk_serialized_body_omits_effort_and_temperature",
+            "tests/test_s2_prepaid.py::test_sdk_max_retries_zero_means_one_http_request"]
 
 
 def main() -> None:
-    corpus = build_synthetic_corpus({"black-1": "whitespace", "black-2": "iterator"})
     manifest = build_run_manifest("s2-pilot-dryrun", "HEAD", budget_usd=4.89, corpus_dir=_CORPUS)
 
-    # OFFLINE dry-run: proxy counter + honest "not yet proven" flags for the pilot-only checks.
-    inp = gather_gate1_inputs(counter=ProxyTokenCounter(), tests_failed=0, tests_skipped=2,
-                              sdk_version="", httpx_version="", serialized_body_ok=False,
-                              max_retries_zero=False, budget_ok=True, hashes_match=True,
-                              snapshot_available=True, snapshot_within_retirement=True, corpus=corpus)
-    report = gate1_evaluate(inp)
+    # OFFLINE observations: suite still has 2 skips (SDK tests can't run without the anthropic pkg),
+    # and the token count is from the PROXY — so the gate must derive a fail + non-production.
+    pytest_ev = PytestEvidence(run_id=manifest.run_id, environment_hash="offline",
+                               git_commit="HEAD", exit_code=0, failed=0, skipped=2,
+                               passed_node_ids=[], sdk_version="", httpx_version="",
+                               command_hash="offline").sealed()
+    count_obs = [CountEvidence(canonical_request_hash="r1", counter_source="offline_proxy",
+                               model=MODEL, tokens=1200, round_template="R1")]
+    budget = BudgetEvidence(projected_fold_cost=2.0, reserve_fraction=0.25, available_budget=4.89)
+    snap = SnapshotEvidence(model_id=MODEL, available=True, retirement_date_iso="",
+                            as_of_date_iso="2026-07-19")
+
+    report = gate1_from_evidence(manifest=manifest, corpus_dir=_CORPUS, pytest_ev=pytest_ev,
+                                 environment_hash="offline", required_node_ids=REQUIRED,
+                                 count_obs=count_obs, expected_request_hashes={"r1"}, model=MODEL,
+                                 context_cap=64000, budget_ev=budget, snapshot_ev=snap)
 
     print("=" * 78)
-    print(f"GATE 1 (dry-run) — passed={report.passed} production_valid={report.production_valid}")
-    print(f"token_count_source={report.token_count_source}")
-    print("blocking reasons:", report.reasons)
+    print(f"GATE 1 (dry-run, evidence-based) — passed={report.passed} "
+          f"production_valid={report.production_valid} source={report.token_count_source}")
+    print("derived blocking reasons:", report.reasons)
     try:
         authorize_after_gate1(manifest, report, timestamp="dry-run")
-        print("!! AUTHORIZED — this must NEVER happen offline")
+        print("!! AUTHORIZED — must NEVER happen offline")
     except GateError as e:
-        print(f"correctly REFUSED to authorize offline: {e}")
+        print(f"correctly REFUSED to authorize offline: {str(e)[:80]}...")
     print(f"manifest status stays: {manifest.status}")
-    print("\nIn the pinned pilot env, gather_gate1_inputs() is called with an AnthropicTokenCounter")
-    print("(real count_tokens), the SDK-body/max_retries tests green (0 skips), pinned versions, and")
-    print("a real budget check. Only then can gate1_evaluate pass and authorize fold-1 C-training.")
+    print("\nPilot env: feed a real PytestEvidence (0 skips), an AnthropicTokenCounter's count")
+    print("observations (source=anthropic_count_tokens), pinned versions, and a live budget/snapshot")
+    print("attestation. Only then can gate1_from_evidence pass and authorize fold-1 C-training.")
     print("=" * 78)
 
 

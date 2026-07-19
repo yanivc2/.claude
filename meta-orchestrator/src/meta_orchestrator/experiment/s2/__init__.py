@@ -41,6 +41,17 @@ from .pilot import (AUTHORIZED_FOLD1, BLOCKED, UNAUTHORIZED, Gate1Inputs, Gate2I
                    RunManifest, Transition, assert_no_secrets, authorize_after_gate1,
                    build_run_manifest, collect_frozen_hashes, gate1_evaluate, gate2_evaluate,
                    gate2_passed_status, record_gate2_pass)
+from .evidence import (BudgetEvidence, CountEvidence, EnvironmentAttestation, Predicate,
+                      PytestEvidence, SnapshotEvidence, TrainingEvidence, attest_environment,
+                      attestation_matches, gate1_from_evidence, gate2_from_evidence,
+                      recompute_frozen_hashes_predicate, verify_budget_evidence,
+                      verify_count_evidence, verify_pytest_evidence, verify_snapshot_evidence,
+                      verify_training_evidence)
+from .runlog import (AuthorizationAnchor, ChainedTransition, RunLog, make_anchor, verify_anchor)
+from .call_journal import (BUDGET_RESERVED, CALL_ACKNOWLEDGED, CALL_AMBIGUOUS_AFTER_SEND,
+                          CALL_FAILED_BEFORE_SEND, CALL_PREPARED, CALL_SENT, COST_RECONCILED,
+                          BudgetLedger, CallJournal, PreparedRequest, assert_sent_body_matches,
+                          classify_journal_terminal)
 from .ordering import (CONDITION_ORDER_VERSION, INFRA_FAILURES, PRIMARY_CONDITIONS, RETRY_POLICY,
                       SOLVER_OUTPUT_FAILURES, STABILITY_CONDITIONS, AttemptOutcome,
                       classify_attempt_outcome, condition_order, is_primary, rep_role, train_order)
@@ -90,5 +101,14 @@ __all__ = [
     "FoldLeakageError", "HeldOutWriteError", "MAX_ACTIVE_ENTRIES_PER_FAMILY", "WriteGateResult",
     "assert_bank_within_train", "bank_provenance", "evaluate_write_gate", "learn_gated_bank",
     "reference_patch_tokens",
+    "BudgetEvidence", "CountEvidence", "EnvironmentAttestation", "Predicate", "PytestEvidence",
+    "SnapshotEvidence", "TrainingEvidence", "attest_environment", "attestation_matches",
+    "gate1_from_evidence", "gate2_from_evidence", "recompute_frozen_hashes_predicate",
+    "verify_budget_evidence", "verify_count_evidence", "verify_pytest_evidence",
+    "verify_snapshot_evidence", "verify_training_evidence",
+    "AuthorizationAnchor", "ChainedTransition", "RunLog", "make_anchor", "verify_anchor",
+    "BUDGET_RESERVED", "CALL_ACKNOWLEDGED", "CALL_AMBIGUOUS_AFTER_SEND", "CALL_FAILED_BEFORE_SEND",
+    "CALL_PREPARED", "CALL_SENT", "COST_RECONCILED", "BudgetLedger", "CallJournal",
+    "PreparedRequest", "assert_sent_body_matches", "classify_journal_terminal",
     "build_synthetic_corpus", "synthetic_task",
 ]
