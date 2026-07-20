@@ -70,6 +70,38 @@ class FrozenLessonBank(BaseModel):
         return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:12]
 
 
+FROZEN_FOLD_BANK_FILENAME = "s2_fold1_c_bank.frozen.json"
+FOLD_BANK_VERSION = "s2-fold1-c-bank-v1"
+
+
+def load_frozen_fold_bank(corpus_dir: str) -> FrozenLessonBank:
+    """Load + verify the frozen Fold-1 Condition-C lesson bank (learned from the final sequence).
+
+    Blocks on missing / wrong-version / bank-content-hash or artifact-content-hash mismatch. The
+    returned bank is frozen (immutable) and is injected as memory for SAME-FAMILY C tasks only.
+    """
+    import os
+
+    from .gate_error import GateError
+    path = os.path.join(corpus_dir, FROZEN_FOLD_BANK_FILENAME)
+    if not os.path.exists(path):
+        raise GateError(f"frozen fold bank missing: {path}")
+    raw = json.load(open(path))
+    if raw.get("schema_version") != FOLD_BANK_VERSION:
+        raise GateError(f"fold bank version {raw.get('schema_version')!r} != {FOLD_BANK_VERSION!r}")
+    stored_hash = raw.get("content_hash", "")
+    payload = json.dumps({k: v for k, v in raw.items() if k != "content_hash"},
+                         sort_keys=True, separators=(",", ":"))
+    if hashlib.sha256(payload.encode()).hexdigest()[:16] != stored_hash:
+        raise GateError("fold bank artifact content_hash mismatch (stale or hand-edited)")
+    bank = FrozenLessonBank(
+        by_family={f: [Lesson(**l) for l in ls] for f, ls in raw.get("by_family", {}).items()},
+        frozen=True)
+    if bank.content_hash() != raw.get("bank_content_hash"):
+        raise GateError("fold bank lesson content_hash mismatch")
+    return bank
+
+
 class StaticPlaybook(BaseModel):
     """Condition D: hand-written best-practice advice per family, content-hashed and frozen.
 

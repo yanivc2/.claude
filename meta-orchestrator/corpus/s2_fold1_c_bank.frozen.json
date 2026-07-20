@@ -1,0 +1,53 @@
+{
+  "bank_content_hash": "c68f22dafea5",
+  "by_family": {
+    "whitespace": [
+      {
+        "avoid": [
+          "Leaving print() or logging.debug() statements in middle of token generation loops",
+          "Failing to clean up temporary debugging code from code paths that are performance-critical or output-sensitive"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-112"
+          ]
+        },
+        "lesson_id": "cand-e04f0fb979",
+        "recommended_action": [
+          "Remove debug print statements from production code",
+          "Debug statements like print() calls left in tokenizer/parser modules can interfere with token output and cause parsing failures",
+          "Scan for stray debugging code before merging"
+        ],
+        "status": "candidate",
+        "task_family": "whitespace",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      }
+    ]
+  },
+  "condition": "C",
+  "content_hash": "2056cb6d39abcd14",
+  "fold": 1,
+  "note": "Frozen Fold-1 Condition-C lesson bank. Learned from the FIRST final-sequence official attempt (black-112, apparatus v2.2). Injected as memory for subsequent SAME-FAMILY C tasks only (exact-family rule); C/D/B1 share one MemoryContext shape + render budget.",
+  "phase": "training",
+  "provenance": {
+    "apparatus_version": "v2.2",
+    "bank_hash_after": "c68f22dafea5",
+    "bank_hash_before": "44136fa355b3",
+    "commit": "0b388ab18884",
+    "grant_id": "grant-f16395acc057",
+    "hidden_verdict": true,
+    "lesson_id": "cand-e04f0fb979",
+    "public": "PASS",
+    "raw_response_sha256": "80f80259996ac3b4d0050e6abc0467681b048f287544858d82e30e42196b02d3",
+    "source_task": "black-112",
+    "visible_text_sha256": "2b2ea640a031dbfb63e134d63d095731a52a47f8cf67b0acc2c1e0e201c297ea",
+    "write_gate_decision": "WRITTEN"
+  },
+  "schema_version": "s2-fold1-c-bank-v1"
+}
