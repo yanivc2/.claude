@@ -24,6 +24,8 @@ def _ctx(tmp_path, **over):
         (repo / p).write_text("def driver():\n    return 0\n")
     base = dict(task_id="black-112", repo=str(repo), py="python", allowed_source_files=ALLOWED,
                 p2p_nodes=[f"tests/test_black.py::t{i}" for i in range(24)], f2p_plan=F2P,
+                hidden_nodes=["tests/test_black.py::BlackTestCase::test_comments2"],
+                test_overlay_files=["tests/comments2.py"],
                 buggy_source={p: "def driver():\n    return 0\n" for p in ALLOWED},
                 network_isolated=True)
     base.update(over)
@@ -65,28 +67,33 @@ def test_public_status_mapping(tmp_path, monkeypatch):
 _F2P_NODE = "tests/test_black.py::BlackTestCase::test_comments2"
 
 
-def test_hidden_verify_guards_selector_and_returns_bool_only(tmp_path, monkeypatch):
+def test_hidden_verify_runs_exact_nodes_and_returns_bool_only(tmp_path, monkeypatch):
     ctx = _ctx(tmp_path)
-    monkeypatch.setattr(R, "collect_hidden_nodes", lambda c: [_F2P_NODE])   # exactly one node
-    monkeypatch.setattr(R, "_pytest", lambda c, args: ({args[0]: "PASSED"}, False, "tb: secret"))
+    monkeypatch.setattr(R, "collect_test_nodes", lambda c: {_F2P_NODE})     # node is collected
+    monkeypatch.setattr(R, "_pytest_nodes", lambda c, nodes: ({n: "PASSED" for n in nodes}, False, "tb"))
     assert R.hidden_verify(ctx) is True                      # bool only; no traceback leaks
-    monkeypatch.setattr(R, "_pytest", lambda c, args: ({args[0]: "FAILED"}, False, "x"))
+    monkeypatch.setattr(R, "_pytest_nodes", lambda c, nodes: ({n: "FAILED" for n in nodes}, False, "x"))
     assert R.hidden_verify(ctx) is False
 
 
-def test_hidden_selector_matching_not_exactly_one_is_config_failure(tmp_path, monkeypatch):
+def test_hidden_node_not_collected_is_mapping_drift(tmp_path, monkeypatch):
     ctx = _ctx(tmp_path)
-    monkeypatch.setattr(R, "collect_hidden_nodes", lambda c: [_F2P_NODE, "tests/test_black.py::x"])
-    with pytest.raises(R.GateError):                         # 2 matches → config failure, not FAIL
+    monkeypatch.setattr(R, "collect_test_nodes", lambda c: {"tests/test_black.py::other"})  # drift
+    with pytest.raises(R.GateError):                         # NODE_MAPPING_DRIFT, not a hidden FAIL
         R.hidden_verify(ctx)
-    monkeypatch.setattr(R, "collect_hidden_nodes", lambda c: [])            # 0 matches
+
+
+def test_hidden_verify_partial_run_is_infra_failure(tmp_path, monkeypatch):
+    ctx = _ctx(tmp_path, hidden_nodes=[_F2P_NODE, "tests/test_black.py::BlackTestCase::test_two"])
+    monkeypatch.setattr(R, "collect_test_nodes", lambda c: set(ctx.hidden_nodes))
+    monkeypatch.setattr(R, "_pytest_nodes", lambda c, nodes: ({nodes[0]: "PASSED"}, False, "x"))  # 1 of 2
     with pytest.raises(R.GateError):
         R.hidden_verify(ctx)
 
 
 def test_hidden_selection_overlap_with_p2p_is_blocked(tmp_path, monkeypatch):
     ctx = _ctx(tmp_path, p2p_nodes=[_F2P_NODE, "tests/test_black.py::t1"])   # F2P also in P2P
-    monkeypatch.setattr(R, "collect_hidden_nodes", lambda c: [_F2P_NODE])
+    monkeypatch.setattr(R, "collect_test_nodes", lambda c: {_F2P_NODE})
     with pytest.raises(R.GateError):
         R.assert_hidden_selection_valid(ctx)
 

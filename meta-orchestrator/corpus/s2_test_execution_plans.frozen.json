@@ -1,0 +1,2035 @@
+{
+  "content_hash": "197bda7dbdb9dc15",
+  "plans": {
+    "black-112": {
+      "buggy_revision": "1909d8cc6b6ef62ea285a69f6d8b25630d85f04a",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "comments2"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "9138a75b759ecb690d63924503f88bfbc82d4862",
+      "hidden_node_set_sha256": "6c05292f3abd31e72fe6fff09451cd1e250ab322bdd0a38cd3894f0f6973a49f",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_comments2"
+      ],
+      "overlay_aggregate_sha256": "4a79600733e5ebce18fddacdc72ee7311043932aaa024dade192d589139aaae1",
+      "public_node_set_sha256": "6c2150f2ae90cb545fb7f47abf99909e12014fda056a328eea8ab2255eb72811",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_string_quotes"
+      ],
+      "task_id": "black-112",
+      "test_overlay_files": [
+        "tests/comments2.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/comments2.py": "1d2bca005ac4666401ecaa58842bfe12a963a9cf0992ddb63f662bfecb8f8214"
+      }
+    },
+    "black-130": {
+      "buggy_revision": "2e52a2b3ecc0fe025439c3db05a4457ab14f167b",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            null
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "06e95b1e9bcd43c4574840f8174ba4b2c5d281bd",
+      "hidden_node_set_sha256": "3cfe36b7b25e235e411adcf77b2f21cc22f4a68882bbec5791ea9d923bd9776f",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_expression_diff"
+      ],
+      "overlay_aggregate_sha256": "051a3dfba79216dc6db0699ab971d326c5509d84d0a7fafa91f66d996c1e4d9b",
+      "public_node_set_sha256": "d508f530cdc0981913e39752e78a3f0135de36dba5c953747a50f834b0fde75b",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-130",
+      "test_overlay_files": [
+        "tests/test_black.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/test_black.py": "5beb5dab86933fb669d6b36dbfda679120f1e141bf8aaabbb874fd051341d29e"
+      }
+    },
+    "black-132": {
+      "buggy_revision": "f294cc272c3aa5b8d3cd35b9f9283721b7e458d8",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            null
+          ],
+          [
+            "tests/test_black.py",
+            "expression"
+          ],
+          [
+            "tests/test_black.py",
+            "function"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "a764f1bb3b459ee6f2e752e3d67793b119a2144a",
+      "hidden_node_set_sha256": "dc915fa8681b04ade2449e2d34e13aa07fd0d985415efdc354ebd024dcb905c4",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_piping_diff"
+      ],
+      "overlay_aggregate_sha256": "711c7b133b77620b964f1a0426e9fe58f00e20ee915f2bb86d652435a8156aa5",
+      "public_node_set_sha256": "9bce2079711756e23413f20bc9f74348c99611bcaa164accb7688f87f4de12bb",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_string_quotes"
+      ],
+      "task_id": "black-132",
+      "test_overlay_files": [
+        "tests/expression.diff",
+        "tests/expression.py",
+        "tests/function.py",
+        "tests/test_black.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/expression.diff": "65e7fdffa9574c38e6a007bddfbb111b403d5ff0fba929ae18ac6ad400691ad7",
+        "tests/expression.py": "9a28641d07fe4c74d6043b5f8709c06cd490148954bd826e0b0cf0c0702a87af",
+        "tests/function.py": "acefe357321d15720c9c611adb1c59eb6da6be368bde809f7074a4ac11623d08",
+        "tests/test_black.py": "276859accedc7f2e6651f41797838f1464f527e82a881aa34d3ce06263983259"
+      }
+    },
+    "black-133": {
+      "buggy_revision": "b5b658da0683c3e0806461946d8b492784e26d97",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "expression"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "d73166c42b7de83249d17125cae3c2594a25b2c3",
+      "hidden_node_set_sha256": "3cfe36b7b25e235e411adcf77b2f21cc22f4a68882bbec5791ea9d923bd9776f",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_expression_diff"
+      ],
+      "overlay_aggregate_sha256": "066d7f1eec52c5adcd2dbffb284bcdb093741a9d33deda1d6ca0c72a4c734dc8",
+      "public_node_set_sha256": "0814328193de9a5960f70c507fc11a681f48fe68102c29841a52a5a415be5d51",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-133",
+      "test_overlay_files": [
+        "tests/expression.diff",
+        "tests/expression.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/expression.diff": "3a629fe63335c0fd9f413c05a48b230f46474ad2e14c59e321fa4c70187d6fac",
+        "tests/expression.py": "eed77bb095815b5779b73fc5f2ccd1501f97ae5472e7ab01378c5578a82faa20"
+      }
+    },
+    "black-141": {
+      "buggy_revision": "92957a41e3f909c7b813b448f65cd437cf0139f2",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "expression"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "9d671bdbe13ab68cea1bba15001c43e90cf2c1a6",
+      "hidden_node_set_sha256": "3cfe36b7b25e235e411adcf77b2f21cc22f4a68882bbec5791ea9d923bd9776f",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_expression_diff"
+      ],
+      "overlay_aggregate_sha256": "b33a0721eac9ec340b77d343d719cdd86a28fc136a7ea1e0f003058684439705",
+      "public_node_set_sha256": "7cee0e2c8baf4210194e315e5c2ddf0240d16e8dc63726d81a03c972b715eaa0",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-141",
+      "test_overlay_files": [
+        "tests/expression.diff",
+        "tests/expression.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/expression.diff": "b7755455ae570c7bbd937f61342bad9a97fb573d0472c07ef9bd1ab57c8a26c1",
+        "tests/expression.py": "b70e022a2bb074b37a3f8bddab454091b007fc696ec7b2d195c816a87729809a"
+      }
+    },
+    "black-1632": {
+      "buggy_revision": "62c2b167bcf22683fc11add2f24a132d36e8fd19",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_format.py",
+            null
+          ],
+          [
+            "tests/test_black.py",
+            "docstring"
+          ],
+          [
+            "tests/test_format.py",
+            "docstring"
+          ],
+          [
+            "tests/test_format.py",
+            "docstring_preview"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "20d8ccb54253f8a66321f6708d53e2a05a54079b",
+      "hidden_node_set_sha256": "8570c4d59cb7b04ba2d62195a8bcc4daa2c39c1c9ce28c4677741ea0d8a30c21",
+      "hidden_nodes": [
+        "tests/test_format.py::test_preview_format[docstring_preview]"
+      ],
+      "overlay_aggregate_sha256": "5695c5a59ff6dc445a059fd58ce00fee6cd33ce4714e89f1c9371e8a41143bcc",
+      "public_node_set_sha256": "71ff19c124131083ad2d6bead280a4d8f9e555fff96e329796918e38a9e1d0a8",
+      "public_nodes": [
+        "tests/test_format.py::test_docstring_no_string_normalization",
+        "tests/test_format.py::test_empty",
+        "tests/test_format.py::test_long_strings_flag_disabled",
+        "tests/test_format.py::test_numeric_literals",
+        "tests/test_format.py::test_numeric_literals_ignoring_underscores",
+        "tests/test_format.py::test_patma_invalid",
+        "tests/test_format.py::test_pep_570",
+        "tests/test_format.py::test_pep_572",
+        "tests/test_format.py::test_pep_572_do_not_remove_parens",
+        "tests/test_format.py::test_pep_572_newer_syntax[3-10]",
+        "tests/test_format.py::test_pep_572_newer_syntax[3-9]",
+        "tests/test_format.py::test_pep_572_remove_parens",
+        "tests/test_format.py::test_power_op_newline",
+        "tests/test_format.py::test_preview_format[cantfit]",
+        "tests/test_format.py::test_preview_format[comments7]",
+        "tests/test_format.py::test_preview_format[comments8]",
+        "tests/test_format.py::test_preview_format[long_strings]",
+        "tests/test_format.py::test_preview_format[long_strings__edge_case]",
+        "tests/test_format.py::test_preview_format[long_strings__regression]",
+        "tests/test_format.py::test_preview_format[one_element_subscript]",
+        "tests/test_format.py::test_preview_format[percent_precedence]",
+        "tests/test_format.py::test_preview_format[remove_await_parens]",
+        "tests/test_format.py::test_preview_format[remove_except_parens]",
+        "tests/test_format.py::test_preview_format[remove_for_brackets]",
+        "tests/test_format.py::test_preview_format[return_annotation_brackets]",
+        "tests/test_format.py::test_python38",
+        "tests/test_format.py::test_python39",
+        "tests/test_format.py::test_python_2_hint",
+        "tests/test_format.py::test_python_310[parenthesized_context_managers]",
+        "tests/test_format.py::test_python_310[pattern_matching_complex]",
+        "tests/test_format.py::test_python_310[pattern_matching_extras]",
+        "tests/test_format.py::test_python_310[pattern_matching_generic]",
+        "tests/test_format.py::test_python_310[pattern_matching_simple]",
+        "tests/test_format.py::test_python_310[pattern_matching_style]",
+        "tests/test_format.py::test_python_310[starred_for_target]",
+        "tests/test_format.py::test_python_310_without_target_version",
+        "tests/test_format.py::test_python_311[pep_654]",
+        "tests/test_format.py::test_python_311[pep_654_style]",
+        "tests/test_format.py::test_remove_with_brackets",
+        "tests/test_format.py::test_simple_format[attribute_access_on_number_literals]",
+        "tests/test_format.py::test_simple_format[beginning_backslash]",
+        "tests/test_format.py::test_simple_format[bracketmatch]",
+        "tests/test_format.py::test_simple_format[class_blank_parentheses]",
+        "tests/test_format.py::test_simple_format[class_methods_new_line]",
+        "tests/test_format.py::test_simple_format[collections]",
+        "tests/test_format.py::test_simple_format[comment_after_escaped_newline]",
+        "tests/test_format.py::test_simple_format[comments2]",
+        "tests/test_format.py::test_simple_format[comments3]",
+        "tests/test_format.py::test_simple_format[comments4]",
+        "tests/test_format.py::test_simple_format[comments5]",
+        "tests/test_format.py::test_simple_format[comments6]",
+        "tests/test_format.py::test_simple_format[comments]",
+        "tests/test_format.py::test_simple_format[comments_non_breaking_space]",
+        "tests/test_format.py::test_simple_format[composition]",
+        "tests/test_format.py::test_simple_format[composition_no_trailing_comma]",
+        "tests/test_format.py::test_simple_format[docstring]",
+        "tests/test_format.py::test_simple_format[empty_lines]",
+        "tests/test_format.py::test_simple_format[expression]",
+        "tests/test_format.py::test_simple_format[fmtonoff2]",
+        "tests/test_format.py::test_simple_format[fmtonoff3]",
+        "tests/test_format.py::test_simple_format[fmtonoff4]",
+        "tests/test_format.py::test_simple_format[fmtonoff]",
+        "tests/test_format.py::test_simple_format[fmtskip2]",
+        "tests/test_format.py::test_simple_format[fmtskip3]",
+        "tests/test_format.py::test_simple_format[fmtskip4]",
+        "tests/test_format.py::test_simple_format[fmtskip5]",
+        "tests/test_format.py::test_simple_format[fmtskip6]",
+        "tests/test_format.py::test_simple_format[fmtskip7]",
+        "tests/test_format.py::test_simple_format[fmtskip]",
+        "tests/test_format.py::test_simple_format[fstring]",
+        "tests/test_format.py::test_simple_format[function2]",
+        "tests/test_format.py::test_simple_format[function]",
+        "tests/test_format.py::test_simple_format[function_trailing_comma]",
+        "tests/test_format.py::test_simple_format[import_spacing]",
+        "tests/test_format.py::test_simple_format[power_op_spacing]",
+        "tests/test_format.py::test_simple_format[remove_parens]",
+        "tests/test_format.py::test_simple_format[slices]",
+        "tests/test_format.py::test_simple_format[string_prefixes]",
+        "tests/test_format.py::test_simple_format[torture]",
+        "tests/test_format.py::test_simple_format[trailing_comma_optional_parens1]",
+        "tests/test_format.py::test_simple_format[trailing_comma_optional_parens2]",
+        "tests/test_format.py::test_simple_format[trailing_comma_optional_parens3]",
+        "tests/test_format.py::test_simple_format[tricky_unicode_symbols]",
+        "tests/test_format.py::test_simple_format[tupleassign]",
+        "tests/test_format.py::test_source_is_formatted[setup.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/__init__.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/__main__.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/brackets.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/cache.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/comments.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/concurrency.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/const.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/debug.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/files.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/linegen.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/lines.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/mode.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/nodes.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/numerics.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/output.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/parsing.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/report.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/rusty.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/strings.py]",
+        "tests/test_format.py::test_source_is_formatted[src/black/trans.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blackd/__init__.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pgen2/conv.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pgen2/driver.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pgen2/grammar.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pgen2/literals.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pgen2/parse.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pgen2/pgen.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pgen2/token.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pgen2/tokenize.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pygram.py]",
+        "tests/test_format.py::test_source_is_formatted[src/blib2to3/pytree.py]",
+        "tests/test_format.py::test_source_is_formatted[tests/conftest.py]",
+        "tests/test_format.py::test_source_is_formatted[tests/optional.py]",
+        "tests/test_format.py::test_source_is_formatted[tests/test_black.py]",
+        "tests/test_format.py::test_source_is_formatted[tests/test_blackd.py]",
+        "tests/test_format.py::test_source_is_formatted[tests/test_format.py]",
+        "tests/test_format.py::test_source_is_formatted[tests/util.py]",
+        "tests/test_format.py::test_stub"
+      ],
+      "task_id": "black-1632",
+      "test_overlay_files": [
+        "tests/data/docstring.py",
+        "tests/data/docstring_preview.py",
+        "tests/test_format.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/data/docstring.py": "08740bb943e501dd432b06bf08f4980fb4c4127b31f7a14da3c284c4cdeee68c",
+        "tests/data/docstring_preview.py": "9bd0e23a9ae5dc15f9cec96a3b3f666193a01f60f7de6cc8cedf51a26ed03579",
+        "tests/test_format.py": "3bfd338fc24ec312bdf9bd80d030737427adefec5219f51b5ff9754a4334ea00"
+      }
+    },
+    "black-183": {
+      "buggy_revision": "dc0c14240e7423d9ada002835dcc195f8c6d8797",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "expression"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "cfb003f51c89802b5bca29018fde62c4501a8940",
+      "hidden_node_set_sha256": "3cfe36b7b25e235e411adcf77b2f21cc22f4a68882bbec5791ea9d923bd9776f",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_expression_diff"
+      ],
+      "overlay_aggregate_sha256": "fddd125e943a8d8ace811b5568b8175ee2cd894a0d14f2578d357247a185c2b6",
+      "public_node_set_sha256": "537adde0a9a14647e317d032cbed458921589f13cda565d0ec1b982057f024f8",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-183",
+      "test_overlay_files": [
+        "tests/expression.diff",
+        "tests/expression.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/expression.diff": "dfd2b4242092608b2f58869dcce8d51ed3e2fa6e8d4487006b013439502af2a4",
+        "tests/expression.py": "5974982e16077ad8d8536294a564bd2607ca754da0158ac43edd688b5b1065cb"
+      }
+    },
+    "black-185": {
+      "buggy_revision": "c6a6cfd3a293a69c29f93beca1c64bd857371e14",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "import_spacing"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "dc0c14240e7423d9ada002835dcc195f8c6d8797",
+      "hidden_node_set_sha256": "848cee35d324b39a8628e7520b1886b65590b8bad0fd3ab43c23cb1ee2bd27a9",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_import_spacing"
+      ],
+      "overlay_aggregate_sha256": "f8eebb2b7825dd7e0332105dca32eb180b87a4e7461de54bb855f0d2ecfc8a83",
+      "public_node_set_sha256": "2c1eb063860c309d1f0b492bfd9f6c29665e56a8d4cad65978f34ea904a90eb4",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-185",
+      "test_overlay_files": [
+        "tests/import_spacing.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/import_spacing.py": "c49f6a8e20c9094655aef019246429ac171310c4bdf5fbf702b149640d108984"
+      }
+    },
+    "black-193": {
+      "buggy_revision": "8b64e916f65f2c1023f9abd6243a904bfbcd8fe9",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/composition.py",
+            null
+          ],
+          [
+            "tests/test_black.py",
+            "empty_lines"
+          ],
+          [
+            "tests/test_black.py",
+            "expression"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "5a47fd13cc4c9f43270dd12c37577244c1eabfcc",
+      "hidden_node_set_sha256": "7b4d918eb69acc94ce20b3715ef934427ee2e92a09d773e41beebba32ab44a40",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_expression_diff"
+      ],
+      "overlay_aggregate_sha256": "cda092ba923bf2c46df3f52549ebeb84e665d3cde02cac511248dc53e0bc19bf",
+      "public_node_set_sha256": "b2416b078d6ad60f5c021f23ee1fce762eab3443f7f64c59c9445e98c0322785",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-193",
+      "test_overlay_files": [
+        "tests/composition.py",
+        "tests/empty_lines.py",
+        "tests/expression.diff",
+        "tests/expression.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/composition.py": "6ce0cd64826a6d3d48151c6e350116d1917105e2fce2dd52a7f035eb5b598b42",
+        "tests/empty_lines.py": "5fba35f2bbf0d6c2e43b6cb2b8a5b6b899ec160371888e8b01b31e74dd5fc71a",
+        "tests/expression.diff": "6f68ff7ea1e2d5257a8519d6767b8ab19a552f70e15df77474b6d095e751eeaa",
+        "tests/expression.py": "c26cda57c97e758f4ef7f47932df261ef8f38ef5dfd6a7c41fc6b0aca0da4d5f"
+      }
+    },
+    "black-215": {
+      "buggy_revision": "665ed8a2403161a987c49e1818f2376840723b96",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "comments3"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "3ad0f5855c46410652b27b5e09c6f22314241757",
+      "hidden_node_set_sha256": "c56dd4d8ae370df2e85e7e2b4cd6408889df7ebcdb616bb540851b9e8b078bfe",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_comments3"
+      ],
+      "overlay_aggregate_sha256": "3cbba97bbcf23c5b21bc53bb05e9b016e2b9d18e51531addbf6541bb119591b3",
+      "public_node_set_sha256": "8e5c659450b63f1b56c2d18ae5f8f3aa18e9742b0942bac4455650ab79e9ff46",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-215",
+      "test_overlay_files": [
+        "tests/comments3.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/comments3.py": "d98e93671661b099841bd599812ec97ca6f3fb6b012e761d0f3a5c62d53b9a9c"
+      }
+    },
+    "black-224": {
+      "buggy_revision": "86e1c3650741ce9641a14a89db6162f30786f093",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "fmtonoff"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "808754af18f1cea2444c6facf63f3a86952c5d44",
+      "hidden_node_set_sha256": "57d9015d07ce3fca04b0bc3aea77c73a526f54b0383496890c9ce0c4bbcdf442",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_fmtonoff"
+      ],
+      "overlay_aggregate_sha256": "37551c940ae22ed70556edf29f047a62ba7af851c14e0e78a7ecd4e36da0ad83",
+      "public_node_set_sha256": "ce5739849c6856adad8999a9f4346a9caeefc964a1022d4bdbf13899c4a6161b",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-224",
+      "test_overlay_files": [
+        "tests/fmtonoff.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/fmtonoff.py": "fc6d0f6e6a72a41ad04c75fead52c8c2e87842c058db8f2e13ec8cd49adfa720"
+      }
+    },
+    "black-232": {
+      "buggy_revision": "23a00f051576d2e7edd18b6af382902cc34ea4a2",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "cantfit"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "d638d56e0e383caeeff048e76b02b50b29367c3d",
+      "hidden_node_set_sha256": "e650fbf256b12c60e7645b8f4bb48ff8c1648eb7ac95441e3a1343068790022c",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_cantfit"
+      ],
+      "overlay_aggregate_sha256": "5668e785ffda3494cd1ab0823bcef6bd94060b8a895bdcb8d93c62bf42848032",
+      "public_node_set_sha256": "855a14f947eb9678f19fa0765fb9969ebdbfcf2105839f24913fd14b102c9d07",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty",
+        "tests/test_black.py::BlackTestCase::test_empty_exclude",
+        "tests/test_black.py::BlackTestCase::test_empty_ff",
+        "tests/test_black.py::BlackTestCase::test_empty_include",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_invalid_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_new_line_between_class_and_code",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_py36",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_preserves_line_endings",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report_normal",
+        "tests/test_black.py::BlackTestCase::test_report_quiet",
+        "tests/test_black.py::BlackTestCase::test_report_verbose",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_py36",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-232",
+      "test_overlay_files": [
+        "tests/cantfit.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/cantfit.py": "97cb10363c534556217489294e66d0008ce45acfb257a5306961200dccee4cd0"
+      }
+    },
+    "black-234": {
+      "buggy_revision": "808754af18f1cea2444c6facf63f3a86952c5d44",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "fmtonoff"
+          ],
+          [
+            "tests/test_black.py",
+            "import_spacing"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "9a6c88c7f4b4db14631f8dc9e8d44b3aed9d57c9",
+      "hidden_node_set_sha256": "3d53068adce460916b70289fdb1fd91826da3469ca2e1482e808824fe5c68442",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_import_spacing"
+      ],
+      "overlay_aggregate_sha256": "d80475f87d0d8173d39813718351c9ba0a4cbf5fe36ea66eea7034e2e97c37cd",
+      "public_node_set_sha256": "dac8e755b704b2a7f844beaf27ff0ef77d0053f580f6ec5eb9d4cf2efa41d4ba",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-234",
+      "test_overlay_files": [
+        "tests/fmtonoff.py",
+        "tests/import_spacing.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/fmtonoff.py": "c25866edcd210d7b56be032a3c72f74d03e5715935f06785abc8dd772da307b8",
+        "tests/import_spacing.py": "86864d43fde60002288e75a3e5f6eef62e386a14701ebb5003ce451ee8b7bb66"
+      }
+    },
+    "black-238": {
+      "buggy_revision": "9a6c88c7f4b4db14631f8dc9e8d44b3aed9d57c9",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "expression"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "658eb7161d8d0c23bafe4881e70518c33a74a4c1",
+      "hidden_node_set_sha256": "3cfe36b7b25e235e411adcf77b2f21cc22f4a68882bbec5791ea9d923bd9776f",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_expression_diff"
+      ],
+      "overlay_aggregate_sha256": "5e9f1e133395b74f3dae4d5bf10fbfa3fbbc75184ef7fc65d0bba680f0e883c7",
+      "public_node_set_sha256": "e9fdb5d338dc19858165ad210bd436fff808e18272451b6b24be44980c1546fc",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-238",
+      "test_overlay_files": [
+        "tests/expression.diff",
+        "tests/expression.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/expression.diff": "bdf6098a34f72cc0508fe79a6c5ec2569bd9f9f67d242cf28a3034205540b69d",
+        "tests/expression.py": "49ef48f099fb4b585e1a52440b10ef6023cfb5f1858897ce2fa6cce7fee75e74"
+      }
+    },
+    "black-273": {
+      "buggy_revision": "7fc6ce990669464f5172b63fafa3724f5f308be3",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "cantfit"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "23a00f051576d2e7edd18b6af382902cc34ea4a2",
+      "hidden_node_set_sha256": "e650fbf256b12c60e7645b8f4bb48ff8c1648eb7ac95441e3a1343068790022c",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_cantfit"
+      ],
+      "overlay_aggregate_sha256": "55e2cbfdf3bb9855ead9de9c7da6446cb08cb72cafee6fe0e1973a66d866e802",
+      "public_node_set_sha256": "855a14f947eb9678f19fa0765fb9969ebdbfcf2105839f24913fd14b102c9d07",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty",
+        "tests/test_black.py::BlackTestCase::test_empty_exclude",
+        "tests/test_black.py::BlackTestCase::test_empty_ff",
+        "tests/test_black.py::BlackTestCase::test_empty_include",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_invalid_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_new_line_between_class_and_code",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_py36",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_preserves_line_endings",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report_normal",
+        "tests/test_black.py::BlackTestCase::test_report_quiet",
+        "tests/test_black.py::BlackTestCase::test_report_verbose",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_py36",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-273",
+      "test_overlay_files": [
+        "tests/cantfit.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/cantfit.py": "52077d4b61c742c38da4e42c3a30551badee0e0f10e7a8095f2a616d3da97a32"
+      }
+    },
+    "black-329": {
+      "buggy_revision": "013cb2b374cc6d649d25bc35ba592a8f88f484df",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "fmtonoff"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "8a8c58252cc023ae250d6febd24f50a8166450d4",
+      "hidden_node_set_sha256": "57d9015d07ce3fca04b0bc3aea77c73a526f54b0383496890c9ce0c4bbcdf442",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_fmtonoff"
+      ],
+      "overlay_aggregate_sha256": "fd9aba0b3fc20f96a0514336e81ad3344db38d11b46e2112ca30c641cdc83958",
+      "public_node_set_sha256": "f5ab767ea487327919cf994ec75e98ef5c25961e3bf9a210f310f0cc155ae3d7",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_assert_equivalent_different_asts",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty",
+        "tests/test_black.py::BlackTestCase::test_empty_exclude",
+        "tests/test_black.py::BlackTestCase::test_empty_ff",
+        "tests/test_black.py::BlackTestCase::test_empty_include",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_invalid_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_new_line_between_class_and_code",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_py36",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_preserves_line_endings",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report_normal",
+        "tests/test_black.py::BlackTestCase::test_report_quiet",
+        "tests/test_black.py::BlackTestCase::test_report_verbose",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_py36",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_symlink_out_of_root_directory",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-329",
+      "test_overlay_files": [
+        "tests/data/fmtonoff.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/data/fmtonoff.py": "720e1a40f60d9c26e12d0dab28dcb4a2520313b6aef8b9f53e3b9bfc6a79b688"
+      }
+    },
+    "black-334": {
+      "buggy_revision": "df2ae3bbe6c45298aabb6c04e85cb353205626f1",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "debug_visitor"
+          ],
+          [
+            "tests/test_black.py",
+            "fmtonoff2"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "e1ef57a29e03fb49688d27ed72c58ce80809f50f",
+      "hidden_node_set_sha256": "3510a66c23e4a878e9f8ca674b3e855bcf6ba7bcf56c439e40203b673be90d08",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff2"
+      ],
+      "overlay_aggregate_sha256": "f5c65a1f4745fbad92d5fd0fdda53f7cfedf362ac6be45c4aa6d25cf0ec8e3b9",
+      "public_node_set_sha256": "816a429a6982f1152b1b75bcc7e6e743b9b904f16bab7d529e27bb1cf4e18b07",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_assert_equivalent_different_asts",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_empty",
+        "tests/test_black.py::BlackTestCase::test_empty_exclude",
+        "tests/test_black.py::BlackTestCase::test_empty_ff",
+        "tests/test_black.py::BlackTestCase::test_empty_include",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_invalid_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_new_line_between_class_and_code",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_py36",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_preserves_line_endings",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report_normal",
+        "tests/test_black.py::BlackTestCase::test_report_quiet",
+        "tests/test_black.py::BlackTestCase::test_report_verbose",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_py36",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_symlink_out_of_root_directory",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-334",
+      "test_overlay_files": [
+        "tests/data/debug_visitor.out",
+        "tests/data/fmtonoff2.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/data/debug_visitor.out": "998ade00ffb6e2441623b275a006d49fe8559e605f68d0918efdbcb26d15d6c1",
+        "tests/data/fmtonoff2.py": "e98eddc169df7bbd74c005f6310bb01b4a72755fefcdf798c5b914a3cf076a39"
+      }
+    },
+    "black-335": {
+      "buggy_revision": "8a8c58252cc023ae250d6febd24f50a8166450d4",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            null
+          ],
+          [
+            "tests/test_black.py",
+            "fmtonoff2"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "df2ae3bbe6c45298aabb6c04e85cb353205626f1",
+      "hidden_node_set_sha256": "9764ecd3cf1ebf81f0b644554658e31141de44bcb50227e9fe47c750f55ed412",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_fmtonoff2"
+      ],
+      "overlay_aggregate_sha256": "983fa51ec2f1613a0eaef8882d761684004828dc4eb1168889e6b2482feb7b34",
+      "public_node_set_sha256": "8d4a20ab7ac3f89a717af8584e622a903901b536920fb6a0e6bead3ce4a7d4b3",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_assert_equivalent_different_asts",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty",
+        "tests/test_black.py::BlackTestCase::test_empty_exclude",
+        "tests/test_black.py::BlackTestCase::test_empty_ff",
+        "tests/test_black.py::BlackTestCase::test_empty_include",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_invalid_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_new_line_between_class_and_code",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_py36",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_preserves_line_endings",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report_normal",
+        "tests/test_black.py::BlackTestCase::test_report_quiet",
+        "tests/test_black.py::BlackTestCase::test_report_verbose",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_py36",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_symlink_out_of_root_directory",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-335",
+      "test_overlay_files": [
+        "tests/data/fmtonoff2.py",
+        "tests/test_black.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/data/fmtonoff2.py": "42bca564ecc5da4bddfcdb4d8f7b2bcb2c22b86da23a6f6d54b645daa43d1a02",
+        "tests/test_black.py": "c777bbf4598d4b050d81507479dea8bdb33685736c205783241572dc704a23da"
+      }
+    },
+    "black-385": {
+      "buggy_revision": "df965b055808bbfbe32f4f20ac949b364dafc900",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "fmtonoff"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "e94a41f92a568706700522aaad48ebd137fe1d8b",
+      "hidden_node_set_sha256": "57d9015d07ce3fca04b0bc3aea77c73a526f54b0383496890c9ce0c4bbcdf442",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_fmtonoff"
+      ],
+      "overlay_aggregate_sha256": "05d0193c0f271c3899f8b3295686e588a0c5536df186ee736758cc1b1d6c1017",
+      "public_node_set_sha256": "9764ecd3cf1ebf81f0b644554658e31141de44bcb50227e9fe47c750f55ed412",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_fmtonoff2"
+      ],
+      "task_id": "black-385",
+      "test_overlay_files": [
+        "tests/data/fmtonoff.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/data/fmtonoff.py": "764203738638e3e544ab381250f077209c32382e5b2f83ef3762a70bc7575f88"
+      }
+    },
+    "black-389": {
+      "buggy_revision": "3bdd42389128bbbe8b64a8e050563f09bff99979",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            null
+          ],
+          [
+            "tests/test_black.py",
+            "python2_unicode_literals"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "dd8bde6d2fbfe8a7a11093e761a0cb5837efa96a",
+      "hidden_node_set_sha256": "5815650b2b982ecc1776511f0ae5c4cbab8e4507966e1c1d1581f324c7092a8e",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals"
+      ],
+      "overlay_aggregate_sha256": "4c8125a7fd433d98dc7b81c334a680fb822c69d7003cbdefddc1e821ebf6b578",
+      "public_node_set_sha256": "c5a7507268b8e60163e1e3304dc6322022806df46316e935beb95d83fdd5aa65",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_assert_equivalent_different_asts",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty",
+        "tests/test_black.py::BlackTestCase::test_empty_exclude",
+        "tests/test_black.py::BlackTestCase::test_empty_ff",
+        "tests/test_black.py::BlackTestCase::test_empty_include",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff2",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_invalid_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_new_line_between_class_and_code",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_py36",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_preserves_line_endings",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report_normal",
+        "tests/test_black.py::BlackTestCase::test_report_quiet",
+        "tests/test_black.py::BlackTestCase::test_report_verbose",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_py36",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_symlink_out_of_root_directory",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-389",
+      "test_overlay_files": [
+        "tests/data/python2_unicode_literals.py",
+        "tests/test_black.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/data/python2_unicode_literals.py": "8f34d395a645b12fd6fbf464264e45e1644bf3c94d30671f54ca3c79dd589b3d",
+        "tests/test_black.py": "1cafa668ae09eb5c594e902120005f46c4276dd733a75286eea9ea13c8fc23c3"
+      }
+    },
+    "black-593": {
+      "buggy_revision": "8c8adedc2a74a494c24f93e405b6418ac32f54cd",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            null
+          ],
+          [
+            "tests/test_black.py",
+            "async_as_identifier"
+          ],
+          [
+            "tests/test_black.py",
+            "python37"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "f8617f975d56e81cfb4070ce65584f7b29a77e7a",
+      "hidden_node_set_sha256": "7812e5b15c79afeda015d47c3b19452c4f8ebeec8a9584b2e10a419ec2d31093",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_python37"
+      ],
+      "overlay_aggregate_sha256": "e9ca68797529672c72eda720b7f52e1502031e65eafd5f312ec5d1be75b66543",
+      "public_node_set_sha256": "c649c3d5f0b958ce4555e5d5d4fc6dd94e56155f4e485d95d4cf8ccef08b90c1",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_assert_equivalent_different_asts",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_bracket_match",
+        "tests/test_black.py::BlackTestCase::test_broken_symlink",
+        "tests/test_black.py::BlackTestCase::test_cache_broken_file",
+        "tests/test_black.py::BlackTestCase::test_cache_multiple_files",
+        "tests/test_black.py::BlackTestCase::test_cache_single_file_already_cached",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_check_diff_use_together",
+        "tests/test_black.py::BlackTestCase::test_comment_after_escaped_newline",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_comments5",
+        "tests/test_black.py::BlackTestCase::test_comments6",
+        "tests/test_black.py::BlackTestCase::test_comments7",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty",
+        "tests/test_black.py::BlackTestCase::test_empty_exclude",
+        "tests/test_black.py::BlackTestCase::test_empty_ff",
+        "tests/test_black.py::BlackTestCase::test_empty_include",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_expression",
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_expression_ff",
+        "tests/test_black.py::BlackTestCase::test_failed_formatting_does_not_get_cached",
+        "tests/test_black.py::BlackTestCase::test_filter_cached",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff2",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_function2",
+        "tests/test_black.py::BlackTestCase::test_get_features_used",
+        "tests/test_black.py::BlackTestCase::test_get_future_imports",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_invalid_include_exclude",
+        "tests/test_black.py::BlackTestCase::test_lib2to3_parse",
+        "tests/test_black.py::BlackTestCase::test_multi_file_force_py36",
+        "tests/test_black.py::BlackTestCase::test_multi_file_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_new_line_between_class_and_code",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_stdin",
+        "tests/test_black.py::BlackTestCase::test_no_cache_when_writeback_diff",
+        "tests/test_black.py::BlackTestCase::test_no_files",
+        "tests/test_black.py::BlackTestCase::test_numeric_literals",
+        "tests/test_black.py::BlackTestCase::test_numeric_literals_ignoring_underscores",
+        "tests/test_black.py::BlackTestCase::test_numeric_literals_py2",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_py36",
+        "tests/test_black.py::BlackTestCase::test_pipe_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_preserves_line_endings",
+        "tests/test_black.py::BlackTestCase::test_preserves_line_endings_via_stdin",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_python2_print_function",
+        "tests/test_black.py::BlackTestCase::test_python2_unicode_literals",
+        "tests/test_black.py::BlackTestCase::test_read_cache_line_lengths",
+        "tests/test_black.py::BlackTestCase::test_read_cache_no_cachefile",
+        "tests/test_black.py::BlackTestCase::test_remove_empty_parentheses_after_class",
+        "tests/test_black.py::BlackTestCase::test_report_normal",
+        "tests/test_black.py::BlackTestCase::test_report_quiet",
+        "tests/test_black.py::BlackTestCase::test_report_verbose",
+        "tests/test_black.py::BlackTestCase::test_root_logger_not_used_directly",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_py36",
+        "tests/test_black.py::BlackTestCase::test_single_file_force_pyi",
+        "tests/test_black.py::BlackTestCase::test_slices",
+        "tests/test_black.py::BlackTestCase::test_string_prefixes",
+        "tests/test_black.py::BlackTestCase::test_string_quotes",
+        "tests/test_black.py::BlackTestCase::test_stub",
+        "tests/test_black.py::BlackTestCase::test_symlink_out_of_root_directory",
+        "tests/test_black.py::BlackTestCase::test_tab_comment_indentation",
+        "tests/test_black.py::BlackTestCase::test_tuple_assign",
+        "tests/test_black.py::BlackTestCase::test_write_cache_creates_directory_if_needed",
+        "tests/test_black.py::BlackTestCase::test_write_cache_read_cache",
+        "tests/test_black.py::BlackTestCase::test_write_cache_write_fail"
+      ],
+      "task_id": "black-593",
+      "test_overlay_files": [
+        "tests/data/async_as_identifier.py",
+        "tests/data/python37.py",
+        "tests/test_black.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/data/async_as_identifier.py": "3ddefc297ba6538d32161c36df8f6b86f657d728044fc704170bb85dc81bef04",
+        "tests/data/python37.py": "3fc664b2b747fae51edc7fb1848d7e1ff4fe13cb77cb448fe6ce617414d8da84",
+        "tests/test_black.py": "8a9894be0fd5829631a32722a60558910ebaf104e30bb1c1711369d65d62f4d6"
+      }
+    },
+    "black-60": {
+      "buggy_revision": "7bd6f3cb2ff11d385dbe433e2b03e9f7c94be33e",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "function"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "cf6f577928f5a1f4e98b02b8e723311cae830305",
+      "hidden_node_set_sha256": "079757371d1b42fc66e65bc9492cba1098c4fe5960d46673596b3b306955583a",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_function"
+      ],
+      "overlay_aggregate_sha256": "0050acf1f40bc27f4665004da2e15f7d2193fc9cfffc6e76d65963b0d1354e09",
+      "public_node_set_sha256": "287b35694c70925dbfbdf5a4161d85e3c6c81b6e7d5d208a1ce469a497e83337",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup"
+      ],
+      "task_id": "black-60",
+      "test_overlay_files": [
+        "tests/function.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/function.py": "790fb2007a8b8a4aefad645d76a9a0d45267df16bf7e4f97ca8f601414189408"
+      }
+    },
+    "black-74": {
+      "buggy_revision": "1f445a01c8c073058ccd6ca6ceba8f527e6cbf15",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "empty_lines"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "e5f8251704c22b143b79474905c6c4b7e10ddb47",
+      "hidden_node_set_sha256": "f834a5dcd2bac1f00f20a28c2efd78aba50aa10026b5f35efadffb3e573a0eab",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_empty_lines"
+      ],
+      "overlay_aggregate_sha256": "2410ec905141282c77842eb49df8015ec6083cfc4c1fd9cd64b1abd80aa2f1b6",
+      "public_node_set_sha256": "07a37757e3f829f5a3bf7df44c96a4edd9a36a57c3972fc0c5913c5bf3d7f7ca",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup"
+      ],
+      "task_id": "black-74",
+      "test_overlay_files": [
+        "tests/empty_lines.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/empty_lines.py": "0a4f83029b5b63cba21f116934c9918611a173a68c077655a2c00d07e5b8035d"
+      }
+    },
+    "black-80": {
+      "buggy_revision": "611737f9cc186d3e6463ef774fdbda4f77055d4c",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            null
+          ],
+          [
+            "tests/test_black.py",
+            "function"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "fc869039ebcc0c0ff922ea9b2713480c119e5341",
+      "hidden_node_set_sha256": "27c321717a215d92a394899e2fdb736cdf7c281bbe5e23d5f533851fa128d5a1",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_is_python36"
+      ],
+      "overlay_aggregate_sha256": "2db8ff92a45aa01cb7fca4d569631e1a886ed750e3e3ddbb31e54cdaf19aa52c",
+      "public_node_set_sha256": "2910742737c30bc88815ca0bc5e29273663abfc1aeae67bf002be6fb06e1d792",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_fmtonoff",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup"
+      ],
+      "task_id": "black-80",
+      "test_overlay_files": [
+        "tests/function.py",
+        "tests/test_black.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/function.py": "b0374a06777713354153db55cd5953d7d5b967e58cc4e40530171698a6aebff6",
+        "tests/test_black.py": "f5f40378b4d6e22c20ad39337eac595484f84eaa89217c7ccd060628f6a4d2e4"
+      }
+    },
+    "black-95": {
+      "buggy_revision": "4787294622f9053525fb2373db207dd4a35520dc",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_black.py",
+            "fmtonoff"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "2f260514f67f154d1c8f59bc9ea899406d8a2cfd",
+      "hidden_node_set_sha256": "57d9015d07ce3fca04b0bc3aea77c73a526f54b0383496890c9ce0c4bbcdf442",
+      "hidden_nodes": [
+        "tests/test_black.py::BlackTestCase::test_fmtonoff"
+      ],
+      "overlay_aggregate_sha256": "7a98b92552887f7df99fdf6cccdbc7547a34b6739453c9356cc15cb07c05441a",
+      "public_node_set_sha256": "b4dc1ab76b91ee8be2cdea9b6f7c08c63b280d12f59abcea68a730859c683e1d",
+      "public_nodes": [
+        "tests/test_black.py::BlackTestCase::test_assertFormatEqual",
+        "tests/test_black.py::BlackTestCase::test_black",
+        "tests/test_black.py::BlackTestCase::test_cantfit",
+        "tests/test_black.py::BlackTestCase::test_comments",
+        "tests/test_black.py::BlackTestCase::test_comments2",
+        "tests/test_black.py::BlackTestCase::test_comments3",
+        "tests/test_black.py::BlackTestCase::test_comments4",
+        "tests/test_black.py::BlackTestCase::test_composition",
+        "tests/test_black.py::BlackTestCase::test_debug_visitor",
+        "tests/test_black.py::BlackTestCase::test_empty_lines",
+        "tests/test_black.py::BlackTestCase::test_endmarker",
+        "tests/test_black.py::BlackTestCase::test_expression_diff",
+        "tests/test_black.py::BlackTestCase::test_format_file_contents",
+        "tests/test_black.py::BlackTestCase::test_fstring",
+        "tests/test_black.py::BlackTestCase::test_function",
+        "tests/test_black.py::BlackTestCase::test_import_spacing",
+        "tests/test_black.py::BlackTestCase::test_is_python36",
+        "tests/test_black.py::BlackTestCase::test_piping",
+        "tests/test_black.py::BlackTestCase::test_piping_diff",
+        "tests/test_black.py::BlackTestCase::test_python2",
+        "tests/test_black.py::BlackTestCase::test_report",
+        "tests/test_black.py::BlackTestCase::test_self",
+        "tests/test_black.py::BlackTestCase::test_setup",
+        "tests/test_black.py::BlackTestCase::test_string_quotes"
+      ],
+      "task_id": "black-95",
+      "test_overlay_files": [
+        "tests/fmtonoff.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/fmtonoff.py": "4779c46f271cf83f66ecfe7aea2b308ca6ac7e2a7aa0f6b13c58436485d26ee7"
+      }
+    },
+    "cookiecutter-18": {
+      "buggy_revision": "312bcc9f78f1ffe0c0fa2c483d1dea5a101c5871",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_generate.py",
+            null
+          ],
+          [
+            "tests/test_generate.py",
+            "logo"
+          ],
+          [
+            "tests/test_generate.py",
+            "readme"
+          ],
+          [
+            "tests/test_generate.py",
+            "some_font"
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "0e38a7068375e065f00a6a6ce29459e91261f11b",
+      "hidden_node_set_sha256": "7d0bc3b311a358e88a10afafa5e59cb4170370aa333654eb7e39830f9ec161d9",
+      "hidden_nodes": [
+        "tests/test_generate.py::TestGenerate::test_generate_files_binaries"
+      ],
+      "overlay_aggregate_sha256": "9ff33591a912056a27b35d3b1a7a7e8cb8d3492a0d746573148ef9705d9c6717",
+      "public_node_set_sha256": "0528997d4280b91ef329a7c158417a6591745aee492ffd7c0c6ed6570680d81f",
+      "public_nodes": [
+        "tests/test_generate.py::TestGenerate::test_generate_context",
+        "tests/test_generate.py::TestGenerate::test_generate_files",
+        "tests/test_generate.py::TestGenerate::test_generate_files_bad",
+        "tests/test_generate.py::TestGenerate::test_output_folder"
+      ],
+      "task_id": "cookiecutter-18",
+      "test_overlay_files": [
+        "tests/input{{binary_test}}/logo.png",
+        "tests/input{{binary_test}}/readme.txt",
+        "tests/input{{binary_test}}/some_font.otf",
+        "tests/test_generate.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/input{{binary_test}}/logo.png": "4a9bf008328d480903daf6891030bdcad590dd0c63daaa717f81ee2066c7c1d5",
+        "tests/input{{binary_test}}/readme.txt": "a70dded8a0133a1238e9e83a2aee5dd3ec674706bc8735ba5155633a4cb44f92",
+        "tests/input{{binary_test}}/some_font.otf": "3ff5688f0a610ecf786609c7fed1b713966bfaf263b8c3cd4a9d0bae56b3115f",
+        "tests/test_generate.py": "92cba7146a6a9bbe6d1615a2fae58a5a22f8f50fb93ce0a438367f100236b6f4"
+      }
+    },
+    "discord.py-7818": {
+      "buggy_revision": "c67130821151266e6b6855b8ce0e031850bf6fbc",
+      "derivation_provenance": {
+        "audit_artifact_hash": "551d00dc1f93268f",
+        "derivation_version": "repro-overlay-4run-v1",
+        "legacy_f2p_keyword_plan": [
+          [
+            "tests/test_app_commands_group.py",
+            null
+          ]
+        ]
+      },
+      "environment_digest": "py3.11.15|editable-install|unshare-rn",
+      "fixed_revision": "25ad5b675c044e67c160e8a18a4753e93efec26d",
+      "hidden_node_set_sha256": "68e4e4287267ea270daa438f0766cd3672f80c413b3085dc516dce55eddc4d86",
+      "hidden_nodes": [
+        "tests/test_app_commands_group.py::test_cog_with_nested_group_with_commands"
+      ],
+      "overlay_aggregate_sha256": "b7eb8ab56ba38ed66cc4b7d44fddc3bc06c9439330319fa3e8554c80a93b2add",
+      "public_node_set_sha256": "2faf9e602471d1dab6e6d8d42d74ab2182856c03758db6c1f6b3aa9b551d5372",
+      "public_nodes": [
+        "tests/test_app_commands_group.py::test_cog_group_with_commands",
+        "tests/test_app_commands_group.py::test_cog_group_with_group",
+        "tests/test_app_commands_group.py::test_cog_group_with_subclass_group",
+        "tests/test_app_commands_group.py::test_cog_group_with_subclassed_subclass_group",
+        "tests/test_app_commands_group.py::test_cog_with_commands",
+        "tests/test_app_commands_group.py::test_cog_with_group_subclass_with_commands",
+        "tests/test_app_commands_group.py::test_cog_with_group_subclass_with_group",
+        "tests/test_app_commands_group.py::test_cog_with_group_subclass_with_group_subclass",
+        "tests/test_app_commands_group.py::test_cog_with_group_with_commands",
+        "tests/test_app_commands_group.py::test_group_subclass_with_commands",
+        "tests/test_app_commands_group.py::test_group_subclass_with_group",
+        "tests/test_app_commands_group.py::test_group_subclass_with_group_subclass",
+        "tests/test_app_commands_group.py::test_group_with_commands"
+      ],
+      "task_id": "discord.py-7818",
+      "test_overlay_files": [
+        "tests/test_app_commands_group.py"
+      ],
+      "test_overlay_hashes": {
+        "tests/test_app_commands_group.py": "2604832c8ef490e2fedc7f817336935e928765b3cfa96b4ca370f6ae27b64f81"
+      }
+    }
+  },
+  "schema_version": "s2-test-exec-plan-v1"
+}

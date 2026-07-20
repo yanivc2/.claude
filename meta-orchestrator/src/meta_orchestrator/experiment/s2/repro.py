@@ -11,6 +11,7 @@ including ones that already passed.
 """
 from __future__ import annotations
 
+import hashlib
 import re
 import subprocess
 import sys
@@ -53,8 +54,11 @@ class RepoBackedTask(BaseModel):
     repair_scope: str                       # single_file | multi_file
     buggy_source: dict[str, str]            # allowed files @ buggy
     reference_fix: dict[str, str]           # allowed files @ fixed (EVALUATOR-ONLY)
-    f2p_plan: list[list] = Field(default_factory=list)   # hidden: [[test_file, keyword|None], ...]
-    p2p_nodes: list[str] = Field(default_factory=list)   # public: node ids passing on both revs
+    f2p_plan: list[list] = Field(default_factory=list)   # hidden: [[test_file, keyword|None], ...] (legacy)
+    f2p_nodes: list[str] = Field(default_factory=list)   # hidden: EXACT collected node ids (authoritative)
+    p2p_nodes: list[str] = Field(default_factory=list)   # public: EXACT node ids passing on both revs
+    test_overlay_files: list[str] = Field(default_factory=list)      # fixed-rev TEST files overlaid on buggy
+    test_overlay_hashes: dict[str, str] = Field(default_factory=dict)  # path -> sha256 of fixed-rev content
     public_suite_empty: bool = False                     # decision A: ∅ public suite is valid
     sanitized_statement: str
 
@@ -92,6 +96,15 @@ def _checkout(repo, ref, paths=None):
 def _git_show(repo, ref, path) -> Optional[str]:
     r = _run(["git", "show", f"{ref}:{path}"], cwd=repo)
     return r.stdout if r.returncode == 0 else None
+
+
+def _git_show_sha256(repo, ref, path) -> Optional[str]:
+    """sha256 of the RAW bytes of a blob (overlay files may be binary, e.g. fonts/images)."""
+    try:
+        r = subprocess.run(["git", "show", f"{ref}:{path}"], cwd=repo, capture_output=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return None
+    return hashlib.sha256(r.stdout).hexdigest() if r.returncode == 0 else None
 
 
 def _build_tests_index(repo) -> dict[str, str]:
@@ -319,12 +332,20 @@ def reproduce_bug(task_id, project, owner, issue, family, allowed_source_files,
     rep.status = (ReproStatus.REPRODUCED_PUBLIC_EMPTY if public_empty
                   else ReproStatus.REPRODUCED_PUBLIC_NONEMPTY)
     rep.detail = f"F2P={len(f2p)} P2P={len(p2p)}{' (public suite empty — valid)' if public_empty else ''} ({round(time.time()-t0,1)}s)"
+    # freeze the exact test-execution plan: the fixed-rev TEST overlay + its per-file content hashes,
+    # so real grading (realtask) applies the SAME overlay the F2P was derived under (defect-4 parity).
+    overlay_hashes = {}
+    for ov in sorted(test_overlay):
+        h = _git_show_sha256(repo, fixed, ov)               # raw-bytes hash (overlay may be binary)
+        if h is not None:
+            overlay_hashes[ov] = h
     task = RepoBackedTask(
         task_id=task_id, project=project, family=family,
         repo_url=f"https://github.com/{owner}/{project}", buggy_rev=buggy, fixed_rev=fixed,
         allowed_source_files=sorted(allowed_source_files), repair_scope=repair_scope,
         buggy_source=buggy_source, reference_fix=reference_fix,
-        f2p_plan=[list(p) for p in plan], p2p_nodes=sorted(p2p),
+        f2p_plan=[list(p) for p in plan], f2p_nodes=sorted(f2p), p2p_nodes=sorted(p2p),
+        test_overlay_files=sorted(test_overlay), test_overlay_hashes=overlay_hashes,
         public_suite_empty=public_empty, sanitized_statement=san.sanitized,
     )
     return task, rep

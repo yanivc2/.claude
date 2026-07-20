@@ -100,6 +100,7 @@ def collect_frozen_hashes(corpus_dir: Optional[str] = None) -> dict[str, str]:
         "budget_policy": ("s2_budget_policy.frozen.json", "content_hash"),  # approved caps binding
         "paid_spend_ledger": ("s2_paid_spend_ledger.json", "content_hash"),  # lifetime spend binding
         "curriculum": ("s2_curriculum.frozen.json", "content_hash"),        # frozen train order
+        "test_execution_plans": ("s2_test_execution_plans.frozen.json", "content_hash"),  # grading contract
     }
     if corpus_dir:
         for key, (fname, field) in files.items():

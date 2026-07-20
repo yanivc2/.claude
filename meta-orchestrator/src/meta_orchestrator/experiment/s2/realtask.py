@@ -45,8 +45,10 @@ class RealTaskContext(BaseModel):
     repo: str
     py: str
     allowed_source_files: list[str]
-    p2p_nodes: list[str]             # PUBLIC node ids (visible-suite)
-    f2p_plan: list[list]            # HIDDEN [[test_file, keyword|None], ...] — verifier-only
+    p2p_nodes: list[str]             # PUBLIC exact node ids (visible-suite)
+    hidden_nodes: list[str] = []     # HIDDEN exact node ids (verifier-only) — from the frozen plan
+    f2p_plan: list[list] = []       # legacy keyword plan (kept for provenance; NOT used for grading)
+    test_overlay_files: list[str] = []   # fixed-rev TEST overlay applied on the buggy checkout
     buggy_source: dict[str, str]
     reference_fix: dict[str, str] = {}   # EVALUATOR-ONLY (write-gate leak screen); never solver-visible
     network_isolated: bool = True
@@ -146,54 +148,54 @@ def _sha_list(items: list) -> str:
     return hashlib.sha256(json.dumps(sorted(items), sort_keys=True).encode()).hexdigest()[:16]
 
 
-def collect_hidden_nodes(ctx: RealTaskContext) -> list[str]:
-    """The EXACT test node ids the F2P ``-k`` selector collects (``--collect-only``)."""
-    nodes: list[str] = []
-    for test_file, keyword in ctx.f2p_plan:
-        args = ["--collect-only", test_file] + (["-k", keyword] if keyword else [])
-        _res, _to, out = _pytest(ctx, args)
+def collect_test_nodes(ctx: RealTaskContext) -> set[str]:
+    """All EXACT node ids pytest collects from the overlaid test files (``--collect-only``)."""
+    files = sorted(set(ctx.test_overlay_files)
+                   | {n.split("::", 1)[0] for n in (list(ctx.hidden_nodes) + list(ctx.p2p_nodes))})
+    nodes: set[str] = set()
+    for f in files:
+        _res, _to, out = _pytest(ctx, ["--collect-only", f])
         for line in out.splitlines():
             line = line.strip()
             if "::" in line and " " not in line and "PASSED" not in line and "FAILED" not in line:
-                nodes.append(line)
-    return sorted(set(nodes))
+                nodes.add(line)
+    return nodes
 
 
 def hidden_selection_evidence(ctx: RealTaskContext) -> dict:
-    """Freeze-able proof that the ``-k`` selector is well-formed (exactly the frozen F2P, no P2P)."""
-    collected = collect_hidden_nodes(ctx)
-    overlap = sorted(set(collected) & set(ctx.p2p_nodes))
-    return {"f2p_plan": ctx.f2p_plan, "collected_hidden_nodes": collected,
-            "hidden_match_count": len(collected), "p2p_count": len(ctx.p2p_nodes),
-            "overlap_with_p2p": overlap,
-            "hidden_node_plan_hash": _sha_list(collected),
+    """Freeze-able proof the hidden selection is EXACT node ids, all collected, disjoint from P2P."""
+    collected = collect_test_nodes(ctx)
+    overlap = sorted(set(ctx.hidden_nodes) & set(ctx.p2p_nodes))
+    missing = sorted(set(ctx.hidden_nodes) - collected)
+    return {"hidden_nodes": sorted(ctx.hidden_nodes), "collected_count": len(collected),
+            "hidden_missing_from_collection": missing, "p2p_count": len(ctx.p2p_nodes),
+            "overlap_with_p2p": overlap, "test_overlay_files": sorted(ctx.test_overlay_files),
+            "hidden_node_plan_hash": _sha_list(list(ctx.hidden_nodes)),
             "public_node_plan_hash": _sha_list(list(ctx.p2p_nodes))}
 
 
 def assert_hidden_selection_valid(ctx: RealTaskContext) -> dict:
-    """Guard the ``-k`` selector: it MUST collect exactly one node, disjoint from the P2P suite.
-
-    A 0- or >1-match is a CONFIGURATION failure (raises), NEVER a silent hidden FAIL — otherwise a
-    mis-scoped selector could fabricate or hide a verdict.
-    """
+    """Guard the EXACT hidden node set: every frozen hidden node must be COLLECTED (else
+    NODE_MAPPING_DRIFT — a config/apparatus failure, never a silent hidden FAIL) and disjoint from P2P."""
+    if not ctx.hidden_nodes:
+        raise GateError("empty hidden node set — no F2P to verify")
     ev = hidden_selection_evidence(ctx)
-    if ev["hidden_match_count"] != 1:
-        raise GateError(f"hidden -k selector matched {ev['hidden_match_count']} tests, expected "
-                        "exactly 1 — configuration failure (not a hidden FAIL)")
+    if ev["hidden_missing_from_collection"]:
+        raise GateError("NODE_MAPPING_DRIFT: frozen hidden nodes not collected "
+                        f"{ev['hidden_missing_from_collection']} — config failure (not a hidden FAIL)")
     if ev["overlap_with_p2p"]:
         raise GateError(f"hidden selection overlaps the P2P suite {ev['overlap_with_p2p']} — blocked")
     return ev
 
 
 def hidden_verify(ctx: RealTaskContext) -> bool:
-    """Run ONLY the frozen F2P node, ONCE. Return a boolean verdict — NO content (traceback / node
-    id / assertion) ever leaves this call. The ``-k`` selection is guarded to exactly one node first;
-    a mis-scoped selector raises a configuration failure rather than returning a false FAIL."""
-    ev = assert_hidden_selection_valid(ctx)
-    node = ev["collected_hidden_nodes"][0]
-    res, timed_out, _raw = _pytest(ctx, [node])           # run the EXACT collected node id
-    if timed_out or not res:
-        raise GateError("hidden node did not produce a result — infrastructure failure, not a FAIL")
+    """Run the EXACT frozen hidden nodes (under the fixed-rev overlay + netns), ONCE. Verdict = ALL
+    pass. NO content (traceback / node id / assertion) leaves this call. The exact node set is guarded
+    to be fully collected first; a drift raises NODE_MAPPING_DRIFT rather than returning a false FAIL."""
+    assert_hidden_selection_valid(ctx)
+    res, timed_out, _raw = _pytest_nodes(ctx, list(ctx.hidden_nodes))    # run the EXACT node ids
+    if timed_out or set(res) != set(ctx.hidden_nodes):
+        raise GateError("hidden nodes did not all run — infrastructure / NODE_MAPPING_DRIFT, not a FAIL")
     return all(v == "PASSED" for v in res.values())
 
 
@@ -220,12 +222,33 @@ def _materialize(task_id: str, workdir: str) -> RealTaskContext:
     if task is None:
         raise RuntimeError(f"reproduction failed for {task_id}: {rep.status} {rep.detail}")
     repo = os.path.join(workdir, proj["repository"])
-    # leave the repo at the BUGGY state the agent starts from (allowed source only)
-    subprocess.run(["git", "checkout", "-q", "-f", task.buggy_rev], cwd=repo, check=True)
-    return RealTaskContext(task_id=task_id, repo=repo, py=os.path.join(repo, ".venv", "bin", "python"),
-                           allowed_source_files=list(task.allowed_source_files),
-                           p2p_nodes=list(task.p2p_nodes), f2p_plan=[list(p) for p in task.f2p_plan],
-                           buggy_source=dict(task.buggy_source), reference_fix=dict(task.reference_fix))
+    # DEFECT-4 FIX: reproduce_bug leaves the repo with the FIXED-REV TEST OVERLAY applied (the fixtures
+    # / regression tests the F2P was derived under). Reset ONLY the allowed source files to the buggy
+    # revision (the state the agent starts from) and KEEP the overlay — so real grading runs the SAME
+    # tests as the derivation (previously a ``checkout -f buggy_rev`` dropped the overlay → false PASS).
+    subprocess.run(["git", "checkout", "-q", task.buggy_rev, "--", *task.allowed_source_files],
+                   cwd=repo, check=True)
+    from .test_execution_plan import load_frozen_test_execution_plans
+    corpus_dir = os.path.join(here, "corpus")
+    plan = load_frozen_test_execution_plans(corpus_dir).plan_for(task_id)
+    _assert_matches_frozen_plan(task, plan)                 # fail-closed on overlay / node drift
+    return RealTaskContext(
+        task_id=task_id, repo=repo, py=os.path.join(repo, ".venv", "bin", "python"),
+        allowed_source_files=list(task.allowed_source_files),
+        p2p_nodes=list(plan.public_nodes), hidden_nodes=list(plan.hidden_nodes),
+        f2p_plan=[list(p) for p in task.f2p_plan], test_overlay_files=list(plan.test_overlay_files),
+        buggy_source=dict(task.buggy_source), reference_fix=dict(task.reference_fix))
+
+
+def _assert_matches_frozen_plan(task, plan) -> None:
+    """The freshly-derived grading contract must EXACTLY match the frozen plan (fail-closed)."""
+    if dict(task.test_overlay_hashes) != dict(plan.test_overlay_hashes):
+        raise GateError(f"{task.task_id}: test-overlay drift vs frozen plan")
+    if sorted(task.f2p_nodes) != sorted(plan.hidden_nodes):
+        raise GateError(f"{task.task_id}: NODE_MAPPING_DRIFT hidden {sorted(task.f2p_nodes)} "
+                        f"!= frozen {sorted(plan.hidden_nodes)}")
+    if sorted(task.p2p_nodes) != sorted(plan.public_nodes):
+        raise GateError(f"{task.task_id}: public-node drift vs frozen plan")
 
 
 def materialize_real_task(task_id: str, workdir: str) -> RealTaskContext:
