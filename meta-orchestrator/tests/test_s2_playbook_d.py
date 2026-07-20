@@ -91,8 +91,8 @@ def _one_bad(field_value):
 
 @pytest.mark.parametrize("bad", [
     "see black-95 for the pattern",           # task/corpus id
-    "edit the visitor in linegen.py",         # filename / .py
-    "apply the fix in src/black",             # path separator
+    "edit the visitor in linegen.py",         # bare source filename
+    "apply the fix in src/black/linegen.py",  # real multi-segment path (v2: a lone slash is allowed)
     "the function should return 15",          # code fragment / concrete value
     "assert the node is balanced",            # test assertion
     "the result == 42 here",                  # concrete expected value

@@ -23,7 +23,7 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..lesson import _FORBIDDEN
+from ..lesson import _FORBIDDEN, _find_path_leak
 from .memory import SLOT_MAX_CHARS, SLOT_MAX_LINES, StaticPlaybook
 
 # --- size caps (shared spirit with C's slot budget; the render budget is the hard gate) ----
@@ -87,9 +87,12 @@ def _leaks(text: str) -> list[str]:
     hits: list[str] = []
     if _TASK_ID_RE.search(text):
         hits.append("task/corpus id")
-    for pat, why in _FORBIDDEN:               # paths, code, patches, assert/return, concrete values
+    for pat, why in _FORBIDDEN:               # code, patches, assert/return, concrete values, line #
         if re.search(pat, text):
             hits.append(why)
+    path_why = _find_path_leak(text)          # path-aware (C/D share one leak standard): a real
+    if path_why:                              # filesystem path leaks, a lone slash-joined pair does not
+        hits.append(path_why)
     return hits
 
 
