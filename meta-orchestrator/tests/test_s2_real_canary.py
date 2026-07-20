@@ -69,7 +69,8 @@ def _ctx(tmp_path):
     repo = tmp_path / "repo"
     (repo / "blib2to3" / "pgen2").mkdir(parents=True, exist_ok=True)
     (repo / ALLOWED[0]).write_text("def driver():\n    return 0\n")
-    return RT.RealTaskContext(task_id="black-112", repo=str(repo), py="python",
+    return RT.RealTaskContext(task_id="black-112", task_family="whitespace", repo=str(repo),
+                              py="python",
                               allowed_source_files=ALLOWED, p2p_nodes=["tests/test_black.py::t1"],
                               f2p_plan=[["tests/test_black.py", "comments2"]],
                               buggy_source={ALLOWED[0]: "def driver():\n    return 0\n"},
@@ -80,7 +81,8 @@ def _ctx(tmp_path):
 def _grant(tmp_path):
     return build_execution_grant(grant_id="g-black-112", anchor_commit="HEAD",
                                  anchor_report_hash="rh", fold=1, condition="C", phase="training",
-                                 task_id="black-112", curriculum_hash="cur", curriculum_position=0,
+                                 task_id="black-112", task_family="whitespace",
+                                 curriculum_hash="cur", curriculum_position=0,
                                  max_total_exposure_usd="0.064282", granted_at="2026-07-19T00:00:00Z")
 
 

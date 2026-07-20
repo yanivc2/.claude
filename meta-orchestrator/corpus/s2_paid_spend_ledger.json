@@ -1,7 +1,7 @@
 {
-  "content_hash": "99b9752d970592ab",
-  "diagnostic_apparatus_spend_usd": "0.041105",
-  "note": "two diagnostic canaries at the defective apparatus: black-112 full-file@91b7d8f ($0.028822) + black-112 SEARCH/REPLACE@407497b ($0.012283, defect 2/4). Both count against the GLOBAL lifetime cap, NOT official C-training; neither advanced curriculum/bank.",
+  "content_hash": "f3437037caa243e9",
+  "diagnostic_apparatus_spend_usd": "0.052343",
+  "note": "three diagnostic canaries at defective apparatus (NONE official C-training; none advanced curriculum/bank): black-112 full-file@91b7d8f ($0.028822) + black-112 SEARCH/REPLACE@407497b ($0.012283, defect 2) + black-112 defect-1-4-fixed@9a77040 ($0.011238, DIAGNOSTIC_SOLVER_PASS_APPARATUS_DEFECT_5: apparent solver PASS but empty task_family binding left the write-gate inert). All count against the GLOBAL lifetime cap only.",
   "official_training_spend_usd": "0",
   "schema_version": "s2-paid-spend-v1"
 }

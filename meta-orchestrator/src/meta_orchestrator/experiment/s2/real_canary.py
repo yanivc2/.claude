@@ -29,6 +29,7 @@ from typing import Callable, Optional
 from . import realtask as RT
 from .call_journal import BudgetLedger, CallJournal, classify_journal_terminal
 from .execution_grant import GrantUsageLedger
+from .families import TaskFamilyBindingError, assert_task_family_valid
 from .live_solver import ModelBackedRoundSolver
 from .patch_format import PatchFormatError
 from .pricing import PricingArtifact
@@ -52,10 +53,28 @@ def run_real_task_canary(
     full_exposure_usd: str, fold_budget_usd: float, context_cap: int, env_hash: str,
     contract_hash: str, memory_lines: Optional[list[str]] = None, is_train: bool = True,
     max_public_feedback_cap: int = 2000, non_authoritative: bool = True,
+    task_family: Optional[str] = None,
 ) -> dict:
     os.makedirs(work_dir, exist_ok=True)
     task_trace: list[str] = []
     bank_before = "empty"
+
+    # (0) DEFECT-5 fail-closed FAMILY BINDING — runs BEFORE any reservation / messages.create. The
+    # authoritative family is the one the frozen family map bound into the context. It must be a
+    # non-empty member of the frozen taxonomy AND agree across every component that will see it
+    # (an optional caller override, and the grant if the grant carries a binding). Any empty / null /
+    # unknown / mismatched family raises TaskFamilyBindingError here → no reservation, no model call,
+    # no write-gate, no bank mutation, no curriculum advancement (an APPARATUS/INFRA failure).
+    bound_family = assert_task_family_valid(ctx.task_family)
+    if task_family is not None and task_family != bound_family:
+        raise TaskFamilyBindingError(
+            f"caller task_family {task_family!r} != frozen context family {bound_family!r} for "
+            f"{ctx.task_id} — mismatch across components (blocked before reservation)")
+    grant_family = getattr(grant, "task_family", "") or ""
+    if grant_family and grant_family != bound_family:
+        raise TaskFamilyBindingError(
+            f"grant task_family {grant_family!r} != frozen context family {bound_family!r} for "
+            f"{ctx.task_id} — grant/task metadata mismatch (blocked before reservation)")
 
     budget = BudgetLedger(os.path.join(work_dir, "ledger.json"), total_budget=fold_budget_usd)
     journal = CallJournal(os.path.join(work_dir, "journal.jsonl"))
@@ -68,7 +87,7 @@ def run_real_task_canary(
 
     solver = ModelBackedRoundSolver(
         client=client, statement=statement, allowed_source_files=list(ctx.allowed_source_files),
-        task_family="", is_train=is_train, pricing=pricing, endpoint_att=endpoint_att,
+        task_family=bound_family, is_train=is_train, pricing=pricing, endpoint_att=endpoint_att,
         ledger=budget, journal=journal, fold=grant.fold, condition=grant.condition,
         context_cap=context_cap, count_fn=count_fn, run_id=f"canary:{ctx.task_id}", env_hash=env_hash,
         contract_hash=contract_hash, active_bank_hash=bank_before, task_id=ctx.task_id,
@@ -90,7 +109,7 @@ def run_real_task_canary(
             if round1_status != "FAIL":
                 break
             round2_opened = True
-        view = RoundView(round_index=round_index, task_id=ctx.task_id, task_family="",
+        view = RoundView(round_index=round_index, task_id=ctx.task_id, task_family=bound_family,
                          source=dict(ctx.buggy_source), public_tests={},
                          memory_lines=list(memory_lines or []), public_feedback=feedback)
         try:
@@ -156,8 +175,11 @@ def run_real_task_canary(
     written = []
     if patch_applied:
         for cand in candidates:
+            # DEFECT-5: the AUTHORITATIVE task family (frozen map), never the candidate's self-label —
+            # the write-gate's own check #6 (candidate.task_family == task_family) is only meaningful
+            # when ``task_family`` is the independent, authoritative binding.
             res = evaluate_write_gate(cand, is_train=is_train, verifier_passed=hidden_verdict,
-                                      task_family=cand.task_family, existing=written,
+                                      task_family=bound_family, existing=written,
                                       forbidden_values=forbidden)
             if res.written:
                 written.append(cand)
@@ -197,7 +219,8 @@ def _report(ctx, grant, grant_ledger, budget, journal, task_res_id, full_exposur
                     call_ids.append(cid)
     journal_terminals = {cid: classify_journal_terminal(journal.states_for(cid)) for cid in call_ids}
     return {
-        "task_id": ctx.task_id, "task_trace": task_trace, "public_statuses": public_statuses,
+        "task_id": ctx.task_id, "task_family": ctx.task_family,
+        "task_trace": task_trace, "public_statuses": public_statuses,
         "round2_opened": round2_opened, "hidden_verdict": hidden_verdict,
         "per_call": per_call, "calls_sent": len(calls),
         "reserved_usd": full_exposure_usd, "reconciled_usd": (f"{total_actual:.8f}" if reconciled else None),

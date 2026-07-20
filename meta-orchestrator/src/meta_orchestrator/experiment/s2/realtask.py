@@ -42,6 +42,7 @@ class PublicResult(BaseModel):
 
 class RealTaskContext(BaseModel):
     task_id: str
+    task_family: str = ""            # frozen authoritative family (defect-5); "" only for legacy fakes
     repo: str
     py: str
     allowed_source_files: list[str]
@@ -232,8 +233,13 @@ def _materialize(task_id: str, workdir: str) -> RealTaskContext:
     corpus_dir = os.path.join(here, "corpus")
     plan = load_frozen_test_execution_plans(corpus_dir).plan_for(task_id)
     _assert_matches_frozen_plan(task, plan)                 # fail-closed on overlay / node drift
+    # DEFECT-5: bind the frozen, authoritative family into the context (fail-closed: empty / not in
+    # the taxonomy / absent from the frozen map raises TaskFamilyBindingError here, before any grading).
+    from .families import resolve_task_family
+    task_family = resolve_task_family(corpus_dir, task_id)
     return RealTaskContext(
-        task_id=task_id, repo=repo, py=os.path.join(repo, ".venv", "bin", "python"),
+        task_id=task_id, task_family=task_family,
+        repo=repo, py=os.path.join(repo, ".venv", "bin", "python"),
         allowed_source_files=list(task.allowed_source_files),
         p2p_nodes=list(plan.public_nodes), hidden_nodes=list(plan.hidden_nodes),
         f2p_plan=[list(p) for p in task.f2p_plan], test_overlay_files=list(plan.test_overlay_files),
@@ -288,7 +294,7 @@ def dry_run_attempt(ctx: RealTaskContext, *, statement: str, memory_lines: list[
     patches = 0
 
     p1 = parse_model_response(r1_text, allowed_source_files=ctx.allowed_source_files,
-                              task_family="", is_train=is_train)
+                              task_family=ctx.task_family, is_train=is_train)
     if p1.ok:
         apply_patch(ctx, p1.edits)
         patches += 1

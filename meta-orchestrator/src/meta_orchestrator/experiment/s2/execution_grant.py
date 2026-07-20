@@ -30,6 +30,9 @@ class ExecutionGrant(BaseModel):
     condition: str                         # e.g. "C"
     phase: str                             # e.g. "training"
     task_id: str                           # exactly one LITERAL task id
+    task_family: str = ""                  # DEFECT-5: the frozen family this task is bound to
+    family_map_hash: str = ""              # content hash of the frozen task_id→family map
+    taxonomy_hash: str = ""                # content hash of the frozen family taxonomy (label space)
     curriculum_hash: str = ""              # the frozen curriculum this task id came from
     curriculum_position: int = 0           # its frozen position (not a runtime sort)
     max_tasks: int = 1
@@ -69,6 +72,7 @@ class ExecutionGrant(BaseModel):
 
 def build_execution_grant(*, grant_id: str, anchor_commit: str, anchor_report_hash: str, fold: int,
                           condition: str, phase: str, task_id: str, granted_at: str,
+                          task_family: str = "", family_map_hash: str = "", taxonomy_hash: str = "",
                           curriculum_hash: str = "", curriculum_position: int = 0,
                           max_total_exposure_usd: str = "", model_id: str = "",
                           reproduction_digest: str = "", granted_by: str = "operator",
@@ -78,6 +82,7 @@ def build_execution_grant(*, grant_id: str, anchor_commit: str, anchor_report_ha
     return ExecutionGrant(
         grant_id=grant_id, anchor_commit=anchor_commit, anchor_report_hash=anchor_report_hash,
         fold=fold, condition=condition, phase=phase, task_id=task_id,
+        task_family=task_family, family_map_hash=family_map_hash, taxonomy_hash=taxonomy_hash,
         curriculum_hash=curriculum_hash, curriculum_position=curriculum_position, max_tasks=1,
         max_attempts=max_attempts, max_messages_calls=max_messages_calls,
         max_total_exposure_usd=max_total_exposure_usd, model_id=model_id,

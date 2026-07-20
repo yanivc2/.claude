@@ -26,6 +26,9 @@ from decimal import Decimal
 from meta_orchestrator.experiment.s2.budget_projection import GATE_OUTPUT_TOKENS_PER_CALL
 from meta_orchestrator.experiment.s2.curriculum import load_frozen_curriculum
 from meta_orchestrator.experiment.s2.execution_grant import (GrantUsageLedger, build_execution_grant)
+from meta_orchestrator.experiment.s2.families import (TaskFamilyBindingError, family_map_hash,
+                                                     load_family_map, resolve_task_family,
+                                                     taxonomy_hash)
 from meta_orchestrator.experiment.s2.pricing import call_cost_usd, load_frozen_pricing
 from meta_orchestrator.experiment.s2.realtask import assert_hidden_selection_valid, materialize_real_task
 
@@ -69,6 +72,15 @@ def main() -> None:
     ctx = materialize_real_task(task_id, workdir)
     sel = assert_hidden_selection_valid(ctx)                # raises on 0/>1 match or P2P overlap
 
+    # (3b) DEFECT-5: bind the frozen, authoritative family (fail-closed). The map + taxonomy hashes
+    # go into the sealed grant so a later run under a drifted map / taxonomy is refused.
+    task_family = resolve_task_family(corpus_dir, task_id)   # non-empty + in taxonomy + in frozen map
+    if task_family != ctx.task_family:
+        raise TaskFamilyBindingError(
+            f"family mismatch: map={task_family!r} != materialized ctx={ctx.task_family!r}")
+    fam_map_hash = family_map_hash(load_family_map(corpus_dir))
+    tax_hash = taxonomy_hash()
+
     # (4) exact max R1+R2 exposure for THIS task (frozen worst, Decimal)
     pricing = load_frozen_pricing(corpus_dir)
     per = {t["task_id"]: t for t in art["per_task"]}[task_id]
@@ -83,6 +95,7 @@ def main() -> None:
     grant = build_execution_grant(
         grant_id=grant_id, anchor_commit=art["git_commit"], anchor_report_hash=gate1_report_hash,
         fold=FOLD, condition="C", phase="training", task_id=task_id,
+        task_family=task_family, family_map_hash=fam_map_hash, taxonomy_hash=tax_hash,
         curriculum_hash=cur.content_hash, curriculum_position=POSITION,
         max_total_exposure_usd=format(exposure, "f"), model_id=art["model"],
         reproduction_digest=art.get("materialization_cache_index_hash", ""),
@@ -116,10 +129,12 @@ def main() -> None:
     print(f"  seal_verified           : {seal_ok}")
     print(f"  task_id                 : {grant.task_id}  (curriculum pos {grant.curriculum_position}, "
           f"hash {grant.curriculum_hash})")
+    print(f"  task_family             : {grant.task_family}  (family_map {grant.family_map_hash} "
+          f"taxonomy {grant.taxonomy_hash})")
     print(f"  bound anchor            : {grant.anchor_content_hash}  commit {grant.anchor_commit[:12]} (==HEAD)")
     print(f"  anchor_binding_verified : {binding_ok}")
-    print(f"  hidden selection        : match_count={sel['hidden_match_count']} "
-          f"overlap_with_p2p={sel['overlap_with_p2p']} node={sel['collected_hidden_nodes'][0]}")
+    print(f"  hidden selection        : hidden_nodes={len(sel['hidden_nodes'])} "
+          f"overlap_with_p2p={sel['overlap_with_p2p']} node={sel['hidden_nodes'][0]}")
     print(f"  node plan hashes        : public={grant.public_node_plan_hash} hidden={grant.hidden_node_plan_hash}")
     print(f"  source/materialisation  : source={grant.source_bundle_hash} test={grant.test_materialization_hash}")
     print(f"  network_isolation       : {grant.network_isolation}")

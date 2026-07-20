@@ -13,11 +13,8 @@ from typing import Optional
 from pydantic import BaseModel
 
 from .b1_selector import REAL_SOURCE, B1Selection
+from .gate_error import GateError  # noqa: F401 — re-exported; canonical definition is the leaf module
 from .preflight import ContextCapReport
-
-
-class GateError(RuntimeError):
-    """A gate or runtime invariant was violated — the paid call is blocked."""
 
 
 # --- Gate 2 training completeness (P0.3) -------------------------------------------------
