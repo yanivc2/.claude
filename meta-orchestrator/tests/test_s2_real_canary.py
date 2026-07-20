@@ -109,6 +109,7 @@ def test_scenario1_r1_success(tmp_path, monkeypatch):
     assert rep["public_statuses"] == ["PASS"] and rep["round2_opened"] is False
     assert rep["calls_sent"] == 1 and rep["grant_calls_used"] == 1 and rep["grant_completed"] is True
     assert rep["hidden_verdict"] is True and rep["reconciled_usd"] is not None
+    assert rep["hidden_verify_count"] == 1 and rep["patch_applied"] is True   # valid+applied → verify once
     assert rep["task_trace"][0] == "TASK_RESERVED" and rep["task_trace"][-1] == "TASK_CLOSED"
     assert rep["ambiguous_held"] is False and rep["task_2_started"] is False
     # the unused R2 portion of the reservation was released back to the budget
@@ -123,24 +124,29 @@ def test_scenario2_r1_fail_then_r2(tmp_path, monkeypatch):
     assert rep["hidden_verdict"] is True
 
 
-def test_scenario3_malformed_but_complete_no_r2(tmp_path, monkeypatch):
-    # a COMPLETE reply (has ### END) that fails the schema → MALFORMED (not truncated): no patch
-    # applied, source stays buggy, public PASS (P2P pass-on-buggy) → NO R2; one hidden verify.
+def test_scenario3_malformed_is_terminal_no_hidden_no_writegate(tmp_path, monkeypatch):
+    # a COMPLETE reply (has ### END) that fails the schema → MALFORMED: terminal SOLVER_FAIL, no patch
+    # applied, NO hidden verify (defect-3), no R2, no write-gate, no bank mutation.
     rep = _run(tmp_path, monkeypatch, responses=[("just musing, no patch\n### END", 40, 20)],
-               public_seq=["PASS"], hidden=False)
+               public_seq=["PASS"], hidden=True)
     assert rep["round2_opened"] is False and rep["calls_sent"] == 1
     assert rep["round_classifications"] == ["MALFORMED_OUTPUT"]
-    assert rep["hidden_verdict"] is False              # unsolved → SOLVER_FAIL (one hidden verify)
+    assert rep["public_statuses"] == ["SOLVER_FAIL_MALFORMED_OUTPUT"]
+    assert rep["patch_applied"] is False and rep["hidden_verify_count"] == 0
+    assert rep["hidden_verdict"] is None               # hidden NOT run on an unapplied patch
+    assert rep["write_gate_written"] == 0 and rep["bank_hash_after"] == rep["bank_hash_before"]
     assert rep["grant_completed"] is True
 
 
-def test_scenario5_truncation_is_terminal_no_r2_no_writegate(tmp_path, monkeypatch):
+def test_scenario5_truncation_is_terminal_no_hidden_no_writegate(tmp_path, monkeypatch):
     # stop_reason=max_tokens even though a patch could be parsed → TERMINAL SOLVER_FAIL_TRUNCATED:
-    # no apply, no official pass, no write-gate, no R2, grant still completes (a paid call happened).
+    # no apply, no hidden verify, no write-gate, no R2; grant still completes (a paid call happened).
     rep = _run(tmp_path, monkeypatch, responses=[(FIX, 8342, 4096, "max_tokens")],
                public_seq=["PASS"], hidden=True)
     assert rep["round_classifications"] == ["TRUNCATED_OUTPUT"]
     assert rep["public_statuses"] == ["SOLVER_FAIL_TRUNCATED"] and rep["round2_opened"] is False
+    assert rep["patch_applied"] is False and rep["hidden_verify_count"] == 0
+    assert rep["hidden_verdict"] is None
     assert rep["write_gate_written"] == 0 and rep["bank_hash_after"] == rep["bank_hash_before"]
     assert rep["calls_sent"] == 1 and rep["grant_completed"] is True
 

@@ -90,6 +90,41 @@ def test_multi_file_edits_parse_in_order():
     assert p.ok and list(p.edits) == ["a.py", "b.py"]
 
 
+# --------------------------------------------------------------------------- fence normalization (defect 1)
+_VALID_PATCH = ("### PATCH\n### FILE: solution.py\n<<<<<<< SEARCH\n    return 1\n=======\n"
+                "    return 2\n>>>>>>> REPLACE\n### END")
+
+
+def test_fenced_lesson_json_plus_valid_patch_is_accepted():
+    # regression for the black-112 diagnostic: a ```json-fenced LESSON must NOT reject a valid patch
+    text = ('### LESSON\n```json\n{"recommended_action": ["x"], "avoid": ["y"]}\n```\n' + _VALID_PATCH)
+    p = parse_model_response(text, allowed_source_files=["solution.py"], task_family="f", is_train=True)
+    assert p.ok and p.candidate_lesson is not None
+    assert classify_response(stop_reason="end_turn", end_marker_present=p.end_marker_present,
+                             parse_ok=p.ok) == VALID_COMPLETE_OUTPUT
+
+
+def test_bare_fenced_lesson_and_fenced_patch_body_accepted():
+    text = ('### LESSON\n```\n{"recommended_action": ["x"], "avoid": ["y"]}\n```\n'
+            "### PATCH\n```text\n### FILE: solution.py\n<<<<<<< SEARCH\n    return 1\n=======\n"
+            "    return 2\n>>>>>>> REPLACE\n```\n### END")
+    p = parse_model_response(text, allowed_source_files=["solution.py"], task_family="f", is_train=True)
+    assert p.ok and p.edits["solution.py"] == [("    return 1", "    return 2")]
+
+
+def test_prose_around_lesson_is_not_extracted():
+    # framing normalization only strips a SINGLE clean outer fence — never extracts from prose
+    text = ('### LESSON\nHere is my lesson: {"recommended_action": ["x"], "avoid": ["y"]}\n' + _VALID_PATCH)
+    p = parse_model_response(text, allowed_source_files=["solution.py"], task_family="f", is_train=True)
+    assert not p.ok and p.reason == "malformed_lesson"
+
+
+def test_nested_fence_is_rejected():
+    text = ('### LESSON\n```json\n```\n{"recommended_action": ["x"], "avoid": ["y"]}\n```\n```\n' + _VALID_PATCH)
+    p = parse_model_response(text, allowed_source_files=["solution.py"], task_family="f", is_train=True)
+    assert not p.ok
+
+
 # --------------------------------------------------------------------------- fail-closed classification
 def test_classification_matrix():
     assert classify_response(stop_reason="max_tokens", end_marker_present=True, parse_ok=True) == TRUNCATED_OUTPUT

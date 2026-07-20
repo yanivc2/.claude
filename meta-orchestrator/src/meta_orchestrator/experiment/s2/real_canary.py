@@ -81,10 +81,13 @@ def run_real_task_canary(
     feedback: Optional[str] = None
     classifications: list[Optional[str]] = []
     patch_statuses: list[Optional[str]] = []
+    patch_applied = False                                # hidden verify runs ONLY if this is True
 
     for round_index in (1, 2):
         if round_index == 2:
-            if round1_status != "FAIL":                  # R2 ONLY on a genuine public FAIL
+            # R2 opens ONLY after a LEGITIMATE public FAIL (a complete+valid+applied patch that then
+            # failed the public suite) — never after truncation/malformed/refusal/apply-failure.
+            if round1_status != "FAIL":
                 break
             round2_opened = True
         view = RoundView(round_index=round_index, task_id=ctx.task_id, task_family="",
@@ -99,28 +102,35 @@ def run_real_task_canary(
                            task_trace, public_statuses, round2_opened, hidden_verdict=None,
                            write_written=0, bank_before=bank_before, bank_after=bank_before,
                            calls=solver.calls, ambiguous=True, reconciled=False, completed=False,
-                           classifications=classifications, patch_statuses=patch_statuses)
+                           classifications=classifications, patch_statuses=patch_statuses,
+                           hidden_count=0)
         classifications.append(out.classification)
 
-        # FAIL-CLOSED (Decision A): a truncated reply is a TERMINAL SOLVER_FAIL_TRUNCATED — never
-        # applied, never an official pass, never write-gated, never opens R2, never auto-retried.
-        if out.classification == TRUNCATED_OUTPUT:
+        # FAIL-CLOSED (Decision A + defect-3): only a COMPLETE + VALID reply is applied and graded.
+        # Truncated / malformed / refusal → TERMINAL solver failure: no apply, no public grading,
+        # no R2, no hidden verify, no write-gate, no bank mutation, no auto-retry.
+        if not is_official_pass_eligible(out.classification):
+            outcome = (SOLVER_FAIL_TRUNCATED if out.classification == TRUNCATED_OUTPUT
+                       else f"SOLVER_FAIL_{out.classification}")
             patch_statuses.append(None)
-            public_statuses.append(SOLVER_FAIL_TRUNCATED)
+            public_statuses.append(outcome)
             if round_index == 1:
-                round1_status = SOLVER_FAIL_TRUNCATED
+                round1_status = outcome
             break
 
-        # Only a complete, valid reply is applied + graded as official + (C-train) write-gated.
-        patch_status: Optional[str] = None
-        if is_official_pass_eligible(out.classification) and out.sr_edits:
-            try:
-                RT.apply_patch(ctx, out.sr_edits)        # exact SEARCH/REPLACE vs the buggy pre-image
-            except (PatchFormatError, ValueError) as exc:  # solver failure — NOT a transport ambiguity
-                patch_status = getattr(exc, "code", "PATCH_APPLY_FAILED")
-        patch_statuses.append(patch_status)
-        if (is_official_pass_eligible(out.classification) and is_train
-                and grant.condition == "C" and out.candidate_lesson is not None):
+        # VALID: apply the patch against the buggy pre-image. An apply failure (NOT_FOUND / AMBIGUOUS
+        # / OVERLAP) is a TERMINAL solver failure too — no public grading, no R2, no hidden verify.
+        try:
+            RT.apply_patch(ctx, out.sr_edits)            # exact SEARCH/REPLACE vs the buggy pre-image
+            patch_applied = True
+            patch_statuses.append("APPLIED")
+        except (PatchFormatError, ValueError) as exc:    # solver failure — NOT a transport ambiguity
+            patch_statuses.append(getattr(exc, "code", "PATCH_APPLY_FAILED"))
+            public_statuses.append("SOLVER_FAIL_PATCH_APPLY")
+            if round_index == 1:
+                round1_status = "SOLVER_FAIL_PATCH_APPLY"
+            break
+        if is_train and grant.condition == "C" and out.candidate_lesson is not None:
             candidates.append(out.candidate_lesson)
         pub = RT.run_public_tests(ctx)                   # repo-backed, unshare -rn, 4-state
         public_statuses.append(pub.status)
@@ -130,19 +140,27 @@ def run_real_task_canary(
             break
         feedback = pub.sanitized_summary[:max_public_feedback_cap]
 
-    # (2) exactly ONE hidden verify at the end, on the final patched source (verdict never fed back)
-    hidden_verdict = RT.hidden_verify(ctx)
-    task_trace.append(HIDDEN_VERIFY)
+    # (2) hidden verify runs ONCE, and ONLY when a valid patch was actually applied (defect-3): a
+    # hidden verdict on unchanged/buggy source is not a signal about the model's solution.
+    if patch_applied:
+        hidden_verdict = RT.hidden_verify(ctx)           # verdict never fed back to the model
+        hidden_count = 1
+        task_trace.append(HIDDEN_VERIFY)
+    else:
+        hidden_verdict = None
+        hidden_count = 0
 
-    # (3) write-gate on any candidate lesson (bank starts empty for the first C-training task)
+    # (3) write-gate on any candidate lesson — ONLY when a patch was applied (no bank mutation on a
+    # failed/unapplied attempt). Candidates are only collected on a VALID+applied round anyway.
     forbidden = reference_patch_tokens(ctx.reference_fix) if ctx.reference_fix else []
     written = []
-    for cand in candidates:
-        res = evaluate_write_gate(cand, is_train=is_train, verifier_passed=hidden_verdict,
-                                  task_family=cand.task_family, existing=written,
-                                  forbidden_values=forbidden)
-        if res.written:
-            written.append(cand)
+    if patch_applied:
+        for cand in candidates:
+            res = evaluate_write_gate(cand, is_train=is_train, verifier_passed=hidden_verdict,
+                                      task_family=cand.task_family, existing=written,
+                                      forbidden_values=forbidden)
+            if res.written:
+                written.append(cand)
     task_trace.append(WRITE_GATE)
     bank_after = f"bank+{len(written)}" if written else bank_before
 
@@ -157,14 +175,15 @@ def run_real_task_canary(
     return _report(ctx, grant, grant_ledger, budget, journal, task_res_id, full_exposure_usd,
                    task_trace, public_statuses, round2_opened, hidden_verdict, len(written),
                    bank_before, bank_after, solver.calls, classifications=classifications,
-                   patch_statuses=patch_statuses, ambiguous=False, reconciled=True,
+                   patch_statuses=patch_statuses, hidden_count=hidden_count, ambiguous=False,
+                   reconciled=True,
                    completed=True)
 
 
 def _report(ctx, grant, grant_ledger, budget, journal, task_res_id, full_exposure_usd, task_trace,
             public_statuses, round2_opened, hidden_verdict, write_written, bank_before, bank_after,
             calls, *, ambiguous, reconciled, completed, classifications=None,
-            patch_statuses=None) -> dict:
+            patch_statuses=None, hidden_count=0) -> dict:
     per_call = [{"round": c["round"], "input_tokens": c["input_tokens"],
                  "output_tokens": c["output_tokens"], "actual_cost_usd": c["actual_cost_usd"]}
                 for c in calls]
@@ -193,4 +212,6 @@ def _report(ctx, grant, grant_ledger, budget, journal, task_res_id, full_exposur
         "network_isolation": " ".join(ctx.netns()),
         "round_classifications": list(classifications or []),
         "patch_statuses": list(patch_statuses or []),
+        "hidden_verify_count": hidden_count,
+        "patch_applied": hidden_count > 0,
     }

@@ -27,12 +27,32 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
 from ..lesson import Lesson
 from . import patch_format as PF
+
+# A SINGLE outer markdown fence wrapping the ENTIRE field, with only whitespace outside it and no
+# nested fence inside. Stripping it is FRAMING normalization (LLMs commonly fence JSON / code blocks),
+# NOT semantic repair: after stripping, the strict parser/json.loads runs unchanged. Anything else
+# (prose around the field, multiple fences, a partial fence) is left as-is → it fails the strict parse.
+_OUTER_FENCE_RE = re.compile(r"\A\s*```[^\n]*\n(?P<body>.*)\n```\s*\Z", re.DOTALL)
+
+
+def _strip_single_outer_fence(text: str) -> str:
+    """Remove exactly one outer ```…``` fence that wraps the whole field (whitespace-only outside,
+    no nested fence). Otherwise return ``text`` unchanged — never extract a fenced fragment out of
+    surrounding prose."""
+    m = _OUTER_FENCE_RE.match(text)
+    if not m:
+        return text
+    body = m.group("body")
+    if re.search(r"^\s*```", body, re.MULTILINE):      # nested fence → not a single clean wrapper
+        return text
+    return body
 
 
 class ParsedResponse(BaseModel):
@@ -79,7 +99,7 @@ def parse_model_response(text: str, *, allowed_source_files: list[str], task_fam
             return fail("missing_lesson")
         if lesson_idx > patch_idx:
             return fail(PF.SCHEMA_INVALID + ":lesson_after_patch")
-        lesson_json = "\n".join(lines[lesson_idx + 1:patch_idx]).strip()
+        lesson_json = _strip_single_outer_fence("\n".join(lines[lesson_idx + 1:patch_idx]).strip())
         if len(lesson_json) > PF.MAX_LESSON_CHARS:
             return fail(PF.LIMIT_EXCEEDED + ":lesson_chars")
         lesson = _parse_lesson(lesson_json, task_family)
@@ -88,8 +108,8 @@ def parse_model_response(text: str, *, allowed_source_files: list[str], task_fam
     elif lesson_idx != -1:                                # non-train must NOT propose a lesson
         return fail(PF.SCHEMA_INVALID + ":unexpected_lesson")
 
-    # --- patch region (between ### PATCH and ### END) ---
-    region = "\n".join(lines[patch_idx + 1:end_idx])
+    # --- patch region (between ### PATCH and ### END); tolerate one outer fence around the body ---
+    region = _strip_single_outer_fence("\n".join(lines[patch_idx + 1:end_idx]))
     try:
         parsed = PF.parse_patch_region(region, allowed_source_files)
     except PF.PatchFormatError as exc:
