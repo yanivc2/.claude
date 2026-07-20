@@ -1,7 +1,7 @@
 {
-  "content_hash": "f3437037caa243e9",
+  "content_hash": "36d9f4ab469ae1c0",
   "diagnostic_apparatus_spend_usd": "0.052343",
-  "note": "three diagnostic canaries at defective apparatus (NONE official C-training; none advanced curriculum/bank): black-112 full-file@91b7d8f ($0.028822) + black-112 SEARCH/REPLACE@407497b ($0.012283, defect 2) + black-112 defect-1-4-fixed@9a77040 ($0.011238, DIAGNOSTIC_SOLVER_PASS_APPARATUS_DEFECT_5: apparent solver PASS but empty task_family binding left the write-gate inert). All count against the GLOBAL lifetime cap only.",
-  "official_training_spend_usd": "0",
+  "note": "diagnostic apparatus canaries = $0.052343 (defects 1..5; see history). OFFICIAL C-training spend = $0.011628: black-112 attempt #1 under apparatus_v1 (@66c3595, grant-25da37e4b102) \u2014 SOLVED (public PASS, hidden True, VALID_COMPLETE, patch APPLIED), family whitespace, write-gate INVOKED and lesson legitimately REJECTED by the frozen leak screen (path_separator); bank empty. Lifetime total $0.063971 counts against the GLOBAL cap.",
+  "official_training_spend_usd": "0.011628",
   "schema_version": "s2-paid-spend-v1"
 }

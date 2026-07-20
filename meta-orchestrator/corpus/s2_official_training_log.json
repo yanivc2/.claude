@@ -1,0 +1,41 @@
+{
+  "attempts": [
+    {
+      "anchor_content_hash": "a3efb03231bf7abe",
+      "apparatus_version": "v1",
+      "attempt_index": 1,
+      "bank_state": "empty",
+      "bank_written_count": 0,
+      "commit": "66c35952aa63baef930f87a95c9a537e6690cb3f",
+      "condition": "C",
+      "cost_usd": "0.011628",
+      "curriculum_position": 0,
+      "fold": 1,
+      "grant_id": "grant-25da37e4b102",
+      "hidden": true,
+      "in_final_sequence": false,
+      "lesson_candidate_present": true,
+      "lesson_id": "cand-3e9ae815aa",
+      "official_attempt": true,
+      "patch_status": "APPLIED",
+      "phase": "training",
+      "public": "PASS",
+      "r1_input_tokens": 8433,
+      "r1_output_tokens": 639,
+      "raw_response_sha256": "c38c427e7f21857c7efbe08bcad229b64259f92f448272ff2c7dfa49dcef1c72",
+      "rejection_reason": "leak:path_separator",
+      "response_classification": "VALID_COMPLETE_OUTPUT",
+      "solver_outcome": "SOLVED",
+      "stop_reason": "end_turn",
+      "superseded_reason": "leak screen v1 rejects any single \"/\" as a path separator, including natural-language technical phrasing (parser/tokenizer, stdout/stderr). Fold-1 will be reset and re-run under a pre-registered path-aware leak screen v2; this v1 result is not mixed into the final sequence.",
+      "task_family": "whitespace",
+      "task_id": "black-112",
+      "visible_text_sha256": "1790049d4ab36c24b4b440a8595e4d543115eaaa8241765f9388679a71a05a5c",
+      "write_gate_decision": "REJECTED",
+      "write_gate_invoked": true
+    }
+  ],
+  "content_hash": "a770f278747e6312",
+  "note": "Historical, immutable log of OFFICIAL C-training attempts. An attempt is official iff the apparatus executed per the frozen contract (correct family, complete non-truncated response, valid+applied patch, correct public/hidden grading, write-gate invoked); the write-gate accepting a lesson is NOT required. Attempts run under a superseded apparatus_version are retained here but are NOT part of the final experimental sequence.",
+  "schema_version": "s2-official-training-log-v1"
+}
