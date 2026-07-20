@@ -1,7 +1,7 @@
 {
-  "content_hash": "26ddd513881cb192",
-  "diagnostic_apparatus_spend_usd": "0.028822",
-  "note": "black-112 diagnostic canary at commit 91b7d8f (full-file apparatus defect); counts against the GLOBAL lifetime cap, NOT official C-training; does not advance curriculum/bank.",
+  "content_hash": "99b9752d970592ab",
+  "diagnostic_apparatus_spend_usd": "0.041105",
+  "note": "two diagnostic canaries at the defective apparatus: black-112 full-file@91b7d8f ($0.028822) + black-112 SEARCH/REPLACE@407497b ($0.012283, defect 2/4). Both count against the GLOBAL lifetime cap, NOT official C-training; neither advanced curriculum/bank.",
   "official_training_spend_usd": "0",
   "schema_version": "s2-paid-spend-v1"
 }
