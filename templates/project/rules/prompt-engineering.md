@@ -1,5 +1,7 @@
 # Prompt Engineering
 
+> **Applies to:** writing or tuning LLM prompts and AI features. Not relevant to non-AI code.
+
 ## Core Principles
 
 - Be explicit about the task, context, and desired output format upfront.

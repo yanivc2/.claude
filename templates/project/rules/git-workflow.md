@@ -1,5 +1,7 @@
 # Git Workflow
 
+> **Applies to:** branching, commits, pull requests, and review — any git operation.
+
 ## Branches
 
 - `main` is protected. Never push directly.

@@ -7,8 +7,10 @@
 ## Tech Stack
 
 - Framework: {{FRAMEWORK}}
-- Styling: {{STYLING}}
+- Styling: {{STYLING_SOLUTION}}
 - Backend: {{BACKEND}}
+- Database: {{DATABASE}}
+- Test runner: {{TEST_RUNNER}}
 - Node version: {{NODE_VERSION}}
 - Package manager: {{PACKAGE_MANAGER}}
 
@@ -53,13 +55,16 @@ public/          — static assets
 
 - Never commit secrets, API keys, or `.env` files.
 - Never skip typechecking — run `{{PACKAGE_MANAGER}} run typecheck` after every non-trivial change.
-- Never add a dependency without checking bundle impact first.
-- No `console.log` in committed code.
-- `main` is protected — work on feature branches, open a PR for review.
+
+> The full conventions live in the imported `rules/*.md` below (code style, security,
+> git workflow, etc.) — this list is only the project-specific hard lines. Don't
+> duplicate rule content here; add a bullet only for something unique to this project.
 
 ---
 
 ## Architecture Notes
+
+<!-- Fill in for this project, or delete the section. Don't ship the placeholders. -->
 
 - [Describe high-level data flow]
 - [Note hard constraints]
@@ -69,13 +74,19 @@ public/          — static assets
 
 ## Known Quirks
 
+<!-- Fill in for this project, or delete the section. Don't ship the placeholders. -->
+
 - [Surprising behaviors — high-value institutional memory]
 
 ---
 
 @../rules/code-style.md
 @../rules/frontend.md
+@../rules/backend.md
 @../rules/testing.md
 @../rules/git-workflow.md
+@../rules/security.md
+@../rules/error-handling-and-observability.md
 @../rules/performance.md
+@../rules/documentation.md
 @../rules/prompt-engineering.md

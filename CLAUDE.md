@@ -69,10 +69,14 @@ The active model is **`opus`** at **`effortLevel: xhigh`** (`settings.json`).
 │       └── rules/               — modular rule files @-imported by the template
 │           ├── code-style.md
 │           ├── frontend.md
+│           ├── backend.md
+│           ├── testing.md
 │           ├── git-workflow.md
+│           ├── security.md
+│           ├── error-handling-and-observability.md
 │           ├── performance.md
-│           ├── prompt-engineering.md
-│           └── testing.md
+│           ├── documentation.md
+│           └── prompt-engineering.md
 │
 ├── ide/                         — IDE lock files (ephemeral, tracked snapshot)
 └── shell-snapshots/             — captured shell env (gitignored)
@@ -128,18 +132,25 @@ from here. The template's `CLAUDE.md` is **placeholder-driven** — it contains
 filled in per project, and it `@`-imports the six `rules/*.md` files.
 
 The `rules/` files encode this user's opinionated defaults. Honor them in any
-downstream project that inherits this template:
+downstream project that inherits this template. Each file opens with an
+`> **Applies to:**` line stating when it's relevant:
 
-- **`code-style.md`** — TypeScript strict, no `any`, named exports only (no default exports), import ordering, ≤100 char lines, Prettier-owned formatting.
-- **`frontend.md`** — React function components (no `React.FC`), ≤150-line components, hooks discipline, WCAG AA accessibility, explicit loading/error/empty states.
-- **`git-workflow.md`** — `main` protected, `<type>/<desc>` branches, Conventional-Commit-style messages, one concern per PR, squash merge.
-- **`performance.md`** — bundle-size vigilance, code splitting, render hygiene, Web Vitals targets (LCP<2.5s, CLS<0.1, INP<200ms).
-- **`testing.md`** — test user behavior not internals, AAA structure, mock at the network boundary (MSW), regression test per bug fix.
-- **`prompt-engineering.md`** — prompt structure, few-shot guidance, temperature table, injection-safe variable handling.
+- **`code-style.md`** — *always in effect.* TypeScript strict, no `any`, named exports only (no default exports), import ordering, ≤100 char lines, Prettier-owned formatting.
+- **`frontend.md`** — *React/UI work.* Function components (no `React.FC`), ≤150-line components, hooks discipline, WCAG AA accessibility, explicit loading/error/empty states.
+- **`backend.md`** — *server-side work.* REST resource design, correct status codes, thin handlers → service → data-access layering, migrations for every schema change, timeouts on outbound calls.
+- **`testing.md`** — *writing tests.* Test user behavior not internals, AAA structure, mock at the network boundary (MSW), regression test per bug fix.
+- **`git-workflow.md`** — *any git op.* `main` protected, `<type>/<desc>` branches, Conventional-Commit-style messages, one concern per PR, squash merge.
+- **`security.md`** — *secrets, input, auth, deps.* No secret in git, validate all input at the boundary, authorize on the server, hash passwords, `audit` dependencies.
+- **`error-handling-and-observability.md`** — *errors, logging, monitoring.* No silent catches, structured logging (no `console.log`), no secrets/PII in logs, unhandled exceptions reach an error tracker, health endpoints.
+- **`performance.md`** — *deps/bundle/render/images.* Bundle-size vigilance, code splitting, render hygiene, Web Vitals targets (LCP<2.5s, CLS<0.1, INP<200ms).
+- **`documentation.md`** — *docs & comments.* README kept current in the same PR, comment the *why*, keep `CLAUDE.md` true, document API interfaces.
+- **`prompt-engineering.md`** — *LLM/prompt work.* Prompt structure, few-shot guidance, temperature table, injection-safe variable handling.
 
 **When editing the template:** keep the `{{PLACEHOLDER}}` tokens intact (they are
-substituted downstream) and keep the `@../rules/...` import paths correct
-relative to `templates/project/CLAUDE.md`.
+substituted downstream — e.g. `{{STYLING_SOLUTION}}`, `{{TEST_RUNNER}}`,
+`{{BACKEND}}`, `{{DATABASE}}`, `{{LOGGER}}`, `{{ERROR_TRACKER}}`) and keep the
+`@../rules/...` import paths correct relative to `templates/project/CLAUDE.md`.
+When you add a rule file, add its `@import` line to the template **and** list it here.
 
 ---
 
@@ -187,3 +198,8 @@ globally. This complements the `/install-review` requirement.
 - Follow the same commit conventions the template enforces:
   `<type>: <imperative summary>` (`feat`, `fix`, `chore`, `refactor`, `docs`,
   `test`), one logical change per commit.
+
+---
+
+<!-- last reviewed: 2026-07-20 — verify this doc against the actual repo state when it drifts -->
+

@@ -1,9 +1,11 @@
 # Testing
 
+> **Applies to:** writing or changing tests — unit, component, or E2E. Consult before adding a test file or a new test dependency.
+
 ## Framework
 
-Use [Vitest / Jest — pick one and fill in]. Never introduce a second test runner.
-Component tests: [React Testing Library]. E2E: [Playwright / Cypress — pick one].
+Use **{{TEST_RUNNER}}** (e.g. Vitest or Jest). Never introduce a second test runner.
+Component tests: **{{COMPONENT_TEST_LIB}}** (e.g. React Testing Library). E2E: **{{E2E_RUNNER}}** (e.g. Playwright or Cypress).
 
 ## What to Test
 
