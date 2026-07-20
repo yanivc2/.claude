@@ -22,11 +22,20 @@ import os
 import subprocess
 import sys
 
+from meta_orchestrator.experiment.s2 import patch_format as PF
+from meta_orchestrator.experiment.s2.canary_prompt import frozen_pieces_snapshot
+from meta_orchestrator.experiment.s2.contract_s2 import S2_MAX_TOKENS, S2_THINKING_BUDGET_TOKENS
+from meta_orchestrator.experiment.s2.curriculum import load_frozen_curriculum
 from meta_orchestrator.experiment.s2.gates import CallContext, GateError, assert_call_allowed
-from meta_orchestrator.experiment.s2.pilot import AUTHORIZED_FOLD1
+from meta_orchestrator.experiment.s2.pilot import AUTHORIZED_FOLD1, collect_frozen_hashes
 from meta_orchestrator.experiment.s2.runlog import RunLog, make_anchor, verify_anchor
 
 REPO = "/home/user/.claude"
+CORPUS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "corpus")
+
+
+def _sha256_file(path: str) -> str:
+    return hashlib.sha256(open(path, "rb").read()).hexdigest()
 
 
 def _negative_authorization_test(art: dict) -> str:
@@ -51,6 +60,7 @@ def _negative_authorization_test(art: dict) -> str:
 
 def main() -> None:
     art_path, out_dir = sys.argv[1], sys.argv[2]
+    diagnostic_path = sys.argv[3] if len(sys.argv) > 3 else None
     os.makedirs(out_dir, exist_ok=True)
     raw = open(art_path, "rb").read()
     art = json.loads(raw)
@@ -73,21 +83,42 @@ def main() -> None:
     if problems:
         raise SystemExit(f"REFUSING TO MINT — {problems}")
 
-    # (2) evidence bundle (binds everything; no truncation)
+    # (2) evidence bundle (binds everything with FULL, untruncated hashes)
+    diagnostic = None
+    if diagnostic_path and os.path.exists(diagnostic_path):
+        diagnostic = {"path_basename": os.path.basename(diagnostic_path),
+                      "sha256": _sha256_file(diagnostic_path),
+                      "content": json.load(open(diagnostic_path))}
     bundle = {
         "commit": art["git_commit"], "env_hash": art["env_hash"],
-        "gate1_report": gr, "gate1_report_hash": hashlib.sha256(
-            json.dumps(gr, sort_keys=True).encode()).hexdigest()[:12],
+        "gate1_report": gr,
+        "gate1_report_hash": hashlib.sha256(json.dumps(gr, sort_keys=True).encode()).hexdigest(),
         "token_observations_hash": hashlib.sha256(json.dumps(
             [(t["task_id"], t["r1_tokens"], t["r2_tokens"], t["envelope"]["envelope_hash"],
               t["envelope"]["full_r2_canonical_hash"]) for t in art["per_task"]],
-            sort_keys=True).encode()).hexdigest()[:16],
-        "context_cap": art["context_cap"], "materialization_index_hash":
-            art["materialization_cache_index_hash"],
+            sort_keys=True).encode()).hexdigest(),
+        "context_cap": art["context_cap"],
+        "materialization_index_hash": art["materialization_cache_index_hash"],
         "envelope_generator_hash": art["envelope_generator_hash"],
         "budget_policy_hash": art["budget_policy_hash"], "budget_policy": art["budget_policy"],
         "reported_credits": art["reported_credits"],
         "fold1_projection": art["projection"], "experiment_projection": art["experiment_projection"],
+        # --- SEARCH/REPLACE re-freeze bindings (Decision A/B) ---
+        "frozen_code_hashes": collect_frozen_hashes(CORPUS),      # contract(+max_tokens)/builder/caps/…
+        "frozen_prompt_pieces": frozen_pieces_snapshot(),         # response/lesson/repair schema + patch caps
+        "patch_format_caps": PF.caps_snapshot(),
+        "max_token_calibration": {"max_tokens": S2_MAX_TOKENS,
+                                  "thinking_budget_tokens": S2_THINKING_BUDGET_TOKENS,
+                                  "context_cap": art["context_cap"]},
+        "curriculum_hash": load_frozen_curriculum(CORPUS).content_hash,
+        # --- lifetime spend accounting (the global cap binds already-paid + projected worst) ---
+        "paid_spend_ledger_hash": art.get("paid_spend_ledger_hash", ""),
+        "paid_spend_ledger": art.get("paid_spend_ledger", {}),
+        "actual_spend_to_date_usd": art.get("actual_spend_to_date_usd", "0"),
+        "lifetime_worst_with_reserve_usd": art.get("lifetime_worst_with_reserve_usd", "0"),
+        "global_headroom_usd": art.get("global_headroom_usd", "0"),
+        # --- Fold-1 reset + black-112 diagnostic record ---
+        "fold1_reset_and_diagnostic": diagnostic,
         "max_messages_calls_frozen": len(art["projection"]["r1_input_tokens"])
             + len(art["projection"]["r2_input_tokens"]),
         "gate1_artifact_sha256": art_sha,
@@ -119,6 +150,15 @@ def main() -> None:
     print(f"  gate1_artifact_sha256   : {art_sha}")
     print(f"  bound commit            : {art['git_commit']}  (== HEAD)")
     print(f"  frozen max messages     : {bundle['max_messages_calls_frozen']} (18 R1 + 18 R2)")
+    print(f"  max_tokens calibration  : {S2_MAX_TOKENS} (thinking {S2_THINKING_BUDGET_TOKENS}, "
+          f"context_cap {art['context_cap']})")
+    print(f"  patch caps bound        : {PF.caps_snapshot()}")
+    print(f"  curriculum_hash         : {bundle['curriculum_hash']}")
+    print(f"  paid_spend_ledger_hash  : {bundle['paid_spend_ledger_hash']}")
+    print(f"  lifetime accounting     : spent ${bundle['actual_spend_to_date_usd']} + worst+reserve "
+          f"${art['experiment_projection']['experiment_worst_with_reserve_usd']} "
+          f"= ${bundle['lifetime_worst_with_reserve_usd']}  headroom ${bundle['global_headroom_usd']}")
+    print(f"  fold1_reset/diagnostic  : {'bound sha256=' + diagnostic['sha256'][:16] if diagnostic else 'NOT PROVIDED'}")
     print(f"  negative auth test      : {neg}")
     print(f"  messages_create_called  : {bundle['messages_create_called']}  paid_cost=${bundle['paid_messages_cost_usd']}")
     print(f"  anchor → {os.path.join(out_dir, 'anchor.json')}")
