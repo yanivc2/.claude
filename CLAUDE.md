@@ -65,7 +65,7 @@ The active model is **`opus`** at **`effortLevel: xhigh`** (`settings.json`).
 │       ├── CLAUDE.md            — placeholder-driven project memory template
 │       ├── .mcp.json            — GitHub MCP server for the new project
 │       ├── .gitignore           — standard Node/TS ignore set
-│       ├── .claude/settings.json— per-project hooks (typecheck, session log)
+│       ├── .claude/settings.json— per-project hooks (typecheck, lint, session log)
 │       └── rules/               — modular rule files @-imported by the template
 │           ├── code-style.md
 │           ├── frontend.md
