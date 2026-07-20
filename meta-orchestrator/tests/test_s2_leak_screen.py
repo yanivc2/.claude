@@ -17,9 +17,19 @@ from meta_orchestrator.experiment.lesson import (Lesson, LessonRejected, LessonT
 MUST_PASS = ["parser/tokenizer", "stdout/stderr", "input/output", "producer/consumer",
              "read/write", "and/or", "module/function", "either/or", "client/server"]
 
+# --- clarification A: ordinary dotted prose is never a filename (fixed extension allowlist) ---
+PROSE_PASS = ["e.g.", "i.e.", "version.2", "etc.", "the value 3.14", "range 0..10"]
+
+# --- clarification B: scheme:// URLs pass regardless of separator count -------------------
+URL_PASS = ["https://example.com/docs", "http://localhost/api",
+            "https://docs.python.org/3/library", "http://example.org/a/b/c", "git+ssh://host/x/y/z"]
+
 # --- genuine filesystem paths: always a leak ---------------------------------------------
 MUST_REJECT = ["src/black/linegen.py", "tests/test_black.py", "../tokenize.py",
                "/home/user/project/file.py", r"C:\repo\black\driver.py", "blib2to3/pgen2/tokenize"]
+
+# --- a URL that embeds a real source path is still a leak (via the extension rule) --------
+URL_REJECT = ["https://x/src/black/linegen.py", "http://h/a/b/c/tokenize.py"]
 
 # --- frozen boundary rulings -------------------------------------------------------------
 BOUNDARY = {"black/tokenizer": None, "module/function": None, "foo/bar/baz": "multi-segment path"}
@@ -29,6 +39,25 @@ BOUNDARY = {"black/tokenizer": None, "module/function": None, "foo/bar/baz": "mu
 def test_natural_language_slash_is_not_a_path(s):
     assert _find_path_leak(s) is None
     assert _find_path_leak(f"prefer a {s} split for clarity") is None
+
+
+@pytest.mark.parametrize("s", PROSE_PASS)
+def test_ordinary_dotted_prose_is_not_a_filename(s):
+    # clarification A: only the frozen extension allowlist counts, so prose is never a filename.
+    assert _find_path_leak(s) is None
+    assert _find_path_leak(f"note {s} in the summary") is None
+
+
+@pytest.mark.parametrize("s", URL_PASS)
+def test_scheme_url_not_rejected_by_separator_count(s):
+    # clarification B: a scheme:// URL is not a repo path merely because it has several separators.
+    assert _find_path_leak(s) is None
+    assert _find_path_leak(f"see {s} for details") is None
+
+
+@pytest.mark.parametrize("s", URL_REJECT)
+def test_url_embedding_a_real_source_path_still_rejected(s):
+    assert _find_path_leak(s) is not None
 
 
 @pytest.mark.parametrize("s", MUST_REJECT)

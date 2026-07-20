@@ -47,36 +47,52 @@ _FORBIDDEN = [
     (r"\breturn\b", "code fragment"),
 ]
 
-# Known source/config file extensions — used ONLY to recognise a filename or a path, never to
-# reject a bare word. Prose extensions (.md/.txt/.rst) are deliberately excluded from the *bare*
-# filename rule so ordinary words are not flagged; they still count when preceded by a separator.
-_CODE_EXT = (r"(?:py|pyi|pyx|ipynb|json|toml|cfg|ini|yaml|yml|rs|js|jsx|ts|tsx|mjs|cjs|c|h|hpp|hh|"
-             r"cpp|cc|cxx|go|java|kt|rb|php|pl|sh|bash|sql|xml|html|css)")
+# FROZEN, explicit source/config extension allowlist (leak-screen v2 clarification A). Used ONLY to
+# recognise a filename or a path, never to reject an arbitrary dotted word — so ordinary prose like
+# "e.g.", "i.e.", "version.2" is never misclassified. Prose extensions (.md/.txt/.rst) are excluded
+# from the *bare* filename rule; they still count when preceded by a path separator.
+_CODE_EXT = (r"(?:py|pyi|pyx|ipynb|js|jsx|ts|tsx|java|go|rs|rb|php|c|cc|cpp|h|hpp|cs|sh|"
+             r"toml|yaml|yml|json|ini|cfg|xml)")
+
+# A URI with an explicit scheme (http://, https://, git+ssh://, …). Clarification B: a URL is NOT a
+# repository-path leak merely because it contains several separators — it is waived from the
+# multi-segment-chain rule, but is STILL rejected if it embeds a real source path/filename
+# (the extension rule below fires inside it) or an exact frozen value (forbidden_values).
+_URI_RE = re.compile(r"\b[a-z][a-z0-9+.\-]*://\S+", re.IGNORECASE)
 
 # PATH-AWARE leak detection (defect: the old rule rejected ANY "/", flagging natural-language
 # technical phrasing like "parser/tokenizer", "stdout/stderr", "input/output"). A single slash
 # between two ordinary words is NOT a path. A token is treated as a real path ONLY when it matches
 # one of these general, task-agnostic shapes (fail-closed on anything that genuinely looks like a
-# filesystem path, while letting a lone slash-joined word pair through):
+# filesystem path, while letting a lone slash-joined word pair through). ``waive_in_uri`` marks the
+# rules that must NOT fire merely because a match sits inside a scheme:// URL (clarification B).
 _PATH_PATTERNS = [
     # leading ./  ../  /  or a Windows drive letter — the start of an absolute/relative path
-    (r"(?:(?<=\s)|^)(?:\.{1,2}/|/|[A-Za-z]:[\\/])[\w.\-]", "absolute/relative/drive path"),
+    (r"(?:(?<=\s)|^)(?:\.{1,2}/|/|[A-Za-z]:[\\/])[\w.\-]", "absolute/relative/drive path", False),
     # a chain of >=2 separators (src/pkg/mod, foo/bar/baz) — path-like structure, not prose
-    (r"[\w.\-]+[\\/][\w.\-]+[\\/][\w.\-]+", "multi-segment path"),
+    (r"[\w.\-]+[\\/][\w.\-]+[\\/][\w.\-]+", "multi-segment path", True),
     # a separator immediately followed by a filename with a known source/config extension
-    (r"[\w.\-]+[\\/][\w.\-]*\." + _CODE_EXT + r"\b", "path to a source/config file"),
+    (r"[\w.\-]+[\\/][\w.\-]*\." + _CODE_EXT + r"\b", "path to a source/config file", False),
     # a bare source/config filename (e.g. solution.py, setup.cfg)
-    (r"\b[\w\-]+\." + _CODE_EXT + r"\b", "source/config filename"),
+    (r"\b[\w\-]+\." + _CODE_EXT + r"\b", "source/config filename", False),
     # a Windows-style backslash path segment
-    (r"[\w.\-]+\\[\w.\-]+", "windows path"),
+    (r"[\w.\-]+\\[\w.\-]+", "windows path", False),
 ]
 
 
 def _find_path_leak(blob: str) -> str | None:
     """Return the reason a real filesystem path was detected, else None (a lone slash-joined word
-    pair such as ``parser/tokenizer`` is deliberately NOT a path)."""
-    for pat, why in _PATH_PATTERNS:
-        if re.search(pat, blob):
+    pair such as ``parser/tokenizer`` is deliberately NOT a path; a scheme:// URL is not a repo path
+    merely by its separator count, but still leaks if it embeds a source path/filename)."""
+    uri_spans = [m.span() for m in _URI_RE.finditer(blob)]
+
+    def _inside_uri(span: tuple[int, int]) -> bool:
+        return any(s <= span[0] and span[1] <= e for s, e in uri_spans)
+
+    for pat, why, waive_in_uri in _PATH_PATTERNS:
+        for m in re.finditer(pat, blob):
+            if waive_in_uri and _inside_uri(m.span()):
+                continue                     # a URL is not a repo path merely by separator count
             return why
     return None
 

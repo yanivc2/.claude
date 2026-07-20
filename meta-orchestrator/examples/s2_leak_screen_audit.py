@@ -17,13 +17,20 @@ sys.path.insert(0, os.path.join(HERE, "src"))
 
 from meta_orchestrator.experiment.lesson import _find_path_leak  # noqa: E402
 
-# Natural-language technical phrasing — a lone slash-joined word pair is NOT a path.
+# Natural-language technical phrasing — a lone slash-joined word pair is NOT a path. URLs with an
+# explicit scheme are also allowed regardless of separator count (clarification B), and ordinary
+# dotted prose is never a filename (clarification A: fixed extension allowlist).
 MUST_PASS = ["parser/tokenizer", "stdout/stderr", "input/output", "producer/consumer",
-             "read/write", "and/or", "module/function", "either/or", "client/server"]
+             "read/write", "and/or", "module/function", "either/or", "client/server",
+             "e.g.", "i.e.", "version.2",
+             "https://example.com/docs", "http://localhost/api",
+             "https://docs.python.org/3/library", "http://example.org/a/b/c"]
 
-# Genuine filesystem paths — always a leak of where the fix lives.
+# Genuine filesystem paths — always a leak of where the fix lives (a URL that embeds a real source
+# path is still rejected by the extension rule, not by separator count).
 MUST_REJECT = ["src/black/linegen.py", "tests/test_black.py", "../tokenize.py",
-               "/home/user/project/file.py", r"C:\repo\black\driver.py", "blib2to3/pgen2/tokenize"]
+               "/home/user/project/file.py", r"C:\repo\black\driver.py", "blib2to3/pgen2/tokenize",
+               "https://x/src/black/linegen.py"]
 
 # Frozen boundary rulings (decided BEFORE any next paid call, task-agnostic):
 #   single slash between two bare identifiers  -> PASS  (natural language)
