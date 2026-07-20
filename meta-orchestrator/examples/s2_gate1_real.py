@@ -82,8 +82,8 @@ def main() -> None:
           f"passed_nodes={len(pytest_ev.passed_node_ids)}")
 
     # Operator-reported credit balance (runtime state, NOT a policy cap). Approved caps live in the
-    # frozen s2_budget_policy.frozen.json (fold-1 $10 / global $30).
-    credits = ReportedCredits(available_api_credits_usd="4.75", verified_at="2026-07-19",
+    # frozen s2_budget_policy.frozen.json (fold-1 $10 / global $50).
+    credits = ReportedCredits(available_api_credits_usd="4.721178", verified_at="2026-07-20",
                               machine_verified=False)
 
     print("running real count_tokens Gate-1 preflight over the frozen corpus ($0)…")
