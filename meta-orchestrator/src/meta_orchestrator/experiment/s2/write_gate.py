@@ -134,26 +134,6 @@ def evaluate_write_gate(
     return WriteGateResult(written=not reasons, reasons=reasons)
 
 
-def reference_patch_tokens(reference_fix: dict[str, str], *, min_len: int = 5) -> list[str]:
-    """Evaluator-side leak screen (P0.review): rare identifiers unique to the reference fix.
-
-    A real model can replay a memorised fix WITHOUT using a path or line number, so the pilot
-    passes these tokens as ``forbidden_values`` to ``evaluate_write_gate`` — a candidate lesson
-    that echoes a rare fix identifier is rejected. The model never sees this list; it is derived
-    from the EVALUATOR-ONLY reference fix. Common short/keyword tokens are excluded.
-    """
-    import keyword
-    import re
-    common = set(keyword.kwlist) | {"return", "value", "result", "output", "input", "print",
-                                    "self", "None", "True", "False", "assert", "range"}
-    toks: set[str] = set()
-    for body in reference_fix.values():
-        for m in re.findall(r"[A-Za-z_][A-Za-z0-9_]*", body):
-            if len(m) >= min_len and m not in common:
-                toks.add(m)
-    return sorted(toks)
-
-
 def _rank_key(item: tuple[str, Lesson]) -> tuple:
     """(8) Deterministic ranking: more support first, then stable by source_task_id then id."""
     source_task_id, lesson = item

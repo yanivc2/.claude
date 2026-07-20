@@ -114,5 +114,13 @@ def validate_lesson(lesson: Lesson, forbidden_values: list[str] | None = None) -
     if path_why:
         raise LessonRejected(f"lesson {lesson.lesson_id}: contains {path_why}")
     for val in forbidden_values or []:
-        if val and val in blob:
+        if not val:
+            continue
+        # EXACT-token match (whole word), never substring: a forbidden ``normalize_fmt_off`` must not
+        # reject a lesson that only says ``normalize``. Non-word literals fall back to substring.
+        if re.search(r"\w", val):
+            hit = re.search(r"(?<!\w)" + re.escape(val) + r"(?!\w)", blob) is not None
+        else:
+            hit = val in blob
+        if hit:
             raise LessonRejected(f"lesson {lesson.lesson_id}: leaks hidden value {val!r}")

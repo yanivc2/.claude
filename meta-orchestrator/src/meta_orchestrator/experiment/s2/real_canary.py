@@ -35,8 +35,9 @@ from .patch_format import PatchFormatError
 from .pricing import PricingArtifact
 from .response_classification import (SOLVER_FAIL_TRUNCATED, TRUNCATED_OUTPUT,
                                       is_official_pass_eligible)
+from .forbidden_tokens import load_frozen_forbidden_tokens
 from .solver import RoundView
-from .write_gate import evaluate_write_gate, reference_patch_tokens
+from .write_gate import evaluate_write_gate
 
 TASK_RESERVED = "TASK_RESERVED"
 HIDDEN_VERIFY = "HIDDEN_VERIFY"
@@ -53,7 +54,7 @@ def run_real_task_canary(
     full_exposure_usd: str, fold_budget_usd: float, context_cap: int, env_hash: str,
     contract_hash: str, memory_lines: Optional[list[str]] = None, is_train: bool = True,
     max_public_feedback_cap: int = 2000, non_authoritative: bool = True,
-    task_family: Optional[str] = None,
+    task_family: Optional[str] = None, forbidden_values: Optional[list[str]] = None,
 ) -> dict:
     os.makedirs(work_dir, exist_ok=True)
     task_trace: list[str] = []
@@ -171,7 +172,14 @@ def run_real_task_canary(
 
     # (3) write-gate on any candidate lesson — ONLY when a patch was applied (no bank mutation on a
     # failed/unapplied attempt). Candidates are only collected on a VALID+applied round anyway.
-    forbidden = reference_patch_tokens(ctx.reference_fix) if ctx.reference_fix else []
+    # Reference-fix leakage screen (defect fix): the FROZEN, provenance-aware forbidden-token set for
+    # THIS task (new fix-only identifiers, non-public, corpus-unique) — NOT every word in the fix file.
+    if forbidden_values is not None:
+        forbidden = forbidden_values
+    else:
+        corpus_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))))), "corpus")
+        forbidden = load_frozen_forbidden_tokens(corpus_dir).for_task(ctx.task_id)
     written = []
     if patch_applied:
         for cand in candidates:

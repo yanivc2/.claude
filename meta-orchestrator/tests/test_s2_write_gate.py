@@ -10,7 +10,7 @@ import pytest
 
 from meta_orchestrator.experiment.lesson import Lesson, LessonEvidence, LessonTrigger
 from meta_orchestrator.experiment.s2 import (MAX_ACTIVE_ENTRIES_PER_FAMILY, evaluate_write_gate,
-                                             learn_gated_bank, reference_patch_tokens)
+                                             learn_gated_bank)
 from meta_orchestrator.experiment.s2.memory import MemoryFrozenError
 
 
@@ -132,15 +132,18 @@ def test_frozen_bank_refuses_held_out_write():
         bank.add("whitespace", _lesson(lid="L-x", rec=["late write"]))
 
 
-def test_reference_patch_tokens_screen_rejects_replayed_identifier():
-    # a rare identifier that appears in the (evaluator-only) reference fix
-    ref = {"solution.py": "def compute_indentation_offset(node):\n    return node.width\n"}
-    toks = reference_patch_tokens(ref)
-    assert "compute_indentation_offset" in toks and "return" not in toks
-    replay = _lesson(rec=["always compute_indentation_offset first"])
+def test_forbidden_token_screen_rejects_replayed_identifier_exact_only():
+    # a frozen fix-only identifier is rejected as an EXACT token, but a lesson that merely uses a
+    # SUBSTRING of it ("normalize") is NOT rejected (the old substring screen over-blocked).
+    toks = ["normalize_fmt_off"]
+    replay = _lesson(rec=["always call normalize_fmt_off before visiting"])
     res = evaluate_write_gate(replay, is_train=True, verifier_passed=True,
                               task_family="whitespace", existing=[], forbidden_values=toks)
     assert any(r.startswith("leak:") for r in res.reasons)
+    ok = _lesson(rec=["normalize whitespace consistently across the file"])
+    res2 = evaluate_write_gate(ok, is_train=True, verifier_passed=True,
+                               task_family="whitespace", existing=[], forbidden_values=toks)
+    assert not any(r.startswith("leak:") for r in res2.reasons)
 
 
 def test_slot_budget_enforced_in_gated_learning():

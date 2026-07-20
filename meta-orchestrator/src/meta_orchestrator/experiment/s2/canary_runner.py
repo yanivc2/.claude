@@ -26,9 +26,11 @@ from .contract_s2 import frozen_s2_contract
 from .endpoint import EndpointAttestation, assert_endpoint_approved
 from .live_solver import ModelBackedRoundSolver
 from .pricing import PricingArtifact
+from .forbidden_tokens import load_frozen_forbidden_tokens
+from .gate_error import GateError
 from .solver import AttemptContract, run_attempt
 from ..task import ExperimentTask
-from .write_gate import evaluate_write_gate, reference_patch_tokens
+from .write_gate import evaluate_write_gate
 
 NON_AUTHORITATIVE_TAG = "NON_AUTHORITATIVE_FAKE_TRANSPORT"
 
@@ -47,7 +49,8 @@ def run_canary(task: ExperimentTask, *, client, statement: str, pricing: Pricing
                non_authoritative: bool = True,
                agent_contract: Optional[AgentContract] = None,
                frozen_template: Optional[dict] = None,
-               execution_grant=None, grant_ledger_path: Optional[str] = None) -> dict:
+               execution_grant=None, grant_ledger_path: Optional[str] = None,
+               forbidden_values: Optional[list[str]] = None) -> dict:
     os.makedirs(work_dir, exist_ok=True)
     agent_contract = agent_contract or frozen_s2_contract()
     if frozen_template is not None:
@@ -87,7 +90,17 @@ def run_canary(task: ExperimentTask, *, client, statement: str, pricing: Pricing
 
     # --- write-gate on the candidate lesson (bank starts empty for the first C-training task) ---
     bank_before = _bank_hash([])
-    forbidden = reference_patch_tokens(task.reference_fix) if task.reference_fix else []
+    # Reference-fix leakage screen: the FROZEN, provenance-aware forbidden tokens for this task
+    # (new fix-only identifiers), NOT every word in the fix file. Unknown/synthetic ids → empty.
+    if forbidden_values is not None:
+        forbidden = forbidden_values
+    else:
+        corpus_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__)))))), "corpus")
+        try:
+            forbidden = load_frozen_forbidden_tokens(corpus_dir).for_task(getattr(task, "task_id", ""))
+        except GateError:
+            forbidden = []
     written: list[Lesson] = []
     gate_audits = []
     for cand in attempt.candidate_lessons:

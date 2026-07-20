@@ -1,0 +1,355 @@
+{
+  "content_hash": "6fc82836105000ea",
+  "match": "exact-token",
+  "min_ident_len": 3,
+  "schema_version": "s2-forbidden-tokens-v1",
+  "tasks": {
+    "black-112": {
+      "family": "whitespace",
+      "forbidden": {}
+    },
+    "black-130": {
+      "family": "other_logic",
+      "forbidden": {}
+    },
+    "black-132": {
+      "family": "parser_normalization",
+      "forbidden": {
+        "STARS": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "UNPACKING_PARENTS": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "VARARGS_PARENTS": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "is_vararg": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-133": {
+      "family": "iterator",
+      "forbidden": {
+        "_lambda_arguments": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "maybe_decrement_after_lambda_arguments": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "maybe_increment_lambda_arguments": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-141": {
+      "family": "parser_normalization",
+      "forbidden": {
+        "TERNARY_PRIORITY": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "test": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-1632": {
+      "family": "whitespace",
+      "forbidden": {
+        "last_line_length": {
+          "corpus_df": 1,
+          "file": "src/black/linegen.py"
+        },
+        "long_docstring_quotes_on_newline": {
+          "corpus_df": 1,
+          "file": "src/black/linegen.py"
+        },
+        "splitlines": {
+          "corpus_df": 1,
+          "file": "src/black/linegen.py"
+        }
+      }
+    },
+    "black-183": {
+      "family": "parser_normalization",
+      "forbidden": {
+        "maybe_make_parens_invisible_in_atom": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-185": {
+      "family": "other_logic",
+      "forbidden": {}
+    },
+    "black-193": {
+      "family": "iterator",
+      "forbidden": {
+        "delimiter_count": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-215": {
+      "family": "whitespace",
+      "forbidden": {
+        "is_multiline_string": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-224": {
+      "family": "boundary",
+      "forbidden": {}
+    },
+    "black-232": {
+      "family": "iterator",
+      "forbidden": {
+        "call_count": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "can_be_split": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "contains_multiline_strings": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "dot_count": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-234": {
+      "family": "iterator",
+      "forbidden": {}
+    },
+    "black-238": {
+      "family": "whitespace",
+      "forbidden": {
+        "has_inline_comment": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-273": {
+      "family": "parser_normalization",
+      "forbidden": {}
+    },
+    "black-329": {
+      "family": "whitespace",
+      "forbidden": {
+        "SURROUNDED_BY_BRACKETS": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "container": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "container_of": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "first_idx": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "generate_ignored_nodes": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "hidden_value": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "hide_fmt_off": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "ignored_nodes": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "normalize_fmt_off": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "previous_consumed": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "same_prefix": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "try_again": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "vfplist": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-334": {
+      "family": "whitespace",
+      "forbidden": {}
+    },
+    "black-335": {
+      "family": "whitespace",
+      "forbidden": {
+        "convert_one_fmt_off_pair": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "endswith": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "visit_STANDALONE_COMMENT": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-385": {
+      "family": "condition_inversion",
+      "forbidden": {}
+    },
+    "black-389": {
+      "family": "iterator",
+      "forbidden": {
+        "Generator": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "get_imports_from_children": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "import_as_name": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "orig_name": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-593": {
+      "family": "iterator",
+      "forbidden": {
+        "ASYNC_IS_RESERVED_KEYWORD": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "ASYNC_IS_VALID_IDENTIFIER": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "ParserConfig": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "TokenizerConfig": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "async_is_reserved_keyword": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "configs": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "frozen": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "get_parser_configs": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "parser_config": {
+          "corpus_df": 1,
+          "file": "black.py"
+        },
+        "tokenizer_config": {
+          "corpus_df": 1,
+          "file": "black.py"
+        }
+      }
+    },
+    "black-60": {
+      "family": "whitespace",
+      "forbidden": {}
+    },
+    "black-74": {
+      "family": "other_logic",
+      "forbidden": {}
+    },
+    "black-80": {
+      "family": "whitespace",
+      "forbidden": {}
+    },
+    "black-95": {
+      "family": "iterator",
+      "forbidden": {}
+    },
+    "cookiecutter-18": {
+      "family": "boundary",
+      "forbidden": {
+        "binaryornot": {
+          "corpus_df": 1,
+          "file": "cookiecutter/generate.py"
+        },
+        "check": {
+          "corpus_df": 1,
+          "file": "cookiecutter/generate.py"
+        },
+        "copyfile": {
+          "corpus_df": 1,
+          "file": "cookiecutter/generate.py"
+        },
+        "is_binary": {
+          "corpus_df": 1,
+          "file": "cookiecutter/generate.py"
+        },
+        "shutil": {
+          "corpus_df": 1,
+          "file": "cookiecutter/generate.py"
+        }
+      }
+    },
+    "discord.py-7818": {
+      "family": "condition_inversion",
+      "forbidden": {
+        "_owner_cls": {
+          "corpus_df": 1,
+          "file": "discord/app_commands/commands.py"
+        }
+      }
+    }
+  }
+}

@@ -70,9 +70,11 @@ from .ordering import (CONDITION_ORDER_VERSION, INFRA_FAILURES, PRIMARY_CONDITIO
                       SOLVER_OUTPUT_FAILURES, STABILITY_CONDITIONS, AttemptOutcome,
                       classify_attempt_outcome, condition_order, is_primary, rep_role, train_order)
 from .synthetic import build_synthetic_corpus, synthetic_task
+from .forbidden_tokens import (FROZEN_FORBIDDEN_FILENAME, FrozenForbiddenTokens,
+                              load_frozen_forbidden_tokens)
 from .write_gate import (FoldLeakageError, HeldOutWriteError, MAX_ACTIVE_ENTRIES_PER_FAMILY,
                         WriteGateResult, assert_bank_within_train, bank_provenance,
-                        evaluate_write_gate, learn_gated_bank, reference_patch_tokens)
+                        evaluate_write_gate, learn_gated_bank)
 
 __all__ = [
     "SEMANTIC_FAMILIES", "family_map_hash", "is_known_family",
@@ -114,7 +116,7 @@ __all__ = [
     "condition_order", "is_primary", "rep_role", "train_order",
     "FoldLeakageError", "HeldOutWriteError", "MAX_ACTIVE_ENTRIES_PER_FAMILY", "WriteGateResult",
     "assert_bank_within_train", "bank_provenance", "evaluate_write_gate", "learn_gated_bank",
-    "reference_patch_tokens",
+    "load_frozen_forbidden_tokens", "FrozenForbiddenTokens", "FROZEN_FORBIDDEN_FILENAME",
     "BudgetEvidence", "CountEvidence", "EnvironmentAttestation", "Predicate", "PytestEvidence",
     "SnapshotEvidence", "TrainingEvidence", "attest_environment", "attestation_matches",
     "EndpointEvidence", "PricingDerivationSample", "PricingEvidence", "verify_endpoint_evidence",

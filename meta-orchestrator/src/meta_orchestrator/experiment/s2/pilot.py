@@ -101,6 +101,7 @@ def collect_frozen_hashes(corpus_dir: Optional[str] = None) -> dict[str, str]:
         "paid_spend_ledger": ("s2_paid_spend_ledger.json", "content_hash"),  # lifetime spend binding
         "curriculum": ("s2_curriculum.frozen.json", "content_hash"),        # frozen train order
         "test_execution_plans": ("s2_test_execution_plans.frozen.json", "content_hash"),  # grading contract
+        "forbidden_tokens": ("s2_forbidden_tokens.frozen.json", "content_hash"),  # reference-fix leak screen
     }
     if corpus_dir:
         for key, (fname, field) in files.items():
