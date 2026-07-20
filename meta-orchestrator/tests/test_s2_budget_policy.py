@@ -37,6 +37,36 @@ def test_tampered_cap_breaks_the_hash_and_blocks(tmp_path):
         load_frozen_budget_policy(str(tmp_path))              # hash mismatch → void
 
 
+def test_frozen_paid_spend_ledger_loads_and_totals():
+    from meta_orchestrator.experiment.s2.budget_policy import load_frozen_paid_spend
+    led = load_frozen_paid_spend(_CORPUS)
+    assert led.total_paid_to_date() == Decimal("0.028822")     # the black-112 diagnostic canary
+    assert Decimal(led.official_training_spend_usd) == Decimal("0")
+    assert led.content_hash == led.compute_hash()
+
+
+def test_tampered_paid_spend_ledger_blocks(tmp_path):
+    from meta_orchestrator.experiment.s2.budget_policy import (FROZEN_PAID_SPEND_FILENAME,
+                                                              PaidSpendLedger, load_frozen_paid_spend)
+    led = PaidSpendLedger(diagnostic_apparatus_spend_usd="0.028822",
+                          official_training_spend_usd="0").sealed()
+    d = led.model_dump()
+    d["diagnostic_apparatus_spend_usd"] = "0.00"               # hide the spend, keep the old hash
+    (tmp_path / FROZEN_PAID_SPEND_FILENAME).write_text(json.dumps(d))
+    with pytest.raises(GateError):
+        load_frozen_paid_spend(str(tmp_path))
+
+
+def test_lifetime_spend_plus_worst_binds_global_cap():
+    # the GLOBAL cap binds (already-paid) + (projected worst+reserve), not the projection alone
+    from meta_orchestrator.experiment.s2.budget_policy import load_frozen_paid_spend
+    led = load_frozen_paid_spend(_CORPUS)
+    projected = Decimal("45.99675")
+    lifetime = led.total_paid_to_date() + projected
+    assert lifetime == Decimal("46.025572")
+    assert lifetime <= Decimal("50.00")                        # fits the $50 lifetime cap
+
+
 def test_reported_credits_are_not_a_cap():
     c = ReportedCredits(available_api_credits_usd="4.75", verified_at="2026-07-19")
     assert c.is_budget_cap is False and c.machine_verified is False

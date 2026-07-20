@@ -94,7 +94,7 @@ def main() -> None:
         "hidden_node_plan_hash": sel["hidden_node_plan_hash"],
         "source_bundle_hash": source_bundle_hash,
         "test_materialization_hash": test_materialization_hash,
-        "reproduction_digest": "d8e265127716209d", "network_isolation": " ".join(ctx.netns())})
+        "network_isolation": " ".join(ctx.netns())})   # reproduction_digest bound from the fresh Gate-1
     grant = grant.sealed()
 
     # (5) persistent ledger + seal/binding/negative verification (NO reservation, NO send)

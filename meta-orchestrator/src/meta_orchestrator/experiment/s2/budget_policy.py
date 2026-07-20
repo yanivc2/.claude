@@ -71,6 +71,49 @@ def load_frozen_budget_policy(corpus_dir: str) -> BudgetPolicy:
     return pol
 
 
+FROZEN_PAID_SPEND_FILENAME = "s2_paid_spend_ledger.json"
+PAID_SPEND_VERSION = "s2-paid-spend-v1"
+
+
+class PaidSpendLedger(BaseModel):
+    """Frozen, hash-bound record of REAL paid spend to date (lifetime), split by kind.
+
+    The GLOBAL hard cap is a lifetime ceiling, so already-spent dollars must count against it —
+    the forward projection alone is not enough. The black-112 diagnostic canary ($0.028822 at the
+    defective full-file apparatus) is spend that happened; it counts against the global cap and is
+    debited from credits, but is NOT official C-training and never advanced the curriculum or bank."""
+
+    schema_version: str = PAID_SPEND_VERSION
+    diagnostic_apparatus_spend_usd: str
+    official_training_spend_usd: str
+    note: str = ""
+    content_hash: str = ""
+
+    def compute_hash(self) -> str:
+        payload = {k: v for k, v in self.model_dump().items() if k != "content_hash"}
+        return hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
+
+    def sealed(self) -> "PaidSpendLedger":
+        return self.model_copy(update={"content_hash": self.compute_hash()})
+
+    def total_paid_to_date(self) -> Decimal:
+        return Decimal(self.diagnostic_apparatus_spend_usd) + Decimal(self.official_training_spend_usd)
+
+
+def load_frozen_paid_spend(corpus_dir: str) -> PaidSpendLedger:
+    """Load + verify the frozen paid-spend ledger. Blocks on missing / stale-hash / wrong-version."""
+    path = os.path.join(corpus_dir, FROZEN_PAID_SPEND_FILENAME)
+    if not os.path.exists(path):
+        raise GateError(f"frozen paid-spend ledger missing: {path} — Gate 1 cannot bind lifetime spend")
+    led = PaidSpendLedger(**json.load(open(path)))
+    if led.schema_version != PAID_SPEND_VERSION:
+        raise GateError(f"paid-spend ledger version {led.schema_version!r} != {PAID_SPEND_VERSION!r}")
+    if led.content_hash != led.compute_hash():
+        raise GateError("paid-spend ledger content_hash mismatch (stale or hand-edited) — Gate 1 void")
+    return led
+
+
 class ReportedCredits(BaseModel):
     """Operator-reported API credit balance — runtime state, NOT a policy cap."""
 

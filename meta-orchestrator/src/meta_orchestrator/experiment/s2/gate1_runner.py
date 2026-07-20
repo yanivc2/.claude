@@ -29,7 +29,8 @@ from typing import Any, Callable, Optional
 from pydantic import BaseModel, Field
 
 from .b1_selector import REAL_SOURCE
-from .budget_policy import ReportedCredits, load_frozen_budget_policy
+from .budget_policy import (PaidSpendLedger, ReportedCredits, load_frozen_budget_policy,
+                            load_frozen_paid_spend)
 from .budget_projection import project_experiment_worst, project_fold_cost
 from .canary_prompt import (PUBLIC_FEEDBACK_CAP, build_r1_worstcase_prompt, build_r2_messages,
                             cap_filling_worst_envelope, max_r1_assistant_envelope)
@@ -105,6 +106,13 @@ class Gate1RunArtifact(BaseModel):
     budget_policy: dict = Field(default_factory=dict)
     budget_policy_hash: str = ""
     reported_credits: dict = Field(default_factory=dict)
+    # lifetime spend accounting: the GLOBAL cap binds (already-spent) + (projected worst), not the
+    # projection alone. actual_spend_to_date includes the black-112 diagnostic canary.
+    paid_spend_ledger: dict = Field(default_factory=dict)
+    paid_spend_ledger_hash: str = ""
+    actual_spend_to_date_usd: str = "0"
+    lifetime_worst_with_reserve_usd: str = "0"
+    global_headroom_usd: str = "0"
     per_task: list[TaskCount] = Field(default_factory=list)
     gate_report: dict
     blocking_notes: list[str] = Field(default_factory=list)
@@ -176,6 +184,7 @@ def run_gate1(*, corpus_json_path: str, scope_json_path: str, corpus_dir: str, c
               reported_credits: ReportedCredits, run_id: str, git_commit: str,
               required_node_ids: list[str], heldout_fold: int = 1,
               task_ids: Optional[list[str]] = None,
+              paid_spend: Optional[PaidSpendLedger] = None,
               provider: str = "anthropic") -> Gate1RunArtifact:
     """Assemble real Gate-1 evidence and evaluate the FROZEN gate. Authorises nothing."""
     blocking: list[str] = []
@@ -256,6 +265,14 @@ def run_gate1(*, corpus_json_path: str, scope_json_path: str, corpus_dir: str, c
         blocking.append(f"fold1_worst_reserve>{policy.fold1_hard_cap_usd}")
     if not exp.fits_global_cap(str(policy.global_cap())):
         blocking.append(f"experiment_worst_reserve>{policy.global_hard_cap_usd}")
+    # LIFETIME accounting: the GLOBAL cap binds (already-paid spend) + (projected worst+reserve),
+    # not the forward projection alone. Prior paid spend includes the black-112 diagnostic canary.
+    paid = paid_spend or load_frozen_paid_spend(corpus_dir)
+    spent_to_date = paid.total_paid_to_date()
+    lifetime_worst = spent_to_date + _Dec(exp.experiment_worst_with_reserve_usd)
+    global_headroom = policy.global_cap() - lifetime_worst
+    if lifetime_worst > policy.global_cap():
+        blocking.append(f"lifetime_spend_plus_worst_reserve>{policy.global_hard_cap_usd}")
     # credits (operator-reported runtime state) must cover the block Gate 1 authorizes (fold-1).
     if reported_credits.amount() < _Dec(proj.worst_fold_cost_with_reserve_usd):
         blocking.append("reported_credits_below_fold1_max_exposure")
@@ -290,6 +307,10 @@ def run_gate1(*, corpus_json_path: str, scope_json_path: str, corpus_dir: str, c
         train_task_ids=[t.task_id for t in train_tasks], projection=proj.model_dump(),
         experiment_projection=exp.model_dump(), budget_policy=policy.model_dump(),
         budget_policy_hash=policy.content_hash, reported_credits=reported_credits.model_dump(),
+        paid_spend_ledger=paid.model_dump(), paid_spend_ledger_hash=paid.content_hash,
+        actual_spend_to_date_usd=format(spent_to_date, "f"),
+        lifetime_worst_with_reserve_usd=format(lifetime_worst, "f"),
+        global_headroom_usd=format(global_headroom, "f"),
         per_task=per_task, gate_report=report.model_dump(), blocking_notes=blocking)
 
 

@@ -1,0 +1,7 @@
+{
+  "content_hash": "26ddd513881cb192",
+  "diagnostic_apparatus_spend_usd": "0.028822",
+  "note": "black-112 diagnostic canary at commit 91b7d8f (full-file apparatus defect); counts against the GLOBAL lifetime cap, NOT official C-training; does not advance curriculum/bank.",
+  "official_training_spend_usd": "0",
+  "schema_version": "s2-paid-spend-v1"
+}

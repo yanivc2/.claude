@@ -113,6 +113,9 @@ def main() -> None:
           f"worst+25%=${art.projection.get('worst_fold_cost_with_reserve_usd')} (<= fold1_cap)")
     print(f"experiment worst+25%=${art.experiment_projection.get('experiment_worst_with_reserve_usd')} "
           f"(<= global_cap)")
+    print(f"actual_spend_to_date=${art.actual_spend_to_date_usd}  "
+          f"lifetime_worst+reserve=${art.lifetime_worst_with_reserve_usd}  "
+          f"global_headroom=${art.global_headroom_usd}  (paid_spend[{art.paid_spend_ledger_hash}])")
     print(f"max_single_call_exposure=${art.projection.get('max_single_call_exposure_usd')}")
     print("gate reasons:", r["reasons"] or "none")
     print("blocking notes:", art.blocking_notes or "none")
