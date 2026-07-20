@@ -1,7 +1,7 @@
 {
-  "content_hash": "36d9f4ab469ae1c0",
+  "content_hash": "b6a395a9b8976c69",
   "diagnostic_apparatus_spend_usd": "0.052343",
-  "note": "diagnostic apparatus canaries = $0.052343 (defects 1..5; see history). OFFICIAL C-training spend = $0.011628: black-112 attempt #1 under apparatus_v1 (@66c3595, grant-25da37e4b102) \u2014 SOLVED (public PASS, hidden True, VALID_COMPLETE, patch APPLIED), family whitespace, write-gate INVOKED and lesson legitimately REJECTED by the frozen leak screen (path_separator); bank empty. Lifetime total $0.063971 counts against the GLOBAL cap.",
-  "official_training_spend_usd": "0.011628",
+  "note": "diagnostic apparatus canaries = $0.052343 (defects 1..5). HISTORICAL official C-training attempts (NOT in the final v2.2 sequence): black-112 v1@66c3595 ($0.011628, leak:path_separator) + black-112 v2.1@121f0f2 ($0.012013, grant-7c5aa91ff8bd, leak:forbidden_value \"behavior\"). official_training_spend = $0.023641. Both retained historical, superseded by the reference-fix leakage-screen fix (over-broad reference_patch_tokens). Lifetime total $0.075984 (GLOBAL cap).",
+  "official_training_spend_usd": "0.023641",
   "schema_version": "s2-paid-spend-v1"
 }

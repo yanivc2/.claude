@@ -40,10 +40,11 @@ def test_tampered_cap_breaks_the_hash_and_blocks(tmp_path):
 def test_frozen_paid_spend_ledger_loads_and_totals():
     from meta_orchestrator.experiment.s2.budget_policy import load_frozen_paid_spend
     led = load_frozen_paid_spend(_CORPUS)
-    # $0.052343 diagnostic (defects 1..5) + $0.011628 official (black-112 attempt #1 under apparatus v1)
-    assert led.total_paid_to_date() == Decimal("0.063971")
+    # $0.052343 diagnostic (defects 1..5) + $0.023641 historical official (black-112 v1 $0.011628 +
+    # v2.1 $0.012013); both superseded by the reference-fix-leakage screen fix (not in final sequence)
+    assert led.total_paid_to_date() == Decimal("0.075984")
     assert Decimal(led.diagnostic_apparatus_spend_usd) == Decimal("0.052343")
-    assert Decimal(led.official_training_spend_usd) == Decimal("0.011628")
+    assert Decimal(led.official_training_spend_usd) == Decimal("0.023641")
     assert led.content_hash == led.compute_hash()
 
 
@@ -65,7 +66,7 @@ def test_lifetime_spend_plus_worst_binds_global_cap():
     led = load_frozen_paid_spend(_CORPUS)
     projected = Decimal("45.99675")
     lifetime = led.total_paid_to_date() + projected
-    assert lifetime == Decimal("46.060721")
+    assert lifetime == Decimal("46.072734")
     assert lifetime <= Decimal("50.00")                        # fits the $50 lifetime cap
 
 
