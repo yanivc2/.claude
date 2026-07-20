@@ -83,7 +83,7 @@ def main() -> None:
 
     # Operator-reported credit balance (runtime state, NOT a policy cap). Approved caps live in the
     # frozen s2_budget_policy.frozen.json (fold-1 $10 / global $50).
-    credits = ReportedCredits(available_api_credits_usd="4.708895", verified_at="2026-07-20",
+    credits = ReportedCredits(available_api_credits_usd="4.697657", verified_at="2026-07-20",
                               machine_verified=False)
 
     print("running real count_tokens Gate-1 preflight over the frozen corpus ($0)…")
