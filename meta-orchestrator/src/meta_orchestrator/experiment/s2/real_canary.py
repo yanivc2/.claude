@@ -30,7 +30,10 @@ from . import realtask as RT
 from .call_journal import BudgetLedger, CallJournal, classify_journal_terminal
 from .execution_grant import GrantUsageLedger
 from .live_solver import ModelBackedRoundSolver
+from .patch_format import PatchFormatError
 from .pricing import PricingArtifact
+from .response_classification import (SOLVER_FAIL_TRUNCATED, TRUNCATED_OUTPUT,
+                                      is_official_pass_eligible)
 from .solver import RoundView
 from .write_gate import evaluate_write_gate, reference_patch_tokens
 
@@ -76,36 +79,56 @@ def run_real_task_canary(
     round2_opened = False
     candidates = []
     feedback: Optional[str] = None
-    ambiguous = False
+    classifications: list[Optional[str]] = []
+    patch_statuses: list[Optional[str]] = []
 
-    try:
-        for round_index in (1, 2):
-            if round_index == 2:
-                if round1_status != "FAIL":              # R2 ONLY on a genuine public FAIL
-                    break
-                round2_opened = True
-            view = RoundView(round_index=round_index, task_id=ctx.task_id, task_family="",
-                             source=dict(ctx.buggy_source), public_tests={},
-                             memory_lines=list(memory_lines or []), public_feedback=feedback)
-            out = solver.solve_round(view)               # the ONE paid call (or fake in a dry-run)
-            if out.patch:
-                RT.apply_patch(ctx, out.patch)           # scope-enforced; rejects a test-file path
-            if is_train and grant.condition == "C" and out.candidate_lesson is not None:
-                candidates.append(out.candidate_lesson)
-            pub = RT.run_public_tests(ctx)               # repo-backed, unshare -rn, 4-state
-            public_statuses.append(pub.status)
-            if round_index == 1:
-                round1_status = pub.status
-            if pub.status != "FAIL":
+    for round_index in (1, 2):
+        if round_index == 2:
+            if round1_status != "FAIL":                  # R2 ONLY on a genuine public FAIL
                 break
-            feedback = pub.sanitized_summary[:max_public_feedback_cap]
-    except Exception:                                    # transport ambiguity after send
-        task_trace.append(AMBIGUOUS_HELD)
-        # reservation intentionally RETAINED; grant NOT completed; no R2; no auto-retry.
-        return _report(ctx, grant, grant_ledger, budget, journal, task_res_id, full_exposure_usd,
-                       task_trace, public_statuses, round2_opened, hidden_verdict=None,
-                       write_written=0, bank_before=bank_before, bank_after=bank_before,
-                       calls=solver.calls, ambiguous=True, reconciled=False, completed=False)
+            round2_opened = True
+        view = RoundView(round_index=round_index, task_id=ctx.task_id, task_family="",
+                         source=dict(ctx.buggy_source), public_tests={},
+                         memory_lines=list(memory_lines or []), public_feedback=feedback)
+        try:
+            out = solver.solve_round(view)               # ONLY this can raise transport ambiguity
+        except Exception:                                # CALL_AMBIGUOUS_AFTER_SEND (reservation held)
+            task_trace.append(AMBIGUOUS_HELD)
+            # reservation intentionally RETAINED; grant NOT completed; no R2; no auto-retry.
+            return _report(ctx, grant, grant_ledger, budget, journal, task_res_id, full_exposure_usd,
+                           task_trace, public_statuses, round2_opened, hidden_verdict=None,
+                           write_written=0, bank_before=bank_before, bank_after=bank_before,
+                           calls=solver.calls, ambiguous=True, reconciled=False, completed=False,
+                           classifications=classifications, patch_statuses=patch_statuses)
+        classifications.append(out.classification)
+
+        # FAIL-CLOSED (Decision A): a truncated reply is a TERMINAL SOLVER_FAIL_TRUNCATED — never
+        # applied, never an official pass, never write-gated, never opens R2, never auto-retried.
+        if out.classification == TRUNCATED_OUTPUT:
+            patch_statuses.append(None)
+            public_statuses.append(SOLVER_FAIL_TRUNCATED)
+            if round_index == 1:
+                round1_status = SOLVER_FAIL_TRUNCATED
+            break
+
+        # Only a complete, valid reply is applied + graded as official + (C-train) write-gated.
+        patch_status: Optional[str] = None
+        if is_official_pass_eligible(out.classification) and out.sr_edits:
+            try:
+                RT.apply_patch(ctx, out.sr_edits)        # exact SEARCH/REPLACE vs the buggy pre-image
+            except (PatchFormatError, ValueError) as exc:  # solver failure — NOT a transport ambiguity
+                patch_status = getattr(exc, "code", "PATCH_APPLY_FAILED")
+        patch_statuses.append(patch_status)
+        if (is_official_pass_eligible(out.classification) and is_train
+                and grant.condition == "C" and out.candidate_lesson is not None):
+            candidates.append(out.candidate_lesson)
+        pub = RT.run_public_tests(ctx)                   # repo-backed, unshare -rn, 4-state
+        public_statuses.append(pub.status)
+        if round_index == 1:
+            round1_status = pub.status
+        if pub.status != "FAIL":
+            break
+        feedback = pub.sanitized_summary[:max_public_feedback_cap]
 
     # (2) exactly ONE hidden verify at the end, on the final patched source (verdict never fed back)
     hidden_verdict = RT.hidden_verify(ctx)
@@ -133,13 +156,15 @@ def run_real_task_canary(
     task_trace.extend([GRANT_COMPLETED, TASK_CLOSED])
     return _report(ctx, grant, grant_ledger, budget, journal, task_res_id, full_exposure_usd,
                    task_trace, public_statuses, round2_opened, hidden_verdict, len(written),
-                   bank_before, bank_after, solver.calls, ambiguous=False, reconciled=True,
+                   bank_before, bank_after, solver.calls, classifications=classifications,
+                   patch_statuses=patch_statuses, ambiguous=False, reconciled=True,
                    completed=True)
 
 
 def _report(ctx, grant, grant_ledger, budget, journal, task_res_id, full_exposure_usd, task_trace,
             public_statuses, round2_opened, hidden_verdict, write_written, bank_before, bank_after,
-            calls, *, ambiguous, reconciled, completed) -> dict:
+            calls, *, ambiguous, reconciled, completed, classifications=None,
+            patch_statuses=None) -> dict:
     per_call = [{"round": c["round"], "input_tokens": c["input_tokens"],
                  "output_tokens": c["output_tokens"], "actual_cost_usd": c["actual_cost_usd"]}
                 for c in calls]
@@ -166,4 +191,6 @@ def _report(ctx, grant, grant_ledger, budget, journal, task_res_id, full_exposur
         "grant_completed": grant_ledger.is_completed(grant.grant_id),
         "ambiguous_held": ambiguous, "task_2_started": False,
         "network_isolation": " ".join(ctx.netns()),
+        "round_classifications": list(classifications or []),
+        "patch_statuses": list(patch_statuses or []),
     }

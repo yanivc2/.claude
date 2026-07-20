@@ -20,11 +20,21 @@ import os
 CORPUS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "corpus")
 MODEL = "claude-haiku-4-5-20251001"
 ALLOWED = ["blib2to3/pgen2/driver.py"]
-FIX = "### FILE: %s\n```python\ndef driver():\n    return 1\n```\n" % ALLOWED[0]
+
+
+def _fix(*, lesson=True):
+    """A frozen SEARCH/REPLACE fix (LESSON-first for C-training, mandatory ### END)."""
+    lead = ('### LESSON\n{"recommended_action": ["generalize the boundary handling"], '
+            '"avoid": ["sweeping rewrites"]}\n') if lesson else ""
+    return (lead + "### PATCH\n### FILE: " + ALLOWED[0] +
+            "\n<<<<<<< SEARCH\n    return 0\n=======\n    return 1\n>>>>>>> REPLACE\n### END")
+
+
+FIX = _fix()
 
 
 class FakeClient:
-    """Scripted transport: each item is (text, in_tok, out_tok) or ('__RAISE__',) for ambiguity."""
+    """Scripted transport: each item is (text, in_tok, out_tok[, stop_reason]) or ('__RAISE__',)."""
 
     def __init__(self, responses):
         self.responses = list(responses)
@@ -43,12 +53,15 @@ class FakeClient:
         if r[0] == "__RAISE__":
             raise RuntimeError("ambiguous transport after send")
         self.sent += 1
-        text, itok, otok = r
+        text, itok, otok = r[0], r[1], r[2]
+        stop = r[3] if len(r) > 3 else "end_turn"
 
         class _R:
             pass
         _R.text, _R.input_tokens, _R.output_tokens = text, itok, otok
-        _R.thinking_tokens, _R.returned_model = 0, MODEL
+        _R.thinking_tokens, _R.returned_model = None, MODEL
+        _R.stop_reason, _R.stop_sequence, _R.content_block_types = stop, None, ["text"]
+        _R.visible_text_length, _R.visible_text_sha256 = len(text), ""
         return _R
 
 
@@ -110,13 +123,26 @@ def test_scenario2_r1_fail_then_r2(tmp_path, monkeypatch):
     assert rep["hidden_verdict"] is True
 
 
-def test_scenario3_parser_or_patch_failure_no_r2(tmp_path, monkeypatch):
-    # unparseable R1 → empty patch → source stays buggy → public PASS (P2P pass on buggy) → NO R2.
-    rep = _run(tmp_path, monkeypatch, responses=[("no code here, just musing", 40, 20)],
+def test_scenario3_malformed_but_complete_no_r2(tmp_path, monkeypatch):
+    # a COMPLETE reply (has ### END) that fails the schema → MALFORMED (not truncated): no patch
+    # applied, source stays buggy, public PASS (P2P pass-on-buggy) → NO R2; one hidden verify.
+    rep = _run(tmp_path, monkeypatch, responses=[("just musing, no patch\n### END", 40, 20)],
                public_seq=["PASS"], hidden=False)
     assert rep["round2_opened"] is False and rep["calls_sent"] == 1
+    assert rep["round_classifications"] == ["MALFORMED_OUTPUT"]
     assert rep["hidden_verdict"] is False              # unsolved → SOLVER_FAIL (one hidden verify)
     assert rep["grant_completed"] is True
+
+
+def test_scenario5_truncation_is_terminal_no_r2_no_writegate(tmp_path, monkeypatch):
+    # stop_reason=max_tokens even though a patch could be parsed → TERMINAL SOLVER_FAIL_TRUNCATED:
+    # no apply, no official pass, no write-gate, no R2, grant still completes (a paid call happened).
+    rep = _run(tmp_path, monkeypatch, responses=[(FIX, 8342, 4096, "max_tokens")],
+               public_seq=["PASS"], hidden=True)
+    assert rep["round_classifications"] == ["TRUNCATED_OUTPUT"]
+    assert rep["public_statuses"] == ["SOLVER_FAIL_TRUNCATED"] and rep["round2_opened"] is False
+    assert rep["write_gate_written"] == 0 and rep["bank_hash_after"] == rep["bank_hash_before"]
+    assert rep["calls_sent"] == 1 and rep["grant_completed"] is True
 
 
 def test_scenario4_ambiguous_after_send_holds(tmp_path, monkeypatch):

@@ -32,7 +32,7 @@ from .b1_selector import REAL_SOURCE
 from .budget_policy import ReportedCredits, load_frozen_budget_policy
 from .budget_projection import project_experiment_worst, project_fold_cost
 from .canary_prompt import (PUBLIC_FEEDBACK_CAP, build_r1_worstcase_prompt, build_r2_messages,
-                            max_r1_assistant_envelope)
+                            cap_filling_worst_envelope, max_r1_assistant_envelope)
 from .contract_s2 import S2_MAX_TOKENS
 from .evidence import (BudgetEvidence, CountEvidence, EndpointEvidence, PricingDerivationSample,
                        PricingEvidence, PytestEvidence, gate1_from_evidence)
@@ -41,10 +41,12 @@ from .preflight import HEADROOM_FLOOR, HEADROOM_FRACTION, MODEL_TOTAL_CONTEXT
 from .pricing import call_cost_usd, load_frozen_pricing
 from .response_parser import parse_model_response
 
-# Frozen envelope guard constants.
-ENVELOPE_FLOOR = S2_MAX_TOKENS                 # delta must reach the full output allowance
-MAX_ENVELOPE_OVERSHOOT = 64                    # minimal-unit search lands within one line's tokens
-_MAX_ENVELOPE_UNITS = 4096                     # hard loop bound (never reached in practice)
+# Frozen envelope guard constants. The worst R1 *visible* output that returns as R2 input is now
+# bounded by the SEARCH/REPLACE schema CAPS (patch_format) — NOT by max_tokens (thinking is not fed
+# back). So the envelope is the fixed ``cap_filling_worst_envelope`` and we only assert it is
+# non-degenerate (BPE cannot collapse it) — a light floor, not the old "reach max_tokens" search.
+ENVELOPE_FLOOR = 512                           # min non-degenerate R2 delta (catches "O"*N collapse)
+MAX_ENVELOPE_OVERSHOOT = 64                    # retained for artifact-schema stability (unused now)
 
 
 def _sha(obj: Any) -> str:
@@ -139,41 +141,27 @@ def measure_assistant_delta(request_builder, count_fn, *, r1_prompt: str, feedba
 
 def _size_envelope(request_builder, count_fn, *, task_id: str, r1_prompt: str, feedback: str,
                    allowed: list[str], task_family: str, train: bool,
-                   floor: int = ENVELOPE_FLOOR, overshoot_tol: int = MAX_ENVELOPE_OVERSHOOT
-                   ) -> EnvelopeMeasurement:
-    """Binary-search the SMALLEST envelope whose measured R2 token delta reaches ``floor``."""
-    def r2_tokens(units: int) -> tuple[int, str, list[dict]]:
-        env = "" if units == 0 else max_r1_assistant_envelope(allowed, train=train, units=units)
-        msgs = build_r2_messages(r1_prompt, env, feedback)
-        kwargs = request_builder.build_request_messages(msgs)
-        return count_fn(kwargs), env, msgs
+                   floor: int = ENVELOPE_FLOOR) -> EnvelopeMeasurement:
+    """Measure the R2 input delta of the WORST schema-legal R1 output (the cap-filling envelope).
 
-    base, _, _ = r2_tokens(0)
-    # exponential upper bound
-    hi = 8
-    while True:
-        full, _, _ = r2_tokens(hi)
-        if full - base >= floor or hi >= _MAX_ENVELOPE_UNITS:
-            break
-        hi *= 2
-    if r2_tokens(hi)[0] - base < floor:
-        raise RuntimeError(f"{task_id}: envelope could not reach floor={floor} within {_MAX_ENVELOPE_UNITS} units")
-    lo = 1
-    while lo < hi:                                     # minimal units with delta >= floor
-        mid = (lo + hi) // 2
-        if r2_tokens(mid)[0] - base >= floor:
-            hi = mid
-        else:
-            lo = mid + 1
-    full, env, msgs = r2_tokens(lo)
+    No search: the worst R1 visible output is bounded by the frozen SEARCH/REPLACE caps, so the
+    envelope is fixed. We measure its real ``count_tokens`` delta inside the canonical R2 request
+    (which a degenerate ``"O"*N`` filler would fail — BPE collapses it below ``floor``) and confirm
+    it is parser-valid."""
+    env = cap_filling_worst_envelope(allowed, train=train)
+    base_msgs = build_r2_messages(r1_prompt, "", feedback)
+    full_msgs = build_r2_messages(r1_prompt, env, feedback)
+    base = count_fn(request_builder.build_request_messages(base_msgs))
+    full = count_fn(request_builder.build_request_messages(full_msgs))
     delta = full - base
-    parser_valid = parse_model_response(env, allowed_source_files=allowed, task_family=task_family,
-                                        is_train=train).ok
-    kwargs = request_builder.build_request_messages(msgs)
+    parsed = parse_model_response(env, allowed_source_files=allowed, task_family=task_family,
+                                  is_train=train)
+    kwargs = request_builder.build_request_messages(full_msgs)
     return EnvelopeMeasurement(
-        task_id=task_id, train=train, units=lo, r2_empty_tokens=base, r2_full_tokens=full,
-        assistant_input_delta=delta, overshoot=delta - floor, parser_valid=parser_valid,
-        envelope_hash=_sha(env), full_r2_canonical_hash=_canonical_hash(kwargs, msgs))
+        task_id=task_id, train=train, units=parsed.total_blocks, r2_empty_tokens=base,
+        r2_full_tokens=full, assistant_input_delta=delta, overshoot=max(0, delta - floor),
+        parser_valid=parsed.ok, envelope_hash=_sha(env),
+        full_r2_canonical_hash=_canonical_hash(kwargs, full_msgs))
 
 
 def _context_cap(estimated_max: int) -> tuple[int, int, bool]:
@@ -235,10 +223,8 @@ def run_gate1(*, corpus_json_path: str, scope_json_path: str, corpus_dir: str, c
                              feedback=feedback, allowed=allowed, task_family=family, train=True)
         if not env.parser_valid:
             blocking.append(f"{tid}:envelope_parser_invalid")
-        if env.assistant_input_delta < ENVELOPE_FLOOR:
+        if env.assistant_input_delta < ENVELOPE_FLOOR:      # non-degeneracy floor (BPE didn't collapse)
             blocking.append(f"{tid}:assistant_delta_below_floor")
-        if env.overshoot > MAX_ENVELOPE_OVERSHOOT:
-            blocking.append(f"{tid}:envelope_overshoot>{MAX_ENVELOPE_OVERSHOOT}")
         max_overshoot = max(max_overshoot, env.overshoot)
         r2_tokens = env.r2_full_tokens
         estimated_max = max(estimated_max, r1_tokens, r2_tokens)

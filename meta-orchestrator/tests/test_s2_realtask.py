@@ -37,8 +37,9 @@ def test_netns_prefix_is_a_real_boundary_flag():
 def test_patch_cannot_touch_a_test_file(tmp_path):
     ctx = _ctx(tmp_path)
     with pytest.raises(ValueError):
-        R.apply_patch(ctx, {"tests/test_black.py": "malicious"})   # not in allowed_source_files
-    R.apply_patch(ctx, {ALLOWED[0]: "def driver():\n    return 1\n"})   # allowed → ok
+        R.apply_patch(ctx, {"tests/test_black.py": [("x", "y")]})   # not in allowed_source_files
+    R.apply_patch(ctx, {ALLOWED[0]: [("    return 0", "    return 1")]})   # allowed → ok
+    assert (tmp_path / "repo" / ALLOWED[0]).read_text() == "def driver():\n    return 1\n"
 
 
 def test_sanitize_caps_and_drops_raw_paths():
@@ -99,7 +100,10 @@ def _dry(tmp_path, monkeypatch, *, pub_seq, verdict):
                               sanitized_summary="" if st == "PASS" else "test_x FAILED: assert 1==2")
     monkeypatch.setattr(R, "run_public_tests", fake_pub)
     monkeypatch.setattr(R, "hidden_verify", lambda c: verdict)
-    fix = "### FILE: %s\n```python\ndef driver():\n    return 1\n```\n" % ALLOWED[0]
+    # frozen SEARCH/REPLACE fix (LESSON-first for is_train, mandatory ### END)
+    fix = ('### LESSON\n{"recommended_action": ["return the corrected value"], "avoid": ["edits to tests"]}\n'
+           "### PATCH\n### FILE: %s\n<<<<<<< SEARCH\n    return 0\n=======\n    return 1\n"
+           ">>>>>>> REPLACE\n### END" % ALLOWED[0])
     return ctx, fix
 
 

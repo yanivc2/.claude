@@ -43,7 +43,8 @@ def test_adapter_never_sends_temperature_or_sampling():
 def test_adapter_pins_exact_snapshot_and_max_tokens():
     kw = anthropic_request_kwargs(frozen_s2_contract(), prompt="x")
     assert kw["model"] == S2_EXACT_MODEL_ID == "claude-haiku-4-5-20251001"
-    assert kw["max_tokens"] == S2_MAX_TOKENS == 4096
+    assert kw["max_tokens"] == S2_MAX_TOKENS == 11264            # calibrated for SEARCH/REPLACE caps
+    assert S2_MAX_TOKENS > 1024                                   # thinking budget must stay below it
 
 
 def test_run_policy_disables_fallback():

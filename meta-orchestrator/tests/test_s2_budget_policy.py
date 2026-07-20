@@ -23,8 +23,7 @@ def test_frozen_policy_loads_with_approved_caps():
     pol = load_frozen_budget_policy(_CORPUS)
     assert pol.policy_version == BUDGET_POLICY_VERSION
     assert pol.fold1_cap() == Decimal("10.00")
-    assert pol.global_cap() == Decimal("30.00")
-    assert pol.supersedes == "pre-gate-under-5-guard"
+    assert pol.global_cap() == Decimal("50.00")               # raised for calibrated max_tokens=11264
     assert pol.content_hash == pol.compute_hash()             # self-consistent seal
 
 
@@ -53,9 +52,10 @@ def test_experiment_projection_uses_frozen_8x_structure_and_fits_global_cap():
     assert exp.worst_multiplier == EXPERIMENT_WORST_MULTIPLIER == 8
     # experiment_worst == 8 · Σ(full_cost(r1)+full_cost(r2))
     from meta_orchestrator.experiment.s2.pricing import call_cost_usd
-    s = sum((call_cost_usd(pricing, input_tokens=a, output_tokens=4096)
-             + call_cost_usd(pricing, input_tokens=b, output_tokens=4096)) for a, b in zip(r1, r2))
+    from meta_orchestrator.experiment.s2.contract_s2 import S2_MAX_TOKENS
+    s = sum((call_cost_usd(pricing, input_tokens=a, output_tokens=S2_MAX_TOKENS)
+             + call_cost_usd(pricing, input_tokens=b, output_tokens=S2_MAX_TOKENS)) for a, b in zip(r1, r2))
     assert Decimal(exp.experiment_worst_usd) == Decimal(8) * s
     assert Decimal(exp.experiment_worst_with_reserve_usd) == Decimal(8) * s * Decimal("1.25")
-    assert exp.fits_global_cap("30.00") == (Decimal(exp.experiment_worst_with_reserve_usd)
-                                            <= Decimal("30.00"))
+    assert exp.fits_global_cap("45.00") == (Decimal(exp.experiment_worst_with_reserve_usd)
+                                            <= Decimal("45.00"))

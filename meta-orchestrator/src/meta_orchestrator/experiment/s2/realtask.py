@@ -101,14 +101,32 @@ def _pytest_plan(ctx: RealTaskContext, plan: list) -> tuple[dict, bool, str]:
     return merged, timed_out, raw
 
 
-def apply_patch(ctx: RealTaskContext, patch: dict[str, str]) -> None:
-    """Write the solver's patch to the ALLOWED source files only (never a test file)."""
-    for path, content in patch.items():
+def apply_patch(ctx: RealTaskContext, edits: dict[str, list]) -> None:
+    """Apply minimal SEARCH/REPLACE edits to the ALLOWED source files, ALWAYS against the buggy
+    pre-image the model was shown (never a test file, never stacked on a prior round).
+
+    ``edits`` maps path -> [(search, replace), ...]. Both rounds show the buggy source, so each round's
+    patch is authored against it; applying to ``ctx.buggy_source[path]`` (not the on-disk, possibly
+    Round-1-patched file) keeps SEARCH anchored to exactly what the model saw. Exact-match/uniqueness/
+    overlap are enforced by ``patch_format.apply_search_replace`` and raise ``PatchFormatError`` (a
+    solver failure the runner records — NOT a transport ambiguity)."""
+    from .patch_format import SearchReplace, apply_search_replace
+    for path, blocks in edits.items():
         if path not in ctx.allowed_source_files:          # scope guard (patch can't touch tests)
             raise ValueError(f"patch path {path!r} outside allowed_source_files — rejected")
+        pre_image = ctx.buggy_source[path]
+        new_content = apply_search_replace(pre_image, [SearchReplace(s, r) for s, r in blocks])
         full = os.path.join(ctx.repo, path)
         with open(full, "w", encoding="utf-8") as fh:
-            fh.write(content)
+            fh.write(new_content)
+
+
+def reset_allowed_to_buggy(ctx: RealTaskContext) -> None:
+    """Restore the allowed source files to the buggy pre-image (used before applying a round's patch
+    so edits never stack, and to grade an unpatched/failed round honestly)."""
+    for path in ctx.allowed_source_files:
+        with open(os.path.join(ctx.repo, path), "w", encoding="utf-8") as fh:
+            fh.write(ctx.buggy_source[path])
 
 
 def run_public_tests(ctx: RealTaskContext) -> PublicResult:
@@ -249,7 +267,7 @@ def dry_run_attempt(ctx: RealTaskContext, *, statement: str, memory_lines: list[
     p1 = parse_model_response(r1_text, allowed_source_files=ctx.allowed_source_files,
                               task_family="", is_train=is_train)
     if p1.ok:
-        apply_patch(ctx, p1.patch)
+        apply_patch(ctx, p1.edits)
         patches += 1
     pub1 = run_public_tests(ctx)
     statuses.append(pub1.status)
@@ -263,7 +281,7 @@ def dry_run_attempt(ctx: RealTaskContext, *, statement: str, memory_lines: list[
         p2 = parse_model_response(r2_text, allowed_source_files=ctx.allowed_source_files,
                                   task_family="", is_train=is_train)
         if p2.ok:
-            apply_patch(ctx, p2.patch)
+            apply_patch(ctx, p2.edits)
             patches += 1
         pub2 = run_public_tests(ctx)
         statuses.append(pub2.status)

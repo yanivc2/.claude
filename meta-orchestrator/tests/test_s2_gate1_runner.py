@@ -40,29 +40,25 @@ def _r1():
                                                  for p in ALLOWED}, train=True)
 
 
-def test_envelope_reaches_floor_minimal_and_parser_valid():
+def test_envelope_is_capfilling_and_parser_valid():
     b, cf = FakeBuilder(), distinct_token_count
     m = G._size_envelope(b, cf, task_id="t1", r1_prompt=_r1(), feedback=G.worst_public_feedback(),
                          allowed=ALLOWED, task_family="whitespace", train=True)
-    assert m.assistant_input_delta >= G.ENVELOPE_FLOOR          # reaches the 4096 floor
-    assert m.overshoot <= G.MAX_ENVELOPE_OVERSHOOT              # minimal-unit search → small overshoot
     assert m.parser_valid is True
-    # minimality: one unit fewer would be below the floor
-    smaller = G.measure_assistant_delta(
-        b, cf, r1_prompt=_r1(), feedback=G.worst_public_feedback(),
-        assistant_text=__import__("meta_orchestrator.experiment.s2.canary_prompt", fromlist=["x"])
-        .max_r1_assistant_envelope(ALLOWED, train=True, units=m.units - 1))
-    assert smaller < G.ENVELOPE_FLOOR
+    assert m.assistant_input_delta >= G.ENVELOPE_FLOOR         # non-degenerate (BPE didn't collapse)
+    # the worst legal envelope fills the frozen block cap
+    from meta_orchestrator.experiment.s2 import patch_format as PF
+    assert m.units == PF.MAX_PATCH_BLOCKS
 
 
 def test_degenerate_filler_undercounts_and_would_block():
-    """The negative test: 'O'*16384 collapses under the tokenizer -> delta < floor -> blocked."""
+    """The negative test: 'O'*16384 collapses under the tokenizer -> delta < floor; the diverse
+    cap-filling envelope (same count_fn) clears the floor, proving the guard discriminates."""
     b, cf = FakeBuilder(), distinct_token_count
     degenerate = "O" * 16384
     d = G.measure_assistant_delta(b, cf, r1_prompt=_r1(), feedback=G.worst_public_feedback(),
                                   assistant_text=degenerate)
     assert d < G.ENVELOPE_FLOOR                                 # the under-count the guard must catch
-    # the real envelope, same count_fn, clears the floor — proving the guard discriminates
     good = G._size_envelope(b, cf, task_id="t1", r1_prompt=_r1(), feedback=G.worst_public_feedback(),
                             allowed=ALLOWED, task_family="whitespace", train=True)
     assert good.assistant_input_delta >= G.ENVELOPE_FLOOR
@@ -124,11 +120,11 @@ def test_run_gate1_passes_with_good_evidence(tmp_path, monkeypatch):
 
     assert art.blocking_notes == []
     assert art.context_cap % 1024 == 0 and art.context_cap + S2_MAX_TOKENS <= 200_000
-    assert art.max_overshoot_seen <= G.MAX_ENVELOPE_OVERSHOOT
+    assert all(t.envelope.parser_valid for t in art.per_task)  # every worst envelope is schema-valid
     assert len(art.train_task_ids) == 6                        # 9 tasks, held-out fold 1 (3) → 6 train
     # approved caps bound from the frozen policy; both projections fit; credits recorded separately
     assert art.budget_policy["fold1_hard_cap_usd"] == "10.00"
-    assert art.budget_policy["global_hard_cap_usd"] == "30.00"
+    assert art.budget_policy["global_hard_cap_usd"] == "50.00"
     assert art.budget_policy_hash and art.reported_credits["is_budget_cap"] is False
     assert art.experiment_projection["worst_multiplier"] == 8
     assert art.gate_report["production_valid"] is True

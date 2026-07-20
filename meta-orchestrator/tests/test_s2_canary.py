@@ -21,13 +21,26 @@ from meta_orchestrator.experiment.s2 import (RESPONSE_SCHEMA, LESSON_SCHEMA, REP
                                              ModelBackedRoundSolver, BudgetLedger, CallJournal,
                                              CALL_AMBIGUOUS_AFTER_SEND, assert_frozen_pieces_match,
                                              GateError)
+from meta_orchestrator.experiment.s2.canary_prompt import frozen_pieces_snapshot
 from meta_orchestrator.experiment.s2.memory import SLOT_MAX_CHARS, SLOT_MAX_LINES
 from meta_orchestrator.experiment.s2.prompt import MEMORY_OPEN, MEMORY_CLOSE
 from meta_orchestrator.experiment.s2.model_client import S2ModelClient
 from meta_orchestrator.experiment.s2.synthetic import synthetic_task
 from meta_orchestrator.experiment.s2.contract_s2 import frozen_s2_contract
 
+
 CORPUS = "corpus"
+
+
+def _sr(search, replace, *, path="solution.py"):
+    """Build a frozen SEARCH/REPLACE ### PATCH ... ### END body for one file/block."""
+    return (f"### PATCH\n### FILE: {path}\n<<<<<<< SEARCH\n{search}\n=======\n{replace}\n"
+            ">>>>>>> REPLACE\n### END")
+
+
+def _lesson_block():
+    return ('### LESSON\n{"recommended_action": ["prefer a minimal targeted edit"], '
+            '"avoid": ["sweeping rewrites"]}\n')
 
 
 # --- 1. single-source byte parity with the frozen counter -------------------------------
@@ -37,7 +50,7 @@ def _counter_r1(statement, source, train):
     parts = ["# Bug report", statement, "", "# Target source files (edit ONLY these)"]
     for path in sorted(source):
         parts.append(f"## {path}\n```python\n{source[path]}\n```")
-    parts += ["", mem, "", RESPONSE_SCHEMA + (LESSON_SCHEMA if train else "")]
+    parts += ["", mem, "", (LESSON_SCHEMA if train else "") + RESPONSE_SCHEMA]   # LESSON-first
     return "\n".join(parts)
 
 
@@ -48,48 +61,57 @@ def test_r1_worstcase_byte_parity_with_counter():
 
 
 def test_frozen_pieces_guard_blocks_drift():
-    good = {"response_schema_hash": __import__("hashlib").sha256(RESPONSE_SCHEMA.encode()).hexdigest()[:12],
-            "lesson_schema_hash": __import__("hashlib").sha256(LESSON_SCHEMA.encode()).hexdigest()[:12],
-            "repair_instruction_hash": __import__("hashlib").sha256(REPAIR_INSTRUCTION.encode()).hexdigest()[:12],
-            "public_feedback_cap": 2000, "memory_slot_limits": {"lines": SLOT_MAX_LINES, "chars": SLOT_MAX_CHARS}}
+    good = frozen_pieces_snapshot()                        # includes patch_caps now
     assert_frozen_pieces_match(good)                       # no raise
     bad = dict(good); bad["public_feedback_cap"] = 1500
     with pytest.raises(GateError):
         assert_frozen_pieces_match(bad)
+    bad2 = dict(good); bad2["patch_caps"] = dict(good["patch_caps"], max_patch_blocks=999)
+    with pytest.raises(GateError):
+        assert_frozen_pieces_match(bad2)
 
 
-# --- 2. strict parser -------------------------------------------------------------------
-def _resp(patch_body, *, path="solution.py", lesson=True):
-    t = f"### FILE: {path}\n```python\n{patch_body}\n```\n"
-    if lesson:
-        t += '### LESSON\n{"recommended_action": ["prefer a minimal targeted edit"], "avoid": ["sweeping rewrites"]}\n'
-    return t
-
-
+# --- 2. strict parser (SEARCH/REPLACE, LESSON-first, mandatory ### END) ------------------
 def test_parser_accepts_valid_patch_and_lesson():
-    p = parse_model_response(_resp("def f():\n    return 2"), allowed_source_files=["solution.py"],
+    text = _lesson_block() + _sr("def f():\n    return 1", "def f():\n    return 2")
+    p = parse_model_response(text, allowed_source_files=["solution.py"],
                              task_family="whitespace", is_train=True)
-    assert p.ok and "solution.py" in p.patch and p.candidate_lesson is not None
+    assert p.ok and "solution.py" in p.edits and p.candidate_lesson is not None
+    assert p.edits["solution.py"] == [("def f():\n    return 1", "def f():\n    return 2")]
 
 
 def test_parser_rejects_out_of_scope_path():
-    p = parse_model_response(_resp("x=1", path="tests_public/test_x.py"),
-                             allowed_source_files=["solution.py"], task_family="whitespace",
+    text = _lesson_block() + _sr("x=1", "x=2", path="tests_public/test_x.py")
+    p = parse_model_response(text, allowed_source_files=["solution.py"], task_family="whitespace",
                              is_train=True)
-    assert not p.ok and p.patch == {} and p.reason.startswith("path_not_allowed")
+    assert not p.ok and p.edits == {} and p.reason.startswith("PATCH_PATH_FORBIDDEN")
 
 
 def test_parser_garbage_is_solver_failure_not_infra():
     p = parse_model_response("I think the bug is subtle. No code.", allowed_source_files=["solution.py"],
                              task_family="whitespace", is_train=True)
-    assert not p.ok and p.patch == {} and p.reason == "no_valid_file_block"
+    assert not p.ok and p.edits == {} and p.reason == "missing_end"   # no ### END → structural
 
 
-def test_parser_bad_lesson_json_keeps_patch_drops_lesson():
-    t = "### FILE: solution.py\n```python\ndef f():\n    return 2\n```\n### LESSON\n{not json}\n"
-    p = parse_model_response(t, allowed_source_files=["solution.py"], task_family="whitespace",
+def test_parser_missing_end_is_truncation_signal():
+    text = _lesson_block() + _sr("a", "b").removesuffix("\n### END")   # drop the sentinel
+    p = parse_model_response(text, allowed_source_files=["solution.py"], task_family="whitespace",
                              is_train=True)
-    assert p.ok and p.patch and p.candidate_lesson is None
+    assert not p.ok and p.reason == "missing_end" and p.end_marker_present is False
+
+
+def test_parser_bad_lesson_json_in_train_is_schema_failure():
+    text = "### LESSON\n{not json}\n" + _sr("def f():\n    return 1", "def f():\n    return 2")
+    p = parse_model_response(text, allowed_source_files=["solution.py"], task_family="whitespace",
+                             is_train=True)
+    assert not p.ok and p.reason == "malformed_lesson"
+
+
+def test_parser_empty_search_rejected():
+    text = "### PATCH\n### FILE: solution.py\n<<<<<<< SEARCH\n=======\nx=1\n>>>>>>> REPLACE\n### END"
+    p = parse_model_response(text, allowed_source_files=["solution.py"], task_family="whitespace",
+                             is_train=False)
+    assert not p.ok and p.reason.startswith("PATCH_SCHEMA_INVALID")
 
 
 # --- fake httpx transport harness -------------------------------------------------------
@@ -118,17 +140,17 @@ class _Scripted:
 
 
 def _fix_resp(task, *, lesson=True):
-    body = task.reference_fix["solution.py"]        # the KNOWN-good fix (correct function name)
-    t = f"### FILE: solution.py\n```python\n{body}\n```\n"
-    if lesson:
-        t += ('### LESSON\n{"recommended_action": ["read the range bound carefully"], '
-              '"avoid": ["editing tests"]}\n')
-    return t
+    # whole-file SEARCH/REPLACE: replace the buggy source with the KNOWN-good fix (one unique block)
+    lead = ('### LESSON\n{"recommended_action": ["read the range bound carefully"], '
+            '"avoid": ["editing tests"]}\n') if lesson else ""
+    return lead + _sr(task.source["solution.py"], task.reference_fix["solution.py"])
 
 
 def _bug_resp(task):
-    body = task.source["solution.py"]               # unchanged buggy source → public FAIL
-    return f"### FILE: solution.py\n```python\n{body}\n```\n"
+    # a no-op SEARCH/REPLACE (replace == search) → applies cleanly but keeps the bug → public FAIL.
+    # carries a lesson so it is a schema-valid C-training reply (is_train requires ### LESSON first).
+    body = task.source["solution.py"]
+    return _lesson_block() + _sr(body, body)
 
 
 def _grant_for(task, *, fold=1, condition="C"):

@@ -26,7 +26,10 @@ from ..contract import AgentContract, prompt_hash
 
 # --- frozen Decision-A constants (mirror corpus/S2_AGENT_CONTRACT.md; do NOT drift) ---
 S2_EXACT_MODEL_ID = "claude-haiku-4-5-20251001"     # exact snapshot, never an alias
-S2_MAX_TOKENS = 4096                                # per model call
+# Calibrated (Decision A/B): the worst schema-legal VISIBLE output (a cap-filling SEARCH/REPLACE
+# patch + max lesson + framing) measured 7582 real count_tokens; max_tokens = round_up_1024(
+# thinking_budget + ceil(7582 * 1.25)) = 11264. Replaces the full-file 4096 that truncated black-112.
+S2_MAX_TOKENS = 11264                               # per model call (thinking billed inside this)
 S2_THINKING_BUDGET_TOKENS = 1024                    # the Haiku-4.5 floor, < max_tokens
 S2_THINKING = {"type": "enabled", "budget_tokens": S2_THINKING_BUDGET_TOKENS}
 S2_AGENT_VERSION = "s2-attempt-v1"

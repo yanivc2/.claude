@@ -72,10 +72,17 @@ class RoundView(BaseModel):
 class RoundOutput(BaseModel):
     """The solver's declarative result for one round."""
 
-    patch: dict[str, str] = Field(default_factory=dict)   # path -> new content (empty = no-op)
+    patch: dict[str, str] = Field(default_factory=dict)   # OFFLINE harness: path -> full content
+    # REAL (paid) path only: minimal SEARCH/REPLACE edits (path -> [(search, replace), ...]) applied
+    # against the buggy pre-image by realtask.apply_patch. None on the offline/mock path.
+    sr_edits: Optional[dict[str, list[tuple[str, str]]]] = None
     claimed_done: bool = False
     candidate_lesson: Optional[Lesson] = None             # C-train only; harness gates the write
     notes: str = ""
+    # REAL-path observability / fail-closed classification (None on the offline/mock path):
+    stop_reason: Optional[str] = None
+    classification: Optional[str] = None                  # VALID_COMPLETE_OUTPUT | TRUNCATED_OUTPUT | ...
+    parse_reason: str = ""
 
 
 class RoundSolver(Protocol):

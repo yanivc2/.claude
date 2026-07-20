@@ -10,7 +10,7 @@ import json
 
 import pytest
 
-from meta_orchestrator.experiment.s2.contract_s2 import frozen_s2_contract
+from meta_orchestrator.experiment.s2.contract_s2 import frozen_s2_contract, S2_MAX_TOKENS
 from meta_orchestrator.experiment.s2.model_client import (ModelUnavailableError, S2ModelClient)
 
 
@@ -56,7 +56,7 @@ def test_production_path_sends_exact_contract_body():
 
     body = fake.captured
     assert body["model"] == "claude-haiku-4-5-20251001"
-    assert body["max_tokens"] == 4096
+    assert body["max_tokens"] == S2_MAX_TOKENS == 11264
     assert body["thinking"] == {"type": "enabled", "budget_tokens": 1024}
     # the serialized wire body must not carry the forbidden keys anywhere
     serialized = client.last_request_json

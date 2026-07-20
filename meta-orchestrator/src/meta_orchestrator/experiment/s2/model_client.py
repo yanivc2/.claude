@@ -12,6 +12,7 @@ an undetectable confound. There is exactly one model id in this path: ``contract
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from typing import Any, Optional
@@ -30,8 +31,16 @@ class S2ModelResponse(BaseModel):
     text: str
     input_tokens: int = 0
     output_tokens: int = 0
-    thinking_tokens: int = 0
+    # thinking is billed INSIDE output_tokens; only reported when the provider supplies an official
+    # ``usage.output_tokens_details.thinking_tokens`` — NEVER inferred by subtraction / summary length.
+    thinking_tokens: Optional[int] = None
     returned_model: str = ""
+    # --- observability (Decision A, part A): capture what the black-112 audit could not recover ---
+    stop_reason: Optional[str] = None          # "end_turn" | "max_tokens" | "stop_sequence" | "refusal"
+    stop_sequence: Optional[str] = None
+    content_block_types: list[str] = []        # e.g. ["thinking", "text"]
+    visible_text_length: int = 0               # chars of concatenated visible text
+    visible_text_sha256: str = ""              # hash of the visible text (raw kept out-of-repo)
 
 
 class S2ModelClient:
@@ -89,9 +98,22 @@ class S2ModelClient:
         return _parse_message(msg, requested_model=self.contract.exact_model_id)
 
 
+def _official_thinking_tokens(usage: Any) -> Optional[int]:
+    """Return thinking tokens ONLY if the provider supplies the official usage detail; else None.
+
+    The Anthropic ``Usage`` object bills thinking inside ``output_tokens`` and does NOT expose a
+    top-level ``thinking_tokens`` field. Reading a non-existent attribute (the pre-audit bug) silently
+    yielded 0. We read only ``usage.output_tokens_details.thinking_tokens`` when present and never
+    infer it — an unknown stays unknown (None)."""
+    details = getattr(usage, "output_tokens_details", None)
+    val = getattr(details, "thinking_tokens", None) if details is not None else None
+    return int(val) if isinstance(val, int) else None
+
+
 def _parse_message(msg: Any, *, requested_model: str) -> S2ModelResponse:
-    text = "".join(getattr(b, "text", "") for b in getattr(msg, "content", [])
-                   if getattr(b, "type", None) == "text")
+    blocks = list(getattr(msg, "content", []) or [])
+    text = "".join(getattr(b, "text", "") for b in blocks if getattr(b, "type", None) == "text")
+    block_types = [str(getattr(b, "type", "")) for b in blocks]
     usage = getattr(msg, "usage", None)
     returned = getattr(msg, "model", "") or requested_model
     if returned and returned != requested_model:
@@ -102,6 +124,11 @@ def _parse_message(msg: Any, *, requested_model: str) -> S2ModelResponse:
         text=text,
         input_tokens=getattr(usage, "input_tokens", 0) or 0,
         output_tokens=getattr(usage, "output_tokens", 0) or 0,
-        thinking_tokens=getattr(usage, "thinking_tokens", 0) or 0,   # billed as output
+        thinking_tokens=_official_thinking_tokens(usage),
         returned_model=returned,
+        stop_reason=getattr(msg, "stop_reason", None),
+        stop_sequence=getattr(msg, "stop_sequence", None),
+        content_block_types=block_types,
+        visible_text_length=len(text),
+        visible_text_sha256=hashlib.sha256(text.encode("utf-8")).hexdigest(),
     )

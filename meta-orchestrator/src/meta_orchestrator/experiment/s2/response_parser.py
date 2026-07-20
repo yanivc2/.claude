@@ -1,56 +1,104 @@
-"""Parse the model's declarative response into a patch (+ optional candidate lesson).
+"""Parse the model's declarative response (Decision A/B: LESSON-first, then a minimal SEARCH/REPLACE
+patch, then a mandatory ``### END`` sentinel).
 
-Strict and non-creative (Decision B): the parser accepts ONLY the frozen schema, rejects any path
-outside ``allowed_source_files``, never "fixes" a malformed reply, and separates the patch from the
-candidate lesson. A response that cannot be parsed is a SOLVER failure (empty patch → the public
-suite will fail), NOT an infrastructure error and NOT a retry — so a model that emits garbage is a
-valid experimental outcome, exactly as pre-registered.
+Strict and non-creative: the parser accepts ONLY the frozen schema, rejects any path outside
+``allowed_source_files``, never "fixes" a malformed reply, and separates the candidate lesson from
+the patch. It is STRUCTURAL only — it does not touch the source; exact-match / uniqueness / overlap
+are the applier's job (``realtask.apply_patch`` → ``patch_format.apply_search_replace``).
+
+Frozen response layout:
+
+    ### LESSON              (C-training ONLY — must come BEFORE the patch)
+    {"recommended_action": [...], "avoid": [...]}
+    ### PATCH
+    ### FILE: <allowed path>
+    <<<<<<< SEARCH
+    <exact existing text>
+    =======
+    <replacement text>
+    >>>>>>> REPLACE
+    ### END                 (mandatory sentinel — its ABSENCE means the output was truncated)
+
+The mandatory ``### END`` sentinel + ``stop_reason`` are how truncation is caught structurally instead
+of being silently accepted (the black-112 canary defect). A truncated or malformed reply is a SOLVER
+outcome (no valid patch → the public suite fails), never an infrastructure error and never a retry.
 """
 from __future__ import annotations
 
 import hashlib
 import json
-import re
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ..lesson import Lesson
-
-_FILE_BLOCK = re.compile(
-    r"^###[ \t]*FILE:[ \t]*(?P<path>.+?)[ \t]*\n```(?:python)?\n(?P<body>.*?)\n```",
-    re.MULTILINE | re.DOTALL)
-_LESSON = re.compile(r"^###[ \t]*LESSON[ \t]*\n(?P<json>\{.*\})", re.MULTILINE | re.DOTALL)
+from . import patch_format as PF
 
 
 class ParsedResponse(BaseModel):
-    patch: dict[str, str]                       # path -> new content (empty ⇒ parse failure)
+    # path -> list of (search, replace); empty ⇒ no valid patch (parse failure)
+    edits: dict[str, list[tuple[str, str]]] = Field(default_factory=dict)
     candidate_lesson: Optional[Lesson] = None
     ok: bool
-    reason: str = ""
+    reason: str = ""                       # "ok" or a frozen taxonomy code
+    end_marker_present: bool = False
+    files_touched: int = 0
+    total_blocks: int = 0
+
+
+def _find_marker_line(lines: list[str], marker: str) -> int:
+    for idx, ln in enumerate(lines):
+        if ln == marker:
+            return idx
+    return -1
 
 
 def parse_model_response(text: str, *, allowed_source_files: list[str], task_family: str,
                          is_train: bool) -> ParsedResponse:
-    """Deterministically parse ``text``. Never raises on bad content — returns ok=False instead."""
-    allowed = set(allowed_source_files)
-    patch: dict[str, str] = {}
-    for m in _FILE_BLOCK.finditer(text or ""):
-        path = m.group("path").strip()
-        if path not in allowed:                 # out-of-scope path — reject the whole block set
-            return ParsedResponse(patch={}, ok=False, reason=f"path_not_allowed:{path}")
-        if path in patch:
-            return ParsedResponse(patch={}, ok=False, reason=f"duplicate_file_block:{path}")
-        patch[path] = m.group("body")
-    if not patch:
-        return ParsedResponse(patch={}, ok=False, reason="no_valid_file_block")
+    """Deterministically parse ``text``. Never raises on bad content — returns ok=False + a code."""
+    lines = (text or "").split("\n")
+    end_idx = _find_marker_line(lines, PF.END_MARK)
+    end_present = end_idx != -1
+    patch_idx = _find_marker_line(lines, PF.PATCH_MARK)
+    lesson_idx = _find_marker_line(lines, PF.LESSON_MARK)
 
+    def fail(reason: str) -> ParsedResponse:
+        return ParsedResponse(ok=False, reason=reason, end_marker_present=end_present)
+
+    if not end_present:                                   # structural truncation signal
+        return fail("missing_end")
+    if patch_idx == -1:
+        return fail("no_patch_section")
+    if patch_idx > end_idx:
+        return fail(PF.SCHEMA_INVALID + ":patch_after_end")
+
+    # --- lesson (C-training only; must precede the patch) ---
     lesson: Optional[Lesson] = None
     if is_train:
-        lm = _LESSON.search(text or "")
-        if lm:
-            lesson = _parse_lesson(lm.group("json"), task_family)   # may be None on bad JSON/schema
-    return ParsedResponse(patch=patch, candidate_lesson=lesson, ok=True, reason="ok")
+        if lesson_idx == -1:
+            return fail("missing_lesson")
+        if lesson_idx > patch_idx:
+            return fail(PF.SCHEMA_INVALID + ":lesson_after_patch")
+        lesson_json = "\n".join(lines[lesson_idx + 1:patch_idx]).strip()
+        if len(lesson_json) > PF.MAX_LESSON_CHARS:
+            return fail(PF.LIMIT_EXCEEDED + ":lesson_chars")
+        lesson = _parse_lesson(lesson_json, task_family)
+        if lesson is None:
+            return fail("malformed_lesson")
+    elif lesson_idx != -1:                                # non-train must NOT propose a lesson
+        return fail(PF.SCHEMA_INVALID + ":unexpected_lesson")
+
+    # --- patch region (between ### PATCH and ### END) ---
+    region = "\n".join(lines[patch_idx + 1:end_idx])
+    try:
+        parsed = PF.parse_patch_region(region, allowed_source_files)
+    except PF.PatchFormatError as exc:
+        return fail(exc.code + (f":{exc.detail}" if exc.detail else ""))
+
+    edits = {path: [(sr.search, sr.replace) for sr in blocks] for path, blocks in parsed}
+    total_blocks = sum(len(b) for b in edits.values())
+    return ParsedResponse(edits=edits, candidate_lesson=lesson, ok=True, reason="ok",
+                          end_marker_present=True, files_touched=len(edits), total_blocks=total_blocks)
 
 
 def _parse_lesson(raw_json: str, task_family: str) -> Optional[Lesson]:
@@ -58,7 +106,7 @@ def _parse_lesson(raw_json: str, task_family: str) -> Optional[Lesson]:
     try:
         obj = json.loads(raw_json)
     except Exception:
-        return None                              # unparseable lesson ⇒ no candidate (patch still stands)
+        return None
     if not isinstance(obj, dict):
         return None
     rec = obj.get("recommended_action") or []

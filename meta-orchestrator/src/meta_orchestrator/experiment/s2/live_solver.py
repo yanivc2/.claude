@@ -27,6 +27,7 @@ from .endpoint import EndpointAttestation, assert_endpoint_approved
 from .gates import CallContext, assert_call_allowed
 from .b1_selector import REAL_SOURCE
 from .pricing import PricingArtifact, call_cost_usd, max_call_cost_usd
+from .response_classification import classify_response
 from .response_parser import parse_model_response
 from .solver import RoundOutput, RoundView
 
@@ -152,5 +153,36 @@ class ModelBackedRoundSolver:
             self._assistant_text = resp.text
         parsed = parse_model_response(resp.text, allowed_source_files=c["allowed"],
                                       task_family=c["family"], is_train=c["is_train"])
-        return RoundOutput(patch=parsed.patch, candidate_lesson=parsed.candidate_lesson,
-                           notes=parsed.reason)
+        stop_reason = getattr(resp, "stop_reason", None)
+        classification = classify_response(stop_reason=stop_reason,
+                                           end_marker_present=parsed.end_marker_present,
+                                           parse_ok=parsed.ok)
+        self.calls[-1].update({"stop_reason": stop_reason, "classification": classification,
+                               "visible_text_sha256": getattr(resp, "visible_text_sha256", ""),
+                               "visible_text_length": getattr(resp, "visible_text_length", 0),
+                               "thinking_tokens": getattr(resp, "thinking_tokens", None),
+                               "content_block_types": getattr(resp, "content_block_types", [])})
+        # Offline-harness compatibility: also expose the FULL patched content per file (best-effort,
+        # applied against what the model saw). The REAL/paid path ignores this and uses sr_edits via
+        # realtask.apply_patch; this NEVER raises (an unappliable edit just yields no full-content
+        # patch) so an apply failure can never be mistaken for a transport ambiguity.
+        full_patch = _full_patch_best_effort(parsed.edits, view.source)
+        return RoundOutput(patch=full_patch, sr_edits=parsed.edits,
+                           candidate_lesson=parsed.candidate_lesson, notes=parsed.reason,
+                           stop_reason=stop_reason, classification=classification,
+                           parse_reason=parsed.reason)
+
+
+def _full_patch_best_effort(edits: dict, source: dict) -> dict:
+    """Apply SEARCH/REPLACE edits against ``source`` to produce full-file content for the offline
+    harness. Returns {} if any edit does not apply cleanly (never raises)."""
+    from .patch_format import PatchFormatError, SearchReplace, apply_search_replace
+    out: dict[str, str] = {}
+    try:
+        for path, blocks in edits.items():
+            if path not in source:
+                return {}
+            out[path] = apply_search_replace(source[path], [SearchReplace(s, r) for s, r in blocks])
+    except (PatchFormatError, ValueError):
+        return {}
+    return out

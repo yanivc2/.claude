@@ -22,18 +22,29 @@ from .memory import SLOT_MAX_CHARS, SLOT_MAX_LINES
 from .prompt import MEMORY_CLOSE, MEMORY_OPEN
 
 # --- FROZEN template text pieces (verbatim from the count_tokens freeze; hashed for tamper-check) ---
+# Decision A/B: a MINIMAL SEARCH/REPLACE patch (output scales with the fix, not the file), a mandatory
+# ``### END`` sentinel (so truncation is caught structurally), and — for C-training only — a LESSON
+# emitted FIRST (so a truncated file body can never push the lesson past ``max_tokens``).
 RESPONSE_SCHEMA = (
     "# Response format\n"
-    "Return the COMPLETE corrected contents of each target file, each as a fenced ```python block "
-    "preceded by a line '### FILE: <path>'. Change ONLY the listed target file(s). Do not include "
-    "tests, prose, or any other file.")
+    "Return a MINIMAL patch as SEARCH/REPLACE blocks — do NOT return whole files. Start with a line "
+    "'### PATCH'. For each target file you change, write a line '### FILE: <path>' (only the listed "
+    "target file(s)), then one or more blocks of EXACTLY:\n"
+    "<<<<<<< SEARCH\n"
+    "<exact existing lines, copied verbatim, that occur EXACTLY ONCE in the file>\n"
+    "=======\n"
+    "<replacement lines>\n"
+    ">>>>>>> REPLACE\n"
+    "Finish the ENTIRE reply with a line '### END'. Do not include tests, prose, or any other file.")
 LESSON_SCHEMA = (
-    "\nAfter the file block(s), append one line '### LESSON' then a JSON object "
+    "# Lesson (first)\n"
+    "BEFORE the patch, output a line '### LESSON' then a JSON object "
     '{"recommended_action": [..], "avoid": [..]} — a general reusable rule with NO paths, line '
-    "numbers, literals, code, or test answers.")
+    "numbers, literals, code, or test answers. Then output the patch and the final '### END'.\n")
 REPAIR_INSTRUCTION = (
     "# Repair round\nThe public test suite did not pass; its sanitized output is above. Produce a "
-    "corrected version of the target file(s) in the same format. Change ONLY the target file(s).")
+    "corrected SEARCH/REPLACE patch in the same format (end with '### END'). Change ONLY the target "
+    "file(s).")
 
 PUBLIC_FEEDBACK_CAP = 2000
 
@@ -68,7 +79,7 @@ def build_r1_user_prompt(statement: str, source: dict[str, str], memory_lines: l
     parts.append("")
     parts.append(render_memory_slot(memory_lines))
     parts.append("")
-    parts.append(RESPONSE_SCHEMA + (LESSON_SCHEMA if train else ""))
+    parts.append((LESSON_SCHEMA if train else "") + RESPONSE_SCHEMA)   # LESSON-first for C-training
     return "\n".join(parts)
 
 
@@ -78,22 +89,44 @@ def build_r1_worstcase_prompt(statement: str, source: dict[str, str], *, train: 
     return build_r1_user_prompt(statement, source, [line for _ in range(SLOT_MAX_LINES)], train=train)
 
 
-def max_r1_assistant_envelope(allowed_source_files: list[str], *, train: bool, units: int) -> str:
-    """A CONSERVATIVE, deterministic, non-degenerate stand-in for the Round-1 assistant output that
+def _diverse_line(k: int) -> str:
+    """One varied, non-repeating source-ish line so BPE cannot collapse it (the ``"O"*N`` failure)."""
+    return (f"acc_{k} = fold_{k}(state_{k}, {(k * 7) % 97}) + norm_{k}(delta_{k}, {(k * 13) % 101})"
+            f"  # step {k}: reconcile branch {k % 17}")
+
+
+def _lesson_json(pad_to: int = 0) -> str:
+    """A schema-valid candidate lesson; optionally padded (still valid) toward ``MAX_LESSON_CHARS``."""
+    rec = [f"generalize the fold-{i} invariant across the family" for i in range(3)]
+    avoid = [f"do not hardcode the step-{i} literal or path" for i in range(2)]
+    obj = {"recommended_action": rec, "avoid": avoid}
+    s = json.dumps(obj)
+    if pad_to and len(s) < pad_to:
+        # grow the last recommended_action with diverse words until near the cap (stays valid JSON)
+        extra = []
+        k = 0
+        while len(json.dumps({"recommended_action": rec + [" ".join(extra)], "avoid": avoid})) < pad_to:
+            k += 1
+            extra.append(f"note{k}")
+        obj = {"recommended_action": rec + [" ".join(extra)], "avoid": avoid}
+        s = json.dumps(obj)
+    return s
+
+
+def max_r1_assistant_envelope(allowed_source_files: list[str], *, train: bool, units: int,
+                              lines_per_block: int = 1, lesson_pad: int = 0) -> str:
+    """A deterministic, non-degenerate, PARSER-VALID stand-in for the Round-1 assistant output that
     returns as INPUT inside the worst-case Round-2 request (used to derive ``context_cap``).
 
-    It is NOT the real fix and NOT a claim about what the model can emit in 4096 output tokens — it
-    is a conservative INPUT envelope (see ``conservative_r1_assistant_input_envelope`` in the gate
-    runner). Properties enforced here so the runner's delta measurement is meaningful:
+    It is NOT the real fix — it is a conservative INPUT envelope in the FROZEN SEARCH/REPLACE schema
+    (### LESSON first when ``train``, then ### PATCH with one ``### FILE`` per allowed path carrying
+    ``units`` SEARCH/REPLACE blocks, then ``### END``). Properties:
 
-      * parser-valid under ``response_parser.parse_model_response`` (one FILE block per allowed
-        path; a LESSON block when ``train``);
+      * parser-valid under ``response_parser.parse_model_response`` (train ⇒ a valid LESSON first);
       * uses ONLY the task's ``allowed_source_files`` — never a fixed source / reference patch;
-      * varied, non-repeating content (numbered identifiers + changing literals) so BPE cannot
-        collapse it into far fewer tokens than its size (the failure mode of ``"O"*N`` filler);
-      * a pure function of (paths, train, units) — no randomness, no network — so the frozen
-        envelope reproduces byte-for-byte. The runner picks the SMALLEST ``units`` whose measured
-        R2 token delta reaches the floor.
+      * varied content (numbered identifiers) so BPE cannot collapse it below its true token size;
+      * a pure function of the args — no randomness, no network — so the frozen envelope reproduces
+        byte-for-byte. The gate runner picks the SMALLEST ``units`` whose R2 token delta hits the floor.
     """
     paths = sorted(allowed_source_files)
     if not paths:
@@ -101,23 +134,47 @@ def max_r1_assistant_envelope(allowed_source_files: list[str], *, train: bool, u
     per = [units // len(paths)] * len(paths)
     for i in range(units % len(paths)):
         per[i] += 1
-    blocks: list[str] = []
     k = 0
+    out: list[str] = []
+    if train:
+        out.append("### LESSON")
+        out.append(_lesson_json(lesson_pad))
+    out.append("### PATCH")
     for pi, path in enumerate(paths):
-        # one diverse line per unit → fine granularity so the runner can land the R2 delta close to
-        # the floor (small overshoot). Numbers/identifiers change every line so BPE cannot collapse it.
-        lines = ["# conservative R1-output envelope — synthetic, non-degenerate; NOT the real fix"]
+        if per[pi] == 0:
+            continue
+        out.append(f"### FILE: {path}")
         for _ in range(per[pi]):
-            k += 1
-            lines.append(f"acc_{k} = fold_{k}(state_{k}, {(k * 7) % 97}) + norm_{k}(delta_{k}, "
-                         f"{(k * 13) % 101})  # step {k}: reconcile branch {k % 17}")
-        blocks.append(f"### FILE: {path}\n```python\n" + "\n".join(lines) + "\n```")
-    text = "\n".join(blocks)
-    if train:                                          # C-training worst case carries a lesson too
-        lesson = {"recommended_action": [f"generalize the fold-{i} invariant" for i in range(3)],
-                  "avoid": [f"do not hardcode the step-{i} literal" for i in range(2)]}
-        text += "\n### LESSON\n" + json.dumps(lesson)
-    return text
+            search = "\n".join(_diverse_line(k + j) for j in range(1, lines_per_block + 1))
+            k += lines_per_block
+            replace = "\n".join(_diverse_line(k + j) for j in range(1, lines_per_block + 1))
+            k += lines_per_block
+            out.extend(["<<<<<<< SEARCH", search, "=======", replace, ">>>>>>> REPLACE"])
+    out.append("### END")
+    return "\n".join(out)
+
+
+def cap_filling_worst_envelope(allowed_source_files: list[str], *, train: bool = True) -> str:
+    """The WORST schema-legal visible R1 output: a LESSON padded toward ``MAX_LESSON_CHARS`` plus a
+    patch that fills the frozen caps (blocks × chars) WITHOUT exceeding them. Measured via count_tokens
+    to CALIBRATE ``max_tokens`` (Decision B: caps drive max_tokens, never the budget). Must stay
+    parser-valid (a negative test would reject it if it tripped a cap)."""
+    from . import patch_format as PF
+    # fill the frozen caps: use the max block count and grow lines-per-side until the total patch
+    # chars approach MAX_TOTAL_PATCH_CHARS (≤ cap), respecting the per-block char caps. Each diverse
+    # line ≈ 95-130 chars. Deterministic — a pure function of the caps.
+    blocks = PF.MAX_PATCH_BLOCKS
+    line_chars = len(_diverse_line(10 ** 6))                      # conservative (large-k) line length
+    per_side_cap = min(PF.MAX_BLOCK_SEARCH_CHARS, PF.MAX_BLOCK_REPLACE_CHARS) // line_chars
+    lines_per_side = 1
+    while True:
+        cand = lines_per_side + 1
+        est_total = blocks * 2 * cand * line_chars
+        if cand > per_side_cap or est_total > PF.MAX_TOTAL_PATCH_CHARS - line_chars:
+            break
+        lines_per_side = cand
+    return max_r1_assistant_envelope(allowed_source_files, train=train, units=blocks,
+                                     lines_per_block=lines_per_side, lesson_pad=PF.MAX_LESSON_CHARS - 50)
 
 
 def build_r2_messages(r1_user_prompt: str, assistant_text: str, public_feedback: str, *,
@@ -131,14 +188,21 @@ def build_r2_messages(r1_user_prompt: str, assistant_text: str, public_feedback:
     ]
 
 
+def frozen_pieces_snapshot() -> dict:
+    """The live frozen prompt pieces + patch-format caps (single source for the request-template
+    hash and the Gate-1 artifact). A drift in any of these is tamper-evident downstream."""
+    from . import patch_format as PF
+    return {"response_schema_hash": RESPONSE_SCHEMA_HASH,
+            "lesson_schema_hash": LESSON_SCHEMA_HASH,
+            "repair_instruction_hash": REPAIR_INSTRUCTION_HASH,
+            "public_feedback_cap": PUBLIC_FEEDBACK_CAP,
+            "memory_slot_limits": {"lines": SLOT_MAX_LINES, "chars": SLOT_MAX_CHARS},
+            "patch_caps": PF.caps_snapshot()}
+
+
 def assert_frozen_pieces_match(template: dict) -> None:
     """Block if the live pieces drifted from the frozen priced template (single-source guarantee)."""
     from .gates import GateError
-    checks = {"response_schema_hash": RESPONSE_SCHEMA_HASH,
-              "lesson_schema_hash": LESSON_SCHEMA_HASH,
-              "repair_instruction_hash": REPAIR_INSTRUCTION_HASH,
-              "public_feedback_cap": PUBLIC_FEEDBACK_CAP,
-              "memory_slot_limits": {"lines": SLOT_MAX_LINES, "chars": SLOT_MAX_CHARS}}
-    for k, v in checks.items():
+    for k, v in frozen_pieces_snapshot().items():
         if template.get(k) != v:
             raise GateError(f"live prompt piece {k!r} != frozen template ({template.get(k)!r} != {v!r})")
