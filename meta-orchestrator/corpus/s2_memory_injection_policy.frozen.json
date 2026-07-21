@@ -3,7 +3,12 @@
     "derangement_map_hash": "1380c9ddabb0",
     "insufficient_supply": "fail-closed (no padding, no duplication)",
     "note": "Occupancy parity enforced on ITEM COUNT. Rendered line/char bounded by the shared render budget and reported for audit; exact per-lesson line equality between DISTINCT lessons is infeasible without forbidden padding, so observed not blocked.",
-    "occupancy": "count-matched to C: inject EXACTLY C_item_count lessons from the deranged family by frozen ranking"
+    "occupancy": "count-matched to C: inject EXACTLY C_item_count lessons from the deranged family by frozen ranking",
+    "rendered_token_gap_gate": {
+      "abs_tol": 32,
+      "rel_tol": 0.2,
+      "rule": "block only when rendered-token gap > abs_tol AND relative gap > rel_tol; dormant for empty slots (0 vs 0); token = whitespace-separated tokens of the rendered memory block (deterministic offline proxy)"
+    }
   },
   "C": {
     "exact_family_only": true
@@ -18,21 +23,29 @@
     "SLOT_MAX_LINES": 8
   },
   "code_binding": {
-    "assert_occupancy_parity": "8a6a7a94e025",
+    "assert_occupancy_parity": "054ad1995ee9",
     "b1_lines_count_matched": "605d0e051bfe",
     "learn_gated_bank": "5d8d371cc2bb",
     "placebo_router": "a9a3b14e79ea",
     "rank_key": "4ab2efb88786",
     "render_lines": "d54f82ef5d35",
+    "rendered_tokens": "8128dbd940e0",
     "resolve_memory": "cb9274ddcb86"
   },
-  "content_hash": "804abafad88e5fa8",
+  "content_hash": "17d4bf33aa63b07e",
   "empty_slot_policy": "inject_nothing",
   "failure": {
     "MEMORY_OCCUPANCY_MISMATCH": "fail_closed_before_reservation_and_send"
   },
+  "first_memory_bearing_position": {
+    "family": "parser_normalization",
+    "fold": 1,
+    "note": "first same-family reuse: injects the lesson banked at position 2 (black-132, parser_normalization). The token-gap gate is implemented BEFORE this position (dormant for positions 0-2 whose slots are empty).",
+    "position": 3,
+    "task": "black-141"
+  },
   "memory_policy_version": "v1",
-  "note": "Pre-registered before the second final-sequence task (black-130).",
+  "note": "Pre-registered; token-gap gate added before the first memory-bearing task (position 3, black-141). Additive: dormant for empty slots so positions 0-2 are unaffected.",
   "principle": "Per task, inject only accepted lessons from PRIOR tasks of the CURRENT task family (exact-family). C/D/B1 share one MemoryContext shape and one frozen render budget. An empty slot injects NOTHING (no @@MEM tag) uniformly, so C==A at the memory-block level when no relevant memory exists yet. The only difference across C/D/B1 is content/relevance, controlled for quantity.",
   "ranking": [
     "-support",

@@ -16,6 +16,7 @@ from meta_orchestrator.experiment.s2.memory import (FrozenLessonBank, MemoryOccu
                                                    PlaceboRouter, assert_occupancy_parity,
                                                    b1_lines_count_matched, render_lines,
                                                    resolve_memory)
+from meta_orchestrator.experiment.lesson import Lesson  # noqa: E402  (used by token-gap fixtures)
 
 _CORPUS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "corpus")
 
@@ -57,6 +58,28 @@ def test_occupancy_gate_fails_closed_when_deranged_family_cannot_match():
     placebo = PlaceboRouter.build()
     with pytest.raises(MemoryOccupancyMismatch):
         assert_occupancy_parity("whitespace", bank=bank, placebo=placebo)
+
+
+def test_rendered_token_gap_gate_blocks_large_confound():
+    # C injects a SHORT lesson, the deranged family a MUCH longer one → count-matched (1==1) but the
+    # rendered-token gap is both large and >20% → blocked (a real quantity confound).
+    deranged = PlaceboRouter.build().route("whitespace")
+    short = _lesson("whitespace", "L-w", n_rec=1)
+    long_lesson = Lesson(lesson_id="L-long", task_family=deranged,
+                         recommended_action=[("word " * 40).strip() for _ in range(3)], avoid=["x"])
+    bank = FrozenLessonBank(by_family={"whitespace": [short], deranged: [long_lesson]}, frozen=True)
+    with pytest.raises(MemoryOccupancyMismatch):
+        assert_occupancy_parity("whitespace", bank=bank, placebo=PlaceboRouter.build())
+
+
+def test_rendered_token_gap_gate_passes_similar_sizes():
+    deranged = PlaceboRouter.build().route("whitespace")
+    bank = FrozenLessonBank(by_family={
+        "whitespace": [_lesson("whitespace", "L-w", n_rec=2)],
+        deranged: [_lesson(deranged, "L-d", n_rec=2)],
+    }, frozen=True)
+    rep = assert_occupancy_parity("whitespace", bank=bank, placebo=PlaceboRouter.build())
+    assert rep["c_items"] == 1 and rep["token_gap"] <= 32
 
 
 def test_b1_is_count_matched_to_c():

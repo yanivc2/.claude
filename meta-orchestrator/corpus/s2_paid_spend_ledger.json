@@ -1,7 +1,7 @@
 {
-  "content_hash": "4cebf678ff12dbd8",
+  "content_hash": "62fb43b94aad8993",
   "diagnostic_apparatus_spend_usd": "0.052343",
-  "note": "diagnostic apparatus canaries = $0.052343. HISTORICAL official (superseded apparatus, NOT in final sequence): black-112 v1 $0.011628 + v2.1 $0.012013 = $0.023641. FINAL-SEQUENCE official C-training: black-112 v2.2@0b388ab (grant-f16395acc057) $0.012028 SOLVED + lesson WRITTEN (cand-e04f0fb979, family whitespace). official_training_spend = $0.035669; lifetime $0.088012.",
-  "official_training_spend_usd": "0.035669",
+  "note": "diagnostic $0.052343. HISTORICAL official (superseded apparatus): black-112 v1 $0.011628 + v2.1 $0.012013 = $0.023641. FINAL-SEQUENCE official C-training (v2.2): black-112 $0.012028 (whitespace lesson) + black-130 $0.029330 (other_logic lesson) = $0.035358. official_training_spend $0.064999 ($0.023641 + $0.035358 wait); lifetime $0.117342.",
+  "official_training_spend_usd": "0.064999",
   "schema_version": "s2-paid-spend-v1"
 }

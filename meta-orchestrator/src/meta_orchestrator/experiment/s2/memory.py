@@ -256,6 +256,19 @@ class MemoryOccupancyMismatch(RuntimeError):
     quantity, not just relevance. An APPARATUS failure: block before any reservation / messages.create."""
 
 
+# Frozen rendered-token tolerance for the C-vs-B1 length control (applies once memory is non-empty):
+# block ONLY when the gap is BOTH large in absolute terms AND large relative to the larger side, so
+# ordinary per-lesson wording differences pass but a real quantity confound is caught.
+RENDER_TOKEN_ABS_TOL = 32
+RENDER_TOKEN_REL_TOL = 0.20
+
+
+def _rendered_tokens(lines: list[str]) -> int:
+    """Deterministic, offline rendered-size proxy: whitespace-separated tokens of the memory block."""
+    import re
+    return len(re.findall(r"\S+", "\n".join(lines)))
+
+
 def b1_lines_count_matched(task_family: str, *, bank: "FrozenLessonBank",
                            placebo: "PlaceboRouter") -> list[str]:
     """Render B1's memory so it holds EXACTLY the number of items C would inject for this task, drawn
@@ -290,9 +303,19 @@ def assert_occupancy_parity(task_family: str, *, bank: "FrozenLessonBank",
     c_ctx = resolve_memory("C", task_family, bank=bank)
     c_lines = render_lines(c_ctx)
     b1_lines = b1_lines_count_matched(task_family, bank=bank, placebo=placebo)   # hard item-count gate
+    # rendered-token gap gate (dormant for empty slots: 0 vs 0): block only when the gap is BOTH
+    # absolutely large (> RENDER_TOKEN_ABS_TOL) AND relatively large (> RENDER_TOKEN_REL_TOL).
+    ct, bt = _rendered_tokens(c_lines), _rendered_tokens(b1_lines)
+    diff = abs(ct - bt)
+    rel = diff / max(ct, bt, 1)
+    if diff > RENDER_TOKEN_ABS_TOL and rel > RENDER_TOKEN_REL_TOL:
+        raise MemoryOccupancyMismatch(
+            f"rendered-token gap for {task_family!r}: C={ct} B1={bt} tokens (diff={diff}, rel={rel:.0%}) "
+            f"exceeds tolerance (>{RENDER_TOKEN_ABS_TOL} and >{int(RENDER_TOKEN_REL_TOL*100)}%)")
     return {"task_family": task_family, "deranged_family": placebo.route(task_family),
             "c_items": len(c_ctx.lesson_ids), "b1_items": len(c_ctx.lesson_ids),  # matched by construction
             "c_lines": len(c_lines), "b1_lines": len(b1_lines),
+            "c_tokens": ct, "b1_tokens": bt, "token_gap": diff, "token_rel": round(rel, 4),
             "item_parity": True, "line_parity": len(c_lines) == len(b1_lines),
             "render_budget": {"max_lines": SLOT_MAX_LINES, "max_chars": SLOT_MAX_CHARS}}
 
