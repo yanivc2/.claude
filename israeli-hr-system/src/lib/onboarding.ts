@@ -45,7 +45,13 @@ export const onboardingSchema = z.object({
   contractSignature: z.string(),
   form101Signature: z.string().nullable(),
   // אישור מדיניות פרטיות ע"י העובד (בפורטל).
+  // privacyAccepted=true משמעו שכל אישורי החובה סומנו (תאימות לאחור לשער הקיים).
   privacyAccepted: z.boolean().optional(),
+  // גרסת המדיניות שאושרה, ומפת האישורים הפרטנית (חובה + רשות).
+  privacyPolicyVersion: z.string().optional(),
+  privacyConsents: z.record(z.boolean()).optional(),
+  // שם החברה המעסיקה — מוזרק בצד השרת מתוך ההזמנה, לא נמסר ע"י הלקוח.
+  privacyCompanyName: z.string().optional(),
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
@@ -75,6 +81,10 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
           data.availability && Object.keys(data.availability).length ? data.availability : undefined,
         hasActivePension: data.hasActivePension,
         privacyAcceptedAt: data.privacyAccepted ? new Date() : null,
+        privacyPolicyVersion: data.privacyAccepted ? data.privacyPolicyVersion ?? null : null,
+        privacyCompanyName: data.privacyAccepted ? data.privacyCompanyName ?? null : null,
+        privacyConsents:
+          data.privacyAccepted && data.privacyConsents ? data.privacyConsents : undefined,
         status: "ACTIVE",
       },
     });
