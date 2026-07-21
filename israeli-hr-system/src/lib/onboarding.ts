@@ -162,3 +162,38 @@ export function onboardingErrorMessage(err: unknown): string {
     ? "עובד עם ת.ז או דוא״ל זהים כבר קיים במערכת."
     : "שגיאה בשמירת נתוני הקליטה.";
 }
+
+// תוויות עבריות לשדות הטופס — לבניית הודעת שגיאה מובנת (איזה שדה נכשל).
+const FIELD_LABELS: Record<string, string> = {
+  firstName: "שם פרטי",
+  lastName: "שם משפחה",
+  nationalId: "תעודת זהות",
+  email: "דוא״ל",
+  phone: "טלפון",
+  address: "כתובת",
+  birthDate: "תאריך לידה",
+  startDate: "מועד תחילת עבודה",
+  jobTitle: "תפקיד",
+  monthlySalary: "שכר חודשי",
+  hourlySalary: "שכר שעתי",
+  availability: "זמינות",
+  taxYear: "שנת המס",
+  maritalStatus: "מצב משפחתי",
+  numberOfChildren: "מספר ילדים",
+  isResidentOfIsrael: "תושב/ת ישראל",
+  hasOtherIncome: "הכנסה נוספת",
+  requestsCredits: "נקודות זיכוי",
+  idAttachment: "ספח תעודת זהות",
+  contractSignature: "חתימה על הסכם העבודה",
+  form101Signature: "חתימה על טופס 101",
+};
+
+// בונה הודעה עברית קריאה מכשל ולידציה של Zod: מפרט אילו שדות שגויים,
+// כדי שהעובד יידע מה לתקן במקום לראות "נתונים שגויים" כללי.
+export function onboardingValidationMessage(fieldErrors: Record<string, string[] | undefined>): string {
+  const fields = Object.keys(fieldErrors)
+    .filter((k) => (fieldErrors[k]?.length ?? 0) > 0)
+    .map((k) => FIELD_LABELS[k] ?? k);
+  if (fields.length === 0) return "חלק מהשדות שגויים או חסרים. אנא בדוק/י את הטופס.";
+  return `יש לבדוק ולתקן את השדות הבאים: ${fields.join(", ")}.`;
+}
