@@ -267,6 +267,7 @@ model RetentionSurvey {
 enum TerminationDocType {
   HEARING_INVITATION // הזמנה לשימוע
   TERMINATION_LETTER // מכתב פיטורין / סיום העסקה
+  TERMINATION_RESIGNATION // סיום העסקה כדין מתפטר/ת
 }
 
 model TerminationDocument {

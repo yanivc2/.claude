@@ -20,10 +20,12 @@ interface SpeechRecognitionLike {
   interimResults: boolean;
   continuous: boolean;
   onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void;
+  onstart: () => void;
   onend: () => void;
   onerror: () => void;
   start: () => void;
   stop: () => void;
+  abort: () => void;
 }
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
@@ -38,6 +40,8 @@ export function ChatConsultation() {
   const [listening, setListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  // הטקסט שהיה בשדה כשהתחילה ההקלטה — התמלול מתווסף אליו.
+  const baseInputRef = useRef("");
 
   useEffect(() => {
     const w = window as unknown as {
@@ -49,12 +53,18 @@ export function ChatConsultation() {
     setSpeechSupported(true);
     const rec = new Ctor();
     rec.lang = "he-IL";
-    rec.interimResults = false;
-    rec.continuous = false;
+    rec.interimResults = true; // משוב חי תוך כדי דיבור
+    rec.continuous = true; // ממשיך להקשיב עד עצירה ידנית
     rec.onresult = (e) => {
-      const transcript = e.results?.[0]?.[0]?.transcript ?? "";
-      if (transcript) setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+      // בונים מחדש את כל התמלול מכל התוצאות שנצברו — אמין וללא כפילויות.
+      let text = "";
+      for (let i = 0; i < e.results.length; i++) {
+        text += e.results[i]?.[0]?.transcript ?? "";
+      }
+      const base = baseInputRef.current;
+      setInput(base ? `${base} ${text}`.trim() : text.trim());
     };
+    rec.onstart = () => setListening(true);
     rec.onend = () => setListening(false);
     rec.onerror = () => setListening(false);
     recognitionRef.current = rec;
@@ -64,14 +74,13 @@ export function ChatConsultation() {
     const rec = recognitionRef.current;
     if (!rec) return;
     if (listening) {
-      rec.stop();
-      setListening(false);
+      rec.stop(); // מסיים ומתמלל את מה שנקלט (onend יעדכן את הסטטוס)
     } else {
+      baseInputRef.current = input;
       try {
         rec.start();
-        setListening(true);
       } catch {
-        setListening(false);
+        // כבר פעיל — מתעלמים.
       }
     }
   }
