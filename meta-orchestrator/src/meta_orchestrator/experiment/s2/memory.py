@@ -364,20 +364,59 @@ def assert_authoritative_memory_parity(
     return tele
 
 
+# --- B1 count-matched source selection with a FROZEN deterministic fallback ---------------------
+# The primary B1 source is the frozen placebo derangement. When it cannot count-match C (too few
+# lessons yet), B1 walks a FROZEN, corpus-wide cyclic family order — the primary derangement first,
+# then the remaining families in the frozen sorted-cyclic order — EXCLUDING the target family, and
+# picks the FIRST family that has enough DISTINCT lessons. Exactly ONE whole family is used (never a
+# mix), top-n by the frozen ranking, no padding / no duplication. Fail-closed only when NO eligible
+# non-target family qualifies. This keeps B1 a genuine relevance placebo (irrelevant family, same
+# quantity/framing) instead of blocking a whole family of tasks because one deranged family happens
+# to be empty — and the order is fixed for the whole corpus, never chosen per task or per outcome.
+
+
+def b1_fallback_order(task_family: str) -> list[str]:
+    """The frozen B1 source-family chain for ``task_family``: the placebo derangement first, then the
+    remaining SEMANTIC_FAMILIES in the same frozen cyclic order, with the TARGET family excluded."""
+    fams = sorted(set(SEMANTIC_FAMILIES))
+    n = len(fams)
+    r = max(1, n // 2)                                     # identical shift to PlaceboRouter.build
+    i = fams.index(task_family)
+    chain = [fams[(i + r + k) % n] for k in range(n)]     # starts at the primary derangement
+    return [f for f in chain if f != task_family]         # exclude the target family (never self)
+
+
+def _bank_rank_key(lesson: Lesson) -> tuple:
+    """Frozen deterministic ranking within a family: more net support first, then source task id,
+    then lesson id (mirrors write_gate._rank_key using the lesson's stamped provenance)."""
+    support = lesson.evidence.successes - lesson.evidence.failures
+    src = lesson.evidence.supporting_runs[-1].split("::")[-1] if lesson.evidence.supporting_runs else ""
+    return (-support, src, lesson.lesson_id)
+
+
+def b1_source_family(task_family: str, *, bank: "FrozenLessonBank", required_count: int) -> str:
+    """The frozen fallback selection: the FIRST family in ``b1_fallback_order`` (target excluded) that
+    holds at least ``required_count`` distinct lessons. Fail-closed if none qualifies."""
+    for fam in b1_fallback_order(task_family):
+        if len(bank.lessons_for(fam)) >= required_count:
+            return fam
+    raise MemoryOccupancyMismatch(
+        f"B1 cannot count-match C for {task_family!r}: no eligible non-target family has >= "
+        f"{required_count} distinct lessons in the frozen fallback order {b1_fallback_order(task_family)} "
+        f"— fail-closed (no padding, no duplication, no cross-family mixing).")
+
+
 def b1_lines_count_matched(task_family: str, *, bank: "FrozenLessonBank",
                            placebo: "PlaceboRouter") -> list[str]:
     """Render B1's memory so it holds EXACTLY the number of items C would inject for this task, drawn
-    from the deranged family by the frozen stored ranking. Fail-closed (MemoryOccupancyMismatch) if
-    the deranged family cannot supply that many — never pad or duplicate."""
+    from ONE frozen non-target family (primary derangement, else the frozen fallback chain) by the
+    frozen ranking. Empty C slot ⇒ [] (parity 0==0). Fail-closed if no eligible family can match."""
     n_c = len(resolve_memory("C", task_family, bank=bank).lesson_ids)
-    deranged = placebo.route(task_family)
-    avail = bank.lessons_for(deranged)
-    if len(avail) < n_c:
-        raise MemoryOccupancyMismatch(
-            f"B1 cannot match C occupancy for {task_family!r}: C injects {n_c}, deranged family "
-            f"{deranged!r} has only {len(avail)} — fail-closed (no padding).")
-    picked = avail[:n_c]                                   # top-n by the frozen stored ranking
-    mc = MemoryContext(condition="B1", component_kind=KIND_OTHER_FAMILY, source_family=deranged,
+    if n_c == 0:
+        return []                                         # Option B: empty slot injects nothing
+    source = b1_source_family(task_family, bank=bank, required_count=n_c)
+    picked = sorted(bank.lessons_for(source), key=_bank_rank_key)[:n_c]   # top-n by frozen ranking
+    mc = MemoryContext(condition="B1", component_kind=KIND_OTHER_FAMILY, source_family=source,
                        lesson_ids=[l.lesson_id for l in picked], lines=_lesson_lines(picked))
     return render_lines(mc)
 
@@ -397,7 +436,11 @@ def assert_occupancy_parity(task_family: str, *, bank: "FrozenLessonBank",
     the audit trail."""
     c_ctx = resolve_memory("C", task_family, bank=bank)
     c_lines = render_lines(c_ctx)
+    n_c = len(c_ctx.lesson_ids)
     b1_lines = b1_lines_count_matched(task_family, bank=bank, placebo=placebo)   # hard item-count gate
+    # the ACTUAL B1 source family (primary derangement, or a frozen fallback when the primary is short)
+    primary = placebo.route(task_family)
+    b1_source = b1_source_family(task_family, bank=bank, required_count=n_c) if n_c else primary
     # rendered-token gap gate (dormant for empty slots: 0 vs 0): block only when the gap is BOTH
     # absolutely large (> RENDER_TOKEN_ABS_TOL) AND relatively large (> RENDER_TOKEN_REL_TOL).
     ct, bt = _rendered_tokens(c_lines), _rendered_tokens(b1_lines)
@@ -407,8 +450,10 @@ def assert_occupancy_parity(task_family: str, *, bank: "FrozenLessonBank",
         raise MemoryOccupancyMismatch(
             f"rendered-token gap for {task_family!r}: C={ct} B1={bt} tokens (diff={diff}, rel={rel:.0%}) "
             f"exceeds tolerance (>{RENDER_TOKEN_ABS_TOL} and >{int(RENDER_TOKEN_REL_TOL*100)}%)")
-    return {"task_family": task_family, "deranged_family": placebo.route(task_family),
-            "c_items": len(c_ctx.lesson_ids), "b1_items": len(c_ctx.lesson_ids),  # matched by construction
+    return {"task_family": task_family, "primary_deranged_family": primary,
+            "deranged_family": b1_source,                 # the family B1 actually drew from
+            "b1_fallback_used": bool(n_c) and b1_source != primary,
+            "c_items": n_c, "b1_items": n_c,              # matched by construction
             "c_lines": len(c_lines), "b1_lines": len(b1_lines),
             "c_tokens": ct, "b1_tokens": bt, "token_gap": diff, "token_rel": round(rel, 4),
             "item_parity": True, "line_parity": len(c_lines) == len(b1_lines),

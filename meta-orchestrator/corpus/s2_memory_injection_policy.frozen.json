@@ -24,6 +24,86 @@
     "empty_slot_behavior": "inject_nothing",
     "render_envelope": "same as C/B1"
   },
+  "b1_fallback": {
+    "authoritative_token_gap_gate": {
+      "abs_tol": 32,
+      "rel_tol": 0.2
+    },
+    "fail_closed_when_no_eligible_family": true,
+    "fallback_family_order_by_target": {
+      "boundary": [
+        "other_logic",
+        "parser_normalization",
+        "state_mutation",
+        "whitespace",
+        "condition_inversion",
+        "iterator"
+      ],
+      "condition_inversion": [
+        "parser_normalization",
+        "state_mutation",
+        "whitespace",
+        "boundary",
+        "iterator",
+        "other_logic"
+      ],
+      "iterator": [
+        "state_mutation",
+        "whitespace",
+        "boundary",
+        "condition_inversion",
+        "other_logic",
+        "parser_normalization"
+      ],
+      "other_logic": [
+        "whitespace",
+        "boundary",
+        "condition_inversion",
+        "iterator",
+        "parser_normalization",
+        "state_mutation"
+      ],
+      "parser_normalization": [
+        "boundary",
+        "condition_inversion",
+        "iterator",
+        "other_logic",
+        "state_mutation",
+        "whitespace"
+      ],
+      "state_mutation": [
+        "condition_inversion",
+        "iterator",
+        "other_logic",
+        "parser_normalization",
+        "whitespace",
+        "boundary"
+      ],
+      "whitespace": [
+        "iterator",
+        "other_logic",
+        "parser_normalization",
+        "state_mutation",
+        "boundary",
+        "condition_inversion"
+      ]
+    },
+    "item_count_parity": true,
+    "no_duplication": true,
+    "no_padding": true,
+    "note": "Introduced before position 5 (black-193). Backward compatible: black-185's B1 used the primary derangement (whitespace, 1 lesson == required 1), so the fallback never engaged and no prior recorded parity changes. It resolves the remaining whitespace tasks, whose primary derangement (iterator) is currently empty, by drawing B1 from other_logic.",
+    "outcome_independent": "frozen before black-193 runs; the fallback order does not depend on whether any task solves or banks a lesson.",
+    "primary_derangement_map_hash": "1380c9ddabb0",
+    "ranking_rule": [
+      "-support",
+      "source_task_id",
+      "lesson_id"
+    ],
+    "required_item_count": "equals the number of C items selected for the target family",
+    "rule": "When the primary placebo-derangement family cannot count-match C (too few lessons yet), B1 walks a FROZEN corpus-wide cyclic family order \u2014 the primary derangement first, then the remaining families in the same frozen sorted-cyclic order \u2014 EXCLUDING the target family, and draws from the FIRST family with enough distinct lessons. Exactly one whole family (no cross-family mixing), top-n by the frozen ranking, no padding, no duplication.",
+    "single_source_family": true,
+    "target_family_excluded": true
+  },
   "caps": {
     "MAX_ACTIVE_ENTRIES_PER_FAMILY": 2,
     "SLOT_MAX_CHARS": 200,
@@ -31,16 +111,19 @@
   },
   "code_binding": {
     "assert_authoritative_memory_parity": "094df653fad1",
-    "assert_occupancy_parity": "054ad1995ee9",
-    "b1_lines_count_matched": "605d0e051bfe",
+    "assert_occupancy_parity": "a8c25df1ca05",
+    "b1_fallback_order": "ea4ca4dca437",
+    "b1_lines_count_matched": "f02a3fa9d400",
+    "b1_source_family": "4dd6b4f0db0b",
+    "bank_rank_key": "a0e9c55f0b46",
     "learn_gated_bank": "5d8d371cc2bb",
     "placebo_router": "a9a3b14e79ea",
     "rank_key": "4ab2efb88786",
-    "render_lines": "d54f82ef5d35",
+    "render_lines": "146460e5b5b9",
     "rendered_tokens": "8128dbd940e0",
     "resolve_memory": "cb9274ddcb86"
   },
-  "content_hash": "d0a4e11d223135e4",
+  "content_hash": "8f03622da5afb252",
   "empty_slot_policy": "inject_nothing",
   "failure": {
     "MEMORY_OCCUPANCY_MISMATCH": "fail_closed_before_reservation_and_send"
@@ -52,8 +135,8 @@
     "position": 3,
     "task": "black-141"
   },
-  "memory_policy_version": "v1",
-  "note": "Pre-registered; authoritative count_tokens C/B1 memory-length gate added before the first content-bearing task (black-185, position 4).",
+  "memory_policy_version": "v2",
+  "note": "Pre-registered; authoritative count_tokens C/B1 memory-length gate added before the first content-bearing task (black-185, position 4). v2: added a deterministic, outcome-independent B1 fallback family order (single non-target family, frozen ranking, fail-closed only when no eligible family has enough lessons) so a temporarily-empty primary derangement cannot block a whole family of tasks.",
   "principle": "Per task, inject only accepted lessons from PRIOR tasks of the CURRENT task family (exact-family). C/D/B1 share one MemoryContext shape and one frozen render budget. An empty slot injects NOTHING (no @@MEM tag) uniformly, so C==A at the memory-block level when no relevant memory exists yet. The only difference across C/D/B1 is content/relevance, controlled for quantity.",
   "ranking": [
     "-support",

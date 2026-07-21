@@ -12,7 +12,8 @@ from .harness import (FoldRun, Outcome, OutcomesSealedError, RealRunBlocked, S2H
 from .lifecycle import Learner, MockLearner, learn_bank
 from .memory import (CONDITIONS, CONDITION_LABEL_SENTINELS, ConditionLabelLeak, FrozenLessonBank,
                      MemoryContext, MemoryFrozenError, OccupancyParity, PlaceboRouter, StaticPlaybook,
-                     assert_no_condition_label, find_condition_label_leak, occupancy_parity,
+                     assert_no_condition_label, b1_fallback_order, b1_source_family,
+                     find_condition_label_leak, occupancy_parity,
                      parse_mem_tag, render_lines, resolve_memory)
 from .mocks import LessonSensitiveMock
 from .contract_s2 import (RunPolicy, anthropic_request_kwargs, frozen_s2_contract, s2_run_policy,
@@ -85,7 +86,8 @@ __all__ = [
     "Learner", "MockLearner", "learn_bank",
     "CONDITIONS", "CONDITION_LABEL_SENTINELS", "ConditionLabelLeak", "FrozenLessonBank",
     "MemoryContext", "MemoryFrozenError", "OccupancyParity", "PlaceboRouter", "StaticPlaybook",
-    "assert_no_condition_label", "find_condition_label_leak", "occupancy_parity", "parse_mem_tag",
+    "assert_no_condition_label", "b1_fallback_order", "b1_source_family",
+    "find_condition_label_leak", "occupancy_parity", "parse_mem_tag",
     "render_lines", "resolve_memory",
     "LessonSensitiveMock",
     "RunPolicy", "anthropic_request_kwargs", "frozen_s2_contract", "s2_run_policy",
