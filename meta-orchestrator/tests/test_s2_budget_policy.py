@@ -52,9 +52,9 @@ def test_frozen_paid_spend_ledger_loads_and_totals():
     # (C=2 at-cap; terminal-R2) + black-335 $0.041383 FAILED (C=2 at-cap; public PASS but hidden F2P
     # FAIL — superficial patch; write-gate verifier_failed; no bank change)). The prior black-215
     # DEFECT_6 run stays diagnostic-only.
-    assert led.total_paid_to_date() == Decimal("0.912128")
+    assert led.total_paid_to_date() == Decimal("0.936276")
     assert Decimal(led.diagnostic_apparatus_spend_usd) == Decimal("0.212025")
-    assert Decimal(led.official_training_spend_usd) == Decimal("0.700103")
+    assert Decimal(led.official_training_spend_usd) == Decimal("0.724251")
     assert led.content_hash == led.compute_hash()
 
 
@@ -76,7 +76,7 @@ def test_lifetime_spend_plus_worst_binds_global_cap():
     led = load_frozen_paid_spend(_CORPUS)
     projected = Decimal("45.99675")
     lifetime = led.total_paid_to_date() + projected
-    assert lifetime == Decimal("46.908878")
+    assert lifetime == Decimal("46.933026")
     assert lifetime <= Decimal("50.00")                        # fits the $50 lifetime cap
 
 

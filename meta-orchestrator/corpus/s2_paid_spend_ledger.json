@@ -1,7 +1,7 @@
 {
-  "content_hash": "f56756e82c9ecedb",
+  "content_hash": "42845ca2a1034139",
   "diagnostic_apparatus_spend_usd": "0.212025",
-  "note": "diagnostic $0.212025. historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 F, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 S+b, black-193 $0.038139 S+b, black-215(re-run) $0.035082 S+b, black-224 $0.036710 S+b, black-232 $0.080660 F, black-238 $0.040705 S, black-273 $0.090424 F, black-334 $0.018992 F, black-335 $0.041383 F, black-385(re-run) $0.040994 F, black-389 $0.042742 F, black-593 $0.055195 F, black-80 $0.014258 F (C=2 whitespace at-cap; public PASS but hidden 0/2 FAIL; superficial patch; verifier_failed; NO bank change). official_training_spend $0.700103; lifetime budget-accounted $0.912128.",
-  "official_training_spend_usd": "0.700103",
+  "note": "diagnostic $0.212025. historical official $0.023641. FINAL-SEQUENCE official (v2.2, 18/18 COMPLETE): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 F, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 S+b, black-193 $0.038139 S+b, black-215(re-run) $0.035082 S+b, black-224 $0.036710 S+b, black-232 $0.080660 F, black-238 $0.040705 S, black-273 $0.090424 F, black-334 $0.018992 F, black-335 $0.041383 F, black-385(re-run) $0.040994 F, black-389 $0.042742 F, black-593 $0.055195 F, black-80 $0.014258 F, discord.py-7818 $0.024148 F (condition_inversion, non-memory; public PASS but hidden F2P FAIL; superficial patch; verifier_failed; NO bank change; result observed pre-restart, raw artifact lost, booked OFFICIAL not diagnostic \u2014 no rerun). official_training_spend $0.724251; lifetime budget-accounted $0.936276.",
+  "official_training_spend_usd": "0.724251",
   "schema_version": "s2-paid-spend-v1"
 }
