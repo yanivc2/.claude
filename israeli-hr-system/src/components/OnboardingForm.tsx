@@ -220,6 +220,18 @@ export function OnboardingForm({
     if (checked) setConsentError(false);
   };
 
+  // צ'קבוקס חובה יחיד: מסמן/מבטל בבת אחת את כל אישורי החובה (תיעוד היידוע).
+  const toggleAllMandatory = (checked: boolean) => {
+    setConsents((c) => {
+      const next = { ...c };
+      MANDATORY_CONSENTS.forEach((m) => {
+        next[m.key] = checked;
+      });
+      return next;
+    });
+    if (checked) setConsentError(false);
+  };
+
   // סימון/ביטול משמרת ליום מסוים בזמינות.
   const toggleShift = (dayKey: string, shiftKey: string) =>
     setForm((f) => {
@@ -763,33 +775,36 @@ export function OnboardingForm({
             ההעסקה. עומדות לך זכות עיון וזכות לבקש תיקון. סימון האישורים אינו ויתור על זכויות.
           </p>
 
-          {/* ג.1 — אישורי חובה */}
-          <p className="mb-2 text-sm font-semibold text-slate-700">
-            אישורי חובה לתיעוד יידוע וקליטה
-          </p>
-          <div className="space-y-2">
-            {MANDATORY_CONSENTS.map((c) => {
-              const missing = consentError && !consents[c.key];
-              return (
-                <label
-                  key={c.key}
-                  className={`flex items-start gap-3 rounded-lg border p-3 text-sm leading-6 transition ${
-                    missing ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-5 w-5 shrink-0"
-                    checked={!!consents[c.key]}
-                    onChange={(e) => toggleConsent(c.key, e.target.checked)}
-                  />
-                  <span className="text-slate-700">
-                    <span className="font-semibold text-slate-800">{c.label}</span> — {c.text}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+          {/* ג.1 — אישור חובה יחיד המאחד את ארבעת האישורים */}
+          <label
+            className={`flex items-start gap-3 rounded-lg border p-3 text-sm leading-6 transition ${
+              consentError && !allMandatoryAccepted
+                ? "border-red-400 bg-red-50"
+                : "border-slate-200 bg-white"
+            }`}
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5 h-5 w-5 shrink-0"
+              checked={allMandatoryAccepted}
+              onChange={(e) => toggleAllMandatory(e.target.checked)}
+            />
+            <span className="text-slate-700">
+              <span className="font-semibold text-slate-800">
+                קראתי ואני מאשר/ת את מדיניות הפרטיות וההודעה לפי סעיף 11
+              </span>{" "}
+              (גרסה {PRIVACY_POLICY_VERSION}), לרבות ארבעת האישורים הבאים. אישור זה מתעד קבלת
+              הודעה וקריאה ואינו ויתור על זכויות.
+            </span>
+          </label>
+          {/* פירוט האישורים הכלולים — לשמירה על הסכמה מדעת */}
+          <ul className="mt-2 space-y-1.5 pe-2 text-xs leading-5 text-slate-500">
+            {MANDATORY_CONSENTS.map((c) => (
+              <li key={c.key}>
+                <span className="font-semibold text-slate-600">{c.label}</span> — {c.text}
+              </li>
+            ))}
+          </ul>
 
           {consentError && !allMandatoryAccepted && (
             <p className="mt-2 text-sm font-semibold text-red-600">יש לאשר מדיניות פרטיות</p>
