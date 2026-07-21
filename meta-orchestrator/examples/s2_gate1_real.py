@@ -82,8 +82,10 @@ def main() -> None:
           f"passed_nodes={len(pytest_ev.passed_node_ids)}")
 
     # Operator-reported credit balance (runtime state, NOT a policy cap). Approved caps live in the
-    # frozen s2_budget_policy.frozen.json (fold-1 $10 / global $50).
-    credits = ReportedCredits(available_api_credits_usd="4.081285", verified_at="2026-07-21",
+    # frozen s2_budget_policy.frozen.json (fold-1 $10 / global $50). Re-anchored to the PROVIDER-
+    # VERIFIED dashboard balance ($4.14) after the black-385 CALL_AMBIGUOUS_AFTER_SEND hold; this
+    # supersedes the prior running estimate ($4.081285), which had drifted ~$0.06.
+    credits = ReportedCredits(available_api_credits_usd="4.14", verified_at="2026-07-21",
                               machine_verified=False)
 
     print("running real count_tokens Gate-1 preflight over the frozen corpus ($0)…")
