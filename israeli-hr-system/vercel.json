@@ -1,4 +1,5 @@
 {
+  "buildCommand": "(prisma db push || (sleep 10 && prisma db push)) && next build",
   "crons": [
     {
       "path": "/api/cron/legal-updates",
