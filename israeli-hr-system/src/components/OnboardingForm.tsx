@@ -4,6 +4,9 @@ import { useState } from "react";
 import { SignaturePad } from "./SignaturePad";
 import { AVAILABILITY_DAYS, AVAILABILITY_SHIFTS } from "@/lib/availability";
 
+// תפקידים לבחירה.
+const JOB_TITLES = ["קופאי", "סדרן", "עובד כללי", "מנהל"];
+
 // ─────────────────────────────────────────────────────────────────────────
 // טופס קליטת עובד: כולל טופס 101 דיגיטלי, העלאת ספח ת.ז, וחתימה דיגיטלית
 // על הסכם העבודה. כל הטקסטים בעברית ובפריסת RTL.
@@ -125,8 +128,8 @@ function printDocument(title: string, bodyHtml: string) {
       `.meta{font-size:13px;color:#475569}.sig{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:12px}` +
       `table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}` +
       `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}` +
-      `.bar{position:sticky;top:0;display:flex;gap:12px;justify-content:center;background:#0f172a;padding:14px}` +
-      `.bar button{border:0;border-radius:8px;padding:14px 32px;font-size:18px;font-weight:700;cursor:pointer}` +
+      `.bar{position:sticky;top:0;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;background:#0f172a;padding:20px}` +
+      `.bar button{border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;cursor:pointer}` +
       `.b-print{background:#2563eb;color:#fff}.b-close{background:#ef4444;color:#fff}` +
       `@media print{.bar{display:none}.page{margin:0}}</style></head><body>` +
       `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה / שמירה</button>` +
@@ -403,11 +406,18 @@ export function OnboardingForm({
           {!hideEmployerFields && (
             <>
               <Field label="תפקיד">
-                <input
+                <select
                   className={inputClass}
                   value={form.jobTitle}
                   onChange={(e) => set("jobTitle", e.target.value)}
-                />
+                >
+                  <option value="">בחר/י תפקיד</option>
+                  {JOB_TITLES.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
               </Field>
               <Field label="שכר חודשי (₪)">
                 <input
@@ -468,15 +478,39 @@ export function OnboardingForm({
               </tbody>
             </table>
           </div>
+          {/* הצהרת זמינות — חובה משפטית להבהרה */}
+          <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-medium text-red-700">
+            ידוע לי כי קבלתי לעבודה הינה בהסתמך על זמינות המשמרות שאני מגיש וכי שינוי
+            בזמינות הינה עילה לפיטורין בגין מתפטר.
+          </p>
         </div>
-        <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
-          <input
-            type="checkbox"
-            checked={form.hasActivePension}
-            onChange={(e) => set("hasActivePension", e.target.checked)}
-          />
-          קיים הסדר פנסיוני פעיל
-        </label>
+      </section>
+
+      {/* קרן פנסיה — נפרד ומודגש */}
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="mb-3 text-lg font-semibold text-slate-800">קרן פנסיה</h2>
+        <div className="space-y-2">
+          <label className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-base text-slate-700">
+            <input
+              type="radio"
+              name="pension"
+              className="h-5 w-5"
+              checked={form.hasActivePension}
+              onChange={() => set("hasActivePension", true)}
+            />
+            קיימת קרן פנסיה פעילה
+          </label>
+          <label className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-base text-slate-700">
+            <input
+              type="radio"
+              name="pension"
+              className="h-5 w-5"
+              checked={!form.hasActivePension}
+              onChange={() => set("hasActivePension", false)}
+            />
+            לא קיימת קרן פנסיה פעילה
+          </label>
+        </div>
       </section>
 
       {/* טופס 101 */}

@@ -103,6 +103,8 @@ export function InviteGenerator() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
+  const [newCompany, setNewCompany] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [monthlySalary, setMonthlySalary] = useState("");
   const [hourlySalary, setHourlySalary] = useState("");
@@ -121,9 +123,54 @@ export function InviteGenerator() {
     }
   }
 
+  async function loadCompanies() {
+    try {
+      const res = await fetch("/api/companies");
+      if (res.ok) setCompanies(await res.json());
+    } catch {
+      // התעלמות.
+    }
+  }
+
   useEffect(() => {
     loadInvites();
+    loadCompanies();
   }, []);
+
+  async function addCompany() {
+    const name = newCompany.trim();
+    if (!name) return;
+    try {
+      const res = await fetch("/api/companies", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCompanies((prev) =>
+          [...prev, data].sort((a, b) => a.name.localeCompare(b.name, "he")),
+        );
+        setCompanyName(data.name);
+        setNewCompany("");
+      }
+    } catch {
+      // התעלמות.
+    }
+  }
+
+  async function deleteCompany(id: string, name: string) {
+    if (!confirm(`למחוק את החברה "${name}" מרשימת האפשרויות?`)) return;
+    try {
+      const res = await fetch(`/api/companies/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setCompanies((prev) => prev.filter((c) => c.id !== id));
+        if (companyName === name) setCompanyName("");
+      }
+    } catch {
+      // התעלמות.
+    }
+  }
 
   async function deleteInvite(id: string) {
     if (!confirm("למחוק את קישור הקליטה? פעולה זו אינה מוחקת עובד שכבר נקלט.")) return;
@@ -188,13 +235,66 @@ export function InviteGenerator() {
         הטופס, יעלה ת.ז ויחתום — והפרטים יישמרו כאן אוטומטית.
       </p>
 
+      {/* בחירת חברה + ניהול רשימת החברות */}
       <div className="mt-4">
-        <input
+        <label className="mb-1 block text-sm font-medium text-slate-700">
+          חברה (תופיע ככותרת לעובד בקישור)
+        </label>
+        <select
           className={inputClass}
-          placeholder="שם החברה (יופיע ככותרת לעובד בקישור)"
           value={companyName}
           onChange={(e) => setCompanyName(e.target.value)}
-        />
+        >
+          <option value="">— בחר/י חברה —</option>
+          {companies.map((c) => (
+            <option key={c.id} value={c.name}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <input
+            className={`${inputClass} sm:max-w-xs`}
+            placeholder="הוספת חברה חדשה"
+            value={newCompany}
+            onChange={(e) => setNewCompany(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addCompany();
+              }
+            }}
+          />
+          <button
+            type="button"
+            onClick={addCompany}
+            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 transition hover:bg-brand-100"
+          >
+            ➕ הוספת חברה
+          </button>
+        </div>
+
+        {companies.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {companies.map((c) => (
+              <span
+                key={c.id}
+                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600"
+              >
+                {c.name}
+                <button
+                  type="button"
+                  onClick={() => deleteCompany(c.id, c.name)}
+                  aria-label={`מחיקת ${c.name}`}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -225,12 +325,18 @@ export function InviteGenerator() {
           פרטי העסקה (למעסיק בלבד — לא מוצג לעובד)
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <input
+          <select
             className={inputClass}
-            placeholder="תפקיד"
             value={jobTitle}
             onChange={(e) => setJobTitle(e.target.value)}
-          />
+          >
+            <option value="">תפקיד</option>
+            {["קופאי", "סדרן", "עובד כללי", "מנהל"].map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
           <input
             className={inputClass}
             type="number"

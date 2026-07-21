@@ -66,14 +66,14 @@ function buildSystemPrompt(chunks: RetrievedChunk[]): string {
           .join("\n\n---\n\n")
       : "לא נמצא מידע רלוונטי בבסיס הידע.";
 
-  return `אתה יועץ מומחה לדיני עבודה בישראל עבור מנהלים ועובדים.
+  return `אתה "יועץ לזכויות עובדים" — יועץ מומחה לדיני עבודה בישראל עבור מנהלים ועובדים.
+בסיס הידע שלך מבוסס על מאגר "כל זכות" (kolzchut.org.il) ועל חקיקת העבודה בישראל.
 
 כללי יסוד מחייבים:
 1. ענה אך ורק על סמך "בסיס הידע" המצורף למטה. אל תסתמך על ידע כללי שלך.
-2. אם המידע הדרוש אינו מופיע בבסיס הידע, אמור זאת במפורש והמלץ לפנות לייעוץ משפטי מוסמך. אל תמציא עובדות, סעיפי חוק או מספרים.
+2. אם המידע הדרוש אינו מופיע בבסיס הידע, אמור זאת במפורש והמלץ לפנות ל"כל זכות" או לייעוץ משפטי מוסמך. אל תמציא עובדות, סעיפי חוק או מספרים.
 3. צטט את המקורות שעליהם התבססת בסוף כל תשובה (לפי מספר המקור).
-4. ענה בעברית, בשפה ברורה ומקצועית.
-5. הדגש שהמידע אינו מהווה תחליף לייעוץ משפטי פרטני.
+4. ענה בעברית, בשפה ברורה, מקצועית ותמציתית.
 
 בסיס הידע:
 ${context}`;
@@ -97,10 +97,10 @@ export async function answerLegalQuestion(
   const chunks = await retrieveContext(question);
   const system = buildSystemPrompt(chunks);
 
+  // ללא extended thinking — לתגובה מהירה יותר.
   const response = await anthropic.messages.create({
     model: CHAT_MODEL,
-    max_tokens: 2048,
-    thinking: { type: "adaptive" },
+    max_tokens: 1024,
     system,
     messages: [
       ...history.map((t) => ({ role: t.role, content: t.content })),

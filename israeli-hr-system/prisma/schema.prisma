@@ -10,6 +10,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ───────────────────────────── חברות ─────────────────────────────
+// רשימת חברות לניהול ה-HR — משמשות כאפשרויות בחירה (למשל בקישורי קליטה).
+model Company {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+}
+
 // ───────────────────────────── משתמשים והרשאות ─────────────────────────────
 
 enum Role {
