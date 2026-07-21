@@ -11,6 +11,7 @@ interface Invite {
   status: "PENDING" | "COMPLETED" | "CANCELLED";
   createdAt: string;
   employeeName: string | null;
+  hasContract: boolean;
 }
 
 // בונה את הקישור מהכתובת שבה ה-HR גולש בפועל — כך הוא תמיד תואם לדומיין
@@ -58,10 +59,20 @@ function CopyButton({ url }: { url: string }) {
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
+function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 export function InviteGenerator() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [contractFile, setContractFile] = useState<File | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(false);
   const [newUrl, setNewUrl] = useState<string | null>(null);
@@ -85,10 +96,18 @@ export function InviteGenerator() {
     setError("");
     setNewUrl(null);
     try {
+      const contract = contractFile
+        ? {
+            fileName: contractFile.name,
+            mimeType: contractFile.type,
+            data: await fileToDataUrl(contractFile),
+          }
+        : null;
+
       const res = await fetch("/api/onboarding/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email }),
+        body: JSON.stringify({ firstName, lastName, email, contract }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "שגיאה ביצירת הקישור");
@@ -96,6 +115,7 @@ export function InviteGenerator() {
       setFirstName("");
       setLastName("");
       setEmail("");
+      setContractFile(null);
       await loadInvites();
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה לא צפויה");
@@ -132,6 +152,22 @@ export function InviteGenerator() {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
+      </div>
+
+      {/* צירוף הסכם עבודה שיישלח לעובד לקריאה וחתימה */}
+      <div className="mt-3">
+        <label className="mb-1 block text-sm font-medium text-slate-700">
+          צירוף הסכם עבודה לשליחה לעובד (אופציונלי)
+        </label>
+        <input
+          type="file"
+          accept="image/*,application/pdf"
+          onChange={(e) => setContractFile(e.target.files?.[0] ?? null)}
+          className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+        />
+        {contractFile && (
+          <p className="mt-1 text-xs text-green-700">מצורף: {contractFile.name}</p>
+        )}
       </div>
 
       <button
@@ -178,6 +214,9 @@ export function InviteGenerator() {
                       "עובד ללא שם"}
                   </p>
                   <p className="truncate text-xs text-slate-400">{linkFor(inv.token)}</p>
+                  {inv.hasContract && (
+                    <p className="mt-0.5 text-xs text-slate-500">📄 הסכם עבודה מצורף</p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span

@@ -91,16 +91,18 @@ interface OnboardingFormProps {
   defaults?: Partial<FormState>;
   // הודעת הצלחה מותאמת (למשל בפורטל הציבורי).
   doneMessage?: string;
+  // הסכם עבודה שה-HR צירף — מוצג לעובד לקריאה/הורדה לפני החתימה.
+  agreement?: { fileName: string; dataUrl: string };
 }
 
 export function OnboardingForm({
   endpoint = "/api/onboarding",
   defaults,
   doneMessage,
+  agreement,
 }: OnboardingFormProps = {}) {
   const [form, setForm] = useState<FormState>({ ...EMPTY, ...defaults });
   const [idFile, setIdFile] = useState<File | null>(null);
-  const [contractFile, setContractFile] = useState<File | null>(null);
   const [contractSignature, setContractSignature] = useState<string | null>(null);
   const [form101Signature, setForm101Signature] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -133,13 +135,6 @@ export function OnboardingForm({
       const idAttachment = idFile
         ? { fileName: idFile.name, mimeType: idFile.type, data: await fileToDataUrl(idFile) }
         : null;
-      const contractAttachment = contractFile
-        ? {
-            fileName: contractFile.name,
-            mimeType: contractFile.type,
-            data: await fileToDataUrl(contractFile),
-          }
-        : null;
 
       const res = await fetch(endpoint, {
         method: "POST",
@@ -150,7 +145,6 @@ export function OnboardingForm({
           monthlySalary: form.monthlySalary ? Number(form.monthlySalary) : null,
           taxYear: Number(form.taxYear),
           idAttachment,
-          contractAttachment,
           contractSignature,
           form101Signature,
         }),
@@ -387,23 +381,21 @@ export function OnboardingForm({
         <h2 className="mb-4 text-lg font-semibold text-slate-800">הסכם עבודה</h2>
         <p className="mb-4 text-sm text-slate-500">
           אנא קרא/י את הסכם העבודה וחתום/מי במקום המיועד. החתימה מהווה אישור לתנאי
-          ההעסקה. ניתן גם לצרף עותק חתום של ההסכם.
+          ההעסקה.
         </p>
 
-        {/* העלאת קובץ הסכם העבודה (אופציונלי) */}
-        <div className="mb-4">
-          <Field label="העלאת קובץ הסכם עבודה (אופציונלי)">
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => setContractFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
-            />
-          </Field>
-          {contractFile && (
-            <p className="mt-1 text-xs text-green-700">נבחר: {contractFile.name}</p>
-          )}
-        </div>
+        {/* הסכם עבודה שצורף ע"י המעסיק — לקריאה/הורדה לפני החתימה */}
+        {agreement && (
+          <a
+            href={agreement.dataUrl}
+            download={agreement.fileName}
+            target="_blank"
+            rel="noreferrer"
+            className="mb-4 inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 transition hover:bg-brand-100"
+          >
+            📄 צפייה בהסכם העבודה ({agreement.fileName})
+          </a>
+        )}
 
         <SignaturePad label="חתימה על הסכם העבודה (חובה)" onChange={setContractSignature} />
       </section>

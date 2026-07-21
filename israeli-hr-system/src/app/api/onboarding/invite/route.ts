@@ -16,6 +16,10 @@ const createSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
+  contract: z
+    .object({ fileName: z.string(), mimeType: z.string(), data: z.string() })
+    .nullable()
+    .optional(),
 });
 
 // POST /api/onboarding/invite — יצירת הזמנת קליטה חדשה והחזרת קישור להעתקה.
@@ -35,6 +39,9 @@ export async function POST(req: Request) {
         firstName: parsed.data.firstName || null,
         lastName: parsed.data.lastName || null,
         email: parsed.data.email || null,
+        contractFileName: parsed.data.contract?.fileName || null,
+        contractFileData: parsed.data.contract?.data || null,
+        contractMimeType: parsed.data.contract?.mimeType || null,
       },
     });
 
@@ -46,20 +53,31 @@ export async function POST(req: Request) {
 }
 
 // GET /api/onboarding/invite — רשימת הזמנות קליטה (לתצוגה אצל HR).
-export async function GET(req: Request) {
+// הקישור עצמו נבנה בצד הלקוח מכתובת הדפדפן, לכן לא מחזירים url כאן.
+// לא שולפים את תוכן ההסכם (data URL כבד) — רק אינדיקציה אם צורף.
+export async function GET() {
   try {
     const invites = await prisma.onboardingInvite.findMany({
       orderBy: { createdAt: "desc" },
       take: 50,
-      include: { employee: { select: { firstName: true, lastName: true } } },
+      select: {
+        id: true,
+        token: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        status: true,
+        createdAt: true,
+        completedAt: true,
+        contractFileName: true,
+        employee: { select: { firstName: true, lastName: true } },
+      },
     });
 
-    const base = baseUrl(req);
     return NextResponse.json(
       invites.map((i) => ({
         id: i.id,
         token: i.token,
-        url: `${base}/onboard/${i.token}`,
         firstName: i.firstName,
         lastName: i.lastName,
         email: i.email,
@@ -67,6 +85,7 @@ export async function GET(req: Request) {
         createdAt: i.createdAt,
         completedAt: i.completedAt,
         employeeName: i.employee ? `${i.employee.firstName} ${i.employee.lastName}` : null,
+        hasContract: !!i.contractFileName,
       })),
     );
   } catch {
