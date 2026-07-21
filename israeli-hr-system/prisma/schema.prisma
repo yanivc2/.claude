@@ -58,6 +58,7 @@ model Employee {
   jobTitle       String?
   department     String?
   monthlySalary  Int? // שכר חודשי (בש"ח)
+  hasActivePension Boolean        @default(false) // האם קיים הסדר פנסיוני פעיל
   status         EmploymentStatus @default(ONBOARDING)
 
   // מנהל ישיר
@@ -68,11 +69,12 @@ model Employee {
   userId String? @unique
   user   User?   @relation("EmployeeUser", fields: [userId], references: [id])
 
-  form101         Form101?
-  documents       EmployeeDocument[]
-  signatures      Signature[]
-  surveys         RetentionSurvey[]
-  terminationDocs TerminationDocument[]
+  form101          Form101?
+  documents        EmployeeDocument[]
+  signatures       Signature[]
+  surveys          RetentionSurvey[]
+  terminationDocs  TerminationDocument[]
+  onboardingInvite OnboardingInvite?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -146,6 +148,35 @@ model Signature {
   signedAt   DateTime         @default(now())
 
   @@index([employeeId, context])
+}
+
+// ─────────────── קליטה עצמית (קישור למילוי ע"י העובד) ───────────────
+
+enum InviteStatus {
+  PENDING // ממתין למילוי ע"י העובד
+  COMPLETED // העובד השלים והוחזר
+  CANCELLED // בוטל ע"י מנהל משאבי אנוש
+}
+
+// הזמנת קליטה: מנהל HR מייצר קישור ייחודי ומאובטח שנשלח לעובד.
+// העובד נכנס דרך הקישור, ממלא את הטופס, מעלה מסמכים וחותם — והרשומה
+// נשמרת ישירות במערכת. הטוקן משמש ככתובת ציבורית חד-פעמית.
+model OnboardingInvite {
+  id          String       @id @default(cuid())
+  token       String       @unique // מזהה אקראי לכתובת הציבורית
+  firstName   String? // מילוי מוקדם אופציונלי ע"י HR
+  lastName    String?
+  email       String?
+  status      InviteStatus @default(PENDING)
+
+  // העובד שנוצר עם השלמת הקליטה
+  employeeId String?   @unique
+  employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([status])
 }
 
 // ─────────────────────────── שימור עובדים ───────────────────────────

@@ -16,11 +16,13 @@ interface FormState {
   email: string;
   phone: string;
   address: string;
+  birthDate: string;
   // פרטי העסקה
   startDate: string;
   jobTitle: string;
   department: string;
   monthlySalary: string;
+  hasActivePension: boolean;
   // טופס 101
   taxYear: string;
   maritalStatus: string;
@@ -37,10 +39,12 @@ const EMPTY: FormState = {
   email: "",
   phone: "",
   address: "",
+  birthDate: "",
   startDate: "",
   jobTitle: "",
   department: "",
   monthlySalary: "",
+  hasActivePension: false,
   taxYear: String(new Date().getFullYear()),
   maritalStatus: "רווק/ה",
   numberOfChildren: "0",
@@ -48,6 +52,18 @@ const EMPTY: FormState = {
   hasOtherIncome: false,
   requestsCredits: false,
 };
+
+// מחשב גיל מתאריך לידה (לתצוגה בלבד).
+function ageFromBirthDate(iso: string): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) age -= 1;
+  return age >= 0 && age < 120 ? age : null;
+}
 
 function Field({
   label,
@@ -68,9 +84,23 @@ function Field({
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
-export function OnboardingForm() {
-  const [form, setForm] = useState<FormState>(EMPTY);
+interface OnboardingFormProps {
+  // נתיב ההגשה: ברירת מחדל הוא מסלול ה-HR; הפורטל הציבורי מעביר נתיב מבוסס-טוקן.
+  endpoint?: string;
+  // מילוי מוקדם (למשל שם/דוא״ל שהוזנו ע"י HR בעת יצירת הקישור).
+  defaults?: Partial<FormState>;
+  // הודעת הצלחה מותאמת (למשל בפורטל הציבורי).
+  doneMessage?: string;
+}
+
+export function OnboardingForm({
+  endpoint = "/api/onboarding",
+  defaults,
+  doneMessage,
+}: OnboardingFormProps = {}) {
+  const [form, setForm] = useState<FormState>({ ...EMPTY, ...defaults });
   const [idFile, setIdFile] = useState<File | null>(null);
+  const [contractFile, setContractFile] = useState<File | null>(null);
   const [contractSignature, setContractSignature] = useState<string | null>(null);
   const [form101Signature, setForm101Signature] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
@@ -103,8 +133,15 @@ export function OnboardingForm() {
       const idAttachment = idFile
         ? { fileName: idFile.name, mimeType: idFile.type, data: await fileToDataUrl(idFile) }
         : null;
+      const contractAttachment = contractFile
+        ? {
+            fileName: contractFile.name,
+            mimeType: contractFile.type,
+            data: await fileToDataUrl(contractFile),
+          }
+        : null;
 
-      const res = await fetch("/api/onboarding", {
+      const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -113,6 +150,7 @@ export function OnboardingForm() {
           monthlySalary: form.monthlySalary ? Number(form.monthlySalary) : null,
           taxYear: Number(form.taxYear),
           idAttachment,
+          contractAttachment,
           contractSignature,
           form101Signature,
         }),
@@ -124,7 +162,10 @@ export function OnboardingForm() {
       }
 
       setStatus("done");
-      setMessage("הקליטה הושלמה בהצלחה! סקרי שביעות רצון תוזמנו אוטומטית ל-30/60/90 ימים.");
+      setMessage(
+        doneMessage ??
+          "הקליטה הושלמה בהצלחה! סקרי שביעות רצון תוזמנו אוטומטית ל-30/60/90 ימים.",
+      );
     } catch (err) {
       setStatus("error");
       setMessage(err instanceof Error ? err.message : "שגיאה לא צפויה");
@@ -194,6 +235,20 @@ export function OnboardingForm() {
               onChange={(e) => set("address", e.target.value)}
             />
           </Field>
+          <Field
+            label={
+              ageFromBirthDate(form.birthDate) !== null
+                ? `תאריך לידה (גיל: ${ageFromBirthDate(form.birthDate)})`
+                : "תאריך לידה"
+            }
+          >
+            <input
+              className={inputClass}
+              type="date"
+              value={form.birthDate}
+              onChange={(e) => set("birthDate", e.target.value)}
+            />
+          </Field>
         </div>
       </section>
 
@@ -234,6 +289,14 @@ export function OnboardingForm() {
             />
           </Field>
         </div>
+        <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={form.hasActivePension}
+            onChange={(e) => set("hasActivePension", e.target.checked)}
+          />
+          קיים הסדר פנסיוני פעיל
+        </label>
       </section>
 
       {/* טופס 101 */}
@@ -324,8 +387,24 @@ export function OnboardingForm() {
         <h2 className="mb-4 text-lg font-semibold text-slate-800">הסכם עבודה</h2>
         <p className="mb-4 text-sm text-slate-500">
           אנא קרא/י את הסכם העבודה וחתום/מי במקום המיועד. החתימה מהווה אישור לתנאי
-          ההעסקה.
+          ההעסקה. ניתן גם לצרף עותק חתום של ההסכם.
         </p>
+
+        {/* העלאת קובץ הסכם העבודה (אופציונלי) */}
+        <div className="mb-4">
+          <Field label="העלאת קובץ הסכם עבודה (אופציונלי)">
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => setContractFile(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+            />
+          </Field>
+          {contractFile && (
+            <p className="mt-1 text-xs text-green-700">נבחר: {contractFile.name}</p>
+          )}
+        </div>
+
         <SignaturePad label="חתימה על הסכם העבודה (חובה)" onChange={setContractSignature} />
       </section>
 
