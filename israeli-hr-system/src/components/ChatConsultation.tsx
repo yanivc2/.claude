@@ -33,7 +33,7 @@ const DISCLAIMER =
   'ℹ️ המידע כללי בלבד, מבוסס על "כל זכות", ואינו מהווה תחליף לייעוץ משפטי פרטני. אין להסתמך עליו כראיה משפטית.';
 
 // ממשק צ'אט להתייעצות על זכויות וחוקי עבודה. שולח שאלות ל-API מבוסס RAG.
-export function ChatConsultation() {
+export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: string } = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -122,7 +122,7 @@ export function ChatConsultation() {
   }
 
   return (
-    <div className="flex h-[70vh] flex-col rounded-xl border border-slate-200 bg-white">
+    <div className={`flex ${heightClass} flex-col rounded-xl border border-slate-200 bg-white`}>
       <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center text-center text-slate-400">

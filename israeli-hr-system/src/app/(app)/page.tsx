@@ -79,18 +79,6 @@ export default async function DashboardPage() {
           </Link>
         ))}
       </div>
-
-      <div className="grid grid-cols-1 gap-4">
-        <Link
-          href="/consultation"
-          className="rounded-xl border border-slate-200 bg-white p-6 transition hover:border-brand-300 hover:shadow-sm"
-        >
-          <h2 className="text-lg font-semibold text-slate-800">💬 יועץ לזכויות עובדים</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            שאל/י את היועץ שאלה על זכויות וחוקי עבודה בישראל.
-          </p>
-        </Link>
-      </div>
     </div>
   );
 }
