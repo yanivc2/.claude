@@ -12,7 +12,6 @@ const NAV = [
   { href: "/termination", label: "סיום העסקה", icon: "📄" },
   { href: "/employees", label: "עובדים ותיקים", icon: "👥" },
   { href: "/retention", label: "שימור עובדים", icon: "🌱" },
-  { href: "/consultation", label: "יועץ לזכויות עובדים", icon: "💬" },
 ];
 
 export function Sidebar() {
