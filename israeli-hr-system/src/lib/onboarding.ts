@@ -44,6 +44,8 @@ export const onboardingSchema = z.object({
   contractAttachment: attachment.optional(),
   contractSignature: z.string(),
   form101Signature: z.string().nullable(),
+  // אישור מדיניות פרטיות ע"י העובד (בפורטל).
+  privacyAccepted: z.boolean().optional(),
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
@@ -72,6 +74,7 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
         availability:
           data.availability && Object.keys(data.availability).length ? data.availability : undefined,
         hasActivePension: data.hasActivePension,
+        privacyAcceptedAt: data.privacyAccepted ? new Date() : null,
         status: "ACTIVE",
       },
     });

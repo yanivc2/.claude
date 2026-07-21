@@ -105,6 +105,8 @@ export function InviteGenerator() {
   const [companyName, setCompanyName] = useState("");
   const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [newCompany, setNewCompany] = useState("");
+  const [newCompanyNumber, setNewCompanyNumber] = useState("");
+  const [newCompanyAddress, setNewCompanyAddress] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [monthlySalary, setMonthlySalary] = useState("");
   const [hourlySalary, setHourlySalary] = useState("");
@@ -144,7 +146,11 @@ export function InviteGenerator() {
       const res = await fetch("/api/companies", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({
+          name,
+          companyNumber: newCompanyNumber,
+          address: newCompanyAddress,
+        }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -153,6 +159,8 @@ export function InviteGenerator() {
         );
         setCompanyName(data.name);
         setNewCompany("");
+        setNewCompanyNumber("");
+        setNewCompanyAddress("");
       }
     } catch {
       // התעלמות.
@@ -253,23 +261,34 @@ export function InviteGenerator() {
           ))}
         </select>
 
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <input
-            className={`${inputClass} sm:max-w-xs`}
-            placeholder="הוספת חברה חדשה"
-            value={newCompany}
-            onChange={(e) => setNewCompany(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                addCompany();
-              }
-            }}
-          />
+        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="mb-2 text-xs font-medium text-slate-500">
+            הוספת חברה חדשה (ח.פ. וכתובת נדרשים למדיניות הפרטיות)
+          </p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <input
+              className={inputClass}
+              placeholder="שם החברה"
+              value={newCompany}
+              onChange={(e) => setNewCompany(e.target.value)}
+            />
+            <input
+              className={inputClass}
+              placeholder="ח.פ."
+              value={newCompanyNumber}
+              onChange={(e) => setNewCompanyNumber(e.target.value)}
+            />
+            <input
+              className={inputClass}
+              placeholder="כתובת"
+              value={newCompanyAddress}
+              onChange={(e) => setNewCompanyAddress(e.target.value)}
+            />
+          </div>
           <button
             type="button"
             onClick={addCompany}
-            className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 transition hover:bg-brand-100"
+            className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 transition hover:bg-brand-100"
           >
             ➕ הוספת חברה
           </button>

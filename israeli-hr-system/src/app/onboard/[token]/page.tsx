@@ -57,6 +57,7 @@ export default async function OnboardPage({
       <OnboardingForm
         endpoint={`/api/onboard/${token}`}
         hideEmployerFields
+        privacyUrl={`/onboard/${token}/privacy`}
         defaults={{
           firstName: invite.firstName ?? "",
           lastName: invite.lastName ?? "",

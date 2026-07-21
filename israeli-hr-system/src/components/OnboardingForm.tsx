@@ -101,6 +101,8 @@ interface OnboardingFormProps {
   agreement?: { fileName: string; dataUrl: string; mimeType?: string };
   // הסתרת שדות שה-HR קובע (תפקיד ושכר) — בפורטל הציבורי של העובד.
   hideEmployerFields?: boolean;
+  // קישור למדיניות פרטיות — כשמסופק, מוצג צ'קבוקס אישור חובה.
+  privacyUrl?: string;
 }
 
 // בריחת תווים לצורך הזרקה בטוחה ל-HTML של חלון ההדפסה.
@@ -148,11 +150,14 @@ export function OnboardingForm({
   doneMessage,
   agreement,
   hideEmployerFields = false,
+  privacyUrl,
 }: OnboardingFormProps = {}) {
   const [form, setForm] = useState<FormState>({ ...EMPTY, ...defaults });
   const [idFile, setIdFile] = useState<File | null>(null);
   const [contractSignature, setContractSignature] = useState<string | null>(null);
   const [form101Signature, setForm101Signature] = useState<string | null>(null);
+  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+  const [privacyError, setPrivacyError] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [message, setMessage] = useState<string>("");
 
@@ -185,6 +190,14 @@ export function OnboardingForm({
     setStatus("saving");
     setMessage("");
 
+    // חובת אישור מדיניות פרטיות (בפורטל העובד).
+    if (privacyUrl && !privacyAccepted) {
+      setPrivacyError(true);
+      setStatus("error");
+      setMessage("יש לאשר מדיניות פרטיות");
+      return;
+    }
+
     if (!contractSignature) {
       setStatus("error");
       setMessage("נדרשת חתימה על הסכם העבודה כדי להשלים את הקליטה.");
@@ -208,6 +221,7 @@ export function OnboardingForm({
           idAttachment,
           contractSignature,
           form101Signature,
+          privacyAccepted,
         }),
       });
 
@@ -655,6 +669,44 @@ export function OnboardingForm({
           </button>
         )}
       </section>
+
+      {/* אישור מדיניות פרטיות — חובה בפורטל העובד */}
+      {privacyUrl && (
+        <div
+          className={`rounded-xl border p-4 transition ${
+            privacyError && !privacyAccepted
+              ? "border-red-400 bg-red-50"
+              : "border-slate-200 bg-white"
+          }`}
+        >
+          <label className="flex items-start gap-3 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              className="mt-0.5 h-5 w-5"
+              checked={privacyAccepted}
+              onChange={(e) => {
+                setPrivacyAccepted(e.target.checked);
+                if (e.target.checked) setPrivacyError(false);
+              }}
+            />
+            <span>
+              קראתי ואני מאשר/ת את{" "}
+              <a
+                href={privacyUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-brand-700 underline"
+              >
+                מדיניות הפרטיות
+              </a>
+              , לרבות איסוף המידע, עיבודו, שמירתו והעברתו — לרבות אל מחוץ לישראל.
+            </span>
+          </label>
+          {privacyError && !privacyAccepted && (
+            <p className="mt-2 text-sm font-semibold text-red-600">יש לאשר מדיניות פרטיות</p>
+          )}
+        </div>
+      )}
 
       {status === "error" && (
         <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{message}</p>

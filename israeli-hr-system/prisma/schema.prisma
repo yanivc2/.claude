@@ -45,9 +45,11 @@ model WebauthnCredential {
 // ───────────────────────────── חברות ─────────────────────────────
 // רשימת חברות לניהול ה-HR — משמשות כאפשרויות בחירה (למשל בקישורי קליטה).
 model Company {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  name          String   @unique
+  companyNumber String? // ח.פ.
+  address       String? // כתובת רשומה
+  createdAt     DateTime @default(now())
 }
 
 // ───────────────────────────── משתמשים והרשאות ─────────────────────────────
@@ -103,6 +105,7 @@ model Employee {
   // זמינות לפי ימים ומשמרות: { "sun": ["morning","night"], ... }
   availability   Json?
   hasActivePension Boolean        @default(false) // האם קיים הסדר פנסיוני פעיל
+  privacyAcceptedAt DateTime? // מועד אישור מדיניות הפרטיות ע"י העובד
   status         EmploymentStatus @default(ONBOARDING)
 
   // מנהל ישיר
