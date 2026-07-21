@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { prisma } from "./prisma";
 import { anthropic, CHAT_MODEL } from "./anthropic";
+import { KNOWLEDGE_BASE } from "./knowledgeBase";
 
 // ─────────────────────────────────────────────────────────────────────────
 // שכבת RAG (Retrieval-Augmented Generation)
@@ -35,12 +35,9 @@ function scoreChunk(
   return score;
 }
 
-// אחזור הקטעים הרלוונטיים ביותר מבסיס הידע.
-export async function retrieveContext(query: string, limit = 5): Promise<RetrievedChunk[]> {
-  const chunks = await prisma.knowledgeChunk.findMany();
-
-  const ranked = chunks
-    .map((c) => ({ chunk: c, score: scoreChunk(query, c) }))
+// אחזור הקטעים הרלוונטיים ביותר מבסיס הידע (מודול הקוד — מהיר, ללא מסד).
+export async function retrieveContext(query: string, limit = 6): Promise<RetrievedChunk[]> {
+  const ranked = KNOWLEDGE_BASE.map((c) => ({ chunk: c, score: scoreChunk(query, c) }))
     .filter((r) => r.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
