@@ -47,8 +47,8 @@ export default async function RetentionPage() {
           אין סקרים מתוזמנים. סקרים נוצרים אוטומטית בעת קליטת עובד חדש.
         </p>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <table className="w-full text-start text-sm">
+        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="w-full min-w-[32rem] text-start text-sm">
             <thead className="bg-slate-50 text-slate-500">
               <tr>
                 <th className="px-4 py-3 text-start font-medium">עובד</th>

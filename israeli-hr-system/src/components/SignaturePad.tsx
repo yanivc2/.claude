@@ -51,9 +51,10 @@ export function SignaturePad({
           נקה חתימה
         </button>
       </div>
+      {/* touch-none מונע גלילת הדף בזמן חתימה במסך מגע */}
       <canvas
         ref={canvasRef}
-        className="h-40 w-full rounded-lg border border-dashed border-slate-300 bg-white"
+        className="h-40 w-full touch-none rounded-lg border border-dashed border-slate-300 bg-white"
       />
     </div>
   );

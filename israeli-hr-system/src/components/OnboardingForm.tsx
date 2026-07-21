@@ -64,8 +64,9 @@ function Field({
   );
 }
 
+// גופן 16px בסלולר (text-base) מונע זום אוטומטי ב-iOS בעת מיקוד בשדה; במסך רחב חוזר ל-14px.
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 export function OnboardingForm() {
   const [form, setForm] = useState<FormState>(EMPTY);
@@ -141,7 +142,7 @@ export function OnboardingForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {/* פרטים אישיים */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">פרטים אישיים</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="שם פרטי">
@@ -197,7 +198,7 @@ export function OnboardingForm() {
       </section>
 
       {/* פרטי העסקה */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">פרטי העסקה</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="מועד תחילת עבודה">
@@ -236,7 +237,7 @@ export function OnboardingForm() {
       </section>
 
       {/* טופס 101 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
         <h2 className="mb-1 text-lg font-semibold text-slate-800">טופס 101</h2>
         <p className="mb-4 text-sm text-slate-500">
           כרטיס עובד לצורכי ניכוי מס הכנסה במקור.
@@ -319,7 +320,7 @@ export function OnboardingForm() {
       </section>
 
       {/* חתימה על הסכם העבודה */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-slate-800">הסכם עבודה</h2>
         <p className="mb-4 text-sm text-slate-500">
           אנא קרא/י את הסכם העבודה וחתום/מי במקום המיועד. החתימה מהווה אישור לתנאי
@@ -335,7 +336,7 @@ export function OnboardingForm() {
       <button
         type="submit"
         disabled={status === "saving"}
-        className="rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+        className="w-full rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
       >
         {status === "saving" ? "שומר..." : "השלמת קליטה"}
       </button>
