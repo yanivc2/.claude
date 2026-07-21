@@ -4,4 +4,5 @@ import Anthropic from "@anthropic-ai/sdk";
 export const anthropic = new Anthropic();
 
 // מודל ברירת המחדל לצ'אטבוט ההתייעצות.
-export const CHAT_MODEL = "claude-opus-4-8";
+// Haiku 4.5 — מהיר משמעותית, ומתאים לתשובות מבוססות-אחזור (RAG).
+export const CHAT_MODEL = "claude-haiku-4-5-20251001";

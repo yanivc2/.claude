@@ -8,12 +8,11 @@ import { usePathname } from "next/navigation";
 // במחשב הסרגל קבוע; בסלולר הוא נסתר מאחורי כפתור המבורגר ונפתח כמגירה.
 const NAV = [
   { href: "/", label: "לוח בקרה", icon: "📊" },
-  { href: "/legal-updates", label: "עדכוני חקיקה", icon: "⚖️" },
-  { href: "/consultation", label: "התייעצות חוקים וזכויות", icon: "💬" },
   { href: "/onboarding", label: "קליטת עובד", icon: "📝" },
+  { href: "/termination", label: "סיום העסקה", icon: "📄" },
   { href: "/employees", label: "עובדים ותיקים", icon: "👥" },
   { href: "/retention", label: "שימור עובדים", icon: "🌱" },
-  { href: "/termination", label: "סיום העסקה", icon: "📄" },
+  { href: "/consultation", label: "יועץ לזכויות עובדים", icon: "💬" },
 ];
 
 export function Sidebar() {
@@ -55,7 +54,7 @@ export function Sidebar() {
             />
           </svg>
         </button>
-        <span className="text-base font-bold text-brand-700">מערכת משאבי אנוש</span>
+        <span className="text-lg font-bold text-brand-700">מערכת משאבי אנוש</span>
       </header>
 
       {/* רקע כהה מאחורי המגירה — סלולר בלבד */}
@@ -75,8 +74,8 @@ export function Sidebar() {
       >
         <div className="flex items-start justify-between p-6">
           <div>
-            <h1 className="text-xl font-bold text-brand-700">מערכת משאבי אנוש</h1>
-            <p className="mt-1 text-xs text-slate-500">מותאמת לשוק הישראלי</p>
+            <h1 className="text-2xl font-bold text-brand-700">מערכת משאבי אנוש</h1>
+            <p className="mt-1 text-sm text-slate-500">מותאמת לשוק הישראלי</p>
           </div>
           {/* כפתור סגירה — סלולר בלבד */}
           <button
@@ -104,13 +103,15 @@ export function Sidebar() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className={`mb-1 flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                className={`mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-medium transition ${
                   active
                     ? "bg-brand-50 text-brand-700"
                     : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
                 }`}
               >
-                <span aria-hidden>{item.icon}</span>
+                <span className="text-lg" aria-hidden>
+                  {item.icon}
+                </span>
                 <span>{item.label}</span>
               </Link>
             );
