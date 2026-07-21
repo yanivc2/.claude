@@ -40,7 +40,8 @@ def test_tampered_cap_breaks_the_hash_and_blocks(tmp_path):
 def test_frozen_paid_spend_ledger_loads_and_totals():
     from meta_orchestrator.experiment.s2.budget_policy import load_frozen_paid_spend
     led = load_frozen_paid_spend(_CORPUS)
-    # $0.121801 diagnostic ($0.052343 prior + black-215 $0.069458 DEFECT_6, diagnostic-only) +
+    # $0.212025 diagnostic ($0.052343 prior + black-215 $0.069458 DEFECT_6 + black-385 $0.090224
+    # CALL_AMBIGUOUS_AFTER_SEND upper-bound UNVERIFIED, all diagnostic-only) +
     # $0.486539 official ($0.023641 historical + final-sequence black-112 $0.012028 + black-130
     # $0.029330 + black-132 $0.029049 FAILED + black-141 $0.032788 SOLVED-leak + black-185 $0.037983
     # SOLVED+banked (first memory-bearing) + black-193 $0.038139 SOLVED+banked + black-215 RE-RUN
@@ -51,8 +52,8 @@ def test_frozen_paid_spend_ledger_loads_and_totals():
     # (C=2 at-cap; terminal-R2) + black-335 $0.041383 FAILED (C=2 at-cap; public PASS but hidden F2P
     # FAIL — superficial patch; write-gate verifier_failed; no bank change)). The prior black-215
     # DEFECT_6 run stays diagnostic-only.
-    assert led.total_paid_to_date() == Decimal("0.668715")
-    assert Decimal(led.diagnostic_apparatus_spend_usd) == Decimal("0.121801")
+    assert led.total_paid_to_date() == Decimal("0.758939")
+    assert Decimal(led.diagnostic_apparatus_spend_usd) == Decimal("0.212025")
     assert Decimal(led.official_training_spend_usd) == Decimal("0.546914")
     assert led.content_hash == led.compute_hash()
 
@@ -75,7 +76,7 @@ def test_lifetime_spend_plus_worst_binds_global_cap():
     led = load_frozen_paid_spend(_CORPUS)
     projected = Decimal("45.99675")
     lifetime = led.total_paid_to_date() + projected
-    assert lifetime == Decimal("46.665465")
+    assert lifetime == Decimal("46.755689")
     assert lifetime <= Decimal("50.00")                        # fits the $50 lifetime cap
 
 
