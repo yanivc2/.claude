@@ -1145,9 +1145,93 @@
       "visible_text_sha256": "e8bf93869a0a48726a54391c0ff49a98d754e1b586fc08149aa78948b8743640",
       "write_gate_decision": "REJECTED",
       "write_gate_invoked": true
+    },
+    {
+      "anchor_content_hash": "57cc9f7f65d18af0",
+      "apparatus_version": "v2.2 (DEFECT-6-fixed)",
+      "attempt_index": 20,
+      "authoritative_memory_parity": {
+        "abs_gap": 17,
+        "b1_memory_tokens": 90,
+        "c_memory_tokens": 107,
+        "decision": "pass",
+        "rel_gap": 0.1589
+      },
+      "authoritative_solver_outcome": "FAILED",
+      "b1_comparator_lessons": [
+        "cand-e04f0fb979"
+      ],
+      "b1_fallback_used": true,
+      "b1_primary_available": false,
+      "b1_primary_family": "state_mutation",
+      "b1_source_family": "whitespace",
+      "bank_artifact": "corpus/s2_fold1_c_bank.frozen.json (content_hash 44dd946fbb805640)",
+      "bank_content_hash": "513d63007784",
+      "bank_hash_after": "513d63007784",
+      "bank_hash_before": "513d63007784",
+      "bank_state": "unchanged",
+      "bank_written_count": 0,
+      "candidate_archived": false,
+      "candidate_quarantined": false,
+      "commit": "a4d7345824977dc166a38fc25e99c90b9af9cf2a",
+      "condition": "C",
+      "cost_usd": "0.055195",
+      "curriculum_position": 15,
+      "final_graded_state": "R1_PATCH",
+      "final_sequence_attempt_number": 16,
+      "final_sequence_result_tally": "8 SOLVED / 8 FAILED (through position 15)",
+      "fold": 1,
+      "global_official_attempt_number": 18,
+      "grant_id": "grant-fa8a23cac9ee",
+      "hidden_nodes_frozen": [
+        "tests/test_black.py::BlackTestCase::test_python37"
+      ],
+      "hidden_nodes_passed": 0,
+      "hidden_nodes_run": 1,
+      "hidden_per_node": {
+        "tests/test_black.py::BlackTestCase::test_python37": "FAILED"
+      },
+      "hidden_verdict": false,
+      "in_final_sequence": true,
+      "injected_lesson_ids": [
+        "cand-f0b1e78791"
+      ],
+      "injected_lesson_sources": [
+        "black-193"
+      ],
+      "injected_memory_items": 1,
+      "injected_memory_lines": 5,
+      "lesson_candidate_present": true,
+      "live_write_gate_authority": "provisional",
+      "live_write_gate_decision": "rejected",
+      "live_write_gate_rejection_rules": [
+        "verifier_failed"
+      ],
+      "memory_bearing_attempt": true,
+      "memory_payload_label_free": true,
+      "note": "Sixteenth final-sequence attempt (global #18): iterator (1/2, below cap), memory-bearing (C=1 \u2014 cand-f0b1e78791 from black-193, label-free; B1 fallback whitespace cand-e04f0fb979). FAILED on HIDDEN grading: R1 valid+applied, public PASSed, R2 not opened, but the hidden F2P node test_python37 FAILED (0/1) \u2014 a superficial patch. Write-gate rejected the candidate (verifier_failed). Bank unchanged; iterator stays at 1 lesson. Eighth official FAILED; fifth public-PASS/hidden-FAIL. Ties the tally at 8 SOLVED / 8 FAILED. NOT causal-benefit evidence.",
+      "official_attempt": true,
+      "patch_status": "APPLIED",
+      "persist_audit_decision": "not_reached",
+      "persist_audit_note": "candidate ineligible: hidden verdict False (verifier_failed). Bank unchanged.",
+      "phase": "training",
+      "public": "PASS",
+      "r1_input_tokens": 46305,
+      "r1_output_tokens": 1778,
+      "raw_response_sha256": "d731b40974856981cae36e8810a87c8def01af35bd8e9059e6a5bfbe2b67fa25",
+      "rejection_reason": "verifier_failed",
+      "response_classification": "VALID_COMPLETE_OUTPUT",
+      "round2_opened": false,
+      "solver_outcome": "FAILED",
+      "stop_reason": "end_turn",
+      "task_family": "iterator",
+      "task_id": "black-593",
+      "visible_text_sha256": "14a9e70dd9a9fcbe59b0fc948c17943da63ab9ff787bd467a730a8570202d18e",
+      "write_gate_decision": "REJECTED",
+      "write_gate_invoked": true
     }
   ],
-  "content_hash": "004daa2667d06ab5",
+  "content_hash": "be0d85082af0e114",
   "note": "Historical, immutable log of OFFICIAL C-training attempts. An attempt is official iff the apparatus executed per the frozen contract (correct family, complete non-truncated response, valid+applied patch, correct public/hidden grading, write-gate invoked); the write-gate accepting a lesson is NOT required. Attempts run under a superseded apparatus_version are retained here but are NOT part of the final experimental sequence. Final-sequence attempts have in_final_sequence=true and advance the curriculum.",
   "schema_version": "s2-official-training-log-v1"
 }

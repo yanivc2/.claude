@@ -1,7 +1,7 @@
 {
-  "content_hash": "1bd51578a927a750",
+  "content_hash": "32a78f04af68ae9c",
   "diagnostic_apparatus_spend_usd": "0.212025",
-  "note": "diagnostic $0.212025. historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 F, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 S+b, black-193 $0.038139 S+b, black-215(re-run) $0.035082 S+b, black-224 $0.036710 S+b, black-232 $0.080660 F, black-238 $0.040705 S, black-273 $0.090424 F, black-334 $0.018992 F, black-335 $0.041383 F, black-385(re-run) $0.040994 F, black-389 $0.042742 F (C=1 iterator; public PASS but hidden 0/2 FAIL; candidate cand-e42ec8f76d rejected leak+verifier_failed; NO bank change). official_training_spend $0.630650; lifetime budget-accounted $0.842675.",
-  "official_training_spend_usd": "0.630650",
+  "note": "diagnostic $0.212025. historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 F, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 S+b, black-193 $0.038139 S+b, black-215(re-run) $0.035082 S+b, black-224 $0.036710 S+b, black-232 $0.080660 F, black-238 $0.040705 S, black-273 $0.090424 F, black-334 $0.018992 F, black-335 $0.041383 F, black-385(re-run) $0.040994 F, black-389 $0.042742 F, black-593 $0.055195 F (C=1 iterator; public PASS but hidden F2P FAIL; superficial patch; verifier_failed; NO bank change). official_training_spend $0.685845; lifetime budget-accounted $0.897870.",
+  "official_training_spend_usd": "0.685845",
   "schema_version": "s2-paid-spend-v1"
 }
