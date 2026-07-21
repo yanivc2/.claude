@@ -33,6 +33,7 @@ from .families import TaskFamilyBindingError, assert_task_family_valid
 from .live_solver import ModelBackedRoundSolver
 from .memory import assert_no_condition_label
 from .patch_format import PatchFormatError
+from .round_lifecycle import hidden_verify_allowed, resolve_final_graded_state
 from .pricing import PricingArtifact
 from .response_classification import (SOLVER_FAIL_TRUNCATED, TRUNCATED_OUTPUT,
                                       is_official_pass_eligible)
@@ -115,6 +116,7 @@ def run_real_task_canary(
     # fallback to R1). The working tree is reset to the frozen buggy pre-image on every terminal-failure
     # round and before R2, so a prior round's edit can never leak into grading or the hidden verify.
     patch_applied = False
+    final_round_index = 0                                # the LAST round that actually executed
 
     for round_index in (1, 2):
         if round_index == 2:
@@ -145,6 +147,7 @@ def run_real_task_canary(
                            calls=solver.calls, ambiguous=True, reconciled=False, completed=False,
                            classifications=classifications, patch_statuses=patch_statuses,
                            hidden_count=0)
+        final_round_index = round_index                  # this round executed (shared lifecycle state)
         classifications.append(out.classification)
 
         # FAIL-CLOSED (Decision A + defect-3 + defect-6): only a COMPLETE + VALID reply is applied and
@@ -195,9 +198,13 @@ def run_real_task_canary(
         feedback = pub.sanitized_summary[:max_public_feedback_cap]
 
     # (2) hidden verify runs ONCE, and ONLY when the FINAL executed round produced a valid+applied
-    # patch (defect-3 + defect-6): a hidden verdict on unchanged/buggy source — or on a PRIOR round's
-    # patch after the final round failed — is not a signal about the model's solution.
-    if patch_applied:
+    # patch (defect-3 + defect-6). The SHARED final-round resolver decides which state is gradeable:
+    # a failed final round → BUGGY (never R1's stale patch after R2 opened). The paid path grades only
+    # a real applied patch (hidden_verify_allowed False for BUGGY).
+    final_graded_state = resolve_final_graded_state(
+        r2_opened=round2_opened, final_round_index=final_round_index,
+        final_round_valid_applied=patch_applied)
+    if hidden_verify_allowed(final_graded_state):
         hidden_verdict = RT.hidden_verify(ctx)           # verdict never fed back to the model
         hidden_count = 1
         task_trace.append(HIDDEN_VERIFY)

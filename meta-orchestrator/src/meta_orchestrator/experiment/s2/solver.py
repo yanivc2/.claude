@@ -40,6 +40,7 @@ from .memory import (CONDITIONS, FrozenLessonBank, PlaceboRouter, StaticPlaybook
 from .b1_selector import PROXY_SOURCE, select_b1_derangement
 from .ordering import condition_order, train_order
 from .preflight import full_request_metrics_fn
+from .round_lifecycle import GradedState, resolve_final_graded_state
 from .write_gate import assert_bank_within_train
 
 
@@ -140,6 +141,8 @@ def run_attempt(
     round1_status: Optional[str] = None
     candidates: list[Lesson] = []
     feedback: Optional[str] = None
+    final_round_index = 0                            # last round that executed (shared lifecycle state)
+    last_round_applied = False                       # did THAT round produce a valid applied patch?
 
     with Sandbox(task) as sb:
         tools = AgentTools(sb, task)
@@ -150,7 +153,20 @@ def run_attempt(
                 if attempt_contract.round2_only_after_public_fail and round1_status != "FAIL":
                     break
                 round2_opened = True
+                # DEFECT-6 (shared lifecycle): R2 is the FINAL round. Reset the sandbox to the frozen
+                # buggy pre-image so R1's applied patch never leaks into R2 grading or the single final
+                # verify — no silent fallback to R1. The offline "exactly one verify" contract is
+                # UNCHANGED; it now grades the resolved final state (R2's patch if valid+applied, else
+                # the buggy source). R2's view therefore also sees the buggy source, matching the paid.
+                for _p, _content in task.source.items():
+                    sb.write(_p, _content)
+                for _p, _content in task.source.items():
+                    if sb.read(_p) != _content:
+                        raise AttemptContractViolation(f"sandbox reset to buggy failed for {_p!r}")
+                last_round_applied = False
 
+            final_round_index = round_index
+            last_round_applied = False               # reflects THIS round only (never sticky)
             view = RoundView(
                 round_index=round_index, task_id=task.task_id, task_family=task.task_family,
                 source={p: sb.read(p) for p in task.source}, public_tests=dict(task.public_tests),
@@ -175,6 +191,7 @@ def run_attempt(
                         pass                       # blocked + audited; invalid patch handled
                 if applied_here:
                     patches_applied += 1
+                    last_round_applied = True        # THIS round produced a valid applied patch
 
             if condition == "C" and is_train and out.candidate_lesson is not None:
                 candidates.append(out.candidate_lesson)
@@ -191,7 +208,20 @@ def run_attempt(
                 break                              # only a genuine FAIL keeps the attempt going
             feedback = _sanitize_public(pub_summary, attempt_contract.public_feedback_char_cap)
 
-        # Exactly one hidden verification, at the very end; its result is never fed back.
+        # SHARED lifecycle contract (defect-6): the single verify must grade the RESOLVED final state
+        # — never R1's patch once R2 opened. When that state is BUGGY, the sandbox MUST equal the buggy
+        # pre-image (fail-closed if a stale patch survived the between-round reset).
+        final_graded_state = resolve_final_graded_state(
+            r2_opened=round2_opened, final_round_index=final_round_index or 1,
+            final_round_valid_applied=last_round_applied)
+        if final_graded_state == GradedState.BUGGY:
+            for _p, _content in task.source.items():
+                if sb.read(_p) != _content:
+                    raise AttemptContractViolation(
+                        f"final graded state is BUGGY but the sandbox still carries an edit in {_p!r}")
+
+        # Exactly one hidden verification, at the very end; its result is never fed back. It now grades
+        # the resolved final state (offline's "one verify" contract is unchanged).
         verdict = verify(task, sb)
         blocked = len(tools.blocked_attempts())
 
