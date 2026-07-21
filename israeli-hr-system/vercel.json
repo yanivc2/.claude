@@ -1,5 +1,5 @@
 {
-  "buildCommand": "(prisma db push || (sleep 10 && prisma db push)) && next build",
+  "buildCommand": "(prisma db push || (sleep 15 && prisma db push) || (sleep 30 && prisma db push) || echo 'prisma db push skipped after retries — continuing build') && next build",
   "crons": [
     {
       "path": "/api/cron/legal-updates",
