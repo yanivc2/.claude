@@ -19,6 +19,9 @@ model AdminUser {
   name               String
   email              String
   passwordHash       String    @db.Text
+  // isOwner=בעל המערכת (יכול לנהל משתמשים). active=חשבון פעיל לכניסה.
+  isOwner            Boolean   @default(false)
+  active             Boolean   @default(true)
   // שינוי סיסמה בהמתנה לאישור במייל
   pendingPasswordHash String?  @db.Text
   confirmCodeHash    String?   @db.Text

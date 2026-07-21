@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAdmin } from "@/lib/admin";
+import { getAdminByUsername } from "@/lib/admin";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { sendEmail } from "@/lib/email";
 import { sessionUser } from "@/lib/webauthn";
@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const admin = await getAdmin();
+  const admin = await getAdminByUsername(user);
   if (!admin) return NextResponse.json({ error: "משתמש לא נמצא" }, { status: 404 });
 
   if (!(await verifyPassword(parsed.data.currentPassword, admin.passwordHash))) {
