@@ -130,7 +130,10 @@ def main() -> None:
     binding_ok = (grant.anchor_commit == head and grant.anchor_content_hash == anchor_hash
                   and grant.anchor_report_hash == gate1_report_hash)
     covers_ok = led.would_authorize(grant, fold=1, condition="C", task_id=task_id)
-    wrong_task_blocked = not led.would_authorize(grant, fold=1, condition="C", task_id="black-130")
+    # negative test: a DIFFERENT curriculum task (never the granted one) must NOT be covered.
+    _order = cur.folds[str(FOLD)].train_order
+    _other = next(t for t in _order if t != task_id)
+    wrong_task_blocked = not led.would_authorize(grant, fold=1, condition="C", task_id=_other)
     task2_blocked = not grant.task_2_authorized
 
     print("=" * 78)
