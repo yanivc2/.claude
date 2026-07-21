@@ -6,8 +6,8 @@ export async function generateMetadata() {
   return { title: { absolute: "מדיניות פרטיות" } };
 }
 
-// פרטי איש הקשר לפניות פרטיות (מרכזי — משותף לכל החברות).
-const CONTACT = { person: "יניב כהן", phone: "052-6850015", email: "yanivc2@gmail.com" };
+// ח.פ. של יניב רום יזמות — המשרד המרכזי המפעיל את המערכת עבור כל החברות.
+const CENTRAL_OFFICE_NUMBER = "515325405";
 
 export default async function PrivacyPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -21,6 +21,7 @@ export default async function PrivacyPage({ params }: { params: Promise<{ token:
     : null;
 
   const companyName = company?.name || invite?.companyName || "החברה המעסיקה";
+  const isCentralOffice = company?.companyNumber === CENTRAL_OFFICE_NUMBER;
 
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-8">
@@ -29,10 +30,7 @@ export default async function PrivacyPage({ params }: { params: Promise<{ token:
           companyName={companyName}
           companyNumber={company?.companyNumber}
           address={company?.address}
-          contactPerson={CONTACT.person}
-          contactPhone={CONTACT.phone}
-          contactEmail={CONTACT.email}
-          retentionYears={7}
+          isCentralOffice={isCentralOffice}
         />
       </div>
     </div>

@@ -3,9 +3,56 @@
 import { useState } from "react";
 import { SignaturePad } from "./SignaturePad";
 import { AVAILABILITY_DAYS, AVAILABILITY_SHIFTS } from "@/lib/availability";
+import { PRIVACY_POLICY_VERSION } from "./PrivacyPolicy";
 
 // תפקידים לבחירה.
 const JOB_TITLES = ["קופאי", "סדרן", "עובד כללי", "מנהל"];
+
+// ─────────────────────────────────────────────────────────────────────────
+// אישורי פרטיות (נספח ג' למדיניות): אישורי חובה לתיעוד יידוע וקליטה, והסכמות
+// רשות נפרדות שאינן מסומנות מראש. נוסח כל תיבה נשמר לתיעוד ההסכמה.
+// ─────────────────────────────────────────────────────────────────────────
+interface ConsentItem {
+  key: string;
+  label: string;
+  text: string;
+}
+
+const MANDATORY_CONSENTS: ConsentItem[] = [
+  {
+    key: "notice_read",
+    label: "קבלת הודעה וקריאת המדיניות",
+    text: "אני מאשר/ת שקיבלתי גישה למדיניות הפרטיות בגרסה המצוינת במסמך, קראתי את ההודעה התמציתית והבנתי את מטרות האיסוף, הנמענים, תקופות השמירה, תוצאות אי־מסירת מידע וזכויות העיון והתיקון. אישור זה מתעד מסירה וקריאה ואינו ויתור על זכות.",
+  },
+  {
+    key: "accuracy",
+    label: "נכונות ועדכון",
+    text: "אני מצהיר/ה כי למיטב ידיעתי הפרטים והמסמכים שמסרתי נכונים, מלאים ועדכניים, וכי אעדכן שינוי מהותי הדרוש לשכר, מס, זכויות, קשר או בטיחות. ידוע לי שמסירת מידע כוזב ביודעין עשויה להביא לבירור בהתאם לדין ולנסיבות.",
+  },
+  {
+    key: "verification",
+    label: "אימות מוגבל",
+    text: "אני מאשר/ת לחברה לאמת מסמכים ופרטים שמסרתי מול רשויות, מוסדות פיננסיים, גופים פנסיוניים, יועצים וספקים מורשים, רק כאשר האימות נדרש ומותר לצורכי קליטה, שכר, מס, זכויות, מניעת מרמה או חובה שבדין.",
+  },
+  {
+    key: "cameras",
+    label: "הודעה על מצלמות",
+    text: "ידוע לי כי בשטחים הציבוריים והתפעוליים בחנות ובסביבתה מופעלות מצלמות גלויות ללא קול, למטרות אבטחה, בטיחות ומניעת גניבות, וכי הצילומים נשמרים עד 21 ימים, בכפוף לחריג אירוע מסוים המפורט במדיניות.",
+  },
+];
+
+const OPTIONAL_CONSENTS: ConsentItem[] = [
+  {
+    key: "biometric",
+    label: "הסכמה לשימוש בטביעת אצבע — רשות",
+    text: "לאחר שקראתי את סעיף 14.2, אני מסכים/ה מרצוני לשימוש בתבנית מתמטית המופקת מטביעת האצבע שלי במערכת JB CLOCK לצורך דיווח נוכחות ומניעת החתמה עבור עובד אחר בלבד. ידוע לי שאוכל לחזור בי בכל עת, לעבור לתג קִרבה או לקוד, וכי התבנית תימחק עם ביטול ההסכמה או בסיום העבודה, לפי המוקדם.",
+  },
+  {
+    key: "esignature",
+    label: "הסכמה למסירה ולחתימה אלקטרוניות — רשות",
+    text: "אני מסכים/ה לקבל מסמכי קליטה והעסקה בדוא״ל או במערכת משאבי האנוש ולחתום עליהם באופן אלקטרוני. אוכל לבקש עותק נגיש או אמצעי חלופי סביר.",
+  },
+];
 
 // ─────────────────────────────────────────────────────────────────────────
 // טופס קליטת עובד: כולל טופס 101 דיגיטלי, העלאת ספח ת.ז, וחתימה דיגיטלית
@@ -156,13 +203,22 @@ export function OnboardingForm({
   const [idFile, setIdFile] = useState<File | null>(null);
   const [contractSignature, setContractSignature] = useState<string | null>(null);
   const [form101Signature, setForm101Signature] = useState<string | null>(null);
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
-  const [privacyError, setPrivacyError] = useState(false);
+  // מפת אישורי פרטיות: מפתח-תיבה → סומן/לא סומן. אף תיבה אינה מסומנת מראש.
+  const [consents, setConsents] = useState<Record<string, boolean>>({});
+  const [consentError, setConsentError] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "done" | "error">("idle");
   const [message, setMessage] = useState<string>("");
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
+
+  // כל אישורי החובה סומנו?
+  const allMandatoryAccepted = MANDATORY_CONSENTS.every((c) => consents[c.key]);
+
+  const toggleConsent = (key: string, checked: boolean) => {
+    setConsents((c) => ({ ...c, [key]: checked }));
+    if (checked) setConsentError(false);
+  };
 
   // סימון/ביטול משמרת ליום מסוים בזמינות.
   const toggleShift = (dayKey: string, shiftKey: string) =>
@@ -190,9 +246,9 @@ export function OnboardingForm({
     setStatus("saving");
     setMessage("");
 
-    // חובת אישור מדיניות פרטיות (בפורטל העובד).
-    if (privacyUrl && !privacyAccepted) {
-      setPrivacyError(true);
+    // חובת אישור מדיניות פרטיות (בפורטל העובד) — כל אישורי החובה חייבים סימון.
+    if (privacyUrl && !allMandatoryAccepted) {
+      setConsentError(true);
       setStatus("error");
       setMessage("יש לאשר מדיניות פרטיות");
       return;
@@ -221,7 +277,16 @@ export function OnboardingForm({
           idAttachment,
           contractSignature,
           form101Signature,
-          privacyAccepted,
+          // privacyAccepted=true רק כשכל אישורי החובה סומנו (שער תאימות לאחור).
+          privacyAccepted: privacyUrl ? allMandatoryAccepted : undefined,
+          privacyPolicyVersion: privacyUrl ? PRIVACY_POLICY_VERSION : undefined,
+          // מפת האישורים המלאה (חובה + רשות) לתיעוד ההסכמה.
+          privacyConsents: privacyUrl
+            ? [...MANDATORY_CONSENTS, ...OPTIONAL_CONSENTS].reduce<Record<string, boolean>>(
+                (acc, c) => ({ ...acc, [c.key]: !!consents[c.key] }),
+                {},
+              )
+            : undefined,
         }),
       });
 
@@ -670,42 +735,91 @@ export function OnboardingForm({
         )}
       </section>
 
-      {/* אישור מדיניות פרטיות — חובה בפורטל העובד */}
+      {/* אישורי פרטיות (נספח ג') — חובה בפורטל העובד */}
       {privacyUrl && (
-        <div
-          className={`rounded-xl border p-4 transition ${
-            privacyError && !privacyAccepted
+        <section
+          className={`rounded-xl border p-4 transition sm:p-6 ${
+            consentError && !allMandatoryAccepted
               ? "border-red-400 bg-red-50"
               : "border-slate-200 bg-white"
           }`}
         >
-          <label className="flex items-start gap-3 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              className="mt-0.5 h-5 w-5"
-              checked={privacyAccepted}
-              onChange={(e) => {
-                setPrivacyAccepted(e.target.checked);
-                if (e.target.checked) setPrivacyError(false);
-              }}
-            />
-            <span>
-              קראתי ואני מאשר/ת את{" "}
-              <a
-                href={privacyUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="font-semibold text-brand-700 underline"
-              >
-                מדיניות הפרטיות
-              </a>
-              , לרבות איסוף המידע, עיבודו, שמירתו והעברתו — לרבות אל מחוץ לישראל.
-            </span>
-          </label>
-          {privacyError && !privacyAccepted && (
+          <h2 className="mb-1 text-lg font-semibold text-slate-800">אישורי פרטיות</h2>
+          {/* הודעה תמציתית לפי סעיף 11 לחוק */}
+          <p className="mb-4 text-sm leading-6 text-slate-600">
+            לפני השלמת הקליטה יש לקרוא את{" "}
+            <a
+              href={privacyUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-brand-700 underline"
+            >
+              מדיניות הפרטיות וההודעה לפי סעיף 11
+            </a>{" "}
+            (גרסה {PRIVACY_POLICY_VERSION}). המידע ישמש לקליטה, לניהול יחסי העבודה, לשכר, מס,
+            ביטוח, פנסיה, בטיחות וקיום הדין. שדות המסומנים כחובה נדרשים לפי דין או לצורך השלמת
+            ההעסקה. עומדות לך זכות עיון וזכות לבקש תיקון. סימון האישורים אינו ויתור על זכויות.
+          </p>
+
+          {/* ג.1 — אישורי חובה */}
+          <p className="mb-2 text-sm font-semibold text-slate-700">
+            אישורי חובה לתיעוד יידוע וקליטה
+          </p>
+          <div className="space-y-2">
+            {MANDATORY_CONSENTS.map((c) => {
+              const missing = consentError && !consents[c.key];
+              return (
+                <label
+                  key={c.key}
+                  className={`flex items-start gap-3 rounded-lg border p-3 text-sm leading-6 transition ${
+                    missing ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-5 w-5 shrink-0"
+                    checked={!!consents[c.key]}
+                    onChange={(e) => toggleConsent(c.key, e.target.checked)}
+                  />
+                  <span className="text-slate-700">
+                    <span className="font-semibold text-slate-800">{c.label}</span> — {c.text}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+
+          {consentError && !allMandatoryAccepted && (
             <p className="mt-2 text-sm font-semibold text-red-600">יש לאשר מדיניות פרטיות</p>
           )}
-        </div>
+
+          {/* ג.2 / ג.3 — הסכמות רשות, נפרדות ואינן חוסמות המשך */}
+          <p className="mb-2 mt-5 text-sm font-semibold text-slate-700">
+            הסכמות רשות (אופציונלי — אינן חובה להשלמת הקליטה)
+          </p>
+          <div className="space-y-2">
+            {OPTIONAL_CONSENTS.map((c) => (
+              <label
+                key={c.key}
+                className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm leading-6"
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-5 w-5 shrink-0"
+                  checked={!!consents[c.key]}
+                  onChange={(e) => toggleConsent(c.key, e.target.checked)}
+                />
+                <span className="text-slate-700">
+                  <span className="font-semibold text-slate-800">{c.label}</span> — {c.text}
+                </span>
+              </label>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-slate-400">
+            סירוב או ביטול הסכמת רשות לא יפגעו בשכר, בזכויות או בתנאי העבודה. אף אישור אינו ויתור
+            על זכויות קוגנטיות.
+          </p>
+        </section>
       )}
 
       {status === "error" && (

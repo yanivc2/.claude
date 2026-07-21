@@ -106,6 +106,9 @@ model Employee {
   availability   Json?
   hasActivePension Boolean        @default(false) // האם קיים הסדר פנסיוני פעיל
   privacyAcceptedAt DateTime? // מועד אישור מדיניות הפרטיות ע"י העובד
+  privacyPolicyVersion String? // גרסת המדיניות שאושרה (למשל "2.0")
+  privacyCompanyName   String? // שם החברה המעסיקה שתועדה במעמד ההסכמה
+  privacyConsents      Json? // מפת אישורים: { notice_read: true, biometric: false, ... }
   status         EmploymentStatus @default(ONBOARDING)
 
   // מנהל ישיר

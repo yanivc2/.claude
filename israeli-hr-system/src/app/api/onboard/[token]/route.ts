@@ -49,6 +49,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
   if (invite.monthlySalary != null) data.monthlySalary = invite.monthlySalary;
   if (invite.hourlySalary != null) data.hourlySalary = invite.hourlySalary;
 
+  // שם החברה המעסיקה נקבע בצד השרת מתוך ההזמנה (מקור אמת לתיעוד ההסכמה).
+  if (invite.companyName) data.privacyCompanyName = invite.companyName;
+
   try {
     const employeeId = await createEmployeeFromOnboarding(data);
 
