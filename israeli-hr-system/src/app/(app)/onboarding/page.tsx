@@ -1,6 +1,8 @@
 import { OnboardingForm } from "@/components/OnboardingForm";
 import { InviteGenerator } from "@/components/InviteGenerator";
 
+export const metadata = { title: "קליטת עובד" };
+
 export default function OnboardingPage() {
   return (
     <div>

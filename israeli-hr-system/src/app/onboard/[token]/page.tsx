@@ -3,6 +3,16 @@ import { OnboardingForm } from "@/components/OnboardingForm";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const invite = await prisma.onboardingInvite
+    .findUnique({ where: { token }, select: { companyName: true } })
+    .catch(() => null);
+  // כותרת מוחלטת (ללא שם המערכת) — זה עמוד ציבורי לעובד.
+  const title = invite?.companyName ? `${invite.companyName} — טופס קליטה` : "טופס קליטה לעובד";
+  return { title: { absolute: title } };
+}
+
 // פורטל קליטה ציבורי: העובד נכנס דרך קישור ההזמנה, ממלא, מעלה מסמכים וחותם.
 // אין כאן סרגל צד של HR — העמוד יושב מחוץ לקבוצת הנתיבים (app).
 export default async function OnboardPage({

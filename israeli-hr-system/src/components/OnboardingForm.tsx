@@ -107,6 +107,36 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+// פותח חלון הדפסה עם סרגל עליון (הדפסה/סגירה) שאינו מודפס, וסגירה אוטומטית
+// לאחר ההדפסה — כדי שהמשתמש תמיד יוכל לצאת מהמסמך.
+function printDocument(title: string, bodyHtml: string) {
+  const w = window.open("", "_blank");
+  if (!w) {
+    alert("החלון נחסם. אנא אפשר/י חלונות קופצים ונסה/י שוב.");
+    return;
+  }
+  w.document.write(
+    `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8" />` +
+      `<title>${escapeHtml(title)}</title>` +
+      `<style>body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;line-height:1.5}` +
+      `.page{margin:24px}h1{font-size:20px}h2{font-size:15px;margin-top:24px}` +
+      `.meta{font-size:13px;color:#475569}.sig{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:12px}` +
+      `table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}` +
+      `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}` +
+      `.bar{position:sticky;top:0;display:flex;gap:8px;justify-content:flex-end;background:#0f172a;padding:10px 14px}` +
+      `.bar button{border:0;border-radius:6px;padding:6px 14px;font-size:14px;cursor:pointer}` +
+      `.b-print{background:#2563eb;color:#fff}.b-close{background:#e2e8f0;color:#0f172a}` +
+      `@media print{.bar{display:none}.page{margin:0}}</style></head><body>` +
+      `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה</button>` +
+      `<button class="b-close" onclick="window.close()">✕ סגירה</button></div>` +
+      `<div class="page">${bodyHtml}</div>` +
+      `<script>window.onafterprint=function(){window.close()};` +
+      `window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>` +
+      `</body></html>`,
+  );
+  w.document.close();
+}
+
 export function OnboardingForm({
   endpoint = "/api/onboarding",
   defaults,
@@ -195,12 +225,8 @@ export function OnboardingForm({
   // המשתמש יכול לבחור "שמירה כ-PDF" מתוך חלון ההדפסה של הדפדפן.
   function printSignedAgreement() {
     if (!agreement) return;
-    const w = window.open("", "_blank");
-    if (!w) {
-      alert("החלון נחסם. אנא אפשר/י חלונות קופצים ונסה/י שוב.");
-      return;
-    }
-    const name = escapeHtml(`${form.firstName} ${form.lastName}`.trim() || "—");
+    const rawName = `${form.firstName} ${form.lastName}`.trim() || "—";
+    const name = escapeHtml(rawName);
     const nid = escapeHtml(form.nationalId || "—");
     const date = new Date().toLocaleDateString("he-IL");
     const isPdf = (agreement.mimeType ?? "").includes("pdf");
@@ -211,30 +237,18 @@ export function OnboardingForm({
       ? `<img src="${contractSignature}" style="height:110px" alt="חתימה" />`
       : "<p>ללא חתימה</p>";
 
-    w.document.write(
-      `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8" />` +
-        `<title>הסכם עבודה חתום — ${name}</title>` +
-        `<style>body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:24px;line-height:1.5}` +
-        `h1{font-size:20px}h2{font-size:15px;margin-top:24px}.meta{font-size:13px;color:#475569}` +
-        `.sig{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:12px}</style></head><body>` +
-        `<h1>הסכם עבודה</h1>` +
+    printDocument(
+      `הסכם עבודה חתום — ${rawName}`,
+      `<h1>הסכם עבודה</h1>` +
         `<p class="meta">עובד/ת: <strong>${name}</strong> · ת.ז: ${nid} · תאריך: ${date}</p>` +
         `<h2>ההסכם:</h2>${agreementHtml}` +
         `<div class="sig"><p>חתימת העובד/ת (מאשר/ת את תנאי ההסכם):</p>${sigHtml}` +
-        `<p class="meta">נחתם בתאריך ${date}</p></div>` +
-        `<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>` +
-        `</body></html>`,
+        `<p class="meta">נחתם בתאריך ${date}</p></div>`,
     );
-    w.document.close();
   }
 
   // מפיק מסמך טופס 101 להדפסה/שמירה: כל השדות + החתימה על טופס 101.
   function printForm101() {
-    const w = window.open("", "_blank");
-    if (!w) {
-      alert("החלון נחסם. אנא אפשר/י חלונות קופצים ונסה/י שוב.");
-      return;
-    }
     const g = (v: string) => escapeHtml(v || "—");
     const yesNo = (b: boolean) => (b ? "כן" : "לא");
     const fullName = g(`${form.firstName} ${form.lastName}`.trim());
@@ -263,22 +277,13 @@ export function OnboardingForm({
       )
       .join("");
 
-    w.document.write(
-      `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8" />` +
-        `<title>טופס 101 — ${fullName}</title>` +
-        `<style>body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:24px;line-height:1.5}` +
-        `h1{font-size:20px}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}` +
-        `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}` +
-        `.sig{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:12px}.meta{font-size:13px;color:#475569}</style>` +
-        `</head><body>` +
-        `<h1>טופס 101 — כרטיס עובד לצורכי מס</h1>` +
+    printDocument(
+      `טופס 101 — ${`${form.firstName} ${form.lastName}`.trim() || ""}`,
+      `<h1>טופס 101 — כרטיס עובד לצורכי מס</h1>` +
         `<p class="meta">תאריך: ${date}</p>` +
         `<table>${tableRows}</table>` +
-        `<div class="sig"><p>חתימת העובד/ת:</p>${sig}<p class="meta">נחתם בתאריך ${date}</p></div>` +
-        `<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>` +
-        `</body></html>`,
+        `<div class="sig"><p>חתימת העובד/ת:</p>${sig}<p class="meta">נחתם בתאריך ${date}</p></div>`,
     );
-    w.document.close();
   }
 
   if (status === "done") {

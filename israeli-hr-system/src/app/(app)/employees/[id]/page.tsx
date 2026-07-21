@@ -6,6 +6,14 @@ import { formatAvailability } from "@/lib/availability";
 
 export const dynamic = "force-dynamic";
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const emp = await prisma.employee
+    .findUnique({ where: { id }, select: { firstName: true, lastName: true } })
+    .catch(() => null);
+  return { title: emp ? `${emp.firstName} ${emp.lastName}` : "תיק עובד" };
+}
+
 const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });
 const fmt = (d: Date | null | undefined) => (d ? dateFmt.format(d) : "—");
 const yesNo = (b: boolean) => (b ? "כן" : "לא");

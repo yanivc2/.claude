@@ -1,5 +1,7 @@
 import { ChatConsultation } from "@/components/ChatConsultation";
 
+export const metadata = { title: "התייעצות חוקים וזכויות" };
+
 export default function ConsultationPage() {
   return (
     <div>
