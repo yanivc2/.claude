@@ -115,6 +115,20 @@ export function Sidebar() {
               </Link>
             );
           })}
+
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
+            className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-base font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+          >
+            <span className="text-lg" aria-hidden>
+              🚪
+            </span>
+            <span>יציאה</span>
+          </button>
         </nav>
       </aside>
     </>
