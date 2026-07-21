@@ -10,7 +10,9 @@
 - Styling: {{STYLING_SOLUTION}}
 - Backend: {{BACKEND}}
 - Database: {{DATABASE}}
-- Test runner: {{TEST_RUNNER}}
+- Test runner: {{TEST_RUNNER}} (component tests: {{COMPONENT_TEST_LIB}})
+- Logger: {{LOGGER}}
+- Error tracking: {{ERROR_TRACKER}}
 - Node version: {{NODE_VERSION}}
 - Package manager: {{PACKAGE_MANAGER}}
 
