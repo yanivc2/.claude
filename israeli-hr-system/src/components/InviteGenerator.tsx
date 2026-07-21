@@ -76,18 +76,34 @@ const mailHref = (url: string, email?: string | null) =>
     inviteMessage(url),
   )}`;
 
+// שיתוף הזמנה בוואטסאפ. במובייל מעדיפים את Web Share API — הוא פותח את גיליון
+// השיתוף המקורי של המכשיר, שם בוחרים וואטסאפ ואז איש קשר, עם הטקסט מוכן מראש.
+// אם ה-API אינו זמין (דסקטופ) — נופלים חזרה לקישור wa.me הקלאסי.
+async function shareInvite(url: string) {
+  const text = inviteMessage(url);
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ text });
+      return;
+    } catch (err) {
+      // ביטול ע"י המשתמש — לא עושים כלום; שגיאה אחרת — נופלים לקישור וואטסאפ.
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    }
+  }
+  window.open(waHref(url), "_blank", "noopener,noreferrer");
+}
+
 // כפתורי שליחה ישירה לוואטסאפ ולמייל.
 function ShareButtons({ url, email }: { url: string; email?: string | null }) {
   return (
     <>
-      <a
-        href={waHref(url)}
-        target="_blank"
-        rel="noreferrer"
+      <button
+        type="button"
+        onClick={() => shareInvite(url)}
         className="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
       >
         📱 וואטסאפ
-      </a>
+      </button>
       <a
         href={mailHref(url, email)}
         className="shrink-0 rounded-lg bg-slate-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
