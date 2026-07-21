@@ -22,6 +22,48 @@ const dateFmt = new Intl.DateTimeFormat("he-IL", {
   year: "numeric",
 });
 
+// סעיף נימוק בטופס: כותרת (רובריקה) + פירוט חופשי אופציונלי.
+export interface ReasonItem {
+  title: string;
+  detail?: string;
+}
+
+function esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// כותרת עליונה עם שם החברה (אם סופק).
+function companyHeader(companyName?: string | null): string {
+  return companyName
+    ? `<p style="text-align:center;font-weight:700;font-size:18px;margin-bottom:4px">${esc(
+        companyName,
+      )}</p>`
+    : "";
+}
+
+// רינדור רשימת הנימוקים שנבחרו + מלל חופשי נוסף.
+function renderReasons(reasons: ReasonItem[] | undefined, notes?: string): string {
+  let html = "";
+  if (reasons && reasons.length) {
+    html +=
+      "<ul>" +
+      reasons
+        .map(
+          (r) =>
+            `<li><strong>${esc(r.title)}</strong>${
+              r.detail && r.detail.trim() ? `: ${esc(r.detail.trim())}` : ""
+            }</li>`,
+        )
+        .join("") +
+      "</ul>";
+  }
+  if (notes && notes.trim()) html += `<p>${esc(notes.trim())}</p>`;
+  return html || "—";
+}
+
 function wrapDocument(title: string, body: string): string {
   return `<!doctype html>
 <html lang="he" dir="rtl">
@@ -44,7 +86,9 @@ ${body}
 export interface HearingInvitationInput {
   employee: EmployeeInfo;
   hearingDate: Date;
-  reason: string;
+  reasons?: ReasonItem[];
+  notes?: string;
+  companyName?: string | null;
   location?: string;
 }
 
@@ -52,11 +96,12 @@ export function generateHearingInvitation(input: HearingInvitationInput): {
   title: string;
   html: string;
 } {
-  const { employee, hearingDate, reason, location } = input;
+  const { employee, hearingDate, reasons, notes, companyName, location } = input;
   const fullName = `${employee.firstName} ${employee.lastName}`;
   const title = "הזמנה לשימוע";
 
   const body = `
+  ${companyHeader(companyName)}
   <h1>הזמנה לשימוע לפני סיום העסקה</h1>
   <p class="meta">תאריך: ${dateFmt.format(new Date())}</p>
   <p>לכבוד ${fullName}, ת.ז. ${employee.nationalId}${
@@ -66,7 +111,8 @@ export function generateHearingInvitation(input: HearingInvitationInput): {
   <p>הרינו להזמינך לשימוע שבמסגרתו תינתן לך הזדמנות להשמיע את טענותיך בטרם תתקבל
   החלטה בעניין המשך העסקתך.</p>
 
-  <p><strong>הנימוקים לשקילת סיום ההעסקה:</strong><br/>${reason}</p>
+  <p><strong>הנימוקים לשקילת סיום ההעסקה:</strong></p>
+  ${renderReasons(reasons, notes)}
 
   <p><strong>מועד השימוע:</strong> ${dateFmt.format(hearingDate)}${
     location ? `<br/><strong>מקום:</strong> ${location}` : ""
@@ -84,7 +130,9 @@ export function generateHearingInvitation(input: HearingInvitationInput): {
 
 export interface TerminationLetterInput {
   employee: EmployeeInfo;
-  reason: string;
+  reasons?: ReasonItem[];
+  notes?: string;
+  companyName?: string | null;
   noticeStartDate?: Date; // מועד תחילת ההודעה המוקדמת (ברירת מחדל: היום)
 }
 
@@ -94,7 +142,7 @@ export function generateTerminationLetter(input: TerminationLetterInput): {
   noticeDays: number;
   lastWorkingDay: Date;
 } {
-  const { employee, reason } = input;
+  const { employee, reasons, notes, companyName } = input;
   const noticeStart = input.noticeStartDate ?? new Date();
   const fullName = `${employee.firstName} ${employee.lastName}`;
   const title = "מכתב סיום העסקה";
@@ -104,6 +152,7 @@ export function generateTerminationLetter(input: TerminationLetterInput): {
   const lastDay = lastWorkingDay(noticeStart, notice.noticeDays);
 
   const body = `
+  ${companyHeader(companyName)}
   <h1>הודעה על סיום העסקה</h1>
   <p class="meta">תאריך: ${dateFmt.format(new Date())}</p>
   <p>לכבוד ${fullName}, ת.ז. ${employee.nationalId},</p>
@@ -111,7 +160,8 @@ export function generateTerminationLetter(input: TerminationLetterInput): {
   <p>בהמשך לשימוע שנערך בעניינך ולאחר שקילת טענותיך, הרינו להודיעך על סיום
   העסקתך בחברה.</p>
 
-  <p><strong>נימוקי ההחלטה:</strong><br/>${reason}</p>
+  <p><strong>נימוקי ההחלטה:</strong></p>
+  ${renderReasons(reasons, notes)}
 
   <p><strong>תקופת הודעה מוקדמת:</strong> ${notice.noticeDays} ימים.<br/>
   <em>${notice.explanation}</em></p>

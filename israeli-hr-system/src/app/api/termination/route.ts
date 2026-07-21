@@ -4,14 +4,29 @@ import { prisma } from "@/lib/prisma";
 import {
   generateHearingInvitation,
   generateTerminationLetter,
+  type ReasonItem,
 } from "@/lib/documentGenerator";
 
 const schema = z.object({
   employeeId: z.string(),
   docType: z.enum(["HEARING_INVITATION", "TERMINATION_LETTER"]),
-  reason: z.string().min(1),
+  // רובריקות נבחרות + פירוט אופציונלי לכל אחת
+  reasons: z
+    .array(z.object({ title: z.string().min(1), detail: z.string().optional().default("") }))
+    .optional()
+    .default([]),
+  // מלל חופשי נוסף
+  notes: z.string().optional().default(""),
+  companyName: z.string().optional().nullable(),
   hearingDate: z.string().nullable().optional(),
 });
+
+// מרכיב סיכום טקסטואלי של הנימוקים לשמירה במסד.
+function reasonSummary(reasons: ReasonItem[], notes: string): string {
+  const parts = reasons.map((r) => (r.detail ? `${r.title}: ${r.detail}` : r.title));
+  if (notes.trim()) parts.push(notes.trim());
+  return parts.join(" · ") || "—";
+}
 
 // POST /api/termination — הפקת מסמכי סיום העסקה עם חישוב הודעה מוקדמת.
 export async function POST(req: Request) {
@@ -19,7 +34,11 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "נתונים שגויים" }, { status: 400 });
   }
-  const { employeeId, docType, reason, hearingDate } = parsed.data;
+  const { employeeId, docType, reasons, notes, companyName, hearingDate } = parsed.data;
+
+  if (reasons.length === 0 && !notes.trim()) {
+    return NextResponse.json({ error: "יש לבחור נימוק אחד לפחות או להוסיף מלל." }, { status: 400 });
+  }
 
   const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
   if (!employee) {
@@ -34,12 +53,15 @@ export async function POST(req: Request) {
     department: employee.department,
     startDate: employee.startDate,
   };
+  const summary = reasonSummary(reasons, notes);
 
   if (docType === "HEARING_INVITATION") {
     const { title, html } = generateHearingInvitation({
       employee: employeeInfo,
       hearingDate: hearingDate ? new Date(hearingDate) : new Date(),
-      reason,
+      reasons,
+      notes,
+      companyName,
     });
 
     await prisma.terminationDocument.create({
@@ -47,7 +69,7 @@ export async function POST(req: Request) {
         employeeId,
         type: "HEARING_INVITATION",
         content: html,
-        reason,
+        reason: summary,
         hearingDate: hearingDate ? new Date(hearingDate) : null,
       },
     });
@@ -58,7 +80,9 @@ export async function POST(req: Request) {
   // מכתב סיום העסקה — כולל חישוב אוטומטי של ההודעה המוקדמת ומעבר לתקופת הודעה.
   const { title, html, noticeDays, lastWorkingDay } = generateTerminationLetter({
     employee: employeeInfo,
-    reason,
+    reasons,
+    notes,
+    companyName,
   });
 
   await prisma.$transaction([
@@ -67,7 +91,7 @@ export async function POST(req: Request) {
         employeeId,
         type: "TERMINATION_LETTER",
         content: html,
-        reason,
+        reason: summary,
         noticeDays,
         lastWorkingDay,
       },

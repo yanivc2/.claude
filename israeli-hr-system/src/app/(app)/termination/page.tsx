@@ -9,6 +9,7 @@ export default async function TerminationPage() {
     .findMany({
       where: { status: { in: ["ACTIVE", "NOTICE_PERIOD"] } },
       orderBy: { lastName: "asc" },
+      include: { onboardingInvite: { select: { companyName: true } } },
     })
     .catch(() => []);
 
@@ -16,6 +17,7 @@ export default async function TerminationPage() {
     id: e.id,
     name: `${e.firstName} ${e.lastName}`,
     startDate: e.startDate.toISOString(),
+    companyName: e.onboardingInvite?.companyName ?? "",
   }));
 
   return (
