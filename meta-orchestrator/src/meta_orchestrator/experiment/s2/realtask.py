@@ -125,11 +125,24 @@ def apply_patch(ctx: RealTaskContext, edits: dict[str, list]) -> None:
 
 
 def reset_allowed_to_buggy(ctx: RealTaskContext) -> None:
-    """Restore the allowed source files to the buggy pre-image (used before applying a round's patch
-    so edits never stack, and to grade an unpatched/failed round honestly)."""
+    """Restore the allowed source files to the buggy pre-image (used before opening Round 2 and after
+    any terminal-failure round so a prior round's patch never leaks into the next round's grading or a
+    post-loop hidden verify — DEFECT-6 fix)."""
     for path in ctx.allowed_source_files:
         with open(os.path.join(ctx.repo, path), "w", encoding="utf-8") as fh:
             fh.write(ctx.buggy_source[path])
+
+
+def assert_allowed_source_is_buggy(ctx: RealTaskContext) -> None:
+    """Verify (by exact content) that every allowed source file on disk equals the frozen buggy
+    pre-image. Called right after ``reset_allowed_to_buggy`` so a partial/failed reset is caught
+    fail-closed rather than silently leaving a stale patched file for the hidden verify."""
+    for path in ctx.allowed_source_files:
+        with open(os.path.join(ctx.repo, path), "r", encoding="utf-8") as fh:
+            on_disk = fh.read()
+        if on_disk != ctx.buggy_source[path]:
+            raise ValueError(f"reset_allowed_to_buggy did not restore {path!r} to the buggy pre-image "
+                             f"(working tree still carries a prior round's edit) — fail-closed")
 
 
 def run_public_tests(ctx: RealTaskContext) -> PublicResult:

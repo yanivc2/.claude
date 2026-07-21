@@ -105,11 +105,16 @@ def run_real_task_canary(
     public_statuses: list[str] = []
     round1_status: Optional[str] = None
     round2_opened = False
-    candidates = []
+    final_candidate = None                               # candidate lesson of the FINAL valid+applied round
     feedback: Optional[str] = None
     classifications: list[Optional[str]] = []
     patch_statuses: list[Optional[str]] = []
-    patch_applied = False                                # hidden verify runs ONLY if this is True
+    # DEFECT-6 fix: this reflects whether the LAST EXECUTED round produced a valid+applied patch — NOT
+    # a sticky "some earlier round applied" flag. If R2 opens and then terminally fails, the final round
+    # failed, so hidden verify + write-gate must NOT run on R1's stale patch (there is no silent
+    # fallback to R1). The working tree is reset to the frozen buggy pre-image on every terminal-failure
+    # round and before R2, so a prior round's edit can never leak into grading or the hidden verify.
+    patch_applied = False
 
     for round_index in (1, 2):
         if round_index == 2:
@@ -118,6 +123,14 @@ def run_real_task_canary(
             if round1_status != "FAIL":
                 break
             round2_opened = True
+            # DEFECT-6: R2 is now the FINAL round. Reset the working tree to the frozen buggy pre-image
+            # so R1's applied patch never leaks into R2 grading or a post-loop hidden verify, and mark
+            # the (as-yet-unproduced) final patch as not applied. R2's patch is authored against the
+            # buggy pre-image anyway, so this reset is consistent with the apply model.
+            RT.reset_allowed_to_buggy(ctx)
+            RT.assert_allowed_source_is_buggy(ctx)       # fail-closed if the reset did not restore
+            patch_applied = False
+            final_candidate = None
         view = RoundView(round_index=round_index, task_id=ctx.task_id, task_family=bound_family,
                          source=dict(ctx.buggy_source), public_tests={},
                          memory_lines=list(memory_lines or []), public_feedback=feedback)
@@ -134,12 +147,18 @@ def run_real_task_canary(
                            hidden_count=0)
         classifications.append(out.classification)
 
-        # FAIL-CLOSED (Decision A + defect-3): only a COMPLETE + VALID reply is applied and graded.
-        # Truncated / malformed / refusal → TERMINAL solver failure: no apply, no public grading,
-        # no R2, no hidden verify, no write-gate, no bank mutation, no auto-retry.
+        # FAIL-CLOSED (Decision A + defect-3 + defect-6): only a COMPLETE + VALID reply is applied and
+        # graded. Truncated / malformed / refusal → TERMINAL solver failure of THIS round. If this is
+        # the FINAL round (R1, or R2 after a public FAIL), the attempt fails: no hidden verify, no
+        # write-gate, no bank mutation. The working tree is reset to buggy so no prior round's patch
+        # can be verified as a silent fallback.
         if not is_official_pass_eligible(out.classification):
             outcome = (SOLVER_FAIL_TRUNCATED if out.classification == TRUNCATED_OUTPUT
                        else f"SOLVER_FAIL_{out.classification}")
+            RT.reset_allowed_to_buggy(ctx)               # defect-6: no stale R1 patch on disk
+            RT.assert_allowed_source_is_buggy(ctx)
+            patch_applied = False
+            final_candidate = None
             patch_statuses.append(None)
             public_statuses.append(outcome)
             if round_index == 1:
@@ -153,13 +172,20 @@ def run_real_task_canary(
             patch_applied = True
             patch_statuses.append("APPLIED")
         except (PatchFormatError, ValueError) as exc:    # solver failure — NOT a transport ambiguity
+            RT.reset_allowed_to_buggy(ctx)               # defect-6: a partial write must not survive
+            RT.assert_allowed_source_is_buggy(ctx)
+            patch_applied = False
+            final_candidate = None
             patch_statuses.append(getattr(exc, "code", "PATCH_APPLY_FAILED"))
             public_statuses.append("SOLVER_FAIL_PATCH_APPLY")
             if round_index == 1:
                 round1_status = "SOLVER_FAIL_PATCH_APPLY"
             break
-        if is_train and grant.condition == "C" and out.candidate_lesson is not None:
-            candidates.append(out.candidate_lesson)
+        # the candidate of THIS (valid+applied) round supersedes any earlier round's — only the FINAL
+        # valid+applied round's lesson is write-gate eligible (defect-6: R1's lesson is discarded once
+        # R2 opens; a failed final round leaves no candidate).
+        final_candidate = (out.candidate_lesson
+                           if is_train and grant.condition == "C" else None)
         pub = RT.run_public_tests(ctx)                   # repo-backed, unshare -rn, 4-state
         public_statuses.append(pub.status)
         if round_index == 1:
@@ -168,8 +194,9 @@ def run_real_task_canary(
             break
         feedback = pub.sanitized_summary[:max_public_feedback_cap]
 
-    # (2) hidden verify runs ONCE, and ONLY when a valid patch was actually applied (defect-3): a
-    # hidden verdict on unchanged/buggy source is not a signal about the model's solution.
+    # (2) hidden verify runs ONCE, and ONLY when the FINAL executed round produced a valid+applied
+    # patch (defect-3 + defect-6): a hidden verdict on unchanged/buggy source — or on a PRIOR round's
+    # patch after the final round failed — is not a signal about the model's solution.
     if patch_applied:
         hidden_verdict = RT.hidden_verify(ctx)           # verdict never fed back to the model
         hidden_count = 1
@@ -188,17 +215,18 @@ def run_real_task_canary(
         corpus_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
             os.path.dirname(os.path.abspath(__file__)))))), "corpus")
         forbidden = load_frozen_forbidden_tokens(corpus_dir).for_task(ctx.task_id)
+    # ONLY the final valid+applied round's candidate is eligible (defect-6). If the final round failed
+    # terminally, patch_applied is False and final_candidate is None → no write, no bank mutation.
     written = []
-    if patch_applied:
-        for cand in candidates:
-            # DEFECT-5: the AUTHORITATIVE task family (frozen map), never the candidate's self-label —
-            # the write-gate's own check #6 (candidate.task_family == task_family) is only meaningful
-            # when ``task_family`` is the independent, authoritative binding.
-            res = evaluate_write_gate(cand, is_train=is_train, verifier_passed=hidden_verdict,
-                                      task_family=bound_family, existing=written,
-                                      forbidden_values=forbidden)
-            if res.written:
-                written.append(cand)
+    if patch_applied and final_candidate is not None:
+        # DEFECT-5: the AUTHORITATIVE task family (frozen map), never the candidate's self-label —
+        # the write-gate's own check #6 (candidate.task_family == task_family) is only meaningful
+        # when ``task_family`` is the independent, authoritative binding.
+        res = evaluate_write_gate(final_candidate, is_train=is_train, verifier_passed=hidden_verdict,
+                                  task_family=bound_family, existing=written,
+                                  forbidden_values=forbidden)
+        if res.written:
+            written.append(final_candidate)
     task_trace.append(WRITE_GATE)
     bank_after = f"bank+{len(written)}" if written else bank_before
 

@@ -170,3 +170,65 @@ def test_no_double_reservation_single_task_hold(tmp_path, monkeypatch):
     ledger = json.load(open(tmp_path / "canary" / "ledger.json"))
     assert len(ledger["entries"]) == 1                 # one task-level reservation for 2 calls
     assert ledger["entries"][0]["call_id"] == "task:black-112"
+
+
+# --- DEFECT-6: R2 is the FINAL round; an R2 terminal failure ⇒ FAILED, no hidden, no write, reset ---
+BUGGY = "def driver():\n    return 0\n"
+# a train-VALID reply (LESSON-first, ### END) that PARSES cleanly but whose SEARCH text is absent from
+# the buggy source → apply raises PatchFormatError (PATCH_SEARCH_NOT_FOUND) at the apply stage.
+BAD_APPLY = ('### LESSON\n{"recommended_action": ["generalize"], "avoid": ["rewrites"]}\n'
+             "### PATCH\n### FILE: " + ALLOWED[0] +
+             "\n<<<<<<< SEARCH\n    totally_absent_line_xyz\n=======\n    return 2\n>>>>>>> REPLACE\n### END")
+
+
+def _on_disk(tmp_path):
+    return (tmp_path / "repo" / ALLOWED[0]).read_text()
+
+
+def test_defect6_r2_malformed_after_r1_applied_is_failed(tmp_path, monkeypatch):
+    # R1 valid+applied → public FAIL → R2 opens → R2 MALFORMED (terminal). No hidden on R1's stale
+    # patch, no write-gate, bank unchanged, working tree reset to the buggy pre-image.
+    rep = _run(tmp_path, monkeypatch, responses=[(FIX, 50, 30), ("no patch here\n### END", 40, 20)],
+               public_seq=["FAIL"], hidden=True)   # hidden would return True IF (wrongly) called
+    assert rep["round2_opened"] is True and rep["calls_sent"] == 2
+    assert rep["round_classifications"] == ["VALID_COMPLETE_OUTPUT", "MALFORMED_OUTPUT"]
+    assert rep["public_statuses"] == ["FAIL", "SOLVER_FAIL_MALFORMED_OUTPUT"]
+    assert rep["patch_applied"] is False and rep["hidden_verify_count"] == 0
+    assert rep["hidden_verdict"] is None                       # NOT the stale R1 PASS
+    assert rep["write_gate_written"] == 0 and rep["bank_hash_after"] == rep["bank_hash_before"]
+    assert "HIDDEN_VERIFY" not in rep["task_trace"]
+    assert _on_disk(tmp_path) == BUGGY                         # R1 patch reverted (final != R1)
+    assert rep["grant_completed"] is True
+
+
+def test_defect6_r2_truncated_after_r1_applied_is_failed(tmp_path, monkeypatch):
+    rep = _run(tmp_path, monkeypatch, responses=[(FIX, 50, 30), (FIX, 8000, 4096, "max_tokens")],
+               public_seq=["FAIL"], hidden=True)
+    assert rep["round_classifications"] == ["VALID_COMPLETE_OUTPUT", "TRUNCATED_OUTPUT"]
+    assert rep["public_statuses"] == ["FAIL", "SOLVER_FAIL_TRUNCATED"]
+    assert rep["patch_applied"] is False and rep["hidden_verify_count"] == 0
+    assert rep["hidden_verdict"] is None
+    assert rep["write_gate_written"] == 0 and rep["bank_hash_after"] == rep["bank_hash_before"]
+    assert _on_disk(tmp_path) == BUGGY
+
+
+def test_defect6_r2_apply_failure_after_r1_applied_is_failed(tmp_path, monkeypatch):
+    # R2 parses (VALID_COMPLETE) but its SEARCH does not match → apply fails → terminal.
+    rep = _run(tmp_path, monkeypatch, responses=[(FIX, 50, 30), (BAD_APPLY, 60, 40)],
+               public_seq=["FAIL"], hidden=True)
+    assert rep["round2_opened"] is True
+    assert rep["public_statuses"][-1] == "SOLVER_FAIL_PATCH_APPLY"
+    assert rep["patch_applied"] is False and rep["hidden_verify_count"] == 0
+    assert rep["hidden_verdict"] is None
+    assert rep["write_gate_written"] == 0 and rep["bank_hash_after"] == rep["bank_hash_before"]
+    assert _on_disk(tmp_path) == BUGGY                         # both R1 and the failed R2 reverted
+
+
+def test_defect6_r2_valid_verifies_once_on_r2_patch(tmp_path, monkeypatch):
+    # positive control: R1 FAIL → R2 valid+applied → hidden runs EXACTLY once, on R2's patch (the
+    # working tree was reset before R2, so the final patch is R2's, not a stale R1 artifact).
+    rep = _run(tmp_path, monkeypatch, responses=[(FIX, 50, 30), (FIX, 60, 40)],
+               public_seq=["FAIL", "PASS"], hidden=True)
+    assert rep["round2_opened"] is True and rep["hidden_verify_count"] == 1
+    assert rep["patch_applied"] is True and rep["hidden_verdict"] is True
+    assert _on_disk(tmp_path) == "def driver():\n    return 1\n"   # R2's applied patch is the final
