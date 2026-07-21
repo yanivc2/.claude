@@ -31,6 +31,7 @@ from .call_journal import BudgetLedger, CallJournal, classify_journal_terminal
 from .execution_grant import GrantUsageLedger
 from .families import TaskFamilyBindingError, assert_task_family_valid
 from .live_solver import ModelBackedRoundSolver
+from .memory import assert_no_condition_label
 from .patch_format import PatchFormatError
 from .pricing import PricingArtifact
 from .response_classification import (SOLVER_FAIL_TRUNCATED, TRUNCATED_OUTPUT,
@@ -76,6 +77,13 @@ def run_real_task_canary(
         raise TaskFamilyBindingError(
             f"grant task_family {grant_family!r} != frozen context family {bound_family!r} for "
             f"{ctx.task_id} — grant/task metadata mismatch (blocked before reservation)")
+
+    # (0b) NO-CONDITION-LABEL GUARD on the R1 memory payload — parallel to the family binding above,
+    # BEFORE any reservation. The paid path accepts ONLY the label-free render_memory_payload slot; a
+    # tagged render_lines payload (@@MEM kind=…) would announce the condition. Fail-closed here → no
+    # reservation, no model call, no grant consumption, no curriculum advancement. (R2 is assembled
+    # from the model's reply inside the solver and is guarded again there before consume/send.)
+    assert_no_condition_label(*(memory_lines or []), where=f"R1 memory payload ({ctx.task_id})")
 
     budget = BudgetLedger(os.path.join(work_dir, "ledger.json"), total_budget=fold_budget_usd)
     journal = CallJournal(os.path.join(work_dir, "journal.jsonl"))

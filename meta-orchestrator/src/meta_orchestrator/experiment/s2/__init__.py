@@ -10,8 +10,9 @@ from .gate import GateDecision, StabilitySignals, continue_decision
 from .harness import (FoldRun, Outcome, OutcomesSealedError, RealRunBlocked, S2Harness,
                       SealedOutcomes)
 from .lifecycle import Learner, MockLearner, learn_bank
-from .memory import (CONDITIONS, FrozenLessonBank, MemoryContext, MemoryFrozenError,
-                     OccupancyParity, PlaceboRouter, StaticPlaybook, occupancy_parity,
+from .memory import (CONDITIONS, CONDITION_LABEL_SENTINELS, ConditionLabelLeak, FrozenLessonBank,
+                     MemoryContext, MemoryFrozenError, OccupancyParity, PlaceboRouter, StaticPlaybook,
+                     assert_no_condition_label, find_condition_label_leak, occupancy_parity,
                      parse_mem_tag, render_lines, resolve_memory)
 from .mocks import LessonSensitiveMock
 from .contract_s2 import (RunPolicy, anthropic_request_kwargs, frozen_s2_contract, s2_run_policy,
@@ -82,9 +83,10 @@ __all__ = [
     "GateDecision", "StabilitySignals", "continue_decision",
     "FoldRun", "Outcome", "OutcomesSealedError", "RealRunBlocked", "S2Harness", "SealedOutcomes",
     "Learner", "MockLearner", "learn_bank",
-    "CONDITIONS", "FrozenLessonBank", "MemoryContext", "MemoryFrozenError", "OccupancyParity",
-    "PlaceboRouter", "StaticPlaybook", "occupancy_parity", "parse_mem_tag", "render_lines",
-    "resolve_memory",
+    "CONDITIONS", "CONDITION_LABEL_SENTINELS", "ConditionLabelLeak", "FrozenLessonBank",
+    "MemoryContext", "MemoryFrozenError", "OccupancyParity", "PlaceboRouter", "StaticPlaybook",
+    "assert_no_condition_label", "find_condition_label_leak", "occupancy_parity", "parse_mem_tag",
+    "render_lines", "resolve_memory",
     "LessonSensitiveMock",
     "RunPolicy", "anthropic_request_kwargs", "frozen_s2_contract", "s2_run_policy",
     "S2_EXACT_MODEL_ID", "S2_MAX_TOKENS", "S2_THINKING_BUDGET_TOKENS",

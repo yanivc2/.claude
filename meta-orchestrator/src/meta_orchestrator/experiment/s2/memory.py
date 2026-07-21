@@ -24,6 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..lesson import Lesson
 from .families import SEMANTIC_FAMILIES
+from .gate_error import GateError
 
 CONDITIONS = ["A", "C", "D", "B1"]
 
@@ -38,6 +39,53 @@ KIND_NONE = "none"
 KIND_FAMILY_RELEVANT = "family_relevant"    # C
 KIND_OTHER_FAMILY = "other_family"          # B1
 KIND_STATIC_PLAYBOOK = "static_playbook"    # D
+
+# --- no-condition-label guard (apparatus safety net for the paid path) -----------------------------
+# The memory slot is the ONLY thing that varies across A/C/D/B1, so the model must NEVER be able to
+# read WHICH condition it is in. `render_lines` emits an `@@MEM kind=… family=…` header — a machine
+# tag for routing test-doubles + audits, NOT for real models: `kind=family_relevant` (C),
+# `kind=other_family` (B1) and `kind=static_playbook` (D) would literally announce the condition /
+# the placebo target. Only the label-free `prompt.render_memory_payload` is a legal paid-path input.
+#
+# This guard is deliberately NARROW + deterministic: it matches ONLY the exact frozen sentinels the
+# renderer / test-harness emit — derived from the constants above so the two can never drift. It does
+# NOT do free-text semantic search, so ordinary task prose or code containing generic words like
+# "family", "relevant", "memory" or "other" is never flagged.
+MEM_TAG_SENTINEL = "@@MEM"
+CONDITION_LABEL_SENTINELS = (
+    MEM_TAG_SENTINEL,                          # the memory header prefix (also carries family=…)
+    f"kind={KIND_FAMILY_RELEVANT}",            # C
+    f"kind={KIND_OTHER_FAMILY}",               # B1
+    f"kind={KIND_STATIC_PLAYBOOK}",            # D
+)
+
+
+class ConditionLabelLeak(GateError):
+    """A frozen condition-label sentinel reached a request bound for a real model — fail-closed."""
+
+
+def find_condition_label_leak(text: str) -> Optional[str]:
+    """Return the first frozen condition-label sentinel present in ``text`` (else None). Narrow +
+    deterministic — only the exact machine sentinels a memory render / test-harness emits."""
+    for s in CONDITION_LABEL_SENTINELS:
+        if s in (text or ""):
+            return s
+    return None
+
+
+def assert_no_condition_label(*texts: str, where: str = "request") -> None:
+    """Fail-closed (``ConditionLabelLeak``) if ANY of ``texts`` carries a frozen condition-label
+    sentinel. Call on the ASSEMBLED prompt and on the SERIALIZED outbound body, BEFORE any budget
+    reservation / grant consume / messages.create — a leak means: no reservation, no send, no grant
+    consumption, no curriculum advancement (an APPARATUS failure, like the family binding)."""
+    for t in texts:
+        hit = find_condition_label_leak(t)
+        if hit is not None:
+            raise ConditionLabelLeak(
+                f"CONDITION_LABEL_LEAK: frozen condition-label sentinel {hit!r} present in {where} — "
+                f"blocked before send (only render_memory_payload, the label-free slot, is a legal "
+                f"paid-path memory input; render_lines is a test/debug affordance and must not reach "
+                f"a real model)")
 
 
 class MemoryFrozenError(RuntimeError):
@@ -205,10 +253,14 @@ def resolve_memory(
 
 
 def render_lines(mc: MemoryContext) -> list[str]:
-    """Render the memory slot to the fixed injected format. Empty for the no-memory baseline.
+    """Render the memory slot WITH the machine ``@@MEM kind=… family=…`` header. Empty for the
+    no-memory baseline.
 
-    The tag line is machine-readable so a routing test-double (and audits) can verify WHICH
-    family's content actually arrived — without changing the shape across C/B1/D.
+    TEST / DEBUG / AUDIT AFFORDANCE ONLY — the header is a routing hook so a test-double (and
+    occupancy audits) can verify WHICH family's content arrived. It carries the condition label and
+    therefore MUST NOT reach a real model: the paid path uses the label-free
+    ``prompt.render_memory_payload`` instead, and ``assert_no_condition_label`` fail-closes any
+    request that still carries one of these sentinels.
     """
     # Option B (frozen policy): an EMPTY memory slot injects NOTHING — no @@MEM tag, no placeholder —
     # uniformly across C/D/B1. So C with an empty relevant-family bank == A at the memory-block level

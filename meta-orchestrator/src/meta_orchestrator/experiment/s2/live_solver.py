@@ -25,6 +25,7 @@ from .call_journal import (BUDGET_RESERVED, CALL_ACKNOWLEDGED, CALL_AMBIGUOUS_AF
 from .canary_prompt import build_r1_user_prompt, build_r2_messages
 from .endpoint import EndpointAttestation, assert_endpoint_approved
 from .gates import CallContext, assert_call_allowed
+from .memory import assert_no_condition_label
 from .b1_selector import REAL_SOURCE
 from .pricing import PricingArtifact, call_cost_usd, max_call_cost_usd
 from .response_classification import classify_response
@@ -72,7 +73,20 @@ class ModelBackedRoundSolver:
 
         client = c["client"]
         kwargs = client.build_request_messages(messages)
-        outbound_hash = _sha(json.dumps(kwargs, sort_keys=True))
+        outbound_body = json.dumps(kwargs, sort_keys=True)
+
+        # NO-CONDITION-LABEL GUARD (fail-closed, task-agnostic) — runs for BOTH R1 and R2, on the
+        # assembled message contents AND the fully-serialized outbound body, BEFORE assert_call_allowed
+        # / grant consume / send. A frozen condition-label sentinel (@@MEM / kind=family_relevant /
+        # kind=other_family / kind=static_playbook) would tell the model its condition or the placebo
+        # target — a direct confound. Only render_memory_payload (label-free) is a legal memory input;
+        # render_lines (tagged) must never reach here. Checking the serialized body too catches a leak
+        # introduced by serialization even when the assembled prompt looked clean.
+        assert_no_condition_label(*[str(m.get("content", "")) for m in messages], outbound_body,
+                                  str(kwargs.get("system") or ""),
+                                  where=f"R{view.round_index} request (fold {c['fold']} {c['condition']})")
+
+        outbound_hash = _sha(outbound_body)
         canonical_hash = _sha(json.dumps({"model": kwargs["model"], "system": kwargs.get("system"),
                                           "messages": messages, "thinking": kwargs.get("thinking")},
                                          sort_keys=True))
