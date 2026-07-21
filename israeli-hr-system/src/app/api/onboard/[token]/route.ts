@@ -4,6 +4,7 @@ import {
   onboardingSchema,
   createEmployeeFromOnboarding,
   onboardingErrorMessage,
+  onboardingValidationMessage,
 } from "@/lib/onboarding";
 
 // POST /api/onboard/[token] — הגשת קליטה ע"י העובד עצמו דרך קישור ההזמנה.
@@ -23,8 +24,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
 
   const parsed = onboardingSchema.safeParse(await req.json());
   if (!parsed.success) {
+    const flat = parsed.error.flatten();
     return NextResponse.json(
-      { error: "נתונים שגויים", details: parsed.error.flatten() },
+      { error: onboardingValidationMessage(flat.fieldErrors), details: flat },
       { status: 400 },
     );
   }

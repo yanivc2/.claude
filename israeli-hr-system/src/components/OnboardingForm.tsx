@@ -270,10 +270,12 @@ export function OnboardingForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          numberOfChildren: Number(form.numberOfChildren),
+          // הקשחה: שדות מספריים ריקים לא יישלחו כ-NaN (שנפסל בוולידציה).
+          email: form.email.trim(),
+          numberOfChildren: Number(form.numberOfChildren) || 0,
           monthlySalary: form.monthlySalary ? Number(form.monthlySalary) : null,
           hourlySalary: form.hourlySalary ? Number(form.hourlySalary) : null,
-          taxYear: Number(form.taxYear),
+          taxYear: Number(form.taxYear) || new Date().getFullYear(),
           idAttachment,
           contractSignature,
           form101Signature,
