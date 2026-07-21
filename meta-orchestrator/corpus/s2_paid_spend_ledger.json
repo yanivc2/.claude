@@ -1,7 +1,7 @@
 {
-  "content_hash": "47dc547aee20dfc2",
+  "content_hash": "5656bb3ab1c068d3",
   "diagnostic_apparatus_spend_usd": "0.212025",
-  "note": "diagnostic $0.212025 ($0.052343 prior + black-215 DEFECT_6 $0.069458 + black-385 CALL_AMBIGUOUS_AFTER_SEND UPPER-BOUND $0.090224 UNVERIFIED). historical official $0.023641. FINAL-SEQUENCE official (v2.2) unchanged at $0.546914 (black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 F, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 S+b, black-193 $0.038139 S+b, black-215(re-run) $0.035082 S+b, black-224 $0.036710 S+b, black-232 $0.080660 F, black-238 $0.040705 S, black-273 $0.090424 F, black-334 $0.018992 F, black-335 $0.041383 F). black-385's first send was a transport-ambiguous hold (NOT an official attempt); its R1 upper bound is booked diagnostic-only, official position 13 pending re-run. lifetime budget-accounted $0.758939.",
-  "official_training_spend_usd": "0.546914",
+  "note": "diagnostic $0.212025 ($0.052343 prior + black-215 DEFECT_6 $0.069458 + black-385 CALL_AMBIGUOUS_AFTER_SEND upper-bound $0.090224 UNVERIFIED). historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 F, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 S+b, black-193 $0.038139 S+b, black-215(re-run) $0.035082 S+b, black-224 $0.036710 S+b, black-232 $0.080660 F, black-238 $0.040705 S, black-273 $0.090424 F, black-334 $0.018992 F, black-335 $0.041383 F, black-385(re-run) $0.040994 F (non-memory; public PASS but hidden F2P FAIL; superficial patch; write-gate verifier_failed; NO bank change). official_training_spend $0.587908; lifetime budget-accounted $0.799933.",
+  "official_training_spend_usd": "0.587908",
   "schema_version": "s2-paid-spend-v1"
 }
