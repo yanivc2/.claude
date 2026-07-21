@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 
+export const metadata = { title: "לוח בקרה" };
+
 // לוח בקרה ראשי — סקירה מהירה של שלושת המודולים.
 export default async function DashboardPage() {
   const [activeEmployees, onboarding, dueSurveys, duePension, latestUpdate] = await Promise.all([

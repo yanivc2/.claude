@@ -78,17 +78,26 @@ export function EmployeeExport({ data }: { data: ExportData }) {
     w.document.write(
       `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8" />` +
         `<title>תיק עובד — ${escapeHtml(data.fullName)}</title>` +
-        `<style>body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:24px;line-height:1.5}` +
-        `h1{font-size:22px}h2{font-size:15px;margin-top:24px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}` +
+        `<style>body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:0;line-height:1.5}` +
+        `.page{margin:24px}h1{font-size:22px}h2{font-size:15px;margin-top:24px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}` +
         `table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}` +
-        `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}.meta{font-size:13px;color:#475569}</style>` +
+        `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}.meta{font-size:13px;color:#475569}` +
+        `.bar{position:sticky;top:0;display:flex;gap:8px;justify-content:flex-end;background:#0f172a;padding:10px 14px}` +
+        `.bar button{border:0;border-radius:6px;padding:6px 14px;font-size:14px;cursor:pointer}` +
+        `.b-print{background:#2563eb;color:#fff}.b-close{background:#e2e8f0;color:#0f172a}` +
+        `@media print{.bar{display:none}.page{margin:0}}</style>` +
         `</head><body>` +
+        `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה</button>` +
+        `<button class="b-close" onclick="window.close()">✕ סגירה</button></div>` +
+        `<div class="page">` +
         `<h1>תיק עובד — ${escapeHtml(data.fullName)}</h1>` +
         `<p class="meta">הופק בתאריך ${date}</p>` +
         sectionsHtml +
         sigsHtml +
         docsHtml +
-        `<script>window.onload=function(){setTimeout(function(){window.print()},500)}<\/script>` +
+        `</div>` +
+        `<script>window.onafterprint=function(){window.close()};` +
+        `window.onload=function(){setTimeout(function(){window.print()},600)}<\/script>` +
         `</body></html>`,
     );
     w.document.close();

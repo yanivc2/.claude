@@ -39,6 +39,7 @@ enum EmploymentStatus {
   ONBOARDING // בתהליך קליטה
   ACTIVE // מועסק
   NOTICE_PERIOD // בתקופת הודעה מוקדמת
+  INACTIVE // לא פעיל
   TERMINATED // סיום העסקה
 }
 

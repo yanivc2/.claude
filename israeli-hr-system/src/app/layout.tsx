@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "מערכת ניהול משאבי אנוש",
+  // תבנית כותרת: כותרת העמוד מתווספת לשם המערכת בכותרת הטאב בדפדפן.
+  title: {
+    default: "מערכת ניהול משאבי אנוש",
+    template: "%s · מערכת משאבי אנוש",
+  },
   description: "מערכת HR לשוק הישראלי — עדכוני חקיקה, התייעצות, וקליטה ושימור עובדים",
 };
 

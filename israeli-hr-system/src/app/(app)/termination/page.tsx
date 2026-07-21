@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { TerminationForm } from "@/components/TerminationForm";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "סיום העסקה" };
 
 export default async function TerminationPage() {
   const employees = await prisma.employee

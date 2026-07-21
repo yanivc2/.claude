@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { LegalUpdatesFeed } from "@/components/LegalUpdatesFeed";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "עדכוני חקיקה" };
 
 export default function LegalUpdatesPage() {
   return (

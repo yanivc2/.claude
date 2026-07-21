@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { SurveyMilestone, SurveyStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "שימור עובדים" };
 
 // שמות ה-enum נשמרו, אך המרווחים בפועל הם 3/15/30 ימים.
 const MILESTONE_LABELS: Record<SurveyMilestone, string> = {
