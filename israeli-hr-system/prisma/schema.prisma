@@ -56,8 +56,11 @@ model Employee {
   startDate      DateTime // מועד תחילת עבודה — בסיס לחישוב הודעה מוקדמת
   endDate        DateTime?
   jobTitle       String?
-  department     String?
+  department     String? // לא בשימוש בטופס (נשמר לתאימות)
   monthlySalary  Int? // שכר חודשי (בש"ח)
+  hourlySalary   Int? // שכר שעתי (בש"ח)
+  // זמינות לפי ימים ומשמרות: { "sun": ["morning","night"], ... }
+  availability   Json?
   hasActivePension Boolean        @default(false) // האם קיים הסדר פנסיוני פעיל
   status         EmploymentStatus @default(ONBOARDING)
 
@@ -168,6 +171,7 @@ model OnboardingInvite {
   firstName   String? // מילוי מוקדם אופציונלי ע"י HR
   lastName    String?
   email       String?
+  companyName String? // שם החברה — מוצג ככותרת בפורטל הקליטה של העובד
   status      InviteStatus @default(PENDING)
 
   // הסכם עבודה שה-HR מצרף לשליחה לעובד (העובד מקבל, קורא וחותם).

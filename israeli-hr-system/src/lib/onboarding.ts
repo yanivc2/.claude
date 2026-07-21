@@ -27,6 +27,9 @@ export const onboardingSchema = z.object({
   jobTitle: z.string().optional().default(""),
   department: z.string().optional().default(""),
   monthlySalary: z.number().nullable(),
+  hourlySalary: z.number().nullable().optional(),
+  // זמינות: מפתח-יום → רשימת מפתחות-משמרת
+  availability: z.record(z.array(z.string())).optional().nullable(),
   hasActivePension: z.boolean().optional().default(false),
   // טופס 101
   taxYear: z.number(),
@@ -65,6 +68,9 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
         jobTitle: data.jobTitle || null,
         department: data.department || null,
         monthlySalary: data.monthlySalary,
+        hourlySalary: data.hourlySalary ?? null,
+        availability:
+          data.availability && Object.keys(data.availability).length ? data.availability : undefined,
         hasActivePension: data.hasActivePension,
         status: "ACTIVE",
       },

@@ -35,7 +35,9 @@ export default async function OnboardPage({
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">טופס קליטה לעובד</h1>
+        <h1 className="text-2xl font-bold text-slate-800">
+          {invite.companyName ? `${invite.companyName} — טופס קליטה` : "טופס קליטה לעובד"}
+        </h1>
         <p className="mt-1 text-sm text-slate-500">
           ברוך/ה הבא/ה! אנא מלא/י את הפרטים, העלה/י צילום ספח ת.ז וחתום/מי על טופס 101 ועל
           הסכם העבודה. בסיום, הפרטים יישלחו ישירות למעסיק.

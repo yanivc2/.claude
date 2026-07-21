@@ -72,6 +72,7 @@ export function InviteGenerator() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [contractFile, setContractFile] = useState<File | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -117,7 +118,7 @@ export function InviteGenerator() {
       const res = await fetch("/api/onboarding/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, contract }),
+        body: JSON.stringify({ firstName, lastName, email, companyName, contract }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "שגיאה ביצירת הקישור");
@@ -142,7 +143,16 @@ export function InviteGenerator() {
         הטופס, יעלה ת.ז ויחתום — והפרטים יישמרו כאן אוטומטית.
       </p>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="mt-4">
+        <input
+          className={inputClass}
+          placeholder="שם החברה (יופיע ככותרת לעובד בקישור)"
+          value={companyName}
+          onChange={(e) => setCompanyName(e.target.value)}
+        />
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <input
           className={inputClass}
           placeholder="שם פרטי (אופציונלי)"

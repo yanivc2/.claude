@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SignaturePad } from "./SignaturePad";
+import { AVAILABILITY_DAYS, AVAILABILITY_SHIFTS } from "@/lib/availability";
 
 // ─────────────────────────────────────────────────────────────────────────
 // טופס קליטת עובד: כולל טופס 101 דיגיטלי, העלאת ספח ת.ז, וחתימה דיגיטלית
@@ -20,8 +21,9 @@ interface FormState {
   // פרטי העסקה
   startDate: string;
   jobTitle: string;
-  department: string;
   monthlySalary: string;
+  hourlySalary: string;
+  availability: Record<string, string[]>; // מפתח-יום → רשימת מפתחות-משמרת
   hasActivePension: boolean;
   // טופס 101
   taxYear: string;
@@ -42,8 +44,9 @@ const EMPTY: FormState = {
   birthDate: "",
   startDate: "",
   jobTitle: "",
-  department: "",
   monthlySalary: "",
+  hourlySalary: "",
+  availability: {},
   hasActivePension: false,
   taxYear: String(new Date().getFullYear()),
   maritalStatus: "רווק/ה",
@@ -120,6 +123,18 @@ export function OnboardingForm({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  // סימון/ביטול משמרת ליום מסוים בזמינות.
+  const toggleShift = (dayKey: string, shiftKey: string) =>
+    setForm((f) => {
+      const current = f.availability[dayKey] ?? [];
+      const next = current.includes(shiftKey)
+        ? current.filter((s) => s !== shiftKey)
+        : [...current, shiftKey];
+      const availability = { ...f.availability, [dayKey]: next };
+      if (next.length === 0) delete availability[dayKey];
+      return { ...f, availability };
+    });
+
   async function fileToDataUrl(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -152,6 +167,7 @@ export function OnboardingForm({
           ...form,
           numberOfChildren: Number(form.numberOfChildren),
           monthlySalary: form.monthlySalary ? Number(form.monthlySalary) : null,
+          hourlySalary: form.hourlySalary ? Number(form.hourlySalary) : null,
           taxYear: Number(form.taxYear),
           idAttachment,
           contractSignature,
@@ -383,13 +399,6 @@ export function OnboardingForm({
               onChange={(e) => set("jobTitle", e.target.value)}
             />
           </Field>
-          <Field label="מחלקה">
-            <input
-              className={inputClass}
-              value={form.department}
-              onChange={(e) => set("department", e.target.value)}
-            />
-          </Field>
           <Field label="שכר חודשי (₪)">
             <input
               className={inputClass}
@@ -399,6 +408,54 @@ export function OnboardingForm({
               onChange={(e) => set("monthlySalary", e.target.value)}
             />
           </Field>
+          <Field label="שכר שעתי (₪)">
+            <input
+              className={inputClass}
+              type="number"
+              inputMode="numeric"
+              value={form.hourlySalary}
+              onChange={(e) => set("hourlySalary", e.target.value)}
+            />
+          </Field>
+        </div>
+
+        {/* זמינות לפי ימים ומשמרות */}
+        <div className="mt-4">
+          <span className="mb-2 block text-sm font-medium text-slate-700">
+            זמינות לפי ימים ומשמרות
+          </span>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[24rem] border-collapse text-sm">
+              <thead>
+                <tr className="text-slate-500">
+                  <th className="p-2 text-start font-medium">יום</th>
+                  {AVAILABILITY_SHIFTS.map((s) => (
+                    <th key={s.key} className="p-2 text-center font-medium">
+                      {s.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {AVAILABILITY_DAYS.map((d) => (
+                  <tr key={d.key} className="border-t border-slate-100">
+                    <td className="p-2 text-slate-700">{d.label}</td>
+                    {AVAILABILITY_SHIFTS.map((s) => (
+                      <td key={s.key} className="p-2 text-center">
+                        <input
+                          type="checkbox"
+                          aria-label={`${d.label} ${s.label}`}
+                          checked={(form.availability[d.key] ?? []).includes(s.key)}
+                          onChange={() => toggleShift(d.key, s.key)}
+                          className="h-4 w-4"
+                        />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
         <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
           <input
