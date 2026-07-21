@@ -100,7 +100,7 @@ both are live when working inside this directory.
 Understanding these is essential before editing — they run automatically.
 
 - **`SessionStart`**
-  - **Project scaffolding:** if the cwd is a git repo *without* `.claude/settings.json`, it copies `templates/project/.claude/settings.json` and `.mcp.json` into it and announces it (Hebrew system message). This is how new projects get bootstrapped.
+  - **Project scaffolding:** if the cwd is a git repo *without* `.claude/settings.json`, it seeds the project from `templates/project/`: `.claude/settings.json` and `.mcp.json` are copied (overwriting), and `CLAUDE.md`, `SETUP.md`, `rules/`, and `.gitignore` are copied **only if absent** (never clobbering an existing file). It announces the result via a Hebrew system message. This is how new projects get bootstrapped.
   - **Environment nudges:** warns if `package.json` exists but `node_modules` is missing, or if `.env.example` exists but `.env` does not.
 - **`Stop`** (fires when Claude finishes a turn)
   - Plays `tada.wav` (audible completion chime).
@@ -150,7 +150,9 @@ downstream project that inherits this template. Each file opens with an
 **When editing the template:** keep the `{{PLACEHOLDER}}` tokens intact (they are
 substituted downstream — e.g. `{{STYLING_SOLUTION}}`, `{{TEST_RUNNER}}`,
 `{{BACKEND}}`, `{{DATABASE}}`, `{{LOGGER}}`, `{{ERROR_TRACKER}}`) and keep the
-`@../rules/...` import paths correct relative to `templates/project/CLAUDE.md`.
+`@./rules/...` import paths correct — they resolve relative to `CLAUDE.md`'s own
+directory, so `@./rules/` works both in `templates/project/` and once the file is
+copied to a project root (rules land at `<project>/rules/`).
 When you add a rule file, add its `@import` line to the template **and** list it here.
 
 ---

@@ -82,13 +82,13 @@ public/          — static assets
 
 ---
 
-@../rules/code-style.md
-@../rules/frontend.md
-@../rules/backend.md
-@../rules/testing.md
-@../rules/git-workflow.md
-@../rules/security.md
-@../rules/error-handling-and-observability.md
-@../rules/performance.md
-@../rules/documentation.md
-@../rules/prompt-engineering.md
+@./rules/code-style.md
+@./rules/frontend.md
+@./rules/backend.md
+@./rules/testing.md
+@./rules/git-workflow.md
+@./rules/security.md
+@./rules/error-handling-and-observability.md
+@./rules/performance.md
+@./rules/documentation.md
+@./rules/prompt-engineering.md
