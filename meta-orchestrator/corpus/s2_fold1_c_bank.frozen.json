@@ -1,5 +1,5 @@
 {
-  "bank_content_hash": "5821ddf0771e",
+  "bank_content_hash": "7d1c3c23d4d1",
   "by_family": {
     "other_logic": [
       {
@@ -19,6 +19,33 @@
           "When displaying file paths in user-facing output, use the full path not just the filename",
           "For Path objects, use str(src) to get full path, not src.name which returns only the filename",
           "Check diff/output functions that display file identifiers to ensure they show complete paths for clarity"
+        ],
+        "status": "candidate",
+        "task_family": "other_logic",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      },
+      {
+        "avoid": [
+          "Unconditionally adding trailing commas in all delimiter split scenarios",
+          "Failing to distinguish import statements from other code when applying comma rules",
+          "Assuming standard trailing comma rules apply uniformly across all statement types"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-185"
+          ]
+        },
+        "lesson_id": "cand-773d0aca18",
+        "recommended_action": [
+          "Avoid adding trailing commas in from...import statements even when delimiter_split encounters commas",
+          "Check if a line is an import statement before conditionally adding trailing commas",
+          "Exclude import statements from automatic trailing comma insertion logic"
         ],
         "status": "candidate",
         "task_family": "other_logic",
@@ -59,7 +86,7 @@
     ]
   },
   "condition": "C",
-  "content_hash": "4d4001085e21e5a7",
+  "content_hash": "6ea82db83fd0a146",
   "fold": 1,
   "note": "Frozen Fold-1 Condition-C lesson bank; family-indexed procedural lessons from final-sequence attempts. Injected as exact-family memory only.",
   "phase": "training",
@@ -78,6 +105,15 @@
         "raw_response_sha256": "822027180d09e6c40e2a4b1d18e3103a3d9197f92864f93dfa2cc197c3acf0af",
         "source_task": "black-130",
         "visible_text_sha256": "fd4f31b7fb15bc74bef41b0d3a297081dc8260452b30cfd773bd71025298af36"
+      },
+      {
+        "bank_hash_after": "7d1c3c23d4d1",
+        "bank_hash_before": "5821ddf0771e",
+        "family": "other_logic",
+        "lesson_id": "cand-773d0aca18",
+        "raw_response_sha256": "18b72dd047af95ba653ba650a2d8c870305ce602d3e4a6d4dff646037f268ffd",
+        "source_task": "black-185",
+        "visible_text_sha256": "e9aefff226740ac2b13d321020938ea11209379f10a499a3c9acd9c00682f0f3"
       }
     ]
   },

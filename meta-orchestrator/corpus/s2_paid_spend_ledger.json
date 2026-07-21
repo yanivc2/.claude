@@ -1,7 +1,7 @@
 {
-  "content_hash": "dcfe6b0fb0e9f46f",
+  "content_hash": "24b93d36d16215a8",
   "diagnostic_apparatus_spend_usd": "0.052343",
-  "note": "diagnostic $0.052343. historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028 SOLVED+banked, black-130 $0.029330 SOLVED+banked, black-132 $0.029049 FAILED, black-141 $0.032788 SOLVED+leak-rejected. official_training_spend $0.126836; lifetime $0.179179.",
-  "official_training_spend_usd": "0.126836",
+  "note": "diagnostic $0.052343. historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028 SOLVED+banked, black-130 $0.029330 SOLVED+banked, black-132 $0.029049 FAILED, black-141 $0.032788 SOLVED+leak-rejected, black-185 $0.037983 SOLVED+banked (FIRST memory-bearing; injected cand-5f96357fce; wrote cand-773d0aca18). official_training_spend $0.164819; lifetime $0.217162.",
+  "official_training_spend_usd": "0.164819",
   "schema_version": "s2-paid-spend-v1"
 }
