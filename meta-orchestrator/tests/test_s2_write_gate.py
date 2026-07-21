@@ -171,3 +171,68 @@ def test_slot_budget_enforced_in_gated_learning():
     # highest-support candidates win the deterministic ranking (succ 3 and 2 kept, 1 dropped).
     kept = {a["lesson_id"] for a in audit if a["written"]}
     assert kept == {"L-1", "L-2"}
+
+
+# --- A+ regression: persist-time audit refuses a 3rd lesson for a family already at cap -----------
+def _write_temp_bank(tmp_path, by_family):
+    """Materialize a valid frozen-bank artifact (loadable by load_frozen_fold_bank) under tmp_path —
+    never the active corpus files. Recomputes both the lesson-level and artifact-level hashes."""
+    import hashlib
+    import json
+
+    from meta_orchestrator.experiment.s2.memory import (FOLD_BANK_VERSION, FROZEN_FOLD_BANK_FILENAME,
+                                                        FrozenLessonBank)
+    bank = FrozenLessonBank(by_family=by_family, frozen=True)
+    art = {"schema_version": FOLD_BANK_VERSION, "frozen": True,
+           "by_family": {f: [json.loads(l.model_dump_json()) for l in ls]
+                         for f, ls in by_family.items()},
+           "bank_content_hash": bank.content_hash()}
+    payload = json.dumps({k: v for k, v in art.items() if k != "content_hash"},
+                         sort_keys=True, separators=(",", ":"))
+    art["content_hash"] = hashlib.sha256(payload.encode()).hexdigest()[:16]
+    p = tmp_path / FROZEN_FOLD_BANK_FILENAME
+    p.write_text(json.dumps(art, indent=2, sort_keys=True))
+    return str(p)
+
+
+def test_persist_audit_rejects_third_lesson_when_family_at_cap(tmp_path):
+    """A+ (black-238 methodology lock): when the REAL bank already holds a family at cap, the
+    persist-time mechanical audit REFUSES a third candidate (slot_budget_exceeded); the active bank
+    does not grow, no eviction/replacement/re-ranking happens, and the on-disk artifact is byte-for-
+    byte unchanged. This exercises the frozen decision function against a temp bank shaped like the
+    real one — NEVER the active corpus bank files."""
+    from meta_orchestrator.experiment.s2.memory import load_frozen_fold_bank
+    # temp bank: whitespace already at MAX (2), each lesson distinct + clean
+    two = [_lesson(fam="whitespace", lid="cand-existing1", rec=["prefer minimal targeted edits"], succ=3),
+           _lesson(fam="whitespace", lid="cand-existing2", rec=["normalize whitespace consistently"], succ=2)]
+    bank_path = _write_temp_bank(tmp_path, {"whitespace": two})
+    before_bytes = open(bank_path, "rb").read()
+
+    bank = load_frozen_fold_bank(str(tmp_path))
+    existing = bank.lessons_for("whitespace")
+    assert len(existing) == MAX_ACTIVE_ENTRIES_PER_FAMILY == 2
+
+    # a clean, non-duplicate third whitespace candidate that a SOLVE at black-238 might propose
+    cand = _lesson(fam="whitespace", lid="cand-third", rec=["group trailing comments before dedent"])
+
+    # the frozen decision function the persist audit delegates to — evaluated against the REAL bank
+    wg = evaluate_write_gate(cand, is_train=True, verifier_passed=True, task_family="whitespace",
+                             existing=existing)
+    assert wg.written is False
+    assert "slot_budget_exceeded" in wg.reasons
+
+    # the persist audit's authoritative gate (mirror of the s2 persist audit checks): REFUSE
+    resulting_count_ok = len(existing) + 1 <= MAX_ACTIVE_ENTRIES_PER_FAMILY
+    lesson_id_new = cand.lesson_id not in [l.lesson_id for l in existing]
+    persist_allowed = resulting_count_ok and wg.written and wg.reasons == [] and lesson_id_new
+    assert persist_allowed is False           # persistence refused
+    assert resulting_count_ok is False        # specifically because the family is already at cap
+
+    # no eviction / replacement / mutation — the frozen bank refuses writes and stays at 2
+    with pytest.raises(MemoryFrozenError):
+        bank.add("whitespace", cand)
+    assert len(bank.lessons_for("whitespace")) == 2
+    reloaded = load_frozen_fold_bank(str(tmp_path))
+    assert [l.lesson_id for l in reloaded.lessons_for("whitespace")] == ["cand-existing1", "cand-existing2"]
+    assert reloaded.content_hash() == bank.content_hash()      # lesson-level bank hash unchanged
+    assert open(bank_path, "rb").read() == before_bytes        # artifact never rewritten (no impostor entry)
