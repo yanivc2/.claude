@@ -11,8 +11,9 @@ export default function LoginPage() {
         <LoginForm />
         {usingDefaults && (
           <p className="mt-4 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
-            ⚠️ המערכת משתמשת בפרטי כניסה ברירת-מחדל (admin / admin). לאבטחה מלאה, יש להגדיר
-            ב-Vercel את המשתנים <b>AUTH_USERNAME</b>, <b>AUTH_PASSWORD</b> ו-<b>SESSION_SECRET</b>.
+            ⚠️ לאבטחה מלאה יש להגדיר ב-Vercel את המשתנה <b>SESSION_SECRET</b> (מחרוזת אקראית
+            ארוכה). אם עדיין לא הוגדרה סיסמה — הכניסה הראשונית היא <b>yanivc2 / admin</b>, ומומלץ
+            לשנות אותה מיד ב&ldquo;הגדרות&rdquo;.
           </p>
         )}
       </div>
