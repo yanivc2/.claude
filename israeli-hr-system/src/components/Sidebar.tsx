@@ -36,15 +36,14 @@ export function Sidebar() {
 
   return (
     <>
-      {/* סרגל עליון — מוצג בסלולר בלבד */}
-      <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4 md:hidden">
-        <span className="text-base font-bold text-brand-700">מערכת משאבי אנוש</span>
+      {/* סרגל עליון — מוצג בסלולר בלבד. כפתור ההמבורגר בצד ימין (RTL). */}
+      <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4 md:hidden">
         <button
           type="button"
           onClick={() => setOpen(true)}
           aria-label="פתיחת תפריט"
           aria-expanded={open}
-          className="rounded-lg p-2 text-slate-600 transition hover:bg-slate-100"
+          className="-mr-1 rounded-lg p-2 text-slate-600 transition hover:bg-slate-100"
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
             <path
@@ -55,6 +54,7 @@ export function Sidebar() {
             />
           </svg>
         </button>
+        <span className="text-base font-bold text-brand-700">מערכת משאבי אנוש</span>
       </header>
 
       {/* רקע כהה מאחורי המגירה — סלולר בלבד */}

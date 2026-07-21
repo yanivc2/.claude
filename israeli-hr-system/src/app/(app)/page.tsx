@@ -11,8 +11,8 @@ export default async function DashboardPage() {
   ]).catch(() => [0, 0, 0, null] as const);
 
   const cards = [
-    { label: "עובדים פעילים", value: activeEmployees, icon: "👥" },
     { label: "בתהליך קליטה", value: onboarding, icon: "📝" },
+    { label: "עובדים פעילים", value: activeEmployees, icon: "👥" },
     { label: "סקרים לביצוע", value: dueSurveys, icon: "🌱" },
   ];
 
@@ -23,7 +23,21 @@ export default async function DashboardPage() {
         <p className="mt-1 text-sm text-slate-500">סקירה כללית של פעילות משאבי האנוש</p>
       </header>
 
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {/* פעולה מהירה: קליטת עובד חדש */}
+        <Link
+          href="/onboarding"
+          className="flex flex-col justify-between rounded-xl border border-brand-200 bg-brand-50 p-6 transition hover:border-brand-300 hover:bg-brand-100"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-brand-700">קליטת עובד</span>
+            <span className="text-2xl" aria-hidden>
+              ➕
+            </span>
+          </div>
+          <p className="mt-2 text-lg font-bold text-brand-700">קליטת עובד חדש</p>
+        </Link>
+
         {cards.map((c) => (
           <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-6">
             <div className="flex items-center justify-between">
