@@ -22,10 +22,11 @@ _CORPUS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 def test_frozen_bank_loads_and_holds_the_banked_lessons():
     bank = load_frozen_fold_bank(_CORPUS)
     assert bank.frozen is True
-    assert bank.families_present() == ["iterator", "other_logic", "whitespace"]  # 3 families, 4 lessons
-    w = bank.lessons_for("whitespace")
-    assert len(w) == 1 and w[0].lesson_id == "cand-e04f0fb979"
+    assert bank.families_present() == ["iterator", "other_logic", "whitespace"]  # 3 families, 5 lessons
+    w = bank.lessons_for("whitespace")                                     # whitespace full (cap 2)
+    assert [l.lesson_id for l in w] == ["cand-e04f0fb979", "cand-23d8aeb211"]
     assert w[0].evidence.supporting_runs == ["fold1::black-112"]
+    assert w[1].evidence.supporting_runs == ["fold1::black-215"]           # memory-bearing re-run SOLVE
     o = bank.lessons_for("other_logic")                                    # other_logic full (cap 2)
     assert [l.lesson_id for l in o] == ["cand-5f96357fce", "cand-773d0aca18"]
     assert o[0].evidence.supporting_runs == ["fold1::black-130"]           # provenance stamp
@@ -38,7 +39,7 @@ def test_frozen_bank_loads_and_holds_the_banked_lessons():
 def test_bank_content_hash_is_bound():
     raw = json.load(open(os.path.join(_CORPUS, FROZEN_FOLD_BANK_FILENAME)))
     bank = load_frozen_fold_bank(_CORPUS)
-    assert bank.content_hash() == raw["bank_content_hash"] == "7d2f81359026"
+    assert bank.content_hash() == raw["bank_content_hash"] == "83325c77b97c"
 
 
 def test_tampered_bank_blocks(tmp_path):
@@ -52,7 +53,8 @@ def test_tampered_bank_blocks(tmp_path):
 def test_injection_is_exact_family():
     bank = load_frozen_fold_bank(_CORPUS)
     # a whitespace task gets ONLY the whitespace lesson; an other_logic task ONLY the other_logic one
-    assert resolve_memory("C", "whitespace", bank=bank).lesson_ids == ["cand-e04f0fb979"]
+    assert resolve_memory("C", "whitespace", bank=bank).lesson_ids == ["cand-e04f0fb979",
+                                                                       "cand-23d8aeb211"]
     assert resolve_memory("C", "other_logic", bank=bank).lesson_ids == ["cand-5f96357fce",
                                                                         "cand-773d0aca18"]
     # black-132 is parser_normalization → no banked lesson yet → empty (Option B → [])

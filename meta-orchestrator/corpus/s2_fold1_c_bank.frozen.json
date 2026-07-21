@@ -1,5 +1,5 @@
 {
-  "bank_content_hash": "7d2f81359026",
+  "bank_content_hash": "83325c77b97c",
   "by_family": {
     "iterator": [
       {
@@ -110,11 +110,38 @@
           "symptoms": []
         },
         "version": 1
+      },
+      {
+        "avoid": [
+          "Assuming all atoms with simple structure can have invisible parens without checking content type",
+          "Overlooking that string literals are atoms and may span multiple lines",
+          "Making parentheses invisible for atoms without validating the atom contains only simple expressions"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-215"
+          ]
+        },
+        "lesson_id": "cand-23d8aeb211",
+        "recommended_action": [
+          "When handling parentheses visibility in atoms, check for multiline string literals before making parens invisible",
+          "Multiline strings (those containing newlines) should retain their surrounding parentheses for proper formatting",
+          "Add explicit type/content checks before modifying structural elements that affect code readability"
+        ],
+        "status": "candidate",
+        "task_family": "whitespace",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
       }
     ]
   },
   "condition": "C",
-  "content_hash": "45482e253b0f33f8",
+  "content_hash": "2d9efda2a078b5af",
   "fold": 1,
   "note": "Frozen Fold-1 Condition-C lesson bank; family-indexed procedural lessons from final-sequence attempts. Injected as exact-family memory only.",
   "phase": "training",
@@ -151,6 +178,15 @@
         "raw_response_sha256": "f952f921dfd8dfba7bb8d8181bb2ceb0eccf1ba153908a17bef057524e8cd6d8",
         "source_task": "black-193",
         "visible_text_sha256": "af71bee2ebca3fbf854db51731b7ea15ffbd527d4463a264120135bdf6c56dbd"
+      },
+      {
+        "bank_hash_after": "83325c77b97c",
+        "bank_hash_before": "7d2f81359026",
+        "family": "whitespace",
+        "lesson_id": "cand-23d8aeb211",
+        "raw_response_sha256": "9b6e586eb016535863d07bae185ab883ff008bd52091791c326a7ae6ba26b66f",
+        "source_task": "black-215",
+        "visible_text_sha256": "c216e130b84afa1f8d7739d39844f3544a630534e4046b5e31b18de35f190686"
       }
     ]
   },
