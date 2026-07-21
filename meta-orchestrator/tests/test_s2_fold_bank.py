@@ -22,7 +22,7 @@ _CORPUS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 def test_frozen_bank_loads_and_holds_the_banked_lessons():
     bank = load_frozen_fold_bank(_CORPUS)
     assert bank.frozen is True
-    assert bank.families_present() == ["other_logic", "whitespace"]        # 2 families, 3 lessons
+    assert bank.families_present() == ["iterator", "other_logic", "whitespace"]  # 3 families, 4 lessons
     w = bank.lessons_for("whitespace")
     assert len(w) == 1 and w[0].lesson_id == "cand-e04f0fb979"
     assert w[0].evidence.supporting_runs == ["fold1::black-112"]
@@ -30,12 +30,15 @@ def test_frozen_bank_loads_and_holds_the_banked_lessons():
     assert [l.lesson_id for l in o] == ["cand-5f96357fce", "cand-773d0aca18"]
     assert o[0].evidence.supporting_runs == ["fold1::black-130"]           # provenance stamp
     assert o[1].evidence.supporting_runs == ["fold1::black-185"]           # memory-bearing SOLVE
+    it = bank.lessons_for("iterator")
+    assert [l.lesson_id for l in it] == ["cand-f0b1e78791"]                # black-193 SOLVE
+    assert it[0].evidence.supporting_runs == ["fold1::black-193"]
 
 
 def test_bank_content_hash_is_bound():
     raw = json.load(open(os.path.join(_CORPUS, FROZEN_FOLD_BANK_FILENAME)))
     bank = load_frozen_fold_bank(_CORPUS)
-    assert bank.content_hash() == raw["bank_content_hash"] == "7d1c3c23d4d1"
+    assert bank.content_hash() == raw["bank_content_hash"] == "7d2f81359026"
 
 
 def test_tampered_bank_blocks(tmp_path):

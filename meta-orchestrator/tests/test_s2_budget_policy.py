@@ -40,12 +40,12 @@ def test_tampered_cap_breaks_the_hash_and_blocks(tmp_path):
 def test_frozen_paid_spend_ledger_loads_and_totals():
     from meta_orchestrator.experiment.s2.budget_policy import load_frozen_paid_spend
     led = load_frozen_paid_spend(_CORPUS)
-    # $0.052343 diagnostic + $0.164819 official ($0.023641 historical + final-sequence black-112
+    # $0.052343 diagnostic + $0.202958 official ($0.023641 historical + final-sequence black-112
     # $0.012028 + black-130 $0.029330 + black-132 $0.029049 FAILED + black-141 $0.032788 SOLVED-leak
-    # + black-185 $0.037983 SOLVED+banked, the first memory-bearing task)
-    assert led.total_paid_to_date() == Decimal("0.217162")
+    # + black-185 $0.037983 SOLVED+banked (first memory-bearing) + black-193 $0.038139 SOLVED+banked)
+    assert led.total_paid_to_date() == Decimal("0.255301")
     assert Decimal(led.diagnostic_apparatus_spend_usd) == Decimal("0.052343")
-    assert Decimal(led.official_training_spend_usd) == Decimal("0.164819")
+    assert Decimal(led.official_training_spend_usd) == Decimal("0.202958")
     assert led.content_hash == led.compute_hash()
 
 
@@ -67,7 +67,7 @@ def test_lifetime_spend_plus_worst_binds_global_cap():
     led = load_frozen_paid_spend(_CORPUS)
     projected = Decimal("45.99675")
     lifetime = led.total_paid_to_date() + projected
-    assert lifetime == Decimal("46.213912")
+    assert lifetime == Decimal("46.252051")
     assert lifetime <= Decimal("50.00")                        # fits the $50 lifetime cap
 
 

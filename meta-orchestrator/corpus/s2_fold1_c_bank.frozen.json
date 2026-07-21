@@ -1,6 +1,34 @@
 {
-  "bank_content_hash": "7d1c3c23d4d1",
+  "bank_content_hash": "7d2f81359026",
   "by_family": {
+    "iterator": [
+      {
+        "avoid": [
+          "Relying on variables only defined within try-except blocks when they may be needed outside",
+          "Using for-else with incomplete exception tracking across iterations"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-193"
+          ]
+        },
+        "lesson_id": "cand-f0b1e78791",
+        "recommended_action": [
+          "Check variable scope: when using a for-else construct with exception handling, ensure all variables referenced in the else clause or after are properly initialized",
+          "Ensure parser fallback logic handles all grammars correctly without leaving critical variables undefined",
+          "Verify that ParseError handling in a loop properly chains all exceptions so the final error message includes context"
+        ],
+        "status": "candidate",
+        "task_family": "iterator",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      }
+    ],
     "other_logic": [
       {
         "avoid": [
@@ -86,7 +114,7 @@
     ]
   },
   "condition": "C",
-  "content_hash": "6ea82db83fd0a146",
+  "content_hash": "45482e253b0f33f8",
   "fold": 1,
   "note": "Frozen Fold-1 Condition-C lesson bank; family-indexed procedural lessons from final-sequence attempts. Injected as exact-family memory only.",
   "phase": "training",
@@ -114,6 +142,15 @@
         "raw_response_sha256": "18b72dd047af95ba653ba650a2d8c870305ce602d3e4a6d4dff646037f268ffd",
         "source_task": "black-185",
         "visible_text_sha256": "e9aefff226740ac2b13d321020938ea11209379f10a499a3c9acd9c00682f0f3"
+      },
+      {
+        "bank_hash_after": "7d2f81359026",
+        "bank_hash_before": "7d1c3c23d4d1",
+        "family": "iterator",
+        "lesson_id": "cand-f0b1e78791",
+        "raw_response_sha256": "f952f921dfd8dfba7bb8d8181bb2ceb0eccf1ba153908a17bef057524e8cd6d8",
+        "source_task": "black-193",
+        "visible_text_sha256": "af71bee2ebca3fbf854db51731b7ea15ffbd527d4463a264120135bdf6c56dbd"
       }
     ]
   },
