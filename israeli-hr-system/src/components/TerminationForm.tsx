@@ -22,33 +22,38 @@ interface ReasonItem {
   detail: string;
 }
 
-// רובריקות מוכנות ללחיצה — נימוקים נפוצים לשימוע/סיום העסקה.
 const REASON_PRESETS = [
   "איחורים",
   "חוסר יעילות בזמן המשמרת",
   "אי הגעה למשמרת ללא אישור מנהל",
   "חשד לגניבה",
   "חוסר זמינות",
+  "חוסר שביעות רצון",
+  "חשד לצריכת אלכוהול בזמן משמרת",
 ];
 
-// טופס יצירת מסמכי סיום העסקה: הזמנה לשימוע ומכתב פיטורין.
-// ההודעה המוקדמת מחושבת אוטומטית לפי מועד תחילת העבודה של העובד.
+type DocType = "HEARING_INVITATION" | "TERMINATION_LETTER" | "TERMINATION_RESIGNATION";
+
 export function TerminationForm({ employees }: { employees: EmployeeOption[] }) {
   const [employeeId, setEmployeeId] = useState(employees[0]?.id ?? "");
   const [companyName, setCompanyName] = useState(employees[0]?.companyName ?? "");
-  const [docType, setDocType] = useState<"HEARING_INVITATION" | "TERMINATION_LETTER">(
-    "HEARING_INVITATION",
-  );
+  const [docType, setDocType] = useState<DocType>("HEARING_INVITATION");
+  const [gender, setGender] = useState<"male" | "female">("male");
+  const [signerName, setSignerName] = useState("");
+  const [signerTitle, setSignerTitle] = useState("מנכ\"ל");
   const [reasons, setReasons] = useState<ReasonItem[]>([]);
   const [notes, setNotes] = useState("");
   const [hearingDate, setHearingDate] = useState("");
+  const [hearingTime, setHearingTime] = useState("");
+  const [location, setLocation] = useState("");
+  const [participants, setParticipants] = useState("");
+  const [hearingAttended, setHearingAttended] = useState(false);
   const [doc, setDoc] = useState<GeneratedDoc | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   function onEmployeeChange(id: string) {
     setEmployeeId(id);
-    // מילוי אוטומטי של שם החברה מתוך הקישור שדרכו נקלט העובד (ניתן לעריכה).
     const emp = employees.find((e) => e.id === id);
     setCompanyName(emp?.companyName ?? "");
   }
@@ -62,6 +67,8 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
   function removeReason(index: number) {
     setReasons((prev) => prev.filter((_, i) => i !== index));
   }
+
+  const isHearing = docType === "HEARING_INVITATION";
 
   async function generate(e: React.FormEvent) {
     e.preventDefault();
@@ -80,9 +87,16 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
           employeeId,
           docType,
           companyName,
+          gender,
+          signerName,
+          signerTitle,
           reasons,
           notes,
           hearingDate: hearingDate || null,
+          hearingTime,
+          location,
+          participants,
+          hearingAttended,
         }),
       });
       const data = await res.json();
@@ -99,14 +113,12 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
       alert("החלון נחסם. אנא אפשר/י חלונות קופצים ונסה/י שוב.");
       return;
     }
-    // סרגל עליון גדול (הדפסה/סגירה) שאינו מודפס.
     const bar =
       `<div class="noprint" style="position:sticky;top:0;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;background:#0f172a;padding:20px">` +
       `<button onclick="window.print()" style="border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;background:#2563eb;color:#fff;cursor:pointer">🖨️ הדפסה / שמירה</button>` +
       `<button onclick="window.close()" style="border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;background:#ef4444;color:#fff;cursor:pointer">✕ סגירה</button>` +
       `</div><style>@media print{.noprint{display:none}}</style>`;
     w.document.write(html.replace("<body>", "<body>" + bar));
-    // סגירה אוטומטית אחרי ההדפסה כדי שניתן יהיה לצאת מהמסמך.
     w.document.write(
       `<script>window.onafterprint=function(){window.close()};` +
         `window.onload=function(){setTimeout(function(){window.print()},500)}<\/script>`,
@@ -120,20 +132,30 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
       <form onSubmit={generate} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">עובד</span>
-          <select
-            className={inputClass}
-            value={employeeId}
-            onChange={(e) => onEmployeeChange(e.target.value)}
-          >
-            {employees.map((emp) => (
-              <option key={emp.id} value={emp.id}>
-                {emp.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">עובד</span>
+            <select className={inputClass} value={employeeId} onChange={(e) => onEmployeeChange(e.target.value)}>
+              {employees.map((emp) => (
+                <option key={emp.id} value={emp.id}>
+                  {emp.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">מין (לניסוח)</span>
+            <select
+              className={inputClass}
+              value={gender}
+              onChange={(e) => setGender(e.target.value as "male" | "female")}
+            >
+              <option value="male">זכר</option>
+              <option value="female">נקבה</option>
+            </select>
+          </label>
+        </div>
 
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-slate-700">שם החברה</span>
@@ -147,34 +169,84 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
 
         <label className="block">
           <span className="mb-1 block text-sm font-medium text-slate-700">סוג מסמך</span>
-          <select
-            className={inputClass}
-            value={docType}
-            onChange={(e) => setDocType(e.target.value as typeof docType)}
-          >
-            <option value="HEARING_INVITATION">הזמנה לשימוע</option>
+          <select className={inputClass} value={docType} onChange={(e) => setDocType(e.target.value as DocType)}>
+            <option value="HEARING_INVITATION">הזמנה לשיחת שימוע</option>
             <option value="TERMINATION_LETTER">מכתב סיום העסקה / פיטורין</option>
+            <option value="TERMINATION_RESIGNATION">סיום העסקה כדין מתפטר/ת</option>
           </select>
         </label>
 
-        {docType === "HEARING_INVITATION" && (
-          <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">מועד השימוע</span>
-            <input
-              type="date"
-              className={inputClass}
-              value={hearingDate}
-              onChange={(e) => setHearingDate(e.target.value)}
-              required
-            />
-          </label>
+        {isHearing && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-slate-700">מועד השימוע</span>
+              <input
+                type="date"
+                className={inputClass}
+                value={hearingDate}
+                onChange={(e) => setHearingDate(e.target.value)}
+                required
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-sm font-medium text-slate-700">שעת השימוע</span>
+              <input
+                type="time"
+                className={inputClass}
+                value={hearingTime}
+                onChange={(e) => setHearingTime(e.target.value)}
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="mb-1 block text-sm font-medium text-slate-700">מקום השימוע</span>
+              <input
+                className={inputClass}
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="לדוגמה: סניף הגדוד העברי 52, ראשון לציון"
+              />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="mb-1 block text-sm font-medium text-slate-700">משתתפים בשימוע</span>
+              <input
+                className={inputClass}
+                value={participants}
+                onChange={(e) => setParticipants(e.target.value)}
+                placeholder="לדוגמה: הבעלים יניב כהן"
+              />
+            </label>
+          </div>
+        )}
+
+        {!isHearing && (
+          <div>
+            <span className="mb-1 block text-sm font-medium text-slate-700">התייצבות לשימוע</span>
+            <div className="flex flex-wrap gap-4 text-sm text-slate-700">
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="attended"
+                  checked={!hearingAttended}
+                  onChange={() => setHearingAttended(false)}
+                />
+                השימוע התקיים ללא נוכחות העובד
+              </label>
+              <label className="flex items-center gap-2">
+                <input
+                  type="radio"
+                  name="attended"
+                  checked={hearingAttended}
+                  onChange={() => setHearingAttended(true)}
+                />
+                העובד התייצב לשימוע
+              </label>
+            </div>
+          </div>
         )}
 
         {/* רובריקות נימוקים ללחיצה */}
         <div>
-          <span className="mb-1 block text-sm font-medium text-slate-700">
-            נימוקים — לחצ/י להוספה לטופס
-          </span>
+          <span className="mb-1 block text-sm font-medium text-slate-700">נימוקים — לחצ/י להוספה</span>
           <div className="flex flex-wrap gap-2">
             {REASON_PRESETS.map((title) => {
               const added = reasons.some((r) => r.title === title);
@@ -197,18 +269,13 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
           </div>
         </div>
 
-        {/* נימוקים שנוספו — עם פירוט אופציונלי */}
         {reasons.length > 0 && (
           <div className="space-y-2">
             {reasons.map((r, i) => (
               <div key={r.title} className="rounded-lg border border-slate-200 p-3">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-sm font-medium text-slate-800">{r.title}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeReason(i)}
-                    className="text-xs text-red-600 hover:underline"
-                  >
+                  <button type="button" onClick={() => removeReason(i)} className="text-xs text-red-600 hover:underline">
                     הסרה
                   </button>
                 </div>
@@ -216,7 +283,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
                   className={`${inputClass} min-h-16`}
                   value={r.detail}
                   onChange={(e) => setDetail(i, e.target.value)}
-                  placeholder="פירוט נוסף (אופציונלי) — לדוגמה תאריכים, מקרים ספציפיים"
+                  placeholder="פירוט נוסף (אופציונלי) — תאריכים, מקרים ספציפיים"
                 />
               </div>
             ))}
@@ -229,9 +296,25 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
             className={`${inputClass} min-h-20`}
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="הערות נוספות שיתווספו לטופס"
+            placeholder="פסקה נוספת שתתווסף לטופס"
           />
         </label>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">שם החותם</span>
+            <input
+              className={inputClass}
+              value={signerName}
+              onChange={(e) => setSignerName(e.target.value)}
+              placeholder="לדוגמה: יניב כהן"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700">תפקיד החותם</span>
+            <input className={inputClass} value={signerTitle} onChange={(e) => setSignerTitle(e.target.value)} />
+          </label>
+        </div>
 
         {error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
@@ -249,10 +332,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
           <div>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-semibold text-slate-800">{doc.title}</h3>
-              <button
-                onClick={() => printDoc(doc.html)}
-                className="text-sm text-brand-600 hover:underline"
-              >
+              <button onClick={() => printDoc(doc.html)} className="text-sm text-brand-600 hover:underline">
                 הדפסה / PDF
               </button>
             </div>
@@ -260,9 +340,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
               <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 הודעה מוקדמת מחושבת: <strong>{doc.noticeDays} ימים</strong>
                 {doc.lastWorkingDay &&
-                  ` · יום עבודה אחרון: ${new Intl.DateTimeFormat("he-IL").format(
-                    new Date(doc.lastWorkingDay),
-                  )}`}
+                  ` · יום עבודה אחרון: ${new Intl.DateTimeFormat("he-IL").format(new Date(doc.lastWorkingDay))}`}
               </p>
             )}
             <div

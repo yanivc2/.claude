@@ -9,19 +9,25 @@ import {
 
 const schema = z.object({
   employeeId: z.string(),
-  docType: z.enum(["HEARING_INVITATION", "TERMINATION_LETTER"]),
-  // רובריקות נבחרות + פירוט אופציונלי לכל אחת
+  docType: z.enum(["HEARING_INVITATION", "TERMINATION_LETTER", "TERMINATION_RESIGNATION"]),
   reasons: z
     .array(z.object({ title: z.string().min(1), detail: z.string().optional().default("") }))
     .optional()
     .default([]),
-  // מלל חופשי נוסף
   notes: z.string().optional().default(""),
   companyName: z.string().optional().nullable(),
+  signerName: z.string().optional().default(""),
+  signerTitle: z.string().optional().default(""),
+  gender: z.enum(["male", "female"]).optional().default("male"),
+  // הזמנה לשימוע
   hearingDate: z.string().nullable().optional(),
+  hearingTime: z.string().optional().default(""),
+  location: z.string().optional().default(""),
+  participants: z.string().optional().default(""),
+  // מכתב סיום
+  hearingAttended: z.boolean().optional().default(false),
 });
 
-// מרכיב סיכום טקסטואלי של הנימוקים לשמירה במסד.
 function reasonSummary(reasons: ReasonItem[], notes: string): string {
   const parts = reasons.map((r) => (r.detail ? `${r.title}: ${r.detail}` : r.title));
   if (notes.trim()) parts.push(notes.trim());
@@ -34,13 +40,13 @@ export async function POST(req: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "נתונים שגויים" }, { status: 400 });
   }
-  const { employeeId, docType, reasons, notes, companyName, hearingDate } = parsed.data;
+  const d = parsed.data;
 
-  if (reasons.length === 0 && !notes.trim()) {
+  if (d.reasons.length === 0 && !d.notes.trim()) {
     return NextResponse.json({ error: "יש לבחור נימוק אחד לפחות או להוסיף מלל." }, { status: 400 });
   }
 
-  const employee = await prisma.employee.findUnique({ where: { id: employeeId } });
+  const employee = await prisma.employee.findUnique({ where: { id: d.employeeId } });
   if (!employee) {
     return NextResponse.json({ error: "העובד לא נמצא" }, { status: 404 });
   }
@@ -53,43 +59,53 @@ export async function POST(req: Request) {
     department: employee.department,
     startDate: employee.startDate,
   };
-  const summary = reasonSummary(reasons, notes);
+  const summary = reasonSummary(d.reasons, d.notes);
+  const common = {
+    reasons: d.reasons,
+    notes: d.notes,
+    companyName: d.companyName,
+    signerName: d.signerName,
+    signerTitle: d.signerTitle,
+    gender: d.gender,
+  };
 
-  if (docType === "HEARING_INVITATION") {
+  if (d.docType === "HEARING_INVITATION") {
     const { title, html } = generateHearingInvitation({
       employee: employeeInfo,
-      hearingDate: hearingDate ? new Date(hearingDate) : new Date(),
-      reasons,
-      notes,
-      companyName,
+      hearingDate: d.hearingDate ? new Date(d.hearingDate) : new Date(),
+      hearingTime: d.hearingTime,
+      location: d.location,
+      participants: d.participants,
+      ...common,
     });
 
     await prisma.terminationDocument.create({
       data: {
-        employeeId,
+        employeeId: d.employeeId,
         type: "HEARING_INVITATION",
         content: html,
         reason: summary,
-        hearingDate: hearingDate ? new Date(hearingDate) : null,
+        hearingDate: d.hearingDate ? new Date(d.hearingDate) : null,
       },
     });
 
-    return NextResponse.json({ type: docType, title, html });
+    return NextResponse.json({ type: d.docType, title, html });
   }
 
-  // מכתב סיום העסקה — כולל חישוב אוטומטי של ההודעה המוקדמת ומעבר לתקופת הודעה.
+  // מכתב סיום העסקה (רגיל או כדין מתפטר/ת).
+  const resignation = d.docType === "TERMINATION_RESIGNATION";
   const { title, html, noticeDays, lastWorkingDay } = generateTerminationLetter({
     employee: employeeInfo,
-    reasons,
-    notes,
-    companyName,
+    hearingAttended: d.hearingAttended,
+    resignation,
+    ...common,
   });
 
   await prisma.$transaction([
     prisma.terminationDocument.create({
       data: {
-        employeeId,
-        type: "TERMINATION_LETTER",
+        employeeId: d.employeeId,
+        type: resignation ? "TERMINATION_RESIGNATION" : "TERMINATION_LETTER",
         content: html,
         reason: summary,
         noticeDays,
@@ -97,13 +113,13 @@ export async function POST(req: Request) {
       },
     }),
     prisma.employee.update({
-      where: { id: employeeId },
+      where: { id: d.employeeId },
       data: { status: "NOTICE_PERIOD", endDate: lastWorkingDay },
     }),
   ]);
 
   return NextResponse.json({
-    type: docType,
+    type: d.docType,
     title,
     html,
     noticeDays,

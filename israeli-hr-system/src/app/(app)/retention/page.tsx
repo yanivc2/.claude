@@ -1,8 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import type { SurveyMilestone, SurveyStatus } from "@prisma/client";
+import { daysUntilBirthday, birthdayWaHref } from "@/lib/birthday";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "שימור עובדים" };
+
+const birthdayFmt = new Intl.DateTimeFormat("he-IL", { day: "2-digit", month: "2-digit" });
 
 // שמות ה-enum נשמרו, אך המרווחים בפועל הם 3/15/30 ימים.
 const MILESTONE_LABELS: Record<SurveyMilestone, string> = {
@@ -26,13 +29,24 @@ const STATUS_STYLES: Record<SurveyStatus, string> = {
 const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });
 
 export default async function RetentionPage() {
-  const surveys = await prisma.retentionSurvey
-    .findMany({
-      orderBy: { scheduledFor: "asc" },
-      include: { employee: true },
-      take: 50,
-    })
-    .catch(() => []);
+  const [surveys, employees] = await Promise.all([
+    prisma.retentionSurvey
+      .findMany({ orderBy: { scheduledFor: "asc" }, include: { employee: true }, take: 50 })
+      .catch(() => []),
+    prisma.employee
+      .findMany({
+        where: { status: { in: ["ACTIVE", "ONBOARDING", "NOTICE_PERIOD"] }, birthDate: { not: null } },
+      })
+      .catch(() => []),
+  ]);
+
+  // ימי הולדת בשבועיים הקרובים (כולל היום), ממוינים לפי קרבה.
+  const now = new Date();
+  const birthdays = employees
+    .filter((e) => e.birthDate)
+    .map((e) => ({ e, days: daysUntilBirthday(e.birthDate as Date, now) }))
+    .filter((b) => b.days <= 14)
+    .sort((a, b) => a.days - b.days);
 
   return (
     <div>
@@ -43,6 +57,46 @@ export default async function RetentionPage() {
           תחילת העבודה, לצד תזמון פגישות חתך למנהל הישיר.
         </p>
       </header>
+
+      {/* ימי הולדת קרובים — ברכה בוואטסאפ בלחיצה */}
+      {birthdays.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-semibold text-slate-800">🎂 ימי הולדת קרובים</h2>
+          <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+            {birthdays.map(({ e, days }) => {
+              const href = birthdayWaHref(e.phone, e.firstName);
+              return (
+                <li
+                  key={e.id}
+                  className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <span className="text-sm font-medium text-slate-800">
+                      {e.firstName} {e.lastName}
+                    </span>
+                    <span className="mr-2 text-xs text-slate-500">
+                      {birthdayFmt.format(e.birthDate as Date)} ·{" "}
+                      {days === 0 ? "היום! 🎉" : `בעוד ${days} ימים`}
+                    </span>
+                  </div>
+                  {href ? (
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+                    >
+                      📱 שליחת ברכה בוואטסאפ
+                    </a>
+                  ) : (
+                    <span className="text-xs text-slate-400">אין טלפון</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {surveys.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
