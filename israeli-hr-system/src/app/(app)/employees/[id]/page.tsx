@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import type { DocumentType, SignatureContext } from "@prisma/client";
 import { EmployeeExport, type ExportData } from "@/components/EmployeeExport";
+import { formatAvailability } from "@/lib/availability";
 
 export const dynamic = "force-dynamic";
 
@@ -88,9 +89,10 @@ export default async function EmployeeDetailPage({
   ];
   const employmentRows: [string, string][] = [
     ["תפקיד", emp.jobTitle || "—"],
-    ["מחלקה", emp.department || "—"],
     ["תחילת עבודה", fmt(emp.startDate)],
     ["שכר חודשי", emp.monthlySalary ? `${emp.monthlySalary} ₪` : "—"],
+    ["שכר שעתי", emp.hourlySalary ? `${emp.hourlySalary} ₪` : "—"],
+    ["זמינות", formatAvailability(emp.availability)],
     ["הסדר פנסיוני פעיל בקליטה", yesNo(emp.hasActivePension)],
   ];
   const form101Rows: [string, string][] | null = emp.form101

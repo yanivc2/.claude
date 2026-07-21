@@ -16,6 +16,7 @@ const createSchema = z.object({
   firstName: z.string().optional(),
   lastName: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
+  companyName: z.string().optional(),
   contract: z
     .object({ fileName: z.string(), mimeType: z.string(), data: z.string() })
     .nullable()
@@ -39,6 +40,7 @@ export async function POST(req: Request) {
         firstName: parsed.data.firstName || null,
         lastName: parsed.data.lastName || null,
         email: parsed.data.email || null,
+        companyName: parsed.data.companyName || null,
         contractFileName: parsed.data.contract?.fileName || null,
         contractFileData: parsed.data.contract?.data || null,
         contractMimeType: parsed.data.contract?.mimeType || null,
