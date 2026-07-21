@@ -15,6 +15,51 @@ interface ManagedUser {
 const inputClass =
   "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
+// כתובת מסך הכניסה — נבנית מהדומיין שבו גולשים בפועל (Vercel/localhost).
+function loginUrl(): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/login`;
+}
+
+// הודעה עם פרטי הכניסה המלאים (כולל סיסמה ראשונית) — לשליחה מיד לאחר היצירה.
+function credentialsMessage(name: string, username: string, password: string): string {
+  return (
+    `שלום ${name}, נפתח עבורך חשבון במערכת משאבי האנוש.\n` +
+    `קישור לכניסה: ${loginUrl()}\n` +
+    `שם משתמש: ${username}\n` +
+    `סיסמה ראשונית: ${password}\n` +
+    `מומלץ להחליף סיסמה לאחר הכניסה הראשונה (הגדרות ← שינוי סיסמה).`
+  );
+}
+
+// הודעת קישור בלבד (ללא סיסמה) — לשליחה חוזרת של הקישור למשתמש קיים.
+function linkMessage(name: string, username: string): string {
+  return (
+    `שלום ${name}, קישור לכניסה למערכת משאבי האנוש: ${loginUrl()}\n` +
+    `שם משתמש: ${username}`
+  );
+}
+
+// שיתוף בוואטסאפ: מעדיף את Web Share (גיליון שיתוף מקורי עם בורר אנשי קשר),
+// ונופל לקישור wa.me בדסקטופ.
+async function shareWhatsApp(text: string) {
+  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+    try {
+      await navigator.share({ text });
+      return;
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+    }
+  }
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+}
+
+function mailtoHref(email: string, body: string): string {
+  return `mailto:${email}?subject=${encodeURIComponent(
+    "פרטי כניסה — מערכת משאבי אנוש",
+  )}&body=${encodeURIComponent(body)}`;
+}
+
 // ניהול משתמשי המערכת — מוצג רק לבעלים. יצירת משתמש חדש, השבתה/הפעלה,
 // ואיפוס סיסמה. משתמשים חדשים יכולים להתחבר ולעבוד עם המערכת.
 export function UserManagement() {
@@ -26,6 +71,13 @@ export function UserManagement() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  // המשתמש שזה עתה נוצר — לשמירת פרטי הכניסה לצורך שליחתם בוואטסאפ/מייל.
+  const [created, setCreated] = useState<{
+    name: string;
+    username: string;
+    email: string;
+    password: string;
+  } | null>(null);
 
   async function load() {
     try {
@@ -44,6 +96,7 @@ export function UserManagement() {
     e.preventDefault();
     setError("");
     setNotice("");
+    setCreated(null);
     setBusy(true);
     try {
       const res = await fetch("/api/users", {
@@ -53,7 +106,8 @@ export function UserManagement() {
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "שגיאה ביצירת המשתמש");
-      setNotice(`המשתמש "${username}" נוצר. אפשר להעביר לו את שם המשתמש והסיסמה לכניסה.`);
+      // שומרים את הפרטים כדי לאפשר שליחתם בוואטסאפ/מייל, ואז מנקים את הטופס.
+      setCreated({ name, username, email, password });
       setName("");
       setUsername("");
       setEmail("");
@@ -167,6 +221,56 @@ export function UserManagement() {
         <p className="mt-3 rounded-lg bg-green-50 px-4 py-2 text-sm text-green-700">{notice}</p>
       )}
 
+      {/* כרטיס לאחר יצירה — שליחת פרטי הכניסה למשתמש */}
+      {created && (
+        <div className="mt-4 rounded-xl border border-green-300 bg-green-50 p-4">
+          <p className="text-sm font-semibold text-green-800">
+            ✓ המשתמש &ldquo;{created.name}&rdquo; נוצר. שלח/י לו את פרטי הכניסה:
+          </p>
+          <div className="mt-2 rounded-lg bg-white p-3 text-sm text-slate-700" dir="ltr">
+            <p>
+              <span className="text-slate-400">כניסה:</span> {loginUrl()}
+            </p>
+            <p>
+              <span className="text-slate-400">שם משתמש:</span> {created.username}
+            </p>
+            <p>
+              <span className="text-slate-400">סיסמה:</span> {created.password}
+            </p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                shareWhatsApp(credentialsMessage(created.name, created.username, created.password))
+              }
+              className="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+            >
+              📱 שליחה בוואטסאפ
+            </button>
+            <a
+              href={mailtoHref(
+                created.email,
+                credentialsMessage(created.name, created.username, created.password),
+              )}
+              className="rounded-lg bg-slate-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
+            >
+              ✉️ שליחה במייל
+            </a>
+            <button
+              type="button"
+              onClick={() => setCreated(null)}
+              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 transition hover:bg-white"
+            >
+              סגירה
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-green-700">
+            הסיסמה מוצגת כאן פעם אחת בלבד. מומלץ שהמשתמש יחליף אותה לאחר הכניסה הראשונה.
+          </p>
+        </div>
+      )}
+
       {/* רשימת המשתמשים */}
       <div className="mt-6 space-y-2">
         {users.map((u) => (
@@ -198,6 +302,25 @@ export function UserManagement() {
                 >
                   {u.active ? "פעיל" : "מושבת"}
                 </span>
+              )}
+              {!u.isOwner && u.active && (
+                <>
+                  <button
+                    type="button"
+                    title="שליחת קישור כניסה בוואטסאפ"
+                    onClick={() => shareWhatsApp(linkMessage(u.name, u.username))}
+                    className="rounded-lg border border-green-300 px-2.5 py-1 text-xs text-green-700 transition hover:bg-green-50"
+                  >
+                    📱 קישור
+                  </button>
+                  <a
+                    title="שליחת קישור כניסה במייל"
+                    href={mailtoHref(u.email, linkMessage(u.name, u.username))}
+                    className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
+                  >
+                    ✉️ קישור
+                  </a>
+                </>
               )}
               {!u.isOwner && (
                 <>
