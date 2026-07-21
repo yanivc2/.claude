@@ -3,10 +3,11 @@ import type { SurveyMilestone, SurveyStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
+// שמות ה-enum נשמרו, אך המרווחים בפועל הם 3/15/30 ימים.
 const MILESTONE_LABELS: Record<SurveyMilestone, string> = {
-  DAY_30: "30 ימים",
-  DAY_60: "60 ימים",
-  DAY_90: "90 ימים",
+  DAY_30: "3 ימים",
+  DAY_60: "15 ימים",
+  DAY_90: "30 ימים",
 };
 
 const STATUS_LABELS: Record<SurveyStatus, string> = {
@@ -37,7 +38,7 @@ export default async function RetentionPage() {
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800">שימור עובדים</h1>
         <p className="mt-1 text-sm text-slate-500">
-          סקרי שביעות רצון (Pulse Surveys) מתוזמנים אוטומטית ל-30/60/90 ימים ממועד
+          סקרי שביעות רצון (Pulse Surveys) מתוזמנים אוטומטית ל-3/15/30 ימים ממועד
           תחילת העבודה, לצד תזמון פגישות חתך למנהל הישיר.
         </p>
       </header>

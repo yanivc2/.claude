@@ -3,17 +3,19 @@ import { prisma } from "@/lib/prisma";
 
 // לוח בקרה ראשי — סקירה מהירה של שלושת המודולים.
 export default async function DashboardPage() {
-  const [activeEmployees, onboarding, dueSurveys, latestUpdate] = await Promise.all([
+  const [activeEmployees, onboarding, dueSurveys, duePension, latestUpdate] = await Promise.all([
     prisma.employee.count({ where: { status: "ACTIVE" } }),
     prisma.employee.count({ where: { status: "ONBOARDING" } }),
     prisma.retentionSurvey.count({ where: { status: "SCHEDULED", scheduledFor: { lte: new Date() } } }),
+    prisma.pensionTask.count({ where: { status: "PENDING", dueDate: { lte: new Date() } } }),
     prisma.legalUpdate.findFirst({ orderBy: { publishedAt: "desc" } }),
-  ]).catch(() => [0, 0, 0, null] as const);
+  ]).catch(() => [0, 0, 0, 0, null] as const);
 
   const cards = [
-    { label: "בתהליך קליטה", value: onboarding, icon: "📝" },
-    { label: "עובדים פעילים", value: activeEmployees, icon: "👥" },
-    { label: "סקרים לביצוע", value: dueSurveys, icon: "🌱" },
+    { label: "בתהליך קליטה", value: onboarding, icon: "📝", href: "/employees" },
+    { label: "עובדים פעילים", value: activeEmployees, icon: "👥", href: "/employees" },
+    { label: "סקרים לביצוע", value: dueSurveys, icon: "🌱", href: "/retention" },
+    { label: "תיקי פנסיה לפתיחה", value: duePension, icon: "🏦", href: "/employees" },
   ];
 
   return (
@@ -39,7 +41,11 @@ export default async function DashboardPage() {
         </Link>
 
         {cards.map((c) => (
-          <div key={c.label} className="rounded-xl border border-slate-200 bg-white p-6">
+          <Link
+            key={c.label}
+            href={c.href}
+            className="rounded-xl border border-slate-200 bg-white p-6 transition hover:border-brand-300 hover:shadow-sm"
+          >
             <div className="flex items-center justify-between">
               <span className="text-sm text-slate-500">{c.label}</span>
               <span className="text-2xl" aria-hidden>
@@ -47,7 +53,7 @@ export default async function DashboardPage() {
               </span>
             </div>
             <p className="mt-2 text-3xl font-bold text-slate-800">{c.value}</p>
-          </div>
+          </Link>
         ))}
       </div>
 

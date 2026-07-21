@@ -75,6 +75,7 @@ model Employee {
   surveys          RetentionSurvey[]
   terminationDocs  TerminationDocument[]
   onboardingInvite OnboardingInvite?
+  pensionTask      PensionTask?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -183,6 +184,31 @@ model OnboardingInvite {
   completedAt DateTime?
 
   @@index([status])
+}
+
+// ─────────────────────── תזמון פתיחת תיק פנסיה ───────────────────────
+// לפי צו ההרחבה לביטוח פנסיוני מקיף במשק:
+//   • עובד שהגיע ללא הסדר פנסיוני קודם — זכאי לאחר 6 חודשי עבודה.
+//   • עובד שהגיע עם הסדר פנסיוני פעיל — זכאי מהיום הראשון, וההפרשות
+//     מתבצעות לא יאוחר מ-3 חודשי עבודה, רטרואקטיבית ליום תחילת העבודה.
+
+enum PensionTaskStatus {
+  PENDING // ממתין לפתיחת/הפעלת תיק
+  DONE // טופל
+}
+
+model PensionTask {
+  id                  String            @id @default(cuid())
+  employeeId          String            @unique
+  employee            Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  dueDate             DateTime // מועד היעד לטיפול לפי החוק
+  basis               String            @db.Text // הסבר הזכאות/המועד
+  hadPriorArrangement Boolean // האם הגיע עם הסדר פנסיוני פעיל
+  status              PensionTaskStatus @default(PENDING)
+  completedAt         DateTime?
+  createdAt           DateTime          @default(now())
+
+  @@index([status, dueDate])
 }
 
 // ─────────────────────────── שימור עובדים ───────────────────────────
