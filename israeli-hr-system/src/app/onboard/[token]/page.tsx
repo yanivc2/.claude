@@ -51,7 +51,11 @@ export default async function OnboardPage({
         }}
         agreement={
           invite.contractFileData && invite.contractFileName
-            ? { fileName: invite.contractFileName, dataUrl: invite.contractFileData }
+            ? {
+                fileName: invite.contractFileName,
+                dataUrl: invite.contractFileData,
+                mimeType: invite.contractMimeType ?? undefined,
+              }
             : undefined
         }
         doneMessage="תודה! פרטי הקליטה נשלחו בהצלחה למעסיק. אין צורך בפעולה נוספת."

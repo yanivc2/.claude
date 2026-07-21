@@ -92,7 +92,16 @@ interface OnboardingFormProps {
   // הודעת הצלחה מותאמת (למשל בפורטל הציבורי).
   doneMessage?: string;
   // הסכם עבודה שה-HR צירף — מוצג לעובד לקריאה/הורדה לפני החתימה.
-  agreement?: { fileName: string; dataUrl: string };
+  agreement?: { fileName: string; dataUrl: string; mimeType?: string };
+}
+
+// בריחת תווים לצורך הזרקה בטוחה ל-HTML של חלון ההדפסה.
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 export function OnboardingForm({
@@ -166,10 +175,118 @@ export function OnboardingForm({
     }
   }
 
+  // מפיק מסמך אחד להדפסה/שמירה: ההסכם + פרטי העובד + החתימה.
+  // המשתמש יכול לבחור "שמירה כ-PDF" מתוך חלון ההדפסה של הדפדפן.
+  function printSignedAgreement() {
+    if (!agreement) return;
+    const w = window.open("", "_blank");
+    if (!w) {
+      alert("החלון נחסם. אנא אפשר/י חלונות קופצים ונסה/י שוב.");
+      return;
+    }
+    const name = escapeHtml(`${form.firstName} ${form.lastName}`.trim() || "—");
+    const nid = escapeHtml(form.nationalId || "—");
+    const date = new Date().toLocaleDateString("he-IL");
+    const isPdf = (agreement.mimeType ?? "").includes("pdf");
+    const agreementHtml = isPdf
+      ? `<embed src="${agreement.dataUrl}" type="application/pdf" style="width:100%;height:80vh;border:1px solid #ddd" />`
+      : `<img src="${agreement.dataUrl}" style="max-width:100%;border:1px solid #ddd" />`;
+    const sigHtml = contractSignature
+      ? `<img src="${contractSignature}" style="height:110px" alt="חתימה" />`
+      : "<p>ללא חתימה</p>";
+
+    w.document.write(
+      `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8" />` +
+        `<title>הסכם עבודה חתום — ${name}</title>` +
+        `<style>body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:24px;line-height:1.5}` +
+        `h1{font-size:20px}h2{font-size:15px;margin-top:24px}.meta{font-size:13px;color:#475569}` +
+        `.sig{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:12px}</style></head><body>` +
+        `<h1>הסכם עבודה</h1>` +
+        `<p class="meta">עובד/ת: <strong>${name}</strong> · ת.ז: ${nid} · תאריך: ${date}</p>` +
+        `<h2>ההסכם:</h2>${agreementHtml}` +
+        `<div class="sig"><p>חתימת העובד/ת (מאשר/ת את תנאי ההסכם):</p>${sigHtml}` +
+        `<p class="meta">נחתם בתאריך ${date}</p></div>` +
+        `<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>` +
+        `</body></html>`,
+    );
+    w.document.close();
+  }
+
+  // מפיק מסמך טופס 101 להדפסה/שמירה: כל השדות + החתימה על טופס 101.
+  function printForm101() {
+    const w = window.open("", "_blank");
+    if (!w) {
+      alert("החלון נחסם. אנא אפשר/י חלונות קופצים ונסה/י שוב.");
+      return;
+    }
+    const g = (v: string) => escapeHtml(v || "—");
+    const yesNo = (b: boolean) => (b ? "כן" : "לא");
+    const fullName = g(`${form.firstName} ${form.lastName}`.trim());
+    const date = new Date().toLocaleDateString("he-IL");
+    const sig = form101Signature
+      ? `<img src="${form101Signature}" style="height:110px" alt="חתימה" />`
+      : "<p>ללא חתימה</p>";
+    const rows: Array<[string, string]> = [
+      ["שם מלא", fullName],
+      ["תעודת זהות", g(form.nationalId)],
+      ["תאריך לידה", g(form.birthDate)],
+      ["דוא״ל", g(form.email)],
+      ["טלפון", g(form.phone)],
+      ["כתובת", g(form.address)],
+      ["שנת מס", g(form.taxYear)],
+      ["מצב משפחתי", g(form.maritalStatus)],
+      ["מספר ילדים", g(form.numberOfChildren)],
+      ["תושב/ת ישראל", yesNo(form.isResidentOfIsrael)],
+      ["הכנסה נוספת ממעסיק אחר", yesNo(form.hasOtherIncome)],
+      ["בקשה לנקודות זיכוי", yesNo(form.requestsCredits)],
+    ];
+    const tableRows = rows
+      .map(
+        ([k, v]) =>
+          `<tr><td style="font-weight:600;width:40%">${k}</td><td>${v}</td></tr>`,
+      )
+      .join("");
+
+    w.document.write(
+      `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8" />` +
+        `<title>טופס 101 — ${fullName}</title>` +
+        `<style>body{font-family:Arial,Helvetica,sans-serif;color:#0f172a;margin:24px;line-height:1.5}` +
+        `h1{font-size:20px}table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}` +
+        `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}` +
+        `.sig{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:12px}.meta{font-size:13px;color:#475569}</style>` +
+        `</head><body>` +
+        `<h1>טופס 101 — כרטיס עובד לצורכי מס</h1>` +
+        `<p class="meta">תאריך: ${date}</p>` +
+        `<table>${tableRows}</table>` +
+        `<div class="sig"><p>חתימת העובד/ת:</p>${sig}<p class="meta">נחתם בתאריך ${date}</p></div>` +
+        `<script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script>` +
+        `</body></html>`,
+    );
+    w.document.close();
+  }
+
   if (status === "done") {
     return (
       <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-green-800">
         <p className="text-lg font-semibold">✓ {message}</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={printForm101}
+            className="rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-100"
+          >
+            🖨️ הדפסה / שמירת טופס 101
+          </button>
+          {agreement && contractSignature && (
+            <button
+              type="button"
+              onClick={printSignedAgreement}
+              className="rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-100"
+            >
+              🖨️ הדפסה / שמירת ההסכם החתום
+            </button>
+          )}
+        </div>
       </div>
     );
   }
@@ -374,6 +491,14 @@ export function OnboardingForm({
         <div className="mt-4">
           <SignaturePad label="חתימה על טופס 101" onChange={setForm101Signature} />
         </div>
+
+        <button
+          type="button"
+          onClick={printForm101}
+          className="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100"
+        >
+          🖨️ הדפסה / שמירת טופס 101
+        </button>
       </section>
 
       {/* חתימה על הסכם העבודה */}
@@ -384,20 +509,48 @@ export function OnboardingForm({
           ההעסקה.
         </p>
 
-        {/* הסכם עבודה שצורף ע"י המעסיק — לקריאה/הורדה לפני החתימה */}
+        {/* הסכם עבודה שצורף ע"י המעסיק — מוצג מוטמע לקריאה, עם הורדה */}
         {agreement && (
-          <a
-            href={agreement.dataUrl}
-            download={agreement.fileName}
-            target="_blank"
-            rel="noreferrer"
-            className="mb-4 inline-flex items-center gap-2 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 transition hover:bg-brand-100"
-          >
-            📄 צפייה בהסכם העבודה ({agreement.fileName})
-          </a>
+          <div className="mb-4">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-slate-700">
+                📄 הסכם העבודה: {agreement.fileName}
+              </span>
+              <a
+                href={agreement.dataUrl}
+                download={agreement.fileName}
+                className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
+              >
+                הורדה
+              </a>
+            </div>
+            {(agreement.mimeType ?? "").includes("pdf") ? (
+              <iframe
+                src={agreement.dataUrl}
+                title="הסכם עבודה"
+                className="h-96 w-full rounded-lg border border-slate-200"
+              />
+            ) : (
+              <img
+                src={agreement.dataUrl}
+                alt="הסכם עבודה"
+                className="max-h-96 w-full rounded-lg border border-slate-200 object-contain"
+              />
+            )}
+          </div>
         )}
 
         <SignaturePad label="חתימה על הסכם העבודה (חובה)" onChange={setContractSignature} />
+
+        {agreement && (
+          <button
+            type="button"
+            onClick={printSignedAgreement}
+            className="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100"
+          >
+            🖨️ הדפסה / שמירת ההסכם עם החתימה
+          </button>
+        )}
       </section>
 
       {status === "error" && (
