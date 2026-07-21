@@ -85,7 +85,7 @@ def main() -> None:
     # frozen s2_budget_policy.frozen.json (fold-1 $10 / global $50). Re-anchored to the PROVIDER-
     # VERIFIED dashboard balance ($4.14) after the black-385 CALL_AMBIGUOUS_AFTER_SEND hold; this
     # supersedes the prior running estimate ($4.081285), which had drifted ~$0.06.
-    credits = ReportedCredits(available_api_credits_usd="4.099006", verified_at="2026-07-21",
+    credits = ReportedCredits(available_api_credits_usd="4.056264", verified_at="2026-07-21",
                               machine_verified=False)
 
     print("running real count_tokens Gate-1 preflight over the frozen corpus ($0)…")
