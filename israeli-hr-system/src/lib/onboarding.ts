@@ -36,7 +36,8 @@ export const onboardingSchema = z.object({
   requestsCredits: z.boolean(),
   // מסמכים וחתימות
   idAttachment: attachment,
-  contractAttachment: attachment,
+  // הסכם העבודה מגיע מההזמנה (מוזרק בצד השרת), לא מהטופס — לכן אופציונלי.
+  contractAttachment: attachment.optional(),
   contractSignature: z.string(),
   form101Signature: z.string().nullable(),
 });

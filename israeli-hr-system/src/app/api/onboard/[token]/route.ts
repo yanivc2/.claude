@@ -29,8 +29,18 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     );
   }
 
+  // צירוף הסכם העבודה שה-HR העלה בעת יצירת ההזמנה — נשמר בתיק העובד.
+  const data = { ...parsed.data };
+  if (invite.contractFileData && invite.contractFileName) {
+    data.contractAttachment = {
+      fileName: invite.contractFileName,
+      mimeType: invite.contractMimeType ?? "application/octet-stream",
+      data: invite.contractFileData,
+    };
+  }
+
   try {
-    const employeeId = await createEmployeeFromOnboarding(parsed.data);
+    const employeeId = await createEmployeeFromOnboarding(data);
 
     // סימון ההזמנה כהושלמה וקישורה לעובד שנוצר.
     await prisma.onboardingInvite.update({

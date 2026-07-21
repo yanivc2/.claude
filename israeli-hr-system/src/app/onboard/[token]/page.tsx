@@ -49,6 +49,11 @@ export default async function OnboardPage({
           lastName: invite.lastName ?? "",
           email: invite.email ?? "",
         }}
+        agreement={
+          invite.contractFileData && invite.contractFileName
+            ? { fileName: invite.contractFileName, dataUrl: invite.contractFileData }
+            : undefined
+        }
         doneMessage="תודה! פרטי הקליטה נשלחו בהצלחה למעסיק. אין צורך בפעולה נוספת."
       />
     </div>

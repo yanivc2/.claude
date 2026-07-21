@@ -169,6 +169,12 @@ model OnboardingInvite {
   email       String?
   status      InviteStatus @default(PENDING)
 
+  // הסכם עבודה שה-HR מצרף לשליחה לעובד (העובד מקבל, קורא וחותם).
+  // הקובץ נשמר כ-data URL (base64) — בפרודקשן מומלץ object storage.
+  contractFileName String?
+  contractFileData String? @db.Text
+  contractMimeType String?
+
   // העובד שנוצר עם השלמת הקליטה
   employeeId String?   @unique
   employee   Employee? @relation(fields: [employeeId], references: [id], onDelete: SetNull)
