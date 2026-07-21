@@ -116,13 +116,28 @@ export function Sidebar() {
             );
           })}
 
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            className={`mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-base font-medium transition ${
+              pathname.startsWith("/settings")
+                ? "bg-brand-50 text-brand-700"
+                : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            <span className="text-lg" aria-hidden>
+              ⚙️
+            </span>
+            <span>הגדרות</span>
+          </Link>
+
           <button
             type="button"
             onClick={async () => {
               await fetch("/api/auth/logout", { method: "POST" });
               window.location.href = "/login";
             }}
-            className="mt-2 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-base font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+            className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-base font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
           >
             <span className="text-lg" aria-hidden>
               🚪

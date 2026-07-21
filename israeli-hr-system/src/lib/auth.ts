@@ -27,11 +27,14 @@ function b64urlDecode(str: string): Uint8Array {
 // ברירות מחדל קיימות כדי שהמערכת לא תינעל, אך יש להחליפן.
 export function getAuthConfig() {
   return {
-    username: process.env.AUTH_USERNAME || "admin",
+    // ברירות המחדל משמשות רק ל"זריעת" המנהל הראשוני במסד (bootstrap).
+    username: process.env.AUTH_USERNAME || "yanivc2",
+    name: process.env.AUTH_NAME || "יניב כהן",
+    email: process.env.AUTH_EMAIL || "yanivc2@gmail.com",
     password: process.env.AUTH_PASSWORD || "admin",
     secret: process.env.SESSION_SECRET || "change-me-please-set-SESSION_SECRET",
-    usingDefaults:
-      !process.env.AUTH_PASSWORD || !process.env.SESSION_SECRET || !process.env.AUTH_USERNAME,
+    // מזהיר בעיקר על היעדר SESSION_SECRET (הסיסמה כבר במסד וניתנת לשינוי באפליקציה).
+    usingDefaults: !process.env.SESSION_SECRET,
   };
 }
 

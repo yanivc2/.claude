@@ -11,6 +11,23 @@ datasource db {
 }
 
 // ───────────────────────── אבטחה / כניסה ─────────────────────────
+// משתמש מנהל (כרגע יחיד). הסיסמה נשמרת כ-hash (PBKDF2). ניתן לשנות סיסמה
+// מתוך האפליקציה עם אישור קוד במייל (שדות ה-pending/confirm).
+model AdminUser {
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  name               String
+  email              String
+  passwordHash       String    @db.Text
+  // שינוי סיסמה בהמתנה לאישור במייל
+  pendingPasswordHash String?  @db.Text
+  confirmCodeHash    String?   @db.Text
+  confirmExpiresAt   DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+
 // מפתחות ביומטריים (WebAuthn/Passkey) לכניסה עם Face ID / Windows Hello.
 // המערכת אינה שומרת תמונות פנים — רק מפתח ציבורי מהמכשיר.
 model WebauthnCredential {
