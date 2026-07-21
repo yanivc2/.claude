@@ -4,13 +4,20 @@ import { useEffect, useState } from "react";
 
 interface Invite {
   id: string;
-  url: string;
+  token: string;
   firstName: string | null;
   lastName: string | null;
   email: string | null;
   status: "PENDING" | "COMPLETED" | "CANCELLED";
   createdAt: string;
   employeeName: string | null;
+}
+
+// בונה את הקישור מהכתובת שבה ה-HR גולש בפועל — כך הוא תמיד תואם לדומיין
+// הנוכחי (Vercel / localhost) בלי תלות במשתני סביבה.
+function linkFor(token: string): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  return `${origin}/onboard/${token}`;
 }
 
 const STATUS_LABEL: Record<Invite["status"], string> = {
@@ -85,7 +92,7 @@ export function InviteGenerator() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "שגיאה ביצירת הקישור");
-      setNewUrl(data.url);
+      setNewUrl(linkFor(data.token));
       setFirstName("");
       setLastName("");
       setEmail("");
@@ -170,7 +177,7 @@ export function InviteGenerator() {
                       [inv.firstName, inv.lastName].filter(Boolean).join(" ") ||
                       "עובד ללא שם"}
                   </p>
-                  <p className="truncate text-xs text-slate-400">{inv.url}</p>
+                  <p className="truncate text-xs text-slate-400">{linkFor(inv.token)}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span
@@ -178,7 +185,7 @@ export function InviteGenerator() {
                   >
                     {STATUS_LABEL[inv.status]}
                   </span>
-                  {inv.status === "PENDING" && <CopyButton url={inv.url} />}
+                  {inv.status === "PENDING" && <CopyButton url={linkFor(inv.token)} />}
                 </div>
               </li>
             ))}
