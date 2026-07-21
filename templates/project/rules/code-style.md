@@ -1,5 +1,7 @@
 # Code Style
 
+> **Applies to:** every TypeScript/JavaScript file — always in effect.
+
 ## TypeScript
 
 - Enable strict mode (`"strict": true` in tsconfig). No exceptions.

@@ -36,7 +36,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if ((Test-Path '.git') -and -not (Test-Path '.claude\\settings.json')) { $base = \"$env:USERPROFILE\\.claude\\templates\\project\"; New-Item -ItemType Directory -Force '.claude' | Out-Null; Copy-Item \"$base\\.claude\\settings.json\" '.claude\\settings.json' -Force; if (Test-Path \"$base\\.mcp.json\") { Copy-Item \"$base\\.mcp.json\" '.mcp.json' -Force }; Write-Output '{\"systemMessage\": \"📋 הוגדר מה-template: settings.json + .mcp.json — פרויקט חדש זוהה\"}' }",
+            "command": "if ((Test-Path '.git') -and -not (Test-Path '.claude\\settings.json')) { $base = \"$env:USERPROFILE\\.claude\\templates\\project\"; New-Item -ItemType Directory -Force '.claude' | Out-Null; Copy-Item \"$base\\.claude\\settings.json\" '.claude\\settings.json' -Force; if (Test-Path \"$base\\.mcp.json\") { Copy-Item \"$base\\.mcp.json\" '.mcp.json' -Force }; if (-not (Test-Path 'CLAUDE.md')) { Copy-Item \"$base\\CLAUDE.md\" 'CLAUDE.md' -Force }; if (-not (Test-Path 'SETUP.md')) { Copy-Item \"$base\\SETUP.md\" 'SETUP.md' -Force }; if (-not (Test-Path 'rules')) { Copy-Item \"$base\\rules\" 'rules' -Recurse -Force }; if (-not (Test-Path '.gitignore')) { Copy-Item \"$base\\.gitignore\" '.gitignore' -Force }; Write-Output '{\"systemMessage\": \"📋 הוגדר מה-template: CLAUDE.md + SETUP.md + rules/ + settings.json + .mcp.json — פרויקט חדש זוהה\"}' }",
             "shell": "powershell"
           },
           {

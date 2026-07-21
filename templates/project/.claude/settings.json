@@ -31,6 +31,12 @@
             "type": "command",
             "command": "npm run typecheck 2>&1 | Select-Object -Last 20",
             "shell": "powershell"
+          },
+          {
+            "type": "command",
+            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -notmatch '\\.(ts|tsx|js|jsx)$') { exit 0 }; $msgs = @(); if (Test-Path 'node_modules\\.bin\\prettier.cmd') { npx prettier --check $f 2>&1 | Out-Null; if ($LASTEXITCODE -ne 0) { $msgs += 'Prettier: formatting drift - run prettier --write' } }; if (Test-Path 'node_modules\\.bin\\eslint.cmd') { $r = npx eslint $f 2>&1; if ($LASTEXITCODE -ne 0) { $msgs += ('ESLint: ' + (($r | Select-Object -First 6) -join ' | ')) } }; if ($msgs.Count -gt 0) { $out = @{systemMessage = ('⚠️ ' + ($msgs -join ' || '))} | ConvertTo-Json -Compress; Write-Output $out }; exit 0",
+            "shell": "powershell",
+            "statusMessage": "בודק ESLint/Prettier..."
           }
         ]
       }

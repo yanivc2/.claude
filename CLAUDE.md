@@ -20,7 +20,8 @@ These come from the machine's own `SessionStart` hook and are the top-priority
 rules for any session:
 
 1. **`/install-review` is mandatory before installing any skill or hook.** Never
-   add a hook, skill, or plugin without running the review first.
+   add a hook, skill, or plugin without running the review first. The command is
+   implemented at `commands/install-review.md`.
 2. **Never `commit` or `push` without an explicit request** from the user.
 3. **Explanations are always in Hebrew** (`הסברים תמיד בעברית`). Code, file
    contents, commit messages, and identifiers stay in English; prose
@@ -57,22 +58,30 @@ The active model is **`opus`** at **`effortLevel: xhigh`** (`settings.json`).
 ├── .claude/                     — repo-scoped settings (apply when cwd == this repo)
 │   └── settings.json            — nested hooks/permissions for working *in* this repo
 │
+├── commands/
+│   └── install-review.md        — custom /install-review slash command (implements rule #1)
+│
 ├── plugins/
 │   └── blocklist.json           — blocked plugins (name + reason)
 │
 ├── templates/
 │   └── project/                 — scaffold copied into NEW projects (see below)
 │       ├── CLAUDE.md            — placeholder-driven project memory template
+│       ├── SETUP.md            — placeholder-driven onboarding / setup guide
 │       ├── .mcp.json            — GitHub MCP server for the new project
 │       ├── .gitignore           — standard Node/TS ignore set
-│       ├── .claude/settings.json— per-project hooks (typecheck, session log)
+│       ├── .claude/settings.json— per-project hooks (typecheck, lint, session log)
 │       └── rules/               — modular rule files @-imported by the template
 │           ├── code-style.md
 │           ├── frontend.md
+│           ├── backend.md
+│           ├── testing.md
 │           ├── git-workflow.md
+│           ├── security.md
+│           ├── error-handling-and-observability.md
 │           ├── performance.md
-│           ├── prompt-engineering.md
-│           └── testing.md
+│           ├── documentation.md
+│           └── prompt-engineering.md
 │
 ├── ide/                         — IDE lock files (ephemeral, tracked snapshot)
 └── shell-snapshots/             — captured shell env (gitignored)
@@ -95,7 +104,7 @@ both are live when working inside this directory.
 Understanding these is essential before editing — they run automatically.
 
 - **`SessionStart`**
-  - **Project scaffolding:** if the cwd is a git repo *without* `.claude/settings.json`, it copies `templates/project/.claude/settings.json` and `.mcp.json` into it and announces it (Hebrew system message). This is how new projects get bootstrapped.
+  - **Project scaffolding:** if the cwd is a git repo *without* `.claude/settings.json`, it seeds the project from `templates/project/`: `.claude/settings.json` and `.mcp.json` are copied (overwriting), and `CLAUDE.md`, `SETUP.md`, `rules/`, and `.gitignore` are copied **only if absent** (never clobbering an existing file). It announces the result via a Hebrew system message. This is how new projects get bootstrapped.
   - **Environment nudges:** warns if `package.json` exists but `node_modules` is missing, or if `.env.example` exists but `.env` does not.
 - **`Stop`** (fires when Claude finishes a turn)
   - Plays `tada.wav` (audible completion chime).
@@ -128,18 +137,27 @@ from here. The template's `CLAUDE.md` is **placeholder-driven** — it contains
 filled in per project, and it `@`-imports the six `rules/*.md` files.
 
 The `rules/` files encode this user's opinionated defaults. Honor them in any
-downstream project that inherits this template:
+downstream project that inherits this template. Each file opens with an
+`> **Applies to:**` line stating when it's relevant:
 
-- **`code-style.md`** — TypeScript strict, no `any`, named exports only (no default exports), import ordering, ≤100 char lines, Prettier-owned formatting.
-- **`frontend.md`** — React function components (no `React.FC`), ≤150-line components, hooks discipline, WCAG AA accessibility, explicit loading/error/empty states.
-- **`git-workflow.md`** — `main` protected, `<type>/<desc>` branches, Conventional-Commit-style messages, one concern per PR, squash merge.
-- **`performance.md`** — bundle-size vigilance, code splitting, render hygiene, Web Vitals targets (LCP<2.5s, CLS<0.1, INP<200ms).
-- **`testing.md`** — test user behavior not internals, AAA structure, mock at the network boundary (MSW), regression test per bug fix.
-- **`prompt-engineering.md`** — prompt structure, few-shot guidance, temperature table, injection-safe variable handling.
+- **`code-style.md`** — *always in effect.* TypeScript strict, no `any`, named exports only (no default exports), import ordering, ≤100 char lines, Prettier-owned formatting.
+- **`frontend.md`** — *React/UI work.* Function components (no `React.FC`), ≤150-line components, hooks discipline, WCAG AA accessibility, explicit loading/error/empty states.
+- **`backend.md`** — *server-side work.* REST resource design, correct status codes, thin handlers → service → data-access layering, migrations for every schema change, timeouts on outbound calls.
+- **`testing.md`** — *writing tests.* Test user behavior not internals, AAA structure, mock at the network boundary (MSW), regression test per bug fix.
+- **`git-workflow.md`** — *any git op.* `main` protected, `<type>/<desc>` branches, Conventional-Commit-style messages, one concern per PR, squash merge.
+- **`security.md`** — *secrets, input, auth, deps.* No secret in git, validate all input at the boundary, authorize on the server, hash passwords, `audit` dependencies.
+- **`error-handling-and-observability.md`** — *errors, logging, monitoring.* No silent catches, structured logging (no `console.log`), no secrets/PII in logs, unhandled exceptions reach an error tracker, health endpoints.
+- **`performance.md`** — *deps/bundle/render/images.* Bundle-size vigilance, code splitting, render hygiene, Web Vitals targets (LCP<2.5s, CLS<0.1, INP<200ms).
+- **`documentation.md`** — *docs & comments.* README kept current in the same PR, comment the *why*, keep `CLAUDE.md` true, document API interfaces.
+- **`prompt-engineering.md`** — *LLM/prompt work.* Prompt structure, few-shot guidance, temperature table, injection-safe variable handling.
 
 **When editing the template:** keep the `{{PLACEHOLDER}}` tokens intact (they are
-substituted downstream) and keep the `@../rules/...` import paths correct
-relative to `templates/project/CLAUDE.md`.
+substituted downstream — e.g. `{{STYLING_SOLUTION}}`, `{{TEST_RUNNER}}`,
+`{{BACKEND}}`, `{{DATABASE}}`, `{{LOGGER}}`, `{{ERROR_TRACKER}}`) and keep the
+`@./rules/...` import paths correct — they resolve relative to `CLAUDE.md`'s own
+directory, so `@./rules/` works both in `templates/project/` and once the file is
+copied to a project root (rules land at `<project>/rules/`).
+When you add a rule file, add its `@import` line to the template **and** list it here.
 
 ---
 
@@ -187,3 +205,8 @@ globally. This complements the `/install-review` requirement.
 - Follow the same commit conventions the template enforces:
   `<type>: <imperative summary>` (`feat`, `fix`, `chore`, `refactor`, `docs`,
   `test`), one logical change per commit.
+
+---
+
+<!-- last reviewed: 2026-07-20 — verify this doc against the actual repo state when it drifts -->
+

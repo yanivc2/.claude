@@ -1,5 +1,7 @@
 # Performance
 
+> **Applies to:** adding dependencies, bundle/build work, rendering hot paths, and image-heavy UI.
+
 ## Bundle Size
 
 - Check bundle impact before adding any dependency: `npm run build` and inspect the output, or use `bundlephobia.com`.

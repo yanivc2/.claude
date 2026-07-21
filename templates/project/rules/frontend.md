@@ -1,5 +1,7 @@
 # Frontend
 
+> **Applies to:** React / frontend UI work — components, hooks, styling, accessibility. Not relevant to backend-only changes.
+
 ## React Components
 
 - One component per file. File name matches the component name.
@@ -41,7 +43,7 @@ const UserCard: React.FC<UserCardProps> = ({ name, email }) => { ... }
 
 ## CSS / Styling
 
-- [Tailwind / CSS Modules / styled-components — fill in your choice and remove the others]
+- Styling solution for this project: **{{STYLING_SOLUTION}}** (e.g. Tailwind, CSS Modules, styled-components). Use it consistently — never mix approaches in the same project.
 - No inline styles except for truly dynamic values (e.g., `style={{ width: progress + '%' }}`).
 - Design tokens (colors, spacing, radii) live in one place — don't hardcode hex values.
 - Mobile-first breakpoints. Start with the small viewport, add larger overrides.
