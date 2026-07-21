@@ -1,7 +1,7 @@
 {
-  "content_hash": "61d5ab7cb54cc97b",
+  "content_hash": "b3764b3b3586c081",
   "diagnostic_apparatus_spend_usd": "0.121801",
-  "note": "diagnostic $0.121801 ($0.052343 prior + black-215 DEFECT_6 diagnostic $0.069458). historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 FAILED, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 SOLVED+banked, black-193 $0.038139 SOLVED+banked, black-215(re-run) $0.035082 SOLVED+banked, black-224 $0.036710 SOLVED+banked, black-232 $0.080660 FAILED, black-238 $0.040705 SOLVED (at-cap, candidate persist-rejected), black-273 $0.090424 FAILED (R2 malformed terminal; DEFECT-6 path; non-memory; NO bank change). official_training_spend $0.486539; lifetime $0.608340.",
-  "official_training_spend_usd": "0.486539",
+  "note": "diagnostic $0.121801 ($0.052343 prior + black-215 DEFECT_6 diagnostic $0.069458). historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 FAILED, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 SOLVED+banked, black-193 $0.038139 SOLVED+banked, black-215(re-run) $0.035082 SOLVED+banked, black-224 $0.036710 SOLVED+banked, black-232 $0.080660 FAILED, black-238 $0.040705 SOLVED (at-cap, candidate persist-rejected), black-273 $0.090424 FAILED (non-memory, terminal-R2), black-334 $0.018992 FAILED (C=2 at-cap, terminal-R2 under the DEFECT-6-remediated lifecycle; NO bank change). official_training_spend $0.505531; lifetime $0.627332.",
+  "official_training_spend_usd": "0.505531",
   "schema_version": "s2-paid-spend-v1"
 }
