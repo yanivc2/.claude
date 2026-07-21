@@ -91,6 +91,16 @@ export function InviteGenerator() {
     loadInvites();
   }, []);
 
+  async function deleteInvite(id: string) {
+    if (!confirm("למחוק את קישור הקליטה? פעולה זו אינה מוחקת עובד שכבר נקלט.")) return;
+    try {
+      const res = await fetch(`/api/onboarding/invite/${id}`, { method: "DELETE" });
+      if (res.ok) setInvites((prev) => prev.filter((i) => i.id !== id));
+    } catch {
+      // התעלמות — ניתן לרענן ידנית.
+    }
+  }
+
   async function generate() {
     setLoading(true);
     setError("");
@@ -225,6 +235,15 @@ export function InviteGenerator() {
                     {STATUS_LABEL[inv.status]}
                   </span>
                   {inv.status === "PENDING" && <CopyButton url={linkFor(inv.token)} />}
+                  <button
+                    type="button"
+                    onClick={() => deleteInvite(inv.id)}
+                    aria-label="מחיקת קישור"
+                    title="מחיקת קישור"
+                    className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-red-600 transition hover:bg-red-50"
+                  >
+                    🗑️ מחיקה
+                  </button>
                 </div>
               </li>
             ))}

@@ -167,7 +167,7 @@ export function OnboardingForm({
       setStatus("done");
       setMessage(
         doneMessage ??
-          "הקליטה הושלמה בהצלחה! סקרי שביעות רצון תוזמנו אוטומטית ל-30/60/90 ימים.",
+          "הקליטה הושלמה בהצלחה! סקרי שביעות רצון תוזמנו אוטומטית ל-3/15/30 ימים.",
       );
     } catch (err) {
       setStatus("error");

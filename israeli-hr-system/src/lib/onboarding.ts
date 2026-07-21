@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "./prisma";
 import { scheduleRetentionSurveys } from "./retention";
+import { schedulePensionTask } from "./pension";
 
 // ─────────────────────────────────────────────────────────────────────────
 // לוגיקה משותפת לקליטת עובד. משמשת גם את מסלול ה-HR הידני (/api/onboarding)
@@ -127,8 +128,11 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
     return emp;
   });
 
-  // תזמון אוטומטי של סקרי שביעות רצון ל-30/60/90 ימים.
+  // תזמון אוטומטי של סקרי שביעות רצון ל-3/15/30 ימים.
   await scheduleRetentionSurveys(employee.id, startDate);
+
+  // תזמון פתיחת תיק פנסיה לפי החוק (3 חודשים עם הסדר קיים, 6 חודשים בלעדיו).
+  await schedulePensionTask(employee.id, startDate, data.hasActivePension);
 
   return employee.id;
 }

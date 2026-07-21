@@ -11,6 +11,7 @@ const NAV = [
   { href: "/legal-updates", label: "עדכוני חקיקה", icon: "⚖️" },
   { href: "/consultation", label: "התייעצות חוקים וזכויות", icon: "💬" },
   { href: "/onboarding", label: "קליטת עובד", icon: "📝" },
+  { href: "/employees", label: "עובדים ותיקים", icon: "👥" },
   { href: "/retention", label: "שימור עובדים", icon: "🌱" },
   { href: "/termination", label: "סיום העסקה", icon: "📄" },
 ];
