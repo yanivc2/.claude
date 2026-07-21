@@ -1,6 +1,35 @@
 {
-  "bank_content_hash": "83325c77b97c",
+  "bank_content_hash": "513d63007784",
   "by_family": {
+    "boundary": [
+      {
+        "avoid": [
+          "Applying parenthesis normalization (normalize_invisible_parens) to code in fmt: off sections",
+          "Letting the normal statement visitor methods execute for unformatted code",
+          "Mixing unformatted line handling with standard formatting path transformations"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-224"
+          ]
+        },
+        "lesson_id": "cand-7542d41466",
+        "recommended_action": [
+          "When formatting is disabled (# fmt: off), ensure that all code normalization functions that modify syntax structure are skipped",
+          "Check that unformatted line visitors do not invoke functions that make parentheses invisible or modify structural elements",
+          "Verify that context switches between formatted and unformatted modes maintain semantic integrity of the source code"
+        ],
+        "status": "candidate",
+        "task_family": "boundary",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      }
+    ],
     "iterator": [
       {
         "avoid": [
@@ -141,7 +170,7 @@
     ]
   },
   "condition": "C",
-  "content_hash": "2d9efda2a078b5af",
+  "content_hash": "44dd946fbb805640",
   "fold": 1,
   "note": "Frozen Fold-1 Condition-C lesson bank; family-indexed procedural lessons from final-sequence attempts. Injected as exact-family memory only.",
   "phase": "training",
@@ -187,6 +216,15 @@
         "raw_response_sha256": "9b6e586eb016535863d07bae185ab883ff008bd52091791c326a7ae6ba26b66f",
         "source_task": "black-215",
         "visible_text_sha256": "c216e130b84afa1f8d7739d39844f3544a630534e4046b5e31b18de35f190686"
+      },
+      {
+        "bank_hash_after": "513d63007784",
+        "bank_hash_before": "83325c77b97c",
+        "family": "boundary",
+        "lesson_id": "cand-7542d41466",
+        "raw_response_sha256": "87445de7c09502df28b247088cfff1f710db17996dd8ce7e40813d9ce9d23c05",
+        "source_task": "black-224",
+        "visible_text_sha256": "8ca25080aed550152576cff6ad25b4bd9cfa20aa5f92a754949e82861239a432"
       }
     ]
   },

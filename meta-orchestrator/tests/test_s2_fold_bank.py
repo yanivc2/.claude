@@ -22,7 +22,10 @@ _CORPUS = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 def test_frozen_bank_loads_and_holds_the_banked_lessons():
     bank = load_frozen_fold_bank(_CORPUS)
     assert bank.frozen is True
-    assert bank.families_present() == ["iterator", "other_logic", "whitespace"]  # 3 families, 5 lessons
+    assert bank.families_present() == ["boundary", "iterator", "other_logic", "whitespace"]  # 4 fam, 6 lessons
+    b = bank.lessons_for("boundary")
+    assert [l.lesson_id for l in b] == ["cand-7542d41466"]                  # black-224 SOLVE
+    assert b[0].evidence.supporting_runs == ["fold1::black-224"]
     w = bank.lessons_for("whitespace")                                     # whitespace full (cap 2)
     assert [l.lesson_id for l in w] == ["cand-e04f0fb979", "cand-23d8aeb211"]
     assert w[0].evidence.supporting_runs == ["fold1::black-112"]
@@ -39,7 +42,7 @@ def test_frozen_bank_loads_and_holds_the_banked_lessons():
 def test_bank_content_hash_is_bound():
     raw = json.load(open(os.path.join(_CORPUS, FROZEN_FOLD_BANK_FILENAME)))
     bank = load_frozen_fold_bank(_CORPUS)
-    assert bank.content_hash() == raw["bank_content_hash"] == "83325c77b97c"
+    assert bank.content_hash() == raw["bank_content_hash"] == "513d63007784"
 
 
 def test_tampered_bank_blocks(tmp_path):
