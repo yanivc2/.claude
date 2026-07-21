@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/legal-updates",
+      "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/cron/retention",
+      "schedule": "0 7 * * *"
+    }
+  ]
+}
