@@ -41,7 +41,7 @@
           },
           {
             "type": "command",
-            "command": "if (Test-Path 'package.json' -and -not (Test-Path 'node_modules')) { Write-Output '{\"systemMessage\": \"⚠️ שים לב: קובץ package.json קיים אך תיקיית node_modules חסרה. מומלץ להריץ npm install\"}' }; if (Test-Path '.env.example' -and -not (Test-Path '.env')) { Write-Output '{\"systemMessage\": \"🔑 שים לב: קובץ .env חסר אך קיים .env.example. כדאי להעתיק וליצור קובץ הגדרות מקומי.\"}' }",
+            "command": "if ((Test-Path 'package.json') -and -not (Test-Path 'node_modules')) { Write-Output '{\"systemMessage\": \"⚠️ שים לב: קובץ package.json קיים אך תיקיית node_modules חסרה. מומלץ להריץ npm install\"}' }; if ((Test-Path '.env.example') -and -not (Test-Path '.env')) { Write-Output '{\"systemMessage\": \"🔑 שים לב: קובץ .env חסר אך קיים .env.example. כדאי להעתיק וליצור קובץ הגדרות מקומי.\"}' }",
             "shell": "powershell"
           }
         ]
