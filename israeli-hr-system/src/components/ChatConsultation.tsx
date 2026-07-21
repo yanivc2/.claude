@@ -58,7 +58,7 @@ export function ChatConsultation() {
 
   return (
     <div className="flex h-[70vh] flex-col rounded-xl border border-slate-200 bg-white">
-      <div className="flex-1 space-y-4 overflow-y-auto p-6">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
         {messages.length === 0 && (
           <div className="flex h-full items-center justify-center text-center text-sm text-slate-400">
             <div>
@@ -125,7 +125,7 @@ export function ChatConsultation() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="הקלד/י שאלה..."
-          className="flex-1 rounded-lg border border-slate-300 px-4 py-2 text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2 text-base outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 sm:text-sm"
         />
         <button
           type="submit"
