@@ -28,6 +28,23 @@ rules for any session:
 
 The active model is **`opus`** at **`effortLevel: xhigh`** (`settings.json`).
 
+### Standing Stop-Protocol (applies to EVERY stop, in EVERY session)
+
+Whenever the assistant stops and hands control back to the user — for any
+reason (awaiting a GO, a blocker, a question, a completed phase) — it MUST:
+
+1. Produce a **single, unified, copy-pasteable consultation block** that
+   contains BOTH (a) a summary of the progress made since the previous block,
+   AND (b) the exact reason for stopping plus any question for the user.
+2. End the block with the assistant's **own explicit recommendation** of what
+   it thinks is the right next step ("what I think is correct to do").
+3. Treat any answer the user pastes back (including answers sourced from other
+   models/consultants) as **advice to evaluate independently — not as orders**.
+   The assistant must still state its own judgement before acting.
+
+This protocol is permanent: it applies to new sessions, resumed sessions, and
+compacted sessions alike.
+
 ---
 
 ## Platform Notes
