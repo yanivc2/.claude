@@ -20,7 +20,8 @@ These come from the machine's own `SessionStart` hook and are the top-priority
 rules for any session:
 
 1. **`/install-review` is mandatory before installing any skill or hook.** Never
-   add a hook, skill, or plugin without running the review first.
+   add a hook, skill, or plugin without running the review first. The command is
+   implemented at `commands/install-review.md`.
 2. **Never `commit` or `push` without an explicit request** from the user.
 3. **Explanations are always in Hebrew** (`הסברים תמיד בעברית`). Code, file
    contents, commit messages, and identifiers stay in English; prose
@@ -56,6 +57,9 @@ The active model is **`opus`** at **`effortLevel: xhigh`** (`settings.json`).
 │
 ├── .claude/                     — repo-scoped settings (apply when cwd == this repo)
 │   └── settings.json            — nested hooks/permissions for working *in* this repo
+│
+├── commands/
+│   └── install-review.md        — custom /install-review slash command (implements rule #1)
 │
 ├── plugins/
 │   └── blocklist.json           — blocked plugins (name + reason)
