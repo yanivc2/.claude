@@ -48,11 +48,12 @@ def test_frozen_paid_spend_ledger_loads_and_totals():
     # $0.080660 FAILED (R2 terminal apply-failure; DEFECT-6 path) + black-238 $0.040705 SOLVED
     # (C=2, at-cap; candidate cand-b0d0368057 persist-rejected slot_budget_exceeded; no bank change)
     # + black-273 $0.090424 FAILED (R2 malformed terminal; non-memory) + black-334 $0.018992 FAILED
-    # (C=2 at-cap; terminal-R2 under the DEFECT-6-remediated lifecycle; no bank change)). The prior
-    # black-215 DEFECT_6 run stays diagnostic-only.
-    assert led.total_paid_to_date() == Decimal("0.627332")
+    # (C=2 at-cap; terminal-R2) + black-335 $0.041383 FAILED (C=2 at-cap; public PASS but hidden F2P
+    # FAIL — superficial patch; write-gate verifier_failed; no bank change)). The prior black-215
+    # DEFECT_6 run stays diagnostic-only.
+    assert led.total_paid_to_date() == Decimal("0.668715")
     assert Decimal(led.diagnostic_apparatus_spend_usd) == Decimal("0.121801")
-    assert Decimal(led.official_training_spend_usd) == Decimal("0.505531")
+    assert Decimal(led.official_training_spend_usd) == Decimal("0.546914")
     assert led.content_hash == led.compute_hash()
 
 
@@ -74,7 +75,7 @@ def test_lifetime_spend_plus_worst_binds_global_cap():
     led = load_frozen_paid_spend(_CORPUS)
     projected = Decimal("45.99675")
     lifetime = led.total_paid_to_date() + projected
-    assert lifetime == Decimal("46.624082")
+    assert lifetime == Decimal("46.665465")
     assert lifetime <= Decimal("50.00")                        # fits the $50 lifetime cap
 
 
