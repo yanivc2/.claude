@@ -82,12 +82,12 @@ export function EmployeeExport({ data }: { data: ExportData }) {
         `.page{margin:24px}h1{font-size:22px}h2{font-size:15px;margin-top:24px;border-bottom:1px solid #e2e8f0;padding-bottom:4px}` +
         `table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}` +
         `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}.meta{font-size:13px;color:#475569}` +
-        `.bar{position:sticky;top:0;display:flex;gap:8px;justify-content:flex-end;background:#0f172a;padding:10px 14px}` +
-        `.bar button{border:0;border-radius:6px;padding:6px 14px;font-size:14px;cursor:pointer}` +
-        `.b-print{background:#2563eb;color:#fff}.b-close{background:#e2e8f0;color:#0f172a}` +
+        `.bar{position:sticky;top:0;display:flex;gap:12px;justify-content:center;background:#0f172a;padding:14px}` +
+        `.bar button{border:0;border-radius:8px;padding:14px 32px;font-size:18px;font-weight:700;cursor:pointer}` +
+        `.b-print{background:#2563eb;color:#fff}.b-close{background:#ef4444;color:#fff}` +
         `@media print{.bar{display:none}.page{margin:0}}</style>` +
         `</head><body>` +
-        `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה</button>` +
+        `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה / שמירה</button>` +
         `<button class="b-close" onclick="window.close()">✕ סגירה</button></div>` +
         `<div class="page">` +
         `<h1>תיק עובד — ${escapeHtml(data.fullName)}</h1>` +

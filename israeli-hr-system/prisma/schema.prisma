@@ -175,6 +175,11 @@ model OnboardingInvite {
   companyName String? // שם החברה — מוצג ככותרת בפורטל הקליטה של העובד
   status      InviteStatus @default(PENDING)
 
+  // פרטי העסקה שה-HR קובע מראש (אינם מוצגים לעובד; מוחלים בעת השלמת הקליטה)
+  jobTitle      String?
+  monthlySalary Int?
+  hourlySalary  Int?
+
   // הסכם עבודה שה-HR מצרף לשליחה לעובד (העובד מקבל, קורא וחותם).
   // הקובץ נשמר כ-data URL (base64) — בפרודקשן מומלץ object storage.
   contractFileName String?

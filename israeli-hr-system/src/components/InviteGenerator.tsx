@@ -68,15 +68,48 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+const inviteMessage = (url: string) =>
+  `שלום, להשלמת הקליטה אנא מלא/י את הטופס בקישור:\n${url}`;
+const waHref = (url: string) => `https://wa.me/?text=${encodeURIComponent(inviteMessage(url))}`;
+const mailHref = (url: string, email?: string | null) =>
+  `mailto:${email ?? ""}?subject=${encodeURIComponent("טופס קליטה לעובד")}&body=${encodeURIComponent(
+    inviteMessage(url),
+  )}`;
+
+// כפתורי שליחה ישירה לוואטסאפ ולמייל.
+function ShareButtons({ url, email }: { url: string; email?: string | null }) {
+  return (
+    <>
+      <a
+        href={waHref(url)}
+        target="_blank"
+        rel="noreferrer"
+        className="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+      >
+        📱 וואטסאפ
+      </a>
+      <a
+        href={mailHref(url, email)}
+        className="shrink-0 rounded-lg bg-slate-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-700"
+      >
+        ✉️ מייל
+      </a>
+    </>
+  );
+}
+
 export function InviteGenerator() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
+  const [monthlySalary, setMonthlySalary] = useState("");
+  const [hourlySalary, setHourlySalary] = useState("");
   const [contractFile, setContractFile] = useState<File | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [loading, setLoading] = useState(false);
-  const [newUrl, setNewUrl] = useState<string | null>(null);
+  const [newInvite, setNewInvite] = useState<{ url: string; email: string } | null>(null);
   const [error, setError] = useState<string>("");
 
   async function loadInvites() {
@@ -105,7 +138,7 @@ export function InviteGenerator() {
   async function generate() {
     setLoading(true);
     setError("");
-    setNewUrl(null);
+    setNewInvite(null);
     try {
       const contract = contractFile
         ? {
@@ -118,14 +151,26 @@ export function InviteGenerator() {
       const res = await fetch("/api/onboarding/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName, lastName, email, companyName, contract }),
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email,
+          companyName,
+          jobTitle,
+          monthlySalary: monthlySalary ? Number(monthlySalary) : null,
+          hourlySalary: hourlySalary ? Number(hourlySalary) : null,
+          contract,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "שגיאה ביצירת הקישור");
-      setNewUrl(linkFor(data.token));
+      setNewInvite({ url: linkFor(data.token), email });
       setFirstName("");
       setLastName("");
       setEmail("");
+      setJobTitle("");
+      setMonthlySalary("");
+      setHourlySalary("");
       setContractFile(null);
       await loadInvites();
     } catch (err) {
@@ -174,6 +219,37 @@ export function InviteGenerator() {
         />
       </div>
 
+      {/* פרטי העסקה שה-HR קובע — אינם מוצגים לעובד */}
+      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+        <p className="mb-2 text-xs font-medium text-slate-500">
+          פרטי העסקה (למעסיק בלבד — לא מוצג לעובד)
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <input
+            className={inputClass}
+            placeholder="תפקיד"
+            value={jobTitle}
+            onChange={(e) => setJobTitle(e.target.value)}
+          />
+          <input
+            className={inputClass}
+            type="number"
+            inputMode="numeric"
+            placeholder="שכר חודשי (₪)"
+            value={monthlySalary}
+            onChange={(e) => setMonthlySalary(e.target.value)}
+          />
+          <input
+            className={inputClass}
+            type="number"
+            inputMode="numeric"
+            placeholder="שכר שעתי (₪)"
+            value={hourlySalary}
+            onChange={(e) => setHourlySalary(e.target.value)}
+          />
+        </div>
+      </div>
+
       {/* צירוף הסכם עבודה שיישלח לעובד לקריאה וחתימה */}
       <div className="mt-3">
         <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -203,17 +279,20 @@ export function InviteGenerator() {
         <p className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
       )}
 
-      {newUrl && (
+      {newInvite && (
         <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4">
-          <p className="text-sm font-medium text-green-800">הקישור נוצר! העתק/י ושלח/י לעובד:</p>
+          <p className="text-sm font-medium text-green-800">הקישור נוצר! שלח/י לעובד:</p>
           <div className="mt-2 flex items-center gap-2">
             <input
               readOnly
-              value={newUrl}
+              value={newInvite.url}
               onFocus={(e) => e.target.select()}
               className="min-w-0 flex-1 rounded-lg border border-green-300 bg-white px-3 py-2 text-xs text-slate-700"
             />
-            <CopyButton url={newUrl} />
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <CopyButton url={newInvite.url} />
+            <ShareButtons url={newInvite.url} email={newInvite.email} />
           </div>
         </div>
       )}
@@ -238,13 +317,18 @@ export function InviteGenerator() {
                     <p className="mt-0.5 text-xs text-slate-500">📄 הסכם עבודה מצורף</p>
                   )}
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLE[inv.status]}`}
                   >
                     {STATUS_LABEL[inv.status]}
                   </span>
-                  {inv.status === "PENDING" && <CopyButton url={linkFor(inv.token)} />}
+                  {inv.status === "PENDING" && (
+                    <>
+                      <CopyButton url={linkFor(inv.token)} />
+                      <ShareButtons url={linkFor(inv.token)} email={inv.email} />
+                    </>
+                  )}
                   <button
                     type="button"
                     onClick={() => deleteInvite(inv.id)}

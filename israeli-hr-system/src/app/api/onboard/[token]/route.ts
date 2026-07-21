@@ -39,6 +39,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     };
   }
 
+  // פרטי העסקה שה-HR קבע בהזמנה גוברים (הם אינם מוצגים לעובד).
+  if (invite.jobTitle) data.jobTitle = invite.jobTitle;
+  if (invite.monthlySalary != null) data.monthlySalary = invite.monthlySalary;
+  if (invite.hourlySalary != null) data.hourlySalary = invite.hourlySalary;
+
   try {
     const employeeId = await createEmployeeFromOnboarding(data);
 

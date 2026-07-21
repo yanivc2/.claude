@@ -99,7 +99,13 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
       alert("החלון נחסם. אנא אפשר/י חלונות קופצים ונסה/י שוב.");
       return;
     }
-    w.document.write(html);
+    // סרגל עליון גדול (הדפסה/סגירה) שאינו מודפס.
+    const bar =
+      `<div class="noprint" style="position:sticky;top:0;display:flex;gap:12px;justify-content:center;background:#0f172a;padding:14px">` +
+      `<button onclick="window.print()" style="border:0;border-radius:8px;padding:14px 32px;font-size:18px;font-weight:700;background:#2563eb;color:#fff;cursor:pointer">🖨️ הדפסה / שמירה</button>` +
+      `<button onclick="window.close()" style="border:0;border-radius:8px;padding:14px 32px;font-size:18px;font-weight:700;background:#ef4444;color:#fff;cursor:pointer">✕ סגירה</button>` +
+      `</div><style>@media print{.noprint{display:none}}</style>`;
+    w.document.write(html.replace("<body>", "<body>" + bar));
     // סגירה אוטומטית אחרי ההדפסה כדי שניתן יהיה לצאת מהמסמך.
     w.document.write(
       `<script>window.onafterprint=function(){window.close()};` +

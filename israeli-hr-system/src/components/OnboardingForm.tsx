@@ -96,6 +96,8 @@ interface OnboardingFormProps {
   doneMessage?: string;
   // הסכם עבודה שה-HR צירף — מוצג לעובד לקריאה/הורדה לפני החתימה.
   agreement?: { fileName: string; dataUrl: string; mimeType?: string };
+  // הסתרת שדות שה-HR קובע (תפקיד ושכר) — בפורטל הציבורי של העובד.
+  hideEmployerFields?: boolean;
 }
 
 // בריחת תווים לצורך הזרקה בטוחה ל-HTML של חלון ההדפסה.
@@ -123,11 +125,11 @@ function printDocument(title: string, bodyHtml: string) {
       `.meta{font-size:13px;color:#475569}.sig{margin-top:24px;border-top:1px solid #cbd5e1;padding-top:12px}` +
       `table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13px}` +
       `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}` +
-      `.bar{position:sticky;top:0;display:flex;gap:8px;justify-content:flex-end;background:#0f172a;padding:10px 14px}` +
-      `.bar button{border:0;border-radius:6px;padding:6px 14px;font-size:14px;cursor:pointer}` +
-      `.b-print{background:#2563eb;color:#fff}.b-close{background:#e2e8f0;color:#0f172a}` +
+      `.bar{position:sticky;top:0;display:flex;gap:12px;justify-content:center;background:#0f172a;padding:14px}` +
+      `.bar button{border:0;border-radius:8px;padding:14px 32px;font-size:18px;font-weight:700;cursor:pointer}` +
+      `.b-print{background:#2563eb;color:#fff}.b-close{background:#ef4444;color:#fff}` +
       `@media print{.bar{display:none}.page{margin:0}}</style></head><body>` +
-      `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה</button>` +
+      `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה / שמירה</button>` +
       `<button class="b-close" onclick="window.close()">✕ סגירה</button></div>` +
       `<div class="page">${bodyHtml}</div>` +
       `<script>window.onafterprint=function(){window.close()};` +
@@ -142,6 +144,7 @@ export function OnboardingForm({
   defaults,
   doneMessage,
   agreement,
+  hideEmployerFields = false,
 }: OnboardingFormProps = {}) {
   const [form, setForm] = useState<FormState>({ ...EMPTY, ...defaults });
   const [idFile, setIdFile] = useState<File | null>(null);
@@ -397,31 +400,35 @@ export function OnboardingForm({
               onChange={(e) => set("startDate", e.target.value)}
             />
           </Field>
-          <Field label="תפקיד">
-            <input
-              className={inputClass}
-              value={form.jobTitle}
-              onChange={(e) => set("jobTitle", e.target.value)}
-            />
-          </Field>
-          <Field label="שכר חודשי (₪)">
-            <input
-              className={inputClass}
-              type="number"
-              inputMode="numeric"
-              value={form.monthlySalary}
-              onChange={(e) => set("monthlySalary", e.target.value)}
-            />
-          </Field>
-          <Field label="שכר שעתי (₪)">
-            <input
-              className={inputClass}
-              type="number"
-              inputMode="numeric"
-              value={form.hourlySalary}
-              onChange={(e) => set("hourlySalary", e.target.value)}
-            />
-          </Field>
+          {!hideEmployerFields && (
+            <>
+              <Field label="תפקיד">
+                <input
+                  className={inputClass}
+                  value={form.jobTitle}
+                  onChange={(e) => set("jobTitle", e.target.value)}
+                />
+              </Field>
+              <Field label="שכר חודשי (₪)">
+                <input
+                  className={inputClass}
+                  type="number"
+                  inputMode="numeric"
+                  value={form.monthlySalary}
+                  onChange={(e) => set("monthlySalary", e.target.value)}
+                />
+              </Field>
+              <Field label="שכר שעתי (₪)">
+                <input
+                  className={inputClass}
+                  type="number"
+                  inputMode="numeric"
+                  value={form.hourlySalary}
+                  onChange={(e) => set("hourlySalary", e.target.value)}
+                />
+              </Field>
+            </>
+          )}
         </div>
 
         {/* זמינות לפי ימים ומשמרות */}
