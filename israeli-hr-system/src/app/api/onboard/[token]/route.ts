@@ -29,6 +29,11 @@ export async function POST(req: Request, ctx: { params: Promise<{ token: string 
     );
   }
 
+  // חובת אישור מדיניות פרטיות בפורטל העובד.
+  if (!parsed.data.privacyAccepted) {
+    return NextResponse.json({ error: "יש לאשר מדיניות פרטיות" }, { status: 400 });
+  }
+
   // צירוף הסכם העבודה שה-HR העלה בעת יצירת ההזמנה — נשמר בתיק העובד.
   const data = { ...parsed.data };
   if (invite.contractFileData && invite.contractFileName) {

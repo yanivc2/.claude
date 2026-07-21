@@ -102,6 +102,7 @@ export default async function EmployeeDetailPage({
     ["שכר שעתי", emp.hourlySalary ? `${emp.hourlySalary} ₪` : "—"],
     ["זמינות", formatAvailability(emp.availability)],
     ["הסדר פנסיוני פעיל בקליטה", yesNo(emp.hasActivePension)],
+    ["אישור מדיניות פרטיות", emp.privacyAcceptedAt ? fmt(emp.privacyAcceptedAt) : "—"],
   ];
   const form101Rows: [string, string][] | null = emp.form101
     ? [
