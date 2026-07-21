@@ -10,6 +10,21 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ───────────────────────── אבטחה / כניסה ─────────────────────────
+// מפתחות ביומטריים (WebAuthn/Passkey) לכניסה עם Face ID / Windows Hello.
+// המערכת אינה שומרת תמונות פנים — רק מפתח ציבורי מהמכשיר.
+model WebauthnCredential {
+  id           String   @id @default(cuid())
+  username     String // המשתמש שאליו שייך המפתח (מנהל יחיד כרגע)
+  credentialId String   @unique // מזהה המפתח (base64url)
+  publicKey    String   @db.Text // מפתח ציבורי (base64url)
+  counter      Int      @default(0)
+  transports   String? // אמצעי החיבור (JSON)
+  createdAt    DateTime @default(now())
+
+  @@index([username])
+}
+
 // ───────────────────────────── חברות ─────────────────────────────
 // רשימת חברות לניהול ה-HR — משמשות כאפשרויות בחירה (למשל בקישורי קליטה).
 model Company {
