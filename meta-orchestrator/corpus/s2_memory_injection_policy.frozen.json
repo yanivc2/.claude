@@ -1,5 +1,12 @@
 {
   "B1": {
+    "authoritative_token_parity": {
+      "applies_from": "first content-bearing task (position 4, black-185)",
+      "authority": "Anthropic count_tokens on the canonical C and B1 requests is the BLOCKING authority; the deterministic whitespace-token proxy is advisory only.",
+      "block_rule": "MEMORY_LENGTH_MISMATCH if abs_gap > 32 AND rel_gap > 20% (authoritative). Proxy stays a fast precheck; if proxy and authoritative disagree on the block decision -> block and investigate.",
+      "measurement": "memory-only tokens = count_tokens(with-memory request) - count_tokens(identical no-memory base request)",
+      "relative_formula": "abs(C_mem - B1_mem) / max(C_mem, B1_mem); both-zero=0"
+    },
     "derangement_map_hash": "1380c9ddabb0",
     "insufficient_supply": "fail-closed (no padding, no duplication)",
     "note": "Occupancy parity enforced on ITEM COUNT. Rendered line/char bounded by the shared render budget and reported for audit; exact per-lesson line equality between DISTINCT lessons is infeasible without forbidden padding, so observed not blocked.",
@@ -23,6 +30,7 @@
     "SLOT_MAX_LINES": 8
   },
   "code_binding": {
+    "assert_authoritative_memory_parity": "094df653fad1",
     "assert_occupancy_parity": "054ad1995ee9",
     "b1_lines_count_matched": "605d0e051bfe",
     "learn_gated_bank": "5d8d371cc2bb",
@@ -32,7 +40,7 @@
     "rendered_tokens": "8128dbd940e0",
     "resolve_memory": "cb9274ddcb86"
   },
-  "content_hash": "17d4bf33aa63b07e",
+  "content_hash": "d0a4e11d223135e4",
   "empty_slot_policy": "inject_nothing",
   "failure": {
     "MEMORY_OCCUPANCY_MISMATCH": "fail_closed_before_reservation_and_send"
@@ -45,7 +53,7 @@
     "task": "black-141"
   },
   "memory_policy_version": "v1",
-  "note": "Pre-registered; token-gap gate added before the first memory-bearing task (position 3, black-141). Additive: dormant for empty slots so positions 0-2 are unaffected.",
+  "note": "Pre-registered; authoritative count_tokens C/B1 memory-length gate added before the first content-bearing task (black-185, position 4).",
   "principle": "Per task, inject only accepted lessons from PRIOR tasks of the CURRENT task family (exact-family). C/D/B1 share one MemoryContext shape and one frozen render budget. An empty slot injects NOTHING (no @@MEM tag) uniformly, so C==A at the memory-block level when no relevant memory exists yet. The only difference across C/D/B1 is content/relevance, controlled for quantity.",
   "ranking": [
     "-support",

@@ -82,6 +82,35 @@ def test_rendered_token_gap_gate_passes_similar_sizes():
     assert rep["c_items"] == 1 and rep["token_gap"] <= 32
 
 
+def test_authoritative_memory_parity_passes_when_close():
+    from meta_orchestrator.experiment.s2.memory import assert_authoritative_memory_parity
+    # base 1000; C adds 40 memory tokens, B1 adds 45 → gap 5, rel ~11% → PASS (below both tols)
+    tele = assert_authoritative_memory_parity(
+        base_request_tokens=1000, c_request_tokens=1040, b1_request_tokens=1045,
+        c_memory_lines=["@@MEM", "- a b c"], b1_memory_lines=["@@MEM", "- a b d"])
+    assert tele["decision"] == "pass" and tele["c_memory_tokens"] == 40 and tele["b1_memory_tokens"] == 45
+
+
+def test_authoritative_memory_parity_blocks_large_gap():
+    from meta_orchestrator.experiment.s2.memory import (assert_authoritative_memory_parity,
+                                                       MemoryOccupancyMismatch)
+    # C adds 40 tokens, B1 adds 200 → gap 160 (>32) and rel 80% (>20%) → MEMORY_LENGTH_MISMATCH
+    with pytest.raises(MemoryOccupancyMismatch):
+        assert_authoritative_memory_parity(
+            base_request_tokens=1000, c_request_tokens=1040, b1_request_tokens=1200,
+            c_memory_lines=["@@MEM", "- short"], b1_memory_lines=["@@MEM"] + ["- " + "w " * 30] * 3)
+
+
+def test_authoritative_proxy_disagreement_blocks():
+    from meta_orchestrator.experiment.s2.memory import (assert_authoritative_memory_parity,
+                                                       MemoryOccupancyMismatch)
+    # authoritative says PASS (gap 5) but the proxy lines are wildly different in size → disagreement → block
+    with pytest.raises(MemoryOccupancyMismatch):
+        assert_authoritative_memory_parity(
+            base_request_tokens=1000, c_request_tokens=1040, b1_request_tokens=1045,
+            c_memory_lines=["@@MEM", "- a"], b1_memory_lines=["@@MEM"] + ["- " + "w " * 60])
+
+
 def test_b1_is_count_matched_to_c():
     deranged = PlaceboRouter.build().route("whitespace")
     bank = FrozenLessonBank(by_family={

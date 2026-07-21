@@ -269,6 +269,49 @@ def _rendered_tokens(lines: list[str]) -> int:
     return len(re.findall(r"\S+", "\n".join(lines)))
 
 
+def _gap(a: int, b: int) -> tuple[int, float]:
+    """(absolute gap, relative gap = |a-b|/max(a,b)); both-zero → (0, 0.0)."""
+    d = abs(a - b)
+    return d, (d / max(a, b, 1))
+
+
+def assert_authoritative_memory_parity(
+    *, base_request_tokens: int, c_request_tokens: int, b1_request_tokens: int,
+    c_memory_lines: list[str], b1_memory_lines: list[str],
+    abs_tol: int = RENDER_TOKEN_ABS_TOL, rel_tol: float = RENDER_TOKEN_REL_TOL) -> dict:
+    """AUTHORITATIVE C-vs-B1 memory-length gate for the FIRST content-bearing task. The memory block's
+    token contribution is isolated by real ``count_tokens`` (with-memory MINUS the identical no-memory
+    base request), so only the injected memory differs. Block (MEMORY_LENGTH_MISMATCH, fail-closed)
+    when the authoritative gap is BOTH > ``abs_tol`` AND > ``rel_tol`` relative. The deterministic
+    proxy is also evaluated; if proxy and authoritative DISAGREE on the block decision, block and
+    return for investigation (the proxy may not be measuring the same canonical content)."""
+    c_mem = c_request_tokens - base_request_tokens          # authoritative memory-only token counts
+    b1_mem = b1_request_tokens - base_request_tokens
+    abs_gap, rel_gap = _gap(c_mem, b1_mem)
+    auth_block = abs_gap > abs_tol and rel_gap > rel_tol
+
+    proxy_c, proxy_b1 = _rendered_tokens(c_memory_lines), _rendered_tokens(b1_memory_lines)
+    p_abs, p_rel = _gap(proxy_c, proxy_b1)
+    proxy_block = p_abs > abs_tol and p_rel > rel_tol
+
+    tele = {"base_request_tokens": base_request_tokens, "c_request_tokens": c_request_tokens,
+            "b1_request_tokens": b1_request_tokens, "c_memory_tokens": c_mem, "b1_memory_tokens": b1_mem,
+            "authoritative_abs_gap": abs_gap, "authoritative_rel_gap": round(rel_gap, 4),
+            "proxy_c_tokens": proxy_c, "proxy_b1_tokens": proxy_b1, "proxy_abs_gap": p_abs,
+            "proxy_rel_gap": round(p_rel, 4), "abs_tol": abs_tol, "rel_tol": rel_tol,
+            "authoritative_block": auth_block, "proxy_block": proxy_block}
+    if auth_block:
+        raise MemoryOccupancyMismatch(
+            f"MEMORY_LENGTH_MISMATCH (authoritative): C_mem={c_mem} B1_mem={b1_mem} tokens "
+            f"(gap={abs_gap}, rel={rel_gap:.0%}) exceeds tolerance (>{abs_tol} and >{int(rel_tol*100)}%)")
+    if proxy_block != auth_block:
+        raise MemoryOccupancyMismatch(
+            f"proxy/authoritative DISAGREE on memory-length parity (proxy_block={proxy_block}, "
+            f"authoritative_block={auth_block}) — block and investigate: {tele}")
+    tele["decision"] = "pass"
+    return tele
+
+
 def b1_lines_count_matched(task_family: str, *, bank: "FrozenLessonBank",
                            placebo: "PlaceboRouter") -> list[str]:
     """Render B1's memory so it holds EXACTLY the number of items C would inject for this task, drawn
