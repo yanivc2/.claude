@@ -349,9 +349,65 @@
       "visible_text_sha256": "af71bee2ebca3fbf854db51731b7ea15ffbd527d4463a264120135bdf6c56dbd",
       "write_gate_decision": "WRITTEN",
       "write_gate_invoked": true
+    },
+    {
+      "anchor_content_hash": "713815af6f92aab0",
+      "apparatus_version": "v2.2",
+      "attempt_index": 9,
+      "authoritative_memory_parity": {
+        "abs_gap": 17,
+        "b1_memory_tokens": 107,
+        "c_memory_tokens": 90,
+        "decision": "pass",
+        "rel_gap": 0.1589
+      },
+      "authoritative_solver_outcome": "NOT_COUNTED",
+      "b1_comparator_lesson": "cand-f0b1e78791",
+      "b1_fallback_used": false,
+      "b1_source_family": "iterator",
+      "bank_hash_after": "7d2f81359026",
+      "bank_hash_before": "7d2f81359026",
+      "bank_state": "unchanged",
+      "bank_written_count": 0,
+      "classification": "DIAGNOSTIC_APPARATUS_DEFECT_6",
+      "commit": "fd9531e694f396515b19c73042e70ad6d9adaf9e",
+      "condition": "C",
+      "cost_category": "diagnostic",
+      "cost_usd": "0.069458",
+      "curriculum_position": 6,
+      "final_sequence_attempt_number": null,
+      "fold": 1,
+      "global_official_attempt_number": null,
+      "grant_id": "grant-ebd0dbd23389",
+      "hidden_note": "diagnostic evidence only \u2014 hidden ran on R1 patch after R2 malformed (the DEFECT_6 bug); NOT used as an outcome",
+      "hidden_on_stale_R1": "PASS",
+      "in_final_sequence": false,
+      "injected_lesson_id": "cand-e04f0fb979",
+      "injected_lesson_source": "black-112",
+      "injected_memory_items": 1,
+      "memory_bearing_attempt": true,
+      "note": "DIAGNOSTIC \u2014 apparatus DEFECT_6 (R2 malformed after R1 applied ran hidden+write-gate on the stale R1 patch, a silent fallback that was never a frozen rule). Fixed in commit aa51623 (R2 is the final round; a terminal R2 => FAILED, working tree reset to buggy). This attempt is NOT official, does NOT advance the curriculum, and does NOT write to the bank; cost retained as diagnostic. black-215 to be re-run at position 6.",
+      "official_attempt": false,
+      "public": [
+        "FAIL",
+        "SOLVER_FAIL_MALFORMED_OUTPUT"
+      ],
+      "quarantined_lesson": "cand-d95f8f6877",
+      "r1_input_tokens": 28987,
+      "r1_output_tokens": 1110,
+      "r2_input_tokens": 30086,
+      "r2_output_tokens": 967,
+      "round2_opened": true,
+      "round_classifications": [
+        "VALID_COMPLETE_OUTPUT",
+        "MALFORMED_OUTPUT"
+      ],
+      "task_family": "whitespace",
+      "task_id": "black-215",
+      "write_gate_note": "the buggy apparatus wrote cand-d95f8f6877; QUARANTINED (bank_write=0), not persisted"
     }
   ],
-  "content_hash": "24a0f366fde3265d",
+  "content_hash": "9d757a61fc520820",
   "note": "Historical, immutable log of OFFICIAL C-training attempts. An attempt is official iff the apparatus executed per the frozen contract (correct family, complete non-truncated response, valid+applied patch, correct public/hidden grading, write-gate invoked); the write-gate accepting a lesson is NOT required. Attempts run under a superseded apparatus_version are retained here but are NOT part of the final experimental sequence. Final-sequence attempts have in_final_sequence=true and advance the curriculum.",
   "schema_version": "s2-official-training-log-v1"
 }

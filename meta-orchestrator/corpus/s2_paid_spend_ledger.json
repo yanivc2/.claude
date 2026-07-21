@@ -1,7 +1,7 @@
 {
-  "content_hash": "2104f178096d357e",
-  "diagnostic_apparatus_spend_usd": "0.052343",
-  "note": "diagnostic $0.052343. historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028 SOLVED+banked, black-130 $0.029330 SOLVED+banked, black-132 $0.029049 FAILED, black-141 $0.032788 SOLVED+leak-rejected, black-185 $0.037983 SOLVED+banked (first memory-bearing), black-193 $0.038139 SOLVED+banked (iterator). official_training_spend $0.202958; lifetime $0.255301.",
+  "content_hash": "310f34fa31334dc7",
+  "diagnostic_apparatus_spend_usd": "0.121801",
+  "note": "diagnostic $0.121801 ($0.052343 prior + black-215 $0.069458 DEFECT_6 apparatus run). historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 FAILED, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 SOLVED+banked, black-193 $0.038139 SOLVED+banked. official_training_spend $0.202958; lifetime $0.324759. black-215 attempt is DIAGNOSTIC only (DEFECT_6: hidden ran on a stale R1 patch after an R2 malformed; not official, no bank write, no curriculum advance; to be re-run under the fixed apparatus).",
   "official_training_spend_usd": "0.202958",
   "schema_version": "s2-paid-spend-v1"
 }
