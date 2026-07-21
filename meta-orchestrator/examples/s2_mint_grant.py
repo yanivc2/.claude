@@ -33,11 +33,15 @@ from meta_orchestrator.experiment.s2.pricing import call_cost_usd, load_frozen_p
 from meta_orchestrator.experiment.s2.realtask import assert_hidden_selection_valid, materialize_real_task
 
 REPO_ROOT = "/home/user/.claude"
-FOLD, POSITION = 1, 0
+FOLD = 1
 
 
 def main() -> None:
     art_path, anchor_path, workdir, out_dir = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+    # Optional 5th arg = frozen curriculum position (default 0). The task id is DERIVED from the
+    # frozen curriculum at (FOLD, position) — never passed in — so a grant can only ever be minted
+    # for the task the frozen order dictates at that position.
+    position = int(sys.argv[5]) if len(sys.argv) > 5 else 0
     os.makedirs(out_dir, exist_ok=True)
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     corpus_dir = os.path.join(here, "corpus")
@@ -62,11 +66,18 @@ def main() -> None:
     if problems:
         raise SystemExit(f"REFUSING TO MINT GRANT — {problems}")
 
-    # (2) frozen curriculum literal first task
+    # (2) the frozen curriculum task at the requested position (the ONLY task this grant can cover)
     cur = load_frozen_curriculum(corpus_dir)
-    task_id = cur.task_at(FOLD, POSITION)
-    if task_id != "black-112":
-        raise SystemExit(f"unexpected curriculum position 0: {task_id}")
+    task_id = cur.task_at(FOLD, position)
+    POSITION = position
+    # position must equal the number of completed FINAL-SEQUENCE attempts so far — no skipping ahead.
+    log_path = os.path.join(corpus_dir, "s2_official_training_log.json")
+    completed = 0
+    if os.path.exists(log_path):
+        completed = sum(1 for a in json.load(open(log_path)).get("attempts", [])
+                        if a.get("in_final_sequence"))
+    if position != completed:
+        raise SystemExit(f"position {position} != completed final-sequence attempts {completed} — refuse")
 
     # (3) reproduce + guard the hidden -k selector (exactly one node, disjoint from P2P)
     ctx = materialize_real_task(task_id, workdir)

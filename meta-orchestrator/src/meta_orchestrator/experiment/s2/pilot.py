@@ -103,6 +103,7 @@ def collect_frozen_hashes(corpus_dir: Optional[str] = None) -> dict[str, str]:
         "test_execution_plans": ("s2_test_execution_plans.frozen.json", "content_hash"),  # grading contract
         "forbidden_tokens": ("s2_forbidden_tokens.frozen.json", "content_hash"),  # reference-fix leak screen
         "fold1_c_bank": ("s2_fold1_c_bank.frozen.json", "content_hash"),     # learned Fold-1 C memory
+        "memory_policy": ("s2_memory_injection_policy.frozen.json", "content_hash"),  # injection contract
     }
     if corpus_dir:
         for key, (fname, field) in files.items():

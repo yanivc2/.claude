@@ -1,0 +1,43 @@
+{
+  "B1": {
+    "derangement_map_hash": "1380c9ddabb0",
+    "insufficient_supply": "fail-closed (no padding, no duplication)",
+    "note": "Occupancy parity enforced on ITEM COUNT. Rendered line/char bounded by the shared render budget and reported for audit; exact per-lesson line equality between DISTINCT lessons is infeasible without forbidden padding, so observed not blocked.",
+    "occupancy": "count-matched to C: inject EXACTLY C_item_count lessons from the deranged family by frozen ranking"
+  },
+  "C": {
+    "exact_family_only": true
+  },
+  "D": {
+    "empty_slot_behavior": "inject_nothing",
+    "render_envelope": "same as C/B1"
+  },
+  "caps": {
+    "MAX_ACTIVE_ENTRIES_PER_FAMILY": 2,
+    "SLOT_MAX_CHARS": 200,
+    "SLOT_MAX_LINES": 8
+  },
+  "code_binding": {
+    "assert_occupancy_parity": "8a6a7a94e025",
+    "b1_lines_count_matched": "605d0e051bfe",
+    "learn_gated_bank": "5d8d371cc2bb",
+    "placebo_router": "a9a3b14e79ea",
+    "rank_key": "4ab2efb88786",
+    "render_lines": "d54f82ef5d35",
+    "resolve_memory": "cb9274ddcb86"
+  },
+  "content_hash": "804abafad88e5fa8",
+  "empty_slot_policy": "inject_nothing",
+  "failure": {
+    "MEMORY_OCCUPANCY_MISMATCH": "fail_closed_before_reservation_and_send"
+  },
+  "memory_policy_version": "v1",
+  "note": "Pre-registered before the second final-sequence task (black-130).",
+  "principle": "Per task, inject only accepted lessons from PRIOR tasks of the CURRENT task family (exact-family). C/D/B1 share one MemoryContext shape and one frozen render budget. An empty slot injects NOTHING (no @@MEM tag) uniformly, so C==A at the memory-block level when no relevant memory exists yet. The only difference across C/D/B1 is content/relevance, controlled for quantity.",
+  "ranking": [
+    "-support",
+    "source_task_id",
+    "lesson_id"
+  ],
+  "schema_version": "s2-memory-injection-policy-v1"
+}

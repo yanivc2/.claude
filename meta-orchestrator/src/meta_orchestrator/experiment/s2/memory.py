@@ -210,7 +210,10 @@ def render_lines(mc: MemoryContext) -> list[str]:
     The tag line is machine-readable so a routing test-double (and audits) can verify WHICH
     family's content actually arrived — without changing the shape across C/B1/D.
     """
-    if mc.component_kind == KIND_NONE:
+    # Option B (frozen policy): an EMPTY memory slot injects NOTHING — no @@MEM tag, no placeholder —
+    # uniformly across C/D/B1. So C with an empty relevant-family bank == A at the memory-block level
+    # (there is genuinely nothing relevant yet), and no tokens are spent announcing an empty slot.
+    if mc.component_kind == KIND_NONE or not mc.lines:
         return []
     tag = f"@@MEM kind={mc.component_kind} family={mc.source_family or '-'}"
     # One deterministic budget applied to EVERY condition → no length/format advantage.
@@ -246,6 +249,52 @@ def occupancy_parity(bank: "FrozenLessonBank", placebo: "PlaceboRouter",
             family=fam, c_lines=c_lines, b1_lines=b1_lines, c_family=fam,
             b1_family=placebo.route(fam), equal=(c_lines == b1_lines)))
     return reports
+
+
+class MemoryOccupancyMismatch(RuntimeError):
+    """C and B1 would inject a different AMOUNT of memory for a task — the placebo would then vary in
+    quantity, not just relevance. An APPARATUS failure: block before any reservation / messages.create."""
+
+
+def b1_lines_count_matched(task_family: str, *, bank: "FrozenLessonBank",
+                           placebo: "PlaceboRouter") -> list[str]:
+    """Render B1's memory so it holds EXACTLY the number of items C would inject for this task, drawn
+    from the deranged family by the frozen stored ranking. Fail-closed (MemoryOccupancyMismatch) if
+    the deranged family cannot supply that many — never pad or duplicate."""
+    n_c = len(resolve_memory("C", task_family, bank=bank).lesson_ids)
+    deranged = placebo.route(task_family)
+    avail = bank.lessons_for(deranged)
+    if len(avail) < n_c:
+        raise MemoryOccupancyMismatch(
+            f"B1 cannot match C occupancy for {task_family!r}: C injects {n_c}, deranged family "
+            f"{deranged!r} has only {len(avail)} — fail-closed (no padding).")
+    picked = avail[:n_c]                                   # top-n by the frozen stored ranking
+    mc = MemoryContext(condition="B1", component_kind=KIND_OTHER_FAMILY, source_family=deranged,
+                       lesson_ids=[l.lesson_id for l in picked], lines=_lesson_lines(picked))
+    return render_lines(mc)
+
+
+def assert_occupancy_parity(task_family: str, *, bank: "FrozenLessonBank",
+                            placebo: "PlaceboRouter") -> dict:
+    """HARD pre-send gate on memory OCCUPANCY (item count): C and the count-matched B1 must inject the
+    SAME NUMBER of lessons for this task, drawn from their respective families. ``b1_lines_count_matched``
+    raises MemoryOccupancyMismatch fail-closed if the deranged family cannot supply that many, so the
+    caller blocks before reservation / send. Empty slots (Option B) render to [] on both sides, so a
+    task with no relevant memory passes trivially (0 items == 0 items).
+
+    Rendered LINE/char counts are returned for observability but are NOT a hard block: two DISTINCT
+    real lessons have different bullet counts, so exact line equality is unachievable without the
+    forbidden padding. Both sides pass through the SAME frozen render budget (SLOT_MAX_LINES /
+    SLOT_MAX_CHARS), which is the structural length control; ``line_parity`` flags any residual gap for
+    the audit trail."""
+    c_ctx = resolve_memory("C", task_family, bank=bank)
+    c_lines = render_lines(c_ctx)
+    b1_lines = b1_lines_count_matched(task_family, bank=bank, placebo=placebo)   # hard item-count gate
+    return {"task_family": task_family, "deranged_family": placebo.route(task_family),
+            "c_items": len(c_ctx.lesson_ids), "b1_items": len(c_ctx.lesson_ids),  # matched by construction
+            "c_lines": len(c_lines), "b1_lines": len(b1_lines),
+            "item_parity": True, "line_parity": len(c_lines) == len(b1_lines),
+            "render_budget": {"max_lines": SLOT_MAX_LINES, "max_chars": SLOT_MAX_CHARS}}
 
 
 def parse_mem_tag(context_lines: list[str]) -> tuple[str, Optional[str]]:
