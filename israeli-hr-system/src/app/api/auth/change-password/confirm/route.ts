@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { getAdmin } from "@/lib/admin";
+import { getAdminByUsername } from "@/lib/admin";
 import { verifyPassword } from "@/lib/password";
 import { sessionUser } from "@/lib/webauthn";
 
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "קוד חסר" }, { status: 400 });
 
-  const admin = await getAdmin();
+  const admin = await getAdminByUsername(user);
   if (!admin || !admin.pendingPasswordHash || !admin.confirmCodeHash || !admin.confirmExpiresAt) {
     return NextResponse.json({ error: "אין בקשת שינוי פעילה" }, { status: 400 });
   }
