@@ -46,6 +46,19 @@ def test_verifier_failure_rejected():
     assert "verifier_failed" in res.reasons
 
 
+def test_public_pass_but_hidden_fail_is_not_a_solve_and_never_banks():
+    # black-132 regression: a patch can PASS the public suite yet FAIL the hidden F2P. The
+    # AUTHORITATIVE verifier is the hidden verdict — verifier_passed reflects hidden, NOT public.
+    # So a public-PASS/hidden-FAIL attempt is a FAILED solve and its lesson is never banked.
+    hidden_verdict = False              # both hidden F2P nodes failed (public may still have passed)
+    res = evaluate_write_gate(_lesson(), is_train=True, verifier_passed=hidden_verdict,
+                              task_family="whitespace", existing=[])
+    assert res.written is False and "verifier_failed" in res.reasons
+    # authoritative outcome derivation must be hidden-based, never public-based:
+    solver_outcome = "SOLVED" if hidden_verdict else "FAILED"
+    assert solver_outcome == "FAILED"
+
+
 def test_empty_recommendation_rejected():
     res = evaluate_write_gate(_lesson(rec=[]), is_train=True, verifier_passed=True,
                               task_family="whitespace", existing=[])

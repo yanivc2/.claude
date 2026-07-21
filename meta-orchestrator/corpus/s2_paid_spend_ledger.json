@@ -1,7 +1,7 @@
 {
-  "content_hash": "62fb43b94aad8993",
+  "content_hash": "afbc496379bbc814",
   "diagnostic_apparatus_spend_usd": "0.052343",
-  "note": "diagnostic $0.052343. HISTORICAL official (superseded apparatus): black-112 v1 $0.011628 + v2.1 $0.012013 = $0.023641. FINAL-SEQUENCE official C-training (v2.2): black-112 $0.012028 (whitespace lesson) + black-130 $0.029330 (other_logic lesson) = $0.035358. official_training_spend $0.064999 ($0.023641 + $0.035358 wait); lifetime $0.117342.",
-  "official_training_spend_usd": "0.064999",
+  "note": "diagnostic $0.052343. HISTORICAL official (superseded): black-112 v1 $0.011628 + v2.1 $0.012013. FINAL-SEQUENCE official (v2.2): black-112 $0.012028 SOLVED(whitespace) + black-130 $0.029330 SOLVED(other_logic) + black-132 $0.029049 FAILED(hidden 0/2, no bank write). official_training_spend $0.094048; lifetime $0.146391.",
+  "official_training_spend_usd": "0.094048",
   "schema_version": "s2-paid-spend-v1"
 }
