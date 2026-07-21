@@ -1,7 +1,7 @@
 {
-  "content_hash": "b925e6ecd0904bfb",
+  "content_hash": "b1279378a17f90e9",
   "diagnostic_apparatus_spend_usd": "0.121801",
-  "note": "diagnostic $0.121801 ($0.052343 prior + black-215 DEFECT_6 diagnostic $0.069458). historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 FAILED, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 SOLVED+banked, black-193 $0.038139 SOLVED+banked, black-215(re-run) $0.035082 SOLVED+banked, black-224 $0.036710 SOLVED+banked. official_training_spend $0.274750; lifetime $0.396551.",
-  "official_training_spend_usd": "0.274750",
+  "note": "diagnostic $0.121801 ($0.052343 prior + black-215 DEFECT_6 diagnostic $0.069458). historical official $0.023641. FINAL-SEQUENCE official (v2.2): black-112 $0.012028, black-130 $0.029330, black-132 $0.029049 FAILED, black-141 $0.032788 SOLVED-leak, black-185 $0.037983 SOLVED+banked, black-193 $0.038139 SOLVED+banked, black-215(re-run) $0.035082 SOLVED+banked, black-224 $0.036710 SOLVED+banked, black-232 $0.080660 FAILED (R2 terminal apply-failure; DEFECT-6 path; no bank change). official_training_spend $0.355410; lifetime $0.477211.",
+  "official_training_spend_usd": "0.355410",
   "schema_version": "s2-paid-spend-v1"
 }
