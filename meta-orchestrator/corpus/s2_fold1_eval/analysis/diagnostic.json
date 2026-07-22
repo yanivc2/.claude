@@ -1,0 +1,345 @@
+{
+  "analysis_type": "EXPLORATORY_POSTHOC",
+  "apparatus_signal": {
+    "failure_mode_counts": {
+      "MALFORMED_OUTPUT": 15,
+      "PATCH_APPLY_FAIL": 4,
+      "SOLVED_hidden_pass": 8,
+      "VALID_PATCH_hidden_fail": 5
+    },
+    "hidden_pass_given_valid_patch": "8/13",
+    "no_valid_patch_cells": 19,
+    "no_valid_patch_rate": 0.5938,
+    "primary_cells": 32,
+    "valid_applied_patch_cells": 13
+  },
+  "discordant_C_vs_A": [
+    {
+      "A_mode": "MALFORMED_OUTPUT",
+      "C_had_memory": true,
+      "C_injected": [
+        "cand-f0b1e78791"
+      ],
+      "C_mode": "SOLVED_hidden_pass",
+      "family": "iterator",
+      "pairing": "C_ONLY_WIN",
+      "task_id": "black-133"
+    },
+    {
+      "A_mode": "SOLVED_hidden_pass",
+      "C_had_memory": false,
+      "C_injected": [],
+      "C_mode": "MALFORMED_OUTPUT",
+      "family": "parser_normalization",
+      "pairing": "A_ONLY_WIN",
+      "task_id": "black-183"
+    },
+    {
+      "A_mode": "SOLVED_hidden_pass",
+      "C_had_memory": true,
+      "C_injected": [
+        "cand-f0b1e78791"
+      ],
+      "C_mode": "MALFORMED_OUTPUT",
+      "family": "iterator",
+      "pairing": "A_ONLY_WIN",
+      "task_id": "black-234"
+    },
+    {
+      "A_mode": "SOLVED_hidden_pass",
+      "C_had_memory": true,
+      "C_injected": [
+        "cand-f0b1e78791"
+      ],
+      "C_mode": "MALFORMED_OUTPUT",
+      "family": "iterator",
+      "pairing": "A_ONLY_WIN",
+      "task_id": "black-95"
+    }
+  ],
+  "lesson_injection_map": {
+    "black-133": [
+      "cand-f0b1e78791"
+    ],
+    "black-1632": [
+      "cand-e04f0fb979",
+      "cand-23d8aeb211"
+    ],
+    "black-183": [],
+    "black-234": [
+      "cand-f0b1e78791"
+    ],
+    "black-329": [
+      "cand-e04f0fb979",
+      "cand-23d8aeb211"
+    ],
+    "black-60": [
+      "cand-e04f0fb979",
+      "cand-23d8aeb211"
+    ],
+    "black-74": [
+      "cand-5f96357fce",
+      "cand-773d0aca18"
+    ],
+    "black-95": [
+      "cand-f0b1e78791"
+    ]
+  },
+  "no_bank_changes": true,
+  "no_cells_rerun": true,
+  "no_exclusions_added": true,
+  "no_outcomes_reclassified": true,
+  "official_primary_result": "unchanged (\u0394(C\u2212A)=-0.25, NEGATIVE_DIRECTION, two-sided p=0.625)",
+  "per_task": [
+    {
+      "C_empty_slot": false,
+      "C_injected_lessons": [
+        "cand-f0b1e78791"
+      ],
+      "C_vs_A_pairing": "C_ONLY_WIN",
+      "cells": {
+        "A": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "B1": {
+          "mode": "SOLVED_hidden_pass",
+          "round2": false,
+          "solved": 1
+        },
+        "C": {
+          "mode": "SOLVED_hidden_pass",
+          "round2": false,
+          "solved": 1
+        },
+        "D": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        }
+      },
+      "family": "iterator",
+      "task_id": "black-133"
+    },
+    {
+      "C_empty_slot": false,
+      "C_injected_lessons": [
+        "cand-e04f0fb979",
+        "cand-23d8aeb211"
+      ],
+      "C_vs_A_pairing": "BOTH_FAILED",
+      "cells": {
+        "A": {
+          "mode": "VALID_PATCH_hidden_fail",
+          "round2": false,
+          "solved": 0
+        },
+        "B1": {
+          "mode": "VALID_PATCH_hidden_fail",
+          "round2": false,
+          "solved": 0
+        },
+        "C": {
+          "mode": "VALID_PATCH_hidden_fail",
+          "round2": false,
+          "solved": 0
+        },
+        "D": {
+          "mode": "VALID_PATCH_hidden_fail",
+          "round2": false,
+          "solved": 0
+        }
+      },
+      "family": "whitespace",
+      "task_id": "black-1632"
+    },
+    {
+      "C_empty_slot": true,
+      "C_injected_lessons": [],
+      "C_vs_A_pairing": "A_ONLY_WIN",
+      "cells": {
+        "A": {
+          "mode": "SOLVED_hidden_pass",
+          "round2": false,
+          "solved": 1
+        },
+        "B1": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "C": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "D": {
+          "mode": "SOLVED_hidden_pass",
+          "round2": false,
+          "solved": 1
+        }
+      },
+      "family": "parser_normalization",
+      "task_id": "black-183"
+    },
+    {
+      "C_empty_slot": false,
+      "C_injected_lessons": [
+        "cand-f0b1e78791"
+      ],
+      "C_vs_A_pairing": "A_ONLY_WIN",
+      "cells": {
+        "A": {
+          "mode": "SOLVED_hidden_pass",
+          "round2": false,
+          "solved": 1
+        },
+        "B1": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "C": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "D": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        }
+      },
+      "family": "iterator",
+      "task_id": "black-234"
+    },
+    {
+      "C_empty_slot": false,
+      "C_injected_lessons": [
+        "cand-e04f0fb979",
+        "cand-23d8aeb211"
+      ],
+      "C_vs_A_pairing": "BOTH_FAILED",
+      "cells": {
+        "A": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "B1": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "C": {
+          "mode": "VALID_PATCH_hidden_fail",
+          "round2": false,
+          "solved": 0
+        },
+        "D": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        }
+      },
+      "family": "whitespace",
+      "task_id": "black-329"
+    },
+    {
+      "C_empty_slot": false,
+      "C_injected_lessons": [
+        "cand-e04f0fb979",
+        "cand-23d8aeb211"
+      ],
+      "C_vs_A_pairing": "BOTH_FAILED",
+      "cells": {
+        "A": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "B1": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "C": {
+          "mode": "PATCH_APPLY_FAIL",
+          "round2": true,
+          "solved": 0
+        },
+        "D": {
+          "mode": "SOLVED_hidden_pass",
+          "round2": false,
+          "solved": 1
+        }
+      },
+      "family": "whitespace",
+      "task_id": "black-60"
+    },
+    {
+      "C_empty_slot": false,
+      "C_injected_lessons": [
+        "cand-5f96357fce",
+        "cand-773d0aca18"
+      ],
+      "C_vs_A_pairing": "BOTH_FAILED",
+      "cells": {
+        "A": {
+          "mode": "PATCH_APPLY_FAIL",
+          "round2": true,
+          "solved": 0
+        },
+        "B1": {
+          "mode": "PATCH_APPLY_FAIL",
+          "round2": true,
+          "solved": 0
+        },
+        "C": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "D": {
+          "mode": "PATCH_APPLY_FAIL",
+          "round2": true,
+          "solved": 0
+        }
+      },
+      "family": "other_logic",
+      "task_id": "black-74"
+    },
+    {
+      "C_empty_slot": false,
+      "C_injected_lessons": [
+        "cand-f0b1e78791"
+      ],
+      "C_vs_A_pairing": "A_ONLY_WIN",
+      "cells": {
+        "A": {
+          "mode": "SOLVED_hidden_pass",
+          "round2": false,
+          "solved": 1
+        },
+        "B1": {
+          "mode": "SOLVED_hidden_pass",
+          "round2": false,
+          "solved": 1
+        },
+        "C": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        },
+        "D": {
+          "mode": "MALFORMED_OUTPUT",
+          "round2": false,
+          "solved": 0
+        }
+      },
+      "family": "iterator",
+      "task_id": "black-95"
+    }
+  ]
+}
