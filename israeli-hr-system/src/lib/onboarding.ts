@@ -42,7 +42,8 @@ export const onboardingSchema = z.object({
   idAttachment: attachment,
   // הסכם העבודה מגיע מההזמנה (מוזרק בצד השרת), לא מהטופס — לכן אופציונלי.
   contractAttachment: attachment.optional(),
-  contractSignature: z.string(),
+  // חתימה על ההסכם — נדרשת מהעובד בפורטל, אך אופציונלית בקליטה ידנית ע"י HR.
+  contractSignature: z.string().nullable().optional(),
   form101Signature: z.string().nullable(),
   // אישור מדיניות פרטיות ע"י העובד (בפורטל).
   // privacyAccepted=true משמעו שכל אישורי החובה סומנו (תאימות לאחור לשער הקיים).
@@ -132,10 +133,12 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
       },
     });
 
-    // חתימה על הסכם העבודה (חובה).
-    await tx.signature.create({
-      data: { employeeId: emp.id, context: "CONTRACT", imageData: data.contractSignature },
-    });
+    // חתימה על הסכם העבודה (נשמרת רק אם נמסרה — בקליטה ידנית אין חתימה).
+    if (data.contractSignature) {
+      await tx.signature.create({
+        data: { employeeId: emp.id, context: "CONTRACT", imageData: data.contractSignature },
+      });
+    }
 
     // חתימה על טופס 101 (אופציונלי).
     if (data.form101Signature) {

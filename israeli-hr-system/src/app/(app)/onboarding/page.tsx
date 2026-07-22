@@ -22,7 +22,7 @@ export default function OnboardingPage() {
         <h2 className="text-lg font-bold text-slate-800">קליטה ידנית</h2>
         <p className="mt-1 text-sm text-slate-500">מילוי הטופס ישירות ע"י משאבי אנוש.</p>
       </div>
-      <OnboardingForm />
+      <OnboardingForm hideSignatures />
     </div>
   );
 }
