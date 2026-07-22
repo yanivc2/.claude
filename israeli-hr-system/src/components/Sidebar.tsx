@@ -9,6 +9,7 @@ import {
   FileX2,
   Users,
   Sprout,
+  FolderOpen,
   Settings,
   LogOut,
   Menu,
@@ -25,6 +26,7 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/termination", label: "סיום העסקה", icon: FileX2 },
   { href: "/employees", label: "עובדים ותיקים", icon: Users },
   { href: "/retention", label: "שימור עובדים", icon: Sprout },
+  { href: "/resources", label: "מסמכים ונהלים", icon: FolderOpen },
 ];
 
 function initials(name: string): string {
