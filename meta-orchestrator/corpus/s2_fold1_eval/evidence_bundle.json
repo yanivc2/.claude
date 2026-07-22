@@ -1,0 +1,48 @@
+{
+  "bank_content_hash": "513d63007784",
+  "commit": "cdbef082e99a6d70f7edd07716bca7f7ff87a405",
+  "env_hash": "94d61c3b02706aee",
+  "eval_manifest_hash": "d6a5919ab7bb3bec",
+  "eval_plan_hash": "2d66d7d4a6b6a050",
+  "frozen_code_hashes": {
+    "agent_contract": "b6d313e47d0e8124",
+    "budget_policy": "651ea45ef096e63b",
+    "canonical_builder": "0e671a6e945470205b5baa76",
+    "curriculum": "cd42d5d18585330c",
+    "d_playbook": "5bd2d42c2da9",
+    "family_map": "4171f399373b",
+    "fold1_c_bank": "44dd946fbb805640",
+    "forbidden_tokens": "6fc82836105000ea",
+    "memory_policy": "8f03622da5afb252",
+    "paid_spend_ledger": "42845ca2a1034139",
+    "pricing": "4ab7b2507474bffa",
+    "s2_agent_contract": "aa167c175b03",
+    "s2_prepaid_freeze": "0428e9d02f17",
+    "sandbox": "fdb87c607376",
+    "scope": "79fae38b4074",
+    "test_execution_plans": "197bda7dbdb9dc15",
+    "verifier_config": "5885767ee0c7"
+  },
+  "gate1_artifact_sha256": "12d30a8dc43401c6792c305a0fae7fc7b5aabd5a0f253d5e22de1613f3ef40dd",
+  "gate1_report": {
+    "gate": "gate1",
+    "passed": true,
+    "production_valid": true,
+    "reasons": [],
+    "token_count_source": "anthropic_count_tokens"
+  },
+  "lifetime_spend_usd": "0.936276",
+  "max_total_api_calls": 96,
+  "messages_create_called": false,
+  "paid_messages_cost_usd": "0",
+  "paid_spend_ledger_hash": "42845ca2a1034139",
+  "playbook_content_hash": "5bd2d42c2da9",
+  "reported_credits": {
+    "available_api_credits_usd": "3.962663",
+    "is_budget_cap": false,
+    "machine_verified": false,
+    "source": "operator_reported_from_anthropic_console",
+    "verified_at": "2026-07-21"
+  },
+  "total_worst_exposure_usd": "8.064780"
+}
