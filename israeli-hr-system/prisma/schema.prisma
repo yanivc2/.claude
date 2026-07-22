@@ -397,3 +397,25 @@ model ChatMessage {
 
   @@index([sessionId])
 }
+
+// ───────────────────── מסמכים, נהלים וסרטוני הסברה ─────────────────────
+// ספריית משאבים לצוות: קבצים (נהלים, מסמכים) וקישורים (כולל סרטוני הסברה).
+enum ResourceKind {
+  FILE // קובץ שהועלה (נשמר כ-data URL)
+  LINK // קישור חיצוני, כולל קישור לסרטון
+}
+
+model Resource {
+  id          String       @id @default(cuid())
+  title       String
+  kind        ResourceKind
+  description String?      @db.Text
+  url         String?      @db.Text // עבור LINK (כולל סרטונים)
+  fileName    String?
+  mimeType    String?
+  fileData    String?      @db.Text // עבור FILE — data URL
+  createdBy   String? // שם המשתמש שהוסיף
+  createdAt   DateTime     @default(now())
+
+  @@index([createdAt])
+}
