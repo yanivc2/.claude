@@ -1,0 +1,252 @@
+{
+  "10_claim_boundary": {
+    "boundary_family": "NOT_EVALUATED",
+    "boundary_generalization": "NOT_ESTABLISHED",
+    "claim_scope": "WITHIN_FOLD_CAUSAL_EVIDENCE",
+    "cross_fold_generalization": "NOT_ESTABLISHED",
+    "directional_pilot": true,
+    "unit_level_task_count": 8
+  },
+  "1_integrity": {
+    "cells": 48,
+    "excluded": {
+      "cookiecutter-18": "PARITY_BLOCKED_BEFORE_SEND"
+    },
+    "unit_level_task_count": 8,
+    "unit_of_analysis": "held-out task"
+  },
+  "2_cell_completeness": {
+    "missing_outcome_cells": 0,
+    "post_unseal_exclusions": 0,
+    "primary_cells": 32,
+    "stability_cells": 16
+  },
+  "3_primary_C_vs_A": {
+    "A_only_wins": 3,
+    "A_solves": 3,
+    "C_only_wins": 1,
+    "C_solves": 1,
+    "both_failed": 4,
+    "both_solved": 0,
+    "delta": -0.25,
+    "discordant_pairs": 4,
+    "evidence_class": "NEGATIVE_DIRECTION",
+    "exact_one_sided_p": 0.9375,
+    "exact_two_sided_p": 0.625,
+    "n_tasks": 8,
+    "paired_rate_difference": -0.25,
+    "paired_solve_difference": -2,
+    "x": "C",
+    "y": "A"
+  },
+  "4_secondary_C_vs_B1": {
+    "B1_only_wins": 1,
+    "B1_solves": 2,
+    "C_only_wins": 0,
+    "C_solves": 1,
+    "both_failed": 6,
+    "both_solved": 1,
+    "delta": -0.125,
+    "discordant_pairs": 1,
+    "exact_one_sided_p": 1.0,
+    "exact_two_sided_p": 1.0,
+    "holm_adjusted_one_sided_p": 1.0,
+    "n_tasks": 8,
+    "paired_rate_difference": -0.125,
+    "paired_solve_difference": -1,
+    "x": "C",
+    "y": "B1"
+  },
+  "5_secondary_C_vs_D": {
+    "C_only_wins": 1,
+    "C_solves": 1,
+    "D_only_wins": 2,
+    "D_solves": 2,
+    "both_failed": 5,
+    "both_solved": 0,
+    "delta": -0.125,
+    "discordant_pairs": 3,
+    "exact_one_sided_p": 0.875,
+    "exact_two_sided_p": 1.0,
+    "holm_adjusted_one_sided_p": 1.0,
+    "n_tasks": 8,
+    "paired_rate_difference": -0.125,
+    "paired_solve_difference": -1,
+    "x": "C",
+    "y": "D"
+  },
+  "6_stability": {
+    "A": {
+      "agreement_rate": 0.875,
+      "both_failed": 5,
+      "both_solved": 2,
+      "primary_failed_rep_solved": 0,
+      "primary_solved_rep_failed": 1
+    },
+    "C": {
+      "agreement_rate": 0.875,
+      "both_failed": 7,
+      "both_solved": 0,
+      "primary_failed_rep_solved": 0,
+      "primary_solved_rep_failed": 1
+    },
+    "delta_rep_C_minus_A": -0.25,
+    "note": "robustness only; 16 A-runs + 16 C-runs are NOT 32 independent units \u2014 inference stays clustered/paired by 8 tasks"
+  },
+  "7_per_task": [
+    {
+      "A": 0,
+      "B1": 1,
+      "C": 1,
+      "D": 0,
+      "task_family": "iterator",
+      "task_id": "black-133"
+    },
+    {
+      "A": 0,
+      "B1": 0,
+      "C": 0,
+      "D": 0,
+      "task_family": "whitespace",
+      "task_id": "black-1632"
+    },
+    {
+      "A": 1,
+      "B1": 0,
+      "C": 0,
+      "D": 1,
+      "task_family": "parser_normalization",
+      "task_id": "black-183"
+    },
+    {
+      "A": 1,
+      "B1": 0,
+      "C": 0,
+      "D": 0,
+      "task_family": "iterator",
+      "task_id": "black-234"
+    },
+    {
+      "A": 0,
+      "B1": 0,
+      "C": 0,
+      "D": 0,
+      "task_family": "whitespace",
+      "task_id": "black-329"
+    },
+    {
+      "A": 0,
+      "B1": 0,
+      "C": 0,
+      "D": 1,
+      "task_family": "whitespace",
+      "task_id": "black-60"
+    },
+    {
+      "A": 0,
+      "B1": 0,
+      "C": 0,
+      "D": 0,
+      "task_family": "other_logic",
+      "task_id": "black-74"
+    },
+    {
+      "A": 1,
+      "B1": 1,
+      "C": 0,
+      "D": 0,
+      "task_family": "iterator",
+      "task_id": "black-95"
+    }
+  ],
+  "8_per_family": [
+    {
+      "A": 2,
+      "B1": 2,
+      "C": 1,
+      "C_minus_A": -1,
+      "C_minus_B1": -1,
+      "C_minus_D": 1,
+      "D": 0,
+      "family": "iterator",
+      "n_tasks": 3
+    },
+    {
+      "A": 0,
+      "B1": 0,
+      "C": 0,
+      "C_minus_A": 0,
+      "C_minus_B1": 0,
+      "C_minus_D": 0,
+      "D": 0,
+      "family": "other_logic",
+      "n_tasks": 1
+    },
+    {
+      "A": 1,
+      "B1": 0,
+      "C": 0,
+      "C_minus_A": -1,
+      "C_minus_B1": 0,
+      "C_minus_D": -1,
+      "D": 1,
+      "family": "parser_normalization",
+      "n_tasks": 1
+    },
+    {
+      "A": 0,
+      "B1": 0,
+      "C": 0,
+      "C_minus_A": 0,
+      "C_minus_B1": 0,
+      "C_minus_D": -1,
+      "D": 1,
+      "family": "whitespace",
+      "n_tasks": 3
+    }
+  ],
+  "9_cost_efficiency": {
+    "A": {
+      "api_calls": 9,
+      "cost_per_solved_usd": 0.08842133,
+      "mean_spend_per_task_usd": 0.033158,
+      "r2_count": 1,
+      "solved_count": 3,
+      "total_spend_usd": 0.265264
+    },
+    "A_stability": {
+      "api_calls": 9,
+      "r2_count": 1,
+      "total_spend_usd": 0.261686
+    },
+    "B1": {
+      "api_calls": 9,
+      "cost_per_solved_usd": 0.1319855,
+      "mean_spend_per_task_usd": 0.03299638,
+      "r2_count": 1,
+      "solved_count": 2,
+      "total_spend_usd": 0.263971
+    },
+    "C": {
+      "api_calls": 9,
+      "cost_per_solved_usd": 0.269902,
+      "mean_spend_per_task_usd": 0.03373775,
+      "r2_count": 1,
+      "solved_count": 1,
+      "total_spend_usd": 0.269902
+    },
+    "C_stability": {
+      "api_calls": 9,
+      "r2_count": 1,
+      "total_spend_usd": 0.273675
+    },
+    "D": {
+      "api_calls": 9,
+      "cost_per_solved_usd": 0.1213105,
+      "mean_spend_per_task_usd": 0.03032763,
+      "r2_count": 1,
+      "solved_count": 2,
+      "total_spend_usd": 0.242621
+    }
+  }
+}
