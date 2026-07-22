@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Users, UserPlus, Sprout, Landmark, ArrowLeft, Plus, type LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PensionAlert, type PensionAlertItem } from "@/components/PensionAlert";
+import { avatarColor, initials } from "@/lib/avatar";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "לוח בקרה" };
@@ -9,27 +10,11 @@ export const metadata = { title: "לוח בקרה" };
 const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });
 const todayFmt = new Intl.DateTimeFormat("he-IL", { weekday: "long", day: "numeric", month: "long" });
 
-// צבע אווטאר דטרמיניסטי לפי שם (עקבי בין רינדורים).
-const AVATARS = [
-  "from-blue-500 to-blue-700",
-  "from-sky-500 to-cyan-700",
-  "from-violet-500 to-purple-700",
-  "from-amber-500 to-orange-700",
-  "from-emerald-500 to-teal-700",
-  "from-rose-500 to-pink-700",
-];
-function avatarColor(seed: string): string {
-  let h = 0;
-  for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return AVATARS[h % AVATARS.length];
-}
-function initials(first: string, last: string): string {
-  return ((first?.[0] ?? "") + (last?.[0] ?? "")).trim() || "עו";
-}
-
 const STATUS: Record<string, { label: string; cls: string }> = {
   ACTIVE: { label: "פעיל", cls: "bg-green-50 text-green-700" },
-  ONBOARDING: { label: "בקליטה", cls: "bg-brand-50 text-brand-700" },
+  ONBOARDING: { label: "בקליטה", cls: "bg-amber-50 text-amber-700" },
+  NOTICE_PERIOD: { label: "בהודעה מוקדמת", cls: "bg-orange-50 text-orange-700" },
+  INACTIVE: { label: "לא פעיל", cls: "bg-slate-100 text-slate-500" },
   TERMINATED: { label: "הסתיים", cls: "bg-slate-100 text-slate-500" },
 };
 

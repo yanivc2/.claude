@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { UserPlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { Employee, EmploymentStatus } from "@prisma/client";
 import { EmployeeRowActions } from "@/components/EmployeeRowActions";
+import { avatarColor, initials } from "@/lib/avatar";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "עובדים ותיקים" };
@@ -27,39 +29,48 @@ const INACTIVE_STATUSES: EmploymentStatus[] = ["INACTIVE", "TERMINATED"];
 
 function EmployeeTable({ employees }: { employees: Employee[] }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
       <table className="w-full min-w-[42rem] text-start text-sm">
-        <thead className="bg-slate-50 text-slate-500">
-          <tr>
-            <th className="px-4 py-3 text-start font-medium">שם</th>
-            <th className="px-4 py-3 text-start font-medium">תפקיד</th>
-            <th className="px-4 py-3 text-start font-medium">תחילת עבודה</th>
-            <th className="px-4 py-3 text-start font-medium">סטטוס</th>
-            <th className="px-4 py-3 text-start font-medium">פעולות</th>
+        <thead>
+          <tr className="text-[11px] uppercase tracking-wide text-slate-400">
+            <th className="px-5 py-3 text-start font-bold">שם</th>
+            <th className="px-5 py-3 text-start font-bold">תפקיד</th>
+            <th className="px-5 py-3 text-start font-bold">תחילת עבודה</th>
+            <th className="px-5 py-3 text-start font-bold">סטטוס</th>
+            <th className="px-5 py-3 text-start font-bold">פעולות</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody>
           {employees.map((e) => (
-            <tr key={e.id} className="hover:bg-slate-50">
-              <td className="px-4 py-3 font-medium text-slate-800">
-                <Link href={`/employees/${e.id}`} className="hover:underline">
-                  {e.firstName} {e.lastName}
+            <tr key={e.id} className="border-t border-slate-100 transition hover:bg-slate-50">
+              <td className="px-5 py-3">
+                <Link href={`/employees/${e.id}`} className="flex items-center gap-3">
+                  <span
+                    className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br text-xs font-bold text-white ${avatarColor(
+                      e.firstName + e.lastName,
+                    )}`}
+                  >
+                    {initials(e.firstName, e.lastName)}
+                  </span>
+                  <span className="font-semibold text-slate-800">
+                    {e.firstName} {e.lastName}
+                  </span>
                 </Link>
               </td>
-              <td className="px-4 py-3 text-slate-600">{e.jobTitle || "—"}</td>
-              <td className="px-4 py-3 text-slate-600">{dateFmt.format(e.startDate)}</td>
-              <td className="px-4 py-3">
+              <td className="px-5 py-3 text-slate-500">{e.jobTitle || "—"}</td>
+              <td className="px-5 py-3 tabular-nums text-slate-500">{dateFmt.format(e.startDate)}</td>
+              <td className="px-5 py-3">
                 <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[e.status]}`}
+                  className={`rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[e.status]}`}
                 >
                   {STATUS_LABELS[e.status]}
                 </span>
               </td>
-              <td className="px-4 py-3">
+              <td className="px-5 py-3">
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/employees/${e.id}`}
-                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-brand-700 transition hover:bg-brand-50"
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-50"
                   >
                     פתיחת תיק
                   </Link>
@@ -88,25 +99,38 @@ export default async function EmployeesPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-bold text-slate-800">עובדים ותיקים</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          לחיצה על עובד פותחת את התיק המלא. ניתן להעביר עובד ל&ldquo;לא פעיל&rdquo; או למחוק.
-        </p>
-      </header>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">עובדים ותיקים</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {employees.length > 0
+              ? `${active.length} פעילים${inactive.length ? ` · ${inactive.length} לא פעילים` : ""}`
+              : "לחיצה על עובד פותחת את התיק המלא."}
+          </p>
+        </div>
+        <Link
+          href="/onboarding"
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105"
+        >
+          <UserPlus size={17} />
+          קליטת עובד חדש
+        </Link>
+      </div>
 
       {employees.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+        <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
           אין עובדים במערכת עדיין. קלט/י עובד חדש בעמוד &ldquo;קליטת עובד&rdquo;.
         </p>
       ) : (
         <>
           <section>
-            <h2 className="mb-3 text-lg font-semibold text-slate-800">עובדים פעילים</h2>
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">
+              עובדים פעילים
+            </h2>
             {active.length ? (
               <EmployeeTable employees={active} />
             ) : (
-              <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400">
+              <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-400">
                 אין עובדים פעילים.
               </p>
             )}
@@ -114,7 +138,9 @@ export default async function EmployeesPage() {
 
           {inactive.length > 0 && (
             <section>
-              <h2 className="mb-3 text-lg font-semibold text-slate-800">עובדים לא פעילים</h2>
+              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">
+                עובדים לא פעילים
+              </h2>
               <EmployeeTable employees={inactive} />
             </section>
           )}

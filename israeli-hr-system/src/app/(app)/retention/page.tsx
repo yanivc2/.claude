@@ -51,7 +51,7 @@ export default async function RetentionPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">שימור עובדים</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">שימור עובדים</h1>
         <p className="mt-1 text-sm text-slate-500">
           סקרי שביעות רצון (Pulse Surveys) מתוזמנים אוטומטית ל-3/15/30 ימים ממועד
           תחילת העבודה, לצד תזמון פגישות חתך למנהל הישיר.
@@ -61,8 +61,10 @@ export default async function RetentionPage() {
       {/* ימי הולדת קרובים — ברכה בוואטסאפ בלחיצה */}
       {birthdays.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-lg font-semibold text-slate-800">🎂 ימי הולדת קרובים</h2>
-          <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">
+            🎂 ימי הולדת קרובים
+          </h2>
+          <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
             {birthdays.map(({ e, days }) => {
               const href = birthdayWaHref(e.phone, e.firstName);
               return (
@@ -99,37 +101,37 @@ export default async function RetentionPage() {
       )}
 
       {surveys.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+        <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
           אין סקרים מתוזמנים. סקרים נוצרים אוטומטית בעת קליטת עובד חדש.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full min-w-[32rem] text-start text-sm">
-            <thead className="bg-slate-50 text-slate-500">
-              <tr>
-                <th className="px-4 py-3 text-start font-medium">עובד</th>
-                <th className="px-4 py-3 text-start font-medium">אבן דרך</th>
-                <th className="px-4 py-3 text-start font-medium">מתוזמן ל-</th>
-                <th className="px-4 py-3 text-start font-medium">סטטוס</th>
-                <th className="px-4 py-3 text-start font-medium">ציון</th>
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wide text-slate-400">
+                <th className="px-5 py-3 text-start font-bold">עובד</th>
+                <th className="px-5 py-3 text-start font-bold">אבן דרך</th>
+                <th className="px-5 py-3 text-start font-bold">מתוזמן ל-</th>
+                <th className="px-5 py-3 text-start font-bold">סטטוס</th>
+                <th className="px-5 py-3 text-start font-bold">ציון</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody>
               {surveys.map((s) => (
-                <tr key={s.id}>
-                  <td className="px-4 py-3 text-slate-800">
+                <tr key={s.id} className="border-t border-slate-100 transition hover:bg-slate-50">
+                  <td className="px-5 py-3 font-semibold text-slate-800">
                     {s.employee.firstName} {s.employee.lastName}
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{MILESTONE_LABELS[s.milestone]}</td>
-                  <td className="px-4 py-3 text-slate-600">{dateFmt.format(s.scheduledFor)}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-5 py-3 text-slate-500">{MILESTONE_LABELS[s.milestone]}</td>
+                  <td className="px-5 py-3 tabular-nums text-slate-500">{dateFmt.format(s.scheduledFor)}</td>
+                  <td className="px-5 py-3">
                     <span
-                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[s.status]}`}
+                      className={`rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[s.status]}`}
                     >
                       {STATUS_LABELS[s.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-slate-600">{s.score ?? "—"}</td>
+                  <td className="px-5 py-3 tabular-nums text-slate-500">{s.score ?? "—"}</td>
                 </tr>
               ))}
             </tbody>
