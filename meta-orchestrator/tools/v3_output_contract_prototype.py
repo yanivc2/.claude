@@ -73,7 +73,10 @@ def parse_edits(text: str) -> dict:
             raise ContractError(MALFORMED, f"edit[{i}] anchor/replacement must be strings")
         if ed["anchor"] == "":
             raise ContractError(MALFORMED, f"edit[{i}] anchor is empty")
-        norm.append({"anchor": ed["anchor"], "replacement": ed["replacement"]})
+        if "file" in ed and not isinstance(ed["file"], str):
+            raise ContractError(MALFORMED, f"edit[{i}] 'file' must be a string when present")
+        norm.append({"anchor": ed["anchor"], "replacement": ed["replacement"],
+                     "file": ed.get("file")})           # optional; None ⇒ sole target file
     return {"edits": norm}
 
 

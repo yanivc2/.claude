@@ -3,26 +3,54 @@
 DRAFT. A v3 paid micro-pilot may begin only after this document is finalized + frozen and a new
 budget is approved. Nothing here authorizes spending.
 
-## Gate A — output-contract validity (no memory)
+## Gate A — output-contract validity (no memory) — THRESHOLDS FROZEN 2026-07-22
 
-- **Design:** same held-out tasks + same sanitized prompts as v2.2 fold-1, A-condition only (no
-  memory), two arms: v2.2 SEARCH/REPLACE contract vs v3 JSON unique-anchor contract (+ one bounded
-  malformed/truncated repair-retry). Paired by task.
-- **Primary metric:** valid-applied-patch rate (a cell reaches the grader with an applied patch).
-- **Proposed Go thresholds (to finalize before paid calls):**
+- **Design (frozen):** the 9 fold-1 held-out tasks (including cookiecutter-18 — its C/B1 parity
+  block is irrelevant here: no memory, no C/B1), A-condition only, two arms OLD (frozen v2.2
+  SEARCH/REPLACE) vs NEW (v3 JSON unique-anchor) + one bounded malformed/truncated repair-retry.
+  9 tasks × 2 contracts = **18 cells**, paired by task. Manifest `v3_gate_a_manifest.json`
+  (content_hash `167338c4d7a7ae7d`); balanced first-contract order alternating by task.
+- **Held constant (both arms):** model claude-haiku-4-5-20251001, thinking_budget 1024,
+  max_tokens 11264, context, materialization, public+hidden tests, round lifecycle. thinking is
+  NOT changed in Gate A (a thinking-off study is a separate future gate). ONLY the output
+  contract varies.
+- **Primary metric:** VALID_APPLIED_PATCH (complete + schema-valid + anchors resolve uniquely +
+  edits apply atomically + resulting files still parse). Public/hidden solve is secondary.
+- **Harness-side thresholds — already MET offline** (`tools/v3_output_contract_prototype.py`,
+  13 tests): parser acceptance on well-formed 100%; ambiguous application 0%; silent partial 0%;
+  deterministic replay 100%.
+- **FROZEN model-side Go classification (9 tasks/arm; decided before the first paid call):**
   ```
-  parser acceptance on well-formed fixtures   100%   (already MET offline)
-  ambiguous application                        0%    (already MET offline)
-  silent partial application                   0%    (already MET offline)
-  deterministic replay                        100%   (already MET offline)
-  ── model-side, measured in the paid micro-pilot ──
-  valid applicable patch rate               >= 90%
-  malformed output rate                      <= 5%
-  apply-failure rate                         <= 5%
-  silent fallback events                        0
+  PASS  (proceed to plan Gate B):    ALL of
+        NEW valid-applied            >= 8/9
+        NEW malformed/no-apply       <= 1/9
+        NEW − OLD valid-applied      >= 3/9 tasks
+        silent partial applications   = 0
+        ambiguous applications accepted = 0
+        deterministic replay failures = 0
+  BORDERLINE (do NOT start Gate B; analyse format failures, decide re-pilot or close):
+        NEW = 7/9 valid-applied
+        OR   NEW >= 8/9 but NEW − OLD improvement is only 1–2 tasks
+  FAIL / NO-GO (close this v3 contract direction or design another; no "fix in flight", no Gate B):
+        NEW valid-applied            <= 6/9
+        OR any silent partial application
+        OR any non-deterministic replay
+        OR any accepted ambiguous anchor
+        OR no improvement over OLD
   ```
-- **Decision:** if the model-side targets are met → proceed to Gate B. If not → do NOT run a
-  learning experiment on this apparatus; iterate the contract or close the research.
+  No statistical significance is required at Gate A — it is a small engineering gate with
+  pre-set acceptance criteria.
+
+### Gate A budget (frozen)
+
+```
+V3_GATE_A_HARD_CAP = $1.00   (separate, Gate-A-only; does not authorize spending by itself)
+```
+Before any SEND-GO the prep must report: exact expected cost, exact sum-of-cell worst-case
+exposure, current provider-reported credits, global lifetime spend including v2.2, and headroom
+under the $50 global cap. The frozen per-cell credit rule applies: if reported credits do not
+cover at least the next cell's worst-case exposure, STOP. thinking / tokens / tasks / safeguards
+are never reduced to fit a balance.
 
 ## Gate B — learning (only if Gate A passes)
 
