@@ -87,6 +87,56 @@ If folds 2–3 are ever funded, they run as a SEPARATE replication extension: a 
 pre-registration, a new budget, a new frozen manifest, and separate reporting — never presented
 as if the original scope had been three folds, and never stacked onto this unseal decision.
 
+## 4a. Scope amendment 1 (2026-07-21, operator-approved) — cookiecutter-18 excluded PRE-SEND
+
+```
+reason            = hard frozen C/B1 authoritative token-parity block
+timing            = before the first paid evaluation call
+observed_outcomes = none          financial_spend = $0
+decision          = exclude the ENTIRE task (never selected conditions)
+effect            = Fold-1 evaluation reduced from 54 to 48 cells
+```
+
+During the pre-send authoritative parity stage (real `count_tokens`, $0), 7/8 memory-bearing
+held-out tasks passed and **cookiecutter-18 blocked**:
+
+```
+task_id                 = cookiecutter-18
+evaluation_disposition  = PARITY_BLOCKED_BEFORE_SEND
+C_memory_tokens         = 134       B1_memory_tokens = 101
+absolute_gap            = 33        relative_gap     = 25%
+frozen_gate             = BLOCK     (thresholds: >32 AND >20%; authority: count_tokens)
+paid_cells_executed     = 0         outcome_generated = false        cost = $0
+```
+
+cookiecutter-18 is NOT classified as FAILED and never enters any success computation. A partial
+A+D-only block for it was considered and rejected (unbalanced, contributes nothing to the C
+contrasts). The frozen parity policy, runner, prompts, and apparatus are unchanged.
+
+**Amended estimand + binding claim limits:**
+
+```
+original_held_out_tasks              = 9
+evaluated_parity_eligible_tasks      = 8
+excluded_before_outcomes             = cookiecutter-18
+boundary-family memory-bearing coverage = absent
+generalization_to_boundary_family    = NOT_ESTABLISHED
+unit_level_task_count                = 8   (48 cells are NOT 48 independent tasks)
+```
+
+**Superseded artifacts (audit trail; nothing consumed):**
+
+```
+manifest 3c009b6c6a7abe08 = SUPERSEDED_PRE_SEND
+anchor   86d90eef1fa3e099 = SUPERSEDED_PRE_SEND
+54 old grants             = INVALID_FOR_USE / NEVER_CONSUMED (0 calls used)
+old sealed store          = empty, archival; a NEW store is initialized for the 48-cell manifest
+```
+
+The amended plan: 8 tasks × 4 conditions = 32 primary cells + 8 × 2 = 16 stability cells = 48.
+`all_folds_complete` for the unseal rule now means: all 48 amended-manifest cells terminal (or
+withheld per the retry policy).
+
 ## 5. Batched authorization model (proposed, requires explicit operator GO)
 
 Evaluation is stateless w.r.t. the bank (read-only, no cross-attempt dependency), so a single
