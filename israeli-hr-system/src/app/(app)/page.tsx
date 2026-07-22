@@ -14,8 +14,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   ACTIVE: { label: "פעיל", cls: "bg-green-50 text-green-700" },
   ONBOARDING: { label: "בקליטה", cls: "bg-amber-50 text-amber-700" },
   NOTICE_PERIOD: { label: "בהודעה מוקדמת", cls: "bg-orange-50 text-orange-700" },
-  INACTIVE: { label: "לא פעיל", cls: "bg-slate-100 text-slate-500" },
-  TERMINATED: { label: "הסתיים", cls: "bg-slate-100 text-slate-500" },
+  INACTIVE: { label: "לא פעיל", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" },
+  TERMINATED: { label: "הסתיים", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" },
 };
 
 export default async function DashboardPage() {
@@ -62,7 +62,7 @@ export default async function DashboardPage() {
   ];
 
   const toneChip = {
-    brand: "bg-brand-50 text-brand-600",
+    brand: "bg-brand-50 dark:bg-brand-500/15 text-brand-600",
     good: "bg-green-50 text-green-600",
     warn: "bg-amber-50 text-amber-600",
   };
@@ -73,8 +73,8 @@ export default async function DashboardPage() {
 
       <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">לוח בקרה</h1>
-          <p className="mt-1 text-sm text-slate-500">
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">לוח בקרה</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             סקירה כללית של פעילות משאבי האנוש · {todayFmt.format(now)}
           </p>
         </div>
@@ -95,7 +95,7 @@ export default async function DashboardPage() {
             <Link
               key={c.label}
               href={c.href}
-              className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md"
+              className="group rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md"
             >
               <div className="flex items-center justify-between">
                 <span className={`grid h-10 w-10 place-items-center rounded-xl ${toneChip[c.tone]}`}>
@@ -106,11 +106,11 @@ export default async function DashboardPage() {
                   className="text-slate-300 transition group-hover:-translate-x-0.5 group-hover:text-brand-400"
                 />
               </div>
-              <p className="mt-4 text-sm font-semibold text-slate-500">{c.label}</p>
-              <p className="mt-0.5 text-3xl font-extrabold tabular-nums tracking-tight text-slate-800">
+              <p className="mt-4 text-sm font-semibold text-slate-500 dark:text-slate-400">{c.label}</p>
+              <p className="mt-0.5 text-3xl font-extrabold tabular-nums tracking-tight text-slate-800 dark:text-slate-100">
                 {c.value}
               </p>
-              <p className="mt-0.5 text-xs text-slate-400">{c.sub}</p>
+              <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{c.sub}</p>
             </Link>
           );
         })}
@@ -118,20 +118,20 @@ export default async function DashboardPage() {
 
       {/* עובדים אחרונים + משימות פנסיה */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.55fr_1fr]">
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-            <h2 className="font-bold text-slate-800">עובדים אחרונים</h2>
+        <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-5 py-4">
+            <h2 className="font-bold text-slate-800 dark:text-slate-100">עובדים אחרונים</h2>
             <Link href="/employees" className="text-sm font-semibold text-brand-600 hover:underline">
               לכל העובדים ←
             </Link>
           </div>
           {recent.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-400">אין עדיין עובדים במערכת.</p>
+            <p className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-500">אין עדיין עובדים במערכת.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[11px] uppercase tracking-wide text-slate-400">
+                  <tr className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
                     <th className="px-5 py-2.5 text-start font-bold">עובד/ת</th>
                     <th className="px-5 py-2.5 text-start font-bold">תפקיד</th>
                     <th className="px-5 py-2.5 text-start font-bold">תחילת עבודה</th>
@@ -140,9 +140,9 @@ export default async function DashboardPage() {
                 </thead>
                 <tbody>
                   {recent.map((e) => {
-                    const st = STATUS[e.status] ?? { label: e.status, cls: "bg-slate-100 text-slate-500" };
+                    const st = STATUS[e.status] ?? { label: e.status, cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" };
                     return (
-                      <tr key={e.id} className="border-t border-slate-100 transition hover:bg-slate-50">
+                      <tr key={e.id} className="border-t border-slate-100 dark:border-slate-800 transition hover:bg-slate-50 dark:hover:bg-slate-800/60">
                         <td className="px-5 py-3">
                           <Link href={`/employees/${e.id}`} className="flex items-center gap-3">
                             <span
@@ -152,13 +152,13 @@ export default async function DashboardPage() {
                             >
                               {initials(e.firstName, e.lastName)}
                             </span>
-                            <span className="font-semibold text-slate-800">
+                            <span className="font-semibold text-slate-800 dark:text-slate-100">
                               {e.firstName} {e.lastName}
                             </span>
                           </Link>
                         </td>
-                        <td className="px-5 py-3 text-slate-500">{e.jobTitle || "—"}</td>
-                        <td className="px-5 py-3 tabular-nums text-slate-500">
+                        <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{e.jobTitle || "—"}</td>
+                        <td className="px-5 py-3 tabular-nums text-slate-500 dark:text-slate-400">
                           {dateFmt.format(e.startDate)}
                         </td>
                         <td className="px-5 py-3">
@@ -175,12 +175,12 @@ export default async function DashboardPage() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-            <h2 className="font-bold text-slate-800">משימות פנסיה קרובות</h2>
+        <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-5 py-4">
+            <h2 className="font-bold text-slate-800 dark:text-slate-100">משימות פנסיה קרובות</h2>
           </div>
           {pensionAlerts.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-400">
+            <p className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
               אין משימות פנסיה בשבועיים הקרובים. ✓
             </p>
           ) : (
@@ -189,7 +189,7 @@ export default async function DashboardPage() {
                 <li key={p.id}>
                   <Link
                     href={`/employees/${p.id}`}
-                    className="flex items-center gap-3 rounded-xl p-3 transition hover:bg-slate-50"
+                    className="flex items-center gap-3 rounded-xl p-3 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
                   >
                     <span
                       className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
@@ -199,10 +199,10 @@ export default async function DashboardPage() {
                       <Landmark size={17} />
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-slate-800">
+                      <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                         פתיחת תיק פנסיה — {p.name}
                       </span>
-                      <span className="block text-xs text-slate-400">חובה חוקית</span>
+                      <span className="block text-xs text-slate-400 dark:text-slate-500">חובה חוקית</span>
                     </span>
                     <span
                       className={`shrink-0 text-xs font-bold ${

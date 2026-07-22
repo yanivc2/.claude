@@ -82,7 +82,7 @@ export function PullToRefresh() {
       className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center overflow-hidden transition-[height] duration-150 ease-out"
       style={{ height: visible ? height : 0 }}
     >
-      <div className="mt-2 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-slate-200">
+      <div className="mt-2 flex h-9 w-9 items-center justify-center rounded-full bg-white dark:bg-slate-900 shadow-md ring-1 ring-slate-200">
         <svg
           width="18"
           height="18"

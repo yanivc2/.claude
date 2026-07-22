@@ -13,7 +13,7 @@ interface ManagedUser {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 // כתובת מסך הכניסה — נבנית מהדומיין שבו גולשים בפועל (Vercel/localhost).
 function loginUrl(): string {
@@ -157,20 +157,20 @@ export function UserManagement() {
   }
 
   return (
-    <section className="mt-8 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-      <h2 className="text-lg font-semibold text-slate-800">משתמשי המערכת</h2>
-      <p className="mt-1 text-sm text-slate-500">
+    <section className="mt-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">משתמשי המערכת</h2>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
         יצירת משתמשים נוספים שיוכלו להתחבר ולעבוד עם המערכת. אפשרות זו זמינה לך בלבד (בעל המערכת).
       </p>
 
       {/* יצירת משתמש חדש */}
       <form onSubmit={createUser} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">שם מלא</span>
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">שם מלא</span>
           <input className={inputClass} required value={name} onChange={(e) => setName(e.target.value)} />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">שם משתמש (לכניסה)</span>
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">שם משתמש (לכניסה)</span>
           <input
             className={inputClass}
             required
@@ -182,7 +182,7 @@ export function UserManagement() {
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">דוא״ל</span>
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">דוא״ל</span>
           <input
             className={inputClass}
             type="email"
@@ -193,7 +193,7 @@ export function UserManagement() {
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">סיסמה ראשונית</span>
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">סיסמה ראשונית</span>
           <input
             className={inputClass}
             type="text"
@@ -227,15 +227,15 @@ export function UserManagement() {
           <p className="text-sm font-semibold text-green-800">
             ✓ המשתמש &ldquo;{created.name}&rdquo; נוצר. שלח/י לו את פרטי הכניסה:
           </p>
-          <div className="mt-2 rounded-lg bg-white p-3 text-sm text-slate-700" dir="ltr">
+          <div className="mt-2 rounded-lg bg-white dark:bg-slate-900 p-3 text-sm text-slate-700 dark:text-slate-200" dir="ltr">
             <p>
-              <span className="text-slate-400">כניסה:</span> {loginUrl()}
+              <span className="text-slate-400 dark:text-slate-500">כניסה:</span> {loginUrl()}
             </p>
             <p>
-              <span className="text-slate-400">שם משתמש:</span> {created.username}
+              <span className="text-slate-400 dark:text-slate-500">שם משתמש:</span> {created.username}
             </p>
             <p>
-              <span className="text-slate-400">סיסמה:</span> {created.password}
+              <span className="text-slate-400 dark:text-slate-500">סיסמה:</span> {created.password}
             </p>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -260,7 +260,7 @@ export function UserManagement() {
             <button
               type="button"
               onClick={() => setCreated(null)}
-              className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600 transition hover:bg-white"
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition hover:bg-white"
             >
               סגירה
             </button>
@@ -276,28 +276,28 @@ export function UserManagement() {
         {users.map((u) => (
           <div
             key={u.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 p-3"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-slate-800 p-3"
           >
             <div className="min-w-0">
-              <p className="font-medium text-slate-800">
+              <p className="font-medium text-slate-800 dark:text-slate-100">
                 {u.name}{" "}
-                <span className="text-sm font-normal text-slate-400" dir="ltr">
+                <span className="text-sm font-normal text-slate-400 dark:text-slate-500" dir="ltr">
                   @{u.username}
                 </span>
               </p>
-              <p className="text-xs text-slate-500" dir="ltr">
+              <p className="text-xs text-slate-500 dark:text-slate-400" dir="ltr">
                 {u.email}
               </p>
             </div>
             <div className="flex items-center gap-2">
               {u.isOwner ? (
-                <span className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                <span className="rounded-full bg-brand-50 dark:bg-brand-500/15 px-2.5 py-1 text-xs font-semibold text-brand-700">
                   בעל המערכת
                 </span>
               ) : (
                 <span
                   className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    u.active ? "bg-green-50 text-green-700" : "bg-slate-100 text-slate-500"
+                    u.active ? "bg-green-50 text-green-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
                   }`}
                 >
                   {u.active ? "פעיל" : "מושבת"}
@@ -316,7 +316,7 @@ export function UserManagement() {
                   <a
                     title="שליחת קישור כניסה במייל"
                     href={mailtoHref(u.email, linkMessage(u.name, u.username))}
-                    className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 dark:border-slate-700 px-2.5 py-1 text-xs text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
                   >
                     ✉️ קישור
                   </a>
@@ -327,7 +327,7 @@ export function UserManagement() {
                   <button
                     type="button"
                     onClick={() => resetPassword(u)}
-                    className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1 text-xs text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
                   >
                     איפוס סיסמה
                   </button>

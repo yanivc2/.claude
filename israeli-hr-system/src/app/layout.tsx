@@ -24,9 +24,15 @@ export const viewport: Viewport = {
 
 // פריסת השורש: מגדירה כיוון RTL ושפה עברית בלבד. סרגל הצד של ה-HR נמצא בפריסת
 // קבוצת הנתיבים (app), כדי שעמודים ציבוריים (כמו פורטל הקליטה) לא יציגו אותו.
+// מחיל את מצב התצוגה (כהה/בהיר) לפני הצביעה הראשונה — מונע הבהוב.
+const themeScript = `try{var t=localStorage.getItem('theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme:dark)').matches);document.documentElement.classList.toggle('dark',d);}catch(e){}`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="he" dir="rtl">
+    <html lang="he" dir="rtl" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-screen antialiased">{children}</body>
     </html>
   );

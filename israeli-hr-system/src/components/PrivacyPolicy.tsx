@@ -14,14 +14,14 @@ export interface PrivacyPolicyProps {
 }
 
 function H({ n, t }: { n: string; t: string }) {
-  return <h2 className="mb-2 mt-6 text-lg font-semibold text-slate-800">{`${n}  ${t}`}</h2>;
+  return <h2 className="mb-2 mt-6 text-lg font-semibold text-slate-800 dark:text-slate-100">{`${n}  ${t}`}</h2>;
 }
 function P({ children }: { children: React.ReactNode }) {
-  return <p className="mb-2 text-sm leading-7 text-slate-700">{children}</p>;
+  return <p className="mb-2 text-sm leading-7 text-slate-700 dark:text-slate-200">{children}</p>;
 }
 function UL({ items }: { items: string[] }) {
   return (
-    <ul className="mb-2 list-inside list-disc space-y-1 text-sm leading-7 text-slate-700">
+    <ul className="mb-2 list-inside list-disc space-y-1 text-sm leading-7 text-slate-700 dark:text-slate-200">
       {items.map((it, i) => (
         <li key={i}>{it}</li>
       ))}
@@ -32,10 +32,10 @@ function Table({ head, rows }: { head: string[]; rows: string[][] }) {
   return (
     <div className="my-3 overflow-x-auto">
       <table className="w-full min-w-[36rem] border-collapse text-sm">
-        <thead className="bg-slate-50 text-slate-600">
+        <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-300">
           <tr>
             {head.map((h, i) => (
-              <th key={i} className="border border-slate-200 p-2 text-start font-medium">
+              <th key={i} className="border border-slate-200 dark:border-slate-800 p-2 text-start font-medium">
                 {h}
               </th>
             ))}
@@ -45,7 +45,7 @@ function Table({ head, rows }: { head: string[]; rows: string[][] }) {
           {rows.map((r, i) => (
             <tr key={i}>
               {r.map((c, j) => (
-                <td key={j} className="border border-slate-200 p-2 align-top text-slate-700">
+                <td key={j} className="border border-slate-200 dark:border-slate-800 p-2 align-top text-slate-700 dark:text-slate-200">
                   {c}
                 </td>
               ))}
@@ -64,11 +64,11 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
 
   return (
     <article className="mx-auto max-w-3xl">
-      <p className="text-xs text-slate-400">נוסח Production למערכת קליטת עובדים</p>
-      <h1 className="mt-1 text-2xl font-bold text-slate-900">מדיניות פרטיות והודעה לפי סעיף 11</h1>
-      <p className="text-sm text-slate-500">למועמדים, לעובדים ולעובדים לשעבר</p>
+      <p className="text-xs text-slate-400 dark:text-slate-500">נוסח Production למערכת קליטת עובדים</p>
+      <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">מדיניות פרטיות והודעה לפי סעיף 11</h1>
+      <p className="text-sm text-slate-500 dark:text-slate-400">למועמדים, לעובדים ולעובדים לשעבר</p>
 
-      <div className="mt-4 space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+      <div className="mt-4 space-y-1 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-3 text-sm text-slate-700 dark:text-slate-200">
         <p>
           <strong>בעל השליטה:</strong> {co}
           {companyNumber ? ` | ח.פ. ${companyNumber}` : ""}
@@ -154,7 +154,7 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
       />
 
       <H n="4" t="המידע שנאסף" />
-      <p className="mb-1 text-sm font-semibold text-slate-700">4.1 מועמדים</p>
+      <p className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">4.1 מועמדים</p>
       <UL
         items={[
           "שם, פרטי קשר ופרטים הנחוצים לזיהוי המועמדות.",
@@ -165,7 +165,7 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
           "אישור זכאות לעבוד בישראל ומסמכים הנדרשים לתפקיד לפי דין.",
         ]}
       />
-      <p className="mb-1 text-sm font-semibold text-slate-700">4.2 עובדים ובמהלך ההעסקה</p>
+      <p className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">4.2 עובדים ובמהלך ההעסקה</p>
       <UL
         items={[
           "פרטי זיהוי וקשר, כתובת, תאריך לידה, תושבות ואיש קשר לשעת חירום.",
@@ -179,7 +179,7 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
           "תבנית מתמטית המופקת מטביעת אצבע במערכת JB CLOCK, רק לגבי עובד שבחר בשיטה הביומטרית.",
         ]}
       />
-      <p className="mb-1 text-sm font-semibold text-slate-700">4.3 תיעוד טכני ומקורות מידע</p>
+      <p className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">4.3 תיעוד טכני ומקורות מידע</p>
       <P>
         בשימוש בטפסים ובחתימות מקוונים עשויים להיווצר כתובת IP, מועד ושעת פעולה, מידע בסיסי על
         מכשיר ודפדפן, יומן אימות, תיעוד מסרון חד־פעמי, גרסת המסמך, חתימה דיגיטלית ופניות תמיכה.
@@ -331,7 +331,7 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
       </P>
 
       <H n="14" t="מצלמות אבטחה, ביומטריה ואמצעי פיקוח" />
-      <p className="mb-1 text-sm font-semibold text-slate-700">14.1 מצלמות אבטחה</p>
+      <p className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">14.1 מצלמות אבטחה</p>
       <P>
         בחנות ובשטח החיצוני הסמוך לה מופעלות מצלמות גלויות למטרות אבטחה, בטיחות ומניעת גניבות
         בלבד. המצלמות אינן מקליטות קול. שילוט מתאים יוצב בכניסות ובאזורים המצולמים.
@@ -345,7 +345,7 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
           "הצילומים נשמרים עד 21 ימים ונמחקים במחזוריות אוטומטית, למעט קטע הנדרש לאירוע מסוים כמפורט בסעיף השמירה.",
         ]}
       />
-      <p className="mb-1 text-sm font-semibold text-slate-700">14.2 שעון נוכחות בטביעת אצבע</p>
+      <p className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">14.2 שעון נוכחות בטביעת אצבע</p>
       <P>
         מערכת JB CLOCK מאפשרת זיהוי לצורך דיווח נוכחות באמצעות טביעת אצבע. לפי מידע הספק, החיישן
         ממיר את מאפייני הטביעה לקוד או לתבנית מתמטית; החברה אינה מצלמת את האצבע ואינה משתמשת
@@ -359,7 +359,7 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
           "התבנית תימחק עם ביטול ההסכמה או בסיום העבודה, לפי המוקדם; רישום שעות העבודה עצמו יישמר כנדרש בדין.",
         ]}
       />
-      <p className="mb-1 text-sm font-semibold text-slate-700">14.3 אמצעים שאינם מופעלים כיום</p>
+      <p className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">14.3 אמצעים שאינם מופעלים כיום</p>
       <P>
         החברה אינה מפעילה כיום איסוף מיקום, ניטור מחשב, דוא״ל או גלישה, פנייה לממליצים, עיבוד
         רפואי שגרתי, דירוג מועמדים או עובדים באמצעות בינה מלאכותית או קבלת החלטות אוטומטית.
@@ -399,7 +399,7 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
       </P>
       <P>אין לצרף לפנייה צילום תעודת זהות מלא אלא אם התבקשת לעשות זאת לאחר שנבחן אמצעי אימות חלופי ומידתי.</P>
 
-      <div className="mt-8 border-t border-slate-200 pt-4">
+      <div className="mt-8 border-t border-slate-200 dark:border-slate-800 pt-4">
         <H n="נספח ב׳" t="הודעה קצרה לפני טופס קליטת עובד" />
         <P>
           בעל השליטה במידע הוא {coId}; לפניות: {CONTACT}. המידע ישמש לקליטה, לניהול יחסי העבודה,

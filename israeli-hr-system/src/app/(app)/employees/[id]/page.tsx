@@ -37,8 +37,8 @@ const SIG_LABELS: Record<SignatureContext, string> = {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-      <h2 className="mb-3 text-base font-bold text-slate-800">{title}</h2>
+    <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
+      <h2 className="mb-3 text-base font-bold text-slate-800 dark:text-slate-100">{title}</h2>
       {children}
     </section>
   );
@@ -48,9 +48,9 @@ function Rows({ rows }: { rows: [string, string][] }) {
   return (
     <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
       {rows.map(([k, v]) => (
-        <div key={k} className="flex justify-between gap-4 border-b border-slate-100 py-1">
-          <dt className="text-sm text-slate-500">{k}</dt>
-          <dd className="text-sm font-medium text-slate-800">{v}</dd>
+        <div key={k} className="flex justify-between gap-4 border-b border-slate-100 dark:border-slate-800 py-1">
+          <dt className="text-sm text-slate-500 dark:text-slate-400">{k}</dt>
+          <dd className="text-sm font-medium text-slate-800 dark:text-slate-100">{v}</dd>
         </div>
       ))}
     </dl>
@@ -80,7 +80,7 @@ export default async function EmployeeDetailPage({
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
         <p className="text-4xl">⚠️</p>
-        <h1 className="mt-4 text-xl font-bold text-slate-800">העובד לא נמצא</h1>
+        <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">העובד לא נמצא</h1>
         <Link href="/employees" className="mt-4 inline-block text-sm text-brand-700 underline">
           חזרה לרשימת העובדים
         </Link>
@@ -150,7 +150,7 @@ export default async function EmployeeDetailPage({
       <div>
         <Link
           href="/employees"
-          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-brand-600"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 transition hover:text-brand-600"
         >
           <ArrowRight size={14} />
           חזרה לרשימת העובדים
@@ -166,8 +166,8 @@ export default async function EmployeeDetailPage({
             {initials(emp.firstName, emp.lastName)}
           </span>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">{fullName}</h1>
-            <p className="text-sm text-slate-500">{emp.jobTitle || "עובד/ת"}</p>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">{fullName}</h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">{emp.jobTitle || "עובד/ת"}</p>
           </div>
         </div>
         <EmployeeExport data={exportData} />
@@ -198,7 +198,7 @@ export default async function EmployeeDetailPage({
 
       <Card title="מסמכים">
         {emp.documents.length === 0 ? (
-          <p className="text-sm text-slate-400">לא צורפו מסמכים.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">לא צורפו מסמכים.</p>
         ) : (
           <div className="space-y-4">
             {emp.documents.map((d) => {
@@ -206,13 +206,13 @@ export default async function EmployeeDetailPage({
               return (
                 <div key={d.id}>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-slate-700">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                       {DOC_LABELS[d.type]}: {d.fileName}
                     </span>
                     <a
                       href={d.fileUrl}
                       download={d.fileName}
-                      className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
+                      className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1 text-xs text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
                     >
                       הורדה
                     </a>
@@ -221,13 +221,13 @@ export default async function EmployeeDetailPage({
                     <iframe
                       src={d.fileUrl}
                       title={d.fileName}
-                      className="h-96 w-full rounded-lg border border-slate-200"
+                      className="h-96 w-full rounded-lg border border-slate-200 dark:border-slate-800"
                     />
                   ) : (
                     <img
                       src={d.fileUrl}
                       alt={d.fileName}
-                      className="max-h-96 w-full rounded-lg border border-slate-200 object-contain"
+                      className="max-h-96 w-full rounded-lg border border-slate-200 dark:border-slate-800 object-contain"
                     />
                   )}
                 </div>
@@ -239,16 +239,16 @@ export default async function EmployeeDetailPage({
 
       <Card title="חתימות">
         {emp.signatures.length === 0 ? (
-          <p className="text-sm text-slate-400">אין חתימות.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-500">אין חתימות.</p>
         ) : (
           <div className="flex flex-wrap gap-6">
             {emp.signatures.map((s) => (
               <div key={s.id}>
-                <p className="mb-1 text-xs text-slate-500">{SIG_LABELS[s.context]}</p>
+                <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">{SIG_LABELS[s.context]}</p>
                 <img
                   src={s.imageData}
                   alt={SIG_LABELS[s.context]}
-                  className="h-24 rounded-lg border border-slate-200 bg-white p-2"
+                  className="h-24 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2"
                 />
               </div>
             ))}
