@@ -150,6 +150,9 @@ interface OnboardingFormProps {
   hideEmployerFields?: boolean;
   // קישור למדיניות פרטיות — כשמסופק, מוצג צ'קבוקס אישור חובה.
   privacyUrl?: string;
+  // הסתרת החתימות (קליטה ידנית ע"י HR — אין צורך שה-HR יחתום; חתימה נדרשת רק
+  // מהעובד בפורטל). במצב זה מוצגת גם אפשרות לצרף קובץ הסכם עבודה להורדה/תיוק.
+  hideSignatures?: boolean;
 }
 
 // בריחת תווים לצורך הזרקה בטוחה ל-HTML של חלון ההדפסה.
@@ -191,6 +194,67 @@ function printDocument(title: string, bodyHtml: string) {
   w.document.close();
 }
 
+// כפתור הורדה/הדפסה מאוחד: אם יש אפשרות אחת — כפתור ישיר; אם כמה — תפריט נפתח.
+function DocDownloadMenu({
+  options,
+  variant = "solid",
+}: {
+  options: { label: string; run: () => void }[];
+  variant?: "solid" | "soft";
+}) {
+  const [open, setOpen] = useState(false);
+  if (options.length === 0) return null;
+
+  const base =
+    variant === "solid"
+      ? "bg-brand-600 text-white hover:bg-brand-700"
+      : "border border-green-300 bg-white text-green-800 hover:bg-green-100";
+
+  if (options.length === 1) {
+    return (
+      <button
+        type="button"
+        onClick={options[0].run}
+        className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${base}`}
+      >
+        📥 {options[0].label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${base}`}
+      >
+        📥 הורדה / הדפסה ▾
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
+          <div className="absolute z-20 mt-1 w-60 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+            {options.map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  o.run();
+                }}
+                className="block w-full rounded-lg px-3 py-2 text-start text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function OnboardingForm({
   endpoint = "/api/onboarding",
   defaults,
@@ -198,11 +262,20 @@ export function OnboardingForm({
   agreement,
   hideEmployerFields = false,
   privacyUrl,
+  hideSignatures = false,
 }: OnboardingFormProps = {}) {
   const [form, setForm] = useState<FormState>({ ...EMPTY, ...defaults });
   const [idFile, setIdFile] = useState<File | null>(null);
   const [contractSignature, setContractSignature] = useState<string | null>(null);
   const [form101Signature, setForm101Signature] = useState<string | null>(null);
+  // הסכם עבודה שצורף מקומית (במצב HR) — משמש להורדה/הדפסה ולתיוק בתיק העובד.
+  const [localAgreement, setLocalAgreement] = useState<{
+    fileName: string;
+    dataUrl: string;
+    mimeType: string;
+  } | null>(null);
+  // מקור ההסכם: מה שה-HR צירף בהזמנה (prop) או קובץ שהועלה כאן מקומית.
+  const agreementDoc = agreement ?? localAgreement;
   // מפת אישורי פרטיות: מפתח-תיבה → סומן/לא סומן. אף תיבה אינה מסומנת מראש.
   const [consents, setConsents] = useState<Record<string, boolean>>({});
   const [consentError, setConsentError] = useState(false);
@@ -266,7 +339,8 @@ export function OnboardingForm({
       return;
     }
 
-    if (!contractSignature) {
+    // חתימה נדרשת רק כשהחתימות מוצגות (בפורטל העובד). בקליטה ידנית ע"י HR אין צורך.
+    if (!hideSignatures && !contractSignature) {
       setStatus("error");
       setMessage("נדרשת חתימה על הסכם העבודה כדי להשלים את הקליטה.");
       return;
@@ -289,6 +363,14 @@ export function OnboardingForm({
           hourlySalary: form.hourlySalary ? Number(form.hourlySalary) : null,
           taxYear: Number(form.taxYear) || new Date().getFullYear(),
           idAttachment,
+          // הסכם עבודה שצורף מקומית (מצב HR) נשמר בתיק העובד כמסמך CONTRACT.
+          contractAttachment: localAgreement
+            ? {
+                fileName: localAgreement.fileName,
+                mimeType: localAgreement.mimeType,
+                data: localAgreement.dataUrl,
+              }
+            : undefined,
           contractSignature,
           form101Signature,
           // privacyAccepted=true רק כשכל אישורי החובה סומנו (שער תאימות לאחור).
@@ -320,43 +402,62 @@ export function OnboardingForm({
     }
   }
 
-  // מפיק מסמך אחד להדפסה/שמירה: ההסכם + פרטי העובד + החתימה.
-  // המשתמש יכול לבחור "שמירה כ-PDF" מתוך חלון ההדפסה של הדפדפן.
+  // קורא קובץ הסכם עבודה שהועלה מקומית (מצב HR) וממיר ל-data URL.
+  async function handleAgreementUpload(file: File | null) {
+    if (!file) {
+      setLocalAgreement(null);
+      return;
+    }
+    const dataUrl = await fileToDataUrl(file);
+    setLocalAgreement({ fileName: file.name, dataUrl, mimeType: file.type });
+  }
+
+  // בונה את גוף ה-HTML של ההסכם (תצוגה + חתימה) — משותף להדפסת ההסכם ולהדפסה המשולבת.
+  function agreementBodyHtml(): string {
+    if (!agreementDoc) return "";
+    const isPdf = (agreementDoc.mimeType ?? "").includes("pdf");
+    const view = isPdf
+      ? `<embed src="${agreementDoc.dataUrl}" type="application/pdf" style="width:100%;height:80vh;border:1px solid #ddd" />`
+      : `<img src="${agreementDoc.dataUrl}" style="max-width:100%;border:1px solid #ddd" />`;
+    const sigHtml = contractSignature
+      ? `<div class="sig"><p>חתימת העובד/ת (מאשר/ת את תנאי ההסכם):</p><img src="${contractSignature}" style="height:110px" alt="חתימה" /></div>`
+      : "";
+    return `<h1>הסכם עבודה</h1><h2>ההסכם:</h2>${view}${sigHtml}`;
+  }
+
+  // מפיק מסמך הסכם עבודה להדפסה/שמירה.
   function printSignedAgreement() {
-    if (!agreement) return;
+    if (!agreementDoc) return;
     const rawName = `${form.firstName} ${form.lastName}`.trim() || "—";
-    const name = escapeHtml(rawName);
     const nid = escapeHtml(form.nationalId || "—");
     const date = new Date().toLocaleDateString("he-IL");
-    const isPdf = (agreement.mimeType ?? "").includes("pdf");
-    const agreementHtml = isPdf
-      ? `<embed src="${agreement.dataUrl}" type="application/pdf" style="width:100%;height:80vh;border:1px solid #ddd" />`
-      : `<img src="${agreement.dataUrl}" style="max-width:100%;border:1px solid #ddd" />`;
-    const sigHtml = contractSignature
-      ? `<img src="${contractSignature}" style="height:110px" alt="חתימה" />`
-      : "<p>ללא חתימה</p>";
-
     printDocument(
-      `הסכם עבודה חתום — ${rawName}`,
-      `<h1>הסכם עבודה</h1>` +
-        `<p class="meta">עובד/ת: <strong>${name}</strong> · ת.ז: ${nid} · תאריך: ${date}</p>` +
-        `<h2>ההסכם:</h2>${agreementHtml}` +
-        `<div class="sig"><p>חתימת העובד/ת (מאשר/ת את תנאי ההסכם):</p>${sigHtml}` +
-        `<p class="meta">נחתם בתאריך ${date}</p></div>`,
+      `הסכם עבודה — ${rawName}`,
+      `<p class="meta">עובד/ת: <strong>${escapeHtml(rawName)}</strong> · ת.ז: ${nid} · תאריך: ${date}</p>` +
+        agreementBodyHtml(),
     );
   }
 
-  // מפיק מסמך טופס 101 להדפסה/שמירה: כל השדות + החתימה על טופס 101.
-  function printForm101() {
+  // הדפסה משולבת: טופס 101 + הסכם עבודה במסמך אחד.
+  function printBoth() {
+    if (!agreementDoc) return printForm101();
+    const rawName = `${form.firstName} ${form.lastName}`.trim() || "—";
+    printDocument(
+      `מסמכי קליטה — ${rawName}`,
+      form101BodyHtml() + `<div style="page-break-before:always"></div>` + agreementBodyHtml(),
+    );
+  }
+
+  // גוף ה-HTML של טופס 101 — משותף להדפסה בודדת ולהדפסה המשולבת.
+  function form101BodyHtml(): string {
     const g = (v: string) => escapeHtml(v || "—");
     const yesNo = (b: boolean) => (b ? "כן" : "לא");
-    const fullName = g(`${form.firstName} ${form.lastName}`.trim());
     const date = new Date().toLocaleDateString("he-IL");
     const sig = form101Signature
       ? `<img src="${form101Signature}" style="height:110px" alt="חתימה" />`
       : "<p>ללא חתימה</p>";
     const rows: Array<[string, string]> = [
-      ["שם מלא", fullName],
+      ["שם מלא", g(`${form.firstName} ${form.lastName}`.trim())],
       ["תעודת זהות", g(form.nationalId)],
       ["תאריך לידה", g(form.birthDate)],
       ["דוא״ל", g(form.email)],
@@ -370,42 +471,38 @@ export function OnboardingForm({
       ["בקשה לנקודות זיכוי", yesNo(form.requestsCredits)],
     ];
     const tableRows = rows
-      .map(
-        ([k, v]) =>
-          `<tr><td style="font-weight:600;width:40%">${k}</td><td>${v}</td></tr>`,
-      )
+      .map(([k, v]) => `<tr><td style="font-weight:600;width:40%">${k}</td><td>${v}</td></tr>`)
       .join("");
-
-    printDocument(
-      `טופס 101 — ${`${form.firstName} ${form.lastName}`.trim() || ""}`,
+    return (
       `<h1>טופס 101 — כרטיס עובד לצורכי מס</h1>` +
-        `<p class="meta">תאריך: ${date}</p>` +
-        `<table>${tableRows}</table>` +
-        `<div class="sig"><p>חתימת העובד/ת:</p>${sig}<p class="meta">נחתם בתאריך ${date}</p></div>`,
+      `<p class="meta">תאריך: ${date}</p>` +
+      `<table>${tableRows}</table>` +
+      `<div class="sig"><p>חתימת העובד/ת:</p>${sig}<p class="meta">נחתם בתאריך ${date}</p></div>`
     );
   }
+
+  // מפיק מסמך טופס 101 להדפסה/שמירה.
+  function printForm101() {
+    printDocument(`טופס 101 — ${`${form.firstName} ${form.lastName}`.trim() || ""}`, form101BodyHtml());
+  }
+
+  // אפשרויות ההורדה/הדפסה — טופס 101 תמיד; הסכם ושניהם רק כשקיים הסכם עבודה.
+  const docOptions: { label: string; run: () => void }[] = [
+    { label: "טופס 101", run: printForm101 },
+    ...(agreementDoc
+      ? [
+          { label: "הסכם עבודה", run: printSignedAgreement },
+          { label: "טופס 101 + הסכם עבודה", run: printBoth },
+        ]
+      : []),
+  ];
 
   if (status === "done") {
     return (
       <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-green-800">
         <p className="text-lg font-semibold">✓ {message}</p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={printForm101}
-            className="rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-100"
-          >
-            🖨️ הדפסה / שמירת טופס 101
-          </button>
-          {agreement && contractSignature && (
-            <button
-              type="button"
-              onClick={printSignedAgreement}
-              className="rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-100"
-            >
-              🖨️ הדפסה / שמירת ההסכם החתום
-            </button>
-          )}
+          <DocDownloadMenu options={docOptions} variant="soft" />
         </div>
       </div>
     );
@@ -683,70 +780,82 @@ export function OnboardingForm({
           {idFile && <p className="mt-1 text-xs text-green-700">נבחר: {idFile.name}</p>}
         </div>
 
-        {/* חתימה על טופס 101 */}
-        <div className="mt-4">
-          <SignaturePad label="חתימה על טופס 101" onChange={setForm101Signature} />
-        </div>
-
-        <button
-          type="button"
-          onClick={printForm101}
-          className="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100"
-        >
-          🖨️ הדפסה / שמירת טופס 101
-        </button>
-      </section>
-
-      {/* חתימה על הסכם העבודה */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">הסכם עבודה</h2>
-        <p className="mb-4 text-sm text-slate-500">
-          אנא קרא/י את הסכם העבודה וחתום/מי במקום המיועד. החתימה מהווה אישור לתנאי
-          ההעסקה.
-        </p>
-
-        {/* הסכם עבודה שצורף ע"י המעסיק — מוצג מוטמע לקריאה, עם הורדה */}
-        {agreement && (
-          <div className="mb-4">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-slate-700">
-                📄 הסכם העבודה: {agreement.fileName}
-              </span>
-              <a
-                href={agreement.dataUrl}
-                download={agreement.fileName}
-                className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
-              >
-                הורדה
-              </a>
-            </div>
-            {(agreement.mimeType ?? "").includes("pdf") ? (
-              <iframe
-                src={agreement.dataUrl}
-                title="הסכם עבודה"
-                className="h-96 w-full rounded-lg border border-slate-200"
-              />
-            ) : (
-              <img
-                src={agreement.dataUrl}
-                alt="הסכם עבודה"
-                className="max-h-96 w-full rounded-lg border border-slate-200 object-contain"
-              />
-            )}
+        {/* חתימה על טופס 101 — נדרשת רק מהעובד (בפורטל), לא בקליטה ידנית */}
+        {!hideSignatures && (
+          <div className="mt-4">
+            <SignaturePad label="חתימה על טופס 101" onChange={setForm101Signature} />
           </div>
         )}
+      </section>
 
-        <SignaturePad label="חתימה על הסכם העבודה (חובה)" onChange={setContractSignature} />
+      {/* הסכם עבודה */}
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="mb-4 text-lg font-semibold text-slate-800">הסכם עבודה</h2>
 
-        {agreement && (
-          <button
-            type="button"
-            onClick={printSignedAgreement}
-            className="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100"
-          >
-            🖨️ הדפסה / שמירת ההסכם עם החתימה
-          </button>
+        {hideSignatures ? (
+          // מצב HR: צירוף קובץ הסכם (רשות) — יישמר בתיק העובד ויהיה זמין להורדה/הדפסה.
+          <>
+            <p className="mb-3 text-sm text-slate-500">
+              ניתן לצרף קובץ הסכם עבודה (PDF או תמונה). הוא יישמר בתיק העובד ותוכל/י להוריד או
+              להדפיס אותו יחד עם טופס 101.
+            </p>
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => handleAgreementUpload(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+            />
+            {localAgreement && (
+              <p className="mt-1 text-xs text-green-700">צורף: {localAgreement.fileName}</p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="mb-4 text-sm text-slate-500">
+              אנא קרא/י את הסכם העבודה וחתום/מי במקום המיועד. החתימה מהווה אישור לתנאי ההעסקה.
+            </p>
+            {agreementDoc && (
+              <div className="mb-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    📄 הסכם העבודה: {agreementDoc.fileName}
+                  </span>
+                  <a
+                    href={agreementDoc.dataUrl}
+                    download={agreementDoc.fileName}
+                    className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
+                  >
+                    הורדה
+                  </a>
+                </div>
+                {(agreementDoc.mimeType ?? "").includes("pdf") ? (
+                  <iframe
+                    src={agreementDoc.dataUrl}
+                    title="הסכם עבודה"
+                    className="h-96 w-full rounded-lg border border-slate-200"
+                  />
+                ) : (
+                  <img
+                    src={agreementDoc.dataUrl}
+                    alt="הסכם עבודה"
+                    className="max-h-96 w-full rounded-lg border border-slate-200 object-contain"
+                  />
+                )}
+              </div>
+            )}
+            <SignaturePad label="חתימה על הסכם העבודה (חובה)" onChange={setContractSignature} />
+          </>
         )}
+      </section>
+
+      {/* הורדה / הדפסה של המסמכים — כפתור אחד */}
+      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="mb-1 text-lg font-semibold text-slate-800">הורדה והדפסה</h2>
+        <p className="mb-3 text-sm text-slate-500">
+          הורדה או הדפסה של טופס 101{agreementDoc ? ", הסכם העבודה, או שניהם יחד" : ""} — כקובץ
+          שניתן לשמור כ-PDF.
+        </p>
+        <DocDownloadMenu options={docOptions} variant="solid" />
       </section>
 
       {/* אישורי פרטיות (נספח ג') — חובה בפורטל העובד */}
