@@ -23,7 +23,7 @@ export default async function TerminationPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">סיום העסקה</h1>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">סיום העסקה</h1>
         <p className="mt-1 text-sm text-slate-500">
           הפקת הזמנה לשימוע ומכתב פיטורין. ימי ההודעה המוקדמת מחושבים אוטומטית לפי
           חוק הודעה מוקדמת ומועד תחילת העבודה.
@@ -32,7 +32,7 @@ export default async function TerminationPage() {
       {options.length > 0 ? (
         <TerminationForm employees={options} />
       ) : (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+        <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
           אין עובדים פעילים במערכת. יש לקלוט עובד תחילה.
         </p>
       )}

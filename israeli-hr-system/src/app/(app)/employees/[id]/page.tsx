@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { DocumentType, SignatureContext } from "@prisma/client";
 import { EmployeeExport, type ExportData } from "@/components/EmployeeExport";
 import { formatAvailability } from "@/lib/availability";
+import { avatarColor, initials } from "@/lib/avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +37,8 @@ const SIG_LABELS: Record<SignatureContext, string> = {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-      <h2 className="mb-3 text-lg font-semibold text-slate-800">{title}</h2>
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
+      <h2 className="mb-3 text-base font-bold text-slate-800">{title}</h2>
       {children}
     </section>
   );
@@ -145,12 +147,28 @@ export default async function EmployeeDetailPage({
 
   return (
     <div className="space-y-6">
+      <div>
+        <Link
+          href="/employees"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-brand-600"
+        >
+          <ArrowRight size={14} />
+          חזרה לרשימת העובדים
+        </Link>
+      </div>
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Link href="/employees" className="text-xs text-slate-500 hover:underline">
-            ← חזרה לרשימת העובדים
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold text-slate-800">{fullName}</h1>
+        <div className="flex items-center gap-3">
+          <span
+            className={`grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br text-base font-bold text-white ${avatarColor(
+              emp.firstName + emp.lastName,
+            )}`}
+          >
+            {initials(emp.firstName, emp.lastName)}
+          </span>
+          <div>
+            <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">{fullName}</h1>
+            <p className="text-sm text-slate-500">{emp.jobTitle || "עובד/ת"}</p>
+          </div>
         </div>
         <EmployeeExport data={exportData} />
       </header>
