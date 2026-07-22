@@ -42,7 +42,7 @@ export function SignaturePad({
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
-        <label className="text-sm font-medium text-slate-700">{label}</label>
+        <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{label}</label>
         <button
           type="button"
           onClick={clear}
@@ -54,7 +54,7 @@ export function SignaturePad({
       {/* touch-none מונע גלילת הדף בזמן חתימה במסך מגע */}
       <canvas
         ref={canvasRef}
-        className="h-40 w-full touch-none rounded-lg border border-dashed border-slate-300 bg-white"
+        className="h-40 w-full touch-none rounded-lg border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
       />
     </div>
   );

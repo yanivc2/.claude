@@ -15,7 +15,7 @@ interface Resource {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 const MAX_MB = 4;
 
@@ -113,16 +113,16 @@ export function ResourcesManager() {
   return (
     <div className="space-y-8">
       {/* טופס הוספה */}
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-base font-bold text-slate-800">הוספת מסמך או קישור</h2>
+      <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
+        <h2 className="mb-4 text-base font-bold text-slate-800 dark:text-slate-100">הוספת מסמך או קישור</h2>
 
         {/* בורר סוג */}
-        <div className="mb-4 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1 text-sm font-semibold">
+        <div className="mb-4 inline-flex rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-1 text-sm font-semibold">
           <button
             type="button"
             onClick={() => setKind("FILE")}
             className={`rounded-lg px-4 py-1.5 transition ${
-              kind === "FILE" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"
+              kind === "FILE" ? "bg-white dark:bg-slate-900 text-brand-700 shadow-sm" : "text-slate-500 dark:text-slate-400"
             }`}
           >
             העלאת קובץ
@@ -131,7 +131,7 @@ export function ResourcesManager() {
             type="button"
             onClick={() => setKind("LINK")}
             className={`rounded-lg px-4 py-1.5 transition ${
-              kind === "LINK" ? "bg-white text-brand-700 shadow-sm" : "text-slate-500"
+              kind === "LINK" ? "bg-white dark:bg-slate-900 text-brand-700 shadow-sm" : "text-slate-500 dark:text-slate-400"
             }`}
           >
             קישור / סרטון
@@ -140,7 +140,7 @@ export function ResourcesManager() {
 
         <form onSubmit={add} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">כותרת</span>
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">כותרת</span>
             <input
               className={inputClass}
               required
@@ -152,7 +152,7 @@ export function ResourcesManager() {
 
           {kind === "LINK" ? (
             <label className="block sm:col-span-2">
-              <span className="mb-1 block text-sm font-medium text-slate-700">
+              <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
                 קישור (כולל קישור לסרטון ביוטיוב/וימאו)
               </span>
               <input
@@ -167,21 +167,21 @@ export function ResourcesManager() {
             </label>
           ) : (
             <label className="block sm:col-span-2">
-              <span className="mb-1 block text-sm font-medium text-slate-700">
+              <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
                 קובץ (PDF, תמונה או מסמך — עד {MAX_MB}MB)
               </span>
               <input
                 type="file"
                 accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.txt"
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-                className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+                className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
               />
               {file && <p className="mt-1 text-xs text-green-700">נבחר: {file.name}</p>}
             </label>
           )}
 
           <label className="block sm:col-span-2">
-            <span className="mb-1 block text-sm font-medium text-slate-700">תיאור (רשות)</span>
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">תיאור (רשות)</span>
             <input
               className={inputClass}
               placeholder="הסבר קצר על המסמך"
@@ -206,7 +206,7 @@ export function ResourcesManager() {
 
       {/* רשימת המשאבים */}
       {items.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+        <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
           עדיין לא נוספו מסמכים או קישורים.
         </p>
       ) : (
@@ -218,20 +218,20 @@ export function ResourcesManager() {
             return (
               <div
                 key={r.id}
-                className="flex flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md"
+                className="flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm transition hover:shadow-md"
               >
                 <div className="flex items-start gap-3">
                   <span
                     className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                      isVideo ? "bg-rose-50 text-rose-600" : "bg-brand-50 text-brand-600"
+                      isVideo ? "bg-rose-50 text-rose-600" : "bg-brand-50 dark:bg-brand-500/15 text-brand-600"
                     }`}
                   >
                     <Icon size={20} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold text-slate-800">{r.title}</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-100">{r.title}</p>
                     {r.description && (
-                      <p className="mt-0.5 text-sm text-slate-500">{r.description}</p>
+                      <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{r.description}</p>
                     )}
                   </div>
                   {isOwner && (
@@ -239,7 +239,7 @@ export function ResourcesManager() {
                       type="button"
                       onClick={() => remove(r.id, r.title)}
                       aria-label="מחיקה"
-                      className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                      className="rounded-lg p-1.5 text-slate-400 dark:text-slate-500 transition hover:bg-red-50 hover:text-red-600"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -249,7 +249,7 @@ export function ResourcesManager() {
                   href={openHref}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-50"
+                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
                 >
                   <ExternalLink size={15} />
                   {r.kind === "FILE" ? "פתיחה / הורדה" : isVideo ? "צפייה בסרטון" : "פתיחת הקישור"}

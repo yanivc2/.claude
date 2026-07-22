@@ -5,8 +5,14 @@
 @tailwind utilities;
 
 :root {
-  --background: #f8fafc;
+  --background: #eef2f8;
   --foreground: #0f172a;
+}
+
+/* מצב כהה — צבע הרקע והטקסט הבסיסי של העמוד. */
+.dark {
+  --background: #0b1220;
+  --foreground: #e8eef7;
 }
 
 html {

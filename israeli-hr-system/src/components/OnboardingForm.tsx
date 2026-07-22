@@ -127,7 +127,7 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
       {children}
     </label>
   );
@@ -135,7 +135,7 @@ function Field({
 
 // גופן 16px בסלולר (text-base) מונע זום אוטומטי ב-iOS בעת מיקוד בשדה; במסך רחב חוזר ל-14px.
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 interface OnboardingFormProps {
   // נתיב ההגשה: ברירת מחדל הוא מסלול ה-HR; הפורטל הציבורי מעביר נתיב מבוסס-טוקן.
@@ -208,7 +208,7 @@ function DocDownloadMenu({
   const base =
     variant === "solid"
       ? "bg-brand-600 text-white hover:bg-brand-700"
-      : "border border-green-300 bg-white text-green-800 hover:bg-green-100";
+      : "border border-green-300 bg-white dark:bg-slate-900 text-green-800 hover:bg-green-100";
 
   if (options.length === 1) {
     return (
@@ -234,7 +234,7 @@ function DocDownloadMenu({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute z-20 mt-1 w-60 rounded-xl border border-slate-200 bg-white p-1 shadow-lg">
+          <div className="absolute z-20 mt-1 w-60 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1 shadow-lg">
             {options.map((o) => (
               <button
                 key={o.label}
@@ -243,7 +243,7 @@ function DocDownloadMenu({
                   setOpen(false);
                   o.run();
                 }}
-                className="block w-full rounded-lg px-3 py-2 text-start text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                className="block w-full rounded-lg px-3 py-2 text-start text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
               >
                 {o.label}
               </button>
@@ -511,8 +511,8 @@ export function OnboardingForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {/* פרטים אישיים */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">פרטים אישיים</h2>
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+        <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">פרטים אישיים</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="שם פרטי">
             <input
@@ -581,8 +581,8 @@ export function OnboardingForm({
       </section>
 
       {/* פרטי העסקה */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">פרטי העסקה</h2>
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+        <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">פרטי העסקה</h2>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="מועד תחילת עבודה">
             <input
@@ -633,13 +633,13 @@ export function OnboardingForm({
 
         {/* זמינות לפי ימים ומשמרות */}
         <div className="mt-4">
-          <span className="mb-2 block text-sm font-medium text-slate-700">
+          <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
             זמינות לפי ימים ומשמרות
           </span>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[24rem] border-collapse text-sm">
               <thead>
-                <tr className="text-slate-500">
+                <tr className="text-slate-500 dark:text-slate-400">
                   <th className="p-2 text-start font-medium">יום</th>
                   {AVAILABILITY_SHIFTS.map((s) => (
                     <th key={s.key} className="p-2 text-center font-medium">
@@ -650,8 +650,8 @@ export function OnboardingForm({
               </thead>
               <tbody>
                 {AVAILABILITY_DAYS.map((d) => (
-                  <tr key={d.key} className="border-t border-slate-100">
-                    <td className="p-2 text-slate-700">{d.label}</td>
+                  <tr key={d.key} className="border-t border-slate-100 dark:border-slate-800">
+                    <td className="p-2 text-slate-700 dark:text-slate-200">{d.label}</td>
                     {AVAILABILITY_SHIFTS.map((s) => (
                       <td key={s.key} className="p-2 text-center">
                         <input
@@ -677,10 +677,10 @@ export function OnboardingForm({
       </section>
 
       {/* קרן פנסיה — נפרד ומודגש */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">קרן פנסיה</h2>
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+        <h2 className="mb-3 text-lg font-semibold text-slate-800 dark:text-slate-100">קרן פנסיה</h2>
         <div className="space-y-2">
-          <label className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-base text-slate-700">
+          <label className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-base text-slate-700 dark:text-slate-200">
             <input
               type="radio"
               name="pension"
@@ -690,7 +690,7 @@ export function OnboardingForm({
             />
             קיימת קרן פנסיה פעילה
           </label>
-          <label className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-base text-slate-700">
+          <label className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-base text-slate-700 dark:text-slate-200">
             <input
               type="radio"
               name="pension"
@@ -704,9 +704,9 @@ export function OnboardingForm({
       </section>
 
       {/* טופס 101 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-1 text-lg font-semibold text-slate-800">טופס 101</h2>
-        <p className="mb-4 text-sm text-slate-500">
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+        <h2 className="mb-1 text-lg font-semibold text-slate-800 dark:text-slate-100">טופס 101</h2>
+        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
           כרטיס עובד לצורכי ניכוי מס הכנסה במקור.
         </p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -741,7 +741,7 @@ export function OnboardingForm({
           </Field>
         </div>
         <div className="mt-4 space-y-2">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={form.isResidentOfIsrael}
@@ -749,7 +749,7 @@ export function OnboardingForm({
             />
             תושב/ת ישראל
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={form.hasOtherIncome}
@@ -757,7 +757,7 @@ export function OnboardingForm({
             />
             קיימת הכנסה נוספת ממעסיק אחר
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={form.requestsCredits}
@@ -774,7 +774,7 @@ export function OnboardingForm({
               type="file"
               accept="image/*,application/pdf"
               onChange={(e) => setIdFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+              className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
             />
           </Field>
           {idFile && <p className="mt-1 text-xs text-green-700">נבחר: {idFile.name}</p>}
@@ -789,13 +789,13 @@ export function OnboardingForm({
       </section>
 
       {/* הסכם עבודה */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">הסכם עבודה</h2>
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+        <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">הסכם עבודה</h2>
 
         {hideSignatures ? (
           // מצב HR: צירוף קובץ הסכם (רשות) — יישמר בתיק העובד ויהיה זמין להורדה/הדפסה.
           <>
-            <p className="mb-3 text-sm text-slate-500">
+            <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
               ניתן לצרף קובץ הסכם עבודה (PDF או תמונה). הוא יישמר בתיק העובד ותוכל/י להוריד או
               להדפיס אותו יחד עם טופס 101.
             </p>
@@ -803,7 +803,7 @@ export function OnboardingForm({
               type="file"
               accept="image/*,application/pdf"
               onChange={(e) => handleAgreementUpload(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+              className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
             />
             {localAgreement && (
               <p className="mt-1 text-xs text-green-700">צורף: {localAgreement.fileName}</p>
@@ -811,19 +811,19 @@ export function OnboardingForm({
           </>
         ) : (
           <>
-            <p className="mb-4 text-sm text-slate-500">
+            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
               אנא קרא/י את הסכם העבודה וחתום/מי במקום המיועד. החתימה מהווה אישור לתנאי ההעסקה.
             </p>
             {agreementDoc && (
               <div className="mb-4">
                 <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-slate-700">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                     📄 הסכם העבודה: {agreementDoc.fileName}
                   </span>
                   <a
                     href={agreementDoc.dataUrl}
                     download={agreementDoc.fileName}
-                    className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
+                    className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1 text-xs text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
                   >
                     הורדה
                   </a>
@@ -832,13 +832,13 @@ export function OnboardingForm({
                   <iframe
                     src={agreementDoc.dataUrl}
                     title="הסכם עבודה"
-                    className="h-96 w-full rounded-lg border border-slate-200"
+                    className="h-96 w-full rounded-lg border border-slate-200 dark:border-slate-800"
                   />
                 ) : (
                   <img
                     src={agreementDoc.dataUrl}
                     alt="הסכם עבודה"
-                    className="max-h-96 w-full rounded-lg border border-slate-200 object-contain"
+                    className="max-h-96 w-full rounded-lg border border-slate-200 dark:border-slate-800 object-contain"
                   />
                 )}
               </div>
@@ -849,9 +849,9 @@ export function OnboardingForm({
       </section>
 
       {/* הורדה / הדפסה של המסמכים — כפתור אחד */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-1 text-lg font-semibold text-slate-800">הורדה והדפסה</h2>
-        <p className="mb-3 text-sm text-slate-500">
+      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+        <h2 className="mb-1 text-lg font-semibold text-slate-800 dark:text-slate-100">הורדה והדפסה</h2>
+        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
           הורדה או הדפסה של טופס 101{agreementDoc ? ", הסכם העבודה, או שניהם יחד" : ""} — כקובץ
           שניתן לשמור כ-PDF.
         </p>
@@ -864,12 +864,12 @@ export function OnboardingForm({
           className={`rounded-xl border p-4 transition sm:p-6 ${
             consentError && !allMandatoryAccepted
               ? "border-red-400 bg-red-50"
-              : "border-slate-200 bg-white"
+              : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
           }`}
         >
-          <h2 className="mb-1 text-lg font-semibold text-slate-800">אישורי פרטיות</h2>
+          <h2 className="mb-1 text-lg font-semibold text-slate-800 dark:text-slate-100">אישורי פרטיות</h2>
           {/* הודעה תמציתית לפי סעיף 11 לחוק */}
-          <p className="mb-4 text-sm leading-6 text-slate-600">
+          <p className="mb-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
             לפני השלמת הקליטה יש לקרוא את{" "}
             <a
               href={privacyUrl}
@@ -889,7 +889,7 @@ export function OnboardingForm({
             className={`flex items-start gap-3 rounded-lg border p-3 text-sm leading-6 transition ${
               consentError && !allMandatoryAccepted
                 ? "border-red-400 bg-red-50"
-                : "border-slate-200 bg-white"
+                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
             }`}
           >
             <input
@@ -898,8 +898,8 @@ export function OnboardingForm({
               checked={allMandatoryAccepted}
               onChange={(e) => toggleAllMandatory(e.target.checked)}
             />
-            <span className="text-slate-700">
-              <span className="font-semibold text-slate-800">
+            <span className="text-slate-700 dark:text-slate-200">
+              <span className="font-semibold text-slate-800 dark:text-slate-100">
                 קראתי ואני מאשר/ת את מדיניות הפרטיות וההודעה לפי סעיף 11
               </span>{" "}
               (גרסה {PRIVACY_POLICY_VERSION}), לרבות ארבעת האישורים הבאים. אישור זה מתעד קבלת
@@ -907,10 +907,10 @@ export function OnboardingForm({
             </span>
           </label>
           {/* פירוט האישורים הכלולים — לשמירה על הסכמה מדעת */}
-          <ul className="mt-2 space-y-1.5 pe-2 text-xs leading-5 text-slate-500">
+          <ul className="mt-2 space-y-1.5 pe-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
             {MANDATORY_CONSENTS.map((c) => (
               <li key={c.key}>
-                <span className="font-semibold text-slate-600">{c.label}</span> — {c.text}
+                <span className="font-semibold text-slate-600 dark:text-slate-300">{c.label}</span> — {c.text}
               </li>
             ))}
           </ul>
@@ -920,14 +920,14 @@ export function OnboardingForm({
           )}
 
           {/* ג.2 / ג.3 — הסכמות רשות, נפרדות ואינן חוסמות המשך */}
-          <p className="mb-2 mt-5 text-sm font-semibold text-slate-700">
+          <p className="mb-2 mt-5 text-sm font-semibold text-slate-700 dark:text-slate-200">
             הסכמות רשות (אופציונלי — אינן חובה להשלמת הקליטה)
           </p>
           <div className="space-y-2">
             {OPTIONAL_CONSENTS.map((c) => (
               <label
                 key={c.key}
-                className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm leading-6"
+                className="flex items-start gap-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 text-sm leading-6"
               >
                 <input
                   type="checkbox"
@@ -935,13 +935,13 @@ export function OnboardingForm({
                   checked={!!consents[c.key]}
                   onChange={(e) => toggleConsent(c.key, e.target.checked)}
                 />
-                <span className="text-slate-700">
-                  <span className="font-semibold text-slate-800">{c.label}</span> — {c.text}
+                <span className="text-slate-700 dark:text-slate-200">
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">{c.label}</span> — {c.text}
                 </span>
               </label>
             ))}
           </div>
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
             סירוב או ביטול הסכמת רשות לא יפגעו בשכר, בזכויות או בתנאי העבודה. אף אישור אינו ויתור
             על זכויות קוגנטיות.
           </p>

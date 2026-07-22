@@ -6,8 +6,8 @@ export default function ResourcesPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">מסמכים ונהלים</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">מסמכים ונהלים</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           ספריית משאבים לצוות: נהלי עבודה, מסמכים, וסרטוני הסברה (קובץ או קישור).
         </p>
       </header>

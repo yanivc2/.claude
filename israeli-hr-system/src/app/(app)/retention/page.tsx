@@ -21,7 +21,7 @@ const STATUS_LABELS: Record<SurveyStatus, string> = {
 };
 
 const STATUS_STYLES: Record<SurveyStatus, string> = {
-  SCHEDULED: "bg-slate-100 text-slate-600",
+  SCHEDULED: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
   SENT: "bg-blue-50 text-blue-700",
   COMPLETED: "bg-green-50 text-green-700",
 };
@@ -51,8 +51,8 @@ export default async function RetentionPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-800">שימור עובדים</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">שימור עובדים</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           סקרי שביעות רצון (Pulse Surveys) מתוזמנים אוטומטית ל-3/15/30 ימים ממועד
           תחילת העבודה, לצד תזמון פגישות חתך למנהל הישיר.
         </p>
@@ -61,10 +61,10 @@ export default async function RetentionPage() {
       {/* ימי הולדת קרובים — ברכה בוואטסאפ בלחיצה */}
       {birthdays.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
             🎂 ימי הולדת קרובים
           </h2>
-          <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
             {birthdays.map(({ e, days }) => {
               const href = birthdayWaHref(e.phone, e.firstName);
               return (
@@ -73,10 +73,10 @@ export default async function RetentionPage() {
                   className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div>
-                    <span className="text-sm font-medium text-slate-800">
+                    <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
                       {e.firstName} {e.lastName}
                     </span>
-                    <span className="mr-2 text-xs text-slate-500">
+                    <span className="mr-2 text-xs text-slate-500 dark:text-slate-400">
                       {birthdayFmt.format(e.birthDate as Date)} ·{" "}
                       {days === 0 ? "היום! 🎉" : `בעוד ${days} ימים`}
                     </span>
@@ -91,7 +91,7 @@ export default async function RetentionPage() {
                       📱 שליחת ברכה בוואטסאפ
                     </a>
                   ) : (
-                    <span className="text-xs text-slate-400">אין טלפון</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-500">אין טלפון</span>
                   )}
                 </li>
               );
@@ -101,14 +101,14 @@ export default async function RetentionPage() {
       )}
 
       {surveys.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
+        <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
           אין סקרים מתוזמנים. סקרים נוצרים אוטומטית בעת קליטת עובד חדש.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
           <table className="w-full min-w-[32rem] text-start text-sm">
             <thead>
-              <tr className="text-[11px] uppercase tracking-wide text-slate-400">
+              <tr className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
                 <th className="px-5 py-3 text-start font-bold">עובד</th>
                 <th className="px-5 py-3 text-start font-bold">אבן דרך</th>
                 <th className="px-5 py-3 text-start font-bold">מתוזמן ל-</th>
@@ -118,12 +118,12 @@ export default async function RetentionPage() {
             </thead>
             <tbody>
               {surveys.map((s) => (
-                <tr key={s.id} className="border-t border-slate-100 transition hover:bg-slate-50">
-                  <td className="px-5 py-3 font-semibold text-slate-800">
+                <tr key={s.id} className="border-t border-slate-100 dark:border-slate-800 transition hover:bg-slate-50 dark:hover:bg-slate-800/60">
+                  <td className="px-5 py-3 font-semibold text-slate-800 dark:text-slate-100">
                     {s.employee.firstName} {s.employee.lastName}
                   </td>
-                  <td className="px-5 py-3 text-slate-500">{MILESTONE_LABELS[s.milestone]}</td>
-                  <td className="px-5 py-3 tabular-nums text-slate-500">{dateFmt.format(s.scheduledFor)}</td>
+                  <td className="px-5 py-3 text-slate-500 dark:text-slate-400">{MILESTONE_LABELS[s.milestone]}</td>
+                  <td className="px-5 py-3 tabular-nums text-slate-500 dark:text-slate-400">{dateFmt.format(s.scheduledFor)}</td>
                   <td className="px-5 py-3">
                     <span
                       className={`rounded-full px-2.5 py-1 text-xs font-bold ${STATUS_STYLES[s.status]}`}
@@ -131,7 +131,7 @@ export default async function RetentionPage() {
                       {STATUS_LABELS[s.status]}
                     </span>
                   </td>
-                  <td className="px-5 py-3 tabular-nums text-slate-500">{s.score ?? "—"}</td>
+                  <td className="px-5 py-3 tabular-nums text-slate-500 dark:text-slate-400">{s.score ?? "—"}</td>
                 </tr>
               ))}
             </tbody>

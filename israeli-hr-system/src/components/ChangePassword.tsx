@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 export function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -73,8 +73,8 @@ export function ChangePassword() {
   }
 
   return (
-    <div className="max-w-md rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-      <h2 className="mb-4 text-lg font-semibold text-slate-800">שינוי סיסמה</h2>
+    <div className="max-w-md rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+      <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">שינוי סיסמה</h2>
 
       {phase === "form" ? (
         <form onSubmit={requestChange} className="space-y-3">
