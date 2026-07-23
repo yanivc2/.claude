@@ -1,7 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FileText, Link2, Video, Trash2, ExternalLink, Plus } from "lucide-react";
+import {
+  FileText,
+  Link2,
+  Video,
+  Trash2,
+  ExternalLink,
+  Plus,
+  Folder,
+  FolderPlus,
+  X,
+  Download,
+  ChevronDown,
+} from "lucide-react";
+import { shareWhatsApp, mailtoHref } from "@/lib/share";
 
 interface Resource {
   id: string;
@@ -11,12 +24,17 @@ interface Resource {
   url: string | null;
   fileName: string | null;
   mimeType: string | null;
+  folderId: string | null;
   createdAt: string;
+}
+interface FolderT {
+  id: string;
+  name: string;
+  count: number;
 }
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
-
 const MAX_MB = 4;
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -27,27 +45,47 @@ function fileToDataUrl(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
-
-// זיהוי קישור לסרטון (להצגת אייקון וידאו).
 function isVideoUrl(url: string): boolean {
   return /youtube\.com|youtu\.be|vimeo\.com|\.mp4($|\?)|wistia|loom\.com/i.test(url);
+}
+function fileHref(r: Resource): string {
+  return `/api/resources/${r.id}/file`;
+}
+// טקסט שיתוף: כותרת + קישור מלא (קובץ = נקודת הקצה; קישור = ה-URL).
+function shareText(r: Resource): string {
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const link = r.kind === "FILE" ? `${origin}${fileHref(r)}` : r.url ?? "";
+  return `${r.title}\n${link}`;
 }
 
 export function ResourcesManager() {
   const [items, setItems] = useState<Resource[]>([]);
+  const [folders, setFolders] = useState<FolderT[]>([]);
   const [isOwner, setIsOwner] = useState(false);
+
+  // טופס הוספה
   const [kind, setKind] = useState<"FILE" | "LINK">("FILE");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [folderId, setFolderId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  // תיקייה חדשה
+  const [newFolder, setNewFolder] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
+
+  // תצוגה
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+  const [viewing, setViewing] = useState<Resource | null>(null);
+
   async function load() {
     try {
-      const res = await fetch("/api/resources");
-      if (res.ok) setItems(await res.json());
+      const [r1, r2] = await Promise.all([fetch("/api/resources"), fetch("/api/resources/folders")]);
+      if (r1.ok) setItems(await r1.json());
+      if (r2.ok) setFolders(await r2.json());
     } catch {
       // מתעלמים.
     }
@@ -61,18 +99,56 @@ export function ResourcesManager() {
       .catch(() => {});
   }, []);
 
+  // סגירת המציג במקש Escape.
+  useEffect(() => {
+    if (!viewing) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setViewing(null);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [viewing]);
+
+  async function createFolder() {
+    const name = newFolder.trim();
+    if (!name) return;
+    setError("");
+    try {
+      const res = await fetch("/api/resources/folders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "שגיאה ביצירת תיקייה");
+      setNewFolder("");
+      setCreatingFolder(false);
+      if (data.id) setFolderId(data.id); // המשך העלאה לתיקייה החדשה
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה לא צפויה");
+    }
+  }
+
+  async function deleteFolder(id: string, name: string) {
+    if (!window.confirm(`למחוק את התיקייה "${name}"? המסמכים שבתוכה יעברו לרמה העליונה.`)) return;
+    try {
+      const res = await fetch(`/api/resources/folders/${id}`, { method: "DELETE" });
+      if (res.ok) await load();
+    } catch {
+      // מתעלמים.
+    }
+  }
+
   async function add(e: React.FormEvent) {
     e.preventDefault();
     setError("");
-
     if (kind === "FILE" && file && file.size > MAX_MB * 1024 * 1024) {
       setError(`הקובץ גדול מדי (עד ${MAX_MB}MB). לסרטונים כדאי להשתמש בקישור.`);
       return;
     }
-
     setBusy(true);
     try {
       const body: Record<string, unknown> = { title, description, kind };
+      if (folderId) body.folderId = folderId;
       if (kind === "LINK") {
         body.url = url;
       } else {
@@ -110,32 +186,29 @@ export function ResourcesManager() {
     }
   }
 
+  const loose = items.filter((r) => !r.folderId);
+
   return (
     <div className="space-y-8">
       {/* טופס הוספה */}
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
         <h2 className="mb-4 text-base font-bold text-slate-800 dark:text-slate-100">הוספת מסמך או קישור</h2>
 
-        {/* בורר סוג */}
         <div className="mb-4 inline-flex rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-1 text-sm font-semibold">
-          <button
-            type="button"
-            onClick={() => setKind("FILE")}
-            className={`rounded-lg px-4 py-1.5 transition ${
-              kind === "FILE" ? "bg-white dark:bg-slate-900 text-brand-700 dark:text-brand-300 shadow-sm" : "text-slate-500 dark:text-slate-400"
-            }`}
-          >
-            העלאת קובץ
-          </button>
-          <button
-            type="button"
-            onClick={() => setKind("LINK")}
-            className={`rounded-lg px-4 py-1.5 transition ${
-              kind === "LINK" ? "bg-white dark:bg-slate-900 text-brand-700 dark:text-brand-300 shadow-sm" : "text-slate-500 dark:text-slate-400"
-            }`}
-          >
-            קישור / סרטון
-          </button>
+          {(["FILE", "LINK"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setKind(k)}
+              className={`rounded-lg px-4 py-1.5 transition ${
+                kind === k
+                  ? "bg-white dark:bg-slate-900 text-brand-700 dark:text-brand-300 shadow-sm"
+                  : "text-slate-500 dark:text-slate-400"
+              }`}
+            >
+              {k === "FILE" ? "העלאת קובץ" : "קישור / סרטון"}
+            </button>
+          ))}
         </div>
 
         <form onSubmit={add} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -180,7 +253,20 @@ export function ResourcesManager() {
             </label>
           )}
 
-          <label className="block sm:col-span-2">
+          {/* בחירת תיקייה */}
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">תיקייה</span>
+            <select className={inputClass} value={folderId} onChange={(e) => setFolderId(e.target.value)}>
+              <option value="">ללא תיקייה (רמה עליונה)</option>
+              {folders.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">תיאור (רשות)</span>
             <input
               className={inputClass}
@@ -190,7 +276,7 @@ export function ResourcesManager() {
             />
           </label>
 
-          <div className="sm:col-span-2">
+          <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
             <button
               type="submit"
               disabled={busy}
@@ -199,66 +285,295 @@ export function ResourcesManager() {
               <Plus size={17} />
               {busy ? "מוסיף..." : "הוספה"}
             </button>
+
+            {/* יצירת תיקייה חדשה */}
+            {creatingFolder ? (
+              <div className="flex items-center gap-2">
+                <input
+                  className={inputClass + " !w-44"}
+                  autoFocus
+                  placeholder="שם התיקייה"
+                  value={newFolder}
+                  onChange={(e) => setNewFolder(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), createFolder())}
+                />
+                <button
+                  type="button"
+                  onClick={createFolder}
+                  className="rounded-lg bg-slate-800 dark:bg-slate-700 px-3 py-2 text-sm font-semibold text-white"
+                >
+                  יצירה
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatingFolder(false);
+                    setNewFolder("");
+                  }}
+                  className="text-sm text-slate-500 dark:text-slate-400"
+                >
+                  ביטול
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCreatingFolder(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              >
+                <FolderPlus size={17} />
+                תיקייה חדשה
+              </button>
+            )}
           </div>
         </form>
-        {error && <p className="mt-3 rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
+        {error && (
+          <p className="mt-3 rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-2 text-sm text-red-700 dark:text-red-400">
+            {error}
+          </p>
+        )}
       </section>
 
-      {/* רשימת המשאבים */}
-      {items.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
-          עדיין לא נוספו מסמכים או קישורים.
-        </p>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {items.map((r) => {
-            const isVideo = r.kind === "LINK" && r.url ? isVideoUrl(r.url) : false;
-            const Icon = r.kind === "FILE" ? FileText : isVideo ? Video : Link2;
-            const openHref = r.kind === "FILE" ? `/api/resources/${r.id}/file` : r.url ?? "#";
-            return (
-              <div
-                key={r.id}
-                className="flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm transition hover:shadow-md"
+      {/* תיקיות */}
+      {folders.map((f) => {
+        const inFolder = items.filter((r) => r.folderId === f.id);
+        const open = openFolders[f.id] ?? true;
+        return (
+          <section
+            key={f.id}
+            className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm"
+          >
+            <div className="flex items-center gap-3 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setOpenFolders((s) => ({ ...s, [f.id]: !open }))}
+                className="flex flex-1 items-center gap-3 text-start"
               >
-                <div className="flex items-start gap-3">
-                  <span
-                    className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                      isVideo ? "bg-rose-50 text-rose-600" : "bg-brand-50 dark:bg-brand-500/15 text-brand-600 dark:text-brand-300"
-                    }`}
-                  >
-                    <Icon size={20} />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-slate-800 dark:text-slate-100">{r.title}</p>
-                    {r.description && (
-                      <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{r.description}</p>
-                    )}
-                  </div>
-                  {isOwner && (
-                    <button
-                      type="button"
-                      onClick={() => remove(r.id, r.title)}
-                      aria-label="מחיקה"
-                      className="rounded-lg p-1.5 text-slate-400 dark:text-slate-400 transition hover:bg-red-50 hover:text-red-600"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
-                </div>
-                <a
-                  href={openHref}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-50 dark:bg-amber-500/15 text-amber-600 dark:text-amber-300">
+                  <Folder size={18} />
+                </span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">{f.name}</span>
+                <span className="text-xs text-slate-400 dark:text-slate-400">
+                  {inFolder.length} פריטים
+                </span>
+                <ChevronDown
+                  size={18}
+                  className={`text-slate-400 transition ${open ? "rotate-180" : ""}`}
+                />
+              </button>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => deleteFolder(f.id, f.name)}
+                  aria-label="מחיקת תיקייה"
+                  className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 dark:hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400"
                 >
-                  <ExternalLink size={15} />
-                  {r.kind === "FILE" ? "פתיחה / הורדה" : isVideo ? "צפייה בסרטון" : "פתיחת הקישור"}
-                </a>
+                  <Trash2 size={16} />
+                </button>
+              )}
+            </div>
+            {open && (
+              <div className="border-t border-slate-100 dark:border-slate-800 p-4">
+                {inFolder.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-slate-400 dark:text-slate-400">
+                    התיקייה ריקה. בחר/י אותה בטופס למעלה כדי להעלות אליה.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {inFolder.map((r) => (
+                      <Card key={r.id} r={r} isOwner={isOwner} onView={setViewing} onRemove={remove} />
+                    ))}
+                  </div>
+                )}
               </div>
-            );
-          })}
-        </div>
+            )}
+          </section>
+        );
+      })}
+
+      {/* משאבים ללא תיקייה */}
+      {(loose.length > 0 || folders.length === 0) && (
+        <section>
+          {folders.length > 0 && (
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">
+              ללא תיקייה
+            </h2>
+          )}
+          {loose.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
+              עדיין לא נוספו מסמכים או קישורים.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {loose.map((r) => (
+                <Card key={r.id} r={r} isOwner={isOwner} onView={setViewing} onRemove={remove} />
+              ))}
+            </div>
+          )}
+        </section>
       )}
+
+      {/* מציג מסמך עם כפתור סגירה */}
+      {viewing && <Viewer r={viewing} onClose={() => setViewing(null)} />}
+    </div>
+  );
+}
+
+// ─── כרטיס משאב ───
+function Card({
+  r,
+  isOwner,
+  onView,
+  onRemove,
+}: {
+  r: Resource;
+  isOwner: boolean;
+  onView: (r: Resource) => void;
+  onRemove: (id: string, title: string) => void;
+}) {
+  const isVideo = r.kind === "LINK" && r.url ? isVideoUrl(r.url) : false;
+  const Icon = r.kind === "FILE" ? FileText : isVideo ? Video : Link2;
+
+  return (
+    <div className="flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm transition hover:shadow-md">
+      <div className="flex items-start gap-3">
+        <span
+          className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
+            isVideo
+              ? "bg-rose-50 dark:bg-rose-500/15 text-rose-600 dark:text-rose-300"
+              : "bg-brand-50 dark:bg-brand-500/15 text-brand-600 dark:text-brand-300"
+          }`}
+        >
+          <Icon size={20} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold text-slate-800 dark:text-slate-100">{r.title}</p>
+          {r.description && (
+            <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{r.description}</p>
+          )}
+        </div>
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => onRemove(r.id, r.title)}
+            aria-label="מחיקה"
+            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 dark:hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400"
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        {r.kind === "FILE" ? (
+          <button
+            type="button"
+            onClick={() => onView(r)}
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+          >
+            <ExternalLink size={15} />
+            פתיחה
+          </button>
+        ) : (
+          <a
+            href={r.url ?? "#"}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+          >
+            <ExternalLink size={15} />
+            {isVideo ? "צפייה בסרטון" : "פתיחת הקישור"}
+          </a>
+        )}
+        <ShareButtons r={r} />
+      </div>
+    </div>
+  );
+}
+
+// ─── כפתורי שיתוף (וואטסאפ / מייל) ───
+function ShareButtons({ r }: { r: Resource }) {
+  return (
+    <>
+      <button
+        type="button"
+        title="שליחה בוואטסאפ"
+        onClick={() => shareWhatsApp(shareText(r))}
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-green-300 dark:border-green-500/40 text-green-700 dark:text-green-400 transition hover:bg-green-50 dark:hover:bg-green-500/15"
+      >
+        📱
+      </button>
+      <a
+        title="שליחה במייל"
+        href={mailtoHref(r.title, shareText(r))}
+        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+      >
+        ✉️
+      </a>
+    </>
+  );
+}
+
+// ─── מציג מסמך עם כפתור סגירה ───
+function Viewer({ r, onClose }: { r: Resource; onClose: () => void }) {
+  const isPdf = (r.mimeType ?? "").includes("pdf") || (r.fileName ?? "").toLowerCase().endsWith(".pdf");
+  const isImage = (r.mimeType ?? "").startsWith("image/");
+  const href = fileHref(r);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 sm:p-6"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <header className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 px-4 py-3">
+          <p className="min-w-0 flex-1 truncate font-bold text-slate-800 dark:text-slate-100">{r.title}</p>
+          <ShareButtons r={r} />
+          <a
+            href={href}
+            download={r.fileName ?? undefined}
+            title="הורדה"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+          >
+            <Download size={16} />
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="סגירה"
+            className="grid h-9 w-9 place-items-center rounded-lg bg-slate-800 dark:bg-slate-700 text-white transition hover:bg-slate-900 dark:hover:bg-slate-600"
+          >
+            <X size={18} />
+          </button>
+        </header>
+        <div className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-950">
+          {isPdf ? (
+            <iframe src={href} title={r.title} className="h-[78vh] w-full" />
+          ) : isImage ? (
+            <div className="flex justify-center p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={href} alt={r.title} className="max-h-[78vh] max-w-full object-contain" />
+            </div>
+          ) : (
+            <div className="p-8 text-center">
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                לא ניתן להציג תצוגה מקדימה לקובץ מסוג זה.
+              </p>
+              <a
+                href={href}
+                download={r.fileName ?? undefined}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+              >
+                <Download size={16} />
+                הורדת הקובץ
+              </a>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

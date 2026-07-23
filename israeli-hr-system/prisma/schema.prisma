@@ -405,6 +405,17 @@ enum ResourceKind {
   LINK // קישור חיצוני, כולל קישור לסרטון
 }
 
+// תיקייה לארגון משאבים בעלת שם.
+model ResourceFolder {
+  id        String     @id @default(cuid())
+  name      String
+  createdBy String?
+  createdAt DateTime   @default(now())
+  resources Resource[]
+
+  @@index([createdAt])
+}
+
 model Resource {
   id          String       @id @default(cuid())
   title       String
@@ -417,5 +428,10 @@ model Resource {
   createdBy   String? // שם המשתמש שהוסיף
   createdAt   DateTime     @default(now())
 
+  // שיוך לתיקייה (אופציונלי) — משאבים ללא תיקייה מוצגים ברמה העליונה.
+  folderId String?
+  folder   ResourceFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
   @@index([createdAt])
+  @@index([folderId])
 }
