@@ -44,7 +44,7 @@ budget is approved. Nothing here authorizes spending.
 ### Gate A budget (frozen)
 
 ```
-V3_GATE_A_HARD_CAP = $1.00   (separate, Gate-A-only; does not authorize spending by itself)
+V3_GATE_A_HARD_CAP = $1.50   (separate, Gate-A-only; does not authorize spending by itself)
 ```
 Before any SEND-GO the prep must report: exact expected cost, exact sum-of-cell worst-case
 exposure, current provider-reported credits, global lifetime spend including v2.2, and headroom
