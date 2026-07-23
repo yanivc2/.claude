@@ -20,11 +20,14 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
   const bytes = Buffer.from(m[2], "base64");
   const name = encodeURIComponent(r.fileName || "file");
 
+  // ?download=1 → הורדה כקובץ (attachment); ברירת מחדל → תצוגה מוטמעת (inline).
+  const wantDownload = new URL(req.url).searchParams.get("download") === "1";
+  const disposition = wantDownload ? "attachment" : "inline";
+
   return new Response(bytes, {
     headers: {
       "Content-Type": mime,
-      // inline כדי שקבצי PDF/תמונה ייפתחו בדפדפן; שם הקובץ נשמר להורדה.
-      "Content-Disposition": `inline; filename*=UTF-8''${name}`,
+      "Content-Disposition": `${disposition}; filename*=UTF-8''${name}`,
       "Content-Length": String(bytes.length),
     },
   });
