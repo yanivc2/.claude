@@ -941,7 +941,7 @@ export function OnboardingForm({
               </label>
             ))}
           </div>
-          <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
+          <p className="mt-3 text-xs text-slate-400 dark:text-slate-400">
             סירוב או ביטול הסכמת רשות לא יפגעו בשכר, בזכויות או בתנאי העבודה. אף אישור אינו ויתור
             על זכויות קוגנטיות.
           </p>

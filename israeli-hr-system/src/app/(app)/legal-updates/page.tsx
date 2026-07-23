@@ -13,7 +13,7 @@ export default function LegalUpdatesPage() {
           עדכוני חקיקה ופסיקה בדיני עבודה, נמשכים אוטומטית אחת לשבוע ממקורות ציבוריים.
         </p>
       </header>
-      <Suspense fallback={<p className="text-sm text-slate-400 dark:text-slate-500">טוען עדכונים...</p>}>
+      <Suspense fallback={<p className="text-sm text-slate-400 dark:text-slate-400">טוען עדכונים...</p>}>
         <LegalUpdatesFeed />
       </Suspense>
     </div>

@@ -258,7 +258,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
                   disabled={added}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
                     added
-                      ? "cursor-default border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
+                      ? "cursor-default border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400"
                       : "border-brand-200 bg-brand-50 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300 hover:bg-brand-100"
                   }`}
                 >
@@ -349,7 +349,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
             />
           </div>
         ) : (
-          <p className="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-500">
+          <p className="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-400">
             המסמך שייווצר יוצג כאן.
           </p>
         )}

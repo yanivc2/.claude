@@ -229,13 +229,13 @@ export function UserManagement() {
           </p>
           <div className="mt-2 rounded-lg bg-white dark:bg-slate-900 p-3 text-sm text-slate-700 dark:text-slate-200" dir="ltr">
             <p>
-              <span className="text-slate-400 dark:text-slate-500">כניסה:</span> {loginUrl()}
+              <span className="text-slate-400 dark:text-slate-400">כניסה:</span> {loginUrl()}
             </p>
             <p>
-              <span className="text-slate-400 dark:text-slate-500">שם משתמש:</span> {created.username}
+              <span className="text-slate-400 dark:text-slate-400">שם משתמש:</span> {created.username}
             </p>
             <p>
-              <span className="text-slate-400 dark:text-slate-500">סיסמה:</span> {created.password}
+              <span className="text-slate-400 dark:text-slate-400">סיסמה:</span> {created.password}
             </p>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -281,7 +281,7 @@ export function UserManagement() {
             <div className="min-w-0">
               <p className="font-medium text-slate-800 dark:text-slate-100">
                 {u.name}{" "}
-                <span className="text-sm font-normal text-slate-400 dark:text-slate-500" dir="ltr">
+                <span className="text-sm font-normal text-slate-400 dark:text-slate-400" dir="ltr">
                   @{u.username}
                 </span>
               </p>

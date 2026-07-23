@@ -239,7 +239,7 @@ export function ResourcesManager() {
                       type="button"
                       onClick={() => remove(r.id, r.title)}
                       aria-label="מחיקה"
-                      className="rounded-lg p-1.5 text-slate-400 dark:text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+                      className="rounded-lg p-1.5 text-slate-400 dark:text-slate-400 transition hover:bg-red-50 hover:text-red-600"
                     >
                       <Trash2 size={16} />
                     </button>
