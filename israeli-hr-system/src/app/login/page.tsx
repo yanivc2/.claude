@@ -7,17 +7,20 @@ export default function LoginPage() {
   const { usingDefaults } = getAuthConfig();
   return (
     <div className="flex min-h-screen items-center justify-center bg-slate-50 dark:bg-slate-950 px-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-sm">
-        <div className="mb-5 flex flex-col items-center gap-2">
+      <div className="w-full max-w-sm rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-7 shadow-xl shadow-slate-900/5">
+        <div className="mb-7 flex flex-col items-center text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/logo-light.png"
             alt="לוגו"
-            width={64}
-            height={64}
+            width={72}
+            height={72}
             className="rounded-2xl ring-1 ring-slate-200 dark:ring-slate-700"
           />
-          <p className="text-sm font-bold text-slate-700 dark:text-slate-200">מערכת משאבי אנוש</p>
+          <h1 className="mt-4 text-xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+            מערכת משאבי אנוש
+          </h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">כניסה למערכת</p>
         </div>
         <LoginForm />
         {usingDefaults && (

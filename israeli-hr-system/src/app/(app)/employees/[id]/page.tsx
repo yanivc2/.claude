@@ -20,6 +20,14 @@ const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });
 const fmt = (d: Date | null | undefined) => (d ? dateFmt.format(d) : "—");
 const yesNo = (b: boolean) => (b ? "כן" : "לא");
 
+const STATUS: Record<string, { label: string; cls: string }> = {
+  ONBOARDING: { label: "בתהליך קליטה", cls: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300" },
+  ACTIVE: { label: "פעיל", cls: "bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-400" },
+  NOTICE_PERIOD: { label: "בהודעה מוקדמת", cls: "bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300" },
+  INACTIVE: { label: "לא פעיל", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" },
+  TERMINATED: { label: "סיום העסקה", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" },
+};
+
 const DOC_LABELS: Record<DocumentType, string> = {
   ID_CARD: "ספח תעודת זהות",
   CONTRACT: "הסכם עבודה",
@@ -166,8 +174,21 @@ export default async function EmployeeDetailPage({
             {initials(emp.firstName, emp.lastName)}
           </span>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">{fullName}</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">{emp.jobTitle || "עובד/ת"}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+                {fullName}
+              </h1>
+              {STATUS[emp.status] && (
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS[emp.status].cls}`}
+                >
+                  {STATUS[emp.status].label}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {emp.jobTitle || "עובד/ת"} · התחלה {fmt(emp.startDate)}
+            </p>
           </div>
         </div>
         <EmployeeExport data={exportData} />
