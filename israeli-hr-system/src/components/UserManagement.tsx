@@ -224,7 +224,7 @@ export function UserManagement() {
           <button
             type="submit"
             disabled={busy}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-2.5 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105 disabled:opacity-60"
           >
             <UserPlus size={16} />
             {busy ? "יוצר..." : "יצירת משתמש"}

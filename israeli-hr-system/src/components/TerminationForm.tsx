@@ -117,7 +117,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
     }
     const bar =
       `<div class="noprint" style="position:sticky;top:0;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;background:#0f172a;padding:20px">` +
-      `<button onclick="window.print()" style="border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;background:#2563eb;color:#fff;cursor:pointer">🖨️ הדפסה / שמירה</button>` +
+      `<button onclick="window.print()" style="border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;background:#4c51b8;color:#fff;cursor:pointer">🖨️ הדפסה / שמירה</button>` +
       `<button onclick="window.close()" style="border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;background:#ef4444;color:#fff;cursor:pointer">✕ סגירה</button>` +
       `</div><style>@media print{.noprint{display:none}}</style>`;
     w.document.write(html.replace("<body>", "<body>" + bar));
@@ -324,7 +324,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
         <button
           type="submit"
           disabled={loading || !employeeId}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
         >
           <FileText size={16} />
           {loading ? "מפיק מסמך..." : "הפקת מסמך"}
