@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { anthropic, CHAT_MODEL } from "./anthropic";
-import { KNOWLEDGE_BASE } from "./knowledgeBase";
+import { KNOWLEDGE_BASE } from "./knowledge";
 
 // ─────────────────────────────────────────────────────────────────────────
 // שכבת RAG (Retrieval-Augmented Generation)
