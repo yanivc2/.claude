@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import { anthropic, CHAT_MODEL } from "./anthropic";
+import { anthropic, CHAT_MODEL, FALLBACK_MODEL } from "./anthropic";
 import { KNOWLEDGE_BASE, type KnowledgeItem } from "./knowledge";
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -78,29 +78,54 @@ function parseCitations(raw: string): RagAnswer {
   return { answer: lines.join("\n").trim(), citations };
 }
 
-// יצירת תשובה לשאלה על זכויות וחוקי עבודה — כל המאגר בהקשר, temperature 0.
-export async function answerLegalQuestion(
-  question: string,
-  history: ChatTurn[] = [],
-): Promise<RagAnswer> {
-  const response = await anthropic.messages.create({
+const KNOWLEDGE_HEADER = `בסיס הידע המלא (${KNOWLEDGE_BASE.length} מקורות):\n\n${KNOWLEDGE_TEXT}`;
+
+function messagesFor(question: string, history: ChatTurn[]) {
+  return [
+    ...history.map((t) => ({ role: t.role, content: t.content })),
+    { role: "user" as const, content: question },
+  ];
+}
+
+// קריאה ראשית: כל המאגר בבלוק מטמון (prompt caching) — מהיר וזול בקריאות חוזרות.
+function callPrimary(question: string, history: ChatTurn[]) {
+  return anthropic.messages.create({
     model: CHAT_MODEL,
     max_tokens: 1024,
     temperature: 0,
     system: [
       { type: "text", text: INSTRUCTIONS },
-      {
-        type: "text",
-        text: `בסיס הידע המלא (${KNOWLEDGE_BASE.length} מקורות):\n\n${KNOWLEDGE_TEXT}`,
-        // שמירת בלוק הידע במטמון — יציב בין קריאות, מוזיל ומאיץ משמעותית.
-        cache_control: { type: "ephemeral" },
-      },
+      { type: "text", text: KNOWLEDGE_HEADER, cache_control: { type: "ephemeral" } },
     ],
-    messages: [
-      ...history.map((t) => ({ role: t.role, content: t.content })),
-      { role: "user" as const, content: question },
-    ],
+    messages: messagesFor(question, history),
   });
+}
+
+// קריאת גיבוי: מודל אמין בפורמט פשוט (ללא מטמון) — עמיד גם אם המודל הראשי או
+// פורמט המטמון אינם זמינים בחשבון. מבטיח שהמשתמש יקבל תשובה.
+function callFallback(question: string, history: ChatTurn[]) {
+  return anthropic.messages.create({
+    model: FALLBACK_MODEL,
+    max_tokens: 1024,
+    temperature: 0,
+    system: `${INSTRUCTIONS}\n\n${KNOWLEDGE_HEADER}`,
+    messages: messagesFor(question, history),
+  });
+}
+
+// יצירת תשובה לשאלה על זכויות וחוקי עבודה — כל המאגר בהקשר, temperature 0.
+export async function answerLegalQuestion(
+  question: string,
+  history: ChatTurn[] = [],
+): Promise<RagAnswer> {
+  let response;
+  try {
+    response = await callPrimary(question, history);
+  } catch (err) {
+    // המודל הראשי נכשל (הרשאה/זמינות/פורמט) — נופלים למודל הגיבוי במקום להיכשל.
+    console.error("consultation primary model failed; using fallback:", err);
+    response = await callFallback(question, history);
+  }
 
   const raw = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
