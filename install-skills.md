@@ -149,3 +149,49 @@ npx skills add JuliusBrussee/caveman -g -y
 | 15 | Caveman | ⚠️ | פלט גלובלי, לא curl\|bash |
 | 16 | Context Mode | ⚠️ | hooks, מקור דו-משמעי |
 | 17 | code-simplifier | ✅ | Anthropic רשמי |
+
+---
+
+## חלק 3 — סבב שני: סקילים נוספים + MCP servers
+
+### 3א. סקילים (דרך `npx skills add`)
+
+```bash
+# Impeccable — ערכת design-language (Paul Bakaus). מקור: pbakaus/impeccable
+npx skills add pbakaus/impeccable -g -y --skill '*'
+
+# front-end design — כבר מכוסה בחלק 1 (anthropics/skills --skill frontend-design)
+
+# claude design — נבחר: התוסף הרשמי של Anthropic (plugin, אינטראקטיבי):
+/plugin install design@claude-plugins-official
+```
+
+- ✅ Impeccable — הנחיות עיצוב + detector דטרמיניסטי (58 חוקים, בלי LLM). בלי API key.
+- ✅ claude design — התוסף הרשמי של Anthropic (`design@claude-plugins-official`).
+
+### 3ב. MCP servers (דרך `claude mcp add` — דורש הפעלה אינטראקטיבית + מפתחות)
+
+> אלה **שרתים רצים**, לא סקילים. מתווספים ל-`.mcp.json` הגלובלי (blast-radius גבוה).
+> רובם דורשים API key / מנוי. הרץ/י על המכונה, לא כאן.
+
+```bash
+# 21st.dev Magic — מחולל קומפוננטות UI. דורש API key מ-21st.dev
+claude mcp add magic --scope user --env API_KEY="YOUR_21ST_KEY" -- npx -y @21st-dev/magic@latest
+
+# Motion AI Kit — דוקס/דוגמאות אנימציה. דורש API key + מנוי Motion+ בתשלום
+npx motion-ai          # מתקין אינטראקטיבי, בחר/י Claude Code
+
+# Higgsfield — יצירת תמונה/וידאו. דורש חשבון + קרדיטים (בתשלום). ("map"≈"MCP")
+claude mcp add --transport http --scope user higgsfield https://mcp.higgsfield.ai/mcp
+
+# Playwright — אוטומציית דפדפן (Microsoft). ✅ בלי API key
+# ✅ כבר נוסף ל-.mcp.json הגלובלי בריפו הזה (נכנס אוטומטית בכל סשן).
+claude mcp add playwright -- npx -y @playwright/mcp@latest
+```
+
+| פריט | סוג | דגל |
+|---|---|---|
+| 21st.dev Magic | MCP | ⚠️ API key, רשת+הרצת שרת |
+| Motion AI Kit | MCP | ⚠️ API key + מנוי בתשלום |
+| Higgsfield | MCP | ⚠️ חשבון+קרדיטים בתשלום; רשת |
+| Playwright | MCP | ✅ בלי key; מריץ דפדפן על אתרים חיים |
