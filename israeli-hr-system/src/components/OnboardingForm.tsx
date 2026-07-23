@@ -234,7 +234,7 @@ function printDocument(title: string, bodyHtml: string) {
       `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}` +
       `.bar{position:sticky;top:0;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;background:#0f172a;padding:20px}` +
       `.bar button{border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;cursor:pointer}` +
-      `.b-print{background:#2563eb;color:#fff}.b-close{background:#ef4444;color:#fff}` +
+      `.b-print{background:#4c51b8;color:#fff}.b-close{background:#ef4444;color:#fff}` +
       `@media print{.bar{display:none}.page{margin:0}}</style></head><body>` +
       `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה / שמירה</button>` +
       `<button class="b-close" onclick="window.close()">✕ סגירה</button></div>` +
@@ -1004,7 +1004,7 @@ export function OnboardingForm({
       <button
         type="submit"
         disabled={status === "saving"}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-3.5 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
       >
         {status === "saving" ? "שומר..." : "השלמת קליטה"}
       </button>

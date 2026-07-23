@@ -51,7 +51,7 @@ export default async function EmployeesPage() {
         </div>
         <Link
           href="/onboarding"
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105"
+          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105"
         >
           <UserPlus size={17} />
           קליטת עובד חדש
@@ -66,7 +66,7 @@ export default async function EmployeesPage() {
           action={
             <Link
               href="/onboarding"
-              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105"
             >
               <UserPlus size={17} />
               קליטת עובד חדש

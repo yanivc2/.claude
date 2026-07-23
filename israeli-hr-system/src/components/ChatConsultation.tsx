@@ -238,7 +238,7 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
           type="submit"
           disabled={loading || !input.trim()}
           aria-label="שליחה"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-50 sm:h-auto sm:w-auto sm:px-5 sm:py-2.5"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-md shadow-brand-600/20 transition hover:brightness-105 disabled:opacity-50 sm:h-auto sm:w-auto sm:px-5 sm:py-2.5"
         >
           <Send size={18} className="sm:hidden" />
           <span className="hidden text-base font-bold sm:inline">שליחה</span>

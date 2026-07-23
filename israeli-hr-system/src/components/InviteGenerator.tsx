@@ -421,7 +421,7 @@ export function InviteGenerator() {
         type="button"
         onClick={generate}
         disabled={loading}
-        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
       >
         <Plus size={17} strokeWidth={2.6} />
         {loading ? "יוצר קישור..." : "יצירת קישור קליטה"}

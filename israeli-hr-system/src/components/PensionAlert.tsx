@@ -72,7 +72,7 @@ export function PensionAlert({ items }: { items: PensionAlertItem[] }) {
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="mt-4 w-full rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105"
+          className="mt-4 w-full rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105"
         >
           הבנתי
         </button>

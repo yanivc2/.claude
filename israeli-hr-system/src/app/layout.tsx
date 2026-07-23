@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 
 // צבע סרגל הכתובת/מצב במובייל — בגוון המותג.
 export const viewport: Viewport = {
-  themeColor: "#1e40af",
+  themeColor: "#3e4196",
 };
 
 // פריסת השורש: מגדירה כיוון RTL ושפה עברית בלבד. סרגל הצד של ה-HR נמצא בפריסת
