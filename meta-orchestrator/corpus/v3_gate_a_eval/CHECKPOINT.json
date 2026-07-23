@@ -1,0 +1,55 @@
+{
+  "status": "V3_GATE_A_COMPLETE_OUTCOMES_SEALED",
+  "checkpoint_purpose": "durable pre-unseal checkpoint for the V3 Gate-A output-contract qualification run; performs NO unseal and NO classification",
+
+  "HEAD_at_execution": "21bb372f16b449e9e5f8e553566ac241e4ef055a",
+  "manifest_hash": "167338c4d7a7ae7d",
+  "master_anchor": "022ac9fd0642eb73",
+  "evaluation_model": "claude-haiku-4-5-20251001",
+  "model_identity_evidence": "assert_model_identity PASSed pre-first-cell (request body model=Haiku, max_tokens=11264, thinking budget=1024); session model Opus 4.8 had no path into any request body",
+
+  "experiment": "V3_GATE_A_OUTPUT_CONTRACT",
+  "purpose": "engineering qualification (output-contract validity), NOT a memory-benefit test",
+  "memory": "DISABLED", "banking": "DISABLED", "lesson_writer": "DISABLED",
+  "cells_completed": 18,
+  "api_calls": 18,
+  "R2_calls": 0,
+  "ambiguous_after_send": 0,
+  "infra_errors": 0,
+
+  "gate_a_hard_cap_usd": "1.50",
+  "actual_spend": "0.484091",
+  "reported_credits_before": "2.385544",
+  "reported_credits_after": "1.901453",
+  "lifetime_spend_v22_plus_gate_a": "2.997486",
+  "global_headroom_under_50": "47.002514",
+
+  "sealed_entry_count": 18,
+  "sealed_chain_head": "85d8434ba06bff25",
+  "sealed_artifact_path": "corpus/v3_gate_a_eval/sealed_outcomes.jsonl",
+  "sealed_artifact_sha256": "a2ea0189ac299b02e54b8caf540e49a06c96a9e943fe514b91561ae0a7c62ee5",
+  "sealed_artifact_copy": "byte-for-byte from the scratch run (src==dst verified); NO decode, NO modification",
+
+  "outcomes_unsealed": false,
+  "classification_computed": false,
+  "gate_b_started": false,
+  "bank_mutation": 0,
+  "v22_bank_hash": "513d63007784",
+
+  "evaluated_tasks": ["black-133", "black-1632", "black-183", "black-234", "black-329",
+                      "black-60", "black-74", "black-95", "cookiecutter-18"],
+  "cells_shape": "9 tasks x {OLD frozen-v2.2-SEARCH/REPLACE, NEW v3-JSON-unique-anchor} = 18; condition A both arms",
+
+  "audit_artifacts": {
+    "eval_manifest": "corpus/v3_gate_a_manifest.json (content_hash 167338c4d7a7ae7d)",
+    "master_anchor": "corpus/v3_gate_a_eval/anchor.json",
+    "runlog": "corpus/v3_gate_a_eval/runlog.jsonl",
+    "grant_ledger": "corpus/v3_gate_a_eval/grant_ledger.json",
+    "grants": "corpus/v3_gate_a_eval/grants/ (18 signed single-use grants, all completed)",
+    "preflight_evidence": "corpus/v3_gate_a_eval/preflight_report.json (count_tokens per-cell worst-case + budget)",
+    "block_completion_report": "corpus/v3_gate_a_eval/block_completion_report.json",
+    "driver_progress": "corpus/v3_gate_a_eval/driver_progress.jsonl (per-cell cost/calls; no outcomes)"
+  },
+
+  "next_step": "a SEPARATE explicit operator GO is required for a one-shot deterministic UNSEAL + frozen PASS/BORDERLINE/FAIL classification under V3_GATE_A_BLINDED_ANALYSIS_PLAN.md; this checkpoint performs neither"
+}
