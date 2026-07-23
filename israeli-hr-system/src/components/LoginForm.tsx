@@ -131,11 +131,6 @@ export function LoginForm() {
 
   return (
     <div>
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-brand-700 dark:text-brand-300">מערכת משאבי אנוש</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">כניסה למערכת</p>
-      </div>
-
       <form onSubmit={submitPassword} className="space-y-3">
         <input
           className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
