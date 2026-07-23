@@ -276,7 +276,7 @@ export function UserManagement() {
             <button
               type="button"
               onClick={() => setCreated(null)}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition hover:bg-white"
+              className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs text-slate-600 dark:text-slate-300 transition hover:bg-white dark:hover:bg-slate-800"
             >
               סגירה
             </button>
@@ -334,7 +334,7 @@ export function UserManagement() {
                     type="button"
                     title="שליחת קישור כניסה בוואטסאפ"
                     onClick={() => shareWhatsApp(linkMessage(u.name, u.username))}
-                    className="rounded-lg border border-green-300 px-2.5 py-1 text-xs text-green-700 dark:text-green-400 transition hover:bg-green-50"
+                    className="rounded-lg border border-green-300 dark:border-green-500/40 px-2.5 py-1 text-xs text-green-700 dark:text-green-400 transition hover:bg-green-50 dark:hover:bg-green-500/15"
                   >
                     📱 קישור
                   </button>
