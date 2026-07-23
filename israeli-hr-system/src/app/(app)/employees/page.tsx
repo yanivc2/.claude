@@ -17,9 +17,9 @@ const STATUS_LABELS: Record<EmploymentStatus, string> = {
 };
 
 const STATUS_STYLES: Record<EmploymentStatus, string> = {
-  ONBOARDING: "bg-amber-50 text-amber-700",
-  ACTIVE: "bg-green-50 text-green-700",
-  NOTICE_PERIOD: "bg-orange-50 text-orange-700",
+  ONBOARDING: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  ACTIVE: "bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-400",
+  NOTICE_PERIOD: "bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300",
   INACTIVE: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
   TERMINATED: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
 };
@@ -70,7 +70,7 @@ function EmployeeTable({ employees }: { employees: Employee[] }) {
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     href={`/employees/${e.id}`}
-                    className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+                    className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
                   >
                     פתיחת תיק
                   </Link>

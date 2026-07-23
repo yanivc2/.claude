@@ -11,9 +11,9 @@ const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });
 const todayFmt = new Intl.DateTimeFormat("he-IL", { weekday: "long", day: "numeric", month: "long" });
 
 const STATUS: Record<string, { label: string; cls: string }> = {
-  ACTIVE: { label: "פעיל", cls: "bg-green-50 text-green-700" },
-  ONBOARDING: { label: "בקליטה", cls: "bg-amber-50 text-amber-700" },
-  NOTICE_PERIOD: { label: "בהודעה מוקדמת", cls: "bg-orange-50 text-orange-700" },
+  ACTIVE: { label: "פעיל", cls: "bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-400" },
+  ONBOARDING: { label: "בקליטה", cls: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300" },
+  NOTICE_PERIOD: { label: "בהודעה מוקדמת", cls: "bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300" },
   INACTIVE: { label: "לא פעיל", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" },
   TERMINATED: { label: "הסתיים", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" },
 };
@@ -62,9 +62,9 @@ export default async function DashboardPage() {
   ];
 
   const toneChip = {
-    brand: "bg-brand-50 dark:bg-brand-500/15 text-brand-600",
-    good: "bg-green-50 text-green-600",
-    warn: "bg-amber-50 text-amber-600",
+    brand: "bg-brand-50 dark:bg-brand-500/15 text-brand-600 dark:text-brand-300",
+    good: "bg-green-50 dark:bg-green-500/15 text-green-600 dark:text-green-400",
+    warn: "bg-amber-50 dark:bg-amber-500/15 text-amber-600",
   };
 
   return (
@@ -121,7 +121,7 @@ export default async function DashboardPage() {
         <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
           <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-5 py-4">
             <h2 className="font-bold text-slate-800 dark:text-slate-100">עובדים אחרונים</h2>
-            <Link href="/employees" className="text-sm font-semibold text-brand-600 hover:underline">
+            <Link href="/employees" className="text-sm font-semibold text-brand-600 dark:text-brand-300 hover:underline">
               לכל העובדים ←
             </Link>
           </div>
@@ -193,7 +193,7 @@ export default async function DashboardPage() {
                   >
                     <span
                       className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
-                        p.overdue ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"
+                        p.overdue ? "bg-red-50 dark:bg-red-500/15 text-red-600 dark:text-red-400" : "bg-amber-50 dark:bg-amber-500/15 text-amber-600"
                       }`}
                     >
                       <Landmark size={17} />
@@ -206,7 +206,7 @@ export default async function DashboardPage() {
                     </span>
                     <span
                       className={`shrink-0 text-xs font-bold ${
-                        p.overdue ? "text-red-600" : "text-amber-600"
+                        p.overdue ? "text-red-600 dark:text-red-400" : "text-amber-600"
                       }`}
                     >
                       {p.overdue ? "באיחור" : `עד ${p.dueDate}`}

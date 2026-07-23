@@ -208,7 +208,7 @@ function DocDownloadMenu({
   const base =
     variant === "solid"
       ? "bg-brand-600 text-white hover:bg-brand-700"
-      : "border border-green-300 bg-white dark:bg-slate-900 text-green-800 hover:bg-green-100";
+      : "border border-green-300 bg-white dark:bg-slate-900 text-green-800 dark:text-green-300 hover:bg-green-100";
 
   if (options.length === 1) {
     return (
@@ -499,7 +499,7 @@ export function OnboardingForm({
 
   if (status === "done") {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-green-800">
+      <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-500/15 p-6 text-green-800 dark:text-green-300">
         <p className="text-lg font-semibold">✓ {message}</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <DocDownloadMenu options={docOptions} variant="soft" />
@@ -669,7 +669,7 @@ export function OnboardingForm({
             </table>
           </div>
           {/* הצהרת זמינות — חובה משפטית להבהרה */}
-          <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-medium text-red-700">
+          <p className="mt-3 rounded-lg bg-red-50 dark:bg-red-500/15 p-3 text-sm font-medium text-red-700 dark:text-red-400">
             ידוע לי כי קבלתי לעבודה הינה בהסתמך על זמינות המשמרות שאני מגיש וכי שינוי
             בזמינות הינה עילה לפיטורין בגין מתפטר.
           </p>
@@ -777,7 +777,7 @@ export function OnboardingForm({
               className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
             />
           </Field>
-          {idFile && <p className="mt-1 text-xs text-green-700">נבחר: {idFile.name}</p>}
+          {idFile && <p className="mt-1 text-xs text-green-700 dark:text-green-400">נבחר: {idFile.name}</p>}
         </div>
 
         {/* חתימה על טופס 101 — נדרשת רק מהעובד (בפורטל), לא בקליטה ידנית */}
@@ -806,7 +806,7 @@ export function OnboardingForm({
               className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
             />
             {localAgreement && (
-              <p className="mt-1 text-xs text-green-700">צורף: {localAgreement.fileName}</p>
+              <p className="mt-1 text-xs text-green-700 dark:text-green-400">צורף: {localAgreement.fileName}</p>
             )}
           </>
         ) : (
@@ -863,7 +863,7 @@ export function OnboardingForm({
         <section
           className={`rounded-xl border p-4 transition sm:p-6 ${
             consentError && !allMandatoryAccepted
-              ? "border-red-400 bg-red-50"
+              ? "border-red-400 bg-red-50 dark:bg-red-500/15"
               : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
           }`}
         >
@@ -875,7 +875,7 @@ export function OnboardingForm({
               href={privacyUrl}
               target="_blank"
               rel="noreferrer"
-              className="font-semibold text-brand-700 underline"
+              className="font-semibold text-brand-700 dark:text-brand-300 underline"
             >
               מדיניות הפרטיות וההודעה לפי סעיף 11
             </a>{" "}
@@ -888,7 +888,7 @@ export function OnboardingForm({
           <label
             className={`flex items-start gap-3 rounded-lg border p-3 text-sm leading-6 transition ${
               consentError && !allMandatoryAccepted
-                ? "border-red-400 bg-red-50"
+                ? "border-red-400 bg-red-50 dark:bg-red-500/15"
                 : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
             }`}
           >
@@ -916,7 +916,7 @@ export function OnboardingForm({
           </ul>
 
           {consentError && !allMandatoryAccepted && (
-            <p className="mt-2 text-sm font-semibold text-red-600">יש לאשר מדיניות פרטיות</p>
+            <p className="mt-2 text-sm font-semibold text-red-600 dark:text-red-400">יש לאשר מדיניות פרטיות</p>
           )}
 
           {/* ג.2 / ג.3 — הסכמות רשות, נפרדות ואינן חוסמות המשך */}
@@ -949,7 +949,7 @@ export function OnboardingForm({
       )}
 
       {status === "error" && (
-        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{message}</p>
+        <p className="rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-3 text-sm text-red-700 dark:text-red-400">{message}</p>
       )}
 
       <button

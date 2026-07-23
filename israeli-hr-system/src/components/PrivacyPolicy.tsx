@@ -408,7 +408,7 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
         </P>
       </div>
 
-      <p className="mt-6 rounded-lg bg-amber-50 p-3 text-xs text-amber-800">
+      <p className="mt-6 rounded-lg bg-amber-50 dark:bg-amber-500/15 p-3 text-xs text-amber-800 dark:text-amber-300">
         מסמך זה הוא מדיניות מקצועית. אין באמור כדי להוות ייעוץ משפטי פרטני.
       </p>
     </article>

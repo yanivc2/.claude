@@ -46,7 +46,7 @@ export function SignaturePad({
         <button
           type="button"
           onClick={clear}
-          className="text-xs text-brand-600 hover:underline"
+          className="text-xs text-brand-600 dark:text-brand-300 hover:underline"
         >
           נקה חתימה
         </button>

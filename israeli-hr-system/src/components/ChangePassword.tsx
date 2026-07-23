@@ -66,7 +66,7 @@ export function ChangePassword() {
 
   if (phase === "done") {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-green-800">
+      <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-500/15 p-6 text-green-800 dark:text-green-300">
         <p className="text-lg font-semibold">✓ הסיסמה שונתה בהצלחה.</p>
       </div>
     );
@@ -105,7 +105,7 @@ export function ChangePassword() {
             autoComplete="new-password"
             required
           />
-          {error && <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
+          {error && <p className="rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
           <button
             type="submit"
             disabled={busy}
@@ -116,7 +116,7 @@ export function ChangePassword() {
         </form>
       ) : (
         <form onSubmit={confirmChange} className="space-y-3">
-          {info && <p className="rounded-lg bg-blue-50 px-4 py-2 text-sm text-blue-800">{info}</p>}
+          {info && <p className="rounded-lg bg-blue-50 dark:bg-blue-500/15 px-4 py-2 text-sm text-blue-800">{info}</p>}
           <input
             className={inputClass}
             inputMode="numeric"
@@ -125,7 +125,7 @@ export function ChangePassword() {
             onChange={(e) => setCode(e.target.value)}
             required
           />
-          {error && <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
+          {error && <p className="rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
           <button
             type="submit"
             disabled={busy}

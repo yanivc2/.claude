@@ -259,7 +259,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
                     added
                       ? "cursor-default border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
-                      : "border-brand-200 bg-brand-50 dark:bg-brand-500/15 text-brand-700 hover:bg-brand-100"
+                      : "border-brand-200 bg-brand-50 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300 hover:bg-brand-100"
                   }`}
                 >
                   {added ? `✓ ${title}` : `+ ${title}`}
@@ -275,7 +275,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
               <div key={r.title} className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{r.title}</span>
-                  <button type="button" onClick={() => removeReason(i)} className="text-xs text-red-600 hover:underline">
+                  <button type="button" onClick={() => removeReason(i)} className="text-xs text-red-600 dark:text-red-400 hover:underline">
                     הסרה
                   </button>
                 </div>
@@ -316,7 +316,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
           </label>
         </div>
 
-        {error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+        {error && <p className="rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
 
         <button
           type="submit"
@@ -332,12 +332,12 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
           <div>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="font-semibold text-slate-800 dark:text-slate-100">{doc.title}</h3>
-              <button onClick={() => printDoc(doc.html)} className="text-sm text-brand-600 hover:underline">
+              <button onClick={() => printDoc(doc.html)} className="text-sm text-brand-600 dark:text-brand-300 hover:underline">
                 הדפסה / PDF
               </button>
             </div>
             {doc.noticeDays !== undefined && (
-              <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <p className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-500/15 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
                 הודעה מוקדמת מחושבת: <strong>{doc.noticeDays} ימים</strong>
                 {doc.lastWorkingDay &&
                   ` · יום עבודה אחרון: ${new Intl.DateTimeFormat("he-IL").format(new Date(doc.lastWorkingDay))}`}
