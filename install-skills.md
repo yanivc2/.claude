@@ -36,20 +36,21 @@
 ### Anthropic (רשמי, מהימן מלא) — `anthropics/skills`
 ```bash
 # Document Skills (10) + Skill Creator (14) + Webapp Testing (11)
-npx skills add anthropics/skills --skill pdf,docx,xlsx,pptx,skill-creator,webapp-testing -g -y
+# ⚠️ הפורמט הוא --skill חוזר (לא פסיקים ולא רווחים!)
+npx skills add anthropics/skills --skill pdf --skill docx --skill xlsx --skill pptx --skill skill-creator --skill webapp-testing -g -y
 ```
 - ✅ pdf / docx / xlsx / pptx / skill-creator — מריצים סקריפטי Python מקומית, מקור רשמי.
 - ⚠️ webapp-testing — **מפעיל דפדפן Playwright ומריץ את האפליקציה המקומית**.
 
 ### Vercel Labs (רשמי, מהימן) — `vercel-labs/agent-skills`
 ```bash
-npx skills add vercel-labs/agent-skills --skill web-design-guidelines,vercel-react-best-practices,vercel-composition-patterns -g -y
+npx skills add vercel-labs/agent-skills --skill web-design-guidelines --skill vercel-react-best-practices --skill vercel-composition-patterns -g -y
 ```
 - ✅ כל השלושה — ניתוח/הנחיות בלבד. (סלאגים אומתו מול ה-repo.)
 
 ### Matt Pocock (מהימן) — `mattpocock/skills`
 ```bash
-npx skills add mattpocock/skills --skill handoff,grill-me -g -y
+npx skills add mattpocock/skills --skill handoff --skill grill-me -g -y
 ```
 - ✅ grill-me — prompt בלבד.
 - ⚠️(קל) handoff — כותב קובצי markdown מקומית.
@@ -77,7 +78,7 @@ npx skills add obra/superpowers -g -y --skill '*'
 ### Trail of Bits Security (מהימן, חברת אבטחה) — `trailofbits/skills`
 ```bash
 # פריט הגלריה "Trail of Bits Security" = CodeQL+Semgrep בלבד. התקנה ממוקדת:
-npx skills add trailofbits/skills -g -y --skill codeql,semgrep,sarif-parsing
+npx skills add trailofbits/skills -g -y --skill codeql --skill semgrep --skill sarif-parsing
 # ⚠️ שים/י לב:  --skill '*'  מושך 75 סקילים (כל ה-fuzzing/blockchain/crypto) — יותר מדי.
 ```
 - ⚠️ **מריץ CodeQL + Semgrep** — מוריד ומריץ בינאריים לניתוח קוד בזמן שימוש.
@@ -98,6 +99,8 @@ npx skills add JuliusBrussee/caveman -g -y
 
 ### Anthropic (רשמי) — `claude-plugins-official`
 ```
+# חובה פעם אחת: לרשום את ה-marketplace הרשמי לפני כל התקנה ממנו:
+/plugin marketplace add anthropics/claude-plugins-official
 /plugin install frontend-design@claude-plugins-official
 /plugin install code-simplifier@claude-plugins-official
 ```
@@ -162,12 +165,21 @@ npx skills add pbakaus/impeccable -g -y --skill '*'
 
 # front-end design — כבר מכוסה בחלק 1 (anthropics/skills --skill frontend-design)
 
-# claude design — נבחר: התוסף הרשמי של Anthropic (plugin, אינטראקטיבי):
-/plugin install design@claude-plugins-official
+# claude design — יש 2 פירושים שונים, בחר/י לפי הצורך:
+#
+# (א) Claude Design — פרויקטי design-system ב-claude.ai/design.
+#     לא MCP ידני ולא plugin! זמין דרך סקיל /design-sync (+ /design-login),
+#     מסתמך על ה-login של claude.ai. ה-backend: api.anthropic.com/v1/design/mcp.
+#     שימוש:  /design-login  ואז  /design-sync
+#
+# (ב) התוסף "Design" (design critique / UX / a11y), ב-knowledge-work-plugins:
+/plugin marketplace add anthropics/knowledge-work-plugins
+/plugin install design@knowledge-work-plugins
 ```
 
 - ✅ Impeccable — הנחיות עיצוב + detector דטרמיניסטי (58 חוקים, בלי LLM). בלי API key.
-- ✅ claude design — התוסף הרשמי של Anthropic (`design@claude-plugins-official`).
+- ✅ claude design — התוסף הרשמי "Design" (design critique / UX writing / a11y / handoff),
+  מ-`anthropics/knowledge-work-plugins`. שונה מ-`frontend-design`.
 
 ### 3ב. MCP servers (דרך `claude mcp add` — דורש הפעלה אינטראקטיבית + מפתחות)
 
