@@ -17,10 +17,19 @@ export default function OnboardingPage() {
       {/* שליחת קישור קליטה עצמית לעובד */}
       <InviteGenerator />
 
-      {/* קליטה ידנית ע"י מנהל HR */}
-      <div className="mb-4 mt-8 border-t border-slate-200 dark:border-slate-800 pt-6">
+      {/* מפריד "או" בין קליטה עצמית לקליטה ידנית */}
+      <div className="my-8 flex items-center gap-4">
+        <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+        <span className="text-xs font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          או קליטה ידנית
+        </span>
+        <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+      </div>
+      <div className="mb-4">
         <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">קליטה ידנית</h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">מילוי הטופס ישירות ע"י משאבי אנוש.</p>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          מילוי הטופס ישירות ע&quot;י משאבי אנוש.
+        </p>
       </div>
       <OnboardingForm hideSignatures />
     </div>

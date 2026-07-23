@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Send, Plus } from "lucide-react";
 
 interface Invite {
   id: string;
@@ -57,7 +58,7 @@ function CopyButton({ url }: { url: string }) {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -252,12 +253,20 @@ export function InviteGenerator() {
   }
 
   return (
-    <section className="mb-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
-      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">שליחת קישור קליטה לעובד</h2>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        צור/י קישור אישי ומאובטח ושלח/י לעובד (ב-WhatsApp, מייל או SMS). העובד ימלא את
-        הטופס, יעלה ת.ז ויחתום — והפרטים יישמרו כאן אוטומטית.
-      </p>
+    <section className="mb-8 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+          <Send size={20} />
+        </span>
+        <div>
+          <h2 className="text-lg font-bold leading-tight text-slate-800 dark:text-slate-100">
+            שליחת קישור קליטה לעובד
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            העובד ממלא את הטופס בעצמו — פרטים, ת.ז וחתימה — והכול נשמר כאן אוטומטית.
+          </p>
+        </div>
+      </div>
 
       {/* בחירת חברה + ניהול רשימת החברות */}
       <div className="mt-4">
@@ -304,9 +313,10 @@ export function InviteGenerator() {
           <button
             type="button"
             onClick={addCompany}
-            className="mt-2 rounded-lg border border-brand-200 bg-brand-50 dark:bg-brand-500/15 px-3 py-2 text-sm font-medium text-brand-700 dark:text-brand-300 transition hover:bg-brand-100"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/15 px-3 py-2 text-sm font-medium text-brand-700 dark:text-brand-300 transition hover:bg-brand-100"
           >
-            ➕ הוספת חברה
+            <Plus size={15} strokeWidth={2.6} />
+            הוספת חברה
           </button>
         </div>
 
@@ -411,9 +421,10 @@ export function InviteGenerator() {
         type="button"
         onClick={generate}
         disabled={loading}
-        className="mt-4 w-full rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
       >
-        {loading ? "יוצר קישור..." : "➕ יצירת קישור קליטה"}
+        <Plus size={17} strokeWidth={2.6} />
+        {loading ? "יוצר קישור..." : "יצירת קישור קליטה"}
       </button>
 
       {error && (
