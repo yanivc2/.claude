@@ -1,0 +1,38 @@
+{
+  "analysis_type": "EXPLORATORY_POSTHOC",
+  "official_gate_a_classification": "FAIL_IMMUTABLE",
+  "official_summary": {"OLD_valid_applied": 4, "NEW_valid_applied": 0, "NEW_minus_OLD": -4},
+
+  "gate0_raw_evidence_precondition": {
+    "raw_responses_present": false,
+    "raw_response_hashes_available": false,
+    "response_metadata_present": false,
+    "finding": "the Gate-A runner (tools/v3_gate_a.py) passed resp.text to the parser but NEVER persisted it; the sealed report retains only input/output tokens, cost, and terminal_state; each cell work-dir holds only ledger.json. No raw text, stop_reason, content-block structure, or raw hash was captured for any of the 18 cells."
+  },
+
+  "recorded_terminal_states_only": {
+    "note": "recorded fields (not raw); reported as fact, NOT used to infer the root cause",
+    "NEW": {"NEW_MALFORMED": 9, "NEW_TRUNCATED": 0, "NEW_APPLY_NOT_FOUND": 0,
+            "NEW_AMBIGUOUS": 0, "NEW_OVERLAP": 0, "NEW_POST_APPLY_SYNTAX_ERROR": 0},
+    "OLD": {"OLD_PATCH_SCHEMA_INVALID": 5, "VALID_APPLIED_PATCH": 4},
+    "narrow_conservative_reading": "0/9 NEW cells were recorded NEW_TRUNCATED, so the parser did not see an unterminated/truncated body; but NEW_MALFORMED merges no-JSON / prose-around-JSON / invalid-syntax and cannot discriminate them without the raw text."
+  },
+
+  "five_decision_questions": {
+    "q1_how_many_contain_any_json": "UNANSWERABLE_WITHOUT_RAW",
+    "q2_safe_normalizable_count": "UNANSWERABLE_WITHOUT_RAW",
+    "q3_semantic_repair_count": "UNANSWERABLE_WITHOUT_RAW",
+    "q4_uniform_vs_nine_distinct_failures": "UNANSWERABLE_WITHOUT_RAW (all share one coarse label NEW_MALFORMED; the underlying nine responses were not retained)",
+    "q5_would_third_contract_or_repair_retry_fix_a_defined_mechanism": "UNANSWERABLE_WITHOUT_RAW"
+  },
+
+  "dominant_diagnosis": "INSUFFICIENT_RAW_EVIDENCE",
+
+  "observability_gap": "The Gate-A runner did not persist raw responses even though diagnosing format failures was Gate A's explicit purpose. Any future Gate A2 / third-contract run MUST capture, per cell and byte-for-byte: the raw API response, content-block structure (thinking vs text), the exact text handed to the parser, stop_reason, token counts, and a raw hash.",
+
+  "recommendation": "Cannot distinguish MODEL_CONTRACT_NONCOMPLIANCE / PARSER_OVERSTRICTNESS / PROMPT_OR_SCHEMA_DESIGN_DEFECT from the retained data. Do NOT proceed to Gate B. If v3 continues, it requires a fresh Gate A whose runner persists raw responses; only then can the format-failure mechanism be diagnosed and a parser-normalization vs third-contract vs close decision be made on evidence. Truncation is not indicated by the recorded terminal states, but that alone does not localize the cause.",
+
+  "immutability": {"no_reruns": true, "no_reclassification": true, "no_threshold_change": true,
+                   "no_official_parser_replacement": true, "no_paid_calls": true,
+                   "sealed_artifact_sha256": "a2ea0189ac299b02e54b8caf540e49a06c96a9e943fe514b91561ae0a7c62ee5"}
+}
