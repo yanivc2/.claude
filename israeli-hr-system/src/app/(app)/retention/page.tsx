@@ -22,8 +22,8 @@ const STATUS_LABELS: Record<SurveyStatus, string> = {
 
 const STATUS_STYLES: Record<SurveyStatus, string> = {
   SCHEDULED: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
-  SENT: "bg-blue-50 text-blue-700",
-  COMPLETED: "bg-green-50 text-green-700",
+  SENT: "bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300",
+  COMPLETED: "bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-400",
 };
 
 const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });

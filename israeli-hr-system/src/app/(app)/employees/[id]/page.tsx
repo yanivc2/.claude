@@ -81,7 +81,7 @@ export default async function EmployeeDetailPage({
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
         <p className="text-4xl">⚠️</p>
         <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">העובד לא נמצא</h1>
-        <Link href="/employees" className="mt-4 inline-block text-sm text-brand-700 underline">
+        <Link href="/employees" className="mt-4 inline-block text-sm text-brand-700 dark:text-brand-300 underline">
           חזרה לרשימת העובדים
         </Link>
       </div>
@@ -184,7 +184,7 @@ export default async function EmployeeDetailPage({
       {pensionRows && (
         <Card title="תיק פנסיה">
           <Rows rows={[pensionRows[0], pensionRows[1]]} />
-          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <p className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-500/15 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
             {emp.pensionTask!.basis}
           </p>
         </Card>

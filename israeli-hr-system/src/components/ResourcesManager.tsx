@@ -122,7 +122,7 @@ export function ResourcesManager() {
             type="button"
             onClick={() => setKind("FILE")}
             className={`rounded-lg px-4 py-1.5 transition ${
-              kind === "FILE" ? "bg-white dark:bg-slate-900 text-brand-700 shadow-sm" : "text-slate-500 dark:text-slate-400"
+              kind === "FILE" ? "bg-white dark:bg-slate-900 text-brand-700 dark:text-brand-300 shadow-sm" : "text-slate-500 dark:text-slate-400"
             }`}
           >
             העלאת קובץ
@@ -131,7 +131,7 @@ export function ResourcesManager() {
             type="button"
             onClick={() => setKind("LINK")}
             className={`rounded-lg px-4 py-1.5 transition ${
-              kind === "LINK" ? "bg-white dark:bg-slate-900 text-brand-700 shadow-sm" : "text-slate-500 dark:text-slate-400"
+              kind === "LINK" ? "bg-white dark:bg-slate-900 text-brand-700 dark:text-brand-300 shadow-sm" : "text-slate-500 dark:text-slate-400"
             }`}
           >
             קישור / סרטון
@@ -176,7 +176,7 @@ export function ResourcesManager() {
                 onChange={(e) => setFile(e.target.files?.[0] ?? null)}
                 className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
               />
-              {file && <p className="mt-1 text-xs text-green-700">נבחר: {file.name}</p>}
+              {file && <p className="mt-1 text-xs text-green-700 dark:text-green-400">נבחר: {file.name}</p>}
             </label>
           )}
 
@@ -201,7 +201,7 @@ export function ResourcesManager() {
             </button>
           </div>
         </form>
-        {error && <p className="mt-3 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="mt-3 rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
       </section>
 
       {/* רשימת המשאבים */}
@@ -223,7 +223,7 @@ export function ResourcesManager() {
                 <div className="flex items-start gap-3">
                   <span
                     className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
-                      isVideo ? "bg-rose-50 text-rose-600" : "bg-brand-50 dark:bg-brand-500/15 text-brand-600"
+                      isVideo ? "bg-rose-50 text-rose-600" : "bg-brand-50 dark:bg-brand-500/15 text-brand-600 dark:text-brand-300"
                     }`}
                   >
                     <Icon size={20} />
@@ -249,7 +249,7 @@ export function ResourcesManager() {
                   href={openHref}
                   target="_blank"
                   rel="noreferrer"
-                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold text-brand-700 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
                 >
                   <ExternalLink size={15} />
                   {r.kind === "FILE" ? "פתיחה / הורדה" : isVideo ? "צפייה בסרטון" : "פתיחת הקישור"}

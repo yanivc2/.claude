@@ -79,7 +79,7 @@ export function Sidebar() {
   const linkClass = (active: boolean) =>
     `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
       active
-        ? "bg-brand-50 dark:bg-brand-500/15 text-brand-800"
+        ? "bg-brand-50 dark:bg-brand-500/15 text-brand-800 dark:text-brand-200"
         : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-800 dark:hover:text-slate-100"
     }`;
 

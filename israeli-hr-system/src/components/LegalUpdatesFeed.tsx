@@ -9,9 +9,9 @@ const CATEGORY_LABELS: Record<LegalCategory, string> = {
 };
 
 const CATEGORY_STYLES: Record<LegalCategory, string> = {
-  LEGISLATION: "bg-blue-50 text-blue-700",
+  LEGISLATION: "bg-blue-50 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300",
   RULING: "bg-purple-50 text-purple-700",
-  REGULATION: "bg-amber-50 text-amber-700",
+  REGULATION: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300",
   GENERAL: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300",
 };
 
@@ -57,7 +57,7 @@ export async function LegalUpdatesFeed() {
                 href={u.sourceUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-brand-600 hover:underline"
+                className="text-brand-600 dark:text-brand-300 hover:underline"
               >
                 קריאה במקור ←
               </a>

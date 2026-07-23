@@ -1,17 +1,19 @@
-@import url("https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
   --background: #eef2f8;
   --foreground: #0f172a;
 }
 
-/* מצב כהה — צבע הרקע והטקסט הבסיסי של העמוד. */
+/* מצב כהה — אפור-כהה עמוק (לא שחור טהור) לפי הנחיות נגישות. */
 .dark {
-  --background: #0b1220;
+  color-scheme: dark; /* גורם לשדות הקלט המקוריים להיצבע כהה — מתקן טקסט שלא נראה */
+  --background: #0b111d;
   --foreground: #e8eef7;
 }
 
@@ -23,6 +25,22 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: "Assistant", system-ui, sans-serif;
+}
+
+/* מצב כהה: תיקון גורף של שדות קלט — רקע כהה, טקסט בהיר, גבול נראה, placeholder
+   קריא. פותר שדות שבהם הכתב לא נראה בגלל רינדור בהיר של הדפדפן. */
+@layer base {
+  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .dark textarea,
+  .dark select {
+    background-color: #16202f;
+    color: #eef3fb;
+    border-color: #33415580;
+  }
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: #7c8aa0;
+  }
 }
 
 /* התאמות RTL כלליות */

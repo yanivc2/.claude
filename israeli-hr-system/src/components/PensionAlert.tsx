@@ -38,10 +38,10 @@ export function PensionAlert({ items }: { items: PensionAlertItem[] }) {
               key={it.id}
               className="flex items-center justify-between rounded-lg border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm"
             >
-              <Link href={`/employees/${it.id}`} className="font-medium text-brand-700 hover:underline">
+              <Link href={`/employees/${it.id}`} className="font-medium text-brand-700 dark:text-brand-300 hover:underline">
                 {it.name}
               </Link>
-              <span className={it.overdue ? "text-red-600" : "text-slate-500 dark:text-slate-400"}>
+              <span className={it.overdue ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}>
                 {it.overdue ? "באיחור · " : "עד "}
                 {it.dueDate}
               </span>

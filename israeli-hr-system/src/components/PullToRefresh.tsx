@@ -88,7 +88,7 @@ export function PullToRefresh() {
           height="18"
           viewBox="0 0 24 24"
           fill="none"
-          className={refreshing ? "animate-spin text-brand-600" : "text-brand-600"}
+          className={refreshing ? "animate-spin text-brand-600 dark:text-brand-300" : "text-brand-600 dark:text-brand-300"}
           style={refreshing ? undefined : { transform: `rotate(${progress * 270}deg)` }}
         >
           <path

@@ -132,7 +132,7 @@ export function LoginForm() {
   return (
     <div>
       <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-brand-700">מערכת משאבי אנוש</h1>
+        <h1 className="text-2xl font-bold text-brand-700 dark:text-brand-300">מערכת משאבי אנוש</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">כניסה למערכת</p>
       </div>
 
@@ -154,7 +154,7 @@ export function LoginForm() {
           autoComplete="current-password"
           required
         />
-        {error && <p className="rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-2 text-sm text-red-700 dark:text-red-400">{error}</p>}
         <button
           type="submit"
           disabled={busy}
