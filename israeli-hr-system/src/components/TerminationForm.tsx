@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { FileText, Printer, Plus, Check } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
 
 interface EmployeeOption {
   id: string;
@@ -127,11 +129,11 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
   }
 
   const inputClass =
-    "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+    "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <form onSubmit={generate} className="space-y-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+      <form onSubmit={generate} className="space-y-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">עובד</span>
@@ -256,13 +258,14 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
                   type="button"
                   onClick={() => addReason(title)}
                   disabled={added}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                     added
                       ? "cursor-default border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400"
-                      : "border-brand-200 bg-brand-50 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300 hover:bg-brand-100"
+                      : "border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300 hover:bg-brand-100"
                   }`}
                 >
-                  {added ? `✓ ${title}` : `+ ${title}`}
+                  {added ? <Check size={13} strokeWidth={2.6} /> : <Plus size={13} strokeWidth={2.6} />}
+                  {title}
                 </button>
               );
             })}
@@ -321,18 +324,23 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
         <button
           type="submit"
           disabled={loading || !employeeId}
-          className="w-full rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
         >
+          <FileText size={16} />
           {loading ? "מפיק מסמך..." : "הפקת מסמך"}
         </button>
       </form>
 
-      <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
         {doc ? (
           <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-semibold text-slate-800 dark:text-slate-100">{doc.title}</h3>
-              <button onClick={() => printDoc(doc.html)} className="text-sm text-brand-600 dark:text-brand-300 hover:underline">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="font-bold text-slate-800 dark:text-slate-100">{doc.title}</h3>
+              <button
+                onClick={() => printDoc(doc.html)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+              >
+                <Printer size={14} />
                 הדפסה / PDF
               </button>
             </div>
@@ -349,9 +357,14 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
             />
           </div>
         ) : (
-          <p className="flex h-full items-center justify-center text-sm text-slate-400 dark:text-slate-400">
-            המסמך שייווצר יוצג כאן.
-          </p>
+          <div className="flex h-full items-center justify-center">
+            <EmptyState
+              bare
+              icon={FileText}
+              title="המסמך שייווצר יוצג כאן"
+              subtitle="בחר/י עובד, סוג מסמך ונימוקים — ולחצ/י על ״הפקת מסמך״."
+            />
+          </div>
         )}
       </div>
     </div>
