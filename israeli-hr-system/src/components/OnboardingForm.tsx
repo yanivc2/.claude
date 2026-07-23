@@ -260,7 +260,7 @@ function DocDownloadMenu({
   const base =
     variant === "solid"
       ? "bg-brand-600 text-white hover:bg-brand-700"
-      : "border border-green-300 bg-white dark:bg-slate-900 text-green-800 dark:text-green-300 hover:bg-green-100";
+      : "border border-green-300 dark:border-green-500/40 bg-white dark:bg-slate-900 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-500/15";
 
   if (options.length === 1) {
     return (

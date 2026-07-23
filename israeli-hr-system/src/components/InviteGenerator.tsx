@@ -313,7 +313,7 @@ export function InviteGenerator() {
           <button
             type="button"
             onClick={addCompany}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/15 px-3 py-2 text-sm font-medium text-brand-700 dark:text-brand-300 transition hover:bg-brand-100"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/15 px-3 py-2 text-sm font-medium text-brand-700 dark:text-brand-300 transition hover:bg-brand-100 dark:hover:bg-brand-500/25"
           >
             <Plus size={15} strokeWidth={2.6} />
             הוספת חברה
@@ -486,7 +486,7 @@ export function InviteGenerator() {
                     onClick={() => deleteInvite(inv.id)}
                     aria-label="מחיקת קישור"
                     title="מחיקת קישור"
-                    className="shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs text-red-600 dark:text-red-400 transition hover:bg-red-50"
+                    className="shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs text-red-600 dark:text-red-400 transition hover:bg-red-50 dark:hover:bg-red-500/15"
                   >
                     🗑️ מחיקה
                   </button>

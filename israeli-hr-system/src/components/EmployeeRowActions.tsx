@@ -49,7 +49,7 @@ export function EmployeeRowActions({
           type="button"
           onClick={() => setStatus("ACTIVE")}
           disabled={busy}
-          className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-400 transition hover:bg-green-50 disabled:opacity-50"
+          className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-400 transition hover:bg-green-50 dark:hover:bg-green-500/15 disabled:opacity-50"
         >
           ↩︎ החזרה לפעיל
         </button>
@@ -67,7 +67,7 @@ export function EmployeeRowActions({
         type="button"
         onClick={remove}
         disabled={busy}
-        className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 transition hover:bg-red-50 disabled:opacity-50"
+        className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 transition hover:bg-red-50 dark:hover:bg-red-500/15 disabled:opacity-50"
       >
         🗑️ מחיקה
       </button>
