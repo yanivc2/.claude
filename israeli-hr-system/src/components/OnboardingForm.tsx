@@ -1,6 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import {
+  User,
+  Briefcase,
+  Landmark,
+  FileText,
+  FileSignature,
+  Download,
+  ShieldCheck,
+  CheckCircle2,
+  type LucideIcon,
+} from "lucide-react";
 import { SignaturePad } from "./SignaturePad";
 import { AVAILABILITY_DAYS, AVAILABILITY_SHIFTS } from "@/lib/availability";
 import { PRIVACY_POLICY_VERSION } from "./PrivacyPolicy";
@@ -127,15 +138,56 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
       {children}
     </label>
   );
 }
 
+// כרטיס־מקטע מעוצב: תג אייקון רך + מספר שלב + כותרת ותת־כותרת אופציונלית.
+function Section({
+  icon: Icon,
+  step,
+  title,
+  subtitle,
+  children,
+  tone = "default",
+}: {
+  icon: LucideIcon;
+  step?: number;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  tone?: "default" | "error";
+}) {
+  const wrap =
+    tone === "error"
+      ? "border-red-400 bg-red-50 dark:bg-red-500/15"
+      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900";
+  return (
+    <section className={`rounded-2xl border ${wrap} p-4 shadow-sm sm:p-6`}>
+      <div className="mb-4 flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+          <Icon size={20} />
+        </span>
+        <div className="min-w-0">
+          {step !== undefined && (
+            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              שלב {step}
+            </span>
+          )}
+          <h2 className="text-lg font-bold leading-tight text-slate-800 dark:text-slate-100">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 // גופן 16px בסלולר (text-base) מונע זום אוטומטי ב-iOS בעת מיקוד בשדה; במסך רחב חוזר ל-14px.
 const inputClass =
-  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 interface OnboardingFormProps {
   // נתיב ההגשה: ברירת מחדל הוא מסלול ה-HR; הפורטל הציבורי מעביר נתיב מבוסס-טוקן.
@@ -499,8 +551,13 @@ export function OnboardingForm({
 
   if (status === "done") {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-500/15 p-6 text-green-800 dark:text-green-300">
-        <p className="text-lg font-semibold">✓ {message}</p>
+      <div className="rounded-2xl border border-green-200 dark:border-green-500/30 bg-green-50 dark:bg-green-500/15 p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-green-100 text-green-700 dark:bg-green-500/25 dark:text-green-300">
+            <CheckCircle2 size={22} />
+          </span>
+          <p className="mt-1 text-lg font-semibold text-green-800 dark:text-green-300">{message}</p>
+        </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <DocDownloadMenu options={docOptions} variant="soft" />
         </div>
@@ -511,8 +568,7 @@ export function OnboardingForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {/* פרטים אישיים */}
-      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">פרטים אישיים</h2>
+      <Section icon={User} step={1} title="פרטים אישיים" subtitle="פרטי הזיהוי והקשר של העובד/ת.">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="שם פרטי">
             <input
@@ -578,11 +634,10 @@ export function OnboardingForm({
             />
           </Field>
         </div>
-      </section>
+      </Section>
 
       {/* פרטי העסקה */}
-      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">פרטי העסקה</h2>
+      <Section icon={Briefcase} step={2} title="פרטי העסקה" subtitle="מועד תחילה, תפקיד, שכר וזמינות.">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="מועד תחילת עבודה">
             <input
@@ -674,11 +729,10 @@ export function OnboardingForm({
             בזמינות הינה עילה לפיטורין בגין מתפטר.
           </p>
         </div>
-      </section>
+      </Section>
 
       {/* קרן פנסיה — נפרד ומודגש */}
-      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
-        <h2 className="mb-3 text-lg font-semibold text-slate-800 dark:text-slate-100">קרן פנסיה</h2>
+      <Section icon={Landmark} step={3} title="קרן פנסיה" subtitle="סטטוס הסדר פנסיוני קיים בעת הקליטה.">
         <div className="space-y-2">
           <label className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-base text-slate-700 dark:text-slate-200">
             <input
@@ -701,14 +755,15 @@ export function OnboardingForm({
             לא קיימת קרן פנסיה פעילה
           </label>
         </div>
-      </section>
+      </Section>
 
       {/* טופס 101 */}
-      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
-        <h2 className="mb-1 text-lg font-semibold text-slate-800 dark:text-slate-100">טופס 101</h2>
-        <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-          כרטיס עובד לצורכי ניכוי מס הכנסה במקור.
-        </p>
+      <Section
+        icon={FileText}
+        step={4}
+        title="טופס 101"
+        subtitle="כרטיס עובד לצורכי ניכוי מס הכנסה במקור."
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="שנת המס">
             <input
@@ -786,12 +841,10 @@ export function OnboardingForm({
             <SignaturePad label="חתימה על טופס 101" onChange={setForm101Signature} />
           </div>
         )}
-      </section>
+      </Section>
 
       {/* הסכם עבודה */}
-      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">הסכם עבודה</h2>
-
+      <Section icon={FileSignature} step={5} title="הסכם עבודה">
         {hideSignatures ? (
           // מצב HR: צירוף קובץ הסכם (רשות) — יישמר בתיק העובד ויהיה זמין להורדה/הדפסה.
           <>
@@ -846,28 +899,24 @@ export function OnboardingForm({
             <SignaturePad label="חתימה על הסכם העבודה (חובה)" onChange={setContractSignature} />
           </>
         )}
-      </section>
+      </Section>
 
       {/* הורדה / הדפסה של המסמכים — כפתור אחד */}
-      <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
-        <h2 className="mb-1 text-lg font-semibold text-slate-800 dark:text-slate-100">הורדה והדפסה</h2>
-        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
-          הורדה או הדפסה של טופס 101{agreementDoc ? ", הסכם העבודה, או שניהם יחד" : ""} — כקובץ
-          שניתן לשמור כ-PDF.
-        </p>
+      <Section
+        icon={Download}
+        title="הורדה והדפסה"
+        subtitle={`הורדה או הדפסה של טופס 101${agreementDoc ? ", הסכם העבודה, או שניהם יחד" : ""} — כקובץ שניתן לשמור כ-PDF.`}
+      >
         <DocDownloadMenu options={docOptions} variant="solid" />
-      </section>
+      </Section>
 
       {/* אישורי פרטיות (נספח ג') — חובה בפורטל העובד */}
       {privacyUrl && (
-        <section
-          className={`rounded-xl border p-4 transition sm:p-6 ${
-            consentError && !allMandatoryAccepted
-              ? "border-red-400 bg-red-50 dark:bg-red-500/15"
-              : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-          }`}
+        <Section
+          icon={ShieldCheck}
+          title="אישורי פרטיות"
+          tone={consentError && !allMandatoryAccepted ? "error" : "default"}
         >
-          <h2 className="mb-1 text-lg font-semibold text-slate-800 dark:text-slate-100">אישורי פרטיות</h2>
           {/* הודעה תמציתית לפי סעיף 11 לחוק */}
           <p className="mb-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
             לפני השלמת הקליטה יש לקרוא את{" "}
@@ -945,7 +994,7 @@ export function OnboardingForm({
             סירוב או ביטול הסכמת רשות לא יפגעו בשכר, בזכויות או בתנאי העבודה. אף אישור אינו ויתור
             על זכויות קוגנטיות.
           </p>
-        </section>
+        </Section>
       )}
 
       {status === "error" && (
@@ -955,7 +1004,7 @@ export function OnboardingForm({
       <button
         type="submit"
         disabled={status === "saving"}
-        className="w-full rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-3.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
       >
         {status === "saving" ? "שומר..." : "השלמת קליטה"}
       </button>
