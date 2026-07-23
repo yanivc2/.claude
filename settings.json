@@ -24,12 +24,13 @@
       "Skill(schedule:*)",
       "mcp__playwright__browser_snapshot",
       "mcp__claude_ai_Microsoft_Learn__microsoft_docs_search",
-      "Write(C:\\Users\\yaniv\\.claude\\*)"
+      "Edit(C:\\Users\\yaniv\\.claude\\*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\yaniv"
     ]
   },
+  "model": "opus",
   "hooks": {
     "SessionStart": [
       {
@@ -138,7 +139,35 @@
       }
     ]
   },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "design@knowledge-work-plugins": true,
+    "firecrawl@firecrawl": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "knowledge-work-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/knowledge-work-plugins"
+      }
+    },
+    "firecrawl": {
+      "source": {
+        "source": "github",
+        "repo": "firecrawl/firecrawl-claude-plugin"
+      }
+    }
+  },
+  "effortLevel": "xhigh",
   "fileCheckpointingEnabled": true,
-  "model": "opus",
-  "effortLevel": "xhigh"
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true
 }
