@@ -10,6 +10,8 @@ import {
   Users,
   Sprout,
   FolderOpen,
+  Scale,
+  Gavel,
   Settings,
   LogOut,
   Menu,
@@ -41,6 +43,12 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/employees", label: "עובדים ותיקים", icon: Users },
   { href: "/retention", label: "שימור עובדים", icon: Sprout },
   { href: "/resources", label: "מסמכים ונהלים", icon: FolderOpen },
+];
+
+// ידע ומשפט — יועץ AI ועדכוני חקיקה.
+const KNOWLEDGE_NAV: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/consultation", label: "יועץ לזכויות עובדים", icon: Scale },
+  { href: "/legal-updates", label: "עדכוני חקיקה", icon: Gavel },
 ];
 
 function initials(name: string): string {
@@ -139,6 +147,20 @@ export function Sidebar() {
             ניהול
           </p>
           {NAV.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.href);
+            return (
+              <Link key={item.href} href={item.href} className={linkClass(active)}>
+                <Icon size={20} className={active ? "" : "opacity-90"} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+
+          <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+            ידע ומשפט
+          </p>
+          {KNOWLEDGE_NAV.map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (
