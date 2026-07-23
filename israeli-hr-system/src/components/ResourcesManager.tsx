@@ -58,6 +58,26 @@ function shareText(r: Resource): string {
   return `${r.title}\n${link}`;
 }
 
+// הורדה אמיתית: מושכים את הקובץ כ-blob ומורידים — בלי לנווט/לפתוח את המסמך מחדש.
+async function downloadFile(r: Resource) {
+  try {
+    const res = await fetch(`${fileHref(r)}?download=1`);
+    if (!res.ok) throw new Error();
+    const blob = await res.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objUrl;
+    a.download = r.fileName || r.title || "file";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objUrl), 2000);
+  } catch {
+    // גיבוי: פתיחה בכרטיסייה עם דרישת הורדה.
+    window.open(`${fileHref(r)}?download=1`, "_blank", "noopener,noreferrer");
+  }
+}
+
 export function ResourcesManager() {
   const [items, setItems] = useState<Resource[]>([]);
   const [folders, setFolders] = useState<FolderT[]>([]);
@@ -180,6 +200,20 @@ export function ResourcesManager() {
     if (!window.confirm(`למחוק את "${title}"?`)) return;
     try {
       const res = await fetch(`/api/resources/${id}`, { method: "DELETE" });
+      if (res.ok) await load();
+    } catch {
+      // מתעלמים.
+    }
+  }
+
+  // העברת משאב לתיקייה (או הוצאה ממנה — folderId ריק = null).
+  async function move(id: string, targetFolderId: string) {
+    try {
+      const res = await fetch(`/api/resources/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderId: targetFolderId || null }),
+      });
       if (res.ok) await load();
     } catch {
       // מתעלמים.
@@ -381,7 +415,7 @@ export function ResourcesManager() {
                 ) : (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {inFolder.map((r) => (
-                      <Card key={r.id} r={r} isOwner={isOwner} onView={setViewing} onRemove={remove} />
+                      <Card key={r.id} r={r} folders={folders} isOwner={isOwner} onView={setViewing} onRemove={remove} onMove={move} />
                     ))}
                   </div>
                 )}
@@ -406,7 +440,7 @@ export function ResourcesManager() {
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {loose.map((r) => (
-                <Card key={r.id} r={r} isOwner={isOwner} onView={setViewing} onRemove={remove} />
+                <Card key={r.id} r={r} folders={folders} isOwner={isOwner} onView={setViewing} onRemove={remove} onMove={move} />
               ))}
             </div>
           )}
@@ -422,14 +456,18 @@ export function ResourcesManager() {
 // ─── כרטיס משאב ───
 function Card({
   r,
+  folders,
   isOwner,
   onView,
   onRemove,
+  onMove,
 }: {
   r: Resource;
+  folders: FolderT[];
   isOwner: boolean;
   onView: (r: Resource) => void;
   onRemove: (id: string, title: string) => void;
+  onMove: (id: string, folderId: string) => void;
 }) {
   const isVideo = r.kind === "LINK" && r.url ? isVideoUrl(r.url) : false;
   const Icon = r.kind === "FILE" ? FileText : isVideo ? Video : Link2;
@@ -457,21 +495,22 @@ function Card({
             type="button"
             onClick={() => onRemove(r.id, r.title)}
             aria-label="מחיקה"
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 dark:hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 transition hover:bg-red-50 dark:hover:bg-red-500/15 hover:text-red-600 dark:hover:text-red-400"
           >
-            <Trash2 size={16} />
+            <Trash2 size={18} />
           </button>
         )}
       </div>
 
+      {/* פעולה ראשית + שיתוף */}
       <div className="mt-4 flex items-center gap-2">
         {r.kind === "FILE" ? (
           <button
             type="button"
             onClick={() => onView(r)}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm font-bold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
           >
-            <ExternalLink size={15} />
+            <ExternalLink size={17} />
             פתיחה
           </button>
         ) : (
@@ -479,34 +518,53 @@ function Card({
             href={r.url ?? "#"}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-semibold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+            className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-3 text-sm font-bold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
           >
-            <ExternalLink size={15} />
+            <ExternalLink size={17} />
             {isVideo ? "צפייה בסרטון" : "פתיחת הקישור"}
           </a>
         )}
         <ShareButtons r={r} />
       </div>
+
+      {/* העברה לתיקייה */}
+      <label className="mt-2 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+        <Folder size={14} className="shrink-0" />
+        <select
+          value={r.folderId ?? ""}
+          onChange={(e) => onMove(r.id, e.target.value)}
+          className="min-w-0 flex-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-2 py-1.5 text-xs outline-none focus:border-brand-500"
+        >
+          <option value="">ללא תיקייה</option>
+          {folders.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }
 
-// ─── כפתורי שיתוף (וואטסאפ / מייל) ───
+// ─── כפתורי שיתוף (וואטסאפ / מייל) — יעד לחיצה נוח (44px) ───
 function ShareButtons({ r }: { r: Resource }) {
   return (
     <>
       <button
         type="button"
         title="שליחה בוואטסאפ"
+        aria-label="שליחה בוואטסאפ"
         onClick={() => shareWhatsApp(shareText(r))}
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-green-300 dark:border-green-500/40 text-green-700 dark:text-green-400 transition hover:bg-green-50 dark:hover:bg-green-500/15"
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-green-300 dark:border-green-500/40 text-lg transition hover:bg-green-50 dark:hover:bg-green-500/15"
       >
         📱
       </button>
       <a
         title="שליחה במייל"
+        aria-label="שליחה במייל"
         href={mailtoHref(r.title, shareText(r))}
-        className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-300 dark:border-slate-700 text-lg transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
       >
         ✉️
       </a>
@@ -529,24 +587,25 @@ function Viewer({ r, onClose }: { r: Resource; onClose: () => void }) {
         className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white dark:bg-slate-900 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 px-4 py-3">
+        <header className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 px-3 py-2.5">
           <p className="min-w-0 flex-1 truncate font-bold text-slate-800 dark:text-slate-100">{r.title}</p>
           <ShareButtons r={r} />
-          <a
-            href={href}
-            download={r.fileName ?? undefined}
+          <button
+            type="button"
+            onClick={() => downloadFile(r)}
             title="הורדה"
-            className="grid h-9 w-9 place-items-center rounded-lg border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+            aria-label="הורדה"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
-            <Download size={16} />
-          </a>
+            <Download size={18} />
+          </button>
           <button
             type="button"
             onClick={onClose}
             aria-label="סגירה"
-            className="grid h-9 w-9 place-items-center rounded-lg bg-slate-800 dark:bg-slate-700 text-white transition hover:bg-slate-900 dark:hover:bg-slate-600"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-800 dark:bg-slate-700 text-white transition hover:bg-slate-900 dark:hover:bg-slate-600"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </header>
         <div className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-950">
@@ -562,14 +621,14 @@ function Viewer({ r, onClose }: { r: Resource; onClose: () => void }) {
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 לא ניתן להציג תצוגה מקדימה לקובץ מסוג זה.
               </p>
-              <a
-                href={href}
-                download={r.fileName ?? undefined}
-                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+              <button
+                type="button"
+                onClick={() => downloadFile(r)}
+                className="mt-3 inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700"
               >
                 <Download size={16} />
                 הורדת הקובץ
-              </a>
+              </button>
             </div>
           )}
         </div>
