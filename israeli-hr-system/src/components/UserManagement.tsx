@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { UsersRound, UserPlus } from "lucide-react";
+import { avatarColor, initials } from "@/lib/avatar";
 
 interface ManagedUser {
   id: string;
@@ -13,7 +15,13 @@ interface ManagedUser {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+
+// שם פרטי/משפחה לצורך ראשי־תיבות באווטאר.
+function splitName(full: string): [string, string] {
+  const parts = full.trim().split(/\s+/);
+  return [parts[0] ?? "", parts.slice(1).join(" ")];
+}
 
 // כתובת מסך הכניסה — נבנית מהדומיין שבו גולשים בפועל (Vercel/localhost).
 function loginUrl(): string {
@@ -157,11 +165,18 @@ export function UserManagement() {
   }
 
   return (
-    <section className="mt-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
-      <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">משתמשי המערכת</h2>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-        יצירת משתמשים נוספים שיוכלו להתחבר ולעבוד עם המערכת. אפשרות זו זמינה לך בלבד (בעל המערכת).
-      </p>
+    <section className="mt-8 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+          <UsersRound size={20} />
+        </span>
+        <div>
+          <h2 className="text-lg font-bold leading-tight text-slate-800 dark:text-slate-100">משתמשי המערכת</h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            יצירת משתמשים נוספים לעבודה במערכת — זמין לבעל המערכת בלבד.
+          </p>
+        </div>
+      </div>
 
       {/* יצירת משתמש חדש */}
       <form onSubmit={createUser} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -209,8 +224,9 @@ export function UserManagement() {
           <button
             type="submit"
             disabled={busy}
-            className="rounded-lg bg-brand-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60"
           >
+            <UserPlus size={16} />
             {busy ? "יוצר..." : "יצירת משתמש"}
           </button>
         </div>
@@ -276,18 +292,27 @@ export function UserManagement() {
         {users.map((u) => (
           <div
             key={u.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 dark:border-slate-800 p-3"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 dark:border-slate-800 p-3 transition hover:bg-slate-50 dark:hover:bg-slate-800/50"
           >
-            <div className="min-w-0">
-              <p className="font-medium text-slate-800 dark:text-slate-100">
-                {u.name}{" "}
-                <span className="text-sm font-normal text-slate-400 dark:text-slate-400" dir="ltr">
-                  @{u.username}
-                </span>
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400" dir="ltr">
-                {u.email}
-              </p>
+            <div className="flex min-w-0 items-center gap-3">
+              <span
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br text-xs font-bold text-white ${avatarColor(
+                  u.name || u.username,
+                )}`}
+              >
+                {initials(...splitName(u.name || u.username))}
+              </span>
+              <div className="min-w-0">
+                <p className="font-semibold text-slate-800 dark:text-slate-100">
+                  {u.name}{" "}
+                  <span className="text-sm font-normal text-slate-400 dark:text-slate-400" dir="ltr">
+                    @{u.username}
+                  </span>
+                </p>
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400" dir="ltr">
+                  {u.email}
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {u.isOwner ? (

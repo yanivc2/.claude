@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { KeyRound, CheckCircle2 } from "lucide-react";
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 export function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -66,15 +67,26 @@ export function ChangePassword() {
 
   if (phase === "done") {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-500/15 p-6 text-green-800 dark:text-green-300">
-        <p className="text-lg font-semibold">✓ הסיסמה שונתה בהצלחה.</p>
+      <div className="flex max-w-md items-center gap-3 rounded-2xl border border-green-200 dark:border-green-500/30 bg-green-50 dark:bg-green-500/15 p-6 shadow-sm">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-green-100 text-green-700 dark:bg-green-500/25 dark:text-green-300">
+          <CheckCircle2 size={22} />
+        </span>
+        <p className="text-lg font-semibold text-green-800 dark:text-green-300">הסיסמה שונתה בהצלחה.</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-md rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-6">
-      <h2 className="mb-4 text-lg font-semibold text-slate-800 dark:text-slate-100">שינוי סיסמה</h2>
+    <div className="max-w-md rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
+      <div className="mb-4 flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+          <KeyRound size={20} />
+        </span>
+        <div>
+          <h2 className="text-lg font-bold leading-tight text-slate-800 dark:text-slate-100">שינוי סיסמה</h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">אימות דו־שלבי בקוד למייל.</p>
+        </div>
+      </div>
 
       {phase === "form" ? (
         <form onSubmit={requestChange} className="space-y-3">
@@ -109,14 +121,14 @@ export function ChangePassword() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
           >
             {busy ? "שולח קוד..." : "שליחת קוד אישור למייל"}
           </button>
         </form>
       ) : (
         <form onSubmit={confirmChange} className="space-y-3">
-          {info && <p className="rounded-lg bg-blue-50 dark:bg-blue-500/15 px-4 py-2 text-sm text-blue-800">{info}</p>}
+          {info && <p className="rounded-lg bg-blue-50 dark:bg-blue-500/15 px-4 py-2 text-sm text-blue-800 dark:text-blue-300">{info}</p>}
           <input
             className={inputClass}
             inputMode="numeric"
@@ -129,7 +141,7 @@ export function ChangePassword() {
           <button
             type="submit"
             disabled={busy}
-            className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
           >
             {busy ? "מאשר..." : "אישור ושינוי הסיסמה"}
           </button>
