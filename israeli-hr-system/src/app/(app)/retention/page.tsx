@@ -1,8 +1,9 @@
-import { Sprout } from "lucide-react";
+import { Sprout, Cake, MessageCircle } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { SurveyMilestone, SurveyStatus } from "@prisma/client";
 import { daysUntilBirthday, birthdayWaHref } from "@/lib/birthday";
 import { EmptyState } from "@/components/EmptyState";
+import { avatarColor, initials } from "@/lib/avatar";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "שימור עובדים" };
@@ -63,8 +64,9 @@ export default async function RetentionPage() {
       {/* ימי הולדת קרובים — ברכה בוואטסאפ בלחיצה */}
       {birthdays.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">
-            🎂 ימי הולדת קרובים
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">
+            <Cake size={16} className="text-brand-400" />
+            ימי הולדת קרובים
           </h2>
           <ul className="divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
             {birthdays.map(({ e, days }) => {
@@ -74,23 +76,37 @@ export default async function RetentionPage() {
                   key={e.id}
                   className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div>
-                    <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
-                      {e.firstName} {e.lastName}
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br text-xs font-bold text-white ${avatarColor(
+                        e.firstName + e.lastName,
+                      )}`}
+                    >
+                      {initials(e.firstName, e.lastName)}
                     </span>
-                    <span className="mr-2 text-xs text-slate-500 dark:text-slate-400">
-                      {birthdayFmt.format(e.birthDate as Date)} ·{" "}
-                      {days === 0 ? "היום! 🎉" : `בעוד ${days} ימים`}
-                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                        {e.firstName} {e.lastName}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        {birthdayFmt.format(e.birthDate as Date)} ·{" "}
+                        {days === 0 ? (
+                          <span className="font-bold text-brand-600 dark:text-brand-300">היום 🎉</span>
+                        ) : (
+                          `בעוד ${days} ימים`
+                        )}
+                      </p>
+                    </div>
                   </div>
                   {href ? (
                     <a
                       href={href}
                       target="_blank"
                       rel="noreferrer"
-                      className="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700"
                     >
-                      📱 שליחת ברכה בוואטסאפ
+                      <MessageCircle size={14} />
+                      שליחת ברכה בוואטסאפ
                     </a>
                   ) : (
                     <span className="text-xs text-slate-400 dark:text-slate-400">אין טלפון</span>
