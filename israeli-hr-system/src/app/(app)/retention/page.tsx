@@ -1,6 +1,8 @@
+import { Sprout } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { SurveyMilestone, SurveyStatus } from "@prisma/client";
 import { daysUntilBirthday, birthdayWaHref } from "@/lib/birthday";
+import { EmptyState } from "@/components/EmptyState";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "שימור עובדים" };
@@ -101,9 +103,11 @@ export default async function RetentionPage() {
       )}
 
       {surveys.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
-          אין סקרים מתוזמנים. סקרים נוצרים אוטומטית בעת קליטת עובד חדש.
-        </p>
+        <EmptyState
+          icon={Sprout}
+          title="אין סקרים מתוזמנים"
+          subtitle="סקרי שביעות רצון נוצרים אוטומטית בעת קליטת עובד חדש."
+        />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
           <table className="w-full min-w-[32rem] text-start text-sm">

@@ -1,5 +1,7 @@
+import { Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { TerminationForm } from "@/components/TerminationForm";
+import { EmptyState } from "@/components/EmptyState";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "סיום העסקה" };
@@ -32,9 +34,11 @@ export default async function TerminationPage() {
       {options.length > 0 ? (
         <TerminationForm employees={options} />
       ) : (
-        <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
-          אין עובדים פעילים במערכת. יש לקלוט עובד תחילה.
-        </p>
+        <EmptyState
+          icon={Users}
+          title="אין עובדים פעילים"
+          subtitle="יש לקלוט עובד תחילה כדי להפיק מסמכי סיום העסקה."
+        />
       )}
     </div>
   );
