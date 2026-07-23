@@ -1,13 +1,14 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { anthropic, CHAT_MODEL } from "./anthropic";
-import { KNOWLEDGE_BASE } from "./knowledge";
+import { KNOWLEDGE_BASE, type KnowledgeItem } from "./knowledge";
 
 // ─────────────────────────────────────────────────────────────────────────
-// שכבת RAG (Retrieval-Augmented Generation)
+// מנוע היועץ לזכויות עובדים.
 //
-// הבוט מסתמך אך ורק על בסיס הידע המשפטי שבמסד הנתונים (KnowledgeChunk +
-// LegalUpdate). כאן משתמשים באחזור מבוסס מילות מפתח פשוט; בפרודקשן מומלץ
-// להחליף ל-embeddings וקטוריים (למשל pgvector) לדיוק גבוה יותר.
+// גישה: "כל המאגר בזיכרון" — במקום לשלוף כמה קטעים לפי מילות מפתח (שעלול
+// להחמיץ נושא רלוונטי), כל בסיס הידע מוזרק לפרומפט בכל שאלה. כך הבוט תמיד
+// רואה את כל הנושאים ואין "החמצת אחזור". בלוק הידע יציב בין קריאות ולכן
+// נשמר ב-prompt cache (משלמים על עיבודו פעם אחת — מהיר וזול בקריאות חוזרות).
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface RetrievedChunk {
@@ -15,88 +16,6 @@ export interface RetrievedChunk {
   content: string;
   source: string;
   sourceUrl: string | null;
-}
-
-// נרמול עברי לאחזור עמיד יותר: איחוד אותיות סופיות (ם→מ וכו'), הסרת גרשיים/פיסוק,
-// והפשטת תחילית דקדוקית יחידה (ו/ה/ב/כ/ל/מ/ש) כדי לזהות הטיות ("לפיטורים"↔"פיטורים").
-const FINAL_FORMS: Record<string, string> = { "ם": "מ", "ן": "נ", "ץ": "צ", "ף": "פ", "ך": "כ" };
-const PREFIXES = new Set(["ו", "ה", "ב", "כ", "ל", "מ", "ש"]);
-
-function normalize(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/["'`׳״.,;:!?()\[\]{}\/\\-]/g, " ")
-    .replace(/[םןץףך]/g, (c) => FINAL_FORMS[c] ?? c);
-}
-
-// גזע גס: מסיר תחילית עברית יחידה כשנשארת מילה בעלת אורך סביר.
-function stem(term: string): string {
-  if (term.length > 3 && PREFIXES.has(term[0])) return term.slice(1);
-  return term;
-}
-
-// ניקוד רלוונטיות לפי חפיפת מילים (מנורמלות + גזומות) בין השאלה לקטע.
-function scoreChunk(
-  query: string,
-  chunk: { title: string; content: string; keywords: string[] },
-): number {
-  const terms = normalize(query)
-    .split(/\s+/)
-    .filter((t) => t.length > 1);
-  const haystack = normalize(`${chunk.title} ${chunk.content} ${chunk.keywords.join(" ")}`);
-  const keyNorm = chunk.keywords.map((k) => normalize(k));
-  let score = 0;
-  for (const raw of terms) {
-    const term = stem(raw);
-    if (haystack.includes(raw) || haystack.includes(term)) score += 1;
-    // התאמה למילת מפתח (מנורמלת/גזומה) — משקל גבוה יותר.
-    if (keyNorm.some((k) => k.includes(term) || stem(k) === term)) score += 2;
-  }
-  return score;
-}
-
-// אחזור הקטעים הרלוונטיים ביותר מבסיס הידע (מודול הקוד — מהיר, ללא מסד).
-export async function retrieveContext(query: string, limit = 6): Promise<RetrievedChunk[]> {
-  const ranked = KNOWLEDGE_BASE.map((c) => ({ chunk: c, score: scoreChunk(query, c) }))
-    .filter((r) => r.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
-
-  return ranked.map(({ chunk }) => ({
-    title: chunk.title,
-    content: chunk.content,
-    source: chunk.source,
-    sourceUrl: chunk.sourceUrl,
-  }));
-}
-
-function buildSystemPrompt(chunks: RetrievedChunk[]): string {
-  const context =
-    chunks.length > 0
-      ? chunks
-          .map(
-            (c, i) =>
-              `[מקור ${i + 1}] ${c.title}\nמקור: ${c.source}${
-                c.sourceUrl ? ` (${c.sourceUrl})` : ""
-              }\n${c.content}`,
-          )
-          .join("\n\n---\n\n")
-      : "לא נמצא מידע רלוונטי בבסיס הידע.";
-
-  return `אתה "יועץ לזכויות עובדים" — יועץ מומחה לדיני עבודה בישראל עבור מנהלים ועובדים.
-בסיס הידע שלך מבוסס על מאגר "כל זכות" (kolzchut.org.il) ועל חקיקת העבודה בישראל.
-
-כללי יסוד מחייבים (הפרתם = תשובה שגויה):
-1. ענה אך ורק על סמך "בסיס הידע" המצורף למטה. אל תסתמך על ידע כללי או על זיכרון משלך, גם אם אתה "בטוח".
-2. כל נתון מספרי (סכומים, אחוזים, ימים, תקופות) וכל אזכור של סעיף/חוק — מותר אך ורק אם הוא מופיע מילולית בבסיס הידע. אסור בהחלט להסיק, לחשב, לעגל או להשלים מספרים שאינם כתובים במפורש.
-3. אם המידע הדרוש חסר או חלקי — אמור זאת במפורש ("המידע אינו מצוי בבסיס הידע שלי") והפנה ל"כל זכות" או לייעוץ משפטי מוסמך. עדיף להשיב "איני יודע" מאשר לנחש.
-4. אם השאלה עמומה או חסרה פרט מהותי לתשובה (למשל ותק, סוג העסקה, שכר חודשי מול שעתי) — שאל שאלת הבהרה קצרה אחת לפני שתענה, במקום להניח.
-5. אם השאלה אינה בתחום דיני העבודה בישראל — אמור זאת בנימוס ואל תענה עליה.
-6. צטט בסוף כל תשובה את מספרי המקורות שעליהם התבססת (למשל: "מקורות: 1, 3").
-7. ענה בעברית, בשפה ברורה, מקצועית ותמציתית. אל תציג סברות אישיות כעובדות.
-
-בסיס הידע:
-${context}`;
 }
 
 export interface ChatTurn {
@@ -109,32 +28,85 @@ export interface RagAnswer {
   citations: RetrievedChunk[];
 }
 
-// יצירת תשובת RAG לשאלה על זכויות וחוקי עבודה.
+// בלוק הידע המלא — נבנה פעם אחת בטעינת המודול. כל מקור ממוספר לצורך ציטוט.
+const KNOWLEDGE_TEXT = KNOWLEDGE_BASE.map(
+  (c, i) =>
+    `[מקור ${i + 1}] ${c.title} · ${c.category}\n` +
+    `מקור: ${c.source}${c.sourceUrl ? ` — ${c.sourceUrl}` : ""}\n` +
+    c.content,
+).join("\n\n");
+
+const INSTRUCTIONS = `אתה "יועץ לזכויות עובדים" — יועץ מומחה לדיני עבודה בישראל עבור מנהלים ועובדים.
+בסיס הידע שלך מבוסס על מאגר "כל זכות" (kolzchut.org.il) ועל חקיקת העבודה בישראל, ומצורף לך במלואו.
+
+כללי יסוד מחייבים (הפרתם = תשובה שגויה):
+1. ענה אך ורק על סמך "בסיס הידע" המצורף. אל תסתמך על ידע כללי או על זיכרון משלך, גם אם אתה "בטוח".
+2. כל נתון מספרי (סכומים, אחוזים, ימים, תקופות) וכל אזכור של סעיף/חוק — מותר אך ורק אם הוא מופיע מילולית בבסיס הידע. אסור להסיק, לחשב, לעגל או להשלים מספרים שאינם כתובים במפורש.
+3. אם המידע הדרוש חסר או חלקי — אמור זאת במפורש ("המידע אינו מצוי בבסיס הידע שלי") והפנה ל"כל זכות" או לייעוץ משפטי מוסמך. עדיף להשיב "איני יודע" מאשר לנחש.
+4. אם השאלה עמומה או חסרה פרט מהותי (ותק, סוג העסקה, שכר חודשי מול שעתי) — שאל שאלת הבהרה קצרה אחת לפני שתענה.
+5. אם השאלה אינה בתחום דיני העבודה בישראל — אמור זאת בנימוס ואל תענה עליה.
+6. ענה בעברית, בשפה ברורה, מקצועית ותמציתית. אל תציג סברות אישיות כעובדות.
+7. אל תוסיף בגוף התשובה רשימת מקורות. במקום זאת, בשורה האחרונה של התשובה כתוב בדיוק את מספרי המקורות שעליהם התבססת בפורמט: "SOURCES: 3, 17" (מספרי [מקור N] מבסיס הידע). אם לא התבססת על אף מקור — כתוב "SOURCES: none".`;
+
+const KZ_ITEM_TO_CHUNK = (item: KnowledgeItem): RetrievedChunk => ({
+  title: item.title,
+  content: item.content,
+  source: item.source,
+  sourceUrl: item.sourceUrl,
+});
+
+// מפריד את שורת ה-SOURCES מגוף התשובה וממפה את מספרי המקורות לקטעי הידע.
+function parseCitations(raw: string): RagAnswer {
+  const lines = raw.split("\n");
+  // מאתרים את שורת ה-SOURCES האחרונה (בדרך כלל בסוף).
+  let sourcesLineIdx = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (/^\s*SOURCES\s*:/i.test(lines[i])) {
+      sourcesLineIdx = i;
+      break;
+    }
+  }
+  if (sourcesLineIdx === -1) {
+    return { answer: raw.trim(), citations: [] };
+  }
+  const nums = (lines[sourcesLineIdx].match(/\d+/g) ?? []).map(Number);
+  const seen = new Set<number>();
+  const citations = nums
+    .filter((n) => n >= 1 && n <= KNOWLEDGE_BASE.length && !seen.has(n) && seen.add(n))
+    .map((n) => KZ_ITEM_TO_CHUNK(KNOWLEDGE_BASE[n - 1]));
+  lines.splice(sourcesLineIdx, 1);
+  return { answer: lines.join("\n").trim(), citations };
+}
+
+// יצירת תשובה לשאלה על זכויות וחוקי עבודה — כל המאגר בהקשר, temperature 0.
 export async function answerLegalQuestion(
   question: string,
   history: ChatTurn[] = [],
 ): Promise<RagAnswer> {
-  const chunks = await retrieveContext(question);
-  const system = buildSystemPrompt(chunks);
-
-  // temperature: 0 — תשובות עובדתיות יציבות ומדויקות, עם מינימום שונות/המצאות.
-  // ללא extended thinking — לתגובה מהירה יותר.
   const response = await anthropic.messages.create({
     model: CHAT_MODEL,
     max_tokens: 1024,
     temperature: 0,
-    system,
+    system: [
+      { type: "text", text: INSTRUCTIONS },
+      {
+        type: "text",
+        text: `בסיס הידע המלא (${KNOWLEDGE_BASE.length} מקורות):\n\n${KNOWLEDGE_TEXT}`,
+        // שמירת בלוק הידע במטמון — יציב בין קריאות, מוזיל ומאיץ משמעותית.
+        cache_control: { type: "ephemeral" },
+      },
+    ],
     messages: [
       ...history.map((t) => ({ role: t.role, content: t.content })),
       { role: "user" as const, content: question },
     ],
   });
 
-  const answer = response.content
+  const raw = response.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("\n")
     .trim();
 
-  return { answer, citations: chunks };
+  return parseCitations(raw);
 }
