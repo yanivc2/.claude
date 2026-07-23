@@ -12,6 +12,7 @@ const createSchema = z
     fileName: z.string().optional(),
     mimeType: z.string().optional(),
     fileData: z.string().optional(), // data URL
+    folderId: z.string().optional(), // שיוך לתיקייה
   })
   .refine((d) => (d.kind === "LINK" ? !!d.url : !!d.fileData), {
     message: "יש לצרף קובץ או להזין קישור",
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
         url: true,
         fileName: true,
         mimeType: true,
+        folderId: true,
         createdAt: true,
       },
     })
@@ -71,6 +73,7 @@ export async function POST(req: Request) {
       fileName: d.kind === "FILE" ? d.fileName ?? null : null,
       mimeType: d.kind === "FILE" ? d.mimeType ?? null : null,
       fileData: d.kind === "FILE" ? d.fileData ?? null : null,
+      folderId: d.folderId || null,
       createdBy: username,
     },
   });
