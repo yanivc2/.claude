@@ -61,7 +61,7 @@ export default async function RetentionPage() {
       {/* ימי הולדת קרובים — ברכה בוואטסאפ בלחיצה */}
       {birthdays.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">
             🎂 ימי הולדת קרובים
           </h2>
           <ul className="divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
@@ -91,7 +91,7 @@ export default async function RetentionPage() {
                       📱 שליחת ברכה בוואטסאפ
                     </a>
                   ) : (
-                    <span className="text-xs text-slate-400 dark:text-slate-500">אין טלפון</span>
+                    <span className="text-xs text-slate-400 dark:text-slate-400">אין טלפון</span>
                   )}
                 </li>
               );
@@ -108,7 +108,7 @@ export default async function RetentionPage() {
         <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
           <table className="w-full min-w-[32rem] text-start text-sm">
             <thead>
-              <tr className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              <tr className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-400">
                 <th className="px-5 py-3 text-start font-bold">עובד</th>
                 <th className="px-5 py-3 text-start font-bold">אבן דרך</th>
                 <th className="px-5 py-3 text-start font-bold">מתוזמן ל-</th>

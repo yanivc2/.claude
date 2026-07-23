@@ -46,11 +46,11 @@ export async function LegalUpdatesFeed() {
             >
               {CATEGORY_LABELS[u.category]}
             </span>
-            <time className="text-xs text-slate-400 dark:text-slate-500">{dateFmt.format(u.publishedAt)}</time>
+            <time className="text-xs text-slate-400 dark:text-slate-400">{dateFmt.format(u.publishedAt)}</time>
           </div>
           <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">{u.title}</h3>
           <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{u.summary}</p>
-          <div className="mt-3 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+          <div className="mt-3 flex items-center gap-2 text-xs text-slate-400 dark:text-slate-400">
             <span>מקור: {u.source}</span>
             {u.sourceUrl && (
               <a

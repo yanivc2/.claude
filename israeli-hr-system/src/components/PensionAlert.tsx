@@ -24,7 +24,7 @@ export function PensionAlert({ items }: { items: PensionAlertItem[] }) {
             type="button"
             onClick={() => setOpen(false)}
             aria-label="סגירה"
-            className="rounded-lg p-1 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="rounded-lg p-1 text-slate-400 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
           >
             ✕
           </button>

@@ -198,7 +198,7 @@ export default async function EmployeeDetailPage({
 
       <Card title="מסמכים">
         {emp.documents.length === 0 ? (
-          <p className="text-sm text-slate-400 dark:text-slate-500">לא צורפו מסמכים.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-400">לא צורפו מסמכים.</p>
         ) : (
           <div className="space-y-4">
             {emp.documents.map((d) => {
@@ -239,7 +239,7 @@ export default async function EmployeeDetailPage({
 
       <Card title="חתימות">
         {emp.signatures.length === 0 ? (
-          <p className="text-sm text-slate-400 dark:text-slate-500">אין חתימות.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-400">אין חתימות.</p>
         ) : (
           <div className="flex flex-wrap gap-6">
             {emp.signatures.map((s) => (

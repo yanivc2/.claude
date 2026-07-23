@@ -125,7 +125,7 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
     <div className={`flex ${heightClass} flex-col rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900`}>
       <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
         {messages.length === 0 && (
-          <div className="flex h-full items-center justify-center text-center text-slate-400 dark:text-slate-500">
+          <div className="flex h-full items-center justify-center text-center text-slate-400 dark:text-slate-400">
             <div>
               <p className="text-3xl">💬</p>
               <p className="mt-2 text-base">שאל/י שאלה על זכויות וחוקי עבודה בישראל.</p>

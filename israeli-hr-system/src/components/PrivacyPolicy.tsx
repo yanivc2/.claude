@@ -64,7 +64,7 @@ export function PrivacyPolicy({ companyName, companyNumber, address, isCentralOf
 
   return (
     <article className="mx-auto max-w-3xl">
-      <p className="text-xs text-slate-400 dark:text-slate-500">נוסח Production למערכת קליטת עובדים</p>
+      <p className="text-xs text-slate-400 dark:text-slate-400">נוסח Production למערכת קליטת עובדים</p>
       <h1 className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">מדיניות פרטיות והודעה לפי סעיף 11</h1>
       <p className="text-sm text-slate-500 dark:text-slate-400">למועמדים, לעובדים ולעובדים לשעבר</p>
 

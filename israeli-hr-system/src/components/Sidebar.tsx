@@ -121,7 +121,7 @@ export function Sidebar() {
             <Logo size={44} />
             <div>
               <p className="text-base font-extrabold leading-tight text-slate-800 dark:text-slate-100">משאבי אנוש</p>
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">מערכת ניהול HR</p>
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-400">מערכת ניהול HR</p>
             </div>
           </div>
           <button
@@ -135,7 +135,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 px-3">
-          <p className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <p className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
             ניהול
           </p>
           {NAV.map((item) => {
@@ -149,7 +149,7 @@ export function Sidebar() {
             );
           })}
 
-          <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+          <p className="px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
             מערכת
           </p>
           <Link href="/settings" className={linkClass(pathname.startsWith("/settings"))}>
@@ -178,7 +178,7 @@ export function Sidebar() {
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{me?.name ?? "טוען…"}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500">{me?.isOwner ? "בעל המערכת" : "משתמש"}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-400">{me?.isOwner ? "בעל המערכת" : "משתמש"}</p>
             </div>
           </div>
         </div>

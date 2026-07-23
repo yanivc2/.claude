@@ -110,7 +110,7 @@ export default async function DashboardPage() {
               <p className="mt-0.5 text-3xl font-extrabold tabular-nums tracking-tight text-slate-800 dark:text-slate-100">
                 {c.value}
               </p>
-              <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">{c.sub}</p>
+              <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-400">{c.sub}</p>
             </Link>
           );
         })}
@@ -126,12 +126,12 @@ export default async function DashboardPage() {
             </Link>
           </div>
           {recent.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-500">אין עדיין עובדים במערכת.</p>
+            <p className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-400">אין עדיין עובדים במערכת.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  <tr className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-400">
                     <th className="px-5 py-2.5 text-start font-bold">עובד/ת</th>
                     <th className="px-5 py-2.5 text-start font-bold">תפקיד</th>
                     <th className="px-5 py-2.5 text-start font-bold">תחילת עבודה</th>
@@ -180,7 +180,7 @@ export default async function DashboardPage() {
             <h2 className="font-bold text-slate-800 dark:text-slate-100">משימות פנסיה קרובות</h2>
           </div>
           {pensionAlerts.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
+            <p className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-400">
               אין משימות פנסיה בשבועיים הקרובים. ✓
             </p>
           ) : (
@@ -202,7 +202,7 @@ export default async function DashboardPage() {
                       <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
                         פתיחת תיק פנסיה — {p.name}
                       </span>
-                      <span className="block text-xs text-slate-400 dark:text-slate-500">חובה חוקית</span>
+                      <span className="block text-xs text-slate-400 dark:text-slate-400">חובה חוקית</span>
                     </span>
                     <span
                       className={`shrink-0 text-xs font-bold ${

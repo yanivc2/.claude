@@ -453,7 +453,7 @@ export function InviteGenerator() {
                       [inv.firstName, inv.lastName].filter(Boolean).join(" ") ||
                       "עובד ללא שם"}
                   </p>
-                  <p className="truncate text-xs text-slate-400 dark:text-slate-500">{linkFor(inv.token)}</p>
+                  <p className="truncate text-xs text-slate-400 dark:text-slate-400">{linkFor(inv.token)}</p>
                   {inv.hasContract && (
                     <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">📄 הסכם עבודה מצורף</p>
                   )}

@@ -32,7 +32,7 @@ function EmployeeTable({ employees }: { employees: Employee[] }) {
     <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
       <table className="w-full min-w-[42rem] text-start text-sm">
         <thead>
-          <tr className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          <tr className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-400">
             <th className="px-5 py-3 text-start font-bold">שם</th>
             <th className="px-5 py-3 text-start font-bold">תפקיד</th>
             <th className="px-5 py-3 text-start font-bold">תחילת עבודה</th>
@@ -124,13 +124,13 @@ export default async function EmployeesPage() {
       ) : (
         <>
           <section>
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">
               עובדים פעילים
             </h2>
             {active.length ? (
               <EmployeeTable employees={active} />
             ) : (
-              <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 text-center text-sm text-slate-400 dark:text-slate-500">
+              <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-6 text-center text-sm text-slate-400 dark:text-slate-400">
                 אין עובדים פעילים.
               </p>
             )}
@@ -138,7 +138,7 @@ export default async function EmployeesPage() {
 
           {inactive.length > 0 && (
             <section>
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-400 dark:text-slate-400">
                 עובדים לא פעילים
               </h2>
               <EmployeeTable employees={inactive} />
