@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { Employee, EmploymentStatus } from "@prisma/client";
 import { EmployeeRowActions } from "@/components/EmployeeRowActions";
+import { EmptyState } from "@/components/EmptyState";
 import { avatarColor, initials } from "@/lib/avatar";
 
 export const dynamic = "force-dynamic";
@@ -118,9 +119,20 @@ export default async function EmployeesPage() {
       </div>
 
       {employees.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
-          אין עובדים במערכת עדיין. קלט/י עובד חדש בעמוד &ldquo;קליטת עובד&rdquo;.
-        </p>
+        <EmptyState
+          icon={Users}
+          title="אין עדיין עובדים במערכת"
+          subtitle="קלוט/י את העובד הראשון — שלח/י לו קישור למילוי עצמי או מלא/י ידנית."
+          action={
+            <Link
+              href="/onboarding"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-brand-500/25 transition hover:brightness-105"
+            >
+              <UserPlus size={17} />
+              קליטת עובד חדש
+            </Link>
+          }
+        />
       ) : (
         <>
           <section>

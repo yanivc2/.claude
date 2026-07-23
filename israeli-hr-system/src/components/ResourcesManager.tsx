@@ -10,11 +10,13 @@ import {
   Plus,
   Folder,
   FolderPlus,
+  FolderOpen,
   X,
   Download,
   ChevronDown,
 } from "lucide-react";
 import { shareWhatsApp, mailtoHref } from "@/lib/share";
+import { EmptyState } from "./EmptyState";
 
 interface Resource {
   id: string;
@@ -434,9 +436,11 @@ export function ResourcesManager() {
             </h2>
           )}
           {loose.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center text-sm text-slate-500 dark:text-slate-400">
-              עדיין לא נוספו מסמכים או קישורים.
-            </p>
+            <EmptyState
+              icon={FolderOpen}
+              title="עדיין לא נוספו מסמכים"
+              subtitle="הוסף/י מסמך או קישור בטופס למעלה, או צור/י תיקייה לארגון."
+            />
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {loose.map((r) => (

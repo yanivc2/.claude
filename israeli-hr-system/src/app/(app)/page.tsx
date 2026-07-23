@@ -1,7 +1,17 @@
 import Link from "next/link";
-import { Users, UserPlus, Sprout, Landmark, ArrowLeft, Plus, type LucideIcon } from "lucide-react";
+import {
+  Users,
+  UserPlus,
+  Sprout,
+  Landmark,
+  ArrowLeft,
+  Plus,
+  CheckCircle2,
+  type LucideIcon,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PensionAlert, type PensionAlertItem } from "@/components/PensionAlert";
+import { EmptyState } from "@/components/EmptyState";
 import { avatarColor, initials } from "@/lib/avatar";
 
 export const dynamic = "force-dynamic";
@@ -126,7 +136,12 @@ export default async function DashboardPage() {
             </Link>
           </div>
           {recent.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-400">אין עדיין עובדים במערכת.</p>
+            <EmptyState
+              bare
+              icon={Users}
+              title="אין עדיין עובדים"
+              subtitle="עובדים שתקלוט יופיעו כאן."
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -180,9 +195,12 @@ export default async function DashboardPage() {
             <h2 className="font-bold text-slate-800 dark:text-slate-100">משימות פנסיה קרובות</h2>
           </div>
           {pensionAlerts.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-400">
-              אין משימות פנסיה בשבועיים הקרובים. ✓
-            </p>
+            <EmptyState
+              bare
+              icon={CheckCircle2}
+              title="הכול מטופל"
+              subtitle="אין משימות פנסיה בשבועיים הקרובים."
+            />
           ) : (
             <ul className="p-2">
               {pensionAlerts.map((p) => (
