@@ -41,6 +41,14 @@ const SUGGESTIONS = [
   "כמה ימי חופשה בשנה מגיעים במשרה מלאה?",
 ];
 
+// מפריד בין גוף התשובה לבין JSON הציטוטים בזרם (חייב להתאים לשרת).
+const CITES_SENTINEL = "\n CITES ";
+
+// מסתיר את שורת ה-SOURCES מהתצוגה (הציטוטים מוצגים בנפרד).
+function stripSources(s: string): string {
+  return s.replace(/\n?\s*SOURCES\s*:.*$/is, "").trimEnd();
+}
+
 // ממשק צ'אט להתייעצות על זכויות וחוקי עבודה. שולח שאלות ל-API מבוסס RAG.
 export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: string } = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -116,14 +124,24 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
     }
   }
 
-  // שליחת שאלה (משותף להקלדה ולהקלטה קולית).
+  // עדכון הודעת העוזר האחרונה (הזורמת) בתוכן ובציטוטים.
+  function patchLastAssistant(content: string, citations?: Citation[]) {
+    setMessages((prev) => {
+      const copy = [...prev];
+      const last = copy[copy.length - 1];
+      if (last && last.role === "assistant") copy[copy.length - 1] = { ...last, content, citations };
+      return copy;
+    });
+  }
+
+  // שליחת שאלה (משותף להקלדה ולהקלטה קולית) — בסטרימינג: התשובה מופיעה מיד.
   async function submitQuestion(question: string) {
     const q = question.trim();
     if (!q || loading) return;
 
     const history = messages.map((m) => ({ role: m.role, content: m.content }));
-    const next = [...messages, { role: "user" as const, content: q }];
-    setMessages(next);
+    // מוסיפים את שאלת המשתמש והודעת עוזר ריקה שתתמלא תוך כדי הזרמה.
+    setMessages((prev) => [...prev, { role: "user", content: q }, { role: "assistant", content: "" }]);
     setInput("");
     latestInputRef.current = "";
     setLoading(true);
@@ -134,20 +152,31 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: q, history }),
       });
-      const data = await res.json();
-      setMessages([
-        ...next,
-        {
-          role: "assistant",
-          content: data.answer ?? "אירעה שגיאה בקבלת התשובה.",
-          citations: data.citations,
-        },
-      ]);
+      if (!res.body) throw new Error("no stream");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let citations: Citation[] | undefined;
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let textPart = buffer;
+        const sep = buffer.indexOf(CITES_SENTINEL);
+        if (sep !== -1) {
+          textPart = buffer.slice(0, sep);
+          try {
+            citations = JSON.parse(buffer.slice(sep + CITES_SENTINEL.length));
+          } catch {
+            // JSON חלקי — ממתינים לקטע הבא.
+          }
+        }
+        patchLastAssistant(stripSources(textPart) || " ", citations);
+      }
     } catch {
-      setMessages([
-        ...next,
-        { role: "assistant", content: "אירעה שגיאה בחיבור לשרת. נסה שוב." },
-      ]);
+      patchLastAssistant("אירעה שגיאה בחיבור לשרת. נסה שוב.");
     } finally {
       setLoading(false);
     }
@@ -200,7 +229,15 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
                 m.role === "user" ? "bg-brand-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
               }`}
             >
-              <p className="whitespace-pre-wrap">{m.content}</p>
+              {m.role === "assistant" && m.content.trim() === "" ? (
+                <span className="flex items-center gap-1.5 py-1">
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" />
+                </span>
+              ) : (
+                <p className="whitespace-pre-wrap">{m.content}</p>
+              )}
               {m.citations && m.citations.length > 0 && (
                 <div className="mt-3 border-t border-slate-300/40 pt-2">
                   <p className="text-xs font-semibold">מקורות:</p>
@@ -221,7 +258,7 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
                   </ul>
                 </div>
               )}
-              {m.role === "assistant" && (
+              {m.role === "assistant" && m.content.trim() !== "" && (
                 <p className="mt-3 border-t border-slate-300/40 pt-2 text-xs italic text-slate-500 dark:text-slate-400">
                   {DISCLAIMER}
                 </p>
@@ -229,15 +266,6 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
             </div>
           </div>
         ))}
-        {loading && (
-          <div className="flex justify-end">
-            <div className="flex items-center gap-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 py-4">
-              <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
-              <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
-              <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" />
-            </div>
-          </div>
-        )}
       </div>
 
       <form
