@@ -11,8 +11,7 @@ function isPublic(pathname: string): boolean {
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/onboard/") ||
     pathname.startsWith("/api/onboard/") ||
-    pathname.startsWith("/api/cron/") ||
-    pathname === "/api/consultation/diag" // אבחון זמני — יוסר לאחר הבדיקה
+    pathname.startsWith("/api/cron/")
   );
 }
 
