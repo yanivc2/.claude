@@ -51,7 +51,14 @@ from .profiles import (
     TokenRule,
     output_profile,
 )
+from .projection import CostProjection, EstimateProjector, ModelCostProjection
 from .request import CallKind, EstimationRequest, StageInput
+from .time_estimation import (
+    TimeEstimateResult,
+    TimeEstimatorPort,
+    UnavailableTimeEstimator,
+    empty_time_estimate,
+)
 
 __all__ = [
     # request
@@ -65,6 +72,11 @@ __all__ = [
     "UsageEstimate", "StageUsageEstimate", "CallGroupEstimate", "Band", "Completeness",
     # estimator
     "UsageEstimator", "DEFAULT_OUTPUT_PROFILES", "request_hash",
+    # projection
+    "EstimateProjector", "CostProjection", "ModelCostProjection",
+    # time
+    "TimeEstimateResult", "TimeEstimatorPort", "UnavailableTimeEstimator",
+    "empty_time_estimate",
     # errors
     "EstimationError", "MissingRuleError", "UnboundedEstimateError",
     "InconsistentEstimateError", "CostProjectionUnavailableError",
