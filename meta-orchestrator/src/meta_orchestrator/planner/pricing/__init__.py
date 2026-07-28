@@ -30,6 +30,7 @@ from .catalog import (
     PricingCatalog,
     default_price_cards,
 )
+from .compat import LEGACY_BOUNDARY_NOTE, price_card_from_model_spec
 from .entities import (
     TOKENS_PER_MTOK,
     PriceCard,
@@ -61,6 +62,7 @@ __all__ = [
     "PriceCard", "PriceRate", "PricingUnit", "RateStatus", "TokenUsage",
     "UsageCategory", "TOKENS_PER_MTOK",
     "CostQuote", "CostComponent", "ComponentStatus", "QuoteSet", "RoundingPolicy",
+    "price_card_from_model_spec", "LEGACY_BOUNDARY_NOTE",
     "PricingError", "PriceCardNotFoundError", "MissingRateError",
     "UnsupportedUsageError", "CurrencyMismatchError", "CatalogIntegrityError",
 ]
