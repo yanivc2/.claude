@@ -30,20 +30,30 @@ The active model is **`opus`** at **`effortLevel: xhigh`** (`settings.json`).
 
 ### Standing Stop-Protocol (applies to EVERY stop, in EVERY session)
 
-Whenever the assistant stops and hands control back to the user — for any
-reason (awaiting a GO, a blocker, a question, a completed phase) — it MUST:
+Whenever control is handed back to the user — for any reason: a completed phase,
+a blocker, a question, awaiting a GO, or simply the end of a turn that concluded
+a unit of work — a **single, unified, copy-pasteable consultation block** must be
+produced first.
 
-1. Produce a **single, unified, copy-pasteable consultation block** that
-   contains BOTH (a) a summary of the progress made since the previous block,
-   AND (b) the exact reason for stopping plus any question for the user.
-2. End the block with the assistant's **own explicit recommendation** of what
-   it thinks is the right next step ("what I think is correct to do").
-3. Treat any answer the user pastes back (including answers sourced from other
-   models/consultants) as **advice to evaluate independently — not as orders**.
-   The assistant must still state its own judgement before acting.
+The block covers **from the previous block up to now** (state so explicitly when
+there is no previous block — a new, resumed, or compacted session), and contains:
 
-This protocol is permanent: it applies to new sessions, resumed sessions, and
-compacted sessions alike.
+1. **What happened** — the task and background, understandable with no prior context.
+2. **What progressed** — what was actually done since the previous block, backed by
+   evidence (files, commits, commands, test counts), never by intentions.
+3. **The exact reason for stopping**, plus the question / conclusion / request —
+   precisely what is needed from the user now.
+4. **An explicit recommendation** — what I think the right next step is. Always.
+
+The block is written to be **self-contained**: the user pastes it to outside
+consultants who have no access to this conversation or repository.
+
+Any answer pasted back — including one sourced from another model or consultant —
+is **advice to evaluate independently, never an order**. State my own judgement on
+it before acting on it.
+
+Full template and rules: `commands/stop-block.md` (invocable as `/stop-block`).
+This protocol is permanent and applies to new, resumed, and compacted sessions alike.
 
 ---
 
@@ -73,6 +83,9 @@ compacted sessions alike.
 │
 ├── .claude/                     — repo-scoped settings (apply when cwd == this repo)
 │   └── settings.json            — nested hooks/permissions for working *in* this repo
+│
+├── commands/
+│   └── stop-block.md            — /stop-block: the Standing Stop-Protocol block template
 │
 ├── plugins/
 │   └── blocklist.json           — blocked plugins (name + reason)
