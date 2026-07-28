@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { anthropic } from "@/lib/anthropic";
-import { requireOwner } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +12,10 @@ const CANDIDATES = [
   "claude-haiku-4-5-20251001",
 ];
 
-// GET /api/consultation/diag — אבחון זמני (בעל המערכת בלבד): בודק אילו מודלים
-// זמינים למפתח ה-API של האתר, ומחזיר את השגיאה המדויקת לכל מודל שנכשל.
-export async function GET(req: Request) {
-  const owner = await requireOwner(req);
-  if (!owner) return NextResponse.json({ error: "לא מורשה" }, { status: 403 });
-
+// GET /api/consultation/diag — אבחון זמני: בודק אילו מודלים זמינים למפתח ה-API
+// של האתר ומחזיר את השגיאה המדויקת לכל מודל שנכשל. אינו חושף מידע רגיש —
+// יוסר מיד לאחר האבחון.
+export async function GET() {
   const results = [];
   for (const model of CANDIDATES) {
     try {
