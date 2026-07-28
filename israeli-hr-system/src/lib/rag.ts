@@ -56,6 +56,10 @@ const KZ_ITEM_TO_CHUNK = (item: KnowledgeItem): RetrievedChunk => ({
 });
 
 // מפריד את שורת ה-SOURCES מגוף התשובה וממפה את מספרי המקורות לקטעי הידע.
+export function citationsFromText(raw: string): RagAnswer {
+  return parseCitations(raw);
+}
+
 function parseCitations(raw: string): RagAnswer {
   const lines = raw.split("\n");
   // מאתרים את שורת ה-SOURCES האחרונה (בדרך כלל בסוף).
@@ -111,6 +115,34 @@ function callFallback(question: string, history: ChatTurn[]) {
     system: `${INSTRUCTIONS}\n\n${KNOWLEDGE_HEADER}`,
     messages: messagesFor(question, history),
   });
+}
+
+// סטרימינג של תשובת המודל הראשי — קורא ל-onDelta לכל קטע טקסט, ומחזיר את
+// הטקסט המלא בסיום (לצורך חילוץ הציטוטים). זורק שגיאה אם הקריאה נכשלת.
+export async function streamPrimary(
+  question: string,
+  history: ChatTurn[],
+  onDelta: (text: string) => void,
+): Promise<string> {
+  const stream = await anthropic.messages.create({
+    model: CHAT_MODEL,
+    max_tokens: 1024,
+    temperature: 0,
+    stream: true,
+    system: [
+      { type: "text", text: INSTRUCTIONS },
+      { type: "text", text: KNOWLEDGE_HEADER, cache_control: { type: "ephemeral" } },
+    ],
+    messages: messagesFor(question, history),
+  });
+  let full = "";
+  for await (const event of stream) {
+    if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      full += event.delta.text;
+      onDelta(event.delta.text);
+    }
+  }
+  return full;
 }
 
 // יצירת תשובה לשאלה על זכויות וחוקי עבודה — כל המאגר בהקשר, temperature 0.
