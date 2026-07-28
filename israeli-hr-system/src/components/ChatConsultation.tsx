@@ -51,6 +51,16 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   // הטקסט שהיה בשדה כשהתחילה ההקלטה — התמלול מתווסף אליו.
   const baseInputRef = useRef("");
+  // עזרי הקלטה: הטקסט העדכני, דגל "שלח בסיום", והפניה לפונקציית השליחה
+  // (כדי להימנע מ-closure מיושן בתוך onend של זיהוי הדיבור).
+  const latestInputRef = useRef("");
+  const autoSubmitRef = useRef(false);
+  const submitRef = useRef<(q: string) => void>(() => {});
+
+  // שמירת הטקסט העדכני והפונקציה העדכנית בכל רינדור.
+  useEffect(() => {
+    latestInputRef.current = input;
+  }, [input]);
 
   useEffect(() => {
     const w = window as unknown as {
@@ -74,8 +84,19 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
       setInput(base ? `${base} ${text}`.trim() : text.trim());
     };
     rec.onstart = () => setListening(true);
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
+    // בסיום ההקלטה: אם המשתמש לחץ "עצור" — שולחים אוטומטית את מה שתומלל.
+    rec.onend = () => {
+      setListening(false);
+      if (autoSubmitRef.current) {
+        autoSubmitRef.current = false;
+        const q = latestInputRef.current.trim();
+        if (q) submitRef.current(q);
+      }
+    };
+    rec.onerror = () => {
+      autoSubmitRef.current = false;
+      setListening(false);
+    };
     recognitionRef.current = rec;
   }, []);
 
@@ -83,7 +104,8 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
     const rec = recognitionRef.current;
     if (!rec) return;
     if (listening) {
-      rec.stop(); // מסיים ומתמלל את מה שנקלט (onend יעדכן את הסטטוס)
+      autoSubmitRef.current = true; // עצירה = שליחה אוטומטית
+      rec.stop();
     } else {
       baseInputRef.current = input;
       try {
@@ -94,22 +116,23 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
     }
   }
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    const question = input.trim();
-    if (!question || loading) return;
+  // שליחת שאלה (משותף להקלדה ולהקלטה קולית).
+  async function submitQuestion(question: string) {
+    const q = question.trim();
+    if (!q || loading) return;
 
     const history = messages.map((m) => ({ role: m.role, content: m.content }));
-    const next = [...messages, { role: "user" as const, content: question }];
+    const next = [...messages, { role: "user" as const, content: q }];
     setMessages(next);
     setInput("");
+    latestInputRef.current = "";
     setLoading(true);
 
     try {
       const res = await fetch("/api/consultation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, history }),
+        body: JSON.stringify({ question: q, history }),
       });
       const data = await res.json();
       setMessages([
@@ -128,6 +151,14 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
     } finally {
       setLoading(false);
     }
+  }
+
+  // עדכון ההפניה לפונקציית השליחה בכל רינדור (למניעת closure מיושן ב-onend).
+  submitRef.current = submitQuestion;
+
+  function send(e: React.FormEvent) {
+    e.preventDefault();
+    submitQuestion(input);
   }
 
   return (
@@ -217,8 +248,8 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
           <button
             type="button"
             onClick={toggleMic}
-            aria-label={listening ? "עצירת הקלטה" : "דיבור"}
-            title={listening ? "עצירת הקלטה" : "דיבור (הקלטה קולית)"}
+            aria-label={listening ? "עצירה ושליחה" : "דיבור"}
+            title={listening ? "עצירה ושליחה אוטומטית" : "דיבור (הקלטה קולית)"}
             className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl transition ${
               listening
                 ? "animate-pulse bg-red-500 text-white"
@@ -231,7 +262,7 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={listening ? "מקשיב... דבר/י עכשיו" : "הקלד/י שאלה..."}
+          placeholder={listening ? "מקשיב... לחצ/י על המיקרופון לעצור ולשלוח" : "הקלד/י שאלה..."}
           className="min-w-0 flex-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-base outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
         />
         <button
