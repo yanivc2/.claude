@@ -127,14 +127,39 @@ class Orchestrator:
         c = state["classification"]
         return c.labels[-1] if c.labels else SEED_TASK_TYPE
 
-    def _max_price(self) -> float:
-        return max((m.price_per_1k_out for m in self.registry.candidate_models(SEED_TASK_TYPE)),
-                   default=0.015)
+    def _worst_case_cost(self, est_in: int, est_out: int) -> float:
+        """Worst-case pre-flight cost of one round across the candidate models.
+
+        Input tokens are priced at each model's *input* rate and output tokens at its
+        *output* rate, and the maximum is taken per candidate so the gate stays
+        fail-safe. Previously every token was billed at the most expensive candidate's
+        **output** rate, which matches no model's actual pricing and systematically
+        over-stated the prompt: the prompt is the bulk of the estimate here, and input
+        is the cheaper rate for every registered model.
+        """
+        return max(
+            (est_in / 1000.0 * m.price_per_1k_in + est_out / 1000.0 * m.price_per_1k_out
+             for m in self.registry.candidate_models(SEED_TASK_TYPE)),
+            default=(est_in + est_out) / 1000.0 * 0.015,
+        )
 
     @staticmethod
-    def _estimate_tokens(case: BugCase) -> int:
-        # Rough pre-flight estimate for one round (generate + synthesize).
-        return (len(case.module_source) + len(case.test_source)) // 4 + 40
+    def _estimate_io_tokens(case: BugCase) -> tuple[int, int]:
+        """Rough pre-flight (input, output) split for one round (generate + synthesize).
+
+        Input carries both sources (the model is shown the module and its tests); output
+        carries the repaired module it writes back. Split apart from ``_estimate_tokens``
+        because the two halves are billed at different rates.
+        """
+        est_in = (len(case.module_source) + len(case.test_source)) // 4 + 40
+        est_out = len(case.module_source) // 4 + 40
+        return est_in, est_out
+
+    @classmethod
+    def _estimate_tokens(cls, case: BugCase) -> int:
+        """Total tokens for one round — what the token-denominated ledger is charged."""
+        est_in, est_out = cls._estimate_io_tokens(case)
+        return est_in + est_out
 
     # --- nodes ---
     def _classify(self, state: OrchestratorState) -> dict:
@@ -170,8 +195,9 @@ class Orchestrator:
         case: BugCase = state["case"]
         ledger: BudgetLedger = state["ledger"]
         approver = state.get("approver")
-        est_tokens = self._estimate_tokens(case)
-        est_cost = est_tokens / 1000.0 * self._max_price()
+        est_in, est_out = self._estimate_io_tokens(case)
+        est_tokens = est_in + est_out
+        est_cost = self._worst_case_cost(est_in, est_out)
 
         # Hard budget ceiling (circuit breaker) — enforced in every mode.
         if not ledger.can_afford(est_tokens):

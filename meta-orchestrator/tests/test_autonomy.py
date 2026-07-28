@@ -62,3 +62,48 @@ def test_budget_circuit_breaker_stops_the_run(booted):
     assert out.status == "aborted_budget"
     assert out.passed is False
     assert tiny.spent_tokens == 0                      # nothing was spent
+
+
+# --- G2 regression: pre-flight cost must price input and output separately ---
+
+def test_preflight_cost_prices_input_and_output_at_their_own_rates(booted):
+    """G2: every token used to be billed at the priciest candidate's *output* rate.
+
+    The gate's estimate must instead charge input tokens at ``price_per_1k_in`` and
+    output tokens at ``price_per_1k_out``, taking the worst candidate as a whole — so
+    it equals a price some registered model would actually charge.
+    """
+    store, registry, config = booted
+    orch = _orch(booted)
+    case = get_case("off_by_one_sum")
+
+    est_in, est_out = orch._estimate_io_tokens(case)
+    assert est_in > 0 and est_out > 0, "the split must produce both halves"
+
+    candidates = registry.candidate_models("Software:Debug")
+    expected = max(est_in / 1000.0 * m.price_per_1k_in + est_out / 1000.0 * m.price_per_1k_out
+                   for m in candidates)
+    assert orch._worst_case_cost(est_in, est_out) == expected
+
+    # The old formula billed the whole estimate at the max output rate. For any model
+    # whose input is cheaper than its output — true of every registered model — the
+    # corrected figure must be strictly lower, not merely different.
+    max_out_rate = max(m.price_per_1k_out for m in candidates)
+    old_formula = (est_in + est_out) / 1000.0 * max_out_rate
+    assert orch._worst_case_cost(est_in, est_out) < old_formula
+
+
+def test_preflight_cost_is_monotonic_in_both_halves(booted):
+    """More input or more output may never lower the estimated cost."""
+    orch = _orch(booted)
+    base = orch._worst_case_cost(1000, 1000)
+    assert orch._worst_case_cost(2000, 1000) > base
+    assert orch._worst_case_cost(1000, 2000) > base
+
+
+def test_ledger_is_charged_the_sum_of_both_halves(booted):
+    """The token-denominated ledger still sees one round as input + output."""
+    orch = _orch(booted)
+    case = get_case("off_by_one_sum")
+    est_in, est_out = orch._estimate_io_tokens(case)
+    assert orch._estimate_tokens(case) == est_in + est_out
