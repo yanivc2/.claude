@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CalendarDays, Wallet, Clock, type LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { DocumentType, SignatureContext } from "@prisma/client";
 import { EmployeeExport, type ExportData } from "@/components/EmployeeExport";
@@ -19,6 +19,37 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });
 const fmt = (d: Date | null | undefined) => (d ? dateFmt.format(d) : "—");
 const yesNo = (b: boolean) => (b ? "כן" : "לא");
+
+// ותק מחושב מתאריך תחילת העבודה (לתצוגה בלבד).
+function tenure(start: Date | null | undefined): string {
+  if (!start) return "—";
+  const now = new Date();
+  let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (now.getDate() < start.getDate()) months -= 1;
+  if (months < 0) return "—";
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (y === 0 && m === 0) return "פחות מחודש";
+  const parts: string[] = [];
+  if (y > 0) parts.push(y === 1 ? "שנה" : `${y} שנים`);
+  if (m > 0) parts.push(m === 1 ? "חודש" : `${m} חודשים`);
+  return parts.join(" ו-");
+}
+
+// אריח נתון מודגש (סטטיסטיקה מרכזית בראש התיק).
+function StatTile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+        <Icon size={19} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="truncate text-base font-bold text-slate-800 dark:text-slate-100">{value}</p>
+      </div>
+    </div>
+  );
+}
 
 const STATUS: Record<string, { label: string; cls: string }> = {
   ONBOARDING: { label: "בתהליך קליטה", cls: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300" },
@@ -193,6 +224,23 @@ export default async function EmployeeDetailPage({
         </div>
         <EmployeeExport data={exportData} />
       </header>
+
+      {/* אריחי נתונים מרכזיים — היררכיה ויזואלית בראש התיק */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatTile icon={CalendarDays} label="תחילת עבודה" value={fmt(emp.startDate)} />
+        <StatTile icon={Clock} label="ותק" value={tenure(emp.startDate)} />
+        <StatTile
+          icon={Wallet}
+          label="שכר"
+          value={
+            emp.monthlySalary
+              ? `${emp.monthlySalary.toLocaleString("he-IL")} ₪ לחודש`
+              : emp.hourlySalary
+                ? `${emp.hourlySalary.toLocaleString("he-IL")} ₪ לשעה`
+                : "—"
+          }
+        />
+      </div>
 
       <Card title="פרטים אישיים">
         <Rows rows={personalRows} />
