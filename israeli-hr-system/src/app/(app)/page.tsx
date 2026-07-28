@@ -7,11 +7,19 @@ import {
   ArrowLeft,
   Plus,
   CheckCircle2,
+  TrendingUp,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PensionAlert, type PensionAlertItem } from "@/components/PensionAlert";
 import { EmptyState } from "@/components/EmptyState";
+import {
+  HiringTrendChart,
+  StatusBreakdownChart,
+  type TrendPoint,
+  type StatusDatum,
+} from "@/components/DashboardCharts";
 import { avatarColor, initials } from "@/lib/avatar";
 
 export const dynamic = "force-dynamic";
@@ -56,6 +64,41 @@ export default async function DashboardPage() {
     dueDate: dateFmt.format(p.dueDate),
     overdue: p.dueDate < now,
   }));
+
+  // ── נתוני גרפים ──────────────────────────────────────────────────────────
+  const [statusGroups, startRows] = await Promise.all([
+    prisma.employee.groupBy({ by: ["status"], _count: { _all: true } }).catch(() => []),
+    prisma.employee
+      .findMany({ select: { startDate: true }, orderBy: { startDate: "desc" }, take: 3000 })
+      .catch(() => []),
+  ]);
+
+  // מגמת קליטה — 6 החודשים האחרונים (כולל הנוכחי).
+  const monthFmt = new Intl.DateTimeFormat("he-IL", { month: "short" });
+  const hiringTrend: TrendPoint[] = [];
+  for (let i = 5; i >= 0; i--) {
+    const from = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const to = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+    hiringTrend.push({
+      label: monthFmt.format(from),
+      count: startRows.filter((r) => r.startDate >= from && r.startDate < to).length,
+    });
+  }
+
+  // פילוח לפי סטטוס — סדר קבוע, נקודת צבע מלווה תווית.
+  const STATUS_META: { status: string; label: string; dot: string }[] = [
+    { status: "ACTIVE", label: "פעיל", dot: "bg-green-500" },
+    { status: "ONBOARDING", label: "בקליטה", dot: "bg-amber-500" },
+    { status: "NOTICE_PERIOD", label: "בהודעה מוקדמת", dot: "bg-orange-500" },
+    { status: "INACTIVE", label: "לא פעיל", dot: "bg-slate-400 dark:bg-slate-500" },
+    { status: "TERMINATED", label: "סיום העסקה", dot: "bg-slate-300 dark:bg-slate-600" },
+  ];
+  const countByStatus = new Map(statusGroups.map((g) => [g.status, g._count._all]));
+  const statusBreakdown: StatusDatum[] = STATUS_META.map((m) => ({
+    label: m.label,
+    count: countByStatus.get(m.status as never) ?? 0,
+    dot: m.dot,
+  })).filter((d) => d.count > 0);
 
   const cards: {
     label: string;
@@ -124,6 +167,35 @@ export default async function DashboardPage() {
             </Link>
           );
         })}
+      </div>
+
+      {/* גרפים — מגמת קליטה + פילוח סטטוסים */}
+      <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+              <TrendingUp size={18} />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">מגמת קליטת עובדים</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">6 החודשים האחרונים</p>
+            </div>
+          </div>
+          <HiringTrendChart data={hiringTrend} />
+        </section>
+
+        <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+              <BarChart3 size={18} />
+            </span>
+            <div>
+              <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100">פילוח עובדים לפי סטטוס</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">סך כל העובדים במערכת</p>
+            </div>
+          </div>
+          <StatusBreakdownChart data={statusBreakdown} />
+        </section>
       </div>
 
       {/* עובדים אחרונים + משימות פנסיה */}
