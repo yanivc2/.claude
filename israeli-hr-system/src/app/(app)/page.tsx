@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { currentAdmin } from "@/lib/session";
 import { PensionAlert, type PensionAlertItem } from "@/components/PensionAlert";
 import { EmptyState } from "@/components/EmptyState";
 import {
@@ -28,6 +29,15 @@ export const metadata = { title: "לוח בקרה" };
 const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });
 const todayFmt = new Intl.DateTimeFormat("he-IL", { weekday: "long", day: "numeric", month: "long" });
 
+// ברכה לפי שעת היום.
+function greetingFor(hour: number): string {
+  if (hour < 5) return "לילה טוב";
+  if (hour < 12) return "בוקר טוב";
+  if (hour < 17) return "צהריים טובים";
+  if (hour < 21) return "ערב טוב";
+  return "לילה טוב";
+}
+
 const STATUS: Record<string, { label: string; cls: string }> = {
   ACTIVE: { label: "פעיל", cls: "bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-400" },
   ONBOARDING: { label: "בקליטה", cls: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300" },
@@ -39,6 +49,8 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 export default async function DashboardPage() {
   const now = new Date();
   const inTwoWeeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const me = await currentAdmin().catch(() => null);
+  const firstName = me?.name?.trim().split(/\s+/)[0] ?? "";
 
   const [activeEmployees, onboarding, dueSurveys, duePension, pensionSoon, recent] =
     await Promise.all([
@@ -100,6 +112,13 @@ export default async function DashboardPage() {
     dot: m.dot,
   })).filter((d) => d.count > 0);
 
+  // סיכום חם של מה שדורש טיפול היום.
+  const pendingTasks = dueSurveys + duePension;
+  const summaryLine =
+    pendingTasks > 0
+      ? `יש ${pendingTasks === 1 ? "משימה אחת שממתינה" : `${pendingTasks} משימות שממתינות`} לטיפול`
+      : "הכול מעודכן — אין משימות דחופות היום";
+
   const cards: {
     label: string;
     value: number;
@@ -124,21 +143,27 @@ export default async function DashboardPage() {
     <div>
       <PensionAlert items={pensionAlerts} />
 
-      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">לוח בקרה</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            סקירה כללית של פעילות משאבי האנוש · {todayFmt.format(now)}
-          </p>
+      {/* באנר פתיחה אישי — היררכיה + מיקרו-קופי חם */}
+      <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-bl from-brand-50 via-white to-white dark:from-brand-500/10 dark:via-slate-900 dark:to-slate-900 p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-brand-600 dark:text-brand-300">
+              {greetingFor(now.getHours())} · {todayFmt.format(now)}
+            </p>
+            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+              {firstName ? `שלום, ${firstName}` : "לוח בקרה"}
+            </h1>
+            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{summaryLine}</p>
+          </div>
+          <Link
+            href="/onboarding"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105"
+          >
+            <Plus size={17} strokeWidth={2.6} />
+            קליטת עובד חדש
+          </Link>
         </div>
-        <Link
-          href="/onboarding"
-          className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105"
-        >
-          <Plus size={17} strokeWidth={2.6} />
-          קליטת עובד חדש
-        </Link>
-      </div>
+      </section>
 
       {/* כרטיסי מדדים */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
