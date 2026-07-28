@@ -22,6 +22,7 @@ from meta_orchestrator.planner.pricing import (
     PriceCard,
     PriceCardNotFoundError,
     PriceRate,
+    PriceTrust,
     PricingCatalog,
     PricingUnit,
     QuoteSet,
@@ -49,6 +50,7 @@ def _card(**over) -> PriceCard:
         effective_from="2026-01-01",
         rates={IN: PriceRate.known("1.00"), OUT: PriceRate.known("5.00"),
                CR: PriceRate.unknown(), CW: PriceRate.unknown()},
+        trust=PriceTrust.TEST_ONLY,
         source="unit test fixture", source_verified_at="2026-01-01")
     base.update(over)
     return PriceCard(**base).sealed()
@@ -104,7 +106,8 @@ def test_a_card_must_state_every_category():
     with pytest.raises(ValueError, match="omits"):
         PriceCard(card_id="c", pricing_version="v", provider="p", model_id="m",
                   effective_from="2026-01-01", rates={IN: PriceRate.known("1")},
-                  source="s", source_verified_at="2026-01-01")
+                  trust=PriceTrust.TEST_ONLY, source="s",
+                  source_verified_at="2026-01-01")
 
 
 def test_hand_editing_a_sealed_card_is_detected():
@@ -494,3 +497,152 @@ def test_worked_example_quote(calc):
     assert q.audit_hash() == calc.quote(
         TokenUsage(input_tokens=120_000, output_tokens=4_000),
         model_id="claude-haiku-4-5").audit_hash()
+    assert q.price_trust is PriceTrust.REPOSITORY_VERIFIED
+    assert q.authoritative_for_real_spend is True
+
+
+# --------------------------------------------------------------------------- #
+# P1a hardening 2.1 — full SHA-256 is canonical, short form is display only
+# --------------------------------------------------------------------------- #
+
+def test_card_content_hash_is_a_full_sha256(calc):
+    for model_id in calc.catalog.model_ids():
+        h = calc.catalog.card_for(model_id).content_hash
+        assert len(h) == 64
+        assert all(ch in "0123456789abcdef" for ch in h)
+
+
+def test_quote_audit_hash_is_a_full_sha256(calc):
+    h = calc.quote(TokenUsage(input_tokens=10), model_id="claude-haiku-4-5").audit_hash()
+    assert len(h) == 64
+    assert all(ch in "0123456789abcdef" for ch in h)
+
+
+def test_display_hash_is_derived_from_the_full_hash_and_is_shorter(calc):
+    from meta_orchestrator.planner.pricing import DISPLAY_HASH_CHARS
+
+    q = calc.quote(TokenUsage(input_tokens=10), model_id="claude-haiku-4-5")
+    assert q.display_audit_hash() == q.audit_hash()[:DISPLAY_HASH_CHARS]
+    assert len(q.display_audit_hash()) == DISPLAY_HASH_CHARS
+
+    card = calc.catalog.card_for("claude-haiku-4-5")
+    assert card.display_hash() == card.content_hash[:DISPLAY_HASH_CHARS]
+
+
+def test_display_hash_refuses_a_truncated_input():
+    """Guards against a short hash being passed around as if it were canonical."""
+    from meta_orchestrator.planner.pricing import display_hash, full_sha256
+
+    full = full_sha256("x")
+    assert len(display_hash(full)) == 16
+    with pytest.raises(ValueError, match="full 64-char SHA-256"):
+        display_hash(full[:16])
+
+
+def test_hashes_are_deterministic_across_construction(calc):
+    a = CostCalculator().catalog.card_for("claude-opus-4-8")
+    b = calc.catalog.card_for("claude-opus-4-8")
+    assert a.content_hash == b.content_hash
+
+
+@pytest.mark.parametrize("field,value", [
+    ("card_id", "different"),
+    ("pricing_version", "other-v9"),
+    ("provider", "elsewhere"),
+    ("model_id", "another-model"),
+    ("currency", "ILS"),
+    ("effective_from", "2020-01-01"),
+    ("effective_until", "2030-01-01"),
+    ("source", "somewhere else"),
+    ("source_verified_at", "2019-01-01"),
+    ("trust", PriceTrust.FICTIONAL),
+    ("notes", ["changed"]),
+    ("limitations", ["changed"]),
+])
+def test_changing_any_canonical_field_changes_the_hash(field, value):
+    base = _card()
+    changed = base.model_copy(update={field: value})
+    assert changed.compute_hash() != base.compute_hash(), f"{field} is not in the hash"
+
+
+def test_changing_a_rate_changes_the_hash():
+    base = _card()
+    changed = base.model_copy(update={"rates": {**base.rates, OUT: PriceRate.known("6.00")}})
+    assert changed.compute_hash() != base.compute_hash()
+
+
+def test_quote_hash_changes_with_usage_and_with_trust(calc):
+    a = calc.quote(TokenUsage(input_tokens=10), model_id="claude-haiku-4-5")
+    b = calc.quote(TokenUsage(input_tokens=11), model_id="claude-haiku-4-5")
+    assert a.audit_hash() != b.audit_hash()
+    assert "price_trust" in a.canonical_payload()
+    assert "authoritative_for_real_spend" in a.canonical_payload()
+
+
+def test_reprice_resolves_on_the_full_hash(calc):
+    q = calc.quote(TokenUsage(input_tokens=10), model_id="claude-haiku-4-5")
+    assert len(q.card_content_hash) == 64
+    assert calc.reprice(q).total == q.total
+
+
+# --------------------------------------------------------------------------- #
+# P1a hardening 2.2 — mock prices cannot back a real budget
+# --------------------------------------------------------------------------- #
+
+def test_real_models_are_repository_verified_not_provider_verified(calc):
+    """Nothing here re-checked the provider, so the stronger claim is not made."""
+    for model_id in ("claude-opus-4-8", "claude-haiku-4-5"):
+        card = calc.catalog.card_for(model_id)
+        assert card.trust is PriceTrust.REPOSITORY_VERIFIED
+        assert card.authoritative_for_real_spend is True
+
+
+def test_mock_models_are_fictional_and_not_billable(calc):
+    for model_id in ("mock-strong", "mock-weak"):
+        card = calc.catalog.card_for(model_id)
+        assert card.trust is PriceTrust.FICTIONAL
+        assert card.authoritative_for_real_spend is False
+
+
+def test_a_quote_on_a_fictional_price_is_still_computed_but_flagged(calc):
+    """Tests need the quote; a budget must not be allowed to use it."""
+    q = calc.quote(TokenUsage(input_tokens=1_000_000, output_tokens=1_000_000),
+                   model_id="mock-strong")
+    assert q.total.amount == Decimal("18")           # 3 + 15 — the maths still runs
+    assert q.price_trust is PriceTrust.FICTIONAL
+    assert q.authoritative_for_real_spend is False
+    assert any("may not back a real budget" in w for w in q.warnings)
+
+
+@pytest.mark.parametrize("trust,billable", [
+    (PriceTrust.PROVIDER_VERIFIED, True),
+    (PriceTrust.REPOSITORY_VERIFIED, True),
+    (PriceTrust.TEST_ONLY, False),
+    (PriceTrust.FICTIONAL, False),
+    (PriceTrust.UNVERIFIED, False),
+])
+def test_billability_is_decided_by_trust_class(trust, billable):
+    card = _card(trust=trust)
+    calc = CostCalculator(PricingCatalog(cards=[card]))
+    q = calc.quote(TokenUsage(input_tokens=1), model_id="test-model")
+    assert card.authoritative_for_real_spend is billable
+    assert q.authoritative_for_real_spend is billable
+
+
+def test_the_legacy_adapter_does_not_claim_trust_it_was_not_given():
+    """An unlabelled ModelSpec is UNVERIFIED — absence of evidence, not evidence."""
+    spec = seed_registry_models("anthropic")[0]
+    default = price_card_from_model_spec(spec, pricing_version="legacy-v1")
+    assert default.trust is PriceTrust.UNVERIFIED
+    assert default.authoritative_for_real_spend is False
+
+    labelled = price_card_from_model_spec(spec, pricing_version="legacy-v1",
+                                          trust=PriceTrust.REPOSITORY_VERIFIED)
+    assert labelled.authoritative_for_real_spend is True
+
+
+def test_trust_is_part_of_the_canonical_identity_of_a_card():
+    """Relabelling a price must not keep the old hash."""
+    a = _card(trust=PriceTrust.FICTIONAL)
+    b = _card(trust=PriceTrust.PROVIDER_VERIFIED)
+    assert a.compute_hash() != b.compute_hash()

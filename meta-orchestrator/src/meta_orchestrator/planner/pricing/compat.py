@@ -24,7 +24,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from ...models import ModelSpec
-from .entities import PriceCard, PriceRate, PricingUnit, UsageCategory
+from .entities import PriceCard, PriceRate, PriceTrust, PricingUnit, UsageCategory
 
 #: config.py stores per-1k prices; cards are per-MTok, the unit providers publish in.
 _PER_1K_TO_PER_MTOK = Decimal(1000)
@@ -49,6 +49,7 @@ def _rate_from_legacy_float(price_per_1k: float) -> PriceRate:
 
 
 def price_card_from_model_spec(spec: ModelSpec, *, pricing_version: str,
+                               trust: PriceTrust = PriceTrust.UNVERIFIED,
                                effective_from: str = "2026-07-15") -> PriceCard:
     """Build a sealed card from a registry ``ModelSpec``.
 
@@ -71,6 +72,7 @@ def price_card_from_model_spec(spec: ModelSpec, *, pricing_version: str,
             UsageCategory.CACHE_READ: PriceRate.unknown(),
             UsageCategory.CACHE_WRITE: PriceRate.unknown(),
         },
+        trust=trust,
         source=f"ModelSpec registry entry for {spec.model_id!r}",
         source_verified_at=spec.last_verified or effective_from,
         notes=[LEGACY_BOUNDARY_NOTE],

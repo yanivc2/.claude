@@ -31,8 +31,56 @@ from .errors import CatalogIntegrityError
 TOKENS_PER_MTOK = Decimal(1_000_000)
 
 
+#: Canonical hashes are the full 64-hex SHA-256. A truncated digest is for display
+#: only — never for identity, content addressing, audit, or "are these the same".
+DISPLAY_HASH_CHARS = 16
+
+
+def full_sha256(payload: str) -> str:
+    """The canonical digest: all 64 hex characters."""
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def display_hash(full: str) -> str:
+    """A short prefix for humans. Derived from the full hash; never a source of truth."""
+    if len(full) != 64:
+        raise ValueError(
+            f"display_hash expects a full 64-char SHA-256, got {len(full)} chars — "
+            "the full digest is the canonical value")
+    return full[:DISPLAY_HASH_CHARS]
+
+
 class PricingUnit(str, Enum):
     USD_PER_MTOK = "usd_per_mtok"
+
+
+class PriceTrust(str, Enum):
+    """How much a rate may be relied on, and whether it can back real spend.
+
+    The distinction exists because ``mock-strong`` and ``mock-weak`` sit in the same
+    catalog as the real models. They are useful for offline tests and worthless as a
+    basis for spending money, and nothing in a bare price tells them apart.
+    """
+
+    #: Checked against the provider's published pricing at a recorded time.
+    PROVIDER_VERIFIED = "provider_verified"
+    #: Traceable to a source inside this repository, but not re-checked upstream.
+    REPOSITORY_VERIFIED = "repository_verified"
+    #: A fixture rate that exists to exercise code paths.
+    TEST_ONLY = "test_only"
+    #: Invented. Never resembled a real price.
+    FICTIONAL = "fictional"
+    #: Origin unknown or unrecorded.
+    UNVERIFIED = "unverified"
+
+
+#: The only classes that may back a real budget. Everything else produces a quote
+#: flagged ``authoritative_for_real_spend = False``, which a future BudgetGuard must
+#: reject — the information is prepared here so that block becomes a one-liner.
+BILLABLE_TRUST: frozenset[PriceTrust] = frozenset({
+    PriceTrust.PROVIDER_VERIFIED,
+    PriceTrust.REPOSITORY_VERIFIED,
+})
 
 
 class UsageCategory(str, Enum):
@@ -166,6 +214,7 @@ class PriceCard(BaseModel):
 
     rates: dict[UsageCategory, PriceRate]
 
+    trust: PriceTrust                              # may this rate back real spend?
     source: str                                    # where the numbers came from
     source_verified_at: str                        # ISO-8601 date
     notes: list[str] = Field(default_factory=list)
@@ -209,15 +258,23 @@ class PriceCard(BaseModel):
                           "unit": self.rates[c].unit.value}
                 for c in sorted(self.rates, key=lambda c: c.value)
             },
+            "trust": self.trust.value,
             "source": self.source,
             "source_verified_at": self.source_verified_at,
             "notes": self.notes,
             "limitations": self.limitations,
         }
 
+    def canonical_json(self) -> str:
+        return json.dumps(self.canonical_payload(), sort_keys=True, separators=(",", ":"))
+
     def compute_hash(self) -> str:
-        blob = json.dumps(self.canonical_payload(), sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(blob.encode()).hexdigest()[:16]
+        """Full 64-hex SHA-256 — the canonical identity of this card."""
+        return full_sha256(self.canonical_json())
+
+    def display_hash(self) -> str:
+        """Short form for logs and tables. Never used to compare or address cards."""
+        return display_hash(self.content_hash or self.compute_hash())
 
     def sealed(self) -> "PriceCard":
         return self.model_copy(update={"content_hash": self.compute_hash()})
@@ -243,3 +300,8 @@ class PriceCard(BaseModel):
     def unresolved_categories(self) -> list[UsageCategory]:
         """Categories that cannot be priced — UNKNOWN or UNSUPPORTED."""
         return [c for c in UsageCategory if not self.rates[c].is_known]
+
+    @property
+    def authoritative_for_real_spend(self) -> bool:
+        """Whether a quote built on this card may back a real budget."""
+        return self.trust in BILLABLE_TRUST

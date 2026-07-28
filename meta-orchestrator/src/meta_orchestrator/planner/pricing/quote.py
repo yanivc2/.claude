@@ -11,7 +11,6 @@ of its parts.
 """
 from __future__ import annotations
 
-import hashlib
 import json
 from decimal import Decimal
 from enum import Enum
@@ -20,7 +19,15 @@ from typing import Any, Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..contracts.money import Money
-from .entities import PriceRate, RateStatus, TokenUsage, UsageCategory
+from .entities import (
+    PriceRate,
+    PriceTrust,
+    RateStatus,
+    TokenUsage,
+    UsageCategory,
+    display_hash,
+    full_sha256,
+)
 from .errors import CurrencyMismatchError
 
 
@@ -89,8 +96,15 @@ class CostQuote(BaseModel):
 
     pricing_version: str
     card_id: str
+    #: Full 64-hex SHA-256 of the card. The canonical binding between quote and price.
     card_content_hash: str
     catalog_version: str
+    #: How far the underlying rate may be trusted.
+    price_trust: PriceTrust
+    #: False whenever the rate is TEST_ONLY, FICTIONAL or UNVERIFIED. A future
+    #: BudgetGuard must refuse such a quote for a real budget; the flag is carried on
+    #: the quote so that refusal needs no lookup back into the catalog.
+    authoritative_for_real_spend: bool
 
     usage: TokenUsage
     components: list[CostComponent]
@@ -189,6 +203,8 @@ class CostQuote(BaseModel):
                 for c in sorted(self.components, key=lambda c: c.category.value)
             ],
             "total": str(self.total.amount),
+            "price_trust": self.price_trust.value,
+            "authoritative_for_real_spend": self.authoritative_for_real_spend,
             "rounding_policy": self.rounding_policy.value,
             "unresolved": sorted(c.value for c in self.unresolved),
             "warnings": self.warnings,
@@ -198,7 +214,12 @@ class CostQuote(BaseModel):
         return json.dumps(self.canonical_payload(), sort_keys=True, separators=(",", ":"))
 
     def audit_hash(self) -> str:
-        return hashlib.sha256(self.canonical_json().encode()).hexdigest()[:16]
+        """Full 64-hex SHA-256 of the canonical form — the quote's identity."""
+        return full_sha256(self.canonical_json())
+
+    def display_audit_hash(self) -> str:
+        """Short prefix for logs. Derived from the full hash; never compared on."""
+        return display_hash(self.audit_hash())
 
     def display_total(self, places: str = "0.0001") -> Money:
         """Rounded for presentation only. Never fed back into a calculation."""

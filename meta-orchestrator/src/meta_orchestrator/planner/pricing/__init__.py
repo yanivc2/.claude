@@ -32,13 +32,18 @@ from .catalog import (
 )
 from .compat import LEGACY_BOUNDARY_NOTE, price_card_from_model_spec
 from .entities import (
+    BILLABLE_TRUST,
+    DISPLAY_HASH_CHARS,
     TOKENS_PER_MTOK,
     PriceCard,
     PriceRate,
     PricingUnit,
+    PriceTrust,
     RateStatus,
     TokenUsage,
     UsageCategory,
+    display_hash,
+    full_sha256,
 )
 from .errors import (
     CatalogIntegrityError,
@@ -60,7 +65,8 @@ __all__ = [
     "CostCalculator",
     "PricingCatalog", "default_price_cards", "PRICING_VERSION", "CATALOG_VERSION",
     "PriceCard", "PriceRate", "PricingUnit", "RateStatus", "TokenUsage",
-    "UsageCategory", "TOKENS_PER_MTOK",
+    "UsageCategory", "TOKENS_PER_MTOK", "PriceTrust", "BILLABLE_TRUST",
+    "full_sha256", "display_hash", "DISPLAY_HASH_CHARS",
     "CostQuote", "CostComponent", "ComponentStatus", "QuoteSet", "RoundingPolicy",
     "price_card_from_model_spec", "LEGACY_BOUNDARY_NOTE",
     "PricingError", "PriceCardNotFoundError", "MissingRateError",

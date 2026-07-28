@@ -23,7 +23,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-from .entities import PriceCard, PriceRate, PricingUnit, UsageCategory
+from .entities import PriceCard, PriceRate, PriceTrust, PricingUnit, UsageCategory
 from .errors import CatalogIntegrityError, PriceCardNotFoundError
 
 #: Bump on any change to a rate. Quotes record it, so a historical quote stays
@@ -43,7 +43,8 @@ _CACHE_UNKNOWN_NOTE = ("no cache read/write price exists anywhere in this reposi
 
 def _card(*, card_id: str, provider: str, model_id: str, snapshot: Optional[str],
           input_usd_per_mtok: str, output_usd_per_mtok: str, source: str,
-          verified_at: str, notes: list[str], limitations: list[str]) -> PriceCard:
+          verified_at: str, trust: PriceTrust, notes: list[str],
+          limitations: list[str]) -> PriceCard:
     """Build and seal one card. Rates are strings — never float literals."""
     return PriceCard(
         card_id=card_id,
@@ -61,6 +62,7 @@ def _card(*, card_id: str, provider: str, model_id: str, snapshot: Optional[str]
             UsageCategory.CACHE_READ: PriceRate.unknown(),
             UsageCategory.CACHE_WRITE: PriceRate.unknown(),
         },
+        trust=trust,
         source=source,
         source_verified_at=verified_at,
         notes=notes,
@@ -81,6 +83,10 @@ def default_price_cards() -> list[PriceCard]:
             output_usd_per_mtok="25.00",
             source=_CONFIG_SOURCE,
             verified_at="2026-07-15",
+            # Not PROVIDER_VERIFIED: config.py cites the Claude API model table, but
+            # nothing here re-checked it upstream, and claiming otherwise would be the
+            # kind of unearned confidence these statuses exist to prevent.
+            trust=PriceTrust.REPOSITORY_VERIFIED,
             notes=["Opus 4.8 has no dated snapshot in the catalog — the alias is the id"],
             limitations=[_CACHE_UNKNOWN_NOTE],
         ),
@@ -94,6 +100,7 @@ def default_price_cards() -> list[PriceCard]:
             output_usd_per_mtok="5.00",
             source=f"{_CONFIG_SOURCE}; {_S2_CORROBORATION}",
             verified_at="2026-07-19",
+            trust=PriceTrust.REPOSITORY_VERIFIED,
             notes=["the only model whose price is confirmed by two independent "
                    "in-repo sources that agree exactly"],
             limitations=[_CACHE_UNKNOWN_NOTE],
@@ -108,6 +115,7 @@ def default_price_cards() -> list[PriceCard]:
             output_usd_per_mtok="15.00",
             source=_MOCK_SOURCE,
             verified_at="2026-07-15",
+            trust=PriceTrust.FICTIONAL,
             notes=["offline fixture — not a real provider price"],
             limitations=[_CACHE_UNKNOWN_NOTE, "fictional; never use for a real budget"],
         ),
@@ -121,6 +129,7 @@ def default_price_cards() -> list[PriceCard]:
             output_usd_per_mtok="1.50",
             source=_MOCK_SOURCE,
             verified_at="2026-07-15",
+            trust=PriceTrust.FICTIONAL,
             notes=["offline fixture — not a real provider price"],
             limitations=[_CACHE_UNKNOWN_NOTE, "fictional; never use for a real budget"],
         ),

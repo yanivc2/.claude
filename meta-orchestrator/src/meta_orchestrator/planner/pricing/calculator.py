@@ -45,6 +45,10 @@ class CostCalculator:
         components: list[CostComponent] = []
         unresolved: list[UsageCategory] = []
         warnings: list[str] = []
+        if not card.authoritative_for_real_spend:
+            warnings.append(
+                f"price trust is {card.trust.value} for {card.model_id!r}: this quote "
+                "may not back a real budget")
         total = Money.zero(card.currency)
 
         for category, tokens in usage.by_category().items():
@@ -87,6 +91,8 @@ class CostCalculator:
             card_id=card.card_id,
             card_content_hash=card.content_hash,
             catalog_version=self._catalog.catalog_version,
+            price_trust=card.trust,
+            authoritative_for_real_spend=card.authoritative_for_real_spend,
             usage=usage,
             components=components,
             total=total,

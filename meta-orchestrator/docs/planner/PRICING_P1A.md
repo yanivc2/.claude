@@ -136,10 +136,50 @@ A static test also forbids `Decimal(<float literal>)` anywhere in the package.
 
 ---
 
+## 5b. Price trust — a mock price cannot back a real budget
+
+`mock-strong` and `mock-weak` sit in the same catalog as the real models, and nothing
+in a bare number tells them apart. Every card therefore carries a `PriceTrust`:
+
+| Class | Meaning | May back real spend |
+|---|---|---|
+| `PROVIDER_VERIFIED` | checked against the provider's published pricing | yes |
+| `REPOSITORY_VERIFIED` | traceable to an in-repo source, not re-checked upstream | yes |
+| `TEST_ONLY` | fixture rate that exists to exercise code paths | no |
+| `FICTIONAL` | invented; never resembled a real price | no |
+| `UNVERIFIED` | origin unknown or unrecorded | no |
+
+Current assignment:
+
+- `claude-opus-4-8`, `claude-haiku-4-5` — **`REPOSITORY_VERIFIED`**. Deliberately not
+  `PROVIDER_VERIFIED`: `config.py` cites the Claude API model table, but nothing here
+  re-checked it upstream, and the stronger claim would be exactly the unearned
+  confidence these statuses exist to prevent. No card is `PROVIDER_VERIFIED` today.
+- `mock-strong`, `mock-weak` — **`FICTIONAL`**.
+- Cards from the legacy `ModelSpec` adapter default to **`UNVERIFIED`**; a caller may
+  pass a stronger class explicitly, but absence of a label is not evidence.
+
+Every quote carries `price_trust` and `authoritative_for_real_spend`, so a future
+`BudgetGuard` can refuse one without looking back into the catalog. A quote on a
+fictional price is still *computed* — tests need it — but it is flagged and carries a
+warning. The mock models are not deleted and not moved to a separate catalog.
+
+Trust is part of a card's canonical payload, so relabelling a price changes its hash.
+
+---
+
 ## 6. Versioning and reproducibility
 
-Every card is sealed with a content hash; the catalog verifies all hashes on
-construction and rejects two open-ended cards for one model. Every quote records
+Every card is sealed with a **full 64-hex SHA-256**; the catalog verifies all hashes
+on construction and rejects two open-ended cards for one model. The same holds for a
+quote's `audit_hash()`.
+
+A truncated digest is **display only**. `display_hash()` and `display_audit_hash()`
+return the first 16 characters and are derived from the full value; they are never
+used for identity, content addressing, audit, approval, quote reconstruction, or
+deciding whether two versions are the same. `display_hash()` refuses an input that is
+not already a full 64-character digest, so a short hash cannot be passed around as if
+it were canonical. Every quote records
 `pricing_version`, `catalog_version`, `card_id` and `card_content_hash`.
 
 A price change means a **new card** with a new `effective_from` and the old one closed
