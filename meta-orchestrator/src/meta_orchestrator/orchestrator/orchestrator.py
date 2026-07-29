@@ -28,6 +28,7 @@ from ..memory.writer import MemoryWriter
 from ..models import DecisionRecord, FailureCategory, VerifyResult
 from ..observability.tracing import RunMetrics, build_metrics
 from ..persistence.store import Store
+from ..planner.integration import InMemoryShadowSink, ShadowRunner
 from ..planner.planner import plan_seed_task, topological_levels
 from ..postmortem import PostMortem
 from ..registry.registry import ModelRegistry
@@ -77,6 +78,20 @@ class Orchestrator:
         self.reader = PlaybookReader(store)
         self.postmortem = PostMortem(self.writer)
         self.controller = AutonomyController(config.autonomy_mode)
+        # Pre-execution Cost Planner, in shadow (P2a). Constructed ONLY when the Planner
+        # is enabled: an orchestrator with the flag off builds nothing here, opens no
+        # Planner database, and behaves exactly as it did before the Planner existed.
+        # If enforcement or real spend were switched on, the ShadowRunner refuses at
+        # construction — the observer cannot be promoted by a stray flag.
+        self.shadow_sink: Optional[InMemoryShadowSink] = None
+        self.shadow_runner: Optional[ShadowRunner] = None
+        if config.planner_enabled:
+            self.shadow_sink = InMemoryShadowSink()
+            self.shadow_runner = ShadowRunner(
+                now=now_iso, sink=self.shadow_sink,
+                enforcement=config.planner_enforcement_enabled,
+                real_spend=config.planner_real_spend_enabled,
+            )
         self._graph = self._build()
 
     # --- graph construction ---
@@ -199,6 +214,13 @@ class Orchestrator:
         est_tokens = est_in + est_out
         est_cost = self._worst_case_cost(est_in, est_out)
 
+        # Planner shadow (P2a): observe only. The Planner sees the same pre-flight
+        # numbers the circuit breaker is about to act on and records its own estimate
+        # off to the side. It returns nothing this method uses — the legacy est_tokens
+        # and est_cost below are untouched, so the gate's decision, routing and output
+        # are byte-for-byte identical whether the shadow ran or not.
+        self._run_shadow(state, est_tokens=est_tokens, est_cost=est_cost)
+
         # Hard budget ceiling (circuit breaker) — enforced in every mode.
         if not ledger.can_afford(est_tokens):
             return self._abort_update(state, "aborted_budget",
@@ -210,6 +232,36 @@ class Orchestrator:
             return self._abort_update(state, status, reason)
         return {"trace": self._traced(state, {"node": "gate", "mode": self.controller.mode.value,
                                               "est_tokens": est_tokens, "reason": reason})}
+
+    def _run_shadow(self, state: OrchestratorState, *, est_tokens: int,
+                    est_cost: float) -> None:
+        """Run the Planner in shadow, if enabled. Pure side-channel: returns nothing,
+        touches no run state, and cannot change the gate's decision.
+
+        Guarded twice — by the flags and by a catch-all — so a Planner that is off, or a
+        Planner that throws, both leave the runtime exactly as it would have been. The
+        ShadowRunner already guarantees it never raises; this second guard means even a
+        construction-time contract could not leak into execution.
+        """
+        if not (self.config.planner_enabled and self.config.planner_shadow_mode):
+            return
+        if self.shadow_runner is None:
+            return
+        try:
+            candidate_ids = [m.model_id
+                             for m in self.registry.candidate_models(SEED_TASK_TYPE)]
+            self.shadow_runner.run_shadow(
+                state["case"],
+                candidate_model_ids=candidate_ids,
+                legacy_tokens=est_tokens,
+                legacy_cost=est_cost,
+                max_rounds=self.config.max_rounds,
+                correlation_id=state.get("correlation_id") or state["run_id"],
+            )
+        except Exception:
+            # An observer must never break what it observes. The ShadowRunner records
+            # its own failures; anything that still escapes is swallowed here on purpose.
+            return
 
     def _abort_update(self, state: OrchestratorState, status: str, reason: str) -> dict:
         return {
