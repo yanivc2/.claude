@@ -31,6 +31,7 @@ from meta_orchestrator.planner.budget import (
     ReservePolicy,
     apply_reserve,
 )
+from meta_orchestrator.planner.budget.reserve import S2_DERIVED_25_PERCENT_HEURISTIC
 from meta_orchestrator.planner.contracts.approval import ApprovalStatus
 from meta_orchestrator.planner.contracts.budget import (
     AdmitDecision,
@@ -72,6 +73,10 @@ from meta_orchestrator.planner.pricing import (
 
 USD = "USD"
 NOW = "2026-07-29T12:00:00Z"
+
+#: The opt-in contingency. Since P1c.1 the default is NONE, so every test that wants
+#: head-room asks for it by name — which is the point of the change.
+_RESERVE_25 = ReservePolicy.s2_derived_25_percent_heuristic()
 
 
 def m(v: str) -> Money:
@@ -184,7 +189,7 @@ def _plan(**over) -> ExecutionPlan:
 
 def test_reserve_is_added_to_the_quote_not_folded_into_it():
     """G2 was a wrong rate mistaken for a margin. This keeps the two visible."""
-    r = apply_reserve(ReservePolicy(), expected=m("20"), worst=m("40"))
+    r = apply_reserve(_RESERVE_25, expected=m("20"), worst=m("40"))
     assert r.quoted == m("40")
     assert r.reserve == m("10")            # 25% of worst
     assert r.total == m("50")
@@ -198,14 +203,14 @@ def test_a_zero_reserve_is_a_supported_configuration():
 
 def test_reserve_can_be_a_fraction_of_expected_or_a_fixed_amount():
     frac = apply_reserve(
-        ReservePolicy(basis=ReserveBasis.FRACTION_OF_EXPECTED, fraction="0.5",
-                      rationale="half the expected case"),
+        ReservePolicy(policy_name="HALF_EXPECTED",
+                      basis=ReserveBasis.FRACTION_OF_EXPECTED, fraction="0.5",
+                      experimental=True, rationale="half the expected case"),
         expected=m("20"), worst=m("40"))
     assert frac.reserve == m("10")
 
     fixed = apply_reserve(
-        ReservePolicy(basis=ReserveBasis.FIXED_AMOUNT, fixed_amount=m("7"),
-                      rationale="flat contingency"),
+        ReservePolicy.fixed(m("7"), rationale="flat contingency"),
         expected=m("20"), worst=m("40"))
     assert fixed.reserve == m("7")
 
@@ -225,9 +230,18 @@ def test_a_negative_reserve_is_rejected():
         ReservePolicy(fraction="-0.1", rationale="x")
 
 
-def test_the_default_reserve_documents_its_provenance():
-    assert "§2" in ReservePolicy().rationale
-    assert Decimal(ReservePolicy().fraction) == Decimal("0.25")
+def test_the_default_reserve_is_none_not_the_s2_heuristic():
+    """P1c.1: a contingency nobody chose is a contingency nobody decided on."""
+    default = ReservePolicy()
+    assert default.basis is ReserveBasis.NONE
+    assert Decimal(default.fraction) == Decimal("0")
+    assert default.policy_name != S2_DERIVED_25_PERCENT_HEURISTIC
+
+
+def test_the_opt_in_reserve_documents_its_foreign_provenance():
+    assert "§2" in _RESERVE_25.rationale
+    assert Decimal(_RESERVE_25.fraction) == Decimal("0.25")
+    assert _RESERVE_25.policy_name == S2_DERIVED_25_PERCENT_HEURISTIC
 
 
 # =========================================================================== #
@@ -236,7 +250,7 @@ def test_the_default_reserve_documents_its_provenance():
 
 def test_an_affordable_plan_is_admitted():
     """A cap of 200 leaves the 50 admitted well clear of every warning threshold."""
-    report = BudgetGuard().admit(_projection(), _policy("200"), _state())
+    report = BudgetGuard(_RESERVE_25).admit(_projection(), _policy("200"), _state())
     assert report.allowed
     assert report.result.decision is AdmitDecision.ADMIT
     assert report.requested.total == m("50")       # 40 worst + 25% reserve
@@ -246,7 +260,7 @@ def test_an_affordable_plan_is_admitted():
 
 def test_landing_exactly_on_a_threshold_counts_as_crossing_it():
     """50 of a 100 cap is at 50%, not below it."""
-    report = BudgetGuard().admit(_projection(), _policy("100"), _state())
+    report = BudgetGuard(_RESERVE_25).admit(_projection(), _policy("100"), _state())
     assert report.allowed
     assert report.result.decision is AdmitDecision.WARN_AND_ADMIT
     assert Decimal("0.50") in report.newly_crossed_thresholds
@@ -254,15 +268,15 @@ def test_landing_exactly_on_a_threshold_counts_as_crossing_it():
 
 def test_admission_is_measured_against_committed_plus_actual():
     """Two calls in flight must not each see room only one of them has."""
-    report = BudgetGuard().admit(_projection(), _policy("100"),
-                                 _state(committed="30", actual="30"))
+    report = BudgetGuard(_RESERVE_25).admit(_projection(), _policy("100"),
+                                            _state(committed="30", actual="30"))
     assert report.allowed is False
     assert "past the cap" in report.result.reason
 
 
 def test_the_reserve_is_what_tips_a_marginal_plan_over():
-    guard_with = BudgetGuard()
-    guard_without = BudgetGuard(ReservePolicy.none())
+    guard_with = BudgetGuard(_RESERVE_25)
+    guard_without = BudgetGuard()          # NONE is now the default
     policy, state = _policy("45"), _state()
     assert guard_without.admit(_projection(), policy, state).allowed is True
     assert guard_with.admit(_projection(), policy, state).allowed is False
@@ -339,7 +353,7 @@ def test_breach_action_is_reflected_in_the_reason():
 
 def test_checkpoint_does_not_re_add_the_contingency():
     """Compounding the reserve per call is the same error as burying it in a rate."""
-    report = BudgetGuard().checkpoint(_policy("100"), _state(actual="10"), m("5"))
+    report = BudgetGuard(_RESERVE_25).checkpoint(_policy("100"), _state(actual="10"), m("5"))
     assert report.requested.reserve == Money.zero(USD)
     assert report.requested.total == m("5")
 
@@ -756,7 +770,7 @@ def test_worked_example_price_admit_approve_reserve_reconcile():
     """
     projection = _projection(best="10", expected="20", worst="40")
     policy = _policy("100")
-    guard = BudgetGuard()
+    guard = BudgetGuard(_RESERVE_25)       # head-room asked for explicitly
 
     admission = guard.admit(projection, policy, _state())
     assert admission.allowed
