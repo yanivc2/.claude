@@ -75,15 +75,6 @@ export function Sidebar() {
   const isManager = me?.role === "STORE_MANAGER";
   const writerOnly = new Set(["/onboarding"]);
 
-  useEffect(() => {
-    if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [open]);
-
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
