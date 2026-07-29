@@ -38,6 +38,10 @@ class ModelCostProjection(BaseModel):
     worst_quote: Optional[CostQuote] = None
     price_trust: Optional[PriceTrust] = None
     authoritative_for_real_spend: bool = False
+    #: When the price behind this projection was last verified (ISO-8601 date).
+    #: Carried up from the card so a freshness policy has something to check.
+    price_verified_at: str = ""
+    price_card_id: str = ""
     unavailable_reason: str = ""
     warnings: list[str] = Field(default_factory=list)
 
@@ -150,6 +154,9 @@ class EstimateProjector:
                 best_quote=best, expected_quote=expected, worst_quote=worst,
                 price_trust=expected.price_trust,
                 authoritative_for_real_spend=expected.authoritative_for_real_spend,
+                price_verified_at=self._calc.catalog.card_by_hash(
+                    expected.card_content_hash).source_verified_at,
+                price_card_id=expected.card_id,
                 warnings=warnings,
             ))
 
