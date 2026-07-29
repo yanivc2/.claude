@@ -187,13 +187,14 @@ export default async function DashboardPage() {
 
       {/* כרטיסי מדדים */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((c) => {
+        {cards.map((c, i) => {
           const Icon = c.icon;
           return (
             <Link
               key={c.label}
               href={c.href}
-              className="group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-5 shadow-card backdrop-blur-sm transition-all duration-200 hover:-translate-y-1 hover:border-brand-300 hover:shadow-card-hover"
+              style={{ "--i": i } as React.CSSProperties}
+              className="group animate-stagger rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-5 shadow-card backdrop-blur-sm transition-all duration-200 hover:-translate-y-1 hover:border-brand-300 hover:shadow-card-hover"
             >
               <div className="flex items-center justify-between">
                 <span className={`grid h-11 w-11 place-items-center rounded-xl ring-1 ring-inset ring-black/5 dark:ring-white/5 transition group-hover:scale-105 ${toneChip[c.tone]}`}>
