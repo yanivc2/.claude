@@ -14,6 +14,7 @@ import {
   Gavel,
   Settings,
   Contact,
+  ListChecks,
   LogOut,
   type LucideIcon,
 } from "lucide-react";
@@ -38,6 +39,7 @@ function Logo({ size }: { size: number }) {
 // במחשב הסרגל קבוע; בסלולר הוא נסתר מאחורי כפתור המבורגר ונפתח כמגירה.
 const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/", label: "לוח בקרה", icon: LayoutDashboard },
+  { href: "/tasks", label: "משימות ונהלים", icon: ListChecks },
   { href: "/onboarding", label: "קליטת עובד", icon: UserPlus },
   { href: "/termination", label: "סיום העסקה", icon: FileX2 },
   { href: "/employees", label: "עובדים ותיקים", icon: Users },

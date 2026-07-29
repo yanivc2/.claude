@@ -71,6 +71,8 @@ enum NotificationType {
   HEARING_ISSUED // מנהל חנות הנפיק הזמנה לשימוע
   TERMINATION_ISSUED // מנהל חנות הנפיק מכתב סיום העסקה
   RESOURCE_PENDING // מנהל חנות העלה מסמך/נוהל הממתין לאישור
+  TASK_ASSIGNED // הוקצתה משימה לעובד
+  TASK_DONE // עובד סימן משימה כבוצעה
 }
 
 // התראה פנימית לבעלים. נוצרת כשמנהל חנות מבצע פעולה הדורשת ידיעה/אישור.
@@ -543,4 +545,62 @@ model Resource {
   @@index([createdAt])
   @@index([folderId])
   @@index([status])
+}
+
+// ─────────────────────── משימות ונהלי משמרת (מובייל) ───────────────────────
+// המנהל יוצר משימות/נהלים ומשייך אותם (כל העובדים / צוות משמרת / עובד ספציפי).
+// העובד מסמן "בוצע". פוש נשלח בשליחה (לעובד) ובסימון בוצע (למנהל).
+
+enum AssigneeScope {
+  ALL // כל העובדים
+  TEAM // צוות המשמרת
+  EMPLOYEE // עובד ספציפי
+}
+
+enum TaskStatus {
+  SENT // נשלחה, ממתינה לביצוע
+  DONE // בוצעה
+}
+
+model Task {
+  id            String        @id @default(cuid())
+  title         String        @db.Text
+  assigneeScope AssigneeScope @default(ALL)
+  employeeId    String? // כאשר scope=EMPLOYEE
+  companyId     String? // שיוך לחברה (היקף)
+  status        TaskStatus    @default(SENT)
+  createdBy     String // שם המשתמש (מנהל) שיצר
+  createdAt     DateTime      @default(now())
+  doneAt        DateTime?
+
+  @@index([status])
+  @@index([employeeId])
+  @@index([companyId])
+}
+
+// רובריקה לשימוש חוזר (preset) ליצירת משימות מהירה.
+model TaskPreset {
+  id        String   @id @default(cuid())
+  title     String
+  createdBy String
+  createdAt DateTime @default(now())
+}
+
+enum ProcedureType {
+  OPEN // פתיחת משמרת
+  CLOSE // סגירת משמרת
+}
+
+model ShiftProcedure {
+  id            String        @id @default(cuid())
+  type          ProcedureType
+  assigneeScope AssigneeScope @default(ALL)
+  employeeId    String?
+  companyId     String?
+  items         String[] // סעיפי הנוהל (שורה = סעיף)
+  createdBy     String
+  createdAt     DateTime      @default(now())
+
+  @@index([type])
+  @@index([companyId])
 }

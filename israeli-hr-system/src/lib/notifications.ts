@@ -17,21 +17,27 @@ interface NewNotification {
   companyId?: string | null;
 }
 
-// יוצר התראה עבור הבעלים ושולח פוש (אם מוגדר). לא זורק אם הפוש נכשל.
-export async function notifyOwner(n: NewNotification): Promise<void> {
-  const owner = await getAdmin();
+// יוצר התראה עבור משתמש נתון (username) ושולח פוש. משמש גם לעובדים (username
+// של העובד) וגם למנהלים. לא זורק אם הפוש נכשל.
+export async function notifyUser(username: string, n: NewNotification): Promise<void> {
   await prisma.notification.create({
     data: {
       type: n.type,
       title: n.title,
       body: n.body,
       link: n.link ?? null,
-      forUsername: owner.username,
+      forUsername: username,
       actorName: n.actorName ?? null,
       companyId: n.companyId ?? null,
     },
   });
-  await sendPushToUser(owner.username, { title: n.title, body: n.body, link: n.link }).catch(() => {});
+  await sendPushToUser(username, { title: n.title, body: n.body, link: n.link }).catch(() => {});
+}
+
+// יוצר התראה עבור הבעלים ושולח פוש (אם מוגדר). לא זורק אם הפוש נכשל.
+export async function notifyOwner(n: NewNotification): Promise<void> {
+  const owner = await getAdmin();
+  await notifyUser(owner.username, n);
 }
 
 export async function listNotifications(username: string, limit = 30) {

@@ -186,7 +186,7 @@ export default async function DashboardPage() {
       </section>
 
       {/* כרטיסי מדדים */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {cards.map((c, i) => {
           const Icon = c.icon;
           return (
