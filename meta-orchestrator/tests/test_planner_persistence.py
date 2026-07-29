@@ -910,15 +910,20 @@ def test_the_database_path_is_injected_with_no_default(db_path: str):
         GovernanceStore(clock=FixedClock(NOW))          # type: ignore[call-arg]
 
 
-def test_the_orchestrator_is_still_untouched():
+def test_the_orchestrator_reaches_the_planner_only_through_the_integration_boundary():
+    # P2a connects the orchestrator to the Planner — but only in shadow, and only
+    # through the narrow ``planner.integration`` boundary. It still must not reach the
+    # persistence layer, the governance store, or a budget service directly: those are
+    # real-spend/persistence internals an observer has no business touching.
     import inspect
 
     from meta_orchestrator.orchestrator import orchestrator as orch_mod
 
     source = inspect.getsource(orch_mod)
+    assert "planner.integration" in source              # the boundary it is allowed to use
     for name in ("planner.persistence", "GovernanceStore", "BudgetService",
                  "planner.governance"):
-        assert name not in source
+        assert name not in source                       # never the internals, directly
 
 
 # =========================================================================== #
