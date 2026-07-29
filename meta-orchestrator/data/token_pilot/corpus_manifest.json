@@ -1,0 +1,238 @@
+{
+  "corpus_version": "token-pilot-corpus-v1",
+  "manifest_hash": "928d1ffd755e6aa5378bbf6bc07faaf9935eb31a5fe8d83555ce5011e2a507c1",
+  "sample_count": 21,
+  "samples": [
+    {
+      "code_points": 73,
+      "content_hash": "c3ad8c8c9d29f6afb074a572da78caab2a55578750084f30674185f2d32d97b1",
+      "family": "prose_latin",
+      "lines": 1,
+      "sample_id": "prose_latin_short",
+      "script": "latin",
+      "size": "short",
+      "utf8_bytes": 73,
+      "words": 14
+    },
+    {
+      "code_points": 406,
+      "content_hash": "858efe9d352987a27923d1332070e9f117a394a5ec0fcac706b207145551f6f5",
+      "family": "prose_latin",
+      "lines": 1,
+      "sample_id": "prose_latin_medium",
+      "script": "latin",
+      "size": "medium",
+      "utf8_bytes": 406,
+      "words": 69
+    },
+    {
+      "code_points": 1014,
+      "content_hash": "14abb9e1bb30aef29014581348fedccc6425fb4163448598c665f88466501c4b",
+      "family": "prose_latin",
+      "lines": 1,
+      "sample_id": "prose_latin_long",
+      "script": "latin",
+      "size": "long",
+      "utf8_bytes": 1016,
+      "words": 167
+    },
+    {
+      "code_points": 62,
+      "content_hash": "db9ee50e6ffa8e2b504532e71ea337cf01f97f71a51109a5cf7318d1324d17ba",
+      "family": "prose_hebrew",
+      "lines": 1,
+      "sample_id": "prose_hebrew_short",
+      "script": "hebrew",
+      "size": "short",
+      "utf8_bytes": 114,
+      "words": 10
+    },
+    {
+      "code_points": 296,
+      "content_hash": "a0a777e6cd97b062c09a2155deef96a6c30d1f9953d1ade7053742bebb69076b",
+      "family": "prose_hebrew",
+      "lines": 1,
+      "sample_id": "prose_hebrew_medium",
+      "script": "hebrew",
+      "size": "medium",
+      "utf8_bytes": 529,
+      "words": 56
+    },
+    {
+      "code_points": 721,
+      "content_hash": "a4ef08f43d2f02a4b44158a4a82edcaa846f814a59189ba743aba9e3acc89605",
+      "family": "prose_hebrew",
+      "lines": 1,
+      "sample_id": "prose_hebrew_long",
+      "script": "hebrew",
+      "size": "long",
+      "utf8_bytes": 1296,
+      "words": 129
+    },
+    {
+      "code_points": 64,
+      "content_hash": "3160719f83eeeee7e66f6787f00b2d802c1aa58b402bad32e06c849846a60546",
+      "family": "prose_mixed",
+      "lines": 1,
+      "sample_id": "prose_mixed_short",
+      "script": "mixed",
+      "size": "short",
+      "utf8_bytes": 95,
+      "words": 9
+    },
+    {
+      "code_points": 262,
+      "content_hash": "13c27b107496a1406f7dafcd4748ccf800d01952ffeb6d49ac136af8d9f58440",
+      "family": "prose_mixed",
+      "lines": 1,
+      "sample_id": "prose_mixed_medium",
+      "script": "mixed",
+      "size": "medium",
+      "utf8_bytes": 385,
+      "words": 37
+    },
+    {
+      "code_points": 536,
+      "content_hash": "0e9106f4f684cd781ea08b8146eb18a72e591a8c6f49316b519cccee2f97d69d",
+      "family": "prose_mixed",
+      "lines": 1,
+      "sample_id": "prose_mixed_long",
+      "script": "mixed",
+      "size": "long",
+      "utf8_bytes": 782,
+      "words": 74
+    },
+    {
+      "code_points": 57,
+      "content_hash": "a6d1c662049a284a54d99495389d78fa84af0c48b1ea88b52d54bb51009e1e64",
+      "family": "source_code",
+      "lines": 3,
+      "sample_id": "source_code_short",
+      "script": "latin",
+      "size": "short",
+      "utf8_bytes": 57,
+      "words": 14
+    },
+    {
+      "code_points": 327,
+      "content_hash": "7da4e9e5423c408fe5b163e451f00fe17e1358a73445160e43b71fb096bc51e8",
+      "family": "source_code",
+      "lines": 12,
+      "sample_id": "source_code_medium",
+      "script": "latin",
+      "size": "medium",
+      "utf8_bytes": 327,
+      "words": 40
+    },
+    {
+      "code_points": 721,
+      "content_hash": "9f05a3e787f36a59180d96c051240bcd2eeb3d467764697c0b10cb71982d4419",
+      "family": "source_code",
+      "lines": 22,
+      "sample_id": "source_code_long",
+      "script": "latin",
+      "size": "long",
+      "utf8_bytes": 721,
+      "words": 89
+    },
+    {
+      "code_points": 46,
+      "content_hash": "67829cae6f8fba6e383c7be2b7c9d0f017620148d41b2100862da6b2a0b9bdf2",
+      "family": "structured_data",
+      "lines": 1,
+      "sample_id": "structured_data_short",
+      "script": "latin",
+      "size": "short",
+      "utf8_bytes": 46,
+      "words": 4
+    },
+    {
+      "code_points": 268,
+      "content_hash": "a2645c0c3f47828c8e00eac8bfd0fb2d9ed3ee85789553833293e8a7718feb0e",
+      "family": "structured_data",
+      "lines": 11,
+      "sample_id": "structured_data_medium",
+      "script": "latin",
+      "size": "medium",
+      "utf8_bytes": 268,
+      "words": 24
+    },
+    {
+      "code_points": 530,
+      "content_hash": "9dfb2f2c68d72cb3a44603a775d9d4cae89bc4317664b42d03dd89c1a6253899",
+      "family": "structured_data",
+      "lines": 15,
+      "sample_id": "structured_data_long",
+      "script": "latin",
+      "size": "long",
+      "utf8_bytes": 530,
+      "words": 58
+    },
+    {
+      "code_points": 104,
+      "content_hash": "6eb351b9f09383c56f676787300649a33ace99b3548160d1408f38b79bb275ca",
+      "family": "diff_patch",
+      "lines": 7,
+      "sample_id": "diff_patch_short",
+      "script": "latin",
+      "size": "short",
+      "utf8_bytes": 104,
+      "words": 21
+    },
+    {
+      "code_points": 540,
+      "content_hash": "8c51e280ec0fad47747b16cd42f8a2cbb64b2dfd10cfe38b36a18ecb4e79495f",
+      "family": "diff_patch",
+      "lines": 13,
+      "sample_id": "diff_patch_medium",
+      "script": "latin",
+      "size": "medium",
+      "utf8_bytes": 540,
+      "words": 64
+    },
+    {
+      "code_points": 849,
+      "content_hash": "7b639eceda60cfd6ef35b9c760dd74164d8cfe232b8b3a5054e2ebd2c552d333",
+      "family": "diff_patch",
+      "lines": 24,
+      "sample_id": "diff_patch_long",
+      "script": "latin",
+      "size": "long",
+      "utf8_bytes": 860,
+      "words": 106
+    },
+    {
+      "code_points": 165,
+      "content_hash": "eba559f3ad5ad97e0475f2f075971b7497914f736ffef76e395fb68db4a59cbd",
+      "family": "tool_schema",
+      "lines": 1,
+      "sample_id": "tool_schema_short",
+      "script": "latin",
+      "size": "short",
+      "utf8_bytes": 165,
+      "words": 17
+    },
+    {
+      "code_points": 467,
+      "content_hash": "0cf014fc780cac6e95563f58e55659145ac557d9a4dd2ee776cc7303f72b22e4",
+      "family": "tool_schema",
+      "lines": 14,
+      "sample_id": "tool_schema_medium",
+      "script": "latin",
+      "size": "medium",
+      "utf8_bytes": 467,
+      "words": 45
+    },
+    {
+      "code_points": 922,
+      "content_hash": "d488ffed0c2258a351fb3af5ced1d9a4c8d358a01e6bb69618d2c1d1e87f4639",
+      "family": "tool_schema",
+      "lines": 30,
+      "sample_id": "tool_schema_long",
+      "script": "latin",
+      "size": "long",
+      "utf8_bytes": 922,
+      "words": 85
+    }
+  ]
+}

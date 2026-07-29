@@ -14,7 +14,9 @@ venv/
 *.db
 *.sqlite
 *.sqlite3
-data/
+data/*
+# ...but the frozen token-pilot corpus and its committed results are tracked (P2m).
+!data/token_pilot/
 traces/
 artifacts/
 
