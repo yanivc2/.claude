@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   User,
   Briefcase,
@@ -85,7 +85,9 @@ interface FormState {
   monthlySalary: string;
   hourlySalary: string;
   availability: Record<string, string[]>; // מפתח-יום → רשימת מפתחות-משמרת
+  companyId: string; // שיוך לחברה (מצב HR)
   hasActivePension: boolean;
+  pensionHandled: boolean; // עובד קיים — הפנסיה כבר טופלה (ללא תזכורת)
   // טופס 101
   taxYear: string;
   maritalStatus: string;
@@ -108,7 +110,9 @@ const EMPTY: FormState = {
   monthlySalary: "",
   hourlySalary: "",
   availability: {},
+  companyId: "",
   hasActivePension: false,
+  pensionHandled: false,
   taxYear: String(new Date().getFullYear()),
   maritalStatus: "רווק/ה",
   numberOfChildren: "0",
@@ -317,7 +321,17 @@ export function OnboardingForm({
   hideSignatures = false,
 }: OnboardingFormProps = {}) {
   const [form, setForm] = useState<FormState>({ ...EMPTY, ...defaults });
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [idFile, setIdFile] = useState<File | null>(null);
+
+  // רשימת חברות לשיוך (מצב HR בלבד).
+  useEffect(() => {
+    if (hideEmployerFields) return;
+    fetch("/api/companies")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: { id: string; name: string }[]) => setCompanies(list))
+      .catch(() => {});
+  }, [hideEmployerFields]);
   const [contractSignature, setContractSignature] = useState<string | null>(null);
   const [form101Signature, setForm101Signature] = useState<string | null>(null);
   // הסכם עבודה שצורף מקומית (במצב HR) — משמש להורדה/הדפסה ולתיוק בתיק העובד.
@@ -650,6 +664,20 @@ export function OnboardingForm({
           </Field>
           {!hideEmployerFields && (
             <>
+              <Field label="חברה מעסיקה">
+                <select
+                  className={inputClass}
+                  value={form.companyId}
+                  onChange={(e) => set("companyId", e.target.value)}
+                >
+                  <option value="">— ללא שיוך —</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="תפקיד">
                 <select
                   className={inputClass}
@@ -754,6 +782,24 @@ export function OnboardingForm({
             />
             לא קיימת קרן פנסיה פעילה
           </label>
+
+          {/* עובד קיים — הפנסיה כבר טופלה: מונע תזכורת פתיחה שגויה */}
+          {!hideEmployerFields && (
+            <label className="mt-2 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-5 w-5"
+                checked={form.pensionHandled}
+                onChange={(e) => set("pensionHandled", e.target.checked)}
+              />
+              <span>
+                תיק הפנסיה כבר נפתח וטופל (עובד קיים) — אין צורך בתזכורת פתיחה.
+                <span className="mt-0.5 block text-xs opacity-80">
+                  סמן/י בקליטת עובד ותיק שהפנסיה שלו כבר פעילה, כדי שלא תופיע משימת פתיחה.
+                </span>
+              </span>
+            </label>
+          )}
         </div>
       </Section>
 
