@@ -1,5 +1,6 @@
 import { ChangePassword } from "@/components/ChangePassword";
 import { UserManagement } from "@/components/UserManagement";
+import { EmailTest } from "@/components/EmailTest";
 import { currentAdmin } from "@/lib/session";
 import { ensureAdmin } from "@/lib/admin";
 
@@ -18,7 +19,8 @@ export default async function SettingsPage() {
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">ניהול חשבון, אבטחה ומשתמשים.</p>
       </header>
       <ChangePassword />
-      {/* ניהול משתמשים — מוצג לבעל המערכת בלבד. */}
+      {/* בדיקת מייל וניהול משתמשים — מוצגים לבעל המערכת בלבד. */}
+      {me?.isOwner && <EmailTest />}
       {me?.isOwner && <UserManagement />}
     </div>
   );
