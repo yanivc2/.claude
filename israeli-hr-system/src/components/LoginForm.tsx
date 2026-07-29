@@ -6,6 +6,7 @@ import {
   startAuthentication,
   browserSupportsWebAuthn,
 } from "@simplewebauthn/browser";
+import { ForgotPassword } from "./ForgotPassword";
 
 function nextTarget(): string {
   if (typeof window === "undefined") return "/";
@@ -19,7 +20,7 @@ export function LoginForm() {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
-  const [phase, setPhase] = useState<"form" | "offerBiometric">("form");
+  const [phase, setPhase] = useState<"form" | "offerBiometric" | "forgot">("form");
   const [supported, setSupported] = useState(false);
 
   useEffect(() => {
@@ -99,6 +100,10 @@ export function LoginForm() {
     }
   }
 
+  if (phase === "forgot") {
+    return <ForgotPassword onBack={() => setPhase("form")} />;
+  }
+
   if (phase === "offerBiometric") {
     return (
       <div className="text-center">
@@ -169,6 +174,17 @@ export function LoginForm() {
           🔓 כניסה עם זיהוי פנים / טביעת אצבע
         </button>
       )}
+
+      <button
+        type="button"
+        onClick={() => {
+          setError("");
+          setPhase("forgot");
+        }}
+        className="mt-4 w-full text-center text-sm text-slate-500 underline transition hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+      >
+        שכחתי סיסמה
+      </button>
     </div>
   );
 }
