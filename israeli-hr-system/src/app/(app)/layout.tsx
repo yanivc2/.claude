@@ -29,7 +29,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <div className="flex min-h-screen">
         <PullToRefresh />
         <Sidebar />
-        <main className="flex-1 overflow-x-hidden pt-14 md:pt-0">
+        {/* overflow-x-clip חוסם גלישה אופקית בלי להפוך את main לאזור גלילה
+            (overflow-x:hidden היה כופה overflow-y:auto וחוסם גלילה במובייל). */}
+        <main className="flex-1 overflow-x-clip pt-14 md:pt-0">
           {/* מרווח תחתון בסלולר כדי שהתוכן לא ייחבא מאחורי סרגל הטאבים */}
           <div className="mx-auto max-w-6xl px-4 py-6 pb-24 sm:px-6 sm:py-8 md:pb-8">
             <PageTransition>{children}</PageTransition>
