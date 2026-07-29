@@ -43,7 +43,7 @@ type Filter = "ALL" | "WORKING" | EmploymentStatus;
 
 function EmployeeTable({ employees }: { employees: EmployeeRow[] }) {
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+    <div className="overflow-x-auto rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 shadow-card backdrop-blur-sm">
       <table className="w-full min-w-[42rem] text-start text-sm">
         <thead>
           <tr className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-400">
@@ -55,10 +55,11 @@ function EmployeeTable({ employees }: { employees: EmployeeRow[] }) {
           </tr>
         </thead>
         <tbody>
-          {employees.map((e) => (
+          {employees.map((e, i) => (
             <tr
               key={e.id}
-              className="border-t border-slate-100 dark:border-slate-800 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              style={{ "--i": i } as React.CSSProperties}
+              className="animate-stagger border-t border-slate-100 dark:border-slate-800 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
             >
               <td className="px-5 py-3">
                 <Link href={`/employees/${e.id}`} className="flex items-center gap-3">
@@ -154,9 +155,9 @@ export function EmployeesList({ employees }: { employees: EmployeeRow[] }) {
   }, [employees, query, filter]);
 
   const chipCls = (active: boolean) =>
-    `inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition ${
+    `inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-all duration-200 active:scale-95 ${
       active
-        ? "bg-brand-600 text-white shadow-sm shadow-brand-500/25"
+        ? "bg-gradient-to-l from-brand-500 to-accent-600 text-white shadow-md shadow-brand-500/25"
         : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:border-brand-300 hover:text-brand-700 dark:hover:text-brand-300"
     }`;
 
