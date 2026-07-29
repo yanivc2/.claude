@@ -53,6 +53,27 @@ class OrchestratorConfig(BaseModel):
     experiment_mode: bool = False
     experiment_model_id: Optional[str] = None
 
+    # --- Pre-execution Cost Planner runtime flags (P2a) ---
+    # The Planner is a separate product module. These flags gate how far it is wired
+    # into the runtime. Every one defaults OFF: an unconfigured orchestrator behaves
+    # exactly as it did before the Planner existed, opens no Planner database, builds
+    # no Planner objects, and spends nothing extra. Rollback is `planner_enabled=False`.
+    #
+    # P2a authorises only the first two, and only together:
+    #   planner_enabled + planner_shadow_mode  → the Planner runs as a pure OBSERVER.
+    # It receives the same pre-flight request the circuit breaker sees, produces its
+    # own estimate / cost projection / governance preview, and records a shadow result
+    # off to the side. It never changes the estimate the gate acts on, the model, the
+    # budget, the routing, or the user-visible outcome.
+    #
+    # Enforcement and real spend are NOT part of P2a. They stay wired to `False` here
+    # and are refused at the boundary if switched on, so a stray config change cannot
+    # promote the observer into a decision-maker without a later, explicit phase.
+    planner_enabled: bool = False
+    planner_shadow_mode: bool = False
+    planner_enforcement_enabled: bool = False
+    planner_real_spend_enabled: bool = False
+
 
 # Candidate model ids per adapter (SPEC §6: names resolved via config + Registry).
 def default_candidate_models(adapter: str) -> dict[str, list[str]]:
@@ -175,6 +196,15 @@ def load_config(db_path: Optional[str] = None, adapter: Optional[str] = None) ->
         cfg.experiment_mode = True
     if os.getenv("META_ORCH_EXPERIMENT_MODEL"):
         cfg.experiment_model_id = os.environ["META_ORCH_EXPERIMENT_MODEL"]
+    # Planner runtime flags (P2a). Only the two observer flags are honoured from the
+    # environment; enforcement and real spend are deliberately NOT exposed here, so no
+    # env var can turn the observer into an enforcer or let it spend — that needs a
+    # later phase and a code change, not a variable.
+    _truthy = {"1", "true", "True"}
+    if os.getenv("META_ORCH_PLANNER_ENABLED") in _truthy:
+        cfg.planner_enabled = True
+    if os.getenv("META_ORCH_PLANNER_SHADOW") in _truthy:
+        cfg.planner_shadow_mode = True
     # Derive candidates to match the adapter (mock ids vs real Claude ids).
     cfg.candidate_models = default_candidate_models(cfg.model_adapter)
     return cfg
