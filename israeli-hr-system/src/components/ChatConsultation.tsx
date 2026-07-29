@@ -191,11 +191,11 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
   }
 
   return (
-    <div className={`flex ${heightClass} flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm`}>
+    <div className={`flex ${heightClass} flex-col overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 shadow-card backdrop-blur-sm`}>
       <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
         {messages.length === 0 && (
           <div className="flex h-full flex-col items-center justify-center text-center">
-            <span className="grid h-16 w-16 place-items-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+            <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-accent-600 text-white shadow-glow">
               <Scale size={30} />
             </span>
             <p className="mt-4 text-lg font-bold text-slate-700 dark:text-slate-200">
@@ -225,8 +225,10 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
             className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-base ${
-                m.role === "user" ? "bg-brand-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-100"
+              className={`max-w-[85%] px-4 py-3 text-base shadow-sm ${
+                m.role === "user"
+                  ? "rounded-2xl rounded-br-md bg-gradient-to-br from-brand-500 to-accent-600 text-white shadow-brand-600/20"
+                  : "rounded-2xl rounded-bl-md bg-white text-slate-800 ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/50"
               }`}
             >
               {m.role === "assistant" && m.content.trim() === "" ? (
@@ -297,7 +299,7 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
           type="submit"
           disabled={loading || !input.trim()}
           aria-label="שליחה"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-md shadow-brand-600/20 transition hover:brightness-105 disabled:opacity-50 sm:h-auto sm:w-auto sm:px-5 sm:py-2.5"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-600 text-white shadow-glow transition hover:brightness-110 disabled:opacity-50 sm:h-auto sm:w-auto sm:px-5 sm:py-2.5"
         >
           <Send size={18} className="sm:hidden" />
           <span className="hidden text-base font-bold sm:inline">שליחה</span>
