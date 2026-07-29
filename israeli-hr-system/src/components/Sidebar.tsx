@@ -93,16 +93,16 @@ export function Sidebar() {
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   const linkClass = (active: boolean) =>
-    `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition ${
+    `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-all duration-200 ${
       active
-        ? "bg-brand-50 dark:bg-brand-500/15 text-brand-800 dark:text-brand-200"
-        : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-800 dark:hover:text-slate-100"
+        ? "bg-gradient-to-l from-brand-500 to-accent-600 text-white shadow-md shadow-brand-600/25"
+        : "text-slate-500 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/60 hover:text-slate-800 dark:hover:text-slate-100"
     }`;
 
   return (
     <>
       {/* סרגל עליון — סלולר בלבד */}
-      <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 md:hidden">
+      <header className="glass fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 !border-x-0 !border-t-0 border-b border-slate-200/70 dark:border-slate-800 px-4 md:hidden">
         <button
           type="button"
           onClick={() => setOpen(true)}
@@ -127,7 +127,7 @@ export function Sidebar() {
       )}
 
       <aside
-        className={`fixed inset-y-0 right-0 z-40 flex w-64 shrink-0 transform flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 transition-transform duration-200 ease-out md:static md:z-auto md:transform-none ${
+        className={`glass fixed inset-y-0 right-0 z-40 flex w-64 shrink-0 transform flex-col !border-y-0 !border-r-0 border-l border-slate-200/70 dark:border-slate-800 transition-transform duration-200 ease-out md:static md:z-auto md:transform-none ${
           open ? "translate-x-0" : "translate-x-full"
         } md:translate-x-0`}
       >

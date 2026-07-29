@@ -16,6 +16,13 @@
   --background: #0b1020;
   --foreground: #e8eef7;
 }
+/* במצב כהה — הילות עמוקות ורוגעות יותר. */
+.dark body {
+  background-image:
+    radial-gradient(60rem 60rem at 100% -10%, rgb(124 58 237 / 0.12), transparent 60%),
+    radial-gradient(50rem 50rem at 0% 0%, rgb(95 102 207 / 0.12), transparent 55%),
+    radial-gradient(70rem 40rem at 50% 120%, rgb(95 102 207 / 0.08), transparent 60%);
+}
 
 html {
   direction: rtl;
@@ -23,7 +30,13 @@ html {
 }
 
 body {
-  background: var(--background);
+  /* רקע חי ומעודן — מארג הילות מותג עדין מעל בסיס, במקום צבע שטוח. */
+  background-color: var(--background);
+  background-image:
+    radial-gradient(60rem 60rem at 100% -10%, rgb(124 58 237 / 0.06), transparent 60%),
+    radial-gradient(50rem 50rem at 0% 0%, rgb(95 102 207 / 0.07), transparent 55%),
+    radial-gradient(70rem 40rem at 50% 120%, rgb(95 102 207 / 0.05), transparent 60%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: "Assistant", system-ui, sans-serif;
   /* ליטוש טיפוגרפי — קרנל, החלקת גופן, וריווח בסיס נושם. */
@@ -116,12 +129,52 @@ body {
   }
 }
 
+/* ריחוף איטי להילות רקע — נותן תחושת עומק חי במסך הכניסה. */
+@keyframes float-slow {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2%, -3%) scale(1.06); }
+}
+@keyframes float-slow-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-3%, 3%) scale(1.08); }
+}
+
 @layer utilities {
   .animate-fade-up {
     animation: fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .animate-fade-in {
     animation: fade-in 0.3s ease-out both;
+  }
+  .animate-float-slow {
+    animation: float-slow 14s ease-in-out infinite;
+  }
+  .animate-float-slow-2 {
+    animation: float-slow-2 18s ease-in-out infinite;
+  }
+  /* משטח זכוכית — שקיפות + טשטוש + גבול עדין. למצב בהיר וכהה. */
+  .glass {
+    background: rgb(255 255 255 / 0.72);
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    border: 1px solid rgb(255 255 255 / 0.5);
+  }
+  .dark .glass {
+    background: rgb(17 24 39 / 0.62);
+    border: 1px solid rgb(148 163 184 / 0.12);
+  }
+  /* טקסט בגרדיאנט המותג (אינדיגו→סגול). */
+  .text-gradient {
+    background: linear-gradient(120deg, #4c51b8, #7c3aed);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .dark .text-gradient {
+    background: linear-gradient(120deg, #a9aeea, #c4b5fd);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
   /* שלד טעינה עם ברק נע (RTL — נע משמאל לימין). */
   .skeleton {
