@@ -193,6 +193,15 @@ class ExecutionPlan(BaseModel):
     assumptions: EstimateAssumptions
     estimator: EstimatorVersion
 
+    #: What this plan produces. Bound into the plan's identity, so a change to the
+    #: deliverables invalidates an approval granted for the old set — an approval is
+    #: for a specific piece of work, not for a budget in the abstract.
+    deliverables: list[str] = Field(default_factory=list)
+    #: Set only for work that legitimately produces no artifact (a pure analysis, a
+    #: dry run). Without it, an empty ``deliverables`` blocks real spend rather than
+    #: quietly presenting a quote for nothing in particular.
+    produces_no_artifact: bool = False
+
     #: Registry model ids this plan intends to use.
     model_ids: list[str] = Field(default_factory=list)
     stop_conditions: list[StopCondition] = Field(default_factory=list)
