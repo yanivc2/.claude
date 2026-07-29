@@ -4,7 +4,8 @@ import { ChatWidget } from "@/components/ChatWidget";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { PageTransition } from "@/components/PageTransition";
 import { ViewerProvider } from "@/components/ViewerProvider";
-import { currentAdmin } from "@/lib/session";
+import { redirect } from "next/navigation";
+import { currentAdmin, currentEmployee } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { roleOf } from "@/lib/rbac";
 
@@ -12,6 +13,8 @@ import { roleOf } from "@/lib/rbac";
 // וכפתור צף של היועץ לזכויות עובדים.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const me = await currentAdmin();
+  // סשן עובד אינו רשאי לאזור הניהול — מפנים לאזור העובד.
+  if (!me && (await currentEmployee())) redirect("/my-home");
   const company = me?.companyId
     ? await prisma.company.findUnique({ where: { id: me.companyId }, select: { name: true } })
     : null;

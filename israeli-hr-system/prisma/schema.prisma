@@ -172,6 +172,8 @@ model Employee {
   // זמינות לפי ימים ומשמרות: { "sun": ["morning","night"], ... }
   availability   Json?
   hasActivePension Boolean        @default(false) // האם קיים הסדר פנסיוני פעיל
+  // גישת עובד לאפליקציה (self-service). null = אין גישה עדיין. הסיסמה כ-hash.
+  passwordHash   String?          @db.Text
   privacyAcceptedAt DateTime? // מועד אישור מדיניות הפרטיות ע"י העובד
   privacyPolicyVersion String? // גרסת המדיניות שאושרה (למשל "2.0")
   privacyCompanyName   String? // שם החברה המעסיקה שתועדה במעמד ההסכמה

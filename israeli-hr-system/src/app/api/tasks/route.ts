@@ -61,8 +61,8 @@ export async function POST(req: Request) {
     });
     if (!emp) return NextResponse.json({ error: "העובד לא נמצא" }, { status: 404 });
     companyId = emp.companyId;
-    // התראה + פוש לעובד (מזוהה לפי המייל שלו, שישמש כשם משתמש בכניסת עובדים).
-    await notifyUser(emp.email, {
+    // התראה + פוש לעובד (מזוהה לפי סשן העובד: emp:<id>).
+    await notifyUser(`emp:${employeeId}`, {
       type: "TASK_ASSIGNED",
       title: "משימה חדשה מהמנהל",
       body: d.title,
