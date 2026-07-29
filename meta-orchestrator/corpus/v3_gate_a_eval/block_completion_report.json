@@ -1,0 +1,15 @@
+{
+  "actual_spend": "0.48409100",
+  "all_grants_completed": true,
+  "anchor": "022ac9fd0642eb73",
+  "block": "V3_GATE_A",
+  "cap": "1.50",
+  "cap_headroom": "1.01590900",
+  "completed": 18,
+  "head": "21bb372f16b449e9e5f8e553566ac241e4ef055a",
+  "manifest": "167338c4d7a7ae7d",
+  "outcomes_unsealed": false,
+  "remaining_credits": "1.90145300",
+  "sealed_entries": 18,
+  "total": 18
+}

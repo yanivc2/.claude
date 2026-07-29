@@ -1,0 +1,7 @@
+{
+  "authorized_state": "AUTHORIZED_FOR_FOLD1_HELDOUT_EVAL",
+  "evidence_bundle_hash": "2c4f7764aa86013d4a6bca5c48345b6f1ea0a9cb666294abcd2d89f6b4b50c09",
+  "expected_chain_head_hash": "339c7d78bf71bc9b",
+  "expected_sequence": 0,
+  "run_id": "s2-fold1-heldout-eval"
+}

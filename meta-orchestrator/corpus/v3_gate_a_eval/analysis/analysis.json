@@ -1,0 +1,91 @@
+{
+  "1_integrity": {
+    "arms": [
+      "OLD",
+      "NEW"
+    ],
+    "cells": 18,
+    "experiment": "V3_GATE_A_OUTPUT_CONTRACT",
+    "tasks": 9
+  },
+  "2_summary": {
+    "NEW_minus_OLD": -4,
+    "NEW_valid_applied": 0,
+    "OLD_valid_applied": 4,
+    "ambiguous_accepted": 0,
+    "paired_improvement": -4,
+    "replay_fail": 0,
+    "silent_partial": 0
+  },
+  "3_classification": "FAIL",
+  "4_per_task": [
+    {
+      "NEW_state": "NEW_MALFORMED",
+      "NEW_valid_applied": 0,
+      "OLD_state": "OLD_PATCH_SCHEMA_INVALID",
+      "OLD_valid_applied": 0,
+      "task_id": "black-133"
+    },
+    {
+      "NEW_state": "NEW_MALFORMED",
+      "NEW_valid_applied": 0,
+      "OLD_state": "VALID_APPLIED_PATCH",
+      "OLD_valid_applied": 1,
+      "task_id": "black-1632"
+    },
+    {
+      "NEW_state": "NEW_MALFORMED",
+      "NEW_valid_applied": 0,
+      "OLD_state": "OLD_PATCH_SCHEMA_INVALID",
+      "OLD_valid_applied": 0,
+      "task_id": "black-183"
+    },
+    {
+      "NEW_state": "NEW_MALFORMED",
+      "NEW_valid_applied": 0,
+      "OLD_state": "VALID_APPLIED_PATCH",
+      "OLD_valid_applied": 1,
+      "task_id": "black-234"
+    },
+    {
+      "NEW_state": "NEW_MALFORMED",
+      "NEW_valid_applied": 0,
+      "OLD_state": "OLD_PATCH_SCHEMA_INVALID",
+      "OLD_valid_applied": 0,
+      "task_id": "black-329"
+    },
+    {
+      "NEW_state": "NEW_MALFORMED",
+      "NEW_valid_applied": 0,
+      "OLD_state": "OLD_PATCH_SCHEMA_INVALID",
+      "OLD_valid_applied": 0,
+      "task_id": "black-60"
+    },
+    {
+      "NEW_state": "NEW_MALFORMED",
+      "NEW_valid_applied": 0,
+      "OLD_state": "OLD_PATCH_SCHEMA_INVALID",
+      "OLD_valid_applied": 0,
+      "task_id": "black-74"
+    },
+    {
+      "NEW_state": "NEW_MALFORMED",
+      "NEW_valid_applied": 0,
+      "OLD_state": "VALID_APPLIED_PATCH",
+      "OLD_valid_applied": 1,
+      "task_id": "black-95"
+    },
+    {
+      "NEW_state": "NEW_MALFORMED",
+      "NEW_valid_applied": 0,
+      "OLD_state": "VALID_APPLIED_PATCH",
+      "OLD_valid_applied": 1,
+      "task_id": "cookiecutter-18"
+    }
+  ],
+  "5_secondary_hidden_solve": {
+    "NEW_hidden_pass": 0,
+    "OLD_hidden_pass": 3
+  },
+  "6_note": "engineering qualification only; secondary metrics do not change the class"
+}

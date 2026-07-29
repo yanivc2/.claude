@@ -1,0 +1,322 @@
+{
+  "amendment": "target-file-set-given repair (scope amendment A)",
+  "frozen": true,
+  "frozen_at": "2026-07-16T18:05:44.981050Z",
+  "corpus_manifest_sha256": "cee0c6028e94c6e15e3865eca8cc52819fd258143f965c8110d8f281b58e7f66",
+  "family_map_content_hash": "4171f399373b",
+  "dataset_provenance": {
+    "repo": "https://github.com/pybughive/pybughive",
+    "commit": "1a35712f98abcfd7933a0accfc93d808bfde5efa"
+  },
+  "scope_content_hash": "79fae38b4074",
+  "counts": {
+    "total": 27,
+    "single_file": 23,
+    "multi_file": 4
+  },
+  "audit": {
+    "multi_file_ids": [
+      "black-112",
+      "black-1632",
+      "black-593",
+      "cookiecutter-18"
+    ],
+    "per_fold": {
+      "0": 2,
+      "1": 2
+    },
+    "per_family": {
+      "whitespace": 2,
+      "iterator": 1,
+      "boundary": 1
+    },
+    "family_multi_share": {
+      "whitespace": "2/9",
+      "iterator": "1/7",
+      "boundary": "1/2"
+    },
+    "one_fold_holds_all_multi": false,
+    "family_majority_multi": [],
+    "concentration_ok": true
+  },
+  "enforcement": "the repo-backed verifier fails any write outside a task's allowed_source_files; hidden (F2P) + public (P2P) tests unchanged.",
+  "tasks": [
+    {
+      "task_id": "black-112",
+      "family": "whitespace",
+      "fold": 0,
+      "n_source_files": 2,
+      "allowed_source_files": [
+        "blib2to3/pgen2/driver.py",
+        "blib2to3/pgen2/tokenize.py"
+      ],
+      "repair_scope": "multi_file"
+    },
+    {
+      "task_id": "black-130",
+      "family": "other_logic",
+      "fold": 2,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-132",
+      "family": "parser_normalization",
+      "fold": 2,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-133",
+      "family": "iterator",
+      "fold": 1,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-141",
+      "family": "parser_normalization",
+      "fold": 0,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-1632",
+      "family": "whitespace",
+      "fold": 1,
+      "n_source_files": 2,
+      "allowed_source_files": [
+        "src/black/linegen.py",
+        "src/black/mode.py"
+      ],
+      "repair_scope": "multi_file"
+    },
+    {
+      "task_id": "black-183",
+      "family": "parser_normalization",
+      "fold": 1,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-185",
+      "family": "other_logic",
+      "fold": 0,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-193",
+      "family": "iterator",
+      "fold": 2,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-215",
+      "family": "whitespace",
+      "fold": 2,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-224",
+      "family": "boundary",
+      "fold": 0,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-232",
+      "family": "iterator",
+      "fold": 0,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-234",
+      "family": "iterator",
+      "fold": 1,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-238",
+      "family": "whitespace",
+      "fold": 0,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-273",
+      "family": "parser_normalization",
+      "fold": 2,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-329",
+      "family": "whitespace",
+      "fold": 1,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-334",
+      "family": "whitespace",
+      "fold": 2,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "blib2to3/pgen2/driver.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-335",
+      "family": "whitespace",
+      "fold": 0,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-385",
+      "family": "condition_inversion",
+      "fold": 2,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-389",
+      "family": "iterator",
+      "fold": 2,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-593",
+      "family": "iterator",
+      "fold": 0,
+      "n_source_files": 5,
+      "allowed_source_files": [
+        "black.py",
+        "blib2to3/pgen2/driver.py",
+        "blib2to3/pgen2/driver.pyi",
+        "blib2to3/pgen2/tokenize.py",
+        "blib2to3/pgen2/tokenize.pyi"
+      ],
+      "repair_scope": "multi_file"
+    },
+    {
+      "task_id": "black-60",
+      "family": "whitespace",
+      "fold": 1,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-74",
+      "family": "other_logic",
+      "fold": 1,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-80",
+      "family": "whitespace",
+      "fold": 2,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "blib2to3/pgen2/tokenize.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "black-95",
+      "family": "iterator",
+      "fold": 1,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "repair_scope": "single_file"
+    },
+    {
+      "task_id": "cookiecutter-18",
+      "family": "boundary",
+      "fold": 1,
+      "n_source_files": 2,
+      "allowed_source_files": [
+        "cookiecutter/generate.py",
+        "setup.py"
+      ],
+      "repair_scope": "multi_file"
+    },
+    {
+      "task_id": "discord.py-7818",
+      "family": "condition_inversion",
+      "fold": 0,
+      "n_source_files": 1,
+      "allowed_source_files": [
+        "discord/app_commands/commands.py"
+      ],
+      "repair_scope": "single_file"
+    }
+  ]
+}

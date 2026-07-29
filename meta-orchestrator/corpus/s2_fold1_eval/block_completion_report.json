@@ -1,0 +1,15 @@
+{
+  "actual_spend_usd": "1.577119",
+  "all_grants_completed": true,
+  "anchor_hash": "cb73d03a8eb2d20d",
+  "bank_hash_after": "513d63007784",
+  "block": "FOLD1_HELDOUT_EVAL",
+  "completed_cells": 48,
+  "head": "cdbef082e99a6d70f7edd07716bca7f7ff87a405",
+  "manifest_hash": "d6a5919ab7bb3bec",
+  "outcomes_unsealed": false,
+  "remaining_credits_usd": "2.385544",
+  "sealed_chain_entries": 48,
+  "sealed_chain_valid": true,
+  "total_cells": 48
+}

@@ -1,0 +1,43 @@
+{
+  "_comment": "EMPTY TEMPLATE for the condition-D static playbook. The independent author fills this out from D_AUTHOR_PACKET.md ONLY, and returns JSON of exactly this shape — no prose, no reasoning. Replace every <...> placeholder. Provide 1-2 entries per family, covering all six families. Delete this _comment line before submitting.",
+  "author_type": "external_model | external_human",
+  "author_name": "<name/handle — provenance only, never injected>",
+  "entries": [
+    {
+      "family": "whitespace",
+      "trigger_or_context": "<when this applies — general, no task names>",
+      "recommended_action": ["<general step>", "<general step>"],
+      "avoid": ["<general anti-pattern>"]
+    },
+    {
+      "family": "iterator",
+      "trigger_or_context": "<...>",
+      "recommended_action": ["<...>"],
+      "avoid": ["<...>"]
+    },
+    {
+      "family": "parser_normalization",
+      "trigger_or_context": "<...>",
+      "recommended_action": ["<...>"],
+      "avoid": ["<...>"]
+    },
+    {
+      "family": "other_logic",
+      "trigger_or_context": "<...>",
+      "recommended_action": ["<...>"],
+      "avoid": ["<...>"]
+    },
+    {
+      "family": "boundary",
+      "trigger_or_context": "<...>",
+      "recommended_action": ["<...>"],
+      "avoid": ["<...>"]
+    },
+    {
+      "family": "condition_inversion",
+      "trigger_or_context": "<...>",
+      "recommended_action": ["<...>"],
+      "avoid": ["<...>"]
+    }
+  ]
+}

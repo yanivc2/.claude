@@ -1,0 +1,67 @@
+{
+  "status": "FOLD1_EVAL_COMPLETE_OUTCOMES_SEALED",
+  "checkpoint_purpose": "durable pre-unseal checkpoint — records that the fold-1 held-out paid evaluation ran to completion with outcomes still SEALED; authorizes no analysis",
+
+  "HEAD_at_execution": "cdbef082e99a6d70f7edd07716bca7f7ff87a405",
+  "manifest_hash": "d6a5919ab7bb3bec",
+  "evaluation_plan_hash": "2d66d7d4a6b6a050",
+  "master_anchor": "cb73d03a8eb2d20d",
+
+  "evaluation_model": "claude-haiku-4-5-20251001",
+  "session_model_note": "session/operator model was Opus 4.8 (operational only); a fail-closed model-identity gate verified the request body model, thinking budget (1024) and max_tokens (11264) before the first send — no path from the session model into any evaluation request",
+
+  "cells_completed": "48/48",
+  "primary_cells": 32,
+  "stability_cells": 16,
+  "api_calls": 54,
+  "r1_calls": 48,
+  "r2_calls": 6,
+  "r2_note": "R2 opened only on a genuine public FAIL (frozen contract mechanics); not a stop condition and not an outcome disclosure",
+  "ambiguous_after_send": 0,
+  "infra_errors": 0,
+  "retries": 0,
+
+  "actual_eval_spend_usd": "1.577119",
+  "reported_credits_before_usd": "3.962663",
+  "remaining_reported_credits_usd": "2.385544",
+  "fold1_official_spend_prior_usd": "0.700610",
+  "fold1_cap_check": "0.700610 + 1.577119 = 2.277729 <= 10.00",
+
+  "sealed_entry_count": 48,
+  "sealed_chain_valid": true,
+  "sealed_chain_head": "3d3b29252863c7be",
+  "sealed_artifact_path": "corpus/s2_fold1_eval/sealed_outcomes.jsonl",
+  "sealed_artifact_sha256": "53dec53d14d3ccde1ae77d6c21c10505ed6efea97f50cebad3e28c5e9a32edc9",
+  "sealed_artifact_copy": "byte-for-byte from the scratch run; NO decode, NO modification (copying a sealed artifact is not an unseal)",
+
+  "outcomes_unsealed": false,
+  "condition_totals_computed": false,
+  "comparative_analysis_started": false,
+  "bank_mutation": 0,
+  "bank_hash": "513d63007784",
+  "playbook_hash": "5bd2d42c2da9",
+
+  "evaluated_tasks": 8,
+  "evaluated_task_ids": ["black-133", "black-1632", "black-183", "black-234",
+                         "black-329", "black-60", "black-74", "black-95"],
+  "exclusion": {"task_id": "cookiecutter-18", "disposition": "PARITY_BLOCKED_BEFORE_SEND",
+                "detail": "frozen authoritative C/B1 token-parity gate blocked it pre-send (C_mem=134 B1_mem=101, gap=33, rel=25%); 0 paid cells, 0 outcomes, $0"},
+
+  "claim_scope": "WITHIN_FOLD_CAUSAL_EVIDENCE",
+  "unit_level_task_count": 8,
+  "boundary_generalization": "NOT_ESTABLISHED",
+  "cross_fold_generalization": "NOT_ESTABLISHED",
+
+  "audit_artifacts": {
+    "eval_manifest": "corpus/s2_fold1_eval/eval_manifest.json",
+    "master_anchor": "corpus/s2_fold1_eval/anchor.json",
+    "evidence_bundle": "corpus/s2_fold1_eval/evidence_bundle.json",
+    "prep_report": "corpus/s2_fold1_eval/prep_report.json",
+    "block_completion_report": "corpus/s2_fold1_eval/block_completion_report.json",
+    "driver_progress": "corpus/s2_fold1_eval/driver_progress.jsonl",
+    "grant_ledger": "corpus/s2_fold1_eval/grant_ledger.json",
+    "grants": "corpus/s2_fold1_eval/grants/ (48 signed single-use grants, all completed 1-2 calls)"
+  },
+
+  "next_step": "a SEPARATE explicit operator GO is required for a one-shot deterministic UNSEAL under the frozen analysis plan; this checkpoint performs NO unseal and NO analysis"
+}

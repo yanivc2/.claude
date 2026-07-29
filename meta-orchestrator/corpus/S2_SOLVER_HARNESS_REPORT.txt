@@ -1,0 +1,125 @@
+================================================================================
+§2 SOLVER-HARNESS REPORT — provider=mock  paid_api_called=false
+================================================================================
+corpus: n=27 synthetic_map=False family_map_hash=4171f399373b
+attempt_contract: {'max_model_calls': 2, 'max_patches': 2, 'max_public_runs': 2, 'hidden_verifications': 1, 'round2_only_after_public_fail': True, 'f2p_feedback_to_agent': False, 'public_feedback_char_cap': 2000}
+
+folds:
+  fold 0: bank=022d5e616ecf families=['boundary', 'condition_inversion', 'iterator', 'other_logic', 'parser_normalization', 'whitespace'] n_test=9
+  fold 1: bank=022d5e616ecf families=['boundary', 'condition_inversion', 'iterator', 'other_logic', 'parser_normalization', 'whitespace'] n_test=9
+  fold 2: bank=022d5e616ecf families=['boundary', 'condition_inversion', 'iterator', 'other_logic', 'parser_normalization', 'whitespace'] n_test=9
+
+routing_fixture_expected_outcome (NOT a scientific result — a plumbing test-double):
+  ** these numbers come from a routing double, not a model; they must NEVER enter
+     scientific results, mechanism claims, or summaries. **
+    A: 0/27
+    C: 27/27
+    D: 0/27
+    B1: 0/27
+  C/B1 occupancy parity (fold 0): EQUAL
+
+cost signals (OFFLINE, $0): {'attempts': 108, 'model_calls': 189, 'public_runs': 189, 'round2_opened': 81}
+harness signals: {'verifier_config_hash': '5885767ee0c7', 'blocked_tool_attempts': 0, 'f2p_feedback_leaked': False}
+
+frozen Haiku contract — INSPECTED, NOT SENT:
+  [PASS] thinking_enabled_budget_1024
+  [PASS] no_effort
+  [PASS] no_temperature
+  [PASS] no_top_p_top_k
+  [PASS] exact_snapshot
+  [PASS] max_tokens_4096
+  [PASS] fallback_off
+
+run invariants:
+  [PASS] routing_double_C_passes_all_held_out
+  [PASS] routing_double_A_B1_D_no_relevant_help
+  [PASS] no_f2p_feedback_leaked
+  [PASS] caps_respected
+  [PASS] outcomes_were_sealed
+  [PASS] c_b1_occupancy_parity
+  [PASS] no_cross_fold_leakage
+
+contract clause → proving test (acceptance criterion 8):
+  - A: thinking enabled + budget_tokens=1024
+      → test_s2_contract::test_adapter_sends_enabled_thinking_with_budget_1024
+  - A: never sends effort (errors on Haiku 4.5)
+      → test_s2_contract::test_adapter_never_sends_effort
+  - A: never sends temperature/top_p/top_k
+      → test_s2_contract::test_adapter_never_sends_temperature_or_sampling
+  - A: exact snapshot + max_tokens 4096
+      → test_s2_contract::test_adapter_pins_exact_snapshot_and_max_tokens
+  - A: no silent fallback
+      → test_s2_contract::test_run_policy_disables_fallback
+  - B: Round 1 success stops (no Round 2)
+      → test_s2_solver::test_round1_success_stops_without_round2
+  - B: public failure opens exactly one Round 2
+      → test_s2_solver::test_public_failure_allows_exactly_one_round2
+  - B: <=2 model calls / patches / public runs
+      → test_s2_solver::test_caps_hold_for_a_greedy_solver
+  - B: exactly one hidden verification
+      → test_s2_solver::test_hidden_verifier_runs_exactly_once
+  - B: invalid patch blocked + handled
+      → test_s2_solver::test_invalid_patch_is_blocked_and_handled
+  - B: no F2P feedback to the agent
+      → test_s2_solver::test_no_f2p_feedback_reaches_the_solver
+  - C: deterministic write-gate (8 checks)
+      → test_s2_write_gate::test_clean_candidate_is_written (+ per-check rejections)
+  - C: learn from train only; bank frozen
+      → test_s2_write_gate::test_learn_gated_bank_admits_only_clean_train_passes
+  - C: held-out write raises (noisy)
+      → test_s2_write_gate::test_frozen_bank_refuses_held_out_write
+  - C/B1/D: only memory content differs
+      → test_s2_solver::test_only_memory_differs_c_passes_a_b1_d_fail
+  - B1: same bank, frozen mis-routing
+      → test_s2_harness::test_real_map_b1_placebo_over_present_families_no_fixed_point
+  - D: loaded from frozen file, unmodified
+      → test_s2_playbook_d::(freeze + content-hash suite)
+  - E: outcomes sealed until finalize
+      → test_s2_solver::test_effect_table_sealed_until_finalize
+  - resume: no duplicate attempt / cost
+      → test_s2_solver::test_resume_does_not_duplicate_attempts_or_calls
+  - provenance: all frozen hashes recorded
+      → test_s2_solver::test_provenance_records_all_frozen_hashes
+  - P0.1 production-path body (not just builder)
+      → test_s2_model_client::test_production_path_sends_exact_contract_body
+  - P0.1 no silent fallback on the call path
+      → test_s2_model_client::test_no_fallback_raises_model_unavailable
+  - P0.2 fold banks distinct + provenance ⊆ train
+      → test_s2_fold_leakage::test_bank_provenance_is_within_train_and_excludes_held_out
+  - P0.2 cross-fold injection fails loudly
+      → test_s2_fold_leakage::test_injecting_another_folds_bank_fails_loudly
+  - P0.3 held-out proposes no lesson (schema parity)
+      → test_s2_hardening::test_held_out_c_emits_no_candidate_lesson
+  - P0.4 empty public suite ≠ FAIL (no free Round 2)
+      → test_s2_hardening::test_no_public_tests_does_not_open_round2
+  - P0.5 C/B1 occupancy-parity confound detector
+      → test_s2_hardening::test_occupancy_parity_flags_length_confound
+  - neg-control: memory-ignoring → no separation
+      → test_s2_hardening::test_memory_ignoring_double_shows_no_separation
+  - neg-control: leaking lesson → gate rejects
+      → test_s2_hardening::test_leaking_lesson_is_rejected_by_the_gate
+  - B1 parity-optimized derangement + hard block
+      → test_s2_b1_selector::test_selection_succeeds_with_equal_occupancy / test_block_when_no_mapping_meets_tolerance
+  - held-out request byte-identical except memory
+      → test_s2_prepaid::test_held_out_requests_are_byte_identical_except_memory
+  - prompt carries no condition/family label
+      → test_s2_prepaid::test_prompt_carries_no_condition_or_family_label
+  - counterbalanced condition order
+      → test_s2_prepaid::test_condition_order_is_balanced_across_tasks
+  - infra error → incomplete, never a condition FAIL
+      → test_s2_prepaid::test_infra_error_is_incomplete_not_a_fail
+  - response-parser robustness
+      → test_s2_prepaid::test_parser_handles_response_variants
+  - SDK-serialized body omits effort (pilot env)
+      → test_s2_prepaid::test_sdk_serialized_body_omits_effort_and_temperature [skipped offline]
+
+residual risks:
+  - synthetic stand-in tasks exercise the PLUMBING only; the real bugs need a cloned repo + real test run (repo-backed reproduction) to become the graded corpus.
+  - MemorySensitiveRoundSolver is a ROUTING test-double — it makes no claim a real Haiku session behaves this way; the micro-pilot replaces it.
+  - D's effectiveness is not exercised by the routing double (it only responds to a relevant-family C lesson); D vs A/C is a real-model question for the pilot.
+  - n=27, per-fold n=9 — a directional pilot only (Decision E); no confirmatory claim.
+  - training-cutoff contamination stratum still needs the official Haiku 4.5 model card (snapshot date 2025-10-01 != cutoff) before it can be relied on.
+
+paid_api_called = false
+SELF-CHECKS PASSED ✓ — STOP before count_tokens and before any real Haiku call (both are separate, approval-gated steps).
+================================================================================

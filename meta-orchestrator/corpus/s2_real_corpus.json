@@ -1,0 +1,1086 @@
+{
+  "corpus": "s2 real repo-backed corpus (target-file-set-given repair)",
+  "corpus_manifest_sha256": "cee0c6028e94c6e15e3865eca8cc52819fd258143f965c8110d8f281b58e7f66",
+  "scope_content_hash": "79fae38b4074",
+  "dataset_commit": "1a35712f98abcfd7933a0accfc93d808bfde5efa",
+  "counts_by_status": {
+    "reproduced_public_nonempty": 27
+  },
+  "wired_total": 27,
+  "tasks": {
+    "black-112": {
+      "task_id": "black-112",
+      "family": "whitespace",
+      "repair_scope": "multi_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=24 (23.1s)",
+      "install_s": 2.1,
+      "test_s": 3.0,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "1909d8cc6b6ef62ea285a69f6d8b25630d85f04a",
+      "fixed_rev": "9138a75b759ecb690d63924503f88bfbc82d4862",
+      "allowed_source_files": [
+        "blib2to3/pgen2/driver.py",
+        "blib2to3/pgen2/tokenize.py"
+      ],
+      "buggy_source_hash": "97967354f308",
+      "reference_fix_hash": "fc263a31ab55",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "comments2"
+        ]
+      ],
+      "p2p_count": 24,
+      "public_suite_empty": false,
+      "sanitized_statement": "Cannot parse: 5:0: # add_compiler(compiler)"
+    },
+    "black-130": {
+      "task_id": "black-130",
+      "family": "other_logic",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=34 (17.8s)",
+      "install_s": 2.0,
+      "test_s": 15.3,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "2e52a2b3ecc0fe025439c3db05a4457ab14f167b",
+      "fixed_rev": "06e95b1e9bcd43c4574840f8174ba4b2c5d281bd",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "87b7dea3c71e",
+      "reference_fix_hash": "40770007f655",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          null
+        ]
+      ],
+      "p2p_count": 34,
+      "public_suite_empty": false,
+      "sanitized_statement": "--diff doesn't display full file path"
+    },
+    "black-132": {
+      "task_id": "black-132",
+      "family": "parser_normalization",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=2 P2P=23 (20.8s)",
+      "install_s": 2.0,
+      "test_s": 18.1,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "f294cc272c3aa5b8d3cd35b9f9283721b7e458d8",
+      "fixed_rev": "a764f1bb3b459ee6f2e752e3d67793b119a2144a",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "e71e97cd5676",
+      "reference_fix_hash": "8f01bb02fddf",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          null
+        ],
+        [
+          "tests/test_black.py",
+          "expression"
+        ],
+        [
+          "tests/test_black.py",
+          "function"
+        ]
+      ],
+      "p2p_count": 23,
+      "public_suite_empty": false,
+      "sanitized_statement": "Trailing comma is removed in complex dict \u2026"
+    },
+    "black-133": {
+      "task_id": "black-133",
+      "family": "iterator",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=33 (18.1s)",
+      "install_s": 2.0,
+      "test_s": 4.7,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "b5b658da0683c3e0806461946d8b492784e26d97",
+      "fixed_rev": "d73166c42b7de83249d17125cae3c2594a25b2c3",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "fda461c905f3",
+      "reference_fix_hash": "a64a32be3a19",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "expression"
+        ]
+      ],
+      "p2p_count": 33,
+      "public_suite_empty": false,
+      "sanitized_statement": "Failure to reformat a lamba \u2026"
+    },
+    "black-141": {
+      "task_id": "black-141",
+      "family": "parser_normalization",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=36 (18.7s)",
+      "install_s": 2.1,
+      "test_s": 4.7,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "92957a41e3f909c7b813b448f65cd437cf0139f2",
+      "fixed_rev": "9d671bdbe13ab68cea1bba15001c43e90cf2c1a6",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "be8a57f68f02",
+      "reference_fix_hash": "25bfbfc5e93d",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "expression"
+        ]
+      ],
+      "p2p_count": 36,
+      "public_suite_empty": false,
+      "sanitized_statement": "Black does not follow line length rule with ternary expression"
+    },
+    "black-1632": {
+      "task_id": "black-1632",
+      "family": "whitespace",
+      "repair_scope": "multi_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=123 (35.5s)",
+      "install_s": 3.0,
+      "test_s": 31.7,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "62c2b167bcf22683fc11add2f24a132d36e8fd19",
+      "fixed_rev": "20d8ccb54253f8a66321f6708d53e2a05a54079b",
+      "allowed_source_files": [
+        "src/black/linegen.py",
+        "src/black/mode.py"
+      ],
+      "buggy_source_hash": "bba31b8e5b04",
+      "reference_fix_hash": "64557dba9570",
+      "f2p_plan": [
+        [
+          "tests/test_format.py",
+          null
+        ],
+        [
+          "tests/test_black.py",
+          "docstring"
+        ],
+        [
+          "tests/test_format.py",
+          "docstring"
+        ],
+        [
+          "tests/test_format.py",
+          "docstring_preview"
+        ]
+      ],
+      "p2p_count": 123,
+      "public_suite_empty": false,
+      "sanitized_statement": "Docstrings reformatted to be too long"
+    },
+    "black-183": {
+      "task_id": "black-183",
+      "family": "parser_normalization",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=39 (18.7s)",
+      "install_s": 2.1,
+      "test_s": 4.7,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "dc0c14240e7423d9ada002835dcc195f8c6d8797",
+      "fixed_rev": "cfb003f51c89802b5bca29018fde62c4501a8940",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "96f829f9eb9d",
+      "reference_fix_hash": "658699d60221",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "expression"
+        ]
+      ],
+      "p2p_count": 39,
+      "public_suite_empty": false,
+      "sanitized_statement": "Different code on second pass"
+    },
+    "black-185": {
+      "task_id": "black-185",
+      "family": "other_logic",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=39 (17.9s)",
+      "install_s": 2.0,
+      "test_s": 3.1,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "c6a6cfd3a293a69c29f93beca1c64bd857371e14",
+      "fixed_rev": "dc0c14240e7423d9ada002835dcc195f8c6d8797",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "72e03d70564a",
+      "reference_fix_hash": "96f829f9eb9d",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "import_spacing"
+        ]
+      ],
+      "p2p_count": 39,
+      "public_suite_empty": false,
+      "sanitized_statement": "Trailing comma after from .. import"
+    },
+    "black-193": {
+      "task_id": "black-193",
+      "family": "iterator",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=2 P2P=43 (23.3s)",
+      "install_s": 2.3,
+      "test_s": 7.0,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "8b64e916f65f2c1023f9abd6243a904bfbcd8fe9",
+      "fixed_rev": "5a47fd13cc4c9f43270dd12c37577244c1eabfcc",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "5b21d7681608",
+      "reference_fix_hash": "2be8afeedac6",
+      "f2p_plan": [
+        [
+          "tests/composition.py",
+          null
+        ],
+        [
+          "tests/test_black.py",
+          "empty_lines"
+        ],
+        [
+          "tests/test_black.py",
+          "expression"
+        ]
+      ],
+      "p2p_count": 43,
+      "public_suite_empty": false,
+      "sanitized_statement": "can't format python2 valid syntax"
+    },
+    "black-215": {
+      "task_id": "black-215",
+      "family": "whitespace",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=45 (19.2s)",
+      "install_s": 2.0,
+      "test_s": 3.3,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "665ed8a2403161a987c49e1818f2376840723b96",
+      "fixed_rev": "3ad0f5855c46410652b27b5e09c6f22314241757",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "2ded93c3a7ed",
+      "reference_fix_hash": "70df5feafa75",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "comments3"
+        ]
+      ],
+      "p2p_count": 45,
+      "public_suite_empty": false,
+      "sanitized_statement": "Multiline string literals get wrapped in unnecessary parens"
+    },
+    "black-224": {
+      "task_id": "black-224",
+      "family": "boundary",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=45 (19.7s)",
+      "install_s": 2.3,
+      "test_s": 3.6,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "86e1c3650741ce9641a14a89db6162f30786f093",
+      "fixed_rev": "808754af18f1cea2444c6facf63f3a86952c5d44",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "793dbf33d213",
+      "reference_fix_hash": "4babb8e28f69",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "fmtonoff"
+        ]
+      ],
+      "p2p_count": 45,
+      "public_suite_empty": false,
+      "sanitized_statement": "black strips off parens in fmt: off section"
+    },
+    "black-232": {
+      "task_id": "black-232",
+      "family": "iterator",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=59 (21.7s)",
+      "install_s": 2.3,
+      "test_s": 3.6,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "23a00f051576d2e7edd18b6af382902cc34ea4a2",
+      "fixed_rev": "d638d56e0e383caeeff048e76b02b50b29367c3d",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "2175f3d73ae6",
+      "reference_fix_hash": "7ed193bb0f25",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "cantfit"
+        ]
+      ],
+      "p2p_count": 59,
+      "public_suite_empty": false,
+      "sanitized_statement": "Multiline strings cause unnecessary optional parentheses"
+    },
+    "black-234": {
+      "task_id": "black-234",
+      "family": "iterator",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=2 P2P=44 (20.8s)",
+      "install_s": 2.0,
+      "test_s": 4.8,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "808754af18f1cea2444c6facf63f3a86952c5d44",
+      "fixed_rev": "9a6c88c7f4b4db14631f8dc9e8d44b3aed9d57c9",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "4babb8e28f69",
+      "reference_fix_hash": "1595f3e5d112",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "fmtonoff"
+        ],
+        [
+          "tests/test_black.py",
+          "import_spacing"
+        ]
+      ],
+      "p2p_count": 44,
+      "public_suite_empty": false,
+      "sanitized_statement": "Star import after a long path produces invalid code"
+    },
+    "black-238": {
+      "task_id": "black-238",
+      "family": "whitespace",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=45 (20.9s)",
+      "install_s": 2.0,
+      "test_s": 5.2,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "9a6c88c7f4b4db14631f8dc9e8d44b3aed9d57c9",
+      "fixed_rev": "658eb7161d8d0c23bafe4881e70518c33a74a4c1",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "1595f3e5d112",
+      "reference_fix_hash": "18eae5de9109",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "expression"
+        ]
+      ],
+      "p2p_count": 45,
+      "public_suite_empty": false,
+      "sanitized_statement": "Omitting rightmost bracket splits + a moving inline comment causes unstable formatting"
+    },
+    "black-273": {
+      "task_id": "black-273",
+      "family": "parser_normalization",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=59 (20.6s)",
+      "install_s": 2.1,
+      "test_s": 3.3,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "7fc6ce990669464f5172b63fafa3724f5f308be3",
+      "fixed_rev": "23a00f051576d2e7edd18b6af382902cc34ea4a2",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "f956e09aa6ba",
+      "reference_fix_hash": "2175f3d73ae6",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "cantfit"
+        ]
+      ],
+      "p2p_count": 59,
+      "public_suite_empty": false,
+      "sanitized_statement": "Only put optional parentheses when contents can be split"
+    },
+    "black-329": {
+      "task_id": "black-329",
+      "family": "whitespace",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=60 (22.2s)",
+      "install_s": 2.2,
+      "test_s": 3.5,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "013cb2b374cc6d649d25bc35ba592a8f88f484df",
+      "fixed_rev": "8a8c58252cc023ae250d6febd24f50a8166450d4",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "d9bd4823ea28",
+      "reference_fix_hash": "c45ab43567f8",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "fmtonoff"
+        ]
+      ],
+      "p2p_count": 60,
+      "public_suite_empty": false,
+      "sanitized_statement": "fmt:on/off placed asymmetrically ends up with a cryptic exception"
+    },
+    "black-334": {
+      "task_id": "black-334",
+      "family": "whitespace",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=2 P2P=60 (22.2s)",
+      "install_s": 2.2,
+      "test_s": 4.5,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "df2ae3bbe6c45298aabb6c04e85cb353205626f1",
+      "fixed_rev": "e1ef57a29e03fb49688d27ed72c58ce80809f50f",
+      "allowed_source_files": [
+        "blib2to3/pgen2/driver.py"
+      ],
+      "buggy_source_hash": "c0404d765956",
+      "reference_fix_hash": "5be046577320",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "debug_visitor"
+        ],
+        [
+          "tests/test_black.py",
+          "fmtonoff2"
+        ]
+      ],
+      "p2p_count": 60,
+      "public_suite_empty": false,
+      "sanitized_statement": "Internal error + error 12/11 with multiple format on/off"
+    },
+    "black-335": {
+      "task_id": "black-335",
+      "family": "whitespace",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=61 (29.6s)",
+      "install_s": 2.2,
+      "test_s": 26.9,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "8a8c58252cc023ae250d6febd24f50a8166450d4",
+      "fixed_rev": "df2ae3bbe6c45298aabb6c04e85cb353205626f1",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "c45ab43567f8",
+      "reference_fix_hash": "1caf01c8dcfb",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          null
+        ],
+        [
+          "tests/test_black.py",
+          "fmtonoff2"
+        ]
+      ],
+      "p2p_count": 61,
+      "public_suite_empty": false,
+      "sanitized_statement": "fmt: off is ignored after first function"
+    },
+    "black-385": {
+      "task_id": "black-385",
+      "family": "condition_inversion",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=1 (6.3s)",
+      "install_s": 2.0,
+      "test_s": 3.7,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "df965b055808bbfbe32f4f20ac949b364dafc900",
+      "fixed_rev": "e94a41f92a568706700522aaad48ebd137fe1d8b",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "117cff3f42b5",
+      "reference_fix_hash": "fc3c33fc96d5",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "fmtonoff"
+        ]
+      ],
+      "p2p_count": 1,
+      "public_suite_empty": false,
+      "sanitized_statement": "`# fmt: off` directly before `yield` only affects the `yield`"
+    },
+    "black-389": {
+      "task_id": "black-389",
+      "family": "iterator",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=2 P2P=60 (28.3s)",
+      "install_s": 2.0,
+      "test_s": 25.7,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "3bdd42389128bbbe8b64a8e050563f09bff99979",
+      "fixed_rev": "dd8bde6d2fbfe8a7a11093e761a0cb5837efa96a",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "67305c16e942",
+      "reference_fix_hash": "117cff3f42b5",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          null
+        ],
+        [
+          "tests/test_black.py",
+          "python2_unicode_literals"
+        ]
+      ],
+      "p2p_count": 60,
+      "public_suite_empty": false,
+      "sanitized_statement": "Fails when importing __future__ as renaming it"
+    },
+    "black-593": {
+      "task_id": "black-593",
+      "family": "iterator",
+      "repair_scope": "multi_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=82 (35.9s)",
+      "install_s": 2.2,
+      "test_s": 33.0,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "8c8adedc2a74a494c24f93e405b6418ac32f54cd",
+      "fixed_rev": "f8617f975d56e81cfb4070ce65584f7b29a77e7a",
+      "allowed_source_files": [
+        "black.py",
+        "blib2to3/pgen2/driver.py",
+        "blib2to3/pgen2/driver.pyi",
+        "blib2to3/pgen2/tokenize.py",
+        "blib2to3/pgen2/tokenize.pyi"
+      ],
+      "buggy_source_hash": "76ff0b790038",
+      "reference_fix_hash": "f8fd6a2c9abe",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          null
+        ],
+        [
+          "tests/test_black.py",
+          "async_as_identifier"
+        ],
+        [
+          "tests/test_black.py",
+          "python37"
+        ]
+      ],
+      "p2p_count": 82,
+      "public_suite_empty": false,
+      "sanitized_statement": "Black can't parse new Python 3.7 async generator syntax"
+    },
+    "black-60": {
+      "task_id": "black-60",
+      "family": "whitespace",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=14 (13.6s)",
+      "install_s": 1.9,
+      "test_s": 3.3,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "7bd6f3cb2ff11d385dbe433e2b03e9f7c94be33e",
+      "fixed_rev": "cf6f577928f5a1f4e98b02b8e723311cae830305",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "6d068240a0c2",
+      "reference_fix_hash": "a5e79a43cb87",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "function"
+        ]
+      ],
+      "p2p_count": 14,
+      "public_suite_empty": false,
+      "sanitized_statement": "Space removed before () when used as default function argument"
+    },
+    "black-74": {
+      "task_id": "black-74",
+      "family": "other_logic",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=16 (14.4s)",
+      "install_s": 2.0,
+      "test_s": 3.3,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "1f445a01c8c073058ccd6ca6ceba8f527e6cbf15",
+      "fixed_rev": "e5f8251704c22b143b79474905c6c4b7e10ddb47",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "8d0ade76926a",
+      "reference_fix_hash": "7fb63b66f21f",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "empty_lines"
+        ]
+      ],
+      "p2p_count": 16,
+      "public_suite_empty": false,
+      "sanitized_statement": "Empty lines within functions and class body definitions are not removed"
+    },
+    "black-80": {
+      "task_id": "black-80",
+      "family": "whitespace",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=2 P2P=15 (14.7s)",
+      "install_s": 2.2,
+      "test_s": 11.8,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "611737f9cc186d3e6463ef774fdbda4f77055d4c",
+      "fixed_rev": "fc869039ebcc0c0ff922ea9b2713480c119e5341",
+      "allowed_source_files": [
+        "blib2to3/pgen2/tokenize.py"
+      ],
+      "buggy_source_hash": "ff9d27941044",
+      "reference_fix_hash": "fd07238cad4b",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          null
+        ],
+        [
+          "tests/test_black.py",
+          "function"
+        ]
+      ],
+      "p2p_count": 15,
+      "public_suite_empty": false,
+      "sanitized_statement": "Cannot format if at least one space on empty line in file"
+    },
+    "black-95": {
+      "task_id": "black-95",
+      "family": "iterator",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=24 (15.5s)",
+      "install_s": 2.2,
+      "test_s": 3.3,
+      "timed_out": false,
+      "project": "black",
+      "repo_url": "https://github.com/psf/black",
+      "buggy_rev": "4787294622f9053525fb2373db207dd4a35520dc",
+      "fixed_rev": "2f260514f67f154d1c8f59bc9ea899406d8a2cfd",
+      "allowed_source_files": [
+        "black.py"
+      ],
+      "buggy_source_hash": "ff080f57742e",
+      "reference_fix_hash": "7f6306d20b71",
+      "f2p_plan": [
+        [
+          "tests/test_black.py",
+          "fmtonoff"
+        ]
+      ],
+      "p2p_count": 24,
+      "public_suite_empty": false,
+      "sanitized_statement": "Error formatting 3 files in trio"
+    },
+    "cookiecutter-18": {
+      "task_id": "cookiecutter-18",
+      "family": "boundary",
+      "repair_scope": "multi_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=4 (16.0s)",
+      "install_s": 2.5,
+      "test_s": 5.8,
+      "timed_out": false,
+      "project": "cookiecutter",
+      "repo_url": "https://github.com/cookiecutter/cookiecutter",
+      "buggy_rev": "312bcc9f78f1ffe0c0fa2c483d1dea5a101c5871",
+      "fixed_rev": "0e38a7068375e065f00a6a6ce29459e91261f11b",
+      "allowed_source_files": [
+        "cookiecutter/generate.py",
+        "setup.py"
+      ],
+      "buggy_source_hash": "4e3d7f270b69",
+      "reference_fix_hash": "d5bebc44a72f",
+      "f2p_plan": [
+        [
+          "tests/test_generate.py",
+          null
+        ],
+        [
+          "tests/test_generate.py",
+          "logo"
+        ],
+        [
+          "tests/test_generate.py",
+          "readme"
+        ],
+        [
+          "tests/test_generate.py",
+          "some_font"
+        ]
+      ],
+      "p2p_count": 4,
+      "public_suite_empty": false,
+      "sanitized_statement": "cookiecutter throws unicode exceptions on image files"
+    },
+    "discord.py-7818": {
+      "task_id": "discord.py-7818",
+      "family": "condition_inversion",
+      "repair_scope": "single_file",
+      "status": "reproduced_public_nonempty",
+      "gates": {
+        "1_deterministic_checkout": true,
+        "2_allowed_files_match_scope": true,
+        "3_reference_fix_from_allowed_only": true,
+        "7_clean_rerun_stable": true,
+        "4_f2p_fail_on_buggy_pass_on_fixed": true,
+        "5_public_suite_optional": true,
+        "6_statement_clean": true
+      },
+      "detail": "F2P=1 P2P=13 (17.5s)",
+      "install_s": 4.3,
+      "test_s": 4.1,
+      "timed_out": false,
+      "project": "discord.py",
+      "repo_url": "https://github.com/Rapptz/discord.py",
+      "buggy_rev": "c67130821151266e6b6855b8ce0e031850bf6fbc",
+      "fixed_rev": "25ad5b675c044e67c160e8a18a4753e93efec26d",
+      "allowed_source_files": [
+        "discord/app_commands/commands.py"
+      ],
+      "buggy_source_hash": "772dad2d4e4d",
+      "reference_fix_hash": "4b71a632aeda",
+      "f2p_plan": [
+        [
+          "tests/test_app_commands_group.py",
+          null
+        ]
+      ],
+      "p2p_count": 13,
+      "public_suite_empty": false,
+      "sanitized_statement": "Unable to create nested groups with explicit parent set"
+    }
+  }
+}

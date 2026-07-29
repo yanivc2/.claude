@@ -1,0 +1,12 @@
+{
+  "approved_host": "api.anthropic.com",
+  "approved_scheme": "https",
+  "content_hash": "4ab7b2507474bffa",
+  "input_usd_per_mtok": "1.00",
+  "model": "claude-haiku-4-5-20251001",
+  "output_usd_per_mtok": "5.00",
+  "pricing_schema_version": "s2-pricing-v1",
+  "pricing_source": "official_anthropic_pricing",
+  "pricing_verified_at": "2026-07-19",
+  "provider": "anthropic"
+}

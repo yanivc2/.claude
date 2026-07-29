@@ -1,0 +1,497 @@
+{
+  "authorization_state": "UNAUTHORIZED_FOR_MESSAGES",
+  "bundle_id": "handoff-20260719T011136Z",
+  "clean_worktree": true,
+  "content_inventory_hash": "ba6302a65b8650106f2bd649d9bab404d4f4a14a62e53dbc360833608c4be38a",
+  "created_at": "20260719T011136Z",
+  "git_commit": "acbe6b9a62efc1993101a70274f4a3402b9db280",
+  "git_tree_hash": "3a6aa76473cc52822d908703107a69af909ed8f8",
+  "inventory": [
+    {
+      "mode": "0o644",
+      "path": "corpus/S2_AGENT_CONTRACT.md",
+      "sha256": "aa167c175b03e4dba865826d3f66a37d04b47779f8fe88a2dff1c4d7885cb905",
+      "size": 12194,
+      "type": "markdown"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/S2_PILOT_READINESS_REPORT.txt",
+      "sha256": "4005f4be8a3b06b9063480aee70618aa5dc3c6d39e655317f06809d1b79be906",
+      "size": 3698,
+      "type": "text"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/S2_PILOT_RUNBOOK.md",
+      "sha256": "e4cd7793651a74fc82e7de2e89ca7b0e672a35d833badcf1181395b29ad22258",
+      "size": 11421,
+      "type": "markdown"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/S2_PREPAID_FREEZE.md",
+      "sha256": "0428e9d02f1739d8123548950092fa603daa75a04f1340ffaba23d3f5e761a6e",
+      "size": 13698,
+      "type": "markdown"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/S2_REPRODUCTION_ENVELOPE.md",
+      "sha256": "3150c9e52b1e9c33ab24accd54e97d065dd397d967e6923412f8dc4af2a41ed4",
+      "size": 5949,
+      "type": "markdown"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/S2_SOLVER_HARNESS_REPORT.txt",
+      "sha256": "28c585ab7886b777184818278a00848af368cf53d0f2117ecd5033c97d0cc9c2",
+      "size": 7276,
+      "type": "text"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/d_playbook.frozen.json",
+      "sha256": "a9bffb7703694d94c33ec2f92a6c9f9dc401ebd02e47511f466ee801b5112eb5",
+      "size": 2812,
+      "type": "json"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/s2_family_map.json",
+      "sha256": "d6a90b17f9856279414419a8697127e8f7622993367449eeb797fc1a93b1eda3",
+      "size": 16517,
+      "type": "json"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/s2_offline_report.json",
+      "sha256": "23d1c77f683c776e06a86f801313ceb8c2eec149dda889823240efa2186a34b1",
+      "size": 4635,
+      "type": "json"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/s2_real_corpus.json",
+      "sha256": "c328e838d76634e462fe3fa0b17b166b4173f25bfb8824158e3eddda5ed05582",
+      "size": 34541,
+      "type": "json"
+    },
+    {
+      "mode": "0o644",
+      "path": "corpus/s2_scope_metadata.json",
+      "sha256": "9617f4dc5664da7ef9f0a0ab2de7a6aea8b8d45f052be6ebdd56fe67cd931967",
+      "size": 7321,
+      "type": "json"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_build_family_map.py",
+      "sha256": "c310de779407375f4b09e5285642aec8213ec6fafa9a608fc176093abca61131",
+      "size": 8150,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_build_handoff.py",
+      "sha256": "fd73e357f285a778eb6228c88b1cde4d4ff5af35a0f21c04d920ad541638f8d2",
+      "size": 2646,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_build_scope_metadata.py",
+      "sha256": "5cc9a79778eb92bd0f5a006d15da4c783ed306b34c219628c8598b989fad2418",
+      "size": 6449,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_gate1.py",
+      "sha256": "9282cde71761d637240e7e6830bcc7453e4408f5493ef552d611fec67ce45555",
+      "size": 3445,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_gate2.py",
+      "sha256": "3d16403e350661e31584fc4ec74fec19238252c09a3531d2033fd50751d6bd7e",
+      "size": 2424,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_offline_harness.py",
+      "sha256": "4c07dcb4d47a3f63ec924bad926b1d754be25394515d34c73e62d4cb41861b3a",
+      "size": 8371,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_pilot_readiness_report.py",
+      "sha256": "de2f0e99a6c672350cbc9ed8f1a9aaaf93ef6f3cd26dadeeba5550b8b6275741",
+      "size": 4178,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_run_manifest.py",
+      "sha256": "e05356634f344b42617dc9462946b89c3d94fbd2f17188aa7517c7c2fa289df4",
+      "size": 2580,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_solver_harness_report.py",
+      "sha256": "e55813483385e010a2e614d46959b0a103ab2e6c562d362c6f9f24745962690a",
+      "size": 12514,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_validate_d.py",
+      "sha256": "8d7cc7e382e9a62645e9d154bb5032e021f20d7b0b5f34461a9c9ae723d6cec7",
+      "size": 3168,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_verify_handoff.py",
+      "sha256": "7aa88a9466e1db79acdad7a9e17eb14ff8a1e751ecf7af64b47f0d433c7b04a5",
+      "size": 1692,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "examples/s2_wire_real_corpus.py",
+      "sha256": "24448b4487a5036d07f7a2a04f0120b5f2de56044520486cf382eee5ad929102",
+      "size": 7289,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/__init__.py",
+      "sha256": "b00b931acc5bfec480a4bd5968610c4baf6ec7dbf0708785f4a921e6e9229f00",
+      "size": 8721,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/b1_selector.py",
+      "sha256": "4d804d7cbe1b08e69df08d248916c286e10e9a1a5ba9cc799278f3175d800dfa",
+      "size": 8971,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/call_journal.py",
+      "sha256": "a20992e062fd7a6ed260d49c4ded0ebe43d3ddda6547e86f03ebfe44928bc41e",
+      "size": 6547,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/canonical.py",
+      "sha256": "2977e79a4726c7bb7362e347f7b19a4196bbd732af8837e639f0a61b912729a3",
+      "size": 3914,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/contract_s2.py",
+      "sha256": "43a12233c3bcbbe0e9f25afe21c2f25c607aec1e831011dc1b771cfb58be5235",
+      "size": 4676,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/evidence.py",
+      "sha256": "117d1969e8805d42e56d0eb261158d0ab7cfaddc9a7ca21549c10da5ebbcf3e3",
+      "size": 13514,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/families.py",
+      "sha256": "76ba1a87d156f6b75ac21aa2a6b1f00d050da832ea9ab804a0f68c0856b2f458",
+      "size": 1002,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/folds.py",
+      "sha256": "52f50adb757d13be845c69a054c7502be53b1f661e22967be1de11a5f06b89a1",
+      "size": 3651,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/gate.py",
+      "sha256": "8d429e7a971bf12d2f825dcc8ffcb1cf0a63510aa9bd6b470ad190807b91d0e6",
+      "size": 2147,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/gates.py",
+      "sha256": "af03a5db41f975fac3e11e187728c6e90c31a547ba43f826191f395d427515d3",
+      "size": 5733,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/handoff.py",
+      "sha256": "e6d85485c65378ceef16f065b4c33ec01106397124e227e5d31e44b3e15a78f3",
+      "size": 10942,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/harness.py",
+      "sha256": "1a587c93d0f7a77316263c5b1168345343afd2ade0f926b03b1fe6c7fa7c10a4",
+      "size": 9465,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/lifecycle.py",
+      "sha256": "49656edc9a9e9e1a788b14b9856715d1bc19dab7d24d9da4200edb4c0840b92b",
+      "size": 2739,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/memory.py",
+      "sha256": "350f698b5b5d3e6a207dfe5eb7a4eaf1db523ebe72e469ac1b55edfe7d6b7a65",
+      "size": 9677,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/mocks.py",
+      "sha256": "568417543c06ff4b4f21af42102ee2f931d80bcd87057bf25335c2cc9a7c08b6",
+      "size": 2632,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/model_client.py",
+      "sha256": "0b952b60f39e6938bd018b680dc1cf69d2d75d68476a561163c5bcaf66d3df8c",
+      "size": 4828,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/ordering.py",
+      "sha256": "547dd0488ee9db1bc3922e05bd22085fd18c61ea373171f0bbebae37650dde84",
+      "size": 5578,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/pilot.py",
+      "sha256": "050b9624b499cbbe5f2424d6f75229759367109e6db29590886428b9f2a9a900",
+      "size": 11105,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/playbook_d.py",
+      "sha256": "8ec5271f91a673d81ab9a175f736bb089dac569fc2b7560bf46c54a4edd76595",
+      "size": 7021,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/preflight.py",
+      "sha256": "4dcd2f765f53d525db5e59fa753d52b7e3eee989f4dff5d44f7985ac1b4eaf67",
+      "size": 5983,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/prompt.py",
+      "sha256": "885119cabe0f119f3c8fe452dda56715ae540a682213bf49e32274b0c2db383b",
+      "size": 3174,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/report.py",
+      "sha256": "865b594cbea897a12a45133a16237af0abd4ada95ec36718736b6290dc9b1150",
+      "size": 5854,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/repro.py",
+      "sha256": "a205a458cf3a1d48f7ad8868d5b04f87607a5e85d559cc441b916facaef2bc6e",
+      "size": 14871,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/runlog.py",
+      "sha256": "0073febcb6ddf28a79f4ccbcc6cb7b772437bbe082031b013c0db68133734fb2",
+      "size": 6793,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/solver.py",
+      "sha256": "2f4caaff9d4e611422bb81e70385a20927653e6e9c3ff577986ce0c0dfbf4ab3",
+      "size": 22518,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/synthetic.py",
+      "sha256": "9f9d631f1d916b638fb938e77663e381af36e8daea091c6aa4de28015f6cf0b3",
+      "size": 2101,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/token_counter.py",
+      "sha256": "377ce5a15830be4233994a6527c01e78fe5b9b8eefce5a5a53b9f780217ce0fb",
+      "size": 4054,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "src/meta_orchestrator/experiment/s2/write_gate.py",
+      "sha256": "adf47628a3283c1ada022c66fbe1274d3d5321ca9204d1434653673e61094595",
+      "size": 8756,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_b1_selector.py",
+      "sha256": "71e8247dd47de3749b3c170806e76e1d0a204402428cd5ae88d81d0bb1b608dc",
+      "size": 6486,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_contract.py",
+      "sha256": "eb0b3daac464842d08ca8ed34b7b7fcca4ab8f423b70cace12aa2c9fcea168e5",
+      "size": 3242,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_evidence.py",
+      "sha256": "f993faa26ae5c47595654988650cfd494dbd44a31cef0fe317608f648b6d1103",
+      "size": 11772,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_fold_leakage.py",
+      "sha256": "aec04c81cd4fff6fc0b4f84648a3b3b9145dc4ac24fff5b032735f6214404b7f",
+      "size": 4261,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_gates.py",
+      "sha256": "bc896db3e15aeb55e4622c3e8b0eba7300dcb4da31d853bc3c4b85e1e8030464",
+      "size": 7364,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_handoff.py",
+      "sha256": "07b70716636c28c36de6e787000a6c541aff3418c0af8ad93cbc1391fe1b7734",
+      "size": 5165,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_hardening.py",
+      "sha256": "5dfdca5e17874f91d0fee15e568bcd635d4d279ad11a76f6352c08791d014a61",
+      "size": 7092,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_harness.py",
+      "sha256": "88764bb6060a99bc677f3d412987df757a49e003e9133364063420a107e51228",
+      "size": 14795,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_model_client.py",
+      "sha256": "c8f2500ffb437c6d60da78a1babc63425c598ae3fa2b50f13fac3d30b86d4985",
+      "size": 3749,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_pilot.py",
+      "sha256": "0df0a5ed270d4b42f593051548cc81bebdefefe90d924f888bafe22d6d6cb2e2",
+      "size": 6516,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_playbook_d.py",
+      "sha256": "ccc46896ea7a94356250bb92b8ea1d9a840ca33134982433a36a5626abb859cf",
+      "size": 6423,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_prepaid.py",
+      "sha256": "56ffd55bba02c195a3d8a34fab5c4311a51d2badb49b21a420edd2b804c21bec",
+      "size": 11852,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_repro.py",
+      "sha256": "0ee7a71976f6e825598de2b0e767203e500ebc14385b0dd2e330f784272b26c6",
+      "size": 3210,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_solver.py",
+      "sha256": "d80269723b8da3b4d1efaa1aa5fb35d7297714fc518b848afab0bd980645374d",
+      "size": 8457,
+      "type": "python"
+    },
+    {
+      "mode": "0o644",
+      "path": "tests/test_s2_write_gate.py",
+      "sha256": "2f5eca4ce657ad25606630109701ad4032db1f6d5583799ce5352719e52cc993",
+      "size": 7421,
+      "type": "python"
+    }
+  ],
+  "lockfiles": {
+    "pyproject.toml": "5312a67089eca50e81ca0c49b86bbb552da0ed73c83321669196fd21c2a88c12",
+    "requirements.txt": "de94b2e5a8c8abd5a928aab60f13648c1868ea785558f52da98f01c99810aa1a"
+  },
+  "must_run_in_pilot_env": true,
+  "note": "authoritative integrity = the content inventory + the separate .sha256 seal; git fields are provenance (committing the bundle shifts HEAD/tree). This is corruption/transfer-error detection, not adversarial security.",
+  "paid_api_called": false,
+  "production_token_artifacts_present": false,
+  "required_pilot_node_ids": [
+    "tests/test_s2_prepaid.py::test_sdk_serialized_body_omits_effort_and_temperature",
+    "tests/test_s2_prepaid.py::test_sdk_max_retries_zero_means_one_http_request"
+  ],
+  "run_id": "s2-pilot-20260719T011136Z",
+  "schema_version": "s2-handoff-v1",
+  "tests": {
+    "offline_expected": {
+      "passed": 194,
+      "skipped": 2
+    },
+    "pilot_env_required": {
+      "failed": 0,
+      "skipped": 0
+    }
+  }
+}

@@ -1,0 +1,175 @@
+{
+  "banking": "DISABLED",
+  "cell_count": 18,
+  "cells": [
+    {
+      "cell_index": 0,
+      "condition": "A",
+      "contract": "OLD",
+      "rep": 0,
+      "task_family": "iterator",
+      "task_id": "black-133"
+    },
+    {
+      "cell_index": 1,
+      "condition": "A",
+      "contract": "NEW",
+      "rep": 0,
+      "task_family": "iterator",
+      "task_id": "black-133"
+    },
+    {
+      "cell_index": 2,
+      "condition": "A",
+      "contract": "NEW",
+      "rep": 0,
+      "task_family": "whitespace",
+      "task_id": "black-1632"
+    },
+    {
+      "cell_index": 3,
+      "condition": "A",
+      "contract": "OLD",
+      "rep": 0,
+      "task_family": "whitespace",
+      "task_id": "black-1632"
+    },
+    {
+      "cell_index": 4,
+      "condition": "A",
+      "contract": "OLD",
+      "rep": 0,
+      "task_family": "parser_normalization",
+      "task_id": "black-183"
+    },
+    {
+      "cell_index": 5,
+      "condition": "A",
+      "contract": "NEW",
+      "rep": 0,
+      "task_family": "parser_normalization",
+      "task_id": "black-183"
+    },
+    {
+      "cell_index": 6,
+      "condition": "A",
+      "contract": "NEW",
+      "rep": 0,
+      "task_family": "iterator",
+      "task_id": "black-234"
+    },
+    {
+      "cell_index": 7,
+      "condition": "A",
+      "contract": "OLD",
+      "rep": 0,
+      "task_family": "iterator",
+      "task_id": "black-234"
+    },
+    {
+      "cell_index": 8,
+      "condition": "A",
+      "contract": "OLD",
+      "rep": 0,
+      "task_family": "whitespace",
+      "task_id": "black-329"
+    },
+    {
+      "cell_index": 9,
+      "condition": "A",
+      "contract": "NEW",
+      "rep": 0,
+      "task_family": "whitespace",
+      "task_id": "black-329"
+    },
+    {
+      "cell_index": 10,
+      "condition": "A",
+      "contract": "NEW",
+      "rep": 0,
+      "task_family": "whitespace",
+      "task_id": "black-60"
+    },
+    {
+      "cell_index": 11,
+      "condition": "A",
+      "contract": "OLD",
+      "rep": 0,
+      "task_family": "whitespace",
+      "task_id": "black-60"
+    },
+    {
+      "cell_index": 12,
+      "condition": "A",
+      "contract": "OLD",
+      "rep": 0,
+      "task_family": "other_logic",
+      "task_id": "black-74"
+    },
+    {
+      "cell_index": 13,
+      "condition": "A",
+      "contract": "NEW",
+      "rep": 0,
+      "task_family": "other_logic",
+      "task_id": "black-74"
+    },
+    {
+      "cell_index": 14,
+      "condition": "A",
+      "contract": "NEW",
+      "rep": 0,
+      "task_family": "iterator",
+      "task_id": "black-95"
+    },
+    {
+      "cell_index": 15,
+      "condition": "A",
+      "contract": "OLD",
+      "rep": 0,
+      "task_family": "iterator",
+      "task_id": "black-95"
+    },
+    {
+      "cell_index": 16,
+      "condition": "A",
+      "contract": "OLD",
+      "rep": 0,
+      "task_family": "boundary",
+      "task_id": "cookiecutter-18"
+    },
+    {
+      "cell_index": 17,
+      "condition": "A",
+      "contract": "NEW",
+      "rep": 0,
+      "task_family": "boundary",
+      "task_id": "cookiecutter-18"
+    }
+  ],
+  "content_hash": "167338c4d7a7ae7d",
+  "contracts": [
+    "OLD",
+    "NEW"
+  ],
+  "experiment": "V3_GATE_A_OUTPUT_CONTRACT",
+  "lesson_writer": "DISABLED",
+  "manifest_version": "v3-gate-a-manifest-v1",
+  "max_tokens": 11264,
+  "memory": "DISABLED",
+  "model": "claude-haiku-4-5-20251001",
+  "n_tasks": 9,
+  "purpose": "engineering qualification, not memory-benefit evaluation",
+  "tasks": {
+    "black-133": "iterator",
+    "black-1632": "whitespace",
+    "black-183": "parser_normalization",
+    "black-234": "iterator",
+    "black-329": "whitespace",
+    "black-60": "whitespace",
+    "black-74": "other_logic",
+    "black-95": "iterator",
+    "cookiecutter-18": "boundary"
+  },
+  "thinking_budget": 1024
+}

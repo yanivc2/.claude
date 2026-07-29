@@ -1,0 +1,161 @@
+{
+  "step": "1 \u2014 offline mock harness (A/C/D/B1)",
+  "provider": "mock",
+  "paid_api_called": false,
+  "corpus": {
+    "n": 27,
+    "synthetic_family_map": true,
+    "family_counts": {
+      "whitespace": 4,
+      "iterator": 4,
+      "state_mutation": 4,
+      "parser_normalization": 4,
+      "boundary": 4,
+      "condition_inversion": 4,
+      "other_logic": 3
+    },
+    "family_map_hash": "102f0d1429dd"
+  },
+  "folds": [
+    {
+      "index": 0,
+      "n_test": 9,
+      "bank_hash": "56429cf83773",
+      "bank_families": [
+        "boundary",
+        "condition_inversion",
+        "iterator",
+        "other_logic",
+        "parser_normalization",
+        "state_mutation",
+        "whitespace"
+      ]
+    },
+    {
+      "index": 1,
+      "n_test": 9,
+      "bank_hash": "56429cf83773",
+      "bank_families": [
+        "boundary",
+        "condition_inversion",
+        "iterator",
+        "other_logic",
+        "parser_normalization",
+        "state_mutation",
+        "whitespace"
+      ]
+    },
+    {
+      "index": 2,
+      "n_test": 9,
+      "bank_hash": "56429cf83773",
+      "bank_families": [
+        "boundary",
+        "condition_inversion",
+        "iterator",
+        "other_logic",
+        "parser_normalization",
+        "state_mutation",
+        "whitespace"
+      ]
+    }
+  ],
+  "hashes": {
+    "verifier_config_hash": "5885767ee0c7",
+    "contract_snapshot": "ecf212f9dbc936af",
+    "placebo_map_hash": "1380c9ddabb0",
+    "playbook_hash": "5503b72106f4",
+    "playbook_author_frozen": false
+  },
+  "invariants": [
+    {
+      "name": "3-fold stratified split: every task held-out exactly once",
+      "ok": true,
+      "detail": "3 folds, 27 tasks"
+    },
+    {
+      "name": "B1 placebo routing has no fixed point (hash-locked)",
+      "ok": true,
+      "detail": "map_hash=1380c9ddabb0"
+    },
+    {
+      "name": "frozen lesson bank refuses held-out writes (C no-write)",
+      "ok": true,
+      "detail": "add() on a frozen bank raised MemoryFrozenError"
+    },
+    {
+      "name": "outcomes sealed until finalize() (continue/stop can't peek)",
+      "ok": true,
+      "detail": "effect_table() raised while unsealed"
+    },
+    {
+      "name": "verifier config hash stable across calls",
+      "ok": true,
+      "detail": "5885767ee0c7"
+    },
+    {
+      "name": "crash/resume does not double runs or cost",
+      "ok": true,
+      "detail": "attempts 126 == 126"
+    },
+    {
+      "name": "helpful lesson improves ONLY the relevant family",
+      "ok": true,
+      "detail": "C(relevant) passed=True"
+    },
+    {
+      "name": "same lesson mis-routed (B1) does NOT help",
+      "ok": true,
+      "detail": "B1(other family) passed=False"
+    },
+    {
+      "name": "ablation (no memory) removes the advantage",
+      "ok": true,
+      "detail": "A(no memory) passed=False"
+    },
+    {
+      "name": "harmful lesson is nullified by the verifier",
+      "ok": true,
+      "detail": "harmful shortcut passed=False failing_gate=no_forbidden_shortcuts"
+    },
+    {
+      "name": "full reset reproduces the result (fresh sandbox)",
+      "ok": true,
+      "detail": "rerun passed=True (== True)"
+    },
+    {
+      "name": "real (paid) run is BLOCKED until family map + D are frozen",
+      "ok": true,
+      "detail": "assert_real_run_allowed() raised RealRunBlocked"
+    }
+  ],
+  "stability_pilot_fold": {
+    "n": 9,
+    "a_flips": 0,
+    "c_flips": 0,
+    "sign_reversed": false,
+    "verifier_deterministic": true
+  },
+  "gate_decision": {
+    "go": true,
+    "reasons": [
+      "all stability gates passed"
+    ]
+  },
+  "residual_risks": [
+    "family map is SYNTHETIC \u2014 the $0 primary_sub_fingerprint map must be generated and frozen before the micro-pilot (real-run guard enforces this).",
+    "the static playbook D is a fixture (author_frozen=False) \u2014 an independent author must write and freeze the real D before it runs.",
+    "synthetic stand-in tasks exercise plumbing only; real bugs need a cloned repo + real test run (online, model-free reproduction) to become the actual corpus.",
+    "n=27 is a directional pilot; per-fold n=9 has wide CIs (Decision E) \u2014 no confirmatory claim from this run.",
+    "LessonSensitiveMock is a routing test-double; it makes no claim a real model behaves this way (the micro-pilot replaces it)."
+  ],
+  "cost_estimate": {
+    "pilot_fold_attempts_run_offline": 126,
+    "offline_cost": 0.0,
+    "projected_full_run_attempts_reps1": 162,
+    "projected_full_run_cost_usd": 4.05,
+    "cost_per_attempt_assumed": 0.025,
+    "note": "projection is for the FUTURE real run; this offline step cost $0."
+  },
+  "self_checks_passed": true
+}

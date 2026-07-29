@@ -1,0 +1,12 @@
+{
+  "analysis_json_hash": "2ac09c694a613dea",
+  "analysis_plan_hash": "086f9ad6f9b3925807bc42dc2ec5656856947f4c239e4ca6e36c96194e395b44",
+  "analysis_report_hash": "bb7bcacd1c82f0dd",
+  "analyzer_source_hash": "243f6d6eae89ae48694da06b2acd74a4e016fe5032b79a19b8acbf4a736bd831",
+  "decoded_cell_table_hash": "d6add8693586948b",
+  "input_artifact_sha256": "53dec53d14d3ccde1ae77d6c21c10505ed6efea97f50cebad3e28c5e9a32edc9",
+  "outcomes_unsealed": true,
+  "sealed_chain_head": "3d3b29252863c7be",
+  "unseal_reason": "all_folds_complete",
+  "unseal_timestamp": "2026-07-22T20:06:29Z"
+}

@@ -1,0 +1,232 @@
+{
+  "bank_content_hash": "513d63007784",
+  "by_family": {
+    "boundary": [
+      {
+        "avoid": [
+          "Applying parenthesis normalization (normalize_invisible_parens) to code in fmt: off sections",
+          "Letting the normal statement visitor methods execute for unformatted code",
+          "Mixing unformatted line handling with standard formatting path transformations"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-224"
+          ]
+        },
+        "lesson_id": "cand-7542d41466",
+        "recommended_action": [
+          "When formatting is disabled (# fmt: off), ensure that all code normalization functions that modify syntax structure are skipped",
+          "Check that unformatted line visitors do not invoke functions that make parentheses invisible or modify structural elements",
+          "Verify that context switches between formatted and unformatted modes maintain semantic integrity of the source code"
+        ],
+        "status": "candidate",
+        "task_family": "boundary",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      }
+    ],
+    "iterator": [
+      {
+        "avoid": [
+          "Relying on variables only defined within try-except blocks when they may be needed outside",
+          "Using for-else with incomplete exception tracking across iterations"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-193"
+          ]
+        },
+        "lesson_id": "cand-f0b1e78791",
+        "recommended_action": [
+          "Check variable scope: when using a for-else construct with exception handling, ensure all variables referenced in the else clause or after are properly initialized",
+          "Ensure parser fallback logic handles all grammars correctly without leaving critical variables undefined",
+          "Verify that ParseError handling in a loop properly chains all exceptions so the final error message includes context"
+        ],
+        "status": "candidate",
+        "task_family": "iterator",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      }
+    ],
+    "other_logic": [
+      {
+        "avoid": [
+          "Using Path.name attribute when displaying file paths to users (shows only basename)",
+          "Assuming filename alone is sufficient identification in multi-file operations"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-130"
+          ]
+        },
+        "lesson_id": "cand-5f96357fce",
+        "recommended_action": [
+          "When displaying file paths in user-facing output, use the full path not just the filename",
+          "For Path objects, use str(src) to get full path, not src.name which returns only the filename",
+          "Check diff/output functions that display file identifiers to ensure they show complete paths for clarity"
+        ],
+        "status": "candidate",
+        "task_family": "other_logic",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      },
+      {
+        "avoid": [
+          "Unconditionally adding trailing commas in all delimiter split scenarios",
+          "Failing to distinguish import statements from other code when applying comma rules",
+          "Assuming standard trailing comma rules apply uniformly across all statement types"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-185"
+          ]
+        },
+        "lesson_id": "cand-773d0aca18",
+        "recommended_action": [
+          "Avoid adding trailing commas in from...import statements even when delimiter_split encounters commas",
+          "Check if a line is an import statement before conditionally adding trailing commas",
+          "Exclude import statements from automatic trailing comma insertion logic"
+        ],
+        "status": "candidate",
+        "task_family": "other_logic",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      }
+    ],
+    "whitespace": [
+      {
+        "avoid": [
+          "Leaving print() or logging.debug() statements in middle of token generation loops",
+          "Failing to clean up temporary debugging code from code paths that are performance-critical or output-sensitive"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-112"
+          ]
+        },
+        "lesson_id": "cand-e04f0fb979",
+        "recommended_action": [
+          "Remove debug print statements from production code",
+          "Debug statements like print() calls left in tokenizer/parser modules can interfere with token output and cause parsing failures",
+          "Scan for stray debugging code before merging"
+        ],
+        "status": "candidate",
+        "task_family": "whitespace",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      },
+      {
+        "avoid": [
+          "Assuming all atoms with simple structure can have invisible parens without checking content type",
+          "Overlooking that string literals are atoms and may span multiple lines",
+          "Making parentheses invisible for atoms without validating the atom contains only simple expressions"
+        ],
+        "evidence": {
+          "failures": 0,
+          "successes": 0,
+          "supporting_runs": [
+            "fold1::black-215"
+          ]
+        },
+        "lesson_id": "cand-23d8aeb211",
+        "recommended_action": [
+          "When handling parentheses visibility in atoms, check for multiline string literals before making parens invisible",
+          "Multiline strings (those containing newlines) should retain their surrounding parentheses for proper formatting",
+          "Add explicit type/content checks before modifying structural elements that affect code readability"
+        ],
+        "status": "candidate",
+        "task_family": "whitespace",
+        "trigger": {
+          "repo_traits": [],
+          "symptoms": []
+        },
+        "version": 1
+      }
+    ]
+  },
+  "condition": "C",
+  "content_hash": "44dd946fbb805640",
+  "fold": 1,
+  "note": "Frozen Fold-1 Condition-C lesson bank; family-indexed procedural lessons from final-sequence attempts. Injected as exact-family memory only.",
+  "phase": "training",
+  "provenance": {
+    "lessons": [
+      {
+        "family": "whitespace",
+        "lesson_id": "cand-e04f0fb979",
+        "source_task": "black-112"
+      },
+      {
+        "bank_hash_after": "5821ddf0771e",
+        "bank_hash_before": "c68f22dafea5",
+        "family": "other_logic",
+        "lesson_id": "cand-5f96357fce",
+        "raw_response_sha256": "822027180d09e6c40e2a4b1d18e3103a3d9197f92864f93dfa2cc197c3acf0af",
+        "source_task": "black-130",
+        "visible_text_sha256": "fd4f31b7fb15bc74bef41b0d3a297081dc8260452b30cfd773bd71025298af36"
+      },
+      {
+        "bank_hash_after": "7d1c3c23d4d1",
+        "bank_hash_before": "5821ddf0771e",
+        "family": "other_logic",
+        "lesson_id": "cand-773d0aca18",
+        "raw_response_sha256": "18b72dd047af95ba653ba650a2d8c870305ce602d3e4a6d4dff646037f268ffd",
+        "source_task": "black-185",
+        "visible_text_sha256": "e9aefff226740ac2b13d321020938ea11209379f10a499a3c9acd9c00682f0f3"
+      },
+      {
+        "bank_hash_after": "7d2f81359026",
+        "bank_hash_before": "7d1c3c23d4d1",
+        "family": "iterator",
+        "lesson_id": "cand-f0b1e78791",
+        "raw_response_sha256": "f952f921dfd8dfba7bb8d8181bb2ceb0eccf1ba153908a17bef057524e8cd6d8",
+        "source_task": "black-193",
+        "visible_text_sha256": "af71bee2ebca3fbf854db51731b7ea15ffbd527d4463a264120135bdf6c56dbd"
+      },
+      {
+        "bank_hash_after": "83325c77b97c",
+        "bank_hash_before": "7d2f81359026",
+        "family": "whitespace",
+        "lesson_id": "cand-23d8aeb211",
+        "raw_response_sha256": "9b6e586eb016535863d07bae185ab883ff008bd52091791c326a7ae6ba26b66f",
+        "source_task": "black-215",
+        "visible_text_sha256": "c216e130b84afa1f8d7739d39844f3544a630534e4046b5e31b18de35f190686"
+      },
+      {
+        "bank_hash_after": "513d63007784",
+        "bank_hash_before": "83325c77b97c",
+        "family": "boundary",
+        "lesson_id": "cand-7542d41466",
+        "raw_response_sha256": "87445de7c09502df28b247088cfff1f710db17996dd8ce7e40813d9ce9d23c05",
+        "source_task": "black-224",
+        "visible_text_sha256": "8ca25080aed550152576cff6ad25b4bd9cfa20aa5f92a754949e82861239a432"
+      }
+    ]
+  },
+  "schema_version": "s2-fold1-c-bank-v1"
+}

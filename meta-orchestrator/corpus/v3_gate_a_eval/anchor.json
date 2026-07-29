@@ -1,0 +1,7 @@
+{
+  "authorized_state": "AUTHORIZED_FOR_V3_GATE_A",
+  "evidence_bundle_hash": "a2eaf4110289eeb8fb82afb20e246b3d2e5c2de4456c913bd05cc9accbcf8016",
+  "expected_chain_head_hash": "232b83845dfc4c22",
+  "expected_sequence": 0,
+  "run_id": "v3-gate-a"
+}

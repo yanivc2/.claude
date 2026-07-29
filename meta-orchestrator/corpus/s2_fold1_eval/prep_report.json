@@ -1,0 +1,262 @@
+{
+  "grants": [
+    {
+      "cell": 0,
+      "content_hash": "1d70a2f1a99bc3ef",
+      "grant_id": "grant-ef03ff260a66"
+    },
+    {
+      "cell": 1,
+      "content_hash": "b443020e0782325c",
+      "grant_id": "grant-d27dc9ecf19d"
+    },
+    {
+      "cell": 2,
+      "content_hash": "d7acee86772a41ca",
+      "grant_id": "grant-736cbcca3afa"
+    },
+    {
+      "cell": 3,
+      "content_hash": "e834f1ed5bf172e3",
+      "grant_id": "grant-363b4d0c5e1e"
+    },
+    {
+      "cell": 4,
+      "content_hash": "8eb3206e0f6c0fd0",
+      "grant_id": "grant-11893ac1eea3"
+    },
+    {
+      "cell": 5,
+      "content_hash": "836375f35c8ae28d",
+      "grant_id": "grant-f83f30e58221"
+    },
+    {
+      "cell": 6,
+      "content_hash": "ec91ece547b95bc8",
+      "grant_id": "grant-095c6720cac9"
+    },
+    {
+      "cell": 7,
+      "content_hash": "249085c05b1a4ada",
+      "grant_id": "grant-0f4bdd790d15"
+    },
+    {
+      "cell": 8,
+      "content_hash": "04b007e5caccce62",
+      "grant_id": "grant-7f1df8ee4476"
+    },
+    {
+      "cell": 9,
+      "content_hash": "6d55ff1e61fc2f69",
+      "grant_id": "grant-790859b7974d"
+    },
+    {
+      "cell": 10,
+      "content_hash": "0c8622d0c50b6d19",
+      "grant_id": "grant-37ab9bc805cc"
+    },
+    {
+      "cell": 11,
+      "content_hash": "c09f161615faa07b",
+      "grant_id": "grant-82f48630cf4f"
+    },
+    {
+      "cell": 12,
+      "content_hash": "2662c5a0d4cfb590",
+      "grant_id": "grant-6739e62a9f62"
+    },
+    {
+      "cell": 13,
+      "content_hash": "0f6b931eab6ee29c",
+      "grant_id": "grant-772d9989364a"
+    },
+    {
+      "cell": 14,
+      "content_hash": "f08f52aa03bfad6f",
+      "grant_id": "grant-f3c2e220f271"
+    },
+    {
+      "cell": 15,
+      "content_hash": "e9d568f978e0a2e0",
+      "grant_id": "grant-ae9dab003d25"
+    },
+    {
+      "cell": 16,
+      "content_hash": "b6afdada35d793d8",
+      "grant_id": "grant-ec4faff7f1de"
+    },
+    {
+      "cell": 17,
+      "content_hash": "be28a262e3380be6",
+      "grant_id": "grant-732b589968eb"
+    },
+    {
+      "cell": 18,
+      "content_hash": "f4ee9343da1a79e5",
+      "grant_id": "grant-55425384f9c2"
+    },
+    {
+      "cell": 19,
+      "content_hash": "fc6610b27d6a81d8",
+      "grant_id": "grant-0e448c80ec38"
+    },
+    {
+      "cell": 20,
+      "content_hash": "70280eba7eeff77b",
+      "grant_id": "grant-dd01738a1535"
+    },
+    {
+      "cell": 21,
+      "content_hash": "8dbaf569cadd8e7f",
+      "grant_id": "grant-7712af633b49"
+    },
+    {
+      "cell": 22,
+      "content_hash": "1b8479212e74870b",
+      "grant_id": "grant-197cb11224ec"
+    },
+    {
+      "cell": 23,
+      "content_hash": "8c6db62ea0b1d22f",
+      "grant_id": "grant-052e6a4dd7a5"
+    },
+    {
+      "cell": 24,
+      "content_hash": "ee8d46dbebf3f763",
+      "grant_id": "grant-6245028b39fa"
+    },
+    {
+      "cell": 25,
+      "content_hash": "aeacd1c0cb3319a7",
+      "grant_id": "grant-d7377292282c"
+    },
+    {
+      "cell": 26,
+      "content_hash": "a97cdd6efa1439c1",
+      "grant_id": "grant-61f200f5236f"
+    },
+    {
+      "cell": 27,
+      "content_hash": "f79c280c1ddcb563",
+      "grant_id": "grant-2a971d03a06d"
+    },
+    {
+      "cell": 28,
+      "content_hash": "33426430de9656ad",
+      "grant_id": "grant-a8e42ac24c74"
+    },
+    {
+      "cell": 29,
+      "content_hash": "1aa0663a30a69936",
+      "grant_id": "grant-baf7d8da3567"
+    },
+    {
+      "cell": 30,
+      "content_hash": "753126c9d621cf0e",
+      "grant_id": "grant-7da601b418b1"
+    },
+    {
+      "cell": 31,
+      "content_hash": "9d4401e50f38ab6d",
+      "grant_id": "grant-e646dd3894fc"
+    },
+    {
+      "cell": 32,
+      "content_hash": "11f6b229506ab5a3",
+      "grant_id": "grant-d4824bfb8ffc"
+    },
+    {
+      "cell": 33,
+      "content_hash": "57fb1c98803be905",
+      "grant_id": "grant-1aaf02cb7660"
+    },
+    {
+      "cell": 34,
+      "content_hash": "00643b1bfa513839",
+      "grant_id": "grant-ebfe9e31a0c0"
+    },
+    {
+      "cell": 35,
+      "content_hash": "4af133fb5a09ae50",
+      "grant_id": "grant-13a4caa5c4f7"
+    },
+    {
+      "cell": 36,
+      "content_hash": "be24e9e0ccf45ad0",
+      "grant_id": "grant-7396b0b881d5"
+    },
+    {
+      "cell": 37,
+      "content_hash": "870e93fca8aaecad",
+      "grant_id": "grant-4b05f0c5eb3b"
+    },
+    {
+      "cell": 38,
+      "content_hash": "ecae6160bd763f8e",
+      "grant_id": "grant-ef1f590407b8"
+    },
+    {
+      "cell": 39,
+      "content_hash": "2fafe6c8c230e47e",
+      "grant_id": "grant-6b06cf093631"
+    },
+    {
+      "cell": 40,
+      "content_hash": "816b081504fdc73a",
+      "grant_id": "grant-e49db6731cf8"
+    },
+    {
+      "cell": 41,
+      "content_hash": "09dfaabaa605b47f",
+      "grant_id": "grant-35eae0b8980c"
+    },
+    {
+      "cell": 42,
+      "content_hash": "0d98e53c2723b1ea",
+      "grant_id": "grant-6604d81d2c98"
+    },
+    {
+      "cell": 43,
+      "content_hash": "31477f964023cdf0",
+      "grant_id": "grant-6cd8f0f2e026"
+    },
+    {
+      "cell": 44,
+      "content_hash": "34783cadc44b14ae",
+      "grant_id": "grant-843b2f52fa91"
+    },
+    {
+      "cell": 45,
+      "content_hash": "4bb23e276e2366b8",
+      "grant_id": "grant-86b97602d8a5"
+    },
+    {
+      "cell": 46,
+      "content_hash": "aa88eb071e681246",
+      "grant_id": "grant-e264df616c10"
+    },
+    {
+      "cell": 47,
+      "content_hash": "013d0513759134c7",
+      "grant_id": "grant-8d3dac3e6183"
+    }
+  ],
+  "summary": {
+    "anchor_hash": "cb73d03a8eb2d20d",
+    "cells": 48,
+    "credits_cover_expected_typical": true,
+    "credits_cover_first_cell_worst": true,
+    "credits_cover_total_worst": false,
+    "eval_plan_hash": "2d66d7d4a6b6a050",
+    "evidence_bundle_hash": "2c4f7764aa86013d4a6bca5c48345b6f1ea0a9cb666294abcd2d89f6b4b50c09",
+    "expected_cost_usd_typical": "1.868304",
+    "grants_minted": 48,
+    "manifest_hash": "d6a5919ab7bb3bec",
+    "max_api_calls_per_cell": 2,
+    "max_total_api_calls": 96,
+    "payload_checks": 48,
+    "per_cell_credit_rule": "STOP if remaining reported credits < next cell worst exposure",
+    "reported_credits_usd": "3.962663",
+    "total_worst_exposure_usd": "8.064780"
+  }
+}
