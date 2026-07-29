@@ -82,8 +82,11 @@ const SIG_LABELS: Record<SignatureContext, string> = {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
-      <h2 className="mb-3 text-base font-bold text-slate-800 dark:text-slate-100">{title}</h2>
+    <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-4 shadow-card backdrop-blur-sm transition hover:shadow-card-hover sm:p-6">
+      <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100">
+        <span aria-hidden className="h-4 w-1 rounded-full bg-gradient-to-b from-brand-500 to-accent-600" />
+        {title}
+      </h2>
       {children}
     </section>
   );

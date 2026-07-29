@@ -152,21 +152,32 @@ export default async function DashboardPage() {
     <div>
       <PensionAlert items={pensionAlerts} />
 
-      {/* באנר פתיחה אישי — היררכיה + מיקרו-קופי חם */}
-      <section className="mb-6 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-gradient-to-bl from-brand-50 via-white to-white dark:from-brand-500/10 dark:via-slate-900 dark:to-slate-900 p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {/* באנר פתיחה אישי — היררכיה + מיקרו-קופי חם + עומק ויזואלי */}
+      <section className="relative mb-6 overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-gradient-to-bl from-brand-50 via-white to-accent-50/40 dark:from-brand-500/10 dark:via-slate-900 dark:to-accent-600/5 p-6 shadow-card">
+        {/* הילת מותג דקורטיבית */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -left-16 -top-16 h-56 w-56 rounded-full bg-accent-400/20 blur-3xl dark:bg-accent-600/10"
+        />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-brand-600 dark:text-brand-300">
               {greetingFor(now.getHours())} · {todayFmt.format(now)}
             </p>
-            <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
-              {firstName ? `שלום, ${firstName}` : "לוח בקרה"}
+            <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+              {firstName ? (
+                <>
+                  שלום, <span className="text-gradient">{firstName}</span>
+                </>
+              ) : (
+                "לוח בקרה"
+              )}
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{summaryLine}</p>
           </div>
           <Link
             href="/onboarding"
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105"
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-accent-600 px-4 py-2.5 text-sm font-bold text-white shadow-glow transition hover:brightness-110 hover:-translate-y-0.5"
           >
             <Plus size={17} strokeWidth={2.6} />
             קליטת עובד חדש
@@ -182,10 +193,10 @@ export default async function DashboardPage() {
             <Link
               key={c.label}
               href={c.href}
-              className="group rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-200 hover:shadow-md"
+              className="group rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-5 shadow-card backdrop-blur-sm transition-all duration-200 hover:-translate-y-1 hover:border-brand-300 hover:shadow-card-hover"
             >
               <div className="flex items-center justify-between">
-                <span className={`grid h-10 w-10 place-items-center rounded-xl ${toneChip[c.tone]}`}>
+                <span className={`grid h-11 w-11 place-items-center rounded-xl ring-1 ring-inset ring-black/5 dark:ring-white/5 transition group-hover:scale-105 ${toneChip[c.tone]}`}>
                   <Icon size={20} />
                 </span>
                 <ArrowLeft
@@ -205,7 +216,7 @@ export default async function DashboardPage() {
 
       {/* גרפים — מגמת קליטה + פילוח סטטוסים */}
       <div className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-5 shadow-card backdrop-blur-sm">
           <div className="mb-4 flex items-center gap-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
               <TrendingUp size={18} />
@@ -218,7 +229,7 @@ export default async function DashboardPage() {
           <HiringTrendChart data={hiringTrend} />
         </section>
 
-        <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+        <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-5 shadow-card backdrop-blur-sm">
           <div className="mb-4 flex items-center gap-3">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
               <BarChart3 size={18} />
