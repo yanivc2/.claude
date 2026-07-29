@@ -8,39 +8,18 @@ export default function LoginPage() {
   const { usingDefaults } = getAuthConfig();
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
-      {/* רקע חי — מארג הילות מותג נעות (אינדיגו + סגול), בהיר וכהה */}
+      {/* תמונת רקע מלאה — אילוסטרציית המותג */}
       <div
         aria-hidden
-        className="animate-float-slow pointer-events-none absolute -top-40 right-[15%] h-96 w-96 rounded-full bg-brand-400/30 blur-[90px] dark:bg-brand-500/20"
+        className="absolute inset-0 scale-110 bg-[url('/login-art.webp')] bg-cover bg-center"
       />
+      {/* שכבת קריאוּת — מטשטשת ומאזנת את הרקע כדי שהכרטיס יבלוט (בהיר/כהה) */}
       <div
         aria-hidden
-        className="animate-float-slow-2 pointer-events-none absolute -bottom-40 left-[12%] h-[26rem] w-[26rem] rounded-full bg-accent-400/25 blur-[100px] dark:bg-accent-600/15"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/3 h-72 w-72 -translate-x-1/2 rounded-full bg-brand-300/20 blur-[80px] dark:bg-accent-500/10"
+        className="absolute inset-0 bg-gradient-to-b from-white/60 via-white/45 to-white/65 backdrop-blur-[3px] dark:from-slate-950/80 dark:via-slate-950/70 dark:to-slate-950/85"
       />
 
-      <div className="relative z-10 grid w-full max-w-sm animate-fade-up grid-cols-1 items-center gap-8 lg:max-w-4xl lg:grid-cols-[1.05fr_1fr]">
-        {/* פאנל אמנות — מסך רחב בלבד. אילוסטרציית מותג (אנשים מחוברים). */}
-        <div className="hidden lg:block">
-          <div className="rounded-[1.6rem] bg-gradient-to-br from-brand-500/30 via-accent-500/20 to-transparent p-px shadow-glow">
-            <div className="glass overflow-hidden rounded-[1.55rem] p-6">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/login-art.webp" alt="" className="w-full rounded-2xl" width={1024} height={1024} />
-              <p className="mt-5 text-center text-xl font-extrabold tracking-tight text-gradient">
-                ניהול משאבי אנוש, חכם ופשוט
-              </p>
-              <p className="mt-1 text-center text-sm text-slate-500 dark:text-slate-400">
-                קליטה, שימור, פנסיה וזכויות עובדים — הכול במקום אחד
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* טור הטופס */}
-        <div>
+      <div className="relative z-10 w-full max-w-sm animate-fade-up">
         {/* עטיפת גרדיאנט דקה שיוצרת מסגרת זוהרת סביב הכרטיס */}
         <div className="rounded-[1.65rem] bg-gradient-to-br from-brand-500/40 via-accent-500/20 to-transparent p-px shadow-glow">
           <div className="glass rounded-[1.6rem] p-7 sm:p-8">
@@ -63,21 +42,20 @@ export default function LoginPage() {
               </p>
             </div>
             <LoginForm />
-          {usingDefaults && (
-            <p className="mt-4 rounded-lg bg-amber-50 dark:bg-amber-500/15 p-3 text-xs text-amber-800 dark:text-amber-300">
-              ⚠️ לאבטחה מלאה יש להגדיר ב-Vercel את המשתנה <b>SESSION_SECRET</b> (מחרוזת אקראית
-              ארוכה). אם עדיין לא הוגדרה סיסמה — הכניסה הראשונית היא <b>yanivc2 / admin</b>, ומומלץ
-              לשנות אותה מיד ב&ldquo;הגדרות&rdquo;.
-            </p>
-          )}
+            {usingDefaults && (
+              <p className="mt-4 rounded-lg bg-amber-50 dark:bg-amber-500/15 p-3 text-xs text-amber-800 dark:text-amber-300">
+                ⚠️ לאבטחה מלאה יש להגדיר ב-Vercel את המשתנה <b>SESSION_SECRET</b> (מחרוזת אקראית
+                ארוכה). אם עדיין לא הוגדרה סיסמה — הכניסה הראשונית היא <b>yanivc2 / admin</b>, ומומלץ
+                לשנות אותה מיד ב&ldquo;הגדרות&rdquo;.
+              </p>
+            )}
           </div>
         </div>
         {/* חתימת אמון */}
-        <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+        <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
           <ShieldCheck size={14} />
           התחברות מאובטחת בהצפנה
         </p>
-        </div>
       </div>
     </div>
   );
