@@ -15,8 +15,6 @@ import {
   Settings,
   Contact,
   LogOut,
-  Menu,
-  X,
   type LucideIcon,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
@@ -61,12 +59,7 @@ function initials(name: string): string {
 
 export function Sidebar() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
   const [me, setMe] = useState<{ name: string; isOwner: boolean; role: string } | null>(null);
-
-  useEffect(() => {
-    setOpen(false);
-  }, [pathname]);
 
   useEffect(() => {
     fetch("/api/me")
@@ -101,36 +94,29 @@ export function Sidebar() {
 
   return (
     <>
-      {/* סרגל עליון — סלולר בלבד */}
-      <header className="glass fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-3 !border-x-0 !border-t-0 border-b border-slate-200/70 dark:border-slate-800 px-4 md:hidden">
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="פתיחת תפריט"
-          aria-expanded={open}
-          className="-mr-1 rounded-lg p-2 text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800"
-        >
-          <Menu size={24} />
-        </button>
+      {/* סרגל עליון — סלולר בלבד: לוגו + פעמון + יציאה (הניווט עבר לסרגל התחתון) */}
+      <header className="glass fixed inset-x-0 top-0 z-30 flex h-14 items-center justify-between !border-x-0 !border-t-0 border-b border-slate-200/70 dark:border-slate-800 px-4 md:hidden">
         <span className="flex items-center gap-2 font-bold text-slate-800 dark:text-slate-100">
-          <Logo size={32} />
+          <Logo size={30} />
           משאבי אנוש
         </span>
+        <div className="flex items-center gap-1">
+          {me?.isOwner && <NotificationBell />}
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/auth/logout", { method: "POST" });
+              window.location.href = "/login";
+            }}
+            aria-label="יציאה"
+            className="rounded-lg p-2 text-slate-500 dark:text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800"
+          >
+            <LogOut size={20} />
+          </button>
+        </div>
       </header>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
-          onClick={() => setOpen(false)}
-          aria-hidden
-        />
-      )}
-
-      <aside
-        className={`glass fixed inset-y-0 right-0 z-40 flex w-64 shrink-0 transform flex-col !border-y-0 !border-r-0 border-l border-slate-200/70 dark:border-slate-800 transition-transform duration-200 ease-out md:static md:z-auto md:transform-none ${
-          open ? "translate-x-0" : "translate-x-full"
-        } md:translate-x-0`}
-      >
+      <aside className="glass hidden w-64 shrink-0 flex-col !border-y-0 !border-r-0 border-l border-slate-200/70 dark:border-slate-800 md:sticky md:top-0 md:flex md:h-screen">
         {/* לוגו */}
         <div className="flex items-center justify-between px-5 py-5">
           <div className="flex items-center gap-3">
@@ -140,14 +126,6 @@ export function Sidebar() {
               <p className="text-xs font-semibold text-slate-400 dark:text-slate-400">מערכת ניהול HR</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="סגירת תפריט"
-            className="rounded-lg p-1 text-slate-500 dark:text-slate-400 transition hover:bg-slate-100 dark:hover:bg-slate-800 md:hidden"
-          >
-            <X size={22} />
-          </button>
         </div>
 
         <nav className="flex flex-1 flex-col gap-1 px-3">
