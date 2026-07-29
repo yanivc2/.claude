@@ -154,10 +154,11 @@ export function ContactsManager() {
             אין אנשי קשר עדיין.
           </p>
         ) : (
-          contacts.map((c) => (
+          contacts.map((c, i) => (
             <div
               key={c.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-800 dark:bg-slate-900"
+              style={{ "--i": i } as React.CSSProperties}
+              className="animate-stagger flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-white/80 p-3 shadow-soft backdrop-blur-sm transition hover:shadow-card dark:border-slate-800 dark:bg-slate-900/70"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <span
