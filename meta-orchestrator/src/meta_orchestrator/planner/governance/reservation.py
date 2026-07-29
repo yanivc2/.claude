@@ -161,6 +161,7 @@ class SpendReservation(BaseModel, CanonicalMixin):
             "status": self.status.value,
             "settled_amount": self.settled_amount,
             "overrun": self.overrun,
+            "note": self.note,
         }
 
 

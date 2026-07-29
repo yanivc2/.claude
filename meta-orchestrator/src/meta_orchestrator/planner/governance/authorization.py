@@ -85,6 +85,10 @@ class ExecutionAuthorization(BaseModel, CanonicalMixin):
     approval_decision_id: str
     admission_id: str
     budget_snapshot_hash: str
+    #: The budget this authorization draws on. Carried on the artifact rather than in
+    #: a lookup table: a mapping held outside the record does not survive the restart
+    #: that P1d exists to survive.
+    budget_id: str = ""
 
     #: What may be spent: the quote plus its explicit reserve.
     approved_commitment: Money
@@ -158,6 +162,7 @@ class ExecutionAuthorization(BaseModel, CanonicalMixin):
             "approval_decision_id": self.approval_decision_id,
             "admission_id": self.admission_id,
             "budget_snapshot_hash": self.budget_snapshot_hash,
+            "budget_id": self.budget_id,
             "approved_commitment": self.approved_commitment,
             "reserve_amount": self.reserve_amount,
             "currency": self.currency,
@@ -173,4 +178,5 @@ class ExecutionAuthorization(BaseModel, CanonicalMixin):
                                  sorted(self.acknowledgements,
                                         key=lambda a: a.code.value)],
             "markers": sorted(self.markers),
+            "issued_by": self.issued_by,
         }
