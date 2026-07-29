@@ -22,7 +22,25 @@ export default function LoginPage() {
         className="pointer-events-none absolute left-1/2 top-1/3 h-72 w-72 -translate-x-1/2 rounded-full bg-brand-300/20 blur-[80px] dark:bg-accent-500/10"
       />
 
-      <div className="relative z-10 w-full max-w-sm animate-fade-up">
+      <div className="relative z-10 grid w-full max-w-sm animate-fade-up grid-cols-1 items-center gap-8 lg:max-w-4xl lg:grid-cols-[1.05fr_1fr]">
+        {/* פאנל אמנות — מסך רחב בלבד. אילוסטרציית מותג (אנשים מחוברים). */}
+        <div className="hidden lg:block">
+          <div className="rounded-[1.6rem] bg-gradient-to-br from-brand-500/30 via-accent-500/20 to-transparent p-px shadow-glow">
+            <div className="glass overflow-hidden rounded-[1.55rem] p-6">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/login-art.webp" alt="" className="w-full rounded-2xl" width={1024} height={1024} />
+              <p className="mt-5 text-center text-xl font-extrabold tracking-tight text-gradient">
+                ניהול משאבי אנוש, חכם ופשוט
+              </p>
+              <p className="mt-1 text-center text-sm text-slate-500 dark:text-slate-400">
+                קליטה, שימור, פנסיה וזכויות עובדים — הכול במקום אחד
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* טור הטופס */}
+        <div>
         {/* עטיפת גרדיאנט דקה שיוצרת מסגרת זוהרת סביב הכרטיס */}
         <div className="rounded-[1.65rem] bg-gradient-to-br from-brand-500/40 via-accent-500/20 to-transparent p-px shadow-glow">
           <div className="glass rounded-[1.6rem] p-7 sm:p-8">
@@ -59,6 +77,7 @@ export default function LoginPage() {
           <ShieldCheck size={14} />
           התחברות מאובטחת בהצפנה
         </p>
+        </div>
       </div>
     </div>
   );
