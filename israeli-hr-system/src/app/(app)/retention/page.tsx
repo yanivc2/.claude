@@ -4,6 +4,8 @@ import type { SurveyMilestone, SurveyStatus } from "@prisma/client";
 import { daysUntilBirthday, birthdayWaHref } from "@/lib/birthday";
 import { EmptyState } from "@/components/EmptyState";
 import { avatarColor, initials } from "@/lib/avatar";
+import { currentAdmin } from "@/lib/session";
+import { employeeScope } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "שימור עובדים" };
@@ -32,13 +34,20 @@ const STATUS_STYLES: Record<SurveyStatus, string> = {
 const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });
 
 export default async function RetentionPage() {
+  const me = await currentAdmin();
+  const scope = me ? employeeScope(me) : { id: "__none__" };
   const [surveys, employees] = await Promise.all([
     prisma.retentionSurvey
-      .findMany({ orderBy: { scheduledFor: "asc" }, include: { employee: true }, take: 50 })
+      .findMany({
+        where: { employee: scope },
+        orderBy: { scheduledFor: "asc" },
+        include: { employee: true },
+        take: 50,
+      })
       .catch(() => []),
     prisma.employee
       .findMany({
-        where: { status: { in: ["ACTIVE", "ONBOARDING", "NOTICE_PERIOD"] }, birthDate: { not: null } },
+        where: { status: { in: ["ACTIVE", "ONBOARDING", "NOTICE_PERIOD"] }, birthDate: { not: null }, ...scope },
       })
       .catch(() => []),
   ]);

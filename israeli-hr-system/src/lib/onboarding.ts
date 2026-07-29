@@ -53,6 +53,10 @@ export const onboardingSchema = z.object({
   privacyConsents: z.record(z.boolean()).optional(),
   // שם החברה המעסיקה — מוזרק בצד השרת מתוך ההזמנה, לא נמסר ע"י הלקוח.
   privacyCompanyName: z.string().optional(),
+
+  // שיוך העובד לחברה (בסיס ההפרדה המולטי-חברה). אופציונלי — עובד ללא שיוך
+  // גלוי רק לבעלים/מזכירה.
+  companyId: z.string().optional().nullable(),
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
@@ -86,6 +90,7 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
         privacyCompanyName: data.privacyAccepted ? data.privacyCompanyName ?? null : null,
         privacyConsents:
           data.privacyAccepted && data.privacyConsents ? data.privacyConsents : undefined,
+        companyId: data.companyId || null,
         status: "ACTIVE",
       },
     });

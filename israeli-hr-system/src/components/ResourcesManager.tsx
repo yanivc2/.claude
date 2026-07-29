@@ -84,6 +84,8 @@ export function ResourcesManager() {
   const [items, setItems] = useState<Resource[]>([]);
   const [folders, setFolders] = useState<FolderT[]>([]);
   const [isOwner, setIsOwner] = useState(false);
+  // הרשאת כתיבה (בעלים/מזכירה). מנהל חנות — צפייה בלבד, ללא טופס העלאה.
+  const [canWrite, setCanWrite] = useState(false);
 
   // טופס הוספה
   const [kind, setKind] = useState<"FILE" | "LINK">("FILE");
@@ -117,7 +119,11 @@ export function ResourcesManager() {
     load();
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setIsOwner(!!d.isOwner))
+      .then((d) => {
+        if (!d) return;
+        setIsOwner(!!d.isOwner);
+        setCanWrite(d.role === "OWNER" || d.role === "SECRETARY");
+      })
       .catch(() => {});
   }, []);
 
@@ -226,7 +232,8 @@ export function ResourcesManager() {
 
   return (
     <div className="space-y-8">
-      {/* טופס הוספה */}
+      {/* טופס הוספה — בעלים/מזכירה בלבד (מנהל חנות: צפייה בלבד) */}
+      {canWrite && (
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
         <h2 className="mb-4 text-base font-bold text-slate-800 dark:text-slate-100">הוספת מסמך או קישור</h2>
 
@@ -369,6 +376,7 @@ export function ResourcesManager() {
           </p>
         )}
       </section>
+      )}
 
       {/* תיקיות */}
       {folders.map((f) => {

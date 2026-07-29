@@ -6,6 +6,7 @@ import {
   generateTerminationLetter,
   type ReasonItem,
 } from "@/lib/documentGenerator";
+import { requireWriter, canAccessEmployee } from "@/lib/rbac";
 
 const schema = z.object({
   employeeId: z.string(),
@@ -35,7 +36,11 @@ function reasonSummary(reasons: ReasonItem[], notes: string): string {
 }
 
 // POST /api/termination — הפקת מסמכי סיום העסקה עם חישוב הודעה מוקדמת.
+// שלב 1: בעלים/מזכירה בלבד. (הרשאת מנהל חנות תיפתח בשלב 2, עם פוש לבעלים.)
 export async function POST(req: Request) {
+  const me = await requireWriter(req);
+  if (!me) return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "נתונים שגויים" }, { status: 400 });
@@ -44,6 +49,10 @@ export async function POST(req: Request) {
 
   if (d.reasons.length === 0 && !d.notes.trim()) {
     return NextResponse.json({ error: "יש לבחור נימוק אחד לפחות או להוסיף מלל." }, { status: 400 });
+  }
+
+  if (!(await canAccessEmployee(me, d.employeeId))) {
+    return NextResponse.json({ error: "העובד לא נמצא" }, { status: 404 });
   }
 
   const employee = await prisma.employee.findUnique({ where: { id: d.employeeId } });

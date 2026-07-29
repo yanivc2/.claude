@@ -11,23 +11,43 @@ datasource db {
 }
 
 // ───────────────────────── אבטחה / כניסה ─────────────────────────
-// משתמש מנהל (כרגע יחיד). הסיסמה נשמרת כ-hash (PBKDF2). ניתן לשנות סיסמה
-// מתוך האפליקציה עם אישור קוד במייל (שדות ה-pending/confirm).
+// רמת הרשאה של משתמש מנהל:
+//   OWNER         — בעל המערכת. יכול הכל, כולל ניהול משתמשים וחברות.
+//   SECRETARY     — מזכירה. יכולה כמעט הכל, אך אינה יכולה למחוק קבצים
+//                   שהבעלים העלה (נאכף לפי uploadedByRole של הקובץ).
+//   STORE_MANAGER — מנהל חנות. צפייה בלבד בנתוני החברה שאליה שויך, פלוס
+//                   פעולות מוגדרות (הנפקת שימוע/פיטורין, שימוש בבוט, העלאת
+//                   מסמכים/נהלים לאישור). רואה אך ורק את החברה המשויכת אליו.
+enum AdminRole {
+  OWNER
+  SECRETARY
+  STORE_MANAGER
+}
+
+// משתמש מנהל. הסיסמה נשמרת כ-hash (PBKDF2). ניתן לשנות סיסמה מתוך האפליקציה
+// עם אישור קוד במייל (שדות ה-pending/confirm).
 model AdminUser {
   id                 String    @id @default(cuid())
   username           String    @unique
   name               String
   email              String
   passwordHash       String    @db.Text
-  // isOwner=בעל המערכת (יכול לנהל משתמשים). active=חשבון פעיל לכניסה.
+  // isOwner נשמר לתאימות לאחור; role הוא מקור האמת להרשאות. שניהם מסונכרנים
+  // (role=OWNER ⇔ isOwner=true) ע"י שכבת ה-RBAC.
   isOwner            Boolean   @default(false)
+  role               AdminRole @default(SECRETARY)
   active             Boolean   @default(true)
+  // שיוך לחברה — רלוונטי ומחייב עבור STORE_MANAGER (היקף הראייה שלו).
+  companyId          String?
+  company            Company?  @relation(fields: [companyId], references: [id])
   // שינוי סיסמה בהמתנה לאישור במייל
   pendingPasswordHash String?  @db.Text
   confirmCodeHash    String?   @db.Text
   confirmExpiresAt   DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+
+  @@index([companyId])
 }
 
 
@@ -53,6 +73,9 @@ model Company {
   companyNumber String? // ח.פ.
   address       String? // כתובת רשומה
   createdAt     DateTime @default(now())
+
+  employees Employee[]
+  admins    AdminUser[]
 }
 
 // ───────────────────────────── משתמשים והרשאות ─────────────────────────────
@@ -114,6 +137,11 @@ model Employee {
   privacyConsents      Json? // מפת אישורים: { notice_read: true, biometric: false, ... }
   status         EmploymentStatus @default(ONBOARDING)
 
+  // שיוך לחברה מעסיקה — בסיס ההפרדה המולטי-חברה. מנהל חנות רואה אך ורק
+  // עובדים ששויכו לחברה שלו. עובדים ללא שיוך גלויים רק לבעלים/מזכירה.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
+
   // מנהל ישיר
   managerId String?
   manager   User?   @relation("EmployeeManager", fields: [managerId], references: [id])
@@ -135,6 +163,7 @@ model Employee {
 
   @@index([status])
   @@index([managerId])
+  @@index([companyId])
 }
 
 // טופס 101 דיגיטלי

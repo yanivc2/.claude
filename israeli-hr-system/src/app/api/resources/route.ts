@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { sessionUser } from "@/lib/webauthn";
+import { requireWriter } from "@/lib/rbac";
 
 const createSchema = z
   .object({
@@ -48,8 +49,10 @@ export async function GET(req: Request) {
 
 // POST /api/resources — הוספת מסמך/קישור. לכל משתמש מחובר.
 export async function POST(req: Request) {
-  const username = await sessionUser(req);
-  if (!username) return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
+  // שלב 1: העלאת מסמכים/נהלים — בעלים/מזכירה בלבד. (הרשאת מנהל חנות עם זרימת
+  // אישור תיפתח בשלב 2.)
+  const me = await requireWriter(req);
+  if (!me) return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
 
   const parsed = createSchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
@@ -74,7 +77,7 @@ export async function POST(req: Request) {
       mimeType: d.kind === "FILE" ? d.mimeType ?? null : null,
       fileData: d.kind === "FILE" ? d.fileData ?? null : null,
       folderId: d.folderId || null,
-      createdBy: username,
+      createdBy: me.username,
     },
   });
 

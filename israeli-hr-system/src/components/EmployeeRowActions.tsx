@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCanWrite } from "./ViewerProvider";
 
 // כפתורי פעולה לעובד ברשימה: העברה ל"לא פעיל" / החזרה לפעיל, ומחיקה.
+// מוצג רק למי שרשאי לכתוב (בעלים/מזכירה); מנהל חנות — צפייה בלבד.
 export function EmployeeRowActions({
   id,
   name,
@@ -14,7 +16,10 @@ export function EmployeeRowActions({
   isInactive: boolean;
 }) {
   const router = useRouter();
+  const canWrite = useCanWrite();
   const [busy, setBusy] = useState(false);
+
+  if (!canWrite) return null;
 
   async function setStatus(status: "ACTIVE" | "INACTIVE") {
     setBusy(true);

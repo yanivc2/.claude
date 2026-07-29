@@ -5,6 +5,9 @@ import type { DocumentType, SignatureContext } from "@prisma/client";
 import { EmployeeExport, type ExportData } from "@/components/EmployeeExport";
 import { formatAvailability } from "@/lib/availability";
 import { avatarColor, initials } from "@/lib/avatar";
+import { currentAdmin } from "@/lib/session";
+import { canAccessEmployeeRecord } from "@/lib/rbac";
+import { CompanyAssign } from "@/components/CompanyAssign";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +105,7 @@ export default async function EmployeeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const me = await currentAdmin();
   const emp = await prisma.employee
     .findUnique({
       where: { id },
@@ -111,11 +115,15 @@ export default async function EmployeeDetailPage({
         signatures: true,
         pensionTask: true,
         surveys: { orderBy: { scheduledFor: "asc" } },
+        company: { select: { name: true } },
       },
     })
     .catch(() => null);
 
-  if (!emp) {
+  // הפרדה מולטי-חברה: מנהל חנות אינו רשאי לצפות בעובד מחברה אחרת (מונע IDOR).
+  const denied = !!emp && !!me && !canAccessEmployeeRecord(me, emp.companyId);
+
+  if (!emp || denied) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
         <p className="text-4xl">⚠️</p>
@@ -225,8 +233,13 @@ export default async function EmployeeDetailPage({
         <EmployeeExport data={exportData} />
       </header>
 
+      {/* שיוך חברה — בסיס ההפרדה המולטי-חברה (עריכה לבעלים/מזכירה) */}
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
+        <CompanyAssign employeeId={emp.id} companyId={emp.companyId} companyName={emp.company?.name ?? null} />
+      </div>
+
       {/* אריחי נתונים מרכזיים — היררכיה ויזואלית בראש התיק */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatTile icon={CalendarDays} label="תחילת עבודה" value={fmt(emp.startDate)} />
         <StatTile icon={Clock} label="ותק" value={tenure(emp.startDate)} />
         <StatTile

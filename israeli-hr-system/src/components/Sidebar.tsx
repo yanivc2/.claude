@@ -59,7 +59,7 @@ function initials(name: string): string {
 export function Sidebar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [me, setMe] = useState<{ name: string; isOwner: boolean } | null>(null);
+  const [me, setMe] = useState<{ name: string; isOwner: boolean; role: string } | null>(null);
 
   useEffect(() => {
     setOpen(false);
@@ -68,9 +68,14 @@ export function Sidebar() {
   useEffect(() => {
     fetch("/api/me")
       .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setMe({ name: d.name, isOwner: d.isOwner }))
+      .then((d) => d && setMe({ name: d.name, isOwner: d.isOwner, role: d.role }))
       .catch(() => {});
   }, []);
+
+  // מנהל חנות אינו רשאי לפעולות כתיבה — מסתירים נתיבי כתיבה (קליטה/סיום העסקה).
+  // (בשלב הבא הנפקת שימוע/פיטורין תיפתח למנהל, ואז הנתיב יוחזר.)
+  const isManager = me?.role === "STORE_MANAGER";
+  const writerOnly = new Set(["/onboarding", "/termination"]);
 
   useEffect(() => {
     if (!open) return;
@@ -146,7 +151,7 @@ export function Sidebar() {
           <p className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
             ניהול
           </p>
-          {NAV.map((item) => {
+          {NAV.filter((item) => !(isManager && writerOnly.has(item.href))).map((item) => {
             const Icon = item.icon;
             const active = isActive(item.href);
             return (
@@ -200,7 +205,15 @@ export function Sidebar() {
             </span>
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{me?.name ?? "טוען…"}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-400">{me?.isOwner ? "בעל המערכת" : "משתמש"}</p>
+              <p className="text-xs text-slate-400 dark:text-slate-400">
+                {me?.isOwner
+                  ? "בעל המערכת"
+                  : me?.role === "SECRETARY"
+                    ? "מזכירה"
+                    : me?.role === "STORE_MANAGER"
+                      ? "מנהל חנות"
+                      : "משתמש"}
+              </p>
             </div>
           </div>
         </div>
