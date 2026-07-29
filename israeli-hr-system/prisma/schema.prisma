@@ -65,6 +65,45 @@ model WebauthnCredential {
   @@index([username])
 }
 
+// ─────────────────────── התראות ופוש (שלב 2) ───────────────────────
+
+enum NotificationType {
+  HEARING_ISSUED // מנהל חנות הנפיק הזמנה לשימוע
+  TERMINATION_ISSUED // מנהל חנות הנפיק מכתב סיום העסקה
+  RESOURCE_PENDING // מנהל חנות העלה מסמך/נוהל הממתין לאישור
+}
+
+// התראה פנימית לבעלים. נוצרת כשמנהל חנות מבצע פעולה הדורשת ידיעה/אישור.
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  body      String           @db.Text
+  link      String? // נתיב יעד בתוך האפליקציה (למשל /employees/<id>)
+  // מי מקבל את ההתראה — כרגע תמיד הבעלים (username).
+  forUsername String
+  // מי יצר את האירוע (שם מנהל החנות) — לתצוגה.
+  actorName String?
+  companyId String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([forUsername, read])
+  @@index([createdAt])
+}
+
+// מנוי Web Push של מכשיר (לכל בעלים יכולים להיות כמה מכשירים). endpoint ייחודי.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  username  String // המשתמש שאליו שייך המנוי
+  endpoint  String   @unique @db.Text
+  p256dh    String   @db.Text
+  auth      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([username])
+}
+
 // ───────────────────────────── חברות ─────────────────────────────
 // רשימת חברות לניהול ה-HR — משמשות כאפשרויות בחירה (למשל בקישורי קליטה).
 model Company {
@@ -208,6 +247,8 @@ model EmployeeDocument {
   fileName   String
   fileUrl    String // כתובת האחסון של הקובץ
   mimeType   String?
+  // רמת ההרשאה של המעלה — לאכיפת הכלל "מזכירה אינה מוחקת קבצי בעלים".
+  uploadedByRole AdminRole?
   createdAt  DateTime     @default(now())
 
   form101Attachments Form101[] @relation("Form101IdAttachment")
@@ -445,6 +486,14 @@ model ResourceFolder {
   @@index([createdAt])
 }
 
+// סטטוס אישור של משאב. משאב שמנהל חנות מעלה נכנס כ-PENDING וממתין לאישור
+// הבעלים; משאב שבעלים/מזכירה מעלים מאושר אוטומטית.
+enum ResourceStatus {
+  APPROVED
+  PENDING
+  REJECTED
+}
+
 model Resource {
   id          String       @id @default(cuid())
   title       String
@@ -455,6 +504,11 @@ model Resource {
   mimeType    String?
   fileData    String?      @db.Text // עבור FILE — data URL
   createdBy   String? // שם המשתמש שהוסיף
+  // רמת ההרשאה של המעלה — לאכיפת הכלל "מזכירה אינה מוחקת קבצי בעלים".
+  uploadedByRole AdminRole?
+  // סטטוס אישור — משאבי מנהל חנות ממתינים לאישור הבעלים.
+  status      ResourceStatus @default(APPROVED)
+  companyId   String? // שיוך לחברה (עבור העלאות מנהל חנות)
   createdAt   DateTime     @default(now())
 
   // שיוך לתיקייה (אופציונלי) — משאבים ללא תיקייה מוצגים ברמה העליונה.
@@ -463,4 +517,5 @@ model Resource {
 
   @@index([createdAt])
   @@index([folderId])
+  @@index([status])
 }

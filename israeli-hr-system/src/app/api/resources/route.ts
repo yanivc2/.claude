@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { sessionUser } from "@/lib/webauthn";
-import { requireWriter } from "@/lib/rbac";
+import { requireAdmin, roleOf } from "@/lib/rbac";
+import { notifyOwner } from "@/lib/notifications";
 
 const createSchema = z
   .object({
@@ -22,13 +22,25 @@ const createSchema = z
 // כ-6MB מחרוזת data URL (מתחת למגבלת גוף הבקשה של Vercel).
 const MAX_FILE_CHARS = 6_000_000;
 
-// GET /api/resources — רשימת המשאבים (ללא תוכן הקובץ הכבד). לכל משתמש מחובר.
+// GET /api/resources — רשימת המשאבים (ללא תוכן הקובץ הכבד).
+//   בעלים  — הכל, כולל פריטים הממתינים לאישור (PENDING) לצורך אישור.
+//   אחרים  — מאושרים בלבד (מנהל חנות רואה גם את הפריטים שהוא עצמו העלה,
+//            כדי לעקוב אחר סטטוס האישור).
 export async function GET(req: Request) {
-  const username = await sessionUser(req);
-  if (!username) return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
+  const me = await requireAdmin(req);
+  if (!me) return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
+
+  const role = roleOf(me);
+  const where =
+    role === "OWNER"
+      ? {}
+      : {
+          OR: [{ status: "APPROVED" as const }, { createdBy: me.username }],
+        };
 
   const items = await prisma.resource
     .findMany({
+      where,
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -39,6 +51,8 @@ export async function GET(req: Request) {
         fileName: true,
         mimeType: true,
         folderId: true,
+        status: true,
+        uploadedByRole: true,
         createdAt: true,
       },
     })
@@ -49,9 +63,9 @@ export async function GET(req: Request) {
 
 // POST /api/resources — הוספת מסמך/קישור. לכל משתמש מחובר.
 export async function POST(req: Request) {
-  // שלב 1: העלאת מסמכים/נהלים — בעלים/מזכירה בלבד. (הרשאת מנהל חנות עם זרימת
-  // אישור תיפתח בשלב 2.)
-  const me = await requireWriter(req);
+  // כל מנהל מחובר רשאי להעלות. בעלים/מזכירה — מאושר אוטומטית; מנהל חנות —
+  // נכנס כ-PENDING וממתין לאישור הבעלים (עם פוש).
+  const me = await requireAdmin(req);
   if (!me) return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
 
   const parsed = createSchema.safeParse(await req.json().catch(() => ({})));
@@ -67,6 +81,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "הקובץ גדול מדי (עד ~4MB)." }, { status: 413 });
   }
 
+  const role = roleOf(me);
+  const pending = role === "STORE_MANAGER";
+
   const created = await prisma.resource.create({
     data: {
       title: d.title,
@@ -78,8 +95,22 @@ export async function POST(req: Request) {
       fileData: d.kind === "FILE" ? d.fileData ?? null : null,
       folderId: d.folderId || null,
       createdBy: me.username,
+      uploadedByRole: role,
+      status: pending ? "PENDING" : "APPROVED",
+      companyId: me.companyId,
     },
   });
 
-  return NextResponse.json({ id: created.id }, { status: 201 });
+  if (pending) {
+    await notifyOwner({
+      type: "RESOURCE_PENDING",
+      title: "מסמך/נוהל ממתין לאישור",
+      body: `${me.name} העלה/תה "${d.title}" הממתין לאישורך.`,
+      link: "/resources",
+      actorName: me.name,
+      companyId: me.companyId,
+    });
+  }
+
+  return NextResponse.json({ id: created.id, status: pending ? "PENDING" : "APPROVED" }, { status: 201 });
 }

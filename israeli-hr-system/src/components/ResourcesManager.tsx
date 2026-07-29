@@ -27,6 +27,8 @@ interface Resource {
   fileName: string | null;
   mimeType: string | null;
   folderId: string | null;
+  status?: "APPROVED" | "PENDING" | "REJECTED";
+  uploadedByRole?: "OWNER" | "SECRETARY" | "STORE_MANAGER" | null;
   createdAt: string;
 }
 interface FolderT {
@@ -84,8 +86,9 @@ export function ResourcesManager() {
   const [items, setItems] = useState<Resource[]>([]);
   const [folders, setFolders] = useState<FolderT[]>([]);
   const [isOwner, setIsOwner] = useState(false);
-  // הרשאת כתיבה (בעלים/מזכירה). מנהל חנות — צפייה בלבד, ללא טופס העלאה.
+  // הרשאת כתיבה (בעלים/מזכירה). מנהל חנות — יכול להעלות אך ההעלאה ממתינה לאישור.
   const [canWrite, setCanWrite] = useState(false);
+  const [isManager, setIsManager] = useState(false);
 
   // טופס הוספה
   const [kind, setKind] = useState<"FILE" | "LINK">("FILE");
@@ -123,6 +126,7 @@ export function ResourcesManager() {
         if (!d) return;
         setIsOwner(!!d.isOwner);
         setCanWrite(d.role === "OWNER" || d.role === "SECRETARY");
+        setIsManager(d.role === "STORE_MANAGER");
       })
       .catch(() => {});
   }, []);
@@ -209,6 +213,24 @@ export function ResourcesManager() {
     try {
       const res = await fetch(`/api/resources/${id}`, { method: "DELETE" });
       if (res.ok) await load();
+      else {
+        const b = await res.json().catch(() => ({}));
+        if (b.error) alert(b.error);
+      }
+    } catch {
+      // מתעלמים.
+    }
+  }
+
+  // אישור/דחיית פריט ממתין — בעלים בלבד.
+  async function decide(id: string, status: "APPROVED" | "REJECTED") {
+    try {
+      const res = await fetch(`/api/resources/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) await load();
     } catch {
       // מתעלמים.
     }
@@ -232,10 +254,15 @@ export function ResourcesManager() {
 
   return (
     <div className="space-y-8">
-      {/* טופס הוספה — בעלים/מזכירה בלבד (מנהל חנות: צפייה בלבד) */}
-      {canWrite && (
+      {/* טופס הוספה — בעלים/מזכירה מעלים ישירות; מנהל חנות מעלה לאישור הבעלים */}
+      {(canWrite || isManager) && (
       <section className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
-        <h2 className="mb-4 text-base font-bold text-slate-800 dark:text-slate-100">הוספת מסמך או קישור</h2>
+        <h2 className="mb-1 text-base font-bold text-slate-800 dark:text-slate-100">הוספת מסמך או קישור</h2>
+        {isManager && (
+          <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-500/10 dark:text-amber-400">
+            כמנהל חנות — המסמך יישלח לאישור בעל המערכת לפני שיופיע לכולם.
+          </p>
+        )}
 
         <div className="mb-4 inline-flex rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-1 text-sm font-semibold">
           {(["FILE", "LINK"] as const).map((k) => (
@@ -425,7 +452,7 @@ export function ResourcesManager() {
                 ) : (
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {inFolder.map((r) => (
-                      <Card key={r.id} r={r} folders={folders} isOwner={isOwner} onView={setViewing} onRemove={remove} onMove={move} />
+                      <Card key={r.id} r={r} folders={folders} isOwner={isOwner} canWrite={canWrite} onView={setViewing} onRemove={remove} onMove={move} onDecide={decide} />
                     ))}
                   </div>
                 )}
@@ -452,7 +479,7 @@ export function ResourcesManager() {
           ) : (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               {loose.map((r) => (
-                <Card key={r.id} r={r} folders={folders} isOwner={isOwner} onView={setViewing} onRemove={remove} onMove={move} />
+                <Card key={r.id} r={r} folders={folders} isOwner={isOwner} canWrite={canWrite} onView={setViewing} onRemove={remove} onMove={move} onDecide={decide} />
               ))}
             </div>
           )}
@@ -470,22 +497,33 @@ function Card({
   r,
   folders,
   isOwner,
+  canWrite,
   onView,
   onRemove,
   onMove,
+  onDecide,
 }: {
   r: Resource;
   folders: FolderT[];
   isOwner: boolean;
+  canWrite: boolean;
   onView: (r: Resource) => void;
   onRemove: (id: string, title: string) => void;
   onMove: (id: string, folderId: string) => void;
+  onDecide: (id: string, status: "APPROVED" | "REJECTED") => void;
 }) {
   const isVideo = r.kind === "LINK" && r.url ? isVideoUrl(r.url) : false;
   const Icon = r.kind === "FILE" ? FileText : isVideo ? Video : Link2;
+  const pending = r.status === "PENDING";
 
   return (
-    <div className="flex flex-col rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm transition hover:shadow-md">
+    <div
+      className={`flex flex-col rounded-2xl border bg-white p-4 shadow-sm transition hover:shadow-md dark:bg-slate-900 ${
+        pending
+          ? "border-amber-300 dark:border-amber-500/40"
+          : "border-slate-200 dark:border-slate-800"
+      }`}
+    >
       <div className="flex items-start gap-3">
         <span
           className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${
@@ -498,11 +536,16 @@ function Card({
         </span>
         <div className="min-w-0 flex-1">
           <p className="font-bold text-slate-800 dark:text-slate-100">{r.title}</p>
+          {pending && (
+            <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+              ממתין לאישור
+            </span>
+          )}
           {r.description && (
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{r.description}</p>
           )}
         </div>
-        {isOwner && (
+        {canWrite && (
           <button
             type="button"
             onClick={() => onRemove(r.id, r.title)}
@@ -513,6 +556,26 @@ function Card({
           </button>
         )}
       </div>
+
+      {/* אישור/דחייה של פריט ממתין — בעלים בלבד */}
+      {isOwner && pending && (
+        <div className="mt-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => onDecide(r.id, "APPROVED")}
+            className="flex-1 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-green-700"
+          >
+            אישור
+          </button>
+          <button
+            type="button"
+            onClick={() => onDecide(r.id, "REJECTED")}
+            className="flex-1 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            דחייה
+          </button>
+        </div>
+      )}
 
       {/* פעולה ראשית + שיתוף */}
       <div className="mt-4 flex items-center gap-2">
