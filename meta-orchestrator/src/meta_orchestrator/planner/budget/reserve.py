@@ -37,25 +37,41 @@ class ReserveBasis(str, Enum):
     FIXED_AMOUNT = "fixed_amount"
 
 
+#: Bases a real-spend admission may use. ``FRACTION_OF_EXPECTED`` is absent on
+#: purpose: sizing head-room from the *expected* case leaves the worst case
+#: systematically under-covered, which is the opposite of what a contingency is for.
+REAL_SPEND_BASES: frozenset[ReserveBasis] = frozenset({
+    ReserveBasis.NONE,
+    ReserveBasis.FIXED_AMOUNT,
+    ReserveBasis.FRACTION_OF_WORST,
+})
+
+#: The name the §2-derived figure travels under, so nobody reads it as a product
+#: default or as a calibrated value.
+S2_DERIVED_25_PERCENT_HEURISTIC = "S2_DERIVED_25_PERCENT_HEURISTIC"
+
+
 class ReservePolicy(BaseModel):
     """How much head-room to add on top of a quote, and why.
 
-    §2 used a 25% reserve on its gate-binding projection. That number is carried here
-    as the documented default rather than as a hidden constant, and the rationale is
-    recorded so a later change is a decision rather than a drift.
+    **The default is NONE.** A quote is used as quoted unless somebody explicitly
+    chooses otherwise. A contingency that appears by default is a contingency nobody
+    decided on, and within a week it reads as part of the price.
+
+    ``experimental`` marks a basis that may be used to explore but not to authorise
+    real money.
     """
 
     model_config = ConfigDict(frozen=True)
 
-    basis: ReserveBasis = ReserveBasis.FRACTION_OF_WORST
+    policy_name: str = "NONE"
+    basis: ReserveBasis = ReserveBasis.NONE
     #: Decimal string, e.g. "0.25" for 25%. Unused when the basis is FIXED_AMOUNT.
-    fraction: str = "0.25"
+    fraction: str = "0"
     #: Used only when the basis is FIXED_AMOUNT.
     fixed_amount: Money | None = None
-    rationale: str = (
-        "25% of the quoted worst case, matching the reserve fraction the §2 budget "
-        "projection was authorised under"
-    )
+    experimental: bool = False
+    rationale: str = "no contingency; the quote is used as quoted"
 
     @model_validator(mode="after")
     def _coherent(self) -> "ReservePolicy":
@@ -77,12 +93,58 @@ class ReservePolicy(BaseModel):
                     "is genuinely intended, state it as a FIXED_AMOUNT so it is visible")
         if not self.rationale.strip():
             raise ValueError("a reserve policy must say where its figure came from")
+        if not self.policy_name.strip():
+            raise ValueError("a reserve policy must be named, so it can be cited")
+        if self.basis is ReserveBasis.FRACTION_OF_EXPECTED and not self.experimental:
+            raise ValueError(
+                "FRACTION_OF_EXPECTED under-covers the worst case and is experimental; "
+                "mark it experimental=True and use it in SIMULATION only")
         return self
+
+    def permitted_for_real_spend(self) -> bool:
+        """Whether this policy may size a real-money admission."""
+        return self.basis in REAL_SPEND_BASES and not self.experimental
+
+    def content_hash(self) -> str:
+        """Full 64-hex identity. Changing a reserve policy invalidates prior approvals."""
+        from ..governance.canonical import content_hash
+
+        return content_hash({
+            "policy_name": self.policy_name,
+            "basis": self.basis.value,
+            "fraction": self.fraction,
+            "fixed_amount": self.fixed_amount,
+            "experimental": self.experimental,
+        })
 
     @classmethod
     def none(cls) -> "ReservePolicy":
-        return cls(basis=ReserveBasis.NONE, fraction="0",
-                   rationale="no contingency; the quote is used as-is")
+        """The default. Explicit for callers that want to say so."""
+        return cls()
+
+    @classmethod
+    def s2_derived_25_percent_heuristic(cls) -> "ReservePolicy":
+        """25% of the quoted worst case — opt-in, and a heuristic, not a calibration.
+
+        The figure comes from the reserve fraction §2's budget projection was
+        authorised under. That was a **different workload**: one frozen Haiku model,
+        two rounds per task, a $50 global cap. Nothing has measured it against product
+        traffic, and the name carries that so it cannot quietly become "the standard
+        25%".
+        """
+        return cls(
+            policy_name=S2_DERIVED_25_PERCENT_HEURISTIC,
+            basis=ReserveBasis.FRACTION_OF_WORST, fraction="0.25",
+            rationale=("25% of the quoted worst case, taken from the reserve fraction "
+                       "the §2 budget projection was authorised under — a different "
+                       "workload (single frozen Haiku model, two rounds, $50 cap). "
+                       "Heuristic, opt-in, never measured against product traffic"))
+
+    @classmethod
+    def fixed(cls, amount: Money, *, rationale: str,
+              policy_name: str = "FIXED") -> "ReservePolicy":
+        return cls(policy_name=policy_name, basis=ReserveBasis.FIXED_AMOUNT,
+                   fixed_amount=amount, rationale=rationale)
 
     def compute(self, *, expected: Money, worst: Money) -> Money:
         """The contingency amount for one quote. Never folded into the quote itself."""
