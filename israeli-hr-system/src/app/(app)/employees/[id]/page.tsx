@@ -8,6 +8,7 @@ import { avatarColor, initials } from "@/lib/avatar";
 import { currentAdmin } from "@/lib/session";
 import { canAccessEmployeeRecord } from "@/lib/rbac";
 import { CompanyAssign } from "@/components/CompanyAssign";
+import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 
 export const dynamic = "force-dynamic";
 
@@ -298,6 +299,7 @@ export default async function EmployeeDetailPage({
                     >
                       הורדה
                     </a>
+                    <DocumentDeleteButton docId={d.id} uploadedByRole={d.uploadedByRole} />
                   </div>
                   {isPdf ? (
                     <iframe
