@@ -13,7 +13,7 @@ export function ChatWidget() {
     <>
       {open && (
         <div className="fixed bottom-24 right-4 z-50 w-[92vw] max-w-md sm:right-6">
-          <div className="flex items-center justify-between rounded-t-2xl bg-gradient-to-br from-brand-500 to-brand-700 px-4 py-3 text-white shadow-lg">
+          <div className="flex items-center justify-between rounded-t-2xl bg-gradient-to-br from-brand-500 to-accent-600 px-4 py-3 text-white shadow-lg">
             <span className="flex items-center gap-2 font-bold">
               <Scale size={18} />
               יועץ לזכויות עובדים
@@ -37,7 +37,7 @@ export function ChatWidget() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label={open ? "סגירת היועץ" : "פתיחת יועץ לזכויות עובדים"}
-        className="fixed bottom-6 right-6 z-50 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-xl shadow-brand-500/30 transition hover:brightness-105 active:scale-95"
+        className="fixed bottom-6 right-6 z-50 grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-accent-600 text-white shadow-glow transition hover:brightness-110 hover:scale-105 active:scale-95"
       >
         {open ? <X size={26} /> : <MessageCircle size={26} />}
       </button>
