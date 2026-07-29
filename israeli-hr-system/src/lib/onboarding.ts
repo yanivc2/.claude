@@ -32,6 +32,9 @@ export const onboardingSchema = z.object({
   // זמינות: מפתח-יום → רשימת מפתחות-משמרת
   availability: z.record(z.array(z.string())).optional().nullable(),
   hasActivePension: z.boolean().optional().default(false),
+  // עובד קיים שתיק הפנסיה שלו כבר נפתח וטופל — אין צורך בתזכורת פתיחה.
+  // מסמן את משימת הפנסיה כ"טופלה" מיד, כדי שלא תופיע כמשימה פתוחה/באיחור.
+  pensionHandled: z.boolean().optional().default(false),
   // טופס 101
   taxYear: z.number(),
   maritalStatus: z.string(),
@@ -169,6 +172,14 @@ export async function createEmployeeFromOnboarding(
 
   // תזמון פתיחת תיק פנסיה לפי החוק (3 חודשים עם הסדר קיים, 6 חודשים בלעדיו).
   await schedulePensionTask(employee.id, startDate, data.hasActivePension);
+  // עובד קיים שהפנסיה שלו כבר טופלה — מסמנים את המשימה כהושלמה כדי שלא תיווצר
+  // תזכורת שגויה (למשל "באיחור") על תיק שכבר פעיל.
+  if (data.pensionHandled) {
+    await prisma.pensionTask.update({
+      where: { employeeId: employee.id },
+      data: { status: "DONE", completedAt: new Date() },
+    });
+  }
 
   return employee.id;
 }
