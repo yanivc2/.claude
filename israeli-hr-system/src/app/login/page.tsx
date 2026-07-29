@@ -1,11 +1,9 @@
 import { ShieldCheck } from "lucide-react";
 import { LoginForm } from "@/components/LoginForm";
-import { getAuthConfig } from "@/lib/auth";
 
 export const metadata = { title: { absolute: "כניסה — מערכת משאבי אנוש" } };
 
 export default function LoginPage() {
-  const { usingDefaults } = getAuthConfig();
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4">
       {/* תמונת רקע מלאה — אילוסטרציית המותג */}
@@ -42,13 +40,6 @@ export default function LoginPage() {
               </p>
             </div>
             <LoginForm />
-            {usingDefaults && (
-              <p className="mt-4 rounded-lg bg-amber-50 dark:bg-amber-500/15 p-3 text-xs text-amber-800 dark:text-amber-300">
-                ⚠️ לאבטחה מלאה יש להגדיר ב-Vercel את המשתנה <b>SESSION_SECRET</b> (מחרוזת אקראית
-                ארוכה). אם עדיין לא הוגדרה סיסמה — הכניסה הראשונית היא <b>yanivc2 / admin</b>, ומומלץ
-                לשנות אותה מיד ב&ldquo;הגדרות&rdquo;.
-              </p>
-            )}
           </div>
         </div>
         {/* חתימת אמון */}
