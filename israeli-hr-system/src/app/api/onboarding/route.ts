@@ -4,7 +4,7 @@ import {
   createEmployeeFromOnboarding,
   onboardingErrorMessage,
 } from "@/lib/onboarding";
-import { requireWriter } from "@/lib/rbac";
+import { requireWriter, roleOf } from "@/lib/rbac";
 
 // POST /api/onboarding — קליטת עובד ידנית. כתיבה: בעלים/מזכירה בלבד.
 export async function POST(req: Request) {
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const id = await createEmployeeFromOnboarding(parsed.data);
+    const id = await createEmployeeFromOnboarding(parsed.data, roleOf(me));
     return NextResponse.json({ id, status: "ok" }, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: onboardingErrorMessage(err) }, { status: 500 });

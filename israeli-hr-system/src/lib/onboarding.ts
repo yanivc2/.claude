@@ -1,3 +1,4 @@
+import type { AdminRole } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "./prisma";
 import { scheduleRetentionSurveys } from "./retention";
@@ -63,7 +64,13 @@ export type OnboardingInput = z.infer<typeof onboardingSchema>;
 
 // יוצר עובד מלא (עובד + טופס 101 + מסמכים + חתימות) בטרנזקציה אחת,
 // ומתזמן אוטומטית את סקרי השימור. מחזיר את מזהה העובד שנוצר.
-export async function createEmployeeFromOnboarding(data: OnboardingInput): Promise<string> {
+// uploaderRole — רמת ההרשאה של מי שמבצע את הקליטה (לתיוג מסמכים לצורך כלל
+// המזכירה). בקליטה עצמית ע"י העובד (טוקן) — undefined (מסמכי העובד אינם
+// "קבצי בעלים" ולכן המזכירה רשאית למחקם).
+export async function createEmployeeFromOnboarding(
+  data: OnboardingInput,
+  uploaderRole?: AdminRole,
+): Promise<string> {
   const startDate = new Date(data.startDate);
   const birthDate = data.birthDate ? new Date(data.birthDate) : null;
 
@@ -105,6 +112,7 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
           fileName: data.idAttachment.fileName,
           fileUrl: data.idAttachment.data, // בפרודקשן: העלאה ל-object storage וקבלת URL
           mimeType: data.idAttachment.mimeType,
+          uploadedByRole: uploaderRole ?? null,
         },
       });
       idDocId = doc.id;
@@ -119,6 +127,7 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
           fileName: data.contractAttachment.fileName,
           fileUrl: data.contractAttachment.data,
           mimeType: data.contractAttachment.mimeType,
+          uploadedByRole: uploaderRole ?? null,
         },
       });
     }
