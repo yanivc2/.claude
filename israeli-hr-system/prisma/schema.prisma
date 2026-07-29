@@ -236,7 +236,32 @@ enum DocumentType {
   FORM_101 // טופס 101
   HEARING_INVITATION // הזמנה לשימוע
   TERMINATION_LETTER // מכתב סיום העסקה
+  PENSION_TRANSFER // מסמך העברת כספים לפנסיה
   OTHER
+}
+
+// ─────────────────────── אנשי קשר ומטפלי פנסיה ───────────────────────
+enum ContactType {
+  GENERAL // איש קשר כללי
+  PENSION_AGENT // מטפל/מנהל תיק פנסיוני (סוכן/יועץ)
+}
+
+// איש קשר לשליחת מסמכים (מייל/וואטסאפ). כולל מטפל בתיק פנסיוני.
+model Contact {
+  id        String      @id @default(cuid())
+  type      ContactType @default(GENERAL)
+  name      String
+  agency    String? // שם הסוכנות/החברה של איש הקשר (טקסט חופשי)
+  email     String?
+  phone     String? // מספר טלפון/וואטסאפ (בפורמט בינלאומי לשליחה)
+  notes     String?     @db.Text
+  // שיוך אופציונלי לחברה במערכת (למשל מטפל פנסיה של חברה מסוימת).
+  companyId String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([type])
+  @@index([companyId])
 }
 
 model EmployeeDocument {

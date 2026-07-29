@@ -9,6 +9,7 @@ import { currentAdmin } from "@/lib/session";
 import { canAccessEmployeeRecord } from "@/lib/rbac";
 import { CompanyAssign } from "@/components/CompanyAssign";
 import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
+import { PensionDocuments } from "@/components/PensionDocuments";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,7 @@ const DOC_LABELS: Record<DocumentType, string> = {
   FORM_101: "טופס 101",
   HEARING_INVITATION: "הזמנה לשימוע",
   TERMINATION_LETTER: "מכתב סיום העסקה",
+  PENSION_TRANSFER: "מסמך העברת פנסיה",
   OTHER: "מסמך",
 };
 
@@ -279,12 +281,34 @@ export default async function EmployeeDetailPage({
         </Card>
       )}
 
+      <Card title="מסמכי העברות פנסיה">
+        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+          שמירת מסמכי העברת כספים לפנסיה. ניתן להדפיס, לשלוח במייל למטפל תיק הפנסיה, או
+          לשתף בוואטסאפ.
+        </p>
+        <PensionDocuments
+          employeeId={emp.id}
+          employeeName={fullName}
+          initialDocs={emp.documents
+            .filter((d) => d.type === "PENSION_TRANSFER")
+            .map((d) => ({
+              id: d.id,
+              fileName: d.fileName,
+              mimeType: d.mimeType,
+              fileUrl: d.fileUrl,
+              uploadedByRole: d.uploadedByRole,
+            }))}
+        />
+      </Card>
+
       <Card title="מסמכים">
-        {emp.documents.length === 0 ? (
+        {emp.documents.filter((d) => d.type !== "PENSION_TRANSFER").length === 0 ? (
           <p className="text-sm text-slate-400 dark:text-slate-400">לא צורפו מסמכים.</p>
         ) : (
           <div className="space-y-4">
-            {emp.documents.map((d) => {
+            {emp.documents
+              .filter((d) => d.type !== "PENSION_TRANSFER")
+              .map((d) => {
               const isPdf = (d.mimeType || "").includes("pdf");
               return (
                 <div key={d.id}>
