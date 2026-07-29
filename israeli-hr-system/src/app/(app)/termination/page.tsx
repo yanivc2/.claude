@@ -3,18 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { TerminationForm } from "@/components/TerminationForm";
 import { EmptyState } from "@/components/EmptyState";
 import { currentAdmin } from "@/lib/session";
-import { employeeScope, roleOf } from "@/lib/rbac";
-import { NoAccessNotice } from "@/components/NoAccessNotice";
+import { employeeScope } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "סיום העסקה" };
 
 export default async function TerminationPage() {
   const me = await currentAdmin();
-  // שלב 1: הנפקת מסמכי סיום — בעלים/מזכירה בלבד. (יורחב למנהל חנות בשלב הבא.)
-  if (me && roleOf(me) === "STORE_MANAGER") {
-    return <NoAccessNotice message="הנפקת מסמכי סיום העסקה תתאפשר בקרוב עבור מנהל חנות. בשלב זה הפעולה מוגבלת לבעלים ולמזכירה." />;
-  }
   const employees = await prisma.employee
     .findMany({
       where: { status: { in: ["ACTIVE", "NOTICE_PERIOD"] }, ...(me ? employeeScope(me) : { id: "__none__" }) },

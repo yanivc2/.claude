@@ -19,6 +19,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { ThemeToggle } from "./ThemeToggle";
+import { NotificationBell } from "./NotificationBell";
 
 // לוגו האפליקציה (רשת אנשים). גרסה על רקע לבן — בולטת גם במצב בהיר וגם כהה.
 function Logo({ size }: { size: number }) {
@@ -72,10 +73,10 @@ export function Sidebar() {
       .catch(() => {});
   }, []);
 
-  // מנהל חנות אינו רשאי לפעולות כתיבה — מסתירים נתיבי כתיבה (קליטה/סיום העסקה).
-  // (בשלב הבא הנפקת שימוע/פיטורין תיפתח למנהל, ואז הנתיב יוחזר.)
+  // מנהל חנות: צפייה בלבד, פרט להנפקת שימוע/פיטורין (מותרת). לכן מסתירים רק
+  // את קליטת העובד (כתיבה מלאה), אך משאירים את "סיום העסקה".
   const isManager = me?.role === "STORE_MANAGER";
-  const writerOnly = new Set(["/onboarding", "/termination"]);
+  const writerOnly = new Set(["/onboarding"]);
 
   useEffect(() => {
     if (!open) return;
@@ -203,7 +204,7 @@ export function Sidebar() {
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-bold text-white">
               {me ? initials(me.name) : "…"}
             </span>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">{me?.name ?? "טוען…"}</p>
               <p className="text-xs text-slate-400 dark:text-slate-400">
                 {me?.isOwner
@@ -215,6 +216,7 @@ export function Sidebar() {
                       : "משתמש"}
               </p>
             </div>
+            {me?.isOwner && <NotificationBell />}
           </div>
         </div>
       </aside>
