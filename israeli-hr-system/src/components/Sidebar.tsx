@@ -13,6 +13,7 @@ import {
   Scale,
   Gavel,
   Settings,
+  Contact,
   LogOut,
   Menu,
   X,
@@ -44,6 +45,7 @@ const NAV: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/employees", label: "עובדים ותיקים", icon: Users },
   { href: "/retention", label: "שימור עובדים", icon: Sprout },
   { href: "/resources", label: "מסמכים ונהלים", icon: FolderOpen },
+  { href: "/contacts", label: "אנשי קשר", icon: Contact },
 ];
 
 // ידע ומשפט — יועץ AI ועדכוני חקיקה.
