@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { adminFromRequest } from "@/lib/rbac";
+import { sessionUser } from "@/lib/webauthn";
 import { pushEnabled } from "@/lib/push";
 
 const schema = z.object({
@@ -10,27 +10,27 @@ const schema = z.object({
 });
 
 // GET /api/push/subscribe — מצב הפוש ומפתח ה-VAPID הציבורי (ללקוח).
+// זמין לכל משתמש מחובר (מנהל או עובד).
 export async function GET(req: Request) {
-  const me = await adminFromRequest(req);
-  if (!me) return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
+  const username = await sessionUser(req);
+  if (!username) return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
   const publicKey =
     process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || process.env.VAPID_PUBLIC_KEY || null;
   return NextResponse.json({ enabled: pushEnabled(), publicKey });
 }
 
-// POST /api/push/subscribe — שמירת מנוי Web Push של המכשיר הנוכחי.
+// POST /api/push/subscribe — שמירת מנוי Web Push של המכשיר הנוכחי (מנהל/עובד).
 export async function POST(req: Request) {
-  const me = await adminFromRequest(req);
-  if (!me) return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
+  const username = await sessionUser(req);
+  if (!username) return NextResponse.json({ error: "לא מורשה" }, { status: 401 });
   const parsed = schema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return NextResponse.json({ error: "מנוי לא תקין" }, { status: 400 });
 
   const { endpoint, keys } = parsed.data;
-  // upsert לפי endpoint — מונע כפילויות אם המכשיר נרשם שוב.
   await prisma.pushSubscription.upsert({
     where: { endpoint },
-    create: { username: me.username, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-    update: { username: me.username, p256dh: keys.p256dh, auth: keys.auth },
+    create: { username, endpoint, p256dh: keys.p256dh, auth: keys.auth },
+    update: { username, p256dh: keys.p256dh, auth: keys.auth },
   });
   return NextResponse.json({ status: "ok" }, { status: 201 });
 }

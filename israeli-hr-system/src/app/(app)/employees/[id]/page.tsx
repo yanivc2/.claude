@@ -6,10 +6,11 @@ import { EmployeeExport, type ExportData } from "@/components/EmployeeExport";
 import { formatAvailability } from "@/lib/availability";
 import { avatarColor, initials } from "@/lib/avatar";
 import { currentAdmin } from "@/lib/session";
-import { canAccessEmployeeRecord } from "@/lib/rbac";
+import { canAccessEmployeeRecord, roleOf } from "@/lib/rbac";
 import { CompanyAssign } from "@/components/CompanyAssign";
 import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
 import { PensionDocuments } from "@/components/PensionDocuments";
+import { EmployeeAccess } from "@/components/EmployeeAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -142,6 +143,8 @@ export default async function EmployeeDetailPage({
   }
 
   const fullName = `${emp.firstName} ${emp.lastName}`;
+  // בעלים/מזכירה בלבד רשאים ליצור/לאפס גישת עובד (self-service).
+  const canManageAccess = !!me && roleOf(me) !== "STORE_MANAGER";
 
   const personalRows: [string, string][] = [
     ["תעודת זהות", emp.nationalId],
@@ -260,6 +263,12 @@ export default async function EmployeeDetailPage({
           }
         />
       </div>
+
+      {canManageAccess && (
+        <Card title="גישת עובד לאפליקציה">
+          <EmployeeAccess employeeId={emp.id} email={emp.email} hasAccess={!!emp.passwordHash} />
+        </Card>
+      )}
 
       <Card title="פרטים אישיים">
         <Rows rows={personalRows} />

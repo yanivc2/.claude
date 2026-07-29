@@ -15,8 +15,11 @@ function nextTarget(): string {
 }
 
 export function LoginForm() {
+  const [audience, setAudience] = useState<"admin" | "employee">("admin");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [empPassword, setEmpPassword] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
@@ -26,6 +29,28 @@ export function LoginForm() {
   useEffect(() => {
     setSupported(browserSupportsWebAuthn());
   }, []);
+
+  async function submitEmployee(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/employee-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: empPassword }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? "כניסה נכשלה");
+      }
+      window.location.href = "/my-home";
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
@@ -136,6 +161,72 @@ export function LoginForm() {
 
   return (
     <div>
+      {/* בורר קהל — צוות ניהול מול עובד */}
+      <div className="mb-5 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/70">
+        {(
+          [
+            ["admin", "צוות ניהול"],
+            ["employee", "עובד/ת"],
+          ] as const
+        ).map(([val, label]) => (
+          <button
+            key={val}
+            type="button"
+            onClick={() => {
+              setAudience(val);
+              setError("");
+              setPhase("form");
+            }}
+            className={`rounded-lg py-2 text-sm font-bold transition ${
+              audience === val
+                ? "bg-white text-brand-700 shadow-sm dark:bg-slate-700 dark:text-white"
+                : "text-slate-500 dark:text-slate-400"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {audience === "employee" ? (
+        <form onSubmit={submitEmployee} className="space-y-3">
+          <input
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            placeholder="דוא״ל"
+            type="email"
+            dir="ltr"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
+            required
+          />
+          <input
+            className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+            placeholder="סיסמה"
+            type="password"
+            value={empPassword}
+            onChange={(e) => setEmpPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+          {error && (
+            <p className="rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-2 text-sm text-red-700 dark:text-red-400">
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-full rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+          >
+            {busy ? "מתחבר..." : "כניסת עובד"}
+          </button>
+          <p className="pt-1 text-center text-xs text-slate-400">
+            אין לך גישה? יש לפנות למעסיק לקבלת שם משתמש וסיסמה.
+          </p>
+        </form>
+      ) : (
+      <>
       <form onSubmit={submitPassword} className="space-y-3">
         <input
           className="w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
@@ -185,6 +276,8 @@ export function LoginForm() {
       >
         שכחתי סיסמה
       </button>
+      </>
+      )}
     </div>
   );
 }
