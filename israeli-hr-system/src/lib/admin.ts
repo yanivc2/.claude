@@ -8,12 +8,21 @@ import { hashPassword } from "./password";
 // לאחר הזריעה הראשונית, המסד הוא מקור האמת (כולל שינויי סיסמה מהאפליקציה).
 export async function ensureAdmin() {
   const owner = await prisma.adminUser.findFirst({ where: { isOwner: true } });
-  if (owner) return owner;
+  if (owner) {
+    // נרמול role לבעלים קיים (מסד שנוצר לפני הוספת עמודת role).
+    if (owner.role !== "OWNER") {
+      return prisma.adminUser.update({ where: { id: owner.id }, data: { role: "OWNER" } });
+    }
+    return owner;
+  }
 
   const earliest = await prisma.adminUser.findFirst({ orderBy: { createdAt: "asc" } });
   if (earliest) {
     // נרמול חד-פעמי: המשתמש הוותיק ביותר הופך לבעלים.
-    return prisma.adminUser.update({ where: { id: earliest.id }, data: { isOwner: true } });
+    return prisma.adminUser.update({
+      where: { id: earliest.id },
+      data: { isOwner: true, role: "OWNER" },
+    });
   }
 
   const cfg = getAuthConfig();
@@ -24,6 +33,7 @@ export async function ensureAdmin() {
       email: cfg.email,
       passwordHash: await hashPassword(cfg.password),
       isOwner: true,
+      role: "OWNER",
       active: true,
     },
   });

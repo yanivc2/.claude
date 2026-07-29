@@ -4,15 +4,37 @@ import { useEffect, useState } from "react";
 import { UsersRound, UserPlus } from "lucide-react";
 import { avatarColor, initials } from "@/lib/avatar";
 
+type AdminRole = "OWNER" | "SECRETARY" | "STORE_MANAGER";
+
 interface ManagedUser {
   id: string;
   username: string;
   name: string;
   email: string;
   isOwner: boolean;
+  role: AdminRole;
+  companyId: string | null;
+  companyName: string | null;
   active: boolean;
   createdAt: string;
 }
+
+interface CompanyOption {
+  id: string;
+  name: string;
+}
+
+const ROLE_LABEL: Record<AdminRole, string> = {
+  OWNER: "בעלים",
+  SECRETARY: "מזכירה",
+  STORE_MANAGER: "מנהל חנות",
+};
+
+// תיאור קצר של מה כל רמת הרשאה מאפשרת — עוזר לבעלים לבחור נכון.
+const ROLE_HINT: Record<Exclude<AdminRole, "OWNER">, string> = {
+  SECRETARY: "גישה מלאה כמעט לכל המערכת (למעט מחיקת קבצים שהעלה הבעלים).",
+  STORE_MANAGER: "צפייה בלבד, מוגבל לחברה אחת. הנפקת שימוע/פיטורין, שימוש בבוט והעלאת מסמכים לאישור (בקרוב).",
+};
 
 const inputClass =
   "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
@@ -72,10 +94,13 @@ function mailtoHref(email: string, body: string): string {
 // ואיפוס סיסמה. משתמשים חדשים יכולים להתחבר ולעבוד עם המערכת.
 export function UserManagement() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [name, setName] = useState("");
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [role, setRole] = useState<Exclude<AdminRole, "OWNER">>("SECRETARY");
+  const [companyId, setCompanyId] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -96,8 +121,21 @@ export function UserManagement() {
     }
   }
 
+  async function loadCompanies() {
+    try {
+      const res = await fetch("/api/companies");
+      if (res.ok) {
+        const list = (await res.json()) as CompanyOption[];
+        setCompanies(list);
+      }
+    } catch {
+      // מתעלמים.
+    }
+  }
+
   useEffect(() => {
     load();
+    loadCompanies();
   }, []);
 
   async function createUser(e: React.FormEvent) {
@@ -107,10 +145,20 @@ export function UserManagement() {
     setCreated(null);
     setBusy(true);
     try {
+      if (role === "STORE_MANAGER" && !companyId) {
+        throw new Error("יש לבחור חברה עבור מנהל חנות");
+      }
       const res = await fetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, username, email, password }),
+        body: JSON.stringify({
+          name,
+          username,
+          email,
+          password,
+          role,
+          companyId: role === "STORE_MANAGER" ? companyId : null,
+        }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "שגיאה ביצירת המשתמש");
@@ -120,11 +168,35 @@ export function UserManagement() {
       setUsername("");
       setEmail("");
       setPassword("");
+      setRole("SECRETARY");
+      setCompanyId("");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה לא צפויה");
     } finally {
       setBusy(false);
+    }
+  }
+
+  // שינוי רמת הרשאה ו/או חברה של משתמש קיים.
+  async function changeRole(u: ManagedUser, nextRole: Exclude<AdminRole, "OWNER">, nextCompanyId: string | null) {
+    setError("");
+    setNotice("");
+    try {
+      if (nextRole === "STORE_MANAGER" && !nextCompanyId) {
+        throw new Error("יש לבחור חברה עבור מנהל חנות");
+      }
+      const res = await fetch(`/api/users/${u.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: nextRole, companyId: nextRole === "STORE_MANAGER" ? nextCompanyId : null }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "שגיאה בעדכון ההרשאה");
+      setNotice(`ההרשאה של "${u.username}" עודכנה.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "שגיאה לא צפויה");
     }
   }
 
@@ -220,6 +292,41 @@ export function UserManagement() {
             onChange={(e) => setPassword(e.target.value)}
           />
         </label>
+        <label className="block">
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">רמת הרשאה</span>
+          <select
+            className={inputClass}
+            value={role}
+            onChange={(e) => setRole(e.target.value as Exclude<AdminRole, "OWNER">)}
+          >
+            <option value="SECRETARY">מזכירה</option>
+            <option value="STORE_MANAGER">מנהל חנות</option>
+          </select>
+        </label>
+        {role === "STORE_MANAGER" && (
+          <label className="block">
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">חברה משויכת</span>
+            <select
+              className={inputClass}
+              required
+              value={companyId}
+              onChange={(e) => setCompanyId(e.target.value)}
+            >
+              <option value="">— בחר/י חברה —</option>
+              {companies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            {companies.length === 0 && (
+              <span className="mt-1 block text-xs text-amber-600 dark:text-amber-400">
+                אין חברות מוגדרות עדיין — יש להוסיף חברה תחילה (בקליטת עובד / ניהול חברות).
+              </span>
+            )}
+          </label>
+        )}
+        <p className="sm:col-span-2 -mt-1 text-xs text-slate-500 dark:text-slate-400">{ROLE_HINT[role]}</p>
         <div className="sm:col-span-2">
           <button
             type="submit"
@@ -312,6 +419,15 @@ export function UserManagement() {
                 <p className="truncate text-xs text-slate-500 dark:text-slate-400" dir="ltr">
                   {u.email}
                 </p>
+                <p className="mt-0.5 text-xs">
+                  <span className="font-medium text-slate-600 dark:text-slate-300">{ROLE_LABEL[u.role]}</span>
+                  {u.role === "STORE_MANAGER" && (
+                    <span className="text-slate-400 dark:text-slate-500">
+                      {" · "}
+                      {u.companyName ?? "ללא חברה"}
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -349,6 +465,36 @@ export function UserManagement() {
               )}
               {!u.isOwner && (
                 <>
+                  <select
+                    title="רמת הרשאה"
+                    value={u.role === "OWNER" ? "SECRETARY" : u.role}
+                    onChange={(e) =>
+                      changeRole(
+                        u,
+                        e.target.value as Exclude<AdminRole, "OWNER">,
+                        e.target.value === "STORE_MANAGER" ? u.companyId ?? companies[0]?.id ?? null : null,
+                      )
+                    }
+                    className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
+                  >
+                    <option value="SECRETARY">מזכירה</option>
+                    <option value="STORE_MANAGER">מנהל חנות</option>
+                  </select>
+                  {u.role === "STORE_MANAGER" && (
+                    <select
+                      title="חברה משויכת"
+                      value={u.companyId ?? ""}
+                      onChange={(e) => changeRole(u, "STORE_MANAGER", e.target.value || null)}
+                      className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-1 text-xs text-slate-600 dark:text-slate-300"
+                    >
+                      <option value="">— חברה —</option>
+                      {companies.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   <button
                     type="button"
                     onClick={() => resetPassword(u)}

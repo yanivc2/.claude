@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { requireWriter } from "@/lib/rbac";
 
 // בונה את כתובת הבסיס הציבורית: מעדיף משתנה סביבה מפורש, אחרת גוזר מהבקשה.
 function baseUrl(req: Request): string {
@@ -27,7 +28,11 @@ const createSchema = z.object({
 });
 
 // POST /api/onboarding/invite — יצירת הזמנת קליטה חדשה והחזרת קישור להעתקה.
+// כתיבה: בעלים/מזכירה בלבד.
 export async function POST(req: Request) {
+  const me = await requireWriter(req);
+  if (!me) return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+
   const body = await req.json().catch(() => ({}));
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
@@ -63,7 +68,9 @@ export async function POST(req: Request) {
 // GET /api/onboarding/invite — רשימת הזמנות קליטה (לתצוגה אצל HR).
 // הקישור עצמו נבנה בצד הלקוח מכתובת הדפדפן, לכן לא מחזירים url כאן.
 // לא שולפים את תוכן ההסכם (data URL כבד) — רק אינדיקציה אם צורף.
-export async function GET() {
+export async function GET(req: Request) {
+  const me = await requireWriter(req);
+  if (!me) return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
   try {
     const invites = await prisma.onboardingInvite.findMany({
       orderBy: { createdAt: "desc" },

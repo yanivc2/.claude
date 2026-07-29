@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { currentAdmin } from "@/lib/session";
+import { employeeScope } from "@/lib/rbac";
 import { PensionAlert, type PensionAlertItem } from "@/components/PensionAlert";
 import { EmptyState } from "@/components/EmptyState";
 import {
@@ -51,19 +52,27 @@ export default async function DashboardPage() {
   const inTwoWeeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
   const me = await currentAdmin().catch(() => null);
   const firstName = me?.name?.trim().split(/\s+/)[0] ?? "";
+  // הפרדה מולטי-חברה: מנהל חנות רואה נתונים של החברה שלו בלבד. הפילטר מוחל
+  // גם ישירות על עובדים וגם דרך יחס ה-employee במשימות פנסיה/שימור.
+  const scope = me ? employeeScope(me) : { id: "__none__" };
 
   const [activeEmployees, onboarding, dueSurveys, duePension, pensionSoon, recent] =
     await Promise.all([
-      prisma.employee.count({ where: { status: "ACTIVE" } }),
-      prisma.employee.count({ where: { status: "ONBOARDING" } }),
-      prisma.retentionSurvey.count({ where: { status: "SCHEDULED", scheduledFor: { lte: now } } }),
-      prisma.pensionTask.count({ where: { status: "PENDING", dueDate: { lte: now } } }),
+      prisma.employee.count({ where: { status: "ACTIVE", ...scope } }),
+      prisma.employee.count({ where: { status: "ONBOARDING", ...scope } }),
+      prisma.retentionSurvey.count({
+        where: { status: "SCHEDULED", scheduledFor: { lte: now }, employee: scope },
+      }),
+      prisma.pensionTask.count({
+        where: { status: "PENDING", dueDate: { lte: now }, employee: scope },
+      }),
       prisma.pensionTask.findMany({
-        where: { status: "PENDING", dueDate: { lte: inTwoWeeks } },
+        where: { status: "PENDING", dueDate: { lte: inTwoWeeks }, employee: scope },
         orderBy: { dueDate: "asc" },
         include: { employee: { select: { firstName: true, lastName: true } } },
       }),
       prisma.employee.findMany({
+        where: scope,
         orderBy: { startDate: "desc" },
         take: 5,
         select: { id: true, firstName: true, lastName: true, jobTitle: true, startDate: true, status: true },
@@ -79,9 +88,9 @@ export default async function DashboardPage() {
 
   // ── נתוני גרפים ──────────────────────────────────────────────────────────
   const [statusGroups, startRows] = await Promise.all([
-    prisma.employee.groupBy({ by: ["status"], _count: { _all: true } }).catch(() => []),
+    prisma.employee.groupBy({ by: ["status"], where: scope, _count: { _all: true } }).catch(() => []),
     prisma.employee
-      .findMany({ select: { startDate: true }, orderBy: { startDate: "desc" }, take: 3000 })
+      .findMany({ where: scope, select: { startDate: true }, orderBy: { startDate: "desc" }, take: 3000 })
       .catch(() => []),
   ]);
 

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import type { EmploymentStatus } from "@prisma/client";
 import { EmployeesList, type EmployeeRow } from "@/components/EmployeesList";
 import { EmptyState } from "@/components/EmptyState";
+import { currentAdmin } from "@/lib/session";
+import { employeeScope } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "עובדים ותיקים" };
@@ -11,8 +13,11 @@ export const metadata = { title: "עובדים ותיקים" };
 const INACTIVE_STATUSES: EmploymentStatus[] = ["INACTIVE", "TERMINATED"];
 
 export default async function EmployeesPage() {
+  // הפרדה מולטי-חברה: מנהל חנות רואה אך ורק עובדי החברה שלו.
+  const me = await currentAdmin();
   const employees = await prisma.employee
     .findMany({
+      where: me ? employeeScope(me) : { id: "__none__" },
       orderBy: { createdAt: "desc" },
       take: 300,
       select: {

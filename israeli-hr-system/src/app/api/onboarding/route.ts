@@ -4,9 +4,13 @@ import {
   createEmployeeFromOnboarding,
   onboardingErrorMessage,
 } from "@/lib/onboarding";
+import { requireWriter } from "@/lib/rbac";
 
-// POST /api/onboarding — קליטת עובד ידנית ע"י מנהל HR.
+// POST /api/onboarding — קליטת עובד ידנית. כתיבה: בעלים/מזכירה בלבד.
 export async function POST(req: Request) {
+  const me = await requireWriter(req);
+  if (!me) return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+
   const parsed = onboardingSchema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json(

@@ -1,9 +1,18 @@
 import { OnboardingForm } from "@/components/OnboardingForm";
 import { InviteGenerator } from "@/components/InviteGenerator";
+import { currentAdmin } from "@/lib/session";
+import { roleOf } from "@/lib/rbac";
+import { NoAccessNotice } from "@/components/NoAccessNotice";
 
 export const metadata = { title: "קליטת עובד" };
+export const dynamic = "force-dynamic";
 
-export default function OnboardingPage() {
+export default async function OnboardingPage() {
+  const me = await currentAdmin();
+  // קליטת עובד — פעולת כתיבה. מנהל חנות (צפייה בלבד) חסום.
+  if (me && roleOf(me) === "STORE_MANAGER") {
+    return <NoAccessNotice message="קליטת עובדים מוגבלת לבעלים ולמזכירה. מנהל חנות רשאי לצפות בנתונים בלבד." />;
+  }
   return (
     <div>
       <header className="mb-6">
