@@ -18,6 +18,10 @@ export const config = {
   dbPath: process.env.DB_PATH
     ? path.resolve(projectRoot, process.env.DB_PATH)
     : path.join(projectRoot, 'data', 'ap-control.sqlite'),
+  uploadsDir: process.env.UPLOADS_DIR
+    ? path.resolve(projectRoot, process.env.UPLOADS_DIR)
+    : path.join(projectRoot, 'uploads'),
+  maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 10 * 1024 * 1024),
   projectRoot,
   rules: {
     dupWindowDays: DUP_WINDOW_DAYS,

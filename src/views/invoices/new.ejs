@@ -11,7 +11,7 @@
 <% } %>
 
 <div class="card">
-  <form class="stack" method="post" action="/invoices">
+  <form class="stack" method="post" action="/invoices" enctype="multipart/form-data">
     <div class="row">
       <div>
         <label>ספק *</label>
@@ -72,6 +72,14 @@
       </div>
     </div>
     <p class="muted">זיכוי יישמר כסכום שלילי אוטומטית. חשבונית זיכוי פטורה ממספר הקצאה.</p>
+
+    <% const carriedImage = (typeof uploadedImage !== 'undefined' && uploadedImage) ? uploadedImage : ''; %>
+    <label>תמונת חשבונית (סריקה/צילום — לא חובה)</label>
+    <input type="file" name="image" accept="image/*,application/pdf" />
+    <% if (carriedImage) { %>
+      <input type="hidden" name="uploaded_image" value="<%= carriedImage %>" />
+      <p class="muted">קובץ צורף וישמר עם החשבונית. בחירת קובץ חדש תחליף אותו.</p>
+    <% } %>
 
     <% if (warnings && warnings.length) { %>
       <input type="hidden" name="confirm" value="1" />

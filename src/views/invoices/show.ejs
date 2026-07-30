@@ -40,6 +40,30 @@ function statusLabel(s){
   </div>
 </div>
 
+<div class="card">
+  <h2>תמונת חשבונית</h2>
+  <% if (invoice.image_path) { %>
+    <% const isPdf = /\.pdf$/i.test(invoice.image_path); %>
+    <% if (isPdf) { %>
+      <p><a href="/invoices/<%= invoice.id %>/image" target="_blank" class="btn secondary">פתח קובץ PDF</a></p>
+    <% } else { %>
+      <a href="/invoices/<%= invoice.id %>/image" target="_blank">
+        <img src="/invoices/<%= invoice.id %>/image" alt="תמונת חשבונית" style="max-width:100%;max-height:420px;border:1px solid var(--line);border-radius:8px" />
+      </a>
+    <% } %>
+    <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" class="actions" style="margin-top:.8rem">
+      <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
+      <button class="secondary" type="submit">החלף תמונה</button>
+    </form>
+  <% } else { %>
+    <p class="muted">לא צורפה תמונה.</p>
+    <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" class="actions">
+      <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
+      <button class="secondary" type="submit">צרף תמונה</button>
+    </form>
+  <% } %>
+</div>
+
 <% if (invoice.payment) { %>
   <div class="card">
     <h2>תשלום</h2>

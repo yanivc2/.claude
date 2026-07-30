@@ -28,6 +28,7 @@ export function createInvoice(input, actor, db = getDb()) {
     amountBeforeVat, // agorot
     vatAmount = 0, // agorot
     docType,
+    imagePath = null, // stage 1b — filename under uploads/
     confirm = false,
     confirmReason = null,
   } = input;
@@ -119,8 +120,8 @@ export function createInvoice(input, actor, db = getDb()) {
       `INSERT INTO invoices
          (supplier_id, company_id, store_id, invoice_number, allocation_number,
           invoice_date, amount_before_vat, vat_amount, total_amount, doc_type,
-          status, hold_reason, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          image_path, status, hold_reason, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       supplierId,
@@ -133,6 +134,7 @@ export function createInvoice(input, actor, db = getDb()) {
       vat,
       total,
       docType,
+      imagePath,
       status,
       holdReason,
       actor.id,
@@ -246,6 +248,21 @@ export function setAllocationNumber(id, allocationNumber, actor, db = getDb()) {
     db,
   );
   return getInvoice(id, db);
+}
+
+/**
+ * Attach or replace the invoice image (stage 1b). Returns the previous image_path
+ * (or null) so the caller can delete the now-orphaned file from disk.
+ */
+export function setImage(id, imagePath, actor, db = getDb()) {
+  const invoice = getInvoice(id, db);
+  const previous = invoice.image_path;
+  db.prepare('UPDATE invoices SET image_path = ? WHERE id = ?').run(imagePath, id);
+  logAction(
+    { userId: actor.id, action: 'invoice.set_image', entityType: 'invoice', entityId: id, details: { imagePath } },
+    db,
+  );
+  return previous;
 }
 
 // ---- reads -------------------------------------------------------------------
