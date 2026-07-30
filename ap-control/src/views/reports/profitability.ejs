@@ -1,0 +1,95 @@
+<%- include('../partials/header') %>
+<h1>רווחיות</h1>
+<p class="muted">
+  פר חנות בתקופה: קניות (סכום נטו של חשבוניות — אוטומטי) מול מכירות (Z מהקופות — ידני)
+  → רווח גולמי ואחוז רווח (§7). זיכויים מקטינים את הקניות.
+</p>
+
+<% if (typeof notice !== 'undefined' && notice) { %>
+  <div class="alert alert-info"><%= notice %></div>
+<% } %>
+
+<div class="card">
+  <form method="get" action="/reports/profitability" class="actions">
+    <div><label style="margin:0">מתאריך</label><input type="date" name="from" value="<%= from %>" /></div>
+    <div><label style="margin:0">עד תאריך</label><input type="date" name="to" value="<%= to %>" /></div>
+    <div style="align-self:end"><button type="submit">הצג</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>חברה</th><th>חנות</th><th class="right">קניות</th><th class="right">מכירות (Z)</th><th class="right">רווח גולמי</th><th class="right">% רווח</th></tr>
+    </thead>
+    <tbody>
+      <% stores.forEach(function(s){ %>
+        <tr>
+          <td><%= s.company_name %></td>
+          <td><%= s.store_name %></td>
+          <td class="right"><%= formatIls(s.purchases) %></td>
+          <td class="right"><%= formatIls(s.sales) %></td>
+          <td class="right <%= s.grossProfit < 0 ? 'neg' : '' %>"><strong><%= formatIls(s.grossProfit) %></strong></td>
+          <td class="right"><%= s.marginPct === null ? '—' : s.marginPct.toFixed(1) + '%' %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="2">סה"כ</th>
+        <th class="right"><%= formatIls(totals.purchases) %></th>
+        <th class="right"><%= formatIls(totals.sales) %></th>
+        <th class="right <%= totals.grossProfit < 0 ? 'neg' : '' %>"><%= formatIls(totals.grossProfit) %></th>
+        <th class="right"><%= totals.marginPct === null ? '—' : totals.marginPct.toFixed(1) + '%' %></th>
+      </tr>
+    </tfoot>
+  </table>
+  <p class="muted">קניות מחושבות לפי תאריך החשבונית; מכירות לפי תאריך ה-Z — שניהם בטווח שנבחר.</p>
+</div>
+
+<div class="row">
+  <div class="card">
+    <h2>הזנת מכירות (Z)</h2>
+    <form method="post" action="/reports/sales" class="stack">
+      <label>חנות</label>
+      <select name="store_id" required>
+        <% storeOptions.forEach(function(st){ %>
+          <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
+        <% }); %>
+      </select>
+      <label>תאריך</label>
+      <input type="date" name="sale_date" required />
+      <label>סכום מכירות (₪)</label>
+      <input name="amount" inputmode="decimal" required placeholder="0.00" />
+      <label>הערה</label>
+      <input name="notes" />
+      <div style="margin-top:.6rem"><button type="submit">הוסף Z</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>רשומות Z אחרונות</h2>
+    <table>
+      <thead><tr><th>תאריך</th><th>חנות</th><th class="right">סכום</th><th></th></tr></thead>
+      <tbody>
+        <% if (salesEntries.length === 0) { %>
+          <tr><td colspan="4" class="muted">אין רשומות מכירות.</td></tr>
+        <% } %>
+        <% salesEntries.forEach(function(e){ %>
+          <tr>
+            <td><%= e.sale_date %></td>
+            <td><%= e.store_name %></td>
+            <td class="right"><%= formatIls(e.amount) %></td>
+            <td class="right">
+              <form method="post" action="/reports/sales/<%= e.id %>/delete" onsubmit="return confirm('למחוק רשומה זו?')" style="display:inline">
+                <button class="danger small" type="submit">מחק</button>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>
