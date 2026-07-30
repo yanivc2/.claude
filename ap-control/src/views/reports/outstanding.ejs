@@ -1,5 +1,11 @@
 <%- include('../partials/header') %>
-<h1>צ׳קים בחוץ</h1>
+<div class="toolbar">
+  <h1>צ׳קים בחוץ</h1>
+  <div class="actions no-print">
+    <a class="btn secondary" href="/reports/outstanding.csv">ייצוא CSV</a>
+    <button class="secondary" onclick="window.print()">הדפסה / PDF</button>
+  </div>
+</div>
 <p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7).</p>
 
 <div class="card">

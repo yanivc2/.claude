@@ -9,6 +9,7 @@ import invoiceRoutes from './routes/invoices.js';
 import paymentRoutes from './routes/payments.js';
 import reportRoutes from './routes/reports.js';
 import reconciliationRoutes from './routes/reconciliation.js';
+import settingsRoutes from './routes/settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,6 +37,7 @@ export function createApp() {
   app.use('/payments', paymentRoutes);
   app.use('/reports', reportRoutes);
   app.use('/reconciliation', reconciliationRoutes);
+  app.use('/settings', settingsRoutes);
 
   // Central error handler — renders domain errors nicely, logs the rest.
   // eslint-disable-next-line no-unused-vars

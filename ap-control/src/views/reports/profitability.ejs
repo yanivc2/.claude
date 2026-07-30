@@ -1,5 +1,11 @@
 <%- include('../partials/header') %>
-<h1>רווחיות</h1>
+<div class="toolbar">
+  <h1>רווחיות</h1>
+  <div class="actions no-print">
+    <a class="btn secondary" href="/reports/profitability.csv?from=<%= from %>&to=<%= to %>">ייצוא CSV</a>
+    <button class="secondary" onclick="window.print()">הדפסה / PDF</button>
+  </div>
+</div>
 <p class="muted">
   פר חנות בתקופה: קניות (סכום נטו של חשבוניות — אוטומטי) מול מכירות (Z מהקופות — ידני)
   → רווח גולמי ואחוז רווח (§7). זיכויים מקטינים את הקניות.

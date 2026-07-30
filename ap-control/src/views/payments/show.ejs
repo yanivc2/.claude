@@ -44,10 +44,14 @@
         <input type="date" name="cleared_date" style="width:180px" />
         <button class="ok" type="submit">סמן כנפרע</button>
       </form>
-      <form method="post" action="/payments/<%= payment.id %>/void" class="actions" onsubmit="return confirm('לבטל את הצ׳ק? החשבוניות יחזרו לסטטוס מאושר לתשלום.')">
-        <input name="reason" placeholder="סיבת ביטול" style="width:200px" />
-        <button class="danger" type="submit">בטל צ׳ק</button>
-      </form>
+      <% if (currentUser.role === 'owner') { %>
+        <form method="post" action="/payments/<%= payment.id %>/void" class="actions" onsubmit="return confirm('לבטל את הצ׳ק? החשבוניות יחזרו לסטטוס מאושר לתשלום.')">
+          <input name="reason" placeholder="סיבת ביטול" style="width:200px" />
+          <button class="danger" type="submit">בטל צ׳ק (בעלים)</button>
+        </form>
+      <% } else { %>
+        <span class="muted">ביטול צ׳ק — בעלים בלבד</span>
+      <% } %>
     </div>
     <p class="muted">פירעון ידני בשלב 1; בשלב 2 יבוצע אוטומטית מול תנועות הבנק (R7).</p>
   </div>

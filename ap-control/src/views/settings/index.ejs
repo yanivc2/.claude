@@ -1,0 +1,81 @@
+<%- include('../partials/header') %>
+<h1>הגדרות — חנויות וחשבונות</h1>
+<p class="muted">ניהול מבנה החברות, החנויות וחשבונות הבנק (1:1). פעולות בעלים בלבד. המערכת נועדה לגדול — הוסף חנות/חשבון בקלות (§2).</p>
+
+<% if (typeof notice !== 'undefined' && notice) { %>
+  <div class="alert alert-info"><%= notice %></div>
+<% } %>
+
+<div class="card">
+  <h2>מבנה קיים</h2>
+  <% companies.forEach(function(c){ %>
+    <div style="border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
+      <div class="toolbar" style="margin-bottom:.4rem">
+        <strong><%= c.name %></strong>
+        <form method="post" action="/settings/companies/<%= c.id %>" class="actions">
+          <input name="name" value="<%= c.name %>" style="width:200px" />
+          <input name="tax_id" value="<%= c.tax_id || '' %>" placeholder="ח.פ. (9 ספרות)" style="width:150px" />
+          <button class="secondary small" type="submit">עדכן חברה</button>
+        </form>
+      </div>
+      <table>
+        <thead><tr><th>חנות</th><th>בנק</th><th>סניף</th><th>חשבון</th><th>שם תצוגה</th></tr></thead>
+        <tbody>
+          <% if (c.stores.length === 0) { %><tr><td colspan="5" class="muted">אין חנויות.</td></tr><% } %>
+          <% c.stores.forEach(function(s){ %>
+            <tr>
+              <td><%= s.name %></td>
+              <td><%= s.bank_name || '—' %></td>
+              <td class="mono"><%= s.branch || '—' %></td>
+              <td class="mono"><%= s.account_number || '—' %></td>
+              <td>
+                <% if (s.account_id) { %>
+                  <form method="post" action="/settings/accounts/<%= s.account_id %>" class="actions">
+                    <input name="display_name" value="<%= s.display_name %>" style="width:240px" />
+                    <button class="secondary small" type="submit">שמור</button>
+                  </form>
+                <% } else { %>—<% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% }); %>
+</div>
+
+<div class="row">
+  <div class="card">
+    <h2>חברה חדשה</h2>
+    <form method="post" action="/settings/companies" class="stack">
+      <label>שם חברה *</label>
+      <input name="name" required />
+      <label>ח.פ. (9 ספרות, לא חובה)</label>
+      <input name="tax_id" maxlength="9" pattern="\d{9}" />
+      <div style="margin-top:.6rem"><button type="submit">הוסף חברה</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>חנות + חשבון בנק חדשים</h2>
+    <form method="post" action="/settings/stores" class="stack">
+      <label>חברה *</label>
+      <select name="company_id" required>
+        <% companies.forEach(function(c){ %><option value="<%= c.id %>"><%= c.name %></option><% }); %>
+      </select>
+      <label>שם חנות *</label>
+      <input name="store_name" required />
+      <label>כתובת</label>
+      <input name="address" />
+      <div class="row">
+        <div><label>בנק</label><input name="bank_name" value="הפועלים" /></div>
+        <div><label>סניף *</label><input name="branch" value="428" required /></div>
+        <div><label>מספר חשבון *</label><input name="account_number" required /></div>
+      </div>
+      <label>שם תצוגה (יחושב אוטומטית אם ריק)</label>
+      <input name="display_name" />
+      <div style="margin-top:.6rem"><button type="submit">הוסף חנות + חשבון</button></div>
+    </form>
+  </div>
+</div>
+<%- include('../partials/footer') %>

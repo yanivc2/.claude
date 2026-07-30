@@ -11,7 +11,13 @@
 
 <% if (query) { %>
   <div class="card">
-    <h2>תוצאות (<%= results.length %>)</h2>
+    <div class="toolbar">
+      <h2 style="margin:0">תוצאות (<%= results.length %>)</h2>
+      <div class="actions no-print">
+        <a class="btn secondary" href="/reports/lookup.csv?q=<%= encodeURIComponent(query) %>">ייצוא CSV</a>
+        <button class="secondary" onclick="window.print()">הדפסה / PDF</button>
+      </div>
+    </div>
     <table>
       <thead>
         <tr>
