@@ -7,9 +7,9 @@ import { getDb } from './index.js';
 // tax_id for the three companies is left null pending confirmation (§2, §11.3).
 
 const COMPANIES = [
-  { key: 'al_haderech', name: 'על הדרך 24 שעות בע"מ', company_type: 'ltd' },
-  { key: 'yaniv_rom', name: 'יניב רום יזמות בע"מ', company_type: 'ltd' },
-  { key: 'pink_market', name: 'פינק מרקט י.ר. בע"מ', company_type: 'ltd' },
+  { key: 'al_haderech', name: 'על הדרך 24 שעות בע"מ', company_type: 'ltd', tax_id: '514737832' },
+  { key: 'yaniv_rom', name: 'יניב רום יזמות בע"מ', company_type: 'ltd', tax_id: '515325405' },
+  { key: 'pink_market', name: 'פינק מרקט י.ר. בע"מ', company_type: 'ltd', tax_id: '516632627' },
 ];
 
 // store -> company key, plus its 1:1 bank account (all Bank Hapoalim, branch 428).
@@ -31,9 +31,13 @@ const USERS = [
  */
 export function seed(db = getDb()) {
   const insertCompany = db.prepare(
-    'INSERT INTO companies (name, company_type, tax_id) VALUES (?, ?, NULL)',
+    'INSERT INTO companies (name, company_type, tax_id) VALUES (?, ?, ?)',
   );
-  const findCompany = db.prepare('SELECT id FROM companies WHERE name = ?');
+  const findCompany = db.prepare('SELECT id, tax_id FROM companies WHERE name = ?');
+  // Backfill tax_id on an existing company row only when it is still null (§11.3).
+  const backfillTaxId = db.prepare(
+    'UPDATE companies SET tax_id = ? WHERE id = ? AND tax_id IS NULL',
+  );
   const insertStore = db.prepare(
     'INSERT INTO stores (company_id, name) VALUES (?, ?)',
   );
@@ -53,8 +57,10 @@ export function seed(db = getDb()) {
     for (const c of COMPANIES) {
       let row = findCompany.get(c.name);
       if (!row) {
-        const info = insertCompany.run(c.name, c.company_type);
+        const info = insertCompany.run(c.name, c.company_type, c.tax_id);
         row = { id: info.lastInsertRowid };
+      } else if (row.tax_id === null) {
+        backfillTaxId.run(c.tax_id, row.id);
       }
       companyIdByKey[c.key] = row.id;
     }
