@@ -111,3 +111,13 @@ button.small { padding: 0.3rem 0.6rem; font-size: 0.85rem; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.6rem; }
 .filterms a { margin-left: 0.6rem; font-size: 0.9rem; }
 .neg { color: var(--bad); }
+
+/* Print: drop the app chrome so any report prints (or "saves as PDF") cleanly. */
+@media print {
+  header.topbar, .no-print, .filterms { display: none !important; }
+  body { background: #fff; }
+  main { max-width: none; margin: 0; padding: 0; }
+  .card { border: none; box-shadow: none; padding: 0; margin: 0 0 0.6rem; }
+  a { color: #111; text-decoration: none; }
+  table { font-size: 11px; }
+}

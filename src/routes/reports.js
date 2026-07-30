@@ -7,7 +7,8 @@ import {
 } from '../services/reports.js';
 import { addSalesEntry, deleteSalesEntry, listSalesEntries } from '../services/sales.js';
 import { getDb } from '../db/index.js';
-import { toAgorot } from '../lib/money.js';
+import { toAgorot, fromAgorot } from '../lib/money.js';
+import { toCsv } from '../lib/csvExport.js';
 import { RuleError } from '../lib/errors.js';
 
 const router = Router();
@@ -62,6 +63,19 @@ router.get('/outstanding', (req, res) => {
   });
 });
 
+function sendCsv(res, filename, headers, rows) {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(toCsv(headers, rows));
+}
+
+// CSV export — "צ׳קים בחוץ"
+router.get('/outstanding.csv', (req, res) => {
+  const { accounts } = outstandingChecks();
+  const rows = accounts.map((a) => [a.company_name, a.store_name, a.display_name, a.outstanding_count, fromAgorot(a.outstanding)]);
+  sendCsv(res, 'outstanding-checks.csv', ['חברה', 'חנות', 'חשבון', 'מס׳ צ׳קים פתוחים', 'סכום בחוץ'], rows);
+});
+
 // §7 "בדיקת חשבונית"
 router.get('/lookup', (req, res) => {
   const q = req.query.q || '';
@@ -72,9 +86,39 @@ router.get('/lookup', (req, res) => {
   });
 });
 
+// CSV export — "בדיקת חשבונית"
+router.get('/lookup.csv', (req, res) => {
+  const q = req.query.q || '';
+  const results = q ? invoiceLookup(q) : [];
+  const rows = results.map((r) => [
+    r.id, r.supplier_name, r.store_name, r.invoice_number, r.allocation_number || '',
+    r.invoice_date, fromAgorot(r.total_amount), r.invoice_status, r.check_number || '', r.payment_status || '',
+  ]);
+  sendCsv(
+    res,
+    'invoice-lookup.csv',
+    ['#', 'ספק', 'חנות', 'מס׳ חשבונית', 'הקצאה', 'תאריך', 'סכום', 'סטטוס', 'מס׳ צ׳ק', 'פירעון'],
+    rows,
+  );
+});
+
 // §7 "רווחיות"
 router.get('/profitability', (req, res) => {
   renderProfitability(req, res);
+});
+
+// CSV export — "רווחיות"
+router.get('/profitability.csv', (req, res) => {
+  const def = defaultRange();
+  const from = req.query.from || def.from;
+  const to = req.query.to || def.to;
+  const { stores, totals } = profitability(from, to);
+  const rows = stores.map((s) => [
+    s.company_name, s.store_name, fromAgorot(s.purchases), fromAgorot(s.sales),
+    fromAgorot(s.grossProfit), s.marginPct == null ? '' : `${s.marginPct.toFixed(1)}%`,
+  ]);
+  rows.push(['', 'סה"כ', fromAgorot(totals.purchases), fromAgorot(totals.sales), fromAgorot(totals.grossProfit), totals.marginPct == null ? '' : `${totals.marginPct.toFixed(1)}%`]);
+  sendCsv(res, `profitability-${from}_${to}.csv`, ['חברה', 'חנות', 'קניות', 'מכירות', 'רווח גולמי', '% רווח'], rows);
 });
 
 // Add a register (Z) sales entry, then re-render the report.

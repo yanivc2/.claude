@@ -1,6 +1,6 @@
 import { getDb } from '../db/index.js';
 import { config } from '../config.js';
-import { NotFoundError, RuleError } from '../lib/errors.js';
+import { NotFoundError, RuleError, AuthError } from '../lib/errors.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { logAction } from './audit.js';
 
@@ -144,8 +144,10 @@ export function markCleared(id, clearedDate, actor, db = getDb()) {
   return getPaymentDetail(id, db);
 }
 
-/** Void a check (e.g. spoiled/cancelled). Reverts its invoices back to approved_for_payment. */
+/** Void a check (e.g. spoiled/cancelled). Reverts its invoices back to approved_for_payment.
+ *  Owner-only — voiding an issued check is a significant, reversible-only-by-reissue action. */
 export function voidPayment(id, actor, reason = null, db = getDb()) {
+  if (!actor || actor.role !== 'owner') throw new AuthError('ביטול צ׳ק — בעלים בלבד');
   const payment = db.prepare('SELECT * FROM payments WHERE id = ?').get(id);
   if (!payment) throw new NotFoundError(`תשלום ${id} לא נמצא`);
 

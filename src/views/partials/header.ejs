@@ -19,6 +19,9 @@
       <a href="/reports/lookup" class="<%= path === '/reports/lookup' ? 'active' : '' %>">בדיקת חשבונית</a>
       <a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>">רווחיות</a>
       <a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>">יומן</a>
+      <% if (currentUser.role === 'owner') { %>
+        <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a>
+      <% } %>
     </nav>
     <span class="spacer"></span>
     <span class="role-badge <%= currentUser.role === 'owner' ? 'role-owner' : '' %>">
