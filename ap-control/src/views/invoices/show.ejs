@@ -1,0 +1,81 @@
+<%- include('../partials/header') %>
+<%
+function statusLabel(s){
+  return s === 'recorded' ? 'נרשם'
+    : s === 'on_hold' ? 'מוחזק'
+    : s === 'approved_for_payment' ? 'מאושר לתשלום'
+    : s === 'paid' ? 'שולם' : s;
+}
+%>
+<div class="toolbar">
+  <h1>חשבונית #<%= invoice.id %>
+    <span class="badge b-<%= invoice.status %>"><%= statusLabel(invoice.status) %></span>
+  </h1>
+  <a href="/invoices" class="btn secondary">חזרה לרשימה</a>
+</div>
+
+<% if (invoice.status === 'on_hold' && invoice.hold_reason) { %>
+  <div class="alert alert-warn"><strong>מוחזק:</strong> <%= invoice.hold_reason %></div>
+<% } %>
+
+<div class="card">
+  <div class="row">
+    <div><span class="muted">ספק</span><br><%= invoice.supplier_name %>
+      <% if (invoice.supplier_status !== 'approved') { %>
+        <span class="badge b-<%= invoice.supplier_status %>">ספק <%= invoice.supplier_status === 'pending' ? 'ממתין לאישור' : 'חסום' %></span>
+      <% } %>
+    </div>
+    <div><span class="muted">חנות / חברה</span><br><%= invoice.store_name %> · <%= invoice.company_name %></div>
+    <div><span class="muted">תאריך</span><br><%= invoice.invoice_date %></div>
+  </div>
+  <div class="row" style="margin-top:.8rem">
+    <div><span class="muted">מספר חשבונית</span><br class="mono"><%= invoice.invoice_number %></div>
+    <div><span class="muted">מספר הקצאה</span><br><span class="mono"><%= invoice.allocation_number || '—' %></span></div>
+    <div><span class="muted">סוג</span><br><%= invoice.doc_type === 'credit_note' ? 'זיכוי' : invoice.doc_type === 'tax_invoice_receipt' ? 'חשבונית מס/קבלה' : 'חשבונית מס' %></div>
+  </div>
+  <div class="row" style="margin-top:.8rem">
+    <div><span class="muted">לפני מע"מ</span><br><%= formatIls(invoice.amount_before_vat) %></div>
+    <div><span class="muted">מע"מ</span><br><%= formatIls(invoice.vat_amount) %></div>
+    <div><span class="muted">סה"כ</span><br><strong class="<%= invoice.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(invoice.total_amount) %></strong></div>
+  </div>
+</div>
+
+<% if (invoice.payment) { %>
+  <div class="card">
+    <h2>תשלום</h2>
+    <p>שולם בצ׳ק מס' <a href="/payments/<%= invoice.payment.id %>"><span class="mono"><%= invoice.payment.check_number %></span></a>
+      מתאריך <%= invoice.payment.payment_date %> —
+      <span class="badge b-<%= invoice.payment.payment_status %>"><%= invoice.payment.payment_status === 'issued' ? 'הונפק' : invoice.payment.payment_status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
+      <% if (invoice.payment.cleared_date) { %> · נפרע ב-<%= invoice.payment.cleared_date %><% } %>
+    </p>
+  </div>
+<% } %>
+
+<% if (invoice.status !== 'paid') { %>
+  <div class="card">
+    <h2>פעולות</h2>
+    <div class="actions">
+      <% if (invoice.status !== 'approved_for_payment') { %>
+        <form method="post" action="/invoices/<%= invoice.id %>/approve">
+          <button class="ok" type="submit">אשר לתשלום</button>
+        </form>
+      <% } %>
+      <% if (invoice.status !== 'on_hold') { %>
+        <form method="post" action="/invoices/<%= invoice.id %>/hold" class="actions">
+          <input name="reason" placeholder="סיבת החזקה" style="width:200px" />
+          <button class="danger" type="submit">החזק (בעלים)</button>
+        </form>
+      <% } %>
+    </div>
+
+    <% if (!invoice.allocation_number) { %>
+      <form method="post" action="/invoices/<%= invoice.id %>/allocation" class="actions" style="margin-top:.8rem">
+        <input name="allocation_number" placeholder="מספר הקצאה (9 ספרות)" maxlength="9" pattern="\d{9}" style="width:220px" />
+        <button class="secondary" type="submit">שמור הקצאה</button>
+      </form>
+      <p class="muted">הוספת מספר הקצאה תשחרר חסימת R3 אם קיימת.</p>
+    <% } %>
+  </div>
+<% } %>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,33 @@
+<%- include('partials/header') %>
+<h1>לוח בקרה</h1>
+
+<div class="stat-grid">
+  <a class="stat <%= stats.pendingSuppliers ? 'attn' : '' %>" href="/suppliers?status=pending">
+    <div class="num"><%= stats.pendingSuppliers %></div>
+    <div class="label">ספקים ממתינים לאישור</div>
+  </a>
+  <a class="stat <%= stats.onHoldInvoices ? 'attn' : '' %>" href="/invoices?status=on_hold">
+    <div class="num"><%= stats.onHoldInvoices %></div>
+    <div class="label">חשבוניות מוחזקות (on hold)</div>
+  </a>
+  <a class="stat" href="/invoices?status=approved_for_payment">
+    <div class="num"><%= stats.approvedInvoices %></div>
+    <div class="label">מאושרות לתשלום</div>
+  </a>
+  <a class="stat" href="/reports/outstanding">
+    <div class="num"><%= formatIls(stats.totalOutstanding) %></div>
+    <div class="label">צ׳קים בחוץ (התחייבות חיה)</div>
+  </a>
+</div>
+
+<div class="card">
+  <h2>פעולות מהירות</h2>
+  <div class="actions">
+    <a class="btn" href="/invoices/new">+ חשבונית חדשה</a>
+    <a class="btn" href="/payments/new">+ צ׳ק חדש</a>
+    <a class="btn secondary" href="/suppliers/new">+ ספק חדש</a>
+    <a class="btn secondary" href="/reports/lookup">בדיקת חשבונית</a>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

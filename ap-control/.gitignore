@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+
+# runtime data — SQLite file is a single point of failure; back it up out-of-band (§12)
+data/
+*.sqlite
+*.sqlite-*
+*.db
+
+# secrets / local config
+.env
+.env.local
+
+# invoice images (stage 1b) — kept out of git, backed up separately
+uploads/
+
+# logs / os
+*.log
+.DS_Store

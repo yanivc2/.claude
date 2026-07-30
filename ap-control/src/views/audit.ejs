@@ -1,0 +1,22 @@
+<%- include('partials/header') %>
+<h1>יומן ביקורת</h1>
+<p class="muted">כל פעולה משנת-מצב נרשמת: מי, מה, מתי (§4 audit_log).</p>
+<div class="card">
+  <table>
+    <thead><tr><th>מזהה</th><th>זמן</th><th>משתמש</th><th>פעולה</th><th>ישות</th><th>פרטים</th></tr></thead>
+    <tbody>
+      <% if (entries.length === 0) { %><tr><td colspan="6" class="muted">היומן ריק.</td></tr><% } %>
+      <% entries.forEach(function(e){ %>
+        <tr>
+          <td><%= e.id %></td>
+          <td class="mono"><%= e.timestamp %></td>
+          <td><%= e.user_name || '—' %></td>
+          <td class="mono"><%= e.action %></td>
+          <td><%= e.entity_type %><%= e.entity_id ? ' #' + e.entity_id : '' %></td>
+          <td class="muted"><%= e.details || '' %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<%- include('partials/footer') %>

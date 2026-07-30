@@ -1,0 +1,83 @@
+<%- include('../partials/header') %>
+<h1>צ׳ק חדש</h1>
+<p class="muted">
+  בחר חשבוניות מאושרות לתשלום (כולל זיכויים) מאותו חשבון בנק, הזן מספר הצ׳ק שנכתב ידנית ותאריך.
+  המערכת מחשבת נטו ואוכפת: אין צ׳ק ללא חשבונית מאושרת + מספר צ׳ק (R1), וסכום הצ׳ק = סכום השורות (R5).
+</p>
+
+<%
+// group payable invoices by their (store's 1:1) bank account
+const groups = {};
+payable.forEach(function(i){
+  const k = i.derived_bank_account_id;
+  (groups[k] = groups[k] || { name: i.bank_account_name, id: k, rows: [] }).rows.push(i);
+});
+const groupList = Object.values(groups);
+%>
+
+<% if (groupList.length === 0) { %>
+  <div class="card muted">אין חשבוניות מאושרות לתשלום. אשר חשבוניות תחילה במסך החשבוניות.</div>
+<% } %>
+
+<% groupList.forEach(function(g){ %>
+  <div class="card">
+    <h2><%= g.name %></h2>
+    <form method="post" action="/payments" onsubmit="return validateCheck(this)">
+      <input type="hidden" name="bank_account_id" value="<%= g.id %>" />
+      <table>
+        <thead>
+          <tr><th></th><th>ספק</th><th>מס' חשבונית</th><th>תאריך</th><th>סוג</th><th class="right">סכום</th></tr>
+        </thead>
+        <tbody>
+          <% g.rows.forEach(function(i){ %>
+            <tr>
+              <td><input type="checkbox" name="invoice_ids" value="<%= i.id %>" data-amount="<%= i.total_amount %>" onchange="recalc(this.form)" style="width:auto"></td>
+              <td><%= i.supplier_name %></td>
+              <td class="mono"><%= i.invoice_number %></td>
+              <td><%= i.invoice_date %></td>
+              <td><%= i.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
+              <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+      <div class="row" style="margin-top:.8rem">
+        <div>
+          <label>מספר צ׳ק *</label>
+          <input name="check_number" required />
+        </div>
+        <div>
+          <label>תאריך תשלום *</label>
+          <input type="date" name="payment_date" required />
+        </div>
+        <div>
+          <label>נטו לתשלום</label>
+          <input class="net-display" readonly value="₪0.00" />
+        </div>
+      </div>
+      <div style="margin-top:1rem" class="actions">
+        <button type="submit">הנפק צ׳ק</button>
+      </div>
+    </form>
+  </div>
+<% }); %>
+
+<a href="/payments" class="btn secondary">חזרה לרשימת הצ׳קים</a>
+
+<script>
+function recalc(form){
+  let net = 0;
+  form.querySelectorAll('input[name="invoice_ids"]:checked').forEach(function(c){
+    net += Number(c.dataset.amount);
+  });
+  const disp = form.querySelector('.net-display');
+  disp.value = '₪' + (net/100).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  disp.style.color = net <= 0 ? '#b3261e' : '';
+}
+function validateCheck(form){
+  const checked = form.querySelectorAll('input[name="invoice_ids"]:checked').length;
+  if (checked === 0){ alert('בחר לפחות חשבונית אחת'); return false; }
+  return true;
+}
+</script>
+<%- include('../partials/footer') %>
