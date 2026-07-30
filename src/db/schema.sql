@@ -121,6 +121,18 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   matched_payment_id INTEGER REFERENCES payments(id)
 );
 
+-- invoice_ocr — stage 3. OCR result for an invoice image: raw recognized text and the
+-- fields extracted from it (JSON). Kept in a separate table so existing databases need no
+-- migration (CREATE TABLE IF NOT EXISTS). OCR is decision support only — never overwrites
+-- the human-entered invoice values; it is compared against them (§3/§8).
+CREATE TABLE IF NOT EXISTS invoice_ocr (
+  invoice_id INTEGER PRIMARY KEY REFERENCES invoices(id) ON DELETE CASCADE,
+  raw_text   TEXT,
+  extracted  TEXT,                 -- JSON of extracted candidate fields
+  provider   TEXT,                 -- e.g. 'tesseract'
+  ran_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+
 -- sales_entries — manual register (Z) totals per store, for the profitability report (§7).
 -- Purchases come automatically from invoices; sales are entered by hand here.
 CREATE TABLE IF NOT EXISTS sales_entries (

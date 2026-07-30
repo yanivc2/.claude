@@ -64,6 +64,64 @@ function statusLabel(s){
   <% } %>
 </div>
 
+<%
+var ocrData = (typeof ocr !== 'undefined') ? ocr : null;
+var cmp = (typeof comparison !== 'undefined') ? comparison : null;
+var imgIsPdf = invoice.image_path && /\.pdf$/i.test(invoice.image_path);
+function ocrStatusBadge(s){
+  return s === 'match' ? '<span class="badge b-approved">תואם</span>'
+    : s === 'mismatch' ? '<span class="badge b-blocked">אי-התאמה</span>'
+    : s === 'missing' ? '<span class="badge b-on_hold">OCR לא זיהה</span>'
+    : s === 'ocr_only' ? '<span class="badge b-issued">רק ב-OCR</span>' : s;
+}
+%>
+<% if (invoice.image_path && !imgIsPdf) { %>
+  <div class="card">
+    <div class="toolbar">
+      <h2 style="margin:0">OCR — קריאה מהתמונה</h2>
+      <form method="post" action="/invoices/<%= invoice.id %>/ocr">
+        <button class="secondary" type="submit"><%= ocrData ? 'סרוק מחדש' : 'הרץ OCR' %></button>
+      </form>
+    </div>
+    <p class="muted">OCR מקומי, לתמיכה בלבד — אינו דורס נתונים שהוקלדו; משמש להשוואה ואיתור טעויות (§3/§8).</p>
+
+    <% if (cmp) { %>
+      <% if (cmp.hasMismatch) { %>
+        <div class="alert alert-warn">נמצאו אי-התאמות בין הקריאה למה שהוקלד — כדאי לבדוק.</div>
+      <% } %>
+      <table>
+        <thead><tr><th>שדה</th><th>הוקלד</th><th>OCR זיהה</th><th>סטטוס</th></tr></thead>
+        <tbody>
+          <% cmp.rows.forEach(function(r){ %>
+            <tr>
+              <td><%= r.label %></td>
+              <td><%= r.kind === 'money' ? (r.typed == null ? '—' : formatIls(r.typed)) : (r.typed || '—') %></td>
+              <td><%= r.kind === 'money' ? (r.ocr == null ? '—' : formatIls(r.ocr)) : (r.ocr || '—') %></td>
+              <td><%- ocrStatusBadge(r.status) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+
+      <% var allocRow = cmp.rows.find(function(r){ return r.field === 'allocation_number'; }); %>
+      <% if (allocRow && allocRow.status === 'ocr_only' && ocrData.extracted && ocrData.extracted.allocationNumber) { %>
+        <form method="post" action="/invoices/<%= invoice.id %>/allocation" class="actions" style="margin-top:.8rem">
+          <input type="hidden" name="allocation_number" value="<%= ocrData.extracted.allocationNumber %>" />
+          <span>OCR זיהה מספר הקצאה <span class="mono"><%= ocrData.extracted.allocationNumber %></span></span>
+          <button class="secondary small" type="submit">החל על החשבונית</button>
+        </form>
+      <% } %>
+
+      <details style="margin-top:.8rem">
+        <summary class="muted">טקסט גולמי מה-OCR (<%= ocrData.ran_at %>)</summary>
+        <pre style="white-space:pre-wrap;background:#fafbfc;border:1px solid var(--line);border-radius:6px;padding:.6rem;max-height:240px;overflow:auto"><%= ocrData.raw_text %></pre>
+      </details>
+    <% } else { %>
+      <p class="muted">טרם הורץ OCR על תמונה זו.</p>
+    <% } %>
+  </div>
+<% } %>
+
 <% if (invoice.payment) { %>
   <div class="card">
     <h2>תשלום</h2>
