@@ -4,6 +4,7 @@ import {
   markCleared,
   voidPayment,
   getPaymentDetail,
+  getCheckPrintData,
   listPayments,
 } from '../services/payments.js';
 import { listPayable } from '../services/invoices.js';
@@ -67,6 +68,16 @@ router.get('/:id', (req, res, next) => {
       title: `צ׳ק #${req.params.id}`,
       payment: getPaymentDetail(Number(req.params.id)),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Stage 4: printable Standard-501 check layout (DRAFT scaffold until bank approval, §11.5).
+router.get('/:id/print', (req, res, next) => {
+  try {
+    const data = getCheckPrintData(Number(req.params.id));
+    res.render('payments/print', { title: `הדפסת צ׳ק #${req.params.id}`, ...data });
   } catch (err) {
     next(err);
   }

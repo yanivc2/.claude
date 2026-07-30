@@ -3,7 +3,10 @@
   <h1>צ׳ק #<%= payment.id %> · <span class="mono"><%= payment.check_number %></span>
     <span class="badge b-<%= payment.status %>"><%= payment.status === 'issued' ? 'הונפק' : payment.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
   </h1>
-  <a href="/payments" class="btn secondary">חזרה לרשימה</a>
+  <div class="actions">
+    <a href="/payments/<%= payment.id %>/print" class="btn secondary" target="_blank">הדפס צ׳ק (טיוטה)</a>
+    <a href="/payments" class="btn secondary">חזרה לרשימה</a>
+  </div>
 </div>
 
 <div class="card">
