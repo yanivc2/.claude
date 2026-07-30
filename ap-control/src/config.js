@@ -26,5 +26,17 @@ export const config = {
   rules: {
     dupWindowDays: DUP_WINDOW_DAYS,
     allocationThresholdAgorot: ALLOCATION_THRESHOLD_AGOROT,
+    // R7 reconciliation: a bank debit matches an open check within this many days
+    // of the payment_date. Checks can take weeks to clear, so the default is generous.
+    reconcileWindowDays: Number(process.env.RECONCILE_WINDOW_DAYS ?? 60),
+  },
+  // Stage 2 scraper credentials (Bank Hapoalim). Never hard-code — read from env
+  // only, and keep them out of git (§12). Absent by default; the scraper CLI errors
+  // clearly if they are missing.
+  bank: {
+    hapoalim: {
+      userCode: process.env.BANK_HAPOALIM_USER_CODE || null,
+      password: process.env.BANK_HAPOALIM_PASSWORD || null,
+    },
   },
 };
