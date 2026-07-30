@@ -12,6 +12,7 @@ import {
   setImage,
 } from '../services/invoices.js';
 import { listSuppliers } from '../services/suppliers.js';
+import { runOcrForInvoice, compareToInvoice, getOcr } from '../services/ocr.js';
 import { getDb } from '../db/index.js';
 import { config } from '../config.js';
 import { toAgorot } from '../lib/money.js';
@@ -156,12 +157,28 @@ router.post('/:id/image', handleInvoiceImage, (req, res, next) => {
 
 router.get('/:id', (req, res, next) => {
   try {
+    const id = Number(req.params.id);
     res.render('invoices/show', {
-      title: `חשבונית #${req.params.id}`,
-      invoice: getInvoiceDetail(Number(req.params.id)),
+      title: `חשבונית #${id}`,
+      invoice: getInvoiceDetail(id),
+      ocr: getOcr(id),
+      comparison: compareToInvoice(id),
     });
   } catch (err) {
     next(err);
+  }
+});
+
+// Stage 3: run OCR on the invoice image and store the extracted-fields comparison.
+router.post('/:id/ocr', async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    await runOcrForInvoice(id, req.user);
+    res.redirect(`/invoices/${id}`);
+  } catch (err) {
+    if (err instanceof RuleError) return renderShow(res, id, err.message);
+    // tesseract not installed / recognition failure — show a friendly message, not a 500.
+    return renderShow(res, id, err.message);
   }
 });
 
@@ -205,6 +222,8 @@ function renderShow(res, id, error) {
   res.status(400).render('invoices/show', {
     title: `חשבונית #${id}`,
     invoice: getInvoiceDetail(id),
+    ocr: getOcr(id),
+    comparison: compareToInvoice(id),
     error,
   });
 }

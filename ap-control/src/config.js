@@ -39,4 +39,10 @@ export const config = {
       password: process.env.BANK_HAPOALIM_PASSWORD || null,
     },
   },
+  // Stage 3 OCR. Local by design (§12 — financial documents stay on the PC).
+  // langPath lets tesseract load traineddata from a local folder when offline.
+  ocr: {
+    langs: process.env.OCR_LANGS || 'heb+eng',
+    langPath: process.env.OCR_LANG_PATH || null,
+  },
 };
