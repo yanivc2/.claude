@@ -45,4 +45,11 @@ export const config = {
     langs: process.env.OCR_LANGS || 'heb+eng',
     langPath: process.env.OCR_LANG_PATH || null,
   },
+  // Stage 4 check printing (Standard 501 / MICR). GATED: printing a real, negotiable
+  // check requires bank approval and an approved E-13B MICR encoding (🔴 §11.5, §10.3).
+  // Until CHECK_PRINTING_APPROVED=true the layout renders as a watermarked DRAFT with a
+  // MICR *placeholder* only — never a scanner-valid magnetic line.
+  checkPrinting: {
+    approved: process.env.CHECK_PRINTING_APPROVED === 'true',
+  },
 };

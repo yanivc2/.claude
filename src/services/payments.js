@@ -1,5 +1,7 @@
 import { getDb } from '../db/index.js';
+import { config } from '../config.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
+import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { logAction } from './audit.js';
 
 /**
@@ -180,6 +182,41 @@ export function getPaymentDetail(id, db = getDb()) {
     )
     .all(id);
   return payment;
+}
+
+/**
+ * Assemble everything needed to render a Standard-501 check for a payment (stage 4).
+ * The payee is derived from the linked invoices' supplier(s); the drawer is the account's
+ * company. `approved` reflects the gating flag — when false the check is a watermarked DRAFT
+ * and the MICR line is a placeholder, never a scanner-valid magnetic encoding (🔴 §11.5).
+ */
+export function getCheckPrintData(id, db = getDb()) {
+  const payment = getPaymentDetail(id, db);
+  const account = db
+    .prepare(
+      `SELECT ba.*, c.name AS company_name, c.tax_id AS company_tax_id
+         FROM bank_accounts ba JOIN companies c ON c.id = ba.company_id
+        WHERE ba.id = ?`,
+    )
+    .get(payment.bank_account_id);
+
+  const payees = db
+    .prepare(
+      `SELECT DISTINCT s.name FROM payment_lines pl
+         JOIN invoices i ON i.id = pl.invoice_id
+         JOIN suppliers s ON s.id = i.supplier_id
+        WHERE pl.payment_id = ?`,
+    )
+    .all(id)
+    .map((r) => r.name);
+
+  return {
+    payment,
+    account,
+    payees,
+    amountWords: amountToHebrewWords(payment.amount),
+    approved: config.checkPrinting.approved,
+  };
 }
 
 export function listPayments({ status = null } = {}, db = getDb()) {
