@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %> · AP Control</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">AP Control</span>
+    <nav>
+      <a href="/" class="<%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
+      <a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>">חשבוניות</a>
+      <a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>">צ׳קים</a>
+      <a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>">ספקים</a>
+      <a href="/reports/outstanding" class="<%= path === '/reports/outstanding' ? 'active' : '' %>">צ׳קים בחוץ</a>
+      <a href="/reports/lookup" class="<%= path === '/reports/lookup' ? 'active' : '' %>">בדיקת חשבונית</a>
+      <a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>">יומן</a>
+    </nav>
+    <span class="spacer"></span>
+    <span class="role-badge <%= currentUser.role === 'owner' ? 'role-owner' : '' %>">
+      <%= currentUser.role === 'owner' ? 'בעלים' : 'מזכירה' %>
+    </span>
+    <form method="post" action="/switch-user">
+      <select name="uid" onchange="this.form.submit()" title="החלפת משתמש (שלב 1 בלבד)">
+        <% allUsers.forEach(function(u){ %>
+          <option value="<%= u.id %>" <%= u.id === currentUser.id ? 'selected' : '' %>>
+            <%= u.name %> (<%= u.role === 'owner' ? 'בעלים' : 'מזכירה' %>)
+          </option>
+        <% }); %>
+      </select>
+    </form>
+  </header>
+  <main>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div>
+    <% } %>

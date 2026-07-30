@@ -1,0 +1,50 @@
+<%- include('../partials/header') %>
+<div class="toolbar">
+  <h1>ספקים</h1>
+  <a class="btn" href="/suppliers/new">+ ספק חדש</a>
+</div>
+
+<div class="filterms card">
+  סינון:
+  <a href="/suppliers">הכל</a>
+  <a href="/suppliers?status=pending">ממתינים</a>
+  <a href="/suppliers?status=approved">מאושרים</a>
+  <a href="/suppliers?status=blocked">חסומים</a>
+</div>
+
+<table>
+  <thead>
+    <tr><th>שם</th><th>ח.פ.</th><th>סטטוס</th><th>הערות</th><th></th></tr>
+  </thead>
+  <tbody>
+    <% if (suppliers.length === 0) { %>
+      <tr><td colspan="5" class="muted">אין ספקים להצגה.</td></tr>
+    <% } %>
+    <% suppliers.forEach(function(s){ %>
+      <tr>
+        <td><%= s.name %></td>
+        <td class="mono"><%= s.tax_id || '—' %></td>
+        <td><span class="badge b-<%= s.status %>">
+          <%= s.status === 'pending' ? 'ממתין' : s.status === 'approved' ? 'מאושר' : 'חסום' %>
+        </span></td>
+        <td class="muted"><%= s.notes || '' %></td>
+        <td class="right">
+          <div class="actions">
+            <% if (s.status !== 'approved') { %>
+              <form method="post" action="/suppliers/<%= s.id %>/approve">
+                <button class="ok small" type="submit">אשר (בעלים)</button>
+              </form>
+            <% } %>
+            <% if (s.status !== 'blocked') { %>
+              <form method="post" action="/suppliers/<%= s.id %>/block">
+                <button class="danger small" type="submit">חסום</button>
+              </form>
+            <% } %>
+          </div>
+        </td>
+      </tr>
+    <% }); %>
+  </tbody>
+</table>
+<p class="muted">אישור/חסימת ספק = פעולת בעלים בלבד (R6). החלף לתפקיד "בעלים" בראש העמוד.</p>
+<%- include('../partials/footer') %>

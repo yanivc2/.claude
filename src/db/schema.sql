@@ -1,0 +1,133 @@
+-- AP Control — schema (stage 1)
+-- All monetary amounts are stored as INTEGER agorot (1 ILS = 100 agorot) to avoid
+-- floating-point drift in control rules (esp. R5: check total == sum of applied lines).
+-- Dates are stored as ISO strings 'YYYY-MM-DD'. Timestamps as 'YYYY-MM-DD HH:MM:SS' (UTC).
+
+PRAGMA foreign_keys = ON;
+
+-- §4 companies ------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS companies (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  name         TEXT NOT NULL,
+  company_type TEXT,                 -- e.g. 'ltd' (בע"מ)
+  tax_id       TEXT                  -- ח.פ. — nullable until confirmed (§2, §11.3)
+);
+
+-- §4 stores ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS stores (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id INTEGER NOT NULL REFERENCES companies(id),
+  name       TEXT NOT NULL,
+  address    TEXT
+);
+
+-- §4 bank_accounts — 1:1 with a store -------------------------------------------
+CREATE TABLE IF NOT EXISTS bank_accounts (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  company_id     INTEGER NOT NULL REFERENCES companies(id),
+  store_id       INTEGER NOT NULL UNIQUE REFERENCES stores(id),  -- 1:1 enforced
+  bank_name      TEXT NOT NULL DEFAULT 'הפועלים',
+  branch         TEXT NOT NULL,
+  account_number TEXT NOT NULL,
+  display_name   TEXT NOT NULL
+);
+
+-- §4 suppliers ------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS suppliers (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,                 -- canonical / normalized
+  tax_id      TEXT,
+  status      TEXT NOT NULL DEFAULT 'pending'
+              CHECK (status IN ('pending','approved','blocked')),
+  approved_by INTEGER REFERENCES users(id),
+  approved_at TEXT,
+  notes       TEXT
+);
+
+-- §4 users ----------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS users (
+  id   INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('owner','secretary'))
+);
+
+-- §4 invoices -------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS invoices (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier_id        INTEGER NOT NULL REFERENCES suppliers(id),
+  company_id         INTEGER NOT NULL REFERENCES companies(id),
+  store_id           INTEGER NOT NULL REFERENCES stores(id),
+  bank_account_id    INTEGER REFERENCES bank_accounts(id),   -- nullable until paid
+  invoice_number     TEXT NOT NULL,
+  allocation_number  TEXT,                                    -- 9 digits, nullable
+  invoice_date       TEXT NOT NULL,
+  amount_before_vat  INTEGER NOT NULL,                        -- agorot
+  vat_amount         INTEGER NOT NULL DEFAULT 0,              -- agorot
+  total_amount       INTEGER NOT NULL,                        -- agorot (negative for credit_note)
+  doc_type           TEXT NOT NULL
+                     CHECK (doc_type IN ('tax_invoice','tax_invoice_receipt','credit_note')),
+  image_path         TEXT,                                    -- stage 1b
+  status             TEXT NOT NULL DEFAULT 'recorded'
+                     CHECK (status IN ('recorded','approved_for_payment','on_hold','paid')),
+  hold_reason        TEXT,                                    -- why on_hold (e.g. R3)
+  created_by         INTEGER NOT NULL REFERENCES users(id),
+  created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+
+-- Dedup (R2): allocation_number is a strong key — unique when present.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_invoices_allocation
+  ON invoices(allocation_number) WHERE allocation_number IS NOT NULL;
+-- Secondary dedup signal: same supplier + same invoice number.
+CREATE INDEX IF NOT EXISTS ix_invoices_supplier_number
+  ON invoices(supplier_id, invoice_number);
+
+-- §4 payments (checks) ----------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payments (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
+  check_number    TEXT NOT NULL,
+  payment_date    TEXT NOT NULL,
+  amount          INTEGER NOT NULL,                           -- agorot
+  status          TEXT NOT NULL DEFAULT 'issued'
+                  CHECK (status IN ('issued','cleared','voided')),
+  cleared_date    TEXT,
+  created_by      INTEGER NOT NULL REFERENCES users(id),
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+-- A check number is unique within a bank account.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
+  ON payments(bank_account_id, check_number);
+
+-- §4 payment_lines (check <-> invoices/credit notes) ----------------------------
+CREATE TABLE IF NOT EXISTS payment_lines (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  payment_id     INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  invoice_id     INTEGER NOT NULL REFERENCES invoices(id),
+  amount_applied INTEGER NOT NULL                             -- agorot (negative for credit)
+);
+-- An invoice can be applied to a payment only once.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_payment_lines_invoice
+  ON payment_lines(payment_id, invoice_id);
+
+-- §4 bank_transactions (stage 2 — table created now, matching engine is stage 2) -
+CREATE TABLE IF NOT EXISTS bank_transactions (
+  id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+  bank_account_id    INTEGER NOT NULL REFERENCES bank_accounts(id),
+  txn_date           TEXT NOT NULL,
+  amount             INTEGER NOT NULL,                         -- agorot
+  description        TEXT,
+  raw_reference      TEXT,
+  source             TEXT NOT NULL DEFAULT 'scraper',
+  matched_payment_id INTEGER REFERENCES payments(id)
+);
+
+-- §4 audit_log ------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS audit_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id     INTEGER REFERENCES users(id),
+  action      TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id   INTEGER,
+  timestamp   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  details     TEXT
+);

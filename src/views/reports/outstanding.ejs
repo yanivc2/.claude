@@ -1,0 +1,50 @@
+<%- include('../partials/header') %>
+<h1>צ׳קים בחוץ</h1>
+<p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7).</p>
+
+<div class="card">
+  <table>
+    <thead>
+      <tr><th>חברה</th><th>חנות / חשבון</th><th class="right">צ׳קים פתוחים</th><th class="right">סכום בחוץ</th><th></th></tr>
+    </thead>
+    <tbody>
+      <% accounts.forEach(function(a){ %>
+        <tr>
+          <td><%= a.company_name %></td>
+          <td><%= a.display_name %></td>
+          <td class="right"><%= a.outstanding_count %></td>
+          <td class="right"><strong><%= formatIls(a.outstanding) %></strong></td>
+          <td class="right"><a href="/reports/outstanding?account=<%= a.id %>">פירוט</a></td>
+        </tr>
+      <% }); %>
+    </tbody>
+    <tfoot>
+      <tr>
+        <th colspan="3">סה"כ כל החשבונות</th>
+        <th class="right"><%= formatIls(totalOutstanding) %></th>
+        <th></th>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<% if (detailAccountId) { %>
+  <div class="card">
+    <h2>צ׳קים פתוחים בחשבון הנבחר</h2>
+    <table>
+      <thead><tr><th>מס' צ׳ק</th><th>תאריך</th><th class="right">סכום</th><th></th></tr></thead>
+      <tbody>
+        <% if (detailChecks.length === 0) { %><tr><td colspan="4" class="muted">אין צ׳קים פתוחים.</td></tr><% } %>
+        <% detailChecks.forEach(function(c){ %>
+          <tr>
+            <td class="mono"><a href="/payments/<%= c.id %>"><%= c.check_number %></a></td>
+            <td><%= c.payment_date %></td>
+            <td class="right"><%= formatIls(c.amount) %></td>
+            <td class="right"><a href="/payments/<%= c.id %>">סמן כנפרע</a></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>

@@ -1,0 +1,88 @@
+<%- include('../partials/header') %>
+<h1>חשבונית חדשה</h1>
+
+<% if (warnings && warnings.length) { %>
+  <div class="alert alert-warn">
+    <strong>אזהרות כפילות — ודא לפני המשך:</strong>
+    <ul style="margin:0.4rem 0 0">
+      <% warnings.forEach(function(w){ %><li>[<%= w.code %>] <%= w.message %></li><% }); %>
+    </ul>
+  </div>
+<% } %>
+
+<div class="card">
+  <form class="stack" method="post" action="/invoices">
+    <div class="row">
+      <div>
+        <label>ספק *</label>
+        <select name="supplier_id" required>
+          <option value="">— בחר ספק —</option>
+          <% suppliers.forEach(function(s){ %>
+            <option value="<%= s.id %>" <%= String(values.supplier_id) === String(s.id) ? 'selected' : '' %>>
+              <%= s.name %><%= s.status !== 'approved' ? ' (' + (s.status === 'pending' ? 'ממתין' : 'חסום') + ')' : '' %>
+            </option>
+          <% }); %>
+        </select>
+        <p class="muted" style="margin:.3rem 0 0">ספק לא קיים? <a href="/suppliers/new">פתח ספק חדש</a></p>
+      </div>
+      <div>
+        <label>חנות *</label>
+        <select name="store_id" required>
+          <option value="">— בחר חנות —</option>
+          <% stores.forEach(function(st){ %>
+            <option value="<%= st.id %>" <%= String(values.store_id) === String(st.id) ? 'selected' : '' %>>
+              <%= st.name %> · <%= st.company_name %>
+            </option>
+          <% }); %>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>מספר חשבונית *</label>
+        <input name="invoice_number" required value="<%= values.invoice_number || '' %>" />
+      </div>
+      <div>
+        <label>מספר הקצאה (9 ספרות, אם קיים)</label>
+        <input name="allocation_number" maxlength="9" pattern="\d{9}" value="<%= values.allocation_number || '' %>" />
+      </div>
+      <div>
+        <label>תאריך חשבונית *</label>
+        <input type="date" name="invoice_date" required value="<%= values.invoice_date || '' %>" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>סוג מסמך *</label>
+        <select name="doc_type" required>
+          <option value="tax_invoice" <%= values.doc_type === 'tax_invoice' ? 'selected' : '' %>>חשבונית מס</option>
+          <option value="tax_invoice_receipt" <%= values.doc_type === 'tax_invoice_receipt' ? 'selected' : '' %>>חשבונית מס/קבלה</option>
+          <option value="credit_note" <%= values.doc_type === 'credit_note' ? 'selected' : '' %>>חשבונית זיכוי</option>
+        </select>
+      </div>
+      <div>
+        <label>סכום לפני מע"מ (₪) *</label>
+        <input name="amount_before_vat" inputmode="decimal" required value="<%= values.amount_before_vat || '' %>" />
+      </div>
+      <div>
+        <label>מע"מ (₪)</label>
+        <input name="vat_amount" inputmode="decimal" value="<%= values.vat_amount || '' %>" />
+      </div>
+    </div>
+    <p class="muted">זיכוי יישמר כסכום שלילי אוטומטית. חשבונית זיכוי פטורה ממספר הקצאה.</p>
+
+    <% if (warnings && warnings.length) { %>
+      <input type="hidden" name="confirm" value="1" />
+      <label>סיבת אישור למרות האזהרה *</label>
+      <input name="confirm_reason" required placeholder="למשל: חשבונית חוזרת חודשית, לא כפילות" />
+    <% } %>
+
+    <div style="margin-top:1rem" class="actions">
+      <button type="submit"><%= warnings && warnings.length ? 'אשר ושמור בכל זאת' : 'שמור חשבונית' %></button>
+      <a href="/invoices" class="btn secondary">ביטול</a>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>
