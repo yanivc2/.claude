@@ -67,6 +67,47 @@ export function invoiceLookup(query, db = getDb()) {
     .all(like, like, like);
 }
 
+/**
+ * §7 "רווחיות" — per-store gross profit for a date range: purchases (net invoices, from
+ * the system) vs sales (manual register Z totals). Gross profit = sales − purchases;
+ * margin = gross profit / sales. Credit notes reduce purchases (they are negative).
+ *
+ * @param {string} fromDate  'YYYY-MM-DD'
+ * @param {string} toDate    'YYYY-MM-DD'
+ */
+export function profitability(fromDate, toDate, db = getDb()) {
+  const rows = db
+    .prepare(
+      `SELECT st.id, st.name AS store_name, c.name AS company_name,
+              (SELECT COALESCE(SUM(i.total_amount),0) FROM invoices i
+                WHERE i.store_id = st.id AND i.invoice_date BETWEEN ? AND ?) AS purchases,
+              (SELECT COALESCE(SUM(se.amount),0) FROM sales_entries se
+                WHERE se.store_id = st.id AND se.sale_date BETWEEN ? AND ?) AS sales
+         FROM stores st JOIN companies c ON c.id = st.company_id
+        ORDER BY c.name, st.name`,
+    )
+    .all(fromDate, toDate, fromDate, toDate);
+
+  const stores = rows.map((r) => {
+    const grossProfit = r.sales - r.purchases;
+    const marginPct = r.sales > 0 ? (grossProfit / r.sales) * 100 : null;
+    return { ...r, grossProfit, marginPct };
+  });
+
+  const totals = stores.reduce(
+    (acc, s) => {
+      acc.purchases += s.purchases;
+      acc.sales += s.sales;
+      acc.grossProfit += s.grossProfit;
+      return acc;
+    },
+    { purchases: 0, sales: 0, grossProfit: 0 },
+  );
+  totals.marginPct = totals.sales > 0 ? (totals.grossProfit / totals.sales) * 100 : null;
+
+  return { stores, totals };
+}
+
 /** Small counters for the dashboard. */
 export function dashboardStats(db = getDb()) {
   const pendingSuppliers = db

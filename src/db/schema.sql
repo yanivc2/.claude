@@ -121,6 +121,19 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   matched_payment_id INTEGER REFERENCES payments(id)
 );
 
+-- sales_entries — manual register (Z) totals per store, for the profitability report (§7).
+-- Purchases come automatically from invoices; sales are entered by hand here.
+CREATE TABLE IF NOT EXISTS sales_entries (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id   INTEGER NOT NULL REFERENCES stores(id),
+  sale_date  TEXT NOT NULL,                 -- the business day the Z total is for
+  amount     INTEGER NOT NULL,              -- agorot (gross register sales)
+  notes      TEXT,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_sales_store_date ON sales_entries(store_id, sale_date);
+
 -- §4 audit_log ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
