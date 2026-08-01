@@ -11,7 +11,12 @@ function statusLabel(s){
   <h1>חשבונית #<%= invoice.id %>
     <span class="badge b-<%= invoice.status %>"><%= statusLabel(invoice.status) %></span>
   </h1>
-  <a href="/invoices" class="btn secondary">חזרה לרשימה</a>
+  <div class="actions">
+    <% if (invoice.status !== 'paid') { %>
+      <a href="/invoices/<%= invoice.id %>/edit" class="btn secondary">ערוך חשבונית</a>
+    <% } %>
+    <a href="/invoices" class="btn secondary">חזרה לרשימה</a>
+  </div>
 </div>
 
 <% if (invoice.status === 'on_hold' && invoice.hold_reason) { %>
@@ -136,24 +141,27 @@ function ocrStatusBadge(s){
 <% if (invoice.status !== 'paid') { %>
   <div class="card">
     <h2>פעולות</h2>
-    <div class="actions">
-      <% if (invoice.status !== 'approved_for_payment') { %>
-        <form method="post" action="/invoices/<%= invoice.id %>/approve">
-          <button class="ok" type="submit">אשר לתשלום</button>
-        </form>
-      <% } %>
-      <% if (invoice.status !== 'on_hold') { %>
-        <form method="post" action="/invoices/<%= invoice.id %>/hold" class="actions">
-          <input name="reason" placeholder="סיבת החזקה" style="width:200px" />
-          <button class="danger" type="submit">החזק (בעלים)</button>
-        </form>
-      <% } %>
-    </div>
 
+    <!-- שורה 1: אישור לתשלום -->
+    <% if (invoice.status !== 'approved_for_payment') { %>
+      <form method="post" action="/invoices/<%= invoice.id %>/approve" style="margin-bottom:.7rem">
+        <button class="ok" type="submit">אישור לתשלום</button>
+      </form>
+    <% } %>
+
+    <!-- שורה 2: החזק (בעלים) מימין · סיבת החזקה משמאל -->
+    <% if (invoice.status !== 'on_hold') { %>
+      <form method="post" action="/invoices/<%= invoice.id %>/hold" class="actions" style="justify-content:space-between;margin-bottom:.7rem">
+        <button class="danger" type="submit">החזק (בעלים)</button>
+        <input name="reason" placeholder="סיבת החזקה" style="width:260px" />
+      </form>
+    <% } %>
+
+    <!-- שורה 3: שמור הקצאה מימין · מספר הקצאה משמאל -->
     <% if (!invoice.allocation_number) { %>
-      <form method="post" action="/invoices/<%= invoice.id %>/allocation" class="actions" style="margin-top:.8rem">
-        <input name="allocation_number" placeholder="מספר הקצאה (9 ספרות)" maxlength="9" pattern="\d{9}" style="width:220px" />
+      <form method="post" action="/invoices/<%= invoice.id %>/allocation" class="actions" style="justify-content:space-between">
         <button class="secondary" type="submit">שמור הקצאה</button>
+        <input name="allocation_number" placeholder="מספר הקצאה (9 ספרות)" maxlength="9" pattern="\d{9}" style="width:260px" />
       </form>
       <p class="muted">הוספת מספר הקצאה תשחרר חסימת R3 אם קיימת.</p>
     <% } %>

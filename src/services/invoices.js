@@ -247,6 +247,60 @@ export async function setAllocationNumber(id, allocationNumber, actor, x = getEx
 }
 
 /**
+ * Edit an invoice's core fields (supplier, store, number, allocation, date, amounts, type).
+ * Allowed while the invoice is not yet paid. Recomputes sign/total and re-checks the
+ * allocation-number uniqueness. Owner-or-secretary; paid invoices are locked.
+ */
+export async function updateInvoice(id, input, actor, x = getExecutor()) {
+  const invoice = await getInvoice(id, x);
+  if (invoice.status === 'paid') throw new RuleError('R', 'חשבונית ששולמה — לא ניתן לערוך');
+
+  const {
+    supplierId = invoice.supplier_id,
+    storeId = invoice.store_id,
+    invoiceNumber = invoice.invoice_number,
+    allocationNumber = invoice.allocation_number,
+    invoiceDate = invoice.invoice_date,
+    amountBeforeVat, // agorot (magnitude)
+    vatAmount, // agorot (magnitude)
+    docType = invoice.doc_type,
+  } = input;
+
+  if (!DOC_TYPES.includes(docType)) throw new RuleError('VALIDATION', `סוג מסמך לא תקין: ${docType}`);
+  if (!invoiceNumber || !String(invoiceNumber).trim()) throw new RuleError('VALIDATION', 'מספר חשבונית חובה');
+  if (!invoiceDate) throw new RuleError('VALIDATION', 'תאריך חשבונית חובה');
+
+  const supplier = await x.one('SELECT id FROM suppliers WHERE id = ?', [supplierId]);
+  if (!supplier) throw new NotFoundError(`ספק ${supplierId} לא נמצא`);
+  const store = await x.one('SELECT id, company_id FROM stores WHERE id = ?', [storeId]);
+  if (!store) throw new NotFoundError(`חנות ${storeId} לא נמצאה`);
+
+  const alloc = normalizeAllocation(allocationNumber);
+  if (alloc) {
+    const clash = await x.one('SELECT id FROM invoices WHERE allocation_number = ? AND id <> ?', [alloc, id]);
+    if (clash) throw new RuleError('R2', `מספר הקצאה ${alloc} כבר קיים (חשבונית #${clash.id})`);
+  }
+
+  const sign = docType === 'credit_note' ? -1 : 1;
+  const beforeVat = sign * Math.abs(amountBeforeVat ?? Math.abs(invoice.amount_before_vat));
+  const vat = sign * Math.abs(vatAmount ?? Math.abs(invoice.vat_amount));
+  const total = beforeVat + vat;
+
+  await x.run(
+    `UPDATE invoices
+        SET supplier_id = ?, company_id = ?, store_id = ?, invoice_number = ?, allocation_number = ?,
+            invoice_date = ?, amount_before_vat = ?, vat_amount = ?, total_amount = ?, doc_type = ?
+      WHERE id = ?`,
+    [supplierId, store.company_id, storeId, String(invoiceNumber).trim(), alloc, invoiceDate, beforeVat, vat, total, docType, id],
+  );
+  await logAction(
+    { userId: actor.id, action: 'invoice.update', entityType: 'invoice', entityId: id, details: { total, docType } },
+    x,
+  );
+  return getInvoice(id, x);
+}
+
+/**
  * Attach or replace the invoice image (stage 1b). Returns the previous image_path.
  */
 export async function setImage(id, imagePath, actor, x = getExecutor()) {

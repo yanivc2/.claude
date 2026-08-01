@@ -20,8 +20,10 @@ CREATE TABLE IF NOT EXISTS users (
   name          TEXT NOT NULL,
   role          TEXT NOT NULL CHECK (role IN ('owner','secretary')),
   username      TEXT,
+  email         TEXT,
   password_hash TEXT
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;
 
 -- stores ------------------------------------------------------------------------

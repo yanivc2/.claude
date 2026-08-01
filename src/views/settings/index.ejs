@@ -1,53 +1,57 @@
 <%- include('../partials/header') %>
-<h1>הגדרות — חנויות וחשבונות</h1>
-<p class="muted">ניהול מבנה החברות, החנויות וחשבונות הבנק (1:1). פעולות בעלים בלבד. המערכת נועדה לגדול — הוסף חנות/חשבון בקלות (§2).</p>
+<h1>הגדרות</h1>
+<p class="muted">ניהול מבנה החברות, החנויות, חשבונות הבנק והמשתמשים. פעולות בעלים בלבד.</p>
 
 <% if (typeof notice !== 'undefined' && notice) { %>
   <div class="alert alert-info"><%= notice %></div>
 <% } %>
 
-<div class="card">
-  <h2>מבנה קיים</h2>
-  <% companies.forEach(function(c){ %>
-    <div style="border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
-      <div class="toolbar" style="margin-bottom:.4rem">
-        <strong><%= c.name %></strong>
-        <form method="post" action="/settings/companies/<%= c.id %>" class="actions">
-          <input name="name" value="<%= c.name %>" style="width:200px" />
-          <input name="tax_id" value="<%= c.tax_id || '' %>" placeholder="ח.פ. (9 ספרות)" style="width:150px" />
-          <button class="secondary small" type="submit">עדכן חברה</button>
-        </form>
+<!-- ===== מבנה קיים (מצומצם) ===== -->
+<details class="section">
+  <summary>פרטי חברות בע"מ</summary>
+  <div class="section-body">
+    <% companies.forEach(function(c){ %>
+      <div style="border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
+        <div class="toolbar" style="margin-bottom:.4rem">
+          <strong><%= c.name %></strong>
+          <form method="post" action="/settings/companies/<%= c.id %>" class="actions">
+            <input name="name" value="<%= c.name %>" style="width:200px" />
+            <input name="tax_id" value="<%= c.tax_id || '' %>" placeholder="ח.פ. (9 ספרות)" style="width:150px" />
+            <button class="secondary small" type="submit">עדכן חברה</button>
+          </form>
+        </div>
+        <table>
+          <thead><tr><th>חנות</th><th>בנק</th><th>סניף</th><th>חשבון</th><th>שם תצוגה</th></tr></thead>
+          <tbody>
+            <% if (c.stores.length === 0) { %><tr><td colspan="5" class="muted">אין חנויות.</td></tr><% } %>
+            <% c.stores.forEach(function(s){ %>
+              <tr>
+                <td><%= s.name %></td>
+                <td><%= s.bank_name || '—' %></td>
+                <td class="mono"><%= s.branch || '—' %></td>
+                <td class="mono"><%= s.account_number || '—' %></td>
+                <td>
+                  <% if (s.account_id) { %>
+                    <form method="post" action="/settings/accounts/<%= s.account_id %>" class="actions">
+                      <input name="display_name" value="<%= s.display_name %>" style="width:240px" />
+                      <button class="secondary small" type="submit">שמור</button>
+                    </form>
+                  <% } else { %>—<% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
       </div>
-      <table>
-        <thead><tr><th>חנות</th><th>בנק</th><th>סניף</th><th>חשבון</th><th>שם תצוגה</th></tr></thead>
-        <tbody>
-          <% if (c.stores.length === 0) { %><tr><td colspan="5" class="muted">אין חנויות.</td></tr><% } %>
-          <% c.stores.forEach(function(s){ %>
-            <tr>
-              <td><%= s.name %></td>
-              <td><%= s.bank_name || '—' %></td>
-              <td class="mono"><%= s.branch || '—' %></td>
-              <td class="mono"><%= s.account_number || '—' %></td>
-              <td>
-                <% if (s.account_id) { %>
-                  <form method="post" action="/settings/accounts/<%= s.account_id %>" class="actions">
-                    <input name="display_name" value="<%= s.display_name %>" style="width:240px" />
-                    <button class="secondary small" type="submit">שמור</button>
-                  </form>
-                <% } else { %>—<% } %>
-              </td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    </div>
-  <% }); %>
-</div>
+    <% }); %>
+  </div>
+</details>
 
-<div class="row">
-  <div class="card">
-    <h2>חברה חדשה</h2>
-    <form method="post" action="/settings/companies" class="stack">
+<!-- ===== שלב 1: חברה חדשה ===== -->
+<details class="section">
+  <summary><span class="step">1</span> הקמת חברה חדשה</summary>
+  <div class="section-body">
+    <form method="post" action="/settings/companies" class="stack" style="max-width:420px">
       <label>שם חברה *</label>
       <input name="name" required />
       <label>ח.פ. (9 ספרות, לא חובה)</label>
@@ -55,10 +59,14 @@
       <div style="margin-top:.6rem"><button type="submit">הוסף חברה</button></div>
     </form>
   </div>
+</details>
 
-  <div class="card">
-    <h2>חנות + חשבון בנק חדשים</h2>
-    <form method="post" action="/settings/stores" class="stack">
+<!-- ===== שלב 2: חנות + חשבון בנק ===== -->
+<details class="section">
+  <summary><span class="step">2</span> הקמת חנות + חשבון בנק</summary>
+  <div class="section-body">
+    <p class="muted">יש קודם להקים חברה חדשה (שלב 1), ואז לעבור לשלב זה ולשייך את החנות לחברה.</p>
+    <form method="post" action="/settings/stores" class="stack" style="max-width:640px">
       <label>חברה *</label>
       <select name="company_id" required>
         <% companies.forEach(function(c){ %><option value="<%= c.id %>"><%= c.name %></option><% }); %>
@@ -77,5 +85,87 @@
       <div style="margin-top:.6rem"><button type="submit">הוסף חנות + חשבון</button></div>
     </form>
   </div>
-</div>
+</details>
+
+<!-- ===== הסיסמה שלי (בעלים בלבד — שינוי ישיר) ===== -->
+<details class="section">
+  <summary>הסיסמה שלי</summary>
+  <div class="section-body">
+    <form method="post" action="/settings/password" class="stack" style="max-width:420px">
+      <label>סיסמה נוכחית</label>
+      <input type="password" name="current" required />
+      <label>סיסמה חדשה (לפחות 6 תווים)</label>
+      <input type="password" name="next" required minlength="6" />
+      <label>אישור סיסמה חדשה</label>
+      <input type="password" name="confirm" required minlength="6" />
+      <div style="margin-top:.6rem"><button type="submit">עדכן סיסמה</button></div>
+    </form>
+  </div>
+</details>
+
+<!-- ===== ניהול משתמשים והרשאות ===== -->
+<details class="section">
+  <summary>ניהול משתמשים והרשאות</summary>
+  <div class="section-body">
+    <p class="muted">ההרשאה נקבעת לפי התפקיד: <strong>בעלים</strong> — גישה מלאה כולל הגדרות וביטולים; <strong>מזכירה</strong> — עבודה שוטפת בלבד. שינוי התפקיד מוסיף/מצמצם הרשאות.</p>
+    <table>
+      <thead><tr><th>שם</th><th>שם משתמש</th><th>מייל</th><th>הרשאה</th><th class="no-print">פעולות</th></tr></thead>
+      <tbody>
+        <% users.forEach(function(u){ %>
+          <tr>
+            <td><%= u.name %></td>
+            <td class="mono"><%= u.username || '—' %></td>
+            <td><%= u.email || '—' %></td>
+            <td><span class="badge <%= u.role === 'owner' ? 'b-approved_for_payment' : 'b-recorded' %>"><%= u.role === 'owner' ? 'בעלים' : 'מזכירה' %></span></td>
+            <td class="no-print">
+              <button type="button" class="secondary small" onclick="document.getElementById('edit-user-<%= u.id %>').hidden = !document.getElementById('edit-user-<%= u.id %>').hidden">ערוך</button>
+              <% if (u.id !== currentUser.id) { %>
+                <form method="post" action="/settings/users/<%= u.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את המשתמש <%= u.name %>?')">
+                  <button class="danger small" type="submit">מחק</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+          <tr id="edit-user-<%= u.id %>" hidden>
+            <td colspan="5">
+              <div class="row">
+                <form method="post" action="/settings/users/<%= u.id %>" class="actions" style="flex-wrap:wrap; gap:.5rem">
+                  <div><label style="margin:0">שם</label><input name="name" value="<%= u.name %>" /></div>
+                  <div><label style="margin:0">מייל</label><input name="email" value="<%= u.email || '' %>" placeholder="name@example.com" /></div>
+                  <div><label style="margin:0">הרשאה</label>
+                    <select name="role">
+                      <option value="secretary" <%= u.role === 'secretary' ? 'selected' : '' %>>מזכירה</option>
+                      <option value="owner" <%= u.role === 'owner' ? 'selected' : '' %>>בעלים</option>
+                    </select>
+                  </div>
+                  <div style="align-self:end"><button class="small" type="submit">שמור</button></div>
+                </form>
+                <form method="post" action="/settings/users/<%= u.id %>/reset-password" class="actions" style="gap:.5rem" onsubmit="return confirm('לאפס סיסמה למשתמש זה?')">
+                  <div><label style="margin:0">סיסמה חדשה (איפוס ע"י בעלים)</label><input type="text" name="password" minlength="6" placeholder="לפחות 6 תווים" required /></div>
+                  <div style="align-self:end"><button class="secondary small" type="submit">אפס סיסמה</button></div>
+                </form>
+              </div>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+
+    <h3 style="margin:1rem 0 .3rem">הוספת משתמש</h3>
+    <form method="post" action="/settings/users" class="actions" style="flex-wrap:wrap; gap:.5rem; max-width:900px">
+      <div><label style="margin:0">שם *</label><input name="name" required /></div>
+      <div><label style="margin:0">שם משתמש (לוגין) *</label><input name="username" required /></div>
+      <div><label style="margin:0">מייל</label><input name="email" placeholder="name@example.com" /></div>
+      <div><label style="margin:0">הרשאה</label>
+        <select name="role">
+          <option value="secretary">מזכירה</option>
+          <option value="owner">בעלים</option>
+        </select>
+      </div>
+      <div><label style="margin:0">סיסמה ראשונית *</label><input type="text" name="password" minlength="6" required /></div>
+      <div style="align-self:end"><button type="submit">הוסף משתמש</button></div>
+    </form>
+    <p class="muted" style="margin-top:.6rem">איפוס סיסמה דרך המייל למשתמשים אחרים — יופעל לאחר חיבור שירות מייל (ראה הערה למטה). בינתיים אפשר לאפס ידנית כאן.</p>
+  </div>
+</details>
 <%- include('../partials/footer') %>

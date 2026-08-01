@@ -27,12 +27,12 @@
   <thead>
     <tr>
       <th>#</th><th>ספק</th><th>חנות</th><th>מס' חשבונית</th><th>הקצאה</th>
-      <th>תאריך</th><th>סוג</th><th class="right">סכום</th><th>סטטוס</th>
+      <th>תאריך</th><th>סוג</th><th class="right">סכום</th><th class="no-print" data-nosort>עריכה</th><th>סטטוס</th>
     </tr>
   </thead>
   <tbody>
     <% if (invoices.length === 0) { %>
-      <tr><td colspan="9" class="muted">אין חשבוניות להצגה.</td></tr>
+      <tr><td colspan="10" class="muted">אין חשבוניות להצגה.</td></tr>
     <% } %>
     <% invoices.forEach(function(i){ %>
       <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer">
@@ -48,6 +48,11 @@
         <td><%= i.invoice_date %></td>
         <td><%= i.doc_type === 'credit_note' ? 'זיכוי' : i.doc_type === 'tax_invoice_receipt' ? 'חש/קבלה' : 'חש. מס' %></td>
         <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
+        <td class="no-print" onclick="event.stopPropagation()">
+          <% if (i.status !== 'paid') { %>
+            <a class="btn secondary small" href="/invoices/<%= i.id %>/edit">ערוך</a>
+          <% } else { %>—<% } %>
+        </td>
         <td><span class="badge b-<%= i.status %>"><%= statusLabel(i.status) %></span></td>
       </tr>
     <% }); %>
