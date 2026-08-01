@@ -1,14 +1,11 @@
-import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import multer from 'multer';
 import { config } from '../config.js';
+import { putBuffer } from '../lib/storage.js';
 
-// Stage 1b: attach a scan/photo of the physical invoice (no OCR — that is stage 3).
-// Files are stored on disk under uploads/ (gitignored, backed up out-of-band per §12)
-// with a non-guessable UUID filename; only the filename is persisted in invoices.image_path.
-
-fs.mkdirSync(config.uploadsDir, { recursive: true });
+// Attach a scan/photo of a physical invoice / expense note. The file is parsed into memory,
+// then handed to the storage layer (local disk or Vercel Blob). Only the returned opaque ref
+// is persisted (invoices.image_path / z_expenses.image_path) — never a raw disk path.
 
 const ALLOWED = new Map([
   ['image/jpeg', '.jpg'],
@@ -18,36 +15,36 @@ const ALLOWED = new Map([
   ['application/pdf', '.pdf'],
 ]);
 
-const storage = multer.diskStorage({
-  destination(req, file, cb) {
-    cb(null, config.uploadsDir);
-  },
-  filename(req, file, cb) {
-    const ext = ALLOWED.get(file.mimetype) || path.extname(file.originalname) || '';
-    cb(null, `${crypto.randomUUID()}${ext}`);
-  },
-});
-
 function fileFilter(req, file, cb) {
   if (ALLOWED.has(file.mimetype)) return cb(null, true);
   cb(new Error('סוג קובץ לא נתמך — רק תמונות (JPG/PNG/WEBP/GIF) או PDF'));
 }
 
-export const uploadInvoiceImage = multer({
-  storage,
+const uploadInvoiceImage = multer({
+  storage: multer.memoryStorage(),
   fileFilter,
   limits: { fileSize: config.maxUploadBytes, files: 1 },
 }).single('image');
 
 /**
- * Wrap the multer middleware so upload errors (bad type, too large) render as a
- * friendly message instead of a 500. Attaches nothing else — the route reads req.file.
+ * Wrap multer: parse the upload into memory, persist it via the storage layer, and expose the
+ * stored ref as req.file.filename (so routes keep persisting req.file.filename). Upload/storage
+ * errors surface as req.uploadError (a friendly message) rather than a 500.
  */
 export function handleInvoiceImage(req, res, next) {
-  uploadInvoiceImage(req, res, (err) => {
+  uploadInvoiceImage(req, res, async (err) => {
     if (err) {
       req.uploadError = err.message;
+      return next();
     }
-    next();
+    if (!req.file) return next();
+    try {
+      const ext = ALLOWED.get(req.file.mimetype) || path.extname(req.file.originalname) || '';
+      req.file.filename = await putBuffer(req.file.buffer, ext, req.file.mimetype);
+      next();
+    } catch (e) {
+      req.uploadError = `שמירת הקובץ נכשלה: ${e.message}`;
+      next();
+    }
   });
 }

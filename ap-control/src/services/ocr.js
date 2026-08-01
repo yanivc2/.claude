@@ -1,9 +1,8 @@
-import path from 'node:path';
 import { getExecutor, nowTs } from '../db/adapter.js';
-import { config } from '../config.js';
 import { RuleError } from '../lib/errors.js';
 import { extractFields } from '../lib/ocrExtract.js';
 import { recognizeWithTesseract } from '../ocr/tesseract.js';
+import { localPath } from '../lib/storage.js';
 import { getInvoice } from './invoices.js';
 import { logAction } from './audit.js';
 
@@ -25,7 +24,7 @@ export async function runOcrForInvoice(
     throw new RuleError('OCR', 'OCR על PDF אינו נתמך בשלב 3 — צרף תמונה (JPG/PNG)');
   }
 
-  const imagePath = path.join(config.uploadsDir, path.basename(invoice.image_path));
+  const imagePath = await localPath(invoice.image_path);
   const rawText = await recognize(imagePath);
   const extracted = extractFields(rawText);
 

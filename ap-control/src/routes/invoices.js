@@ -1,5 +1,3 @@
-import path from 'node:path';
-import fs from 'node:fs';
 import { Router } from 'express';
 import {
   listInvoices,
@@ -14,18 +12,16 @@ import {
 import { listSuppliers } from '../services/suppliers.js';
 import { runOcrForInvoice, compareToInvoice, getOcr } from '../services/ocr.js';
 import { getExecutor } from '../db/adapter.js';
-import { config } from '../config.js';
 import { toAgorot } from '../lib/money.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
+import { getObject, del as removeStored } from '../lib/storage.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
 
-/** Safely delete an uploaded file by bare filename (ignores missing files). */
-function removeUpload(filename) {
-  if (!filename) return;
-  const p = path.join(config.uploadsDir, path.basename(filename));
-  fs.rm(p, { force: true }, () => {});
+/** Best-effort delete of a stored upload by its ref (fire-and-forget; never throws). */
+function removeUpload(ref) {
+  if (ref) void removeStored(ref);
 }
 
 async function formData() {
@@ -135,7 +131,8 @@ router.get('/:id/image', async (req, res, next) => {
   try {
     const invoice = await getInvoice(Number(req.params.id));
     if (!invoice.image_path) return res.status(404).send('אין תמונה');
-    return res.sendFile(path.join(config.uploadsDir, path.basename(invoice.image_path)));
+    const { buffer, contentType } = await getObject(invoice.image_path);
+    return res.type(contentType).send(buffer);
   } catch (err) {
     next(err);
   }

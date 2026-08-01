@@ -5,8 +5,6 @@ import {
   invoiceLookup,
   profitability,
 } from '../services/reports.js';
-import path from 'node:path';
-import fs from 'node:fs';
 import {
   createZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
   addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
@@ -15,18 +13,17 @@ import {
   zReconciliationStatus,
 } from '../services/zreports.js';
 import { getExecutor } from '../db/adapter.js';
-import { config } from '../config.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
+import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
 import { RuleError } from '../lib/errors.js';
 
 const router = Router();
 
-function removeUpload(filename) {
-  if (!filename) return;
-  fs.rm(path.join(config.uploadsDir, path.basename(filename)), { force: true }, () => {});
+function removeUpload(ref) {
+  if (ref) void removeStored(ref);
 }
 
 function zUrl(req, id) {
@@ -344,7 +341,8 @@ router.get('/zexpenses/:id/image', async (req, res, next) => {
   try {
     const e = await getExpense(Number(req.params.id));
     if (!e.image_path) return res.status(404).send('אין תמונה');
-    return res.sendFile(path.join(config.uploadsDir, path.basename(e.image_path)));
+    const { buffer, contentType } = await getObject(e.image_path);
+    return res.type(contentType).send(buffer);
   } catch (err) {
     next(err);
   }
