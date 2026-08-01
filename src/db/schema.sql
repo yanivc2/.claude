@@ -155,7 +155,6 @@ CREATE TABLE IF NOT EXISTS z_reports (
   drawer_hakafa    INTEGER NOT NULL DEFAULT 0,   -- הקפה
   drawer_vouchers  INTEGER NOT NULL DEFAULT 0,   -- תווי קניה
   drawer_total     INTEGER NOT NULL DEFAULT 0,   -- סה"כ מגירה (auto = sum of the five above)
-  drawer_z         INTEGER NOT NULL DEFAULT 0,   -- מגירה Z (register printout; reconciled vs cash+check+credit)
   -- הפקדות (phase 2c)
   deposit_amount   INTEGER,
   deposit_bag      TEXT,

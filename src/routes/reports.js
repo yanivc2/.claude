@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import {
   createZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
   addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
-  setDeposit, cashReconciliation, drawerReconciliation, DENOMS,
+  setDeposit, cashReconciliation, DENOMS,
 } from '../services/zreports.js';
 import { getDb } from '../db/index.js';
 import { config } from '../config.js';
@@ -41,7 +41,6 @@ function renderZReport(req, res, id, extra = {}) {
     denoms: DENOMS,
     depositCounts: zr.deposit_breakdown ? JSON.parse(zr.deposit_breakdown) : {},
     cashRecon: cashReconciliation(id),
-    drawerRecon: drawerReconciliation(id),
     error: null,
     notice: null,
     ...extra,
@@ -186,7 +185,6 @@ router.post('/zreports', (req, res, next) => {
         drawerCredit: toAgorot(b.drawer_credit),
         drawerHakafa: toAgorot(b.drawer_hakafa),
         drawerVouchers: toAgorot(b.drawer_vouchers),
-        drawerZ: toAgorot(b.drawer_z),
       },
       req.user,
     );

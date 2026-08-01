@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { freshDb, owner, secretary, firstStore } from './helpers.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice } from '../src/services/invoices.js';
-import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense, setDeposit, cashReconciliation, drawerReconciliation } from '../src/services/zreports.js';
+import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense, setDeposit, cashReconciliation } from '../src/services/zreports.js';
 import { profitability } from '../src/services/reports.js';
 import { toAgorot } from '../src/lib/money.js';
 
@@ -121,29 +121,14 @@ function getZReportAmount(db, id) {
   return db.prepare('SELECT deposit_amount FROM z_reports WHERE id = ?').get(id).deposit_amount;
 }
 
-test('drawer reconciliation: cash + check + credit vs מגירה Z (separate field)', () => {
+test('drawer_total sums all five drawer items (סה"כ מגירה)', () => {
   const db = freshDb();
   const store = firstStore(db);
   const sec = secretary(db);
-  // cash 300 + check 100 + credit 200 = 600; drawer_z entered as 600 -> match
-  const zMatch = createZReport({
+  const z = createZReport({
     storeId: store.id, zNumber: '501', zDate: '2026-07-01', dailyTotal: toAgorot('600'),
     drawerCash: toAgorot('300'), drawerCheck: toAgorot('100'), drawerCredit: toAgorot('200'),
-    drawerHakafa: toAgorot('50'), drawerVouchers: toAgorot('10'), drawerZ: toAgorot('600'),
+    drawerHakafa: toAgorot('50'), drawerVouchers: toAgorot('10'),
   }, sec, db);
-  const rm = drawerReconciliation(zMatch.id, db);
-  assert.equal(rm.sum, toAgorot('600'));
-  assert.equal(rm.z, toAgorot('600'));
-  assert.equal(rm.diff, 0);
-  // drawer_total still sums all five (incl. hakafa+vouchers)
-  assert.equal(zMatch.drawer_total, toAgorot('660'));
-  // drawer_z 550 -> shortage of 50
-  const zBad = createZReport({
-    storeId: store.id, zNumber: '502', zDate: '2026-07-02', dailyTotal: toAgorot('600'),
-    drawerCash: toAgorot('300'), drawerCheck: toAgorot('100'), drawerCredit: toAgorot('200'),
-    drawerZ: toAgorot('550'),
-  }, sec, db);
-  const rb = drawerReconciliation(zBad.id, db);
-  assert.equal(rb.diff, toAgorot('550') - toAgorot('600')); // -50 (חוסר)
-  assert.ok(rb.diff < 0);
+  assert.equal(z.drawer_total, toAgorot('660'));
 });

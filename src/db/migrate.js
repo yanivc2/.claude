@@ -8,19 +8,6 @@
  */
 export function migrate(db) {
   migratePaymentsMethods(db);
-  migrateDrawerZ(db);
-}
-
-// Adds the drawer_z column (מגירה Z — the register printout reconciled against
-// cash+check+credit) to z_reports if an older database predates it.
-function migrateDrawerZ(db) {
-  const hasTable = db
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='z_reports'")
-    .get();
-  if (!hasTable) return;
-  const cols = db.prepare('PRAGMA table_info(z_reports)').all().map((c) => c.name);
-  if (cols.includes('drawer_z')) return;
-  db.exec('ALTER TABLE z_reports ADD COLUMN drawer_z INTEGER NOT NULL DEFAULT 0;');
 }
 
 // Adds the payment-method columns (method/reference/payer_name/card_last4/batch_number) and
