@@ -10,6 +10,8 @@ import {
   blockSupplier,
   deleteSupplier,
 } from '../services/suppliers.js';
+import { submitRequest } from '../services/changeRequests.js';
+import { describeSupplier } from '../lib/changeSummary.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -132,16 +134,28 @@ router.get('/:id/edit', async (req, res, next) => {
 });
 
 router.post('/:id/edit', async (req, res, next) => {
+  const id = Number(req.params.id);
   try {
-    await updateSupplier(
-      Number(req.params.id),
-      {
-        name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
-        phone: req.body.phone, email: req.body.email,
-        contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
-      },
-      req.user,
-    );
+    const fields = {
+      name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
+      phone: req.body.phone, email: req.body.email,
+      contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
+    };
+    // Non-owners: queue the edit for approval.
+    if (req.user.role !== 'owner') {
+      const current = await getSupplier(id);
+      await submitRequest(
+        { action: 'supplier.update', entityType: 'supplier', entityId: id, payload: { id, fields }, summary: describeSupplier(current, fields) },
+        req.user,
+      );
+      return res.render('suppliers/edit', {
+        title: `עריכת ספק — ${current.name}`,
+        supplier: current,
+        error: null,
+        notice: 'בקשת העריכה נשלחה לאישור הבעלים. השינוי יבוצע לאחר אישור.',
+      });
+    }
+    await updateSupplier(id, fields, req.user);
     res.redirect(303, '/suppliers');
   } catch (err) {
     if (err instanceof RuleError) {

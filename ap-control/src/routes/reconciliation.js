@@ -12,7 +12,10 @@ import {
   listTransactions,
   deleteTransaction,
   editTransaction,
+  getTransaction,
 } from '../services/bankTransactions.js';
+import { submitRequest } from '../services/changeRequests.js';
+import { describeBankTxn } from '../lib/changeSummary.js';
 import {
   classify,
   confirmMatch,
@@ -139,17 +142,24 @@ router.post('/match', async (req, res, next) => {
 
 router.post('/txn/:id/edit', async (req, res, next) => {
   const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  const id = Number(req.params.id);
   try {
-    await editTransaction(
-      Number(req.params.id),
-      {
-        txnDate: req.body.txn_date,
-        amount: toAgorot(req.body.amount),
-        description: req.body.description || null,
-        rawReference: req.body.reference || null,
-      },
-      req.user,
-    );
+    const fields = {
+      txnDate: req.body.txn_date,
+      amount: toAgorot(req.body.amount),
+      description: req.body.description || null,
+      rawReference: req.body.reference || null,
+    };
+    // Non-owners: queue the edit for approval.
+    if (req.user.role !== 'owner') {
+      const current = await getTransaction(id);
+      await submitRequest(
+        { action: 'bank_txn.edit', entityType: 'bank_transaction', entityId: id, payload: { id, fields }, summary: describeBankTxn(current, fields) },
+        req.user,
+      );
+      return renderPage(req, res, accountId, { notice: 'בקשת העריכה נשלחה לאישור הבעלים.' });
+    }
+    await editTransaction(id, fields, req.user);
     await renderPage(req, res, accountId, { notice: 'התנועה עודכנה.' });
   } catch (err) {
     if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
