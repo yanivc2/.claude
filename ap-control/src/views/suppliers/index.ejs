@@ -43,11 +43,14 @@
                 <button class="danger small" type="submit">חסום</button>
               </form>
             <% } %>
+            <form method="post" action="/suppliers/<%= s.id %>/delete" onsubmit="return confirm('למחוק את הספק לצמיתות? (אפשרי רק לספק ללא חשבוניות)')">
+              <button class="danger small" type="submit">מחק</button>
+            </form>
           </div>
         </td>
       </tr>
     <% }); %>
   </tbody>
 </table>
-<p class="muted">אישור/חסימת ספק = פעולת בעלים בלבד (R6). החלף לתפקיד "בעלים" בראש העמוד.</p>
+<p class="muted">אישור / חסימה / מחיקה — פעולות בעלים. מחיקה אפשרית רק לספק שאין לו חשבוניות (אחרת חסום אותו).</p>
 <%- include('../partials/footer') %>

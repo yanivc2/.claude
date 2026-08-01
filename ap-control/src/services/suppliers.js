@@ -113,6 +113,21 @@ export async function blockSupplier(id, actor, reason = null, x = getExecutor())
   return getSupplier(id, x);
 }
 
+/**
+ * Delete a supplier — owner only. Refused if any invoice references it (block it instead, so
+ * history is preserved). Intended for cleaning up mistaken/duplicate entries.
+ */
+export async function deleteSupplier(id, actor, x = getExecutor()) {
+  requireOwner(actor);
+  await getSupplier(id, x);
+  const used = await x.one('SELECT COUNT(*) AS n FROM invoices WHERE supplier_id = ?', [id]);
+  if (used.n > 0) {
+    throw new RuleError('IN_USE', `לספק זה יש ${used.n} חשבוניות — לא ניתן למחוק. חסום אותו במקום.`);
+  }
+  await x.run('DELETE FROM suppliers WHERE id = ?', [id]);
+  await logAction({ userId: actor.id, action: 'supplier.delete', entityType: 'supplier', entityId: id }, x);
+}
+
 function requireOwner(actor) {
   if (!actor || actor.role !== 'owner') {
     throw new AuthError('אישור/חסימת ספק — פעולת בעלים בלבד (R6)');

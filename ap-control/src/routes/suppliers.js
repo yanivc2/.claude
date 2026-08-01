@@ -6,6 +6,7 @@ import {
   searchSuppliers,
   approveSupplier,
   blockSupplier,
+  deleteSupplier,
 } from '../services/suppliers.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
@@ -102,6 +103,16 @@ router.post('/:id/block', async (req, res, next) => {
     res.redirect('/suppliers');
   } catch (err) {
     if (err instanceof AuthError) return renderList(res, err.message);
+    next(err);
+  }
+});
+
+router.post('/:id/delete', async (req, res, next) => {
+  try {
+    await deleteSupplier(Number(req.params.id), req.user);
+    res.redirect('/suppliers');
+  } catch (err) {
+    if (err instanceof AuthError || err instanceof RuleError) return renderList(res, err.message);
     next(err);
   }
 });

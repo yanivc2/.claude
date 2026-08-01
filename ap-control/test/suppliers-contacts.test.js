@@ -6,7 +6,12 @@ import {
   updateSupplierContacts,
   searchSuppliers,
   getSupplier,
+  deleteSupplier,
+  approveSupplier,
 } from '../src/services/suppliers.js';
+import { createInvoice } from '../src/services/invoices.js';
+import { firstStore } from './helpers.js';
+import { toAgorot } from '../src/lib/money.js';
 
 test('createSupplier stores contact details', async () => {
   const db = await freshDb();
@@ -32,6 +37,24 @@ test('updateSupplierContacts edits contact fields; blanks become null', async ()
   assert.equal(after.email, 'new@x.com');
   assert.equal(after.contact_name, 'משה');
   assert.equal(after.contact_phone, null);
+});
+
+test('deleteSupplier removes an unused supplier but refuses one with invoices', async () => {
+  const db = await freshDb();
+  const o = await owner(db);
+  const st = await firstStore(db);
+  const del = await createSupplier({ name: 'למחיקה' }, o, db);
+  await deleteSupplier(del.id, o, db);
+  await assert.rejects(getSupplier(del.id, db), /לא נמצא/);
+
+  // supplier with an invoice cannot be deleted
+  const keep = await approveSupplier((await createSupplier({ name: 'עם חשבונית' }, o, db)).id, o, db);
+  await createInvoice(
+    { supplierId: keep.id, storeId: st.id, invoiceNumber: 'K1', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('10'), vatAmount: 0, docType: 'tax_invoice' },
+    o,
+    db,
+  );
+  await assert.rejects(deleteSupplier(keep.id, o, db), /לא ניתן למחוק/);
 });
 
 test('searchSuppliers matches name / tax id / phone / contact', async () => {

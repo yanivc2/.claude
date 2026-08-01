@@ -16,7 +16,7 @@
     <nav>
       <a href="/" class="<%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
       <a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>">חשבוניות</a>
-      <a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>">צ׳קים</a>
+      <a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>">תשלומים</a>
       <a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>">ספקים</a>
       <a href="/reports/outstanding" class="<%= path === '/reports/outstanding' ? 'active' : '' %>">צ׳קים בחוץ</a>
       <a href="/reconciliation" class="<%= path.startsWith('/reconciliation') ? 'active' : '' %>">התאמת בנק</a>
@@ -30,6 +30,7 @@
     <span class="role-badge <%= currentUser.role === 'owner' ? 'role-owner' : '' %>">
       <%= currentUser.name %> · <%= currentUser.role === 'owner' ? 'בעלים' : 'מזכירה' %>
     </span>
+    <a href="/account/password" class="btn secondary small">סיסמה</a>
     <form method="post" action="/logout" style="display:inline">
       <button type="submit" class="btn secondary small">התנתק</button>
     </form>
