@@ -16,6 +16,8 @@ import { getExecutor } from '../db/adapter.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
+import { submitRequest } from '../services/changeRequests.js';
+import { describeInvoice } from '../lib/changeSummary.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -155,20 +157,33 @@ router.post('/:id/edit', async (req, res, next) => {
   const id = Number(req.params.id);
   const b = req.body;
   try {
-    await updateInvoice(
-      id,
-      {
-        supplierId: Number(b.supplier_id),
-        storeId: Number(b.store_id),
-        invoiceNumber: b.invoice_number,
-        allocationNumber: b.allocation_number,
-        invoiceDate: b.invoice_date,
-        amountBeforeVat: toAgorot(b.amount_before_vat),
-        vatAmount: toAgorot(b.vat_amount),
-        docType: b.doc_type,
-      },
-      req.user,
-    );
+    const fields = {
+      supplierId: Number(b.supplier_id),
+      storeId: Number(b.store_id),
+      invoiceNumber: b.invoice_number,
+      allocationNumber: b.allocation_number,
+      invoiceDate: b.invoice_date,
+      amountBeforeVat: toAgorot(b.amount_before_vat),
+      vatAmount: toAgorot(b.vat_amount),
+      docType: b.doc_type,
+    };
+    // Non-owners: queue the edit for the owner's approval instead of applying it.
+    if (req.user.role !== 'owner') {
+      const current = await getInvoiceDetail(id);
+      await submitRequest(
+        { action: 'invoice.update', entityType: 'invoice', entityId: id, payload: { id, fields }, summary: describeInvoice(current, fields) },
+        req.user,
+      );
+      return res.render('invoices/edit', {
+        title: `עריכת חשבונית #${id}`,
+        invoice: current,
+        values: b,
+        ...(await formData()),
+        error: null,
+        notice: 'בקשת העריכה נשלחה לאישור הבעלים. השינוי יבוצע לאחר אישור.',
+      });
+    }
+    await updateInvoice(id, fields, req.user);
     res.redirect(303, `/invoices/${id}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {

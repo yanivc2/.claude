@@ -27,8 +27,9 @@
       <a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>">רווחיות</a>
       <a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>">יומן</a>
       <% if (currentUser.role === 'owner') { %>
-        <% if (typeof can === 'function' && can('settings')) { %><a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a><% } %>
+        <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>">אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="badge b-on_hold"><%= pendingApprovals %></span><% } %></a>
       <% } %>
+      <% if (typeof can === 'function' && can('settings')) { %><a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a><% } %>
     </nav>
     <span class="spacer"></span>
     <button type="button" class="theme-toggle" onclick="(function(){var d=document.documentElement.getAttribute('data-theme')==='dark';document.documentElement.setAttribute('data-theme',d?'light':'dark');try{localStorage.setItem('theme',d?'light':'dark');}catch(e){}})()" title="מצב כהה / בהיר" aria-label="מצב כהה / בהיר">🌓</button>

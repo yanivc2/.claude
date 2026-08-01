@@ -1,5 +1,7 @@
 <%- include('../partials/header') %>
 <h1>עריכת ספק</h1>
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <div class="card">
   <form class="stack" method="post" action="/suppliers/<%= supplier.id %>/edit">
     <label>שם ספק *</label>

@@ -1,6 +1,7 @@
 <%- include('../partials/header') %>
 <h1>עריכת חשבונית #<%= invoice.id %></h1>
 <p class="muted">עריכה זמינה עד לתשלום החשבונית. שינוי הסכומים מעדכן את הסכום הכולל אוטומטית.</p>
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 
 <div class="card">
   <form class="stack" method="post" action="/invoices/<%= invoice.id %>/edit">
