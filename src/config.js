@@ -1,8 +1,14 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
+
+// Session signing secret. MUST be set (SESSION_SECRET) in any deployment so sessions survive
+// restarts and can't be forged. Falls back to a random per-process secret for local dev — that
+// simply logs everyone out on restart, which is safe.
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
 // R4 duplicate-warning window: same supplier + same total within this many days.
 const DUP_WINDOW_DAYS = Number(process.env.DUP_WINDOW_DAYS ?? 30);
@@ -53,6 +59,17 @@ export const config = {
   // MICR *placeholder* only — never a scanner-valid magnetic line.
   checkPrinting: {
     approved: process.env.CHECK_PRINTING_APPROVED === 'true',
+  },
+  // Authentication (real login for cloud exposure). Seed passwords come from env on first run;
+  // change them afterwards. sessionSecret signs the stateless session cookie.
+  auth: {
+    sessionSecret: SESSION_SECRET,
+    sessionTtlHours: Number(process.env.SESSION_TTL_HOURS ?? 12),
+    hasExplicitSecret: Boolean(process.env.SESSION_SECRET),
+    seedOwnerUsername: process.env.OWNER_USERNAME || 'owner',
+    seedOwnerPassword: process.env.OWNER_PASSWORD || 'owner1234',
+    seedSecretaryUsername: process.env.SECRETARY_USERNAME || 'secretary',
+    seedSecretaryPassword: process.env.SECRETARY_PASSWORD || 'secretary1234',
   },
   // Z-close alerts via a DEDICATED Telegram bot (§ 2d). The bot token is a secret — read
   // from env only, never committed. chatId defaults to the owner's id but can be overridden.

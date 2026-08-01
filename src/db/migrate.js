@@ -9,6 +9,19 @@
 export function migrate(db) {
   migratePaymentsMethods(db);
   migrateSupplierContacts(db);
+  migrateUserAuth(db);
+}
+
+// Adds login columns (username / password_hash) to users for older databases.
+function migrateUserAuth(db) {
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    .get();
+  if (!hasTable) return;
+  const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+  if (!cols.includes('username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT;');
+  if (!cols.includes('password_hash')) db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT;');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;');
 }
 
 // Adds supplier contact columns (phone/email/contact_name/contact_phone) to older databases.

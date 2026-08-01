@@ -4,6 +4,7 @@ import express from 'express';
 import { currentUser } from './middleware/currentUser.js';
 import { config } from './config.js';
 import { formatIls, fromAgorot } from './lib/money.js';
+import authRoutes from './routes/auth.js';
 import indexRoutes from './routes/index.js';
 import supplierRoutes from './routes/suppliers.js';
 import invoiceRoutes from './routes/invoices.js';
@@ -44,6 +45,7 @@ export function createApp() {
     next();
   });
 
+  app.use('/', authRoutes);
   app.use('/', indexRoutes);
   app.use('/suppliers', supplierRoutes);
   app.use('/invoices', invoiceRoutes);

@@ -51,10 +51,13 @@ CREATE TABLE IF NOT EXISTS suppliers (
 
 -- §4 users ----------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
-  id   INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  role TEXT NOT NULL CHECK (role IN ('owner','secretary'))
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  name          TEXT NOT NULL,
+  role          TEXT NOT NULL CHECK (role IN ('owner','secretary')),
+  username      TEXT,           -- login handle (unique when set)
+  password_hash TEXT            -- scrypt hash; null until a password is set
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;
 
 -- §4 invoices -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoices (
