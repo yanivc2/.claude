@@ -14,7 +14,7 @@ import {
   setCreditCards, ccReconciliation, CC_BRANDS,
   zReconciliationStatus,
 } from '../services/zreports.js';
-import { getDb } from '../db/index.js';
+import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
@@ -37,13 +37,12 @@ function ils(agorot) {
   return `₪${fromAgorot(agorot)}`;
 }
 
-// Fire a Telegram alert if a Z report is unmatched after a save. No-op if the bot isn't
-// configured (see lib/notify.js). Best-effort — never throws into the request path.
-function alertIfUnmatched(req, id) {
+// Fire a Telegram alert if a Z report is unmatched after a save. Best-effort — never throws.
+async function alertIfUnmatched(req, id) {
   try {
-    const st = zReconciliationStatus(id);
+    const st = await zReconciliationStatus(id);
     if (st.matched) return;
-    const zr = getZReport(id);
+    const zr = await getZReport(id);
     const lines = st.issues.map((i) => `• ${i.label}: ${ils(i.diff)}`);
     notify(`⚠️ <b>Z לא תואם</b>\nדוח Z ${zr.z_number}\n${lines.join('\n')}\n${zUrl(req, id)}`);
   } catch {
@@ -51,24 +50,25 @@ function alertIfUnmatched(req, id) {
   }
 }
 
-function renderZReport(req, res, id, extra = {}) {
-  const zr = getZReport(id);
-  const store = getDb()
-    .prepare('SELECT st.name AS store_name, c.name AS company_name FROM stores st JOIN companies c ON c.id = st.company_id WHERE st.id = ?')
-    .get(zr.store_id);
+async function renderZReport(req, res, id, extra = {}) {
+  const zr = await getZReport(id);
+  const store = await getExecutor().one(
+    'SELECT st.name AS store_name, c.name AS company_name FROM stores st JOIN companies c ON c.id = st.company_id WHERE st.id = ?',
+    [zr.store_id],
+  );
   res.render('reports/zreport', {
     title: `דוח Z ${zr.z_number}`,
     zr,
     store,
-    expenses: listExpenses(id),
-    expensesTotal: expensesTotal(id),
+    expenses: await listExpenses(id),
+    expensesTotal: await expensesTotal(id),
     expenseTypes: EXPENSE_TYPES,
     denoms: DENOMS,
     depositCounts: zr.deposit_breakdown ? JSON.parse(zr.deposit_breakdown) : {},
-    cashRecon: cashReconciliation(id),
+    cashRecon: await cashReconciliation(id),
     ccBrands: CC_BRANDS,
-    ccRecon: ccReconciliation(id),
-    zStatus: zReconciliationStatus(id),
+    ccRecon: await ccReconciliation(id),
+    zStatus: await zReconciliationStatus(id),
     error: null,
     notice: null,
     ...extra,
@@ -85,7 +85,7 @@ function resolveRange(req) {
   const now = new Date();
   if (preset === 'week') {
     const sunday = new Date(now);
-    sunday.setDate(now.getDate() - now.getDay()); // getDay: 0=Sun
+    sunday.setDate(now.getDate() - now.getDay());
     const saturday = new Date(sunday);
     saturday.setDate(sunday.getDate() + 6);
     return { from: ymd(sunday), to: ymd(saturday), preset: 'week' };
@@ -98,23 +98,25 @@ function resolveRange(req) {
   return { from: req.query.from || req.body?.from, to: req.query.to || req.body?.to, preset: '' };
 }
 
-function storeList() {
-  return getDb()
-    .prepare(
-      `SELECT st.id, st.name, c.name AS company_name
-         FROM stores st JOIN companies c ON c.id = st.company_id ORDER BY c.name, st.name`,
-    )
-    .all();
+async function storeList() {
+  return getExecutor().many(
+    `SELECT st.id, st.name, c.name AS company_name
+       FROM stores st JOIN companies c ON c.id = st.company_id ORDER BY c.name, st.name`,
+    [],
+  );
 }
 
-function renderProfitability(req, res, extra = {}) {
+async function renderProfitability(req, res, extra = {}) {
   const { from, to, preset } = resolveRange(req);
-  const { stores, totals } = profitability(from, to);
+  const { stores, totals } = await profitability(from, to);
   const zStoreId = req.query.zstore ? Number(req.query.zstore) : null;
-  const zReports = listZReports({ storeId: zStoreId, limit: 30 }).map((z) => {
-    const status = zReconciliationStatus(z.id);
-    return { ...z, matched: status.matched, issues: status.issues };
-  });
+  const zRows = await listZReports({ storeId: zStoreId, limit: 30 });
+  const zReports = await Promise.all(
+    zRows.map(async (z) => {
+      const status = await zReconciliationStatus(z.id);
+      return { ...z, matched: status.matched, issues: status.issues };
+    }),
+  );
   res.render('reports/profitability', {
     title: 'רווחיות',
     from,
@@ -122,11 +124,11 @@ function renderProfitability(req, res, extra = {}) {
     preset,
     stores,
     totals,
-    storeOptions: storeList(),
+    storeOptions: await storeList(),
     zReports,
     unmatchedCount: zReports.filter((z) => !z.matched).length,
     zStoreId,
-    missingZ: zStoreId ? missingZNumbers(zStoreId) : [],
+    missingZ: zStoreId ? await missingZNumbers(zStoreId) : [],
     error: null,
     notice: null,
     ...extra,
@@ -134,16 +136,20 @@ function renderProfitability(req, res, extra = {}) {
 }
 
 // §7 "צ׳קים בחוץ"
-router.get('/outstanding', (req, res) => {
-  const { accounts, totalOutstanding } = outstandingChecks();
-  const detailAccountId = req.query.account ? Number(req.query.account) : null;
-  res.render('reports/outstanding', {
-    title: 'צ׳קים בחוץ',
-    accounts,
-    totalOutstanding,
-    detailAccountId,
-    detailChecks: detailAccountId ? outstandingChecksForAccount(detailAccountId) : [],
-  });
+router.get('/outstanding', async (req, res, next) => {
+  try {
+    const { accounts, totalOutstanding } = await outstandingChecks();
+    const detailAccountId = req.query.account ? Number(req.query.account) : null;
+    res.render('reports/outstanding', {
+      title: 'צ׳קים בחוץ',
+      accounts,
+      totalOutstanding,
+      detailAccountId,
+      detailChecks: detailAccountId ? await outstandingChecksForAccount(detailAccountId) : [],
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 function sendCsv(res, filename, headers, rows) {
@@ -153,62 +159,82 @@ function sendCsv(res, filename, headers, rows) {
 }
 
 // CSV export — "צ׳קים בחוץ"
-router.get('/outstanding.csv', (req, res) => {
-  const { accounts } = outstandingChecks();
-  const rows = accounts.map((a) => [a.company_name, a.store_name, a.display_name, a.outstanding_count, fromAgorot(a.outstanding)]);
-  sendCsv(res, 'outstanding-checks.csv', ['חברה', 'חנות', 'חשבון', 'מס׳ צ׳קים פתוחים', 'סכום בחוץ'], rows);
+router.get('/outstanding.csv', async (req, res, next) => {
+  try {
+    const { accounts } = await outstandingChecks();
+    const rows = accounts.map((a) => [a.company_name, a.store_name, a.display_name, a.outstanding_count, fromAgorot(a.outstanding)]);
+    sendCsv(res, 'outstanding-checks.csv', ['חברה', 'חנות', 'חשבון', 'מס׳ צ׳קים פתוחים', 'סכום בחוץ'], rows);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // §7 "בדיקת חשבונית"
-router.get('/lookup', (req, res) => {
-  const q = req.query.q || '';
-  res.render('reports/lookup', {
-    title: 'בדיקת חשבונית',
-    query: q,
-    results: q ? invoiceLookup(q) : [],
-  });
+router.get('/lookup', async (req, res, next) => {
+  try {
+    const q = req.query.q || '';
+    res.render('reports/lookup', {
+      title: 'בדיקת חשבונית',
+      query: q,
+      results: q ? await invoiceLookup(q) : [],
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // CSV export — "בדיקת חשבונית"
-router.get('/lookup.csv', (req, res) => {
-  const q = req.query.q || '';
-  const results = q ? invoiceLookup(q) : [];
-  const rows = results.map((r) => [
-    r.id, r.supplier_name, r.store_name, r.invoice_number, r.allocation_number || '',
-    r.invoice_date, fromAgorot(r.total_amount), r.invoice_status, r.check_number || '', r.payment_status || '',
-  ]);
-  sendCsv(
-    res,
-    'invoice-lookup.csv',
-    ['#', 'ספק', 'חנות', 'מס׳ חשבונית', 'הקצאה', 'תאריך', 'סכום', 'סטטוס', 'מס׳ צ׳ק', 'פירעון'],
-    rows,
-  );
+router.get('/lookup.csv', async (req, res, next) => {
+  try {
+    const q = req.query.q || '';
+    const results = q ? await invoiceLookup(q) : [];
+    const rows = results.map((r) => [
+      r.id, r.supplier_name, r.store_name, r.invoice_number, r.allocation_number || '',
+      r.invoice_date, fromAgorot(r.total_amount), r.invoice_status, r.check_number || '', r.payment_status || '',
+    ]);
+    sendCsv(
+      res,
+      'invoice-lookup.csv',
+      ['#', 'ספק', 'חנות', 'מס׳ חשבונית', 'הקצאה', 'תאריך', 'סכום', 'סטטוס', 'מס׳ צ׳ק', 'פירעון'],
+      rows,
+    );
+  } catch (err) {
+    next(err);
+  }
 });
 
 // §7 "רווחיות"
-router.get('/profitability', (req, res) => {
-  renderProfitability(req, res);
+router.get('/profitability', async (req, res, next) => {
+  try {
+    await renderProfitability(req, res);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // CSV export — "רווחיות"
-router.get('/profitability.csv', (req, res) => {
-  const { from, to } = resolveRange(req);
-  const { stores, totals } = profitability(from, to);
-  const pct = (v) => (v == null ? '' : `${v.toFixed(1)}%`);
-  const rows = stores.map((s) => [
-    s.company_name, s.store_name, fromAgorot(s.purchases), fromAgorot(s.sales),
-    fromAgorot(s.grossProfit), pct(s.marginPct), pct(s.markupPct),
-  ]);
-  rows.push(['', 'סה"כ', fromAgorot(totals.purchases), fromAgorot(totals.sales), fromAgorot(totals.grossProfit), pct(totals.marginPct), pct(totals.markupPct)]);
-  sendCsv(res, `profitability-${from}_${to}.csv`, ['חברה', 'חנות', 'קניות', 'מכירות', 'רווח גולמי', 'רווח מלמעלה (% מהמכירות)', 'רווח מלמטה (% מהעלות)'], rows);
+router.get('/profitability.csv', async (req, res, next) => {
+  try {
+    const { from, to } = resolveRange(req);
+    const { stores, totals } = await profitability(from, to);
+    const pct = (v) => (v == null ? '' : `${v.toFixed(1)}%`);
+    const rows = stores.map((s) => [
+      s.company_name, s.store_name, fromAgorot(s.purchases), fromAgorot(s.sales),
+      fromAgorot(s.grossProfit), pct(s.marginPct), pct(s.markupPct),
+    ]);
+    rows.push(['', 'סה"כ', fromAgorot(totals.purchases), fromAgorot(totals.sales), fromAgorot(totals.grossProfit), pct(totals.marginPct), pct(totals.markupPct)]);
+    sendCsv(res, `profitability-${from}_${to}.csv`, ['חברה', 'חנות', 'קניות', 'מכירות', 'רווח גולמי', 'רווח מלמעלה (% מהמכירות)', 'רווח מלמטה (% מהעלות)'], rows);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Add a Z report (יומי Z + drawer breakdown), then re-render.
-router.post('/zreports', (req, res, next) => {
+router.post('/zreports', async (req, res, next) => {
   const b = req.body;
   try {
     const storeId = Number(b.store_id);
-    createZReport(
+    await createZReport(
       {
         storeId,
         zNumber: b.z_number,
@@ -224,45 +250,45 @@ router.post('/zreports', (req, res, next) => {
     );
     // §2a: every time Z reports are entered, remind about any gap in the sequence.
     try {
-      const missing = missingZNumbers(storeId);
+      const missing = await missingZNumbers(storeId);
       if (missing.length) {
         notify(`🔢 <b>מספר Z חסר ברצף</b>\nחסרים: ${missing.join(', ')}\n${req.protocol}://${req.get('host')}/reports/profitability?zstore=${storeId}`);
       }
     } catch { /* best-effort */ }
-    renderProfitability(req, res, { notice: 'דוח Z נוסף.' });
+    await renderProfitability(req, res, { notice: 'דוח Z נוסף.' });
   } catch (err) {
     if (err instanceof RuleError) return renderProfitability(req, res, { error: err.message });
     next(err);
   }
 });
 
-router.post('/zreports/:id/delete', (req, res, next) => {
+router.post('/zreports/:id/delete', async (req, res, next) => {
   try {
-    deleteZReport(Number(req.params.id), req.user);
-    renderProfitability(req, res, { notice: 'דוח Z נמחק.' });
+    await deleteZReport(Number(req.params.id), req.user);
+    await renderProfitability(req, res, { notice: 'דוח Z נמחק.' });
   } catch (err) {
     next(err);
   }
 });
 
-// Z report detail (drawer + expenses; deposits/credit-card come in later sub-phases).
-router.get('/zreports/:id', (req, res, next) => {
+// Z report detail.
+router.get('/zreports/:id', async (req, res, next) => {
   try {
-    renderZReport(req, res, Number(req.params.id));
+    await renderZReport(req, res, Number(req.params.id));
   } catch (err) {
     next(err);
   }
 });
 
 // Add a drawer-expense line (with optional note image).
-router.post('/zreports/:id/expenses', handleInvoiceImage, (req, res, next) => {
+router.post('/zreports/:id/expenses', handleInvoiceImage, async (req, res, next) => {
   const id = Number(req.params.id);
   try {
     if (req.uploadError) {
       if (req.file) removeUpload(req.file.filename);
       return renderZReport(req, res, id, { error: req.uploadError });
     }
-    addExpense(
+    await addExpense(
       id,
       {
         expenseDate: req.body.expense_date || null,
@@ -274,8 +300,8 @@ router.post('/zreports/:id/expenses', handleInvoiceImage, (req, res, next) => {
       },
       req.user,
     );
-    alertIfUnmatched(req, id);
-    renderZReport(req, res, id, { notice: 'הוצאה נוספה.' });
+    await alertIfUnmatched(req, id);
+    await renderZReport(req, res, id, { notice: 'הוצאה נוספה.' });
   } catch (err) {
     if (req.file) removeUpload(req.file.filename);
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
@@ -284,14 +310,14 @@ router.post('/zreports/:id/expenses', handleInvoiceImage, (req, res, next) => {
 });
 
 // Save the deposit (bill counts + bag number) for a Z report.
-router.post('/zreports/:id/deposit', (req, res, next) => {
+router.post('/zreports/:id/deposit', async (req, res, next) => {
   const id = Number(req.params.id);
   try {
     const counts = {};
     for (const d of DENOMS) counts[d.value] = Number(req.body[`count_${d.key}`] || 0);
-    setDeposit(id, { counts, bag: req.body.deposit_bag }, req.user);
-    alertIfUnmatched(req, id);
-    renderZReport(req, res, id, { notice: 'הפקדה נשמרה.' });
+    await setDeposit(id, { counts, bag: req.body.deposit_bag }, req.user);
+    await alertIfUnmatched(req, id);
+    await renderZReport(req, res, id, { notice: 'הפקדה נשמרה.' });
   } catch (err) {
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
     next(err);
@@ -299,14 +325,14 @@ router.post('/zreports/:id/deposit', (req, res, next) => {
 });
 
 // Save the credit-card report (per-brand amounts) for a Z report.
-router.post('/zreports/:id/creditcards', (req, res, next) => {
+router.post('/zreports/:id/creditcards', async (req, res, next) => {
   const id = Number(req.params.id);
   try {
     const amounts = {};
     for (const b of CC_BRANDS) amounts[b.key] = toAgorot(req.body[`cc_${b.key}`]);
-    setCreditCards(id, { amounts }, req.user);
-    alertIfUnmatched(req, id);
-    renderZReport(req, res, id, { notice: 'דוח אשראי נשמר.' });
+    await setCreditCards(id, { amounts }, req.user);
+    await alertIfUnmatched(req, id);
+    await renderZReport(req, res, id, { notice: 'דוח אשראי נשמר.' });
   } catch (err) {
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
     next(err);
@@ -314,9 +340,9 @@ router.post('/zreports/:id/creditcards', (req, res, next) => {
 });
 
 // Serve an expense note image.
-router.get('/zexpenses/:id/image', (req, res, next) => {
+router.get('/zexpenses/:id/image', async (req, res, next) => {
   try {
-    const e = getExpense(Number(req.params.id));
+    const e = await getExpense(Number(req.params.id));
     if (!e.image_path) return res.status(404).send('אין תמונה');
     return res.sendFile(path.join(config.uploadsDir, path.basename(e.image_path)));
   } catch (err) {
@@ -324,11 +350,11 @@ router.get('/zexpenses/:id/image', (req, res, next) => {
   }
 });
 
-router.post('/zexpenses/:id/delete', (req, res, next) => {
+router.post('/zexpenses/:id/delete', async (req, res, next) => {
   try {
-    const removed = deleteExpense(Number(req.params.id), req.user);
+    const removed = await deleteExpense(Number(req.params.id), req.user);
     if (removed.image_path) removeUpload(removed.image_path);
-    renderZReport(req, res, removed.z_report_id, { notice: 'הוצאה נמחקה.' });
+    await renderZReport(req, res, removed.z_report_id, { notice: 'הוצאה נמחקה.' });
   } catch (err) {
     next(err);
   }

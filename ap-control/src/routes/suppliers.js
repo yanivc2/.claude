@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import {
   listSuppliers,
-  getSupplier,
   createSupplier,
   updateSupplierContacts,
   searchSuppliers,
@@ -12,29 +11,37 @@ import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
 
-router.get('/', (req, res) => {
-  res.render('suppliers/index', {
-    title: 'ספקים',
-    suppliers: listSuppliers(req.query.status || null),
-    filter: req.query.status || '',
-  });
+router.get('/', async (req, res, next) => {
+  try {
+    res.render('suppliers/index', {
+      title: 'ספקים',
+      suppliers: await listSuppliers(req.query.status || null),
+      filter: req.query.status || '',
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // "אנשי קשר ספקים" tab — searchable list with contact details, inline-editable.
-router.get('/contacts', (req, res) => {
-  const q = req.query.q || '';
-  res.render('suppliers/contacts', {
-    title: 'אנשי קשר ספקים',
-    suppliers: q ? searchSuppliers(q) : listSuppliers(),
-    q,
-    notice: null,
-    error: null,
-  });
+router.get('/contacts', async (req, res, next) => {
+  try {
+    const q = req.query.q || '';
+    res.render('suppliers/contacts', {
+      title: 'אנשי קשר ספקים',
+      suppliers: q ? await searchSuppliers(q) : await listSuppliers(),
+      q,
+      notice: null,
+      error: null,
+    });
+  } catch (err) {
+    next(err);
+  }
 });
 
-router.post('/:id/contacts', (req, res, next) => {
+router.post('/:id/contacts', async (req, res, next) => {
   try {
-    updateSupplierContacts(
+    await updateSupplierContacts(
       Number(req.params.id),
       {
         phone: req.body.phone,
@@ -54,9 +61,9 @@ router.get('/new', (req, res) => {
   res.render('suppliers/new', { title: 'ספק חדש', values: {}, error: null });
 });
 
-router.post('/', (req, res, next) => {
+router.post('/', async (req, res, next) => {
   try {
-    const supplier = createSupplier(
+    const supplier = await createSupplier(
       {
         name: req.body.name,
         taxId: req.body.tax_id,
@@ -79,9 +86,9 @@ router.post('/', (req, res, next) => {
   }
 });
 
-router.post('/:id/approve', (req, res, next) => {
+router.post('/:id/approve', async (req, res, next) => {
   try {
-    approveSupplier(Number(req.params.id), req.user);
+    await approveSupplier(Number(req.params.id), req.user);
     res.redirect('/suppliers?status=pending');
   } catch (err) {
     if (err instanceof AuthError) return renderList(res, err.message);
@@ -89,9 +96,9 @@ router.post('/:id/approve', (req, res, next) => {
   }
 });
 
-router.post('/:id/block', (req, res, next) => {
+router.post('/:id/block', async (req, res, next) => {
   try {
-    blockSupplier(Number(req.params.id), req.user, req.body.reason || null);
+    await blockSupplier(Number(req.params.id), req.user, req.body.reason || null);
     res.redirect('/suppliers');
   } catch (err) {
     if (err instanceof AuthError) return renderList(res, err.message);
@@ -99,10 +106,10 @@ router.post('/:id/block', (req, res, next) => {
   }
 });
 
-function renderList(res, error) {
+async function renderList(res, error) {
   res.status(403).render('suppliers/index', {
     title: 'ספקים',
-    suppliers: listSuppliers(null),
+    suppliers: await listSuppliers(null),
     filter: '',
     error,
   });

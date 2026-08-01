@@ -14,41 +14,47 @@ const router = Router();
 // Everything here is owner-only (structural configuration).
 router.use(requireOwner);
 
-function render(req, res, extra = {}) {
+async function render(req, res, extra = {}) {
   res.render('settings/index', {
     title: 'הגדרות — חנויות וחשבונות',
-    companies: listStructure(),
+    companies: await listStructure(),
     error: null,
     notice: null,
     ...extra,
   });
 }
 
-router.get('/', (req, res) => render(req, res));
-
-router.post('/companies', (req, res, next) => {
+router.get('/', async (req, res, next) => {
   try {
-    createCompany({ name: req.body.name, companyType: req.body.company_type, taxId: req.body.tax_id }, req.user);
-    render(req, res, { notice: 'חברה נוספה.' });
+    await render(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/companies', async (req, res, next) => {
+  try {
+    await createCompany({ name: req.body.name, companyType: req.body.company_type, taxId: req.body.tax_id }, req.user);
+    await render(req, res, { notice: 'חברה נוספה.' });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
   }
 });
 
-router.post('/companies/:id', (req, res, next) => {
+router.post('/companies/:id', async (req, res, next) => {
   try {
-    updateCompany(Number(req.params.id), { name: req.body.name, taxId: req.body.tax_id }, req.user);
-    render(req, res, { notice: 'פרטי החברה עודכנו.' });
+    await updateCompany(Number(req.params.id), { name: req.body.name, taxId: req.body.tax_id }, req.user);
+    await render(req, res, { notice: 'פרטי החברה עודכנו.' });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
   }
 });
 
-router.post('/stores', (req, res, next) => {
+router.post('/stores', async (req, res, next) => {
   try {
-    createStoreWithAccount(
+    await createStoreWithAccount(
       {
         companyId: Number(req.body.company_id),
         storeName: req.body.store_name,
@@ -60,17 +66,17 @@ router.post('/stores', (req, res, next) => {
       },
       req.user,
     );
-    render(req, res, { notice: 'חנות וחשבון בנק נוספו.' });
+    await render(req, res, { notice: 'חנות וחשבון בנק נוספו.' });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
   }
 });
 
-router.post('/accounts/:id', (req, res, next) => {
+router.post('/accounts/:id', async (req, res, next) => {
   try {
-    updateAccountDisplayName(Number(req.params.id), req.body.display_name, req.user);
-    render(req, res, { notice: 'שם התצוגה של החשבון עודכן.' });
+    await updateAccountDisplayName(Number(req.params.id), req.body.display_name, req.user);
+    await render(req, res, { notice: 'שם התצוגה של החשבון עודכן.' });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
