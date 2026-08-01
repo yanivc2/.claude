@@ -2,6 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { currentUser } from './middleware/currentUser.js';
+import { config } from './config.js';
 import { formatIls, fromAgorot } from './lib/money.js';
 import indexRoutes from './routes/index.js';
 import supplierRoutes from './routes/suppliers.js';
@@ -27,6 +28,7 @@ export function createApp() {
   app.use((req, res, next) => {
     res.locals.formatIls = formatIls;
     res.locals.fromAgorot = fromAgorot;
+    res.locals.vatRate = config.vatRate;
     res.locals.path = req.path;
     next();
   });

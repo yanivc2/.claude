@@ -63,15 +63,48 @@
         </select>
       </div>
       <div>
+        <label>סכום כולל מע"מ (₪)</label>
+        <input id="total_incl" inputmode="decimal" value="" placeholder="מלא כאן או למטה" />
+      </div>
+    </div>
+    <div class="row">
+      <div>
         <label>סכום לפני מע"מ (₪) *</label>
-        <input name="amount_before_vat" inputmode="decimal" required value="<%= values.amount_before_vat || '' %>" />
+        <input id="before_vat" name="amount_before_vat" inputmode="decimal" required value="<%= values.amount_before_vat || '' %>" />
       </div>
       <div>
         <label>מע"מ (₪)</label>
-        <input name="vat_amount" inputmode="decimal" value="<%= values.vat_amount || '' %>" />
+        <input id="vat_amount" name="vat_amount" inputmode="decimal" value="<%= values.vat_amount || '' %>" />
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <div class="muted" style="padding:.5rem 0">מע"מ <%= (vatRate*100).toFixed(0) %>% — מחושב אוטומטית</div>
       </div>
     </div>
-    <p class="muted">זיכוי יישמר כסכום שלילי אוטומטית. חשבונית זיכוי פטורה ממספר הקצאה.</p>
+    <p class="muted">מלא <strong>סכום כולל מע"מ</strong> או <strong>לפני מע"מ</strong> — השאר יחושב לבד. זיכוי יישמר כסכום שלילי. חשבונית זיכוי פטורה ממספר הקצאה.</p>
+    <script>
+      (function(){
+        var RATE = <%= vatRate %>;
+        var total = document.getElementById('total_incl');
+        var before = document.getElementById('before_vat');
+        var vat = document.getElementById('vat_amount');
+        var round2 = function(n){ return Math.round(n*100)/100; };
+        function fromTotal(){
+          var t = parseFloat(total.value); if (isNaN(t)) return;
+          var b = round2(t/(1+RATE)); before.value = b.toFixed(2); vat.value = round2(t-b).toFixed(2);
+        }
+        function fromBefore(){
+          var b = parseFloat(before.value); if (isNaN(b)) return;
+          var v = round2(b*RATE); vat.value = v.toFixed(2); total.value = round2(b+v).toFixed(2);
+        }
+        total.addEventListener('input', fromTotal);
+        before.addEventListener('input', fromBefore);
+        vat.addEventListener('input', function(){
+          var b = parseFloat(before.value), v = parseFloat(vat.value);
+          if (!isNaN(b) && !isNaN(v)) total.value = round2(b+v).toFixed(2);
+        });
+      })();
+    </script>
 
     <% const carriedImage = (typeof uploadedImage !== 'undefined' && uploadedImage) ? uploadedImage : ''; %>
     <label>תמונת חשבונית (סריקה/צילום — לא חובה)</label>

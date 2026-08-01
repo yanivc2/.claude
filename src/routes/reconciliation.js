@@ -3,6 +3,7 @@ import multer from 'multer';
 import { getDb } from '../db/index.js';
 import { toAgorot } from '../lib/money.js';
 import { parseCsv } from '../lib/csv.js';
+import { normalizeBankRows } from '../lib/bankCsv.js';
 import { RuleError } from '../lib/errors.js';
 import {
   importTransactions,
@@ -66,18 +67,15 @@ router.post('/import-csv', (req, res, next) => {
     try {
       if (uploadErr) throw new RuleError('CSV', 'העלאת הקובץ נכשלה');
       if (!req.file) throw new RuleError('CSV', 'לא נבחר קובץ CSV');
-      const rows = parseCsv(req.file.buffer.toString('utf8'));
-      const mapped = rows.map((r, i) => {
-        if (!r.date || r.amount === undefined || r.amount === '') {
-          throw new RuleError('CSV', `שורה ${i + 2}: חסר תאריך או סכום`);
-        }
-        return {
-          txnDate: r.date,
-          amount: toAgorot(r.amount),
-          description: r.description || null,
-          rawReference: r.reference || null,
-        };
-      });
+      // Supports the real Bank Hapoalim export (Hebrew headers, חובה/זכות, אסמכתא=check no.)
+      // as well as a simple date/amount/description/reference CSV.
+      let mapped;
+      try {
+        mapped = normalizeBankRows(parseCsv(req.file.buffer.toString('utf8')));
+      } catch (e) {
+        throw new RuleError('CSV', e.message);
+      }
+      if (mapped.length === 0) throw new RuleError('CSV', 'לא נמצאו תנועות בקובץ');
       const { inserted, skipped } = importTransactions(accountId, mapped, 'csv', req.user);
       return renderPage(req, res, accountId, {
         notice: `יובאו ${inserted} תנועות חדשות, ${skipped} כבר היו קיימות.`,
