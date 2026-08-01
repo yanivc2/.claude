@@ -26,25 +26,25 @@ test('amountToHebrewWords appends the shekels/agorot suffix', () => {
   assert.equal(amountToHebrewWords(9905), 'תשעים ותשעה שקלים חדשים ו-05/100 בלבד');
 });
 
-test('getCheckPrintData assembles payee, drawer, words and defaults to unapproved (DRAFT)', () => {
-  const db = freshDb();
-  const st = firstStore(db);
-  const sec = secretary(db);
-  const acct = db.prepare('SELECT id FROM bank_accounts WHERE store_id=?').get(st.id).id;
-  const sup = approveSupplier(createSupplier({ name: 'מאפיית הבוקר' }, sec, db).id, owner(db), db);
-  const { invoice } = createInvoice(
+test('getCheckPrintData assembles payee, drawer, words and defaults to unapproved (DRAFT)', async () => {
+  const db = await freshDb();
+  const st = await firstStore(db);
+  const sec = await secretary(db);
+  const acct = (await db.one('SELECT id FROM bank_accounts WHERE store_id=?', [st.id])).id;
+  const sup = await approveSupplier((await createSupplier({ name: 'מאפיית הבוקר' }, sec, db)).id, await owner(db), db);
+  const { invoice } = await createInvoice(
     { supplierId: sup.id, storeId: st.id, invoiceNumber: 'X1', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('1000'), vatAmount: toAgorot('170'), docType: 'tax_invoice' },
     sec,
     db,
   );
-  approveInvoiceForPayment(invoice.id, sec, db);
-  const payment = createPayment(
+  await approveInvoiceForPayment(invoice.id, sec, db);
+  const payment = await createPayment(
     { bankAccountId: acct, checkNumber: '8801', paymentDate: '2026-07-02', invoiceIds: [invoice.id] },
     sec,
     db,
   );
 
-  const data = getCheckPrintData(payment.id, db);
+  const data = await getCheckPrintData(payment.id, db);
   assert.deepEqual(data.payees, ['מאפיית הבוקר']);
   assert.equal(data.amountWords, 'אלף מאה ושבעים שקלים חדשים בלבד');
   assert.equal(data.account.company_name, 'על הדרך 24 שעות בע"מ');

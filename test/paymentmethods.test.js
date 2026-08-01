@@ -1,5 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import Database from 'better-sqlite3';
 import { freshDb, owner, secretary, firstStore } from './helpers.js';
 import { migrate } from '../src/db/migrate.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
@@ -9,24 +13,29 @@ import { importTransactions } from '../src/services/bankTransactions.js';
 import { autoReconcile } from '../src/services/reconciliation.js';
 import { toAgorot } from '../src/lib/money.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
 let seq = 0;
-function approvedInvoice(db, amountShekels = '100') {
+async function approvedInvoice(db, amountShekels = '100') {
   seq += 1;
-  const st = firstStore(db);
-  const sec = secretary(db);
-  const acct = db.prepare('SELECT id FROM bank_accounts WHERE store_id=?').get(st.id).id;
-  const sup = approveSupplier(createSupplier({ name: `ספק ${seq}` }, sec, db).id, owner(db), db);
-  const { invoice } = createInvoice(
+  const st = await firstStore(db);
+  const sec = await secretary(db);
+  const acct = (await db.one('SELECT id FROM bank_accounts WHERE store_id=?', [st.id])).id;
+  const sup = await approveSupplier((await createSupplier({ name: `ספק ${seq}` }, sec, db)).id, await owner(db), db);
+  const { invoice } = await createInvoice(
     { supplierId: sup.id, storeId: st.id, invoiceNumber: `PM${seq}`, invoiceDate: '2026-07-01', amountBeforeVat: toAgorot(amountShekels), vatAmount: 0, docType: 'tax_invoice' },
     sec,
     db,
   );
-  approveInvoiceForPayment(invoice.id, sec, db);
+  await approveInvoiceForPayment(invoice.id, sec, db);
   return { acct, invoiceId: invoice.id, sec };
 }
 
 test('migration rebuilds an old payments table (adds method, keeps rows)', () => {
-  const db = freshDb();
+  // SQLite-only migration path — run it on a raw better-sqlite3 handle.
+  const db = new Database(':memory:');
+  db.pragma('foreign_keys = ON');
+  db.exec(fs.readFileSync(path.join(__dirname, '..', 'src', 'db', 'schema.sql'), 'utf8'));
   db.pragma('foreign_keys = OFF');
   db.exec('DROP TABLE payments');
   db.exec(`CREATE TABLE payments (
@@ -40,6 +49,10 @@ test('migration rebuilds an old payments table (adds method, keeps rows)', () =>
     created_by INTEGER NOT NULL REFERENCES users(id),
     created_at TEXT
   )`);
+  db.exec("INSERT INTO companies (name) VALUES ('C')");
+  db.exec("INSERT INTO users (name, role) VALUES ('U','owner')");
+  db.exec("INSERT INTO stores (company_id, name) VALUES (1,'S')");
+  db.exec("INSERT INTO bank_accounts (company_id, store_id, branch, account_number, display_name) VALUES (1,1,'428','1','A')");
   db.pragma('foreign_keys = ON');
   const acct = db.prepare('SELECT id FROM bank_accounts LIMIT 1').get().id;
   const uid = db.prepare('SELECT id FROM users LIMIT 1').get().id;
@@ -55,73 +68,72 @@ test('migration rebuilds an old payments table (adds method, keeps rows)', () =>
   assert.equal(row.amount, 10000);
 });
 
-test('cash payment: payer name required', () => {
-  const db = freshDb();
-  const { acct, invoiceId, sec } = approvedInvoice(db);
-  assert.throws(
-    () => createPayment({ bankAccountId: acct, method: 'cash', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db),
+test('cash payment: payer name required', async () => {
+  const db = await freshDb();
+  const { acct, invoiceId, sec } = await approvedInvoice(db);
+  await assert.rejects(
+    createPayment({ bankAccountId: acct, method: 'cash', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db),
     /שם המשלם/,
   );
-  const p = createPayment({ bankAccountId: acct, method: 'cash', payerName: 'דני', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db);
+  const p = await createPayment({ bankAccountId: acct, method: 'cash', payerName: 'דני', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db);
   assert.equal(p.method, 'cash');
   assert.equal(p.payer_name, 'דני');
 });
 
-test('credit payment: 4-digit card required', () => {
-  const db = freshDb();
-  const { acct, invoiceId, sec } = approvedInvoice(db);
-  assert.throws(
-    () => createPayment({ bankAccountId: acct, method: 'credit', cardLast4: '12', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db),
+test('credit payment: 4-digit card required', async () => {
+  const db = await freshDb();
+  const { acct, invoiceId, sec } = await approvedInvoice(db);
+  await assert.rejects(
+    createPayment({ bankAccountId: acct, method: 'credit', cardLast4: '12', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db),
     /4 ספרות/,
   );
-  const p = createPayment({ bankAccountId: acct, method: 'credit', cardLast4: '4321', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db);
+  const p = await createPayment({ bankAccountId: acct, method: 'credit', cardLast4: '4321', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db);
   assert.equal(p.card_last4, '4321');
 });
 
-test('transfer payment requires a reference and can be auto-reconciled by it', () => {
-  const db = freshDb();
-  const { acct, invoiceId, sec } = approvedInvoice(db, '188.80'); // 18880 agorot, no VAT
-  assert.throws(
-    () => createPayment({ bankAccountId: acct, method: 'transfer', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db),
+test('transfer payment requires a reference and can be auto-reconciled by it', async () => {
+  const db = await freshDb();
+  const { acct, invoiceId, sec } = await approvedInvoice(db, '188.80'); // 18880 agorot, no VAT
+  await assert.rejects(
+    createPayment({ bankAccountId: acct, method: 'transfer', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db),
     /אסמכתא/,
   );
-  const p = createPayment({ bankAccountId: acct, method: 'transfer', reference: '473018585', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db);
+  const p = await createPayment({ bankAccountId: acct, method: 'transfer', reference: '473018585', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db);
   assert.equal(p.method, 'transfer');
   assert.equal(p.amount, toAgorot('188.80'));
 
-  // bank debit for the transfer (reference matches) -> deterministic auto-match
-  importTransactions(acct, [{ txnDate: '2026-07-03', amount: -toAgorot('188.80'), description: 'העברה לאחר', rawReference: '473018585' }], 'csv', sec, db);
-  const res = autoReconcile(acct, sec, db);
+  await importTransactions(acct, [{ txnDate: '2026-07-03', amount: -toAgorot('188.80'), description: 'העברה לאחר', rawReference: '473018585' }], 'csv', sec, db);
+  const res = await autoReconcile(acct, sec, db);
   assert.equal(res.matched, 1);
-  assert.equal(db.prepare('SELECT status FROM payments WHERE id=?').get(p.id).status, 'cleared');
+  assert.equal((await db.one('SELECT status FROM payments WHERE id=?', [p.id])).status, 'cleared');
 });
 
-test('batch payment requires batch number and reference', () => {
-  const db = freshDb();
-  const { acct, invoiceId, sec } = approvedInvoice(db);
-  assert.throws(
-    () => createPayment({ bankAccountId: acct, method: 'batch', reference: '179889097', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db),
+test('batch payment requires batch number and reference', async () => {
+  const db = await freshDb();
+  const { acct, invoiceId, sec } = await approvedInvoice(db);
+  await assert.rejects(
+    createPayment({ bankAccountId: acct, method: 'batch', reference: '179889097', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db),
     /מספר מקבץ/,
   );
-  const p = createPayment({ bankAccountId: acct, method: 'batch', batchNumber: 'MK-1', reference: '179889097', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db);
+  const p = await createPayment({ bankAccountId: acct, method: 'batch', batchNumber: 'MK-1', reference: '179889097', paymentDate: '2026-07-02', invoiceIds: [invoiceId] }, sec, db);
   assert.equal(p.method, 'batch');
   assert.equal(p.batch_number, 'MK-1');
   assert.equal(p.reference, '179889097');
 });
 
-test('R1 still enforced for non-check methods (unapproved invoice blocks a cash payment)', () => {
-  const db = freshDb();
-  const st = firstStore(db);
-  const sec = secretary(db);
-  const acct = db.prepare('SELECT id FROM bank_accounts WHERE store_id=?').get(st.id).id;
-  const sup = approveSupplier(createSupplier({ name: 'ספק R1' }, sec, db).id, owner(db), db);
-  const { invoice } = createInvoice(
+test('R1 still enforced for non-check methods (unapproved invoice blocks a cash payment)', async () => {
+  const db = await freshDb();
+  const st = await firstStore(db);
+  const sec = await secretary(db);
+  const acct = (await db.one('SELECT id FROM bank_accounts WHERE store_id=?', [st.id])).id;
+  const sup = await approveSupplier((await createSupplier({ name: 'ספק R1' }, sec, db)).id, await owner(db), db);
+  const { invoice } = await createInvoice(
     { supplierId: sup.id, storeId: st.id, invoiceNumber: 'R1x', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('50'), vatAmount: 0, docType: 'tax_invoice' },
     sec,
     db,
   ); // NOT approved for payment
-  assert.throws(
-    () => createPayment({ bankAccountId: acct, method: 'cash', payerName: 'x', paymentDate: '2026-07-02', invoiceIds: [invoice.id] }, sec, db),
+  await assert.rejects(
+    createPayment({ bankAccountId: acct, method: 'cash', payerName: 'x', paymentDate: '2026-07-02', invoiceIds: [invoice.id] }, sec, db),
     /approved_for_payment/,
   );
 });

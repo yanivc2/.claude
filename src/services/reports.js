@@ -73,22 +73,34 @@ export async function invoiceLookup(query, { companyId = null, storeId = null } 
  * (register Z totals). Gross profit = sales − purchases; margin = gross profit / sales.
  */
 export async function profitability(fromDate, toDate, x = getExecutor()) {
-  const rows = await x.many(
-    `SELECT st.id, st.name AS store_name, c.name AS company_name,
-            (SELECT COALESCE(SUM(i.total_amount),0) FROM invoices i
-              WHERE i.store_id = st.id AND i.invoice_date BETWEEN ? AND ?) AS purchases,
-            (SELECT COALESCE(SUM(z.daily_total),0) FROM z_reports z
-              WHERE z.store_id = st.id AND z.z_date BETWEEN ? AND ?) AS sales
+  // Aggregate purchases and sales per store separately, then merge in JS — avoids correlated
+  // subqueries (portable across SQLite/Postgres and cheaper than a per-store subquery).
+  const storeRows = await x.many(
+    `SELECT st.id, st.name AS store_name, c.name AS company_name
        FROM stores st JOIN companies c ON c.id = st.company_id
       ORDER BY c.name, st.name`,
-    [fromDate, toDate, fromDate, toDate],
+    [],
   );
+  const purchaseRows = await x.many(
+    `SELECT store_id, COALESCE(SUM(total_amount),0) AS amt FROM invoices
+      WHERE invoice_date BETWEEN ? AND ? GROUP BY store_id`,
+    [fromDate, toDate],
+  );
+  const salesRows = await x.many(
+    `SELECT store_id, COALESCE(SUM(daily_total),0) AS amt FROM z_reports
+      WHERE z_date BETWEEN ? AND ? GROUP BY store_id`,
+    [fromDate, toDate],
+  );
+  const purchaseByStore = new Map(purchaseRows.map((r) => [r.store_id, r.amt]));
+  const salesByStore = new Map(salesRows.map((r) => [r.store_id, r.amt]));
 
-  const stores = rows.map((r) => {
-    const grossProfit = r.sales - r.purchases;
-    const marginPct = r.sales > 0 ? (grossProfit / r.sales) * 100 : null;
-    const markupPct = r.purchases > 0 ? (grossProfit / r.purchases) * 100 : null;
-    return { ...r, grossProfit, marginPct, markupPct };
+  const stores = storeRows.map((r) => {
+    const purchases = purchaseByStore.get(r.id) || 0;
+    const sales = salesByStore.get(r.id) || 0;
+    const grossProfit = sales - purchases;
+    const marginPct = sales > 0 ? (grossProfit / sales) * 100 : null;
+    const markupPct = purchases > 0 ? (grossProfit / purchases) * 100 : null;
+    return { ...r, purchases, sales, grossProfit, marginPct, markupPct };
   });
 
   const totals = stores.reduce(
