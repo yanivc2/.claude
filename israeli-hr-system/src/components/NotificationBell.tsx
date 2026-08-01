@@ -154,8 +154,8 @@ export function NotificationBell({ openUp = false }: { openUp?: boolean }) {
 
       {open && (
         <div
-          className={`absolute right-0 z-50 max-h-[70vh] w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 ${
-            openUp ? "bottom-full mb-2" : "top-full mt-2"
+          className={`z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 fixed inset-x-3 top-16 max-h-[75vh] sm:absolute sm:inset-x-auto sm:top-auto sm:bottom-auto sm:right-0 sm:w-80 sm:max-w-[calc(100vw-1.5rem)] sm:max-h-[70vh] ${
+            openUp ? "sm:bottom-full sm:mb-2" : "sm:top-full sm:mt-2"
           }`}
         >
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">

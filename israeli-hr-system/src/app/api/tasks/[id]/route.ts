@@ -41,13 +41,14 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     },
   });
 
-  // התראה למנהל שיצר, בעת סיום.
+  // התראה למנהל שיצר, בעת סיום — כולל מי סימן (actorName) ומתי (זמן ההתראה).
   if (done && task.status !== "DONE") {
     await notifyUser(task.createdBy, {
       type: "TASK_DONE",
       title: "משימה בוצעה",
-      body: task.title,
+      body: `${me.name}: ${task.title}`,
       link: "/tasks",
+      actorName: me.name,
       companyId: task.companyId,
     }).catch(() => {});
   }

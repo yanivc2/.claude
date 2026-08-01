@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Send, Plus } from "lucide-react";
+import { Send, Plus, ChevronDown, Settings2 } from "lucide-react";
+import { FilePicker } from "./FilePicker";
 
 interface Invite {
   id: string;
@@ -132,6 +133,8 @@ export function InviteGenerator() {
   const [loading, setLoading] = useState(false);
   const [newInvite, setNewInvite] = useState<{ url: string; email: string } | null>(null);
   const [error, setError] = useState<string>("");
+  // ניהול החברות (הוספה/מחיקה) מקופל כברירת מחדל — פעולה נדירה שלא צריכה לתפוס מקום.
+  const [showCompanyMgmt, setShowCompanyMgmt] = useState(false);
 
   async function loadInvites() {
     try {
@@ -286,59 +289,74 @@ export function InviteGenerator() {
           ))}
         </select>
 
-        <div className="mt-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-3">
-          <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
-            הוספת חברה חדשה (ח.פ. וכתובת נדרשים למדיניות הפרטיות)
-          </p>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <input
-              className={inputClass}
-              placeholder="שם החברה"
-              value={newCompany}
-              onChange={(e) => setNewCompany(e.target.value)}
-            />
-            <input
-              className={inputClass}
-              placeholder="ח.פ."
-              value={newCompanyNumber}
-              onChange={(e) => setNewCompanyNumber(e.target.value)}
-            />
-            <input
-              className={inputClass}
-              placeholder="כתובת"
-              value={newCompanyAddress}
-              onChange={(e) => setNewCompanyAddress(e.target.value)}
-            />
-          </div>
-          <button
-            type="button"
-            onClick={addCompany}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/15 px-3 py-2 text-sm font-medium text-brand-700 dark:text-brand-300 transition hover:bg-brand-100 dark:hover:bg-brand-500/25"
-          >
-            <Plus size={15} strokeWidth={2.6} />
-            הוספת חברה
-          </button>
-        </div>
+        {/* ניהול חברות — מקופל כברירת מחדל כדי לא לתפוס מקום; נפתח בלחיצה */}
+        <button
+          type="button"
+          onClick={() => setShowCompanyMgmt((v) => !v)}
+          className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 transition hover:text-brand-600 dark:text-slate-400 dark:hover:text-brand-300"
+        >
+          <Settings2 size={14} />
+          ניהול חברות (הוספה / מחיקה)
+          <ChevronDown size={14} className={`transition ${showCompanyMgmt ? "rotate-180" : ""}`} />
+        </button>
 
-        {companies.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {companies.map((c) => (
-              <span
-                key={c.id}
-                className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs text-slate-600 dark:text-slate-300"
+        {showCompanyMgmt && (
+          <>
+            <div className="mt-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-3">
+              <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                הוספת חברה חדשה (ח.פ. וכתובת נדרשים למדיניות הפרטיות)
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <input
+                  className={inputClass}
+                  placeholder="שם החברה"
+                  value={newCompany}
+                  onChange={(e) => setNewCompany(e.target.value)}
+                />
+                <input
+                  className={inputClass}
+                  placeholder="ח.פ."
+                  value={newCompanyNumber}
+                  onChange={(e) => setNewCompanyNumber(e.target.value)}
+                />
+                <input
+                  className={inputClass}
+                  placeholder="כתובת"
+                  value={newCompanyAddress}
+                  onChange={(e) => setNewCompanyAddress(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={addCompany}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/15 px-3 py-2 text-sm font-medium text-brand-700 dark:text-brand-300 transition hover:bg-brand-100 dark:hover:bg-brand-500/25"
               >
-                {c.name}
-                <button
-                  type="button"
-                  onClick={() => deleteCompany(c.id, c.name)}
-                  aria-label={`מחיקת ${c.name}`}
-                  className="text-red-500 hover:text-red-700"
-                >
-                  ✕
-                </button>
-              </span>
-            ))}
-          </div>
+                <Plus size={15} strokeWidth={2.6} />
+                הוספת חברה
+              </button>
+            </div>
+
+            {companies.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {companies.map((c) => (
+                  <span
+                    key={c.id}
+                    className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs text-slate-600 dark:text-slate-300"
+                  >
+                    {c.name}
+                    <button
+                      type="button"
+                      onClick={() => deleteCompany(c.id, c.name)}
+                      aria-label={`מחיקת ${c.name}`}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -406,15 +424,11 @@ export function InviteGenerator() {
         <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
           צירוף הסכם עבודה לשליחה לעובד (אופציונלי)
         </label>
-        <input
-          type="file"
-          accept="image/*,application/pdf"
-          onChange={(e) => setContractFile(e.target.files?.[0] ?? null)}
-          className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+        <FilePicker
+          label="צילום או העלאת הסכם עבודה"
+          fileName={contractFile?.name ?? null}
+          onFile={setContractFile}
         />
-        {contractFile && (
-          <p className="mt-1 text-xs text-green-700 dark:text-green-400">מצורף: {contractFile.name}</p>
-        )}
       </div>
 
       <button
