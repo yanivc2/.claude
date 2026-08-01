@@ -36,7 +36,7 @@ test('R6: only owner can approve a supplier', async () => {
   const sec = await secretary(db);
   const sup = await createSupplier({ name: 'ספק א' }, sec, db);
   assert.equal(sup.status, 'pending');
-  await assert.rejects(approveSupplier(sup.id, sec, db), /בעלים בלבד/);
+  await assert.rejects(approveSupplier(sup.id, sec, db), /הרשאת ניהול ספקים/);
   const approved = await approveSupplier(sup.id, await owner(db), db);
   assert.equal(approved.status, 'approved');
 });
@@ -89,7 +89,7 @@ test('R3: tax invoice over 5000 without allocation -> on_hold, released by owner
     db,
   );
   assert.equal(invoice.status, 'on_hold');
-  await assert.rejects(approveInvoiceForPayment(invoice.id, sec, db), /בעלים בלבד/);
+  await assert.rejects(approveInvoiceForPayment(invoice.id, sec, db), /הרשאת החזקת חשבונית/);
   const released = await approveInvoiceForPayment(invoice.id, await owner(db), db);
   assert.equal(released.status, 'approved_for_payment');
 });

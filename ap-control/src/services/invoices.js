@@ -1,6 +1,7 @@
 import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
+import { userCan } from '../lib/permissions.js';
 import { logAction } from './audit.js';
 
 const DOC_TYPES = ['tax_invoice', 'tax_invoice_receipt', 'credit_note'];
@@ -177,9 +178,9 @@ export async function approveInvoiceForPayment(id, actor, x = getExecutor()) {
       !invoice.allocation_number &&
       Math.abs(invoice.amount_before_vat) > config.rules.allocationThresholdAgorot);
 
-  if (r3Blocks && actor.role !== 'owner') {
+  if (r3Blocks && !userCan(actor, 'hold_invoice')) {
     throw new AuthError(
-      'חשבונית זו חסומה לתשלום (R3/on_hold). שחרור/עקיפה — בעלים בלבד (R6)',
+      'חשבונית זו חסומה לתשלום (R3/on_hold). שחרור/עקיפה — נדרשת הרשאת החזקת חשבונית (R6)',
     );
   }
 
@@ -203,7 +204,7 @@ export async function approveInvoiceForPayment(id, actor, x = getExecutor()) {
 
 /** Put an invoice on hold — owner only (R6). */
 export async function putOnHold(id, reason, actor, x = getExecutor()) {
-  if (actor.role !== 'owner') throw new AuthError('החזקה/שחרור חשבונית — בעלים בלבד (R6)');
+  if (!userCan(actor, 'hold_invoice')) throw new AuthError('החזקה/שחרור חשבונית — נדרשת הרשאת החזקת חשבונית (R6)');
   const invoice = await getInvoice(id, x);
   if (invoice.status === 'paid') throw new RuleError('R', 'חשבונית ששולמה — לא ניתן להחזיק');
   await x.run("UPDATE invoices SET status = 'on_hold', hold_reason = ? WHERE id = ?", [

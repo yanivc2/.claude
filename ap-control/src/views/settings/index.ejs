@@ -9,6 +9,7 @@
   <div class="alert alert-warn"><%= schemaWarning %></div>
 <% } %>
 
+<% if (currentUser.role === 'owner') { %>
 <div class="card">
   <div class="toolbar">
     <div>
@@ -20,6 +21,7 @@
     </form>
   </div>
 </div>
+<% } %>
 
 <!-- ===== מבנה קיים (מצומצם) ===== -->
 <details class="section">
@@ -118,22 +120,30 @@
   </div>
 </details>
 
-<!-- ===== ניהול משתמשים והרשאות ===== -->
+<!-- ===== ניהול משתמשים והרשאות (בעלים בלבד) ===== -->
+<% if (currentUser.role === 'owner') { %>
+<%
+function permLabel(key){ var f = permissionCatalog.find(function(p){return p.key===key;}); return f ? f.label : key; }
+%>
 <details class="section">
   <summary>ניהול משתמשים והרשאות</summary>
   <div class="section-body">
-    <p class="muted">ההרשאה נקבעת לפי התפקיד: <strong>בעלים</strong> — גישה מלאה כולל הגדרות וביטולים; <strong>מזכירה</strong> — עבודה שוטפת בלבד. שינוי התפקיד מוסיף/מצמצם הרשאות.</p>
+    <p class="muted"><strong>בעלים</strong> — גישה מלאה. אחרת בחר תפקיד <strong>מזכירה</strong> (בסיס) ותן שם-תפקיד חופשי (למשל "מנהל") וסמן בצ׳ק-ליסט אילו הרשאות להוסיף.</p>
     <table>
-      <thead><tr><th>שם</th><th>שם משתמש</th><th>מייל</th><th>הרשאה</th><th class="no-print">פעולות</th></tr></thead>
+      <thead><tr><th>שם</th><th>שם משתמש</th><th>תפקיד</th><th>הרשאות</th><th class="no-print">פעולות</th></tr></thead>
       <tbody>
         <% users.forEach(function(u){ %>
           <tr>
-            <td><%= u.name %></td>
+            <td><%= u.name %><% if (u.email) { %><br><span class="muted" style="font-size:.8rem"><%= u.email %></span><% } %></td>
             <td class="mono"><%= u.username || '—' %></td>
-            <td><%= u.email || '—' %></td>
-            <td><span class="badge <%= u.role === 'owner' ? 'b-approved_for_payment' : 'b-recorded' %>"><%= u.role === 'owner' ? 'בעלים' : 'מזכירה' %></span></td>
+            <td>
+              <span class="badge <%= u.role === 'owner' ? 'b-approved_for_payment' : 'b-recorded' %>"><%= u.role === 'owner' ? 'בעלים' : (u.label || 'מזכירה') %></span>
+            </td>
+            <td class="muted" style="font-size:.85rem">
+              <% if (u.role === 'owner') { %>הכל<% } else if (u.permissions && u.permissions.length) { %><%= u.permissions.map(permLabel).join(' · ') %><% } else { %>בסיס בלבד<% } %>
+            </td>
             <td class="no-print">
-              <button type="button" class="secondary small" onclick="document.getElementById('edit-user-<%= u.id %>').hidden = !document.getElementById('edit-user-<%= u.id %>').hidden">ערוך</button>
+              <button type="button" class="secondary small" onclick="var e=document.getElementById('edit-user-<%= u.id %>'); e.hidden=!e.hidden">ערוך</button>
               <% if (u.id !== currentUser.id) { %>
                 <form method="post" action="/settings/users/<%= u.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את המשתמש <%= u.name %>?')">
                   <button class="danger small" type="submit">מחק</button>
@@ -143,23 +153,36 @@
           </tr>
           <tr id="edit-user-<%= u.id %>" hidden>
             <td colspan="5">
-              <div class="row">
-                <form method="post" action="/settings/users/<%= u.id %>" class="actions" style="flex-wrap:wrap; gap:.5rem">
+              <form method="post" action="/settings/users/<%= u.id %>" class="stack" style="max-width:640px">
+                <div class="row">
                   <div><label style="margin:0">שם</label><input name="name" value="<%= u.name %>" /></div>
                   <div><label style="margin:0">מייל</label><input name="email" value="<%= u.email || '' %>" placeholder="name@example.com" /></div>
-                  <div><label style="margin:0">הרשאה</label>
-                    <select name="role">
-                      <option value="secretary" <%= u.role === 'secretary' ? 'selected' : '' %>>מזכירה</option>
-                      <option value="owner" <%= u.role === 'owner' ? 'selected' : '' %>>בעלים</option>
+                </div>
+                <div class="row">
+                  <div><label style="margin:0">תפקיד בסיס</label>
+                    <select name="role" onchange="var p=this.closest('form').querySelector('.perm-box'); if(p) p.style.display = this.value==='owner'?'none':'';">
+                      <option value="secretary" <%= u.role === 'secretary' ? 'selected' : '' %>>מזכירה (בסיס)</option>
+                      <option value="owner" <%= u.role === 'owner' ? 'selected' : '' %>>בעלים (הכל)</option>
                     </select>
                   </div>
-                  <div style="align-self:end"><button class="small" type="submit">שמור</button></div>
-                </form>
-                <form method="post" action="/settings/users/<%= u.id %>/reset-password" class="actions" style="gap:.5rem" onsubmit="return confirm('לאפס סיסמה למשתמש זה?')">
-                  <div><label style="margin:0">סיסמה חדשה (איפוס ע"י בעלים)</label><input type="text" name="password" minlength="6" placeholder="לפחות 6 תווים" required /></div>
-                  <div style="align-self:end"><button class="secondary small" type="submit">אפס סיסמה</button></div>
-                </form>
-              </div>
+                  <div><label style="margin:0">שם תפקיד (תצוגה)</label><input name="label" value="<%= u.label || '' %>" placeholder="למשל: מנהל" /></div>
+                </div>
+                <div class="perm-box" style="<%= u.role === 'owner' ? 'display:none' : '' %>">
+                  <label style="margin:.4rem 0 .2rem">הרשאות</label>
+                  <div class="actions" style="flex-wrap:wrap;gap:.8rem">
+                    <% permissionCatalog.forEach(function(p){ %>
+                      <label style="display:flex;align-items:center;gap:.3rem;margin:0;font-weight:400">
+                        <input type="checkbox" name="permissions" value="<%= p.key %>" style="width:auto" <%= (u.permissions||[]).includes(p.key) ? 'checked' : '' %> /> <%= p.label %>
+                      </label>
+                    <% }); %>
+                  </div>
+                </div>
+                <div style="margin-top:.5rem"><button class="small" type="submit">שמור</button></div>
+              </form>
+              <form method="post" action="/settings/users/<%= u.id %>/reset-password" class="actions" style="gap:.5rem;margin-top:.5rem" onsubmit="return confirm('לאפס סיסמה למשתמש זה?')">
+                <div><label style="margin:0">סיסמה חדשה (איפוס ע"י בעלים)</label><input type="text" name="password" minlength="6" placeholder="לפחות 6 תווים" required /></div>
+                <div style="align-self:end"><button class="secondary small" type="submit">אפס סיסמה</button></div>
+              </form>
             </td>
           </tr>
         <% }); %>
@@ -167,20 +190,38 @@
     </table>
 
     <h3 style="margin:1rem 0 .3rem">הוספת משתמש</h3>
-    <form method="post" action="/settings/users" class="actions" style="flex-wrap:wrap; gap:.5rem; max-width:900px">
-      <div><label style="margin:0">שם *</label><input name="name" required /></div>
-      <div><label style="margin:0">שם משתמש (לוגין) *</label><input name="username" required /></div>
-      <div><label style="margin:0">מייל</label><input name="email" placeholder="name@example.com" /></div>
-      <div><label style="margin:0">הרשאה</label>
-        <select name="role">
-          <option value="secretary">מזכירה</option>
-          <option value="owner">בעלים</option>
-        </select>
+    <form method="post" action="/settings/users" class="stack" style="max-width:640px">
+      <div class="row">
+        <div><label style="margin:0">שם *</label><input name="name" required /></div>
+        <div><label style="margin:0">שם משתמש (לוגין) *</label><input name="username" required /></div>
       </div>
-      <div><label style="margin:0">סיסמה ראשונית *</label><input type="text" name="password" minlength="6" required /></div>
-      <div style="align-self:end"><button type="submit">הוסף משתמש</button></div>
+      <div class="row">
+        <div><label style="margin:0">מייל</label><input name="email" placeholder="name@example.com" /></div>
+        <div><label style="margin:0">סיסמה ראשונית *</label><input type="text" name="password" minlength="6" required /></div>
+      </div>
+      <div class="row">
+        <div><label style="margin:0">תפקיד בסיס</label>
+          <select name="role" onchange="var p=this.closest('form').querySelector('.perm-box'); if(p) p.style.display = this.value==='owner'?'none':'';">
+            <option value="secretary">מזכירה (בסיס)</option>
+            <option value="owner">בעלים (הכל)</option>
+          </select>
+        </div>
+        <div><label style="margin:0">שם תפקיד (תצוגה)</label><input name="label" placeholder="למשל: מנהל" /></div>
+      </div>
+      <div class="perm-box">
+        <label style="margin:.4rem 0 .2rem">הרשאות</label>
+        <div class="actions" style="flex-wrap:wrap;gap:.8rem">
+          <% permissionCatalog.forEach(function(p){ %>
+            <label style="display:flex;align-items:center;gap:.3rem;margin:0;font-weight:400">
+              <input type="checkbox" name="permissions" value="<%= p.key %>" style="width:auto" /> <%= p.label %>
+            </label>
+          <% }); %>
+        </div>
+      </div>
+      <div style="margin-top:.5rem"><button type="submit">הוסף משתמש</button></div>
     </form>
-    <p class="muted" style="margin-top:.6rem">משתמשים עם כתובת מייל יכולים לאפס סיסמה בעצמם דרך "שכחתי סיסמה" במסך ההתחברות (דורש הגדרת <span class="mono">RESEND_API_KEY</span>). בכל מקרה אפשר לאפס ידנית כאן.</p>
+    <p class="muted" style="margin-top:.6rem">משתמשים עם כתובת מייל יכולים לאפס סיסמה בעצמם דרך "שכחתי סיסמה" במסך ההתחברות (דורש <span class="mono">RESEND_API_KEY</span>). בכל מקרה אפשר לאפס ידנית כאן.</p>
   </div>
 </details>
+<% } %>
 <%- include('../partials/footer') %>

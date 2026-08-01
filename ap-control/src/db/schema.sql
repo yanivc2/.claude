@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS users (
   role          TEXT NOT NULL CHECK (role IN ('owner','secretary')),
   username      TEXT,           -- login handle (unique when set)
   email         TEXT,           -- for password-reset by email
+  label         TEXT,           -- optional display role name (e.g. "מנהל")
+  permissions   TEXT,           -- JSON array of granted permission keys (non-owner)
   password_hash TEXT            -- scrypt hash; null until a password is set
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;

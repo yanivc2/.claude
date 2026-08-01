@@ -67,7 +67,7 @@ test('voiding a check is owner-only (permission tightening)', async () => {
   await approveInvoiceForPayment(invoice.id, sec, db);
   const payment = await createPayment({ bankAccountId: acct, checkNumber: 'V1001', paymentDate: '2026-07-02', invoiceIds: [invoice.id] }, sec, db);
 
-  await assert.rejects(voidPayment(payment.id, sec, null, db), /בעלים בלבד/);
+  await assert.rejects(voidPayment(payment.id, sec, null, db), /הרשאת ביטול תשלום/);
   const voided = await voidPayment(payment.id, o, null, db);
   assert.equal(voided.status, 'voided');
 });

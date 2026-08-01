@@ -1,5 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { readSession } from '../lib/auth.js';
+import { userCan } from '../lib/permissions.js';
 
 // Authentication gate. Reads the signed `session` cookie, loads the acting user, and blocks
 // unauthenticated access to everything except the login page. Static assets are served earlier
@@ -35,6 +36,7 @@ export async function currentUser(req, res, next) {
     }
     req.user = user;
     res.locals.currentUser = user;
+    res.locals.can = (perm) => userCan(user, perm);
     return next();
   } catch (err) {
     return next(err);
