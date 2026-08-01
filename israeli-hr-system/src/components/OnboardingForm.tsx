@@ -13,6 +13,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { SignaturePad } from "./SignaturePad";
+import { DateWheel } from "./DateWheel";
+import { FilePicker } from "./FilePicker";
 import { AVAILABILITY_DAYS, AVAILABILITY_SHIFTS } from "@/lib/availability";
 import { PRIVACY_POLICY_VERSION } from "./PrivacyPolicy";
 
@@ -640,11 +642,10 @@ export function OnboardingForm({
                 : "תאריך לידה"
             }
           >
-            <input
-              className={inputClass}
-              type="date"
+            <DateWheel
               value={form.birthDate}
-              onChange={(e) => set("birthDate", e.target.value)}
+              onChange={(v) => set("birthDate", v)}
+              toYear={new Date().getFullYear()}
             />
           </Field>
         </div>
@@ -654,13 +655,7 @@ export function OnboardingForm({
       <Section icon={Briefcase} step={2} title="פרטי העסקה" subtitle="מועד תחילה, תפקיד, שכר וזמינות.">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="מועד תחילת עבודה">
-            <input
-              className={inputClass}
-              type="date"
-              required
-              value={form.startDate}
-              onChange={(e) => set("startDate", e.target.value)}
-            />
+            <DateWheel value={form.startDate} onChange={(v) => set("startDate", v)} />
           </Field>
           {!hideEmployerFields && (
             <>
@@ -871,14 +866,12 @@ export function OnboardingForm({
         {/* העלאת ספח ת.ז */}
         <div className="mt-4">
           <Field label="העלאת ספח תעודת זהות">
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => setIdFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+            <FilePicker
+              label="צילום או העלאת ספח ת.ז"
+              fileName={idFile?.name ?? null}
+              onFile={setIdFile}
             />
           </Field>
-          {idFile && <p className="mt-1 text-xs text-green-700 dark:text-green-400">נבחר: {idFile.name}</p>}
         </div>
 
         {/* חתימה על טופס 101 — נדרשת רק מהעובד (בפורטל), לא בקליטה ידנית */}
@@ -898,15 +891,11 @@ export function OnboardingForm({
               ניתן לצרף קובץ הסכם עבודה (PDF או תמונה). הוא יישמר בתיק העובד ותוכל/י להוריד או
               להדפיס אותו יחד עם טופס 101.
             </p>
-            <input
-              type="file"
-              accept="image/*,application/pdf"
-              onChange={(e) => handleAgreementUpload(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+            <FilePicker
+              label="צילום או העלאת הסכם עבודה"
+              fileName={localAgreement?.fileName ?? null}
+              onFile={handleAgreementUpload}
             />
-            {localAgreement && (
-              <p className="mt-1 text-xs text-green-700 dark:text-green-400">צורף: {localAgreement.fileName}</p>
-            )}
           </>
         ) : (
           <>
