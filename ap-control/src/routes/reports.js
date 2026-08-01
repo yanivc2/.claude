@@ -11,6 +11,7 @@ import {
   createZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
   addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
   setDeposit, cashReconciliation, DENOMS,
+  setCreditCards, ccReconciliation, CC_BRANDS,
 } from '../services/zreports.js';
 import { getDb } from '../db/index.js';
 import { config } from '../config.js';
@@ -41,6 +42,8 @@ function renderZReport(req, res, id, extra = {}) {
     denoms: DENOMS,
     depositCounts: zr.deposit_breakdown ? JSON.parse(zr.deposit_breakdown) : {},
     cashRecon: cashReconciliation(id),
+    ccBrands: CC_BRANDS,
+    ccRecon: ccReconciliation(id),
     error: null,
     notice: null,
     ...extra,
@@ -249,6 +252,20 @@ router.post('/zreports/:id/deposit', (req, res, next) => {
     for (const d of DENOMS) counts[d.value] = Number(req.body[`count_${d.key}`] || 0);
     setDeposit(id, { counts, bag: req.body.deposit_bag }, req.user);
     renderZReport(req, res, id, { notice: 'הפקדה נשמרה.' });
+  } catch (err) {
+    if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
+    next(err);
+  }
+});
+
+// Save the credit-card report (per-brand amounts) for a Z report.
+router.post('/zreports/:id/creditcards', (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    const amounts = {};
+    for (const b of CC_BRANDS) amounts[b.key] = toAgorot(req.body[`cc_${b.key}`]);
+    setCreditCards(id, { amounts }, req.user);
+    renderZReport(req, res, id, { notice: 'דוח אשראי נשמר.' });
   } catch (err) {
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
     next(err);

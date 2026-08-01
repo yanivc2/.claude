@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { freshDb, owner, secretary, firstStore } from './helpers.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice } from '../src/services/invoices.js';
-import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense, setDeposit, cashReconciliation } from '../src/services/zreports.js';
+import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense, setDeposit, cashReconciliation, setCreditCards, ccReconciliation } from '../src/services/zreports.js';
 import { profitability } from '../src/services/reports.js';
 import { toAgorot } from '../src/lib/money.js';
 
@@ -120,6 +120,28 @@ test('deposit computes from bill counts; cash reconciliation = drawer cash - dep
 function getZReportAmount(db, id) {
   return db.prepare('SELECT deposit_amount FROM z_reports WHERE id = ?').get(id).deposit_amount;
 }
+
+test('credit-card report: brand total + debt-on-credit gap vs אשראי מגירה', () => {
+  const db = freshDb();
+  const store = firstStore(db);
+  const sec = secretary(db);
+  // אשראי מגירה = 1000; brands sum to 800 -> 200 was a debt paid by credit
+  const z = createZReport({
+    storeId: store.id, zNumber: '601', zDate: '2026-07-01', dailyTotal: toAgorot('1000'),
+    drawerCredit: toAgorot('1000'),
+  }, sec, db);
+  const updated = setCreditCards(z.id, { amounts: {
+    kal: toAgorot('300'), isracard: toAgorot('250'), diners: toAgorot('100'),
+    amex: toAgorot('100'), general: toAgorot('50'), tourist: 0,
+  } }, sec, db);
+  assert.equal(updated.cc_total, toAgorot('800'));
+  const r = ccReconciliation(z.id, db);
+  assert.equal(r.ccTotal, toAgorot('800'));
+  assert.equal(r.drawerCredit, toAgorot('1000'));
+  assert.equal(r.debtOnCredit, toAgorot('200')); // paid in debt via credit (informational, not blocking)
+  // negative amount rejected
+  assert.throws(() => setCreditCards(z.id, { amounts: { kal: -1 } }, sec, db), /לא תקין/);
+});
 
 test('drawer_total sums all five drawer items (סה"כ מגירה)', () => {
   const db = freshDb();

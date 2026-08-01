@@ -108,6 +108,51 @@ export function cashReconciliation(zReportId, db = getDb()) {
   return { cash, deposit, expenses, diff: cash - deposit - expenses };
 }
 
+// Credit-card brands for the credit-card report (§ 2d). Each maps to a cc_<key> column.
+export const CC_BRANDS = [
+  { key: 'kal', label: 'כאל' },
+  { key: 'isracard', label: 'ישראכרט' },
+  { key: 'diners', label: 'דיינרס' },
+  { key: 'amex', label: 'אמקס' },
+  { key: 'general', label: 'כללי' },
+  { key: 'tourist', label: 'תייר' },
+];
+
+/**
+ * Save the credit-card report from per-brand amounts. cc_total is computed from the brands.
+ * @param {{amounts: Record<string, number>}} input  amounts in agorot
+ */
+export function setCreditCards(zReportId, { amounts = {} }, actor, db = getDb()) {
+  getZReport(zReportId, db);
+  let total = 0;
+  const v = {};
+  for (const b of CC_BRANDS) {
+    const a = Number(amounts[b.key] || 0);
+    if (!Number.isFinite(a) || a < 0) throw new RuleError('VALIDATION', `סכום אשראי לא תקין עבור ${b.label}`);
+    v[b.key] = a;
+    total += a;
+  }
+  db.prepare(
+    `UPDATE z_reports SET cc_kal = ?, cc_isracard = ?, cc_diners = ?, cc_amex = ?, cc_general = ?, cc_tourist = ?, cc_total = ?
+     WHERE id = ?`,
+  ).run(v.kal, v.isracard, v.diners, v.amex, v.general, v.tourist, total, zReportId);
+  logAction({ userId: actor.id, action: 'zreport.creditcards', entityType: 'z_report', entityId: zReportId, details: { total } }, db);
+  return getZReport(zReportId, db);
+}
+
+/**
+ * Credit-card reconciliation. The card-brand total normally sits BELOW אשראי מגירה, because
+ * customer debts paid by credit inflate אשראי מגירה. The positive gap is shown as "שולם בחוב
+ * באשראי" (informational only — not blocking).
+ * @returns {{ccTotal:number, drawerCredit:number, debtOnCredit:number}}  debtOnCredit = drawerCredit - ccTotal
+ */
+export function ccReconciliation(zReportId, db = getDb()) {
+  const zr = getZReport(zReportId, db);
+  const ccTotal = zr.cc_total || 0;
+  const drawerCredit = zr.drawer_credit || 0;
+  return { ccTotal, drawerCredit, debtOnCredit: drawerCredit - ccTotal };
+}
+
 // Expense description types (§ drawer expenses). Some require an employee name.
 export const EXPENSE_TYPES = [
   { value: 'tara', label: 'טרה', needsEmployee: false },
