@@ -38,7 +38,8 @@ const relTime = (iso: string): string => {
 };
 
 // פעמון התראות לבעלים: מרכז התראות בתוך האפליקציה + הפעלת פוש לטלפון.
-export function NotificationBell() {
+// openUp — פתיחת החלון כלפי מעלה (כשהפעמון בתחתית, למשל בכרטיס המשתמש בסרגל).
+export function NotificationBell({ openUp = false }: { openUp?: boolean }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [unread, setUnread] = useState(0);
@@ -152,7 +153,11 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute left-0 z-50 mt-2 max-h-[70vh] w-80 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+        <div
+          className={`absolute right-0 z-50 max-h-[70vh] w-80 max-w-[calc(100vw-1.5rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 ${
+            openUp ? "bottom-full mb-2" : "top-full mt-2"
+          }`}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-800">
             <span className="text-sm font-bold text-slate-800 dark:text-slate-100">התראות</span>
             <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
