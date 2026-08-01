@@ -27,7 +27,7 @@
       <a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>">רווחיות</a>
       <a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>">יומן</a>
       <% if (currentUser.role === 'owner') { %>
-        <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a>
+        <% if (typeof can === 'function' && can('settings')) { %><a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a><% } %>
       <% } %>
     </nav>
     <span class="spacer"></span>

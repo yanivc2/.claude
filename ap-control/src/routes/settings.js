@@ -15,13 +15,15 @@ import {
   deleteUser,
 } from '../services/users.js';
 import { upgradeSchema } from '../db/index.js';
-import { requireOwner } from '../middleware/requireOwner.js';
+import { requireOwner, requirePermission } from '../middleware/requireOwner.js';
+import { PERMISSIONS } from '../lib/permissions.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
 
-// Everything here is owner-only (structural configuration + user management).
-router.use(requireOwner);
+// Settings requires the "settings" permission (owner always passes). User-management and
+// DB-upgrade actions are additionally owner-only — enforced per-route below and in services.
+router.use(requirePermission('settings'));
 
 async function render(req, res, extra = {}) {
   // Be resilient if the live DB predates a new column (e.g. users.email): still render the page
@@ -43,6 +45,7 @@ async function render(req, res, extra = {}) {
     title: 'הגדרות',
     companies,
     users,
+    permissionCatalog: PERMISSIONS,
     error: null,
     notice: null,
     schemaWarning,
@@ -120,11 +123,17 @@ router.post('/password', async (req, res, next) => {
   }
 });
 
-// --- User management (add / change permissions / reset password / delete) ---
+// --- User management (owner-only) ---
+router.use('/users', requireOwner);
+
 router.post('/users', async (req, res, next) => {
   try {
     await createUser(
-      { name: req.body.name, username: req.body.username, email: req.body.email, role: req.body.role, password: req.body.password },
+      {
+        name: req.body.name, username: req.body.username, email: req.body.email,
+        role: req.body.role, label: req.body.label, permissions: req.body.permissions,
+        password: req.body.password,
+      },
       req.user,
     );
     await render(req, res, { notice: 'משתמש נוסף.' });
@@ -136,7 +145,11 @@ router.post('/users', async (req, res, next) => {
 
 router.post('/users/:id', async (req, res, next) => {
   try {
-    await updateUser(Number(req.params.id), { name: req.body.name, email: req.body.email, role: req.body.role }, req.user);
+    await updateUser(
+      Number(req.params.id),
+      { name: req.body.name, email: req.body.email, role: req.body.role, label: req.body.label, permissions: req.body.permissions },
+      req.user,
+    );
     await render(req, res, { notice: 'פרטי המשתמש עודכנו.' });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
@@ -164,8 +177,8 @@ router.post('/users/:id/delete', async (req, res, next) => {
   }
 });
 
-// One-click DB schema upgrade (idempotent) — adds any columns/tables a new deploy needs.
-router.post('/db-upgrade', async (req, res, next) => {
+// One-click DB schema upgrade (idempotent) — adds any columns/tables a new deploy needs. Owner-only.
+router.post('/db-upgrade', requireOwner, async (req, res, next) => {
   try {
     await upgradeSchema();
     await render(req, res, { notice: 'מסד הנתונים עודכן בהצלחה — כל העמודות והטבלאות החדשות קיימות.' });

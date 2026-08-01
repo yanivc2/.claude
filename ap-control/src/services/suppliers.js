@@ -1,5 +1,6 @@
 import { getExecutor, nowTs } from '../db/adapter.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
+import { userCan } from '../lib/permissions.js';
 import { logAction } from './audit.js';
 
 /** List suppliers, optionally filtered by status, ordered by name. */
@@ -157,7 +158,7 @@ export async function deleteSupplier(id, actor, x = getExecutor()) {
 }
 
 function requireOwner(actor) {
-  if (!actor || actor.role !== 'owner') {
-    throw new AuthError('אישור/חסימת ספק — פעולת בעלים בלבד (R6)');
+  if (!userCan(actor, 'manage_suppliers')) {
+    throw new AuthError('אישור/חסימת/מחיקת ספק — נדרשת הרשאת ניהול ספקים (R6)');
   }
 }

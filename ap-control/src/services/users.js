@@ -1,6 +1,7 @@
 import { getExecutor } from '../db/adapter.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { hashPassword, verifyPassword } from '../lib/auth.js';
+import { serializePermissions, parsePermissions } from '../lib/permissions.js';
 import { logAction } from './audit.js';
 
 // User & permission management (owner-only). The permission level IS the role:
@@ -21,18 +22,24 @@ function validateEmail(email) {
   return e.toLowerCase();
 }
 
+function shape(u) {
+  if (!u) return u;
+  return { ...u, permissions: parsePermissions(u.permissions) };
+}
+
 /** All users (no password hashes) for the settings screen. */
 export async function listUsers(x = getExecutor()) {
-  return x.many('SELECT id, name, role, username, email FROM users ORDER BY role, name', []);
+  const rows = await x.many('SELECT id, name, role, username, email, label, permissions FROM users ORDER BY role, name', []);
+  return rows.map(shape);
 }
 
 export async function getUser(id, x = getExecutor()) {
-  const u = await x.one('SELECT id, name, role, username, email FROM users WHERE id = ?', [id]);
+  const u = await x.one('SELECT id, name, role, username, email, label, permissions FROM users WHERE id = ?', [id]);
   if (!u) throw new NotFoundError(`משתמש ${id} לא נמצא`);
-  return u;
+  return shape(u);
 }
 
-export async function createUser({ name, username, email, role, password }, actor, x = getExecutor()) {
+export async function createUser({ name, username, email, role, label, permissions, password }, actor, x = getExecutor()) {
   requireOwner(actor);
   const nm = (name ?? '').trim();
   const un = (username ?? '').trim();
@@ -45,16 +52,20 @@ export async function createUser({ name, username, email, role, password }, acto
   const dup = await x.one('SELECT id FROM users WHERE username = ?', [un]);
   if (dup) throw new RuleError('VALIDATION', `שם המשתמש "${un}" כבר קיים`);
 
+  // Owner already has everything, so per-key permissions only apply to non-owners.
+  const perms = role === 'owner' ? null : serializePermissions(permissions);
+  const lbl = (label ?? '').trim() || null;
+
   const info = await x.run(
-    'INSERT INTO users (name, role, username, email, password_hash) VALUES (?, ?, ?, ?, ?)',
-    [nm, role, un, em, hashPassword(password)],
+    'INSERT INTO users (name, role, username, email, label, permissions, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [nm, role, un, em, lbl, perms, hashPassword(password)],
   );
   await logAction({ userId: actor.id, action: 'user.create', entityType: 'user', entityId: info.lastInsertRowid, details: { username: un, role } }, x);
   return getUser(info.lastInsertRowid, x);
 }
 
-/** Update a user's name / email / role (add or reduce permissions). */
-export async function updateUser(id, { name, email, role }, actor, x = getExecutor()) {
+/** Update a user's name / email / role / label / permissions (add or reduce access). */
+export async function updateUser(id, { name, email, role, label, permissions }, actor, x = getExecutor()) {
   requireOwner(actor);
   const user = await getUser(id, x);
   const nm = (name ?? '').trim() || user.name;
@@ -68,7 +79,13 @@ export async function updateUser(id, { name, email, role }, actor, x = getExecut
     if (Number(owners.n) <= 1) throw new RuleError('VALIDATION', 'חייב להישאר לפחות בעלים אחד');
   }
 
-  await x.run('UPDATE users SET name = ?, email = ?, role = ? WHERE id = ?', [nm, em, rl, id]);
+  const perms = rl === 'owner' ? null : serializePermissions(permissions);
+  const lbl = (label ?? '').trim() || null;
+
+  await x.run(
+    'UPDATE users SET name = ?, email = ?, role = ?, label = ?, permissions = ? WHERE id = ?',
+    [nm, em, rl, lbl, perms, id],
+  );
   await logAction({ userId: actor.id, action: 'user.update', entityType: 'user', entityId: id, details: { role: rl } }, x);
   return getUser(id, x);
 }

@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT
 );
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS label TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;
 
 -- Password-reset tokens (email flow). Only a SHA-256 hash of the token is stored.
