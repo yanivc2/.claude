@@ -35,6 +35,21 @@ export function isReady() {
 }
 
 /**
+ * Re-apply the schema against the already-connected backend, on demand. Idempotent:
+ * CREATE TABLE IF NOT EXISTS + ADD COLUMN IF NOT EXISTS, so it only fills in what is missing
+ * (e.g. new columns after a deploy). Used by the owner-triggered "DB upgrade" button so the
+ * live Neon DB can be brought up to date without a terminal. Never drops or clears data.
+ */
+export async function upgradeSchema() {
+  if (getBackend() === 'pg') {
+    await execScript(fs.readFileSync(path.join(__dirname, 'schema.pg.sql'), 'utf8'));
+  } else {
+    await execScript(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+    migrate(getRawSqlite());
+  }
+}
+
+/**
  * Connect to the backend WITHOUT applying the schema — for serverless request handlers, where
  * the schema is applied once by the deploy-time setup step (`npm run db:setup`), not on every
  * cold start. Idempotent: only initializes the pool the first time.
