@@ -120,6 +120,12 @@ test('amounts with ₪ / spaces / thousands separators are accepted', () => {
   assert.equal(rows[0].txnDate, '2026-07-26');
 });
 
+test('balance column (יתרה לאחר פעולה) is captured when present', () => {
+  const rows = normalizeBankRows(parseCsv(BANK_CSV));
+  assert.equal(rows[0].balanceAfter, -toAgorot('67905.82'));
+  assert.equal(rows[1].balanceAfter, -toAgorot('65994.16'));
+});
+
 test('a bad simple-format row still errors with the columns it found', () => {
   assert.throws(() => normalizeBankRows(parseCsv('foo,bar\nx,y')), /העמודות שנמצאו/);
 });

@@ -10,6 +10,17 @@ export function migrate(db) {
   migratePaymentsMethods(db);
   migrateSupplierContacts(db);
   migrateUserAuth(db);
+  migrateBankBalance(db);
+}
+
+// Adds balance_after to bank_transactions for older databases.
+function migrateBankBalance(db) {
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='bank_transactions'")
+    .get();
+  if (!hasTable) return;
+  const cols = db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name);
+  if (!cols.includes('balance_after')) db.exec('ALTER TABLE bank_transactions ADD COLUMN balance_after INTEGER;');
 }
 
 // Adds login columns (username / password_hash) to users for older databases.

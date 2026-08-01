@@ -132,6 +132,7 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   amount             INTEGER NOT NULL,                         -- agorot
   description        TEXT,
   raw_reference      TEXT,
+  balance_after      INTEGER,                                  -- agorot; running balance if the export provides it
   source             TEXT NOT NULL DEFAULT 'scraper',
   matched_payment_id INTEGER REFERENCES payments(id)
 );

@@ -128,9 +128,11 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   amount             BIGINT NOT NULL,
   description        TEXT,
   raw_reference      TEXT,
+  balance_after      BIGINT,
   source             TEXT NOT NULL DEFAULT 'scraper',
   matched_payment_id INTEGER REFERENCES payments(id)
 );
+ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS balance_after BIGINT;
 
 -- invoice_ocr -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoice_ocr (
