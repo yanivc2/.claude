@@ -48,7 +48,12 @@ router.post('/', (req, res, next) => {
     const payment = createPayment(
       {
         bankAccountId: Number(b.bank_account_id),
+        method: b.method || 'check',
         checkNumber: b.check_number,
+        reference: b.reference,
+        payerName: b.payer_name,
+        cardLast4: b.card_last4,
+        batchNumber: b.batch_number,
         paymentDate: b.payment_date,
         invoiceIds,
       },

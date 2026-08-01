@@ -1,5 +1,5 @@
 <%- include('../partials/header') %>
-<h1>צ׳ק חדש</h1>
+<h1>תשלום חדש</h1>
 <p class="muted">
   בחר חשבוניות מאושרות לתשלום (כולל זיכויים) מאותו חשבון בנק, הזן מספר הצ׳ק שנכתב ידנית ותאריך.
   המערכת מחשבת נטו ואוכפת: אין צ׳ק ללא חשבונית מאושרת + מספר צ׳ק (R1), וסכום הצ׳ק = סכום השורות (R5).
@@ -43,8 +43,14 @@ const groupList = Object.values(groups);
       </table>
       <div class="row" style="margin-top:.8rem">
         <div>
-          <label>מספר צ׳ק *</label>
-          <input name="check_number" required />
+          <label>אמצעי תשלום *</label>
+          <select name="method" onchange="onMethod(this.form)">
+            <option value="check">צ׳ק</option>
+            <option value="cash">מזומן</option>
+            <option value="credit">אשראי</option>
+            <option value="transfer">העברה</option>
+            <option value="batch">מקבץ</option>
+          </select>
         </div>
         <div>
           <label>תאריך תשלום *</label>
@@ -55,8 +61,26 @@ const groupList = Object.values(groups);
           <input class="net-display" readonly value="₪0.00" />
         </div>
       </div>
+
+      <div class="row m-check">
+        <div><label>מספר צ׳ק *</label><input name="check_number" /></div>
+      </div>
+      <div class="row m-cash" style="display:none">
+        <div><label>שם המשלם *</label><input name="payer_name" /></div>
+      </div>
+      <div class="row m-credit" style="display:none">
+        <div><label>4 ספרות אחרונות של האשראי *</label><input name="card_last4" maxlength="4" pattern="\d{4}" /></div>
+      </div>
+      <div class="row m-transfer" style="display:none">
+        <div><label>מספר אסמכתא *</label><input name="reference" /></div>
+      </div>
+      <div class="row m-batch" style="display:none">
+        <div><label>מספר מקבץ *</label><input name="batch_number" /></div>
+        <div><label>מספר אסמכתא *</label><input name="reference" /></div>
+      </div>
+
       <div style="margin-top:1rem" class="actions">
-        <button type="submit">הנפק צ׳ק</button>
+        <button type="submit">הנפק תשלום</button>
       </div>
     </form>
   </div>
@@ -65,6 +89,7 @@ const groupList = Object.values(groups);
 <a href="/payments" class="btn secondary">חזרה לרשימת הצ׳קים</a>
 
 <script>
+var METHODS = ['check','cash','credit','transfer','batch'];
 function recalc(form){
   let net = 0;
   form.querySelectorAll('input[name="invoice_ids"]:checked').forEach(function(c){
@@ -74,10 +99,24 @@ function recalc(form){
   disp.value = '₪' + (net/100).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   disp.style.color = net <= 0 ? '#b3261e' : '';
 }
+// Show only the selected method's fields; disable inputs in hidden rows so they are not
+// submitted (avoids duplicate `reference` names and stray values).
+function onMethod(form){
+  var method = form.querySelector('select[name="method"]').value;
+  METHODS.forEach(function(m){
+    var row = form.querySelector('.m-' + m);
+    if (!row) return;
+    var active = (m === method);
+    row.style.display = active ? '' : 'none';
+    row.querySelectorAll('input').forEach(function(inp){ inp.disabled = !active; });
+  });
+}
 function validateCheck(form){
   const checked = form.querySelectorAll('input[name="invoice_ids"]:checked').length;
   if (checked === 0){ alert('בחר לפחות חשבונית אחת'); return false; }
   return true;
 }
+// Initialize each form to the default method (check) on load.
+document.querySelectorAll('form').forEach(function(f){ if (f.querySelector('select[name="method"]')) onMethod(f); });
 </script>
 <%- include('../partials/footer') %>

@@ -1,10 +1,12 @@
 <%- include('../partials/header') %>
 <div class="toolbar">
-  <h1>צ׳ק #<%= payment.id %> · <span class="mono"><%= payment.check_number %></span>
+  <h1><%= methodLabel(payment.method) %> #<%= payment.id %> · <span class="mono"><%= paymentIdent(payment) %></span>
     <span class="badge b-<%= payment.status %>"><%= payment.status === 'issued' ? 'הונפק' : payment.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
   </h1>
   <div class="actions">
-    <a href="/payments/<%= payment.id %>/print" class="btn secondary" target="_blank">הדפס צ׳ק (טיוטה)</a>
+    <% if (payment.method === 'check') { %>
+      <a href="/payments/<%= payment.id %>/print" class="btn secondary" target="_blank">הדפס צ׳ק (טיוטה)</a>
+    <% } %>
     <a href="/payments" class="btn secondary">חזרה לרשימה</a>
   </div>
 </div>

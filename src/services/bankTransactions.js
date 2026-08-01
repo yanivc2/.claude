@@ -72,7 +72,7 @@ export function listUnmatched(bankAccountId, db = getDb()) {
 export function listTransactions(bankAccountId, db = getDb()) {
   return db
     .prepare(
-      `SELECT bt.*, p.check_number AS matched_check_number
+      `SELECT bt.*, COALESCE(p.check_number, p.reference, p.batch_number) AS matched_check_number
          FROM bank_transactions bt
          LEFT JOIN payments p ON p.id = bt.matched_payment_id
         WHERE bt.bank_account_id = ?

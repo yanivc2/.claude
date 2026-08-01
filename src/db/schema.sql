@@ -81,11 +81,17 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_invoices_allocation
 CREATE INDEX IF NOT EXISTS ix_invoices_supplier_number
   ON invoices(supplier_id, invoice_number);
 
--- §4 payments (checks) ----------------------------------------------------------
+-- §4 payments — checks and other methods (cash / credit / transfer / batch) ------
 CREATE TABLE IF NOT EXISTS payments (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
-  check_number    TEXT NOT NULL,
+  method          TEXT NOT NULL DEFAULT 'check'
+                  CHECK (method IN ('check','cash','credit','transfer','batch')),
+  check_number    TEXT,                                       -- method=check
+  reference       TEXT,                                       -- transfer/batch אסמכתא (matches bank)
+  payer_name      TEXT,                                       -- cash: שם המשלם
+  card_last4      TEXT,                                       -- credit: 4 ספרות אחרונות
+  batch_number    TEXT,                                       -- batch: מספר מקבץ
   payment_date    TEXT NOT NULL,
   amount          INTEGER NOT NULL,                           -- agorot
   status          TEXT NOT NULL DEFAULT 'issued'
@@ -94,9 +100,9 @@ CREATE TABLE IF NOT EXISTS payments (
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
--- A check number is unique within a bank account.
+-- A check number is unique within a bank account (checks only).
 CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
-  ON payments(bank_account_id, check_number);
+  ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL;
 
 -- §4 payment_lines (check <-> invoices/credit notes) ----------------------------
 CREATE TABLE IF NOT EXISTS payment_lines (
