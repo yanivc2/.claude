@@ -1,10 +1,8 @@
-import { getDb } from './index.js';
+import { getExecutor, tx } from './adapter.js';
 
 // Seed data from §2 of the brief. Companies, stores, bank accounts (1:1 store<->account),
 // and the two operating roles. Suppliers start empty by design (§11.4) — every new supplier
 // is created as `pending` and passes the owner approval gate (R6).
-//
-// tax_id for the three companies is left null pending confirmation (§2, §11.3).
 
 const COMPANIES = [
   { key: 'al_haderech', name: 'על הדרך 24 שעות בע"מ', company_type: 'ltd', tax_id: '514737832' },
@@ -29,68 +27,56 @@ const USERS = [
  * Idempotently seed reference data. Existing rows (matched by natural key) are left
  * untouched, so running this repeatedly — or after adding a store — is safe.
  */
-export function seed(db = getDb()) {
-  const insertCompany = db.prepare(
-    'INSERT INTO companies (name, company_type, tax_id) VALUES (?, ?, ?)',
-  );
-  const findCompany = db.prepare('SELECT id, tax_id FROM companies WHERE name = ?');
-  // Backfill tax_id on an existing company row only when it is still null (§11.3).
-  const backfillTaxId = db.prepare(
-    'UPDATE companies SET tax_id = ? WHERE id = ? AND tax_id IS NULL',
-  );
-  const insertStore = db.prepare(
-    'INSERT INTO stores (company_id, name) VALUES (?, ?)',
-  );
-  const findStore = db.prepare('SELECT id FROM stores WHERE name = ?');
-  const insertAccount = db.prepare(
-    `INSERT INTO bank_accounts (company_id, store_id, bank_name, branch, account_number, display_name)
-     VALUES (?, ?, 'הפועלים', ?, ?, ?)`,
-  );
-  const findAccountByStore = db.prepare(
-    'SELECT id FROM bank_accounts WHERE store_id = ?',
-  );
-  const insertUser = db.prepare('INSERT INTO users (name, role) VALUES (?, ?)');
-  const findUser = db.prepare('SELECT id FROM users WHERE name = ? AND role = ?');
-
-  const run = db.transaction(() => {
+export async function seed(x = getExecutor()) {
+  await tx(async (t) => {
     const companyIdByKey = {};
     for (const c of COMPANIES) {
-      let row = findCompany.get(c.name);
+      let row = await t.one('SELECT id, tax_id FROM companies WHERE name = ?', [c.name]);
       if (!row) {
-        const info = insertCompany.run(c.name, c.company_type, c.tax_id);
+        const info = await t.run('INSERT INTO companies (name, company_type, tax_id) VALUES (?, ?, ?)', [
+          c.name,
+          c.company_type,
+          c.tax_id,
+        ]);
         row = { id: info.lastInsertRowid };
       } else if (row.tax_id === null) {
-        backfillTaxId.run(c.tax_id, row.id);
+        await t.run('UPDATE companies SET tax_id = ? WHERE id = ? AND tax_id IS NULL', [c.tax_id, row.id]);
       }
       companyIdByKey[c.key] = row.id;
     }
 
     for (const s of STORES) {
       const companyId = companyIdByKey[s.company];
-      let store = findStore.get(s.name);
+      let store = await t.one('SELECT id FROM stores WHERE name = ?', [s.name]);
       if (!store) {
-        const info = insertStore.run(companyId, s.name);
+        const info = await t.run('INSERT INTO stores (company_id, name) VALUES (?, ?)', [companyId, s.name]);
         store = { id: info.lastInsertRowid };
       }
-      if (!findAccountByStore.get(store.id)) {
+      const account = await t.one('SELECT id FROM bank_accounts WHERE store_id = ?', [store.id]);
+      if (!account) {
         const displayName = `${s.name} · הפועלים 428-${s.account}`;
-        insertAccount.run(companyId, store.id, s.branch, s.account, displayName);
+        await t.run(
+          `INSERT INTO bank_accounts (company_id, store_id, bank_name, branch, account_number, display_name)
+           VALUES (?, ?, 'הפועלים', ?, ?, ?)`,
+          [companyId, store.id, s.branch, s.account, displayName],
+        );
       }
     }
 
     for (const u of USERS) {
-      if (!findUser.get(u.name, u.role)) {
-        insertUser.run(u.name, u.role);
+      const existing = await t.one('SELECT id FROM users WHERE name = ? AND role = ?', [u.name, u.role]);
+      if (!existing) {
+        await t.run('INSERT INTO users (name, role) VALUES (?, ?)', [u.name, u.role]);
       }
     }
   });
-
-  run();
 }
 
 // Allow `npm run seed`.
 if (import.meta.url === `file://${process.argv[1]}`) {
-  seed();
+  const { initDb } = await import('./index.js');
+  await initDb();
+  await seed();
   // eslint-disable-next-line no-console
   console.log('Seed complete.');
 }

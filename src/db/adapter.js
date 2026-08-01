@@ -131,6 +131,20 @@ export function getBackend() {
   return backend;
 }
 
+/** The raw better-sqlite3 handle (SQLite backend only) — used by SQLite-specific migrations. */
+export function getRawSqlite() {
+  return sqliteDb;
+}
+
+/** Run a multi-statement SQL script (schema load). Handles ';'-separated statements. */
+export async function execScript(sql) {
+  if (backend === 'pg') {
+    await pgPool.query(sql); // pg simple-query protocol runs multiple statements
+  } else {
+    sqliteDb.exec(sql);
+  }
+}
+
 /**
  * Run fn inside a transaction. fn receives a transaction-scoped Executor and must use it for
  * all its queries. Commits on success, rolls back on throw.
