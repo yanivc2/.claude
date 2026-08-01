@@ -5,13 +5,43 @@ import {
   invoiceLookup,
   profitability,
 } from '../services/reports.js';
-import { createZReport, deleteZReport, listZReports, missingZNumbers } from '../services/zreports.js';
+import path from 'node:path';
+import fs from 'node:fs';
+import {
+  createZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
+  addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
+} from '../services/zreports.js';
 import { getDb } from '../db/index.js';
+import { config } from '../config.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
+import { handleInvoiceImage } from '../middleware/upload.js';
 import { RuleError } from '../lib/errors.js';
 
 const router = Router();
+
+function removeUpload(filename) {
+  if (!filename) return;
+  fs.rm(path.join(config.uploadsDir, path.basename(filename)), { force: true }, () => {});
+}
+
+function renderZReport(req, res, id, extra = {}) {
+  const zr = getZReport(id);
+  const store = getDb()
+    .prepare('SELECT st.name AS store_name, c.name AS company_name FROM stores st JOIN companies c ON c.id = st.company_id WHERE st.id = ?')
+    .get(zr.store_id);
+  res.render('reports/zreport', {
+    title: `דוח Z ${zr.z_number}`,
+    zr,
+    store,
+    expenses: listExpenses(id),
+    expensesTotal: expensesTotal(id),
+    expenseTypes: EXPENSE_TYPES,
+    error: null,
+    notice: null,
+    ...extra,
+  });
+}
 
 function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -165,6 +195,64 @@ router.post('/zreports/:id/delete', (req, res, next) => {
   try {
     deleteZReport(Number(req.params.id), req.user);
     renderProfitability(req, res, { notice: 'דוח Z נמחק.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Z report detail (drawer + expenses; deposits/credit-card come in later sub-phases).
+router.get('/zreports/:id', (req, res, next) => {
+  try {
+    renderZReport(req, res, Number(req.params.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Add a drawer-expense line (with optional note image).
+router.post('/zreports/:id/expenses', handleInvoiceImage, (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    if (req.uploadError) {
+      if (req.file) removeUpload(req.file.filename);
+      return renderZReport(req, res, id, { error: req.uploadError });
+    }
+    addExpense(
+      id,
+      {
+        expenseDate: req.body.expense_date || null,
+        payerName: req.body.payer_name,
+        descriptionType: req.body.description_type,
+        employeeName: req.body.employee_name,
+        amount: toAgorot(req.body.amount),
+        imagePath: req.file ? req.file.filename : null,
+      },
+      req.user,
+    );
+    renderZReport(req, res, id, { notice: 'הוצאה נוספה.' });
+  } catch (err) {
+    if (req.file) removeUpload(req.file.filename);
+    if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
+    next(err);
+  }
+});
+
+// Serve an expense note image.
+router.get('/zexpenses/:id/image', (req, res, next) => {
+  try {
+    const e = getExpense(Number(req.params.id));
+    if (!e.image_path) return res.status(404).send('אין תמונה');
+    return res.sendFile(path.join(config.uploadsDir, path.basename(e.image_path)));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/zexpenses/:id/delete', (req, res, next) => {
+  try {
+    const removed = deleteExpense(Number(req.params.id), req.user);
+    if (removed.image_path) removeUpload(removed.image_path);
+    renderZReport(req, res, removed.z_report_id, { notice: 'הוצאה נמחקה.' });
   } catch (err) {
     next(err);
   }

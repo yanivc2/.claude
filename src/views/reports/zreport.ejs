@@ -1,0 +1,96 @@
+<%- include('../partials/header') %>
+<div class="toolbar">
+  <h1>דוח Z <span class="mono"><%= zr.z_number %></span> · <%= store.store_name %></h1>
+  <a href="/reports/profitability?zstore=<%= zr.store_id %>" class="btn secondary">חזרה</a>
+</div>
+
+<% if (typeof notice !== 'undefined' && notice) { %>
+  <div class="alert alert-info"><%= notice %></div>
+<% } %>
+
+<div class="card">
+  <div class="row">
+    <div><span class="muted">חנות / חברה</span><br><%= store.store_name %> · <%= store.company_name %></div>
+    <div><span class="muted">תאריך</span><br><%= zr.z_date %></div>
+    <div><span class="muted">יומי Z</span><br><strong><%= formatIls(zr.daily_total) %></strong></div>
+  </div>
+</div>
+
+<div class="row">
+  <div style="flex:1; min-width:280px">
+    <div class="card">
+      <h2>דוח מגירה</h2>
+      <table>
+        <tbody>
+          <tr><td>מזומן</td><td class="right"><%= formatIls(zr.drawer_cash) %></td></tr>
+          <tr><td>צ'ק</td><td class="right"><%= formatIls(zr.drawer_check) %></td></tr>
+          <tr><td>אשראי מגירה</td><td class="right"><%= formatIls(zr.drawer_credit) %></td></tr>
+          <tr><td>הקפה</td><td class="right"><%= formatIls(zr.drawer_hakafa) %></td></tr>
+          <tr><td>תווי קניה</td><td class="right"><%= formatIls(zr.drawer_vouchers) %></td></tr>
+        </tbody>
+        <tfoot><tr><th>סה"כ מגירה</th><th class="right"><%= formatIls(zr.drawer_total) %></th></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div style="flex:2; min-width:360px">
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="margin:0">דוח הוצאות</h2>
+        <strong>סה"כ הוצאות: <%= formatIls(expensesTotal) %></strong>
+      </div>
+      <table>
+        <thead><tr><th>תאריך</th><th>משלם</th><th>תיאור</th><th>עובד</th><th class="right">סכום</th><th>פתק</th><th></th></tr></thead>
+        <tbody>
+          <% if (expenses.length === 0) { %><tr><td colspan="7" class="muted">אין הוצאות.</td></tr><% } %>
+          <% expenses.forEach(function(e){ var t = expenseTypes.find(function(x){return x.value===e.description_type;}); %>
+            <tr>
+              <td><%= e.expense_date || '—' %></td>
+              <td><%= e.payer_name || '—' %></td>
+              <td><%= t ? t.label : (e.description_type || '—') %></td>
+              <td><%= e.employee_name || '—' %></td>
+              <td class="right"><%= formatIls(e.amount) %></td>
+              <td><% if (e.image_path) { %><a href="/reports/zexpenses/<%= e.id %>/image" target="_blank">צפה</a><% } else { %>—<% } %></td>
+              <td>
+                <form method="post" action="/reports/zexpenses/<%= e.id %>/delete" onsubmit="return confirm('למחוק הוצאה?')" style="display:inline">
+                  <button class="danger small" type="submit">מחק</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+
+      <h3 style="margin-top:1rem">הוספת הוצאה</h3>
+      <form method="post" action="/reports/zreports/<%= zr.id %>/expenses" enctype="multipart/form-data" class="stack">
+        <div class="row">
+          <div><label>תאריך הוצאה</label><input type="date" name="expense_date" /></div>
+          <div><label>שם משלם</label><input name="payer_name" /></div>
+        </div>
+        <div class="row">
+          <div>
+            <label>תיאור הוצאה</label>
+            <select name="description_type" id="exp_type" onchange="toggleEmp()">
+              <% expenseTypes.forEach(function(t){ %><option value="<%= t.value %>" data-emp="<%= t.needsEmployee %>"><%= t.label %></option><% }); %>
+            </select>
+          </div>
+          <div id="emp_wrap"><label>שם העובד</label><input name="employee_name" /></div>
+          <div><label>סכום (₪)</label><input name="amount" inputmode="decimal" required /></div>
+        </div>
+        <label>תמונת פתק (לא חובה)</label>
+        <input type="file" name="image" accept="image/*,application/pdf" />
+        <div style="margin-top:.6rem"><button type="submit">הוסף הוצאה</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+function toggleEmp(){
+  var sel = document.getElementById('exp_type');
+  var needs = sel.options[sel.selectedIndex].getAttribute('data-emp') === 'true';
+  document.getElementById('emp_wrap').style.display = needs ? '' : 'none';
+}
+toggleEmp();
+</script>
+<%- include('../partials/footer') %>

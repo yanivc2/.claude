@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { freshDb, owner, secretary, firstStore } from './helpers.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice } from '../src/services/invoices.js';
-import { createZReport, listZReports, missingZNumbers } from '../src/services/zreports.js';
+import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense } from '../src/services/zreports.js';
 import { profitability } from '../src/services/reports.js';
 import { toAgorot } from '../src/lib/money.js';
 
@@ -83,4 +83,17 @@ test('Z report: drawer total auto-sums, duplicate Z number blocked, sequence gap
   createZReport({ storeId: store.id, zNumber: '203', zDate: '2026-07-03', dailyTotal: 100 }, sec, db);
   assert.deepEqual(missingZNumbers(store.id, db), [202]);
   assert.equal(listZReports({ storeId: store.id }, db).length, 2);
+});
+
+test('Z expenses: add, total, delete', () => {
+  const db = freshDb();
+  const store = firstStore(db);
+  const sec = secretary(db);
+  const z = createZReport({ storeId: store.id, zNumber: '301', zDate: '2026-07-01', dailyTotal: toAgorot('1000') }, sec, db);
+  addExpense(z.id, { descriptionType: 'advance', employeeName: 'דני', amount: toAgorot('120') }, sec, db);
+  const e2 = addExpense(z.id, { descriptionType: 'tara', amount: toAgorot('30') }, sec, db);
+  assert.equal(expensesTotal(z.id, db), toAgorot('150'));
+  assert.throws(() => addExpense(z.id, { descriptionType: 'tara', amount: -1 }, sec, db), /לא-שלילי/);
+  deleteExpense(e2.id, sec, db);
+  assert.equal(expensesTotal(z.id, db), toAgorot('120'));
 });

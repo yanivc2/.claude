@@ -67,6 +67,52 @@ export function listZReports({ storeId = null, limit = 40 } = {}, db = getDb()) 
   return db.prepare(`${base} ORDER BY z.z_date DESC, z.id DESC LIMIT ?`).all(limit);
 }
 
+// Expense description types (§ drawer expenses). Some require an employee name.
+export const EXPENSE_TYPES = [
+  { value: 'tara', label: 'טרה', needsEmployee: false },
+  { value: 'salary_check_split', label: 'פריטת צ׳ק שכר', needsEmployee: true },
+  { value: 'advance', label: 'מפרעה', needsEmployee: true },
+  { value: 'office_supplies', label: 'ציוד משרדי', needsEmployee: false },
+  { value: 'change', label: 'פריטה', needsEmployee: false },
+  { value: 'salary_topup', label: 'השלמת שכר', needsEmployee: true },
+];
+
+/** Add a drawer-expense line to a Z report. amount in agorot. */
+export function addExpense(zReportId, input, actor, db = getDb()) {
+  getZReport(zReportId, db);
+  const { expenseDate = null, payerName = null, descriptionType = null, employeeName = null, amount = 0, imagePath = null } = input;
+  if (!Number.isFinite(amount) || amount < 0) throw new RuleError('VALIDATION', 'סכום הוצאה חייב להיות מספר לא-שלילי');
+  const info = db
+    .prepare(
+      `INSERT INTO z_expenses (z_report_id, expense_date, payer_name, description_type, employee_name, amount, image_path)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(zReportId, expenseDate, payerName?.trim() || null, descriptionType || null, employeeName?.trim() || null, amount, imagePath);
+  logAction({ userId: actor.id, action: 'zexpense.add', entityType: 'z_expense', entityId: info.lastInsertRowid, details: { zReportId, amount } }, db);
+  return db.prepare('SELECT * FROM z_expenses WHERE id = ?').get(info.lastInsertRowid);
+}
+
+export function listExpenses(zReportId, db = getDb()) {
+  return db.prepare('SELECT * FROM z_expenses WHERE z_report_id = ? ORDER BY id').all(zReportId);
+}
+
+export function expensesTotal(zReportId, db = getDb()) {
+  return db.prepare('SELECT COALESCE(SUM(amount),0) AS s FROM z_expenses WHERE z_report_id = ?').get(zReportId).s;
+}
+
+export function getExpense(id, db = getDb()) {
+  const row = db.prepare('SELECT * FROM z_expenses WHERE id = ?').get(id);
+  if (!row) throw new NotFoundError(`הוצאה ${id} לא נמצאה`);
+  return row;
+}
+
+export function deleteExpense(id, actor, db = getDb()) {
+  const row = getExpense(id, db);
+  db.prepare('DELETE FROM z_expenses WHERE id = ?').run(id);
+  logAction({ userId: actor.id, action: 'zexpense.delete', entityType: 'z_expense', entityId: id }, db);
+  return row;
+}
+
 /**
  * Detect gaps in the Z-number sequence for a store (numeric Z numbers only).
  * @returns {number[]} the missing Z numbers between the min and max recorded

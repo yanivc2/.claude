@@ -115,7 +115,7 @@
           <% if (zReports.length === 0) { %><tr><td colspan="6" class="muted">אין דוחות Z.</td></tr><% } %>
           <% zReports.forEach(function(z){ %>
             <tr>
-              <td class="mono"><%= z.z_number %></td>
+              <td class="mono"><a href="/reports/zreports/<%= z.id %>"><%= z.z_number %></a></td>
               <td><%= z.z_date %></td>
               <td><%= z.store_name %></td>
               <td class="right"><%= formatIls(z.daily_total) %></td>
