@@ -31,10 +31,14 @@ export function findCandidates(txn, db = getDb()) {
     )
     .all(txn.bank_account_id, matchAmount, txn.txn_date, config.rules.reconcileWindowDays);
 
-  // Deterministic bonus: if the check number is present in the transaction text, prefer it.
+  // Deterministic match: Bank Hapoalim puts the check number in אסמכתא (raw_reference).
+  // Prefer an exact reference match; fall back to the check number appearing in the text.
+  const ref = (txn.raw_reference ?? '').trim();
   const haystack = `${txn.description ?? ''} ${txn.raw_reference ?? ''}`;
   const deterministic =
-    candidates.find((p) => p.check_number && haystack.includes(p.check_number)) || null;
+    candidates.find((p) => p.check_number && ref && p.check_number === ref) ||
+    candidates.find((p) => p.check_number && haystack.includes(p.check_number)) ||
+    null;
 
   return { candidates, deterministic };
 }

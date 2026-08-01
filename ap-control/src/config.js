@@ -23,6 +23,8 @@ export const config = {
     : path.join(projectRoot, 'uploads'),
   maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 10 * 1024 * 1024),
   projectRoot,
+  // Israeli VAT rate (18% since 1.1.2025). Used for auto-calc on invoice entry.
+  vatRate: Number(process.env.VAT_RATE ?? 0.18),
   rules: {
     dupWindowDays: DUP_WINDOW_DAYS,
     allocationThresholdAgorot: ALLOCATION_THRESHOLD_AGOROT,

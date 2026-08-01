@@ -43,7 +43,9 @@ function parseRows(text) {
       } else {
         field += c;
       }
-    } else if (c === '"') {
+    } else if (c === '"' && field === '') {
+      // A quote is only significant at the START of a field (RFC 4180). Elsewhere it is a
+      // literal character — real bank exports contain unescaped quotes like בע"מ / מע"מ.
       inQuotes = true;
     } else if (c === ',') {
       row.push(field);
