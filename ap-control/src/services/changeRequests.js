@@ -1,4 +1,4 @@
-import { getExecutor, nowTs } from '../db/adapter.js';
+import { getExecutor, nowTs, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { notify } from '../lib/notify.js';
 import { logAction } from './audit.js';
@@ -39,7 +39,8 @@ export async function submitRequest({ action, entityType, entityId, payload, sum
     [actor?.id ?? null, actor?.name ?? null, action, entityType ?? null, entityId ?? null, JSON.stringify(payload), summary ?? null, nowTs()],
   );
   await logAction({ userId: actor?.id ?? null, action: 'change_request.submit', entityType: 'change_request', entityId: info.lastInsertRowid, details: { action } }, x);
-  notify(`📝 <b>בקשת אישור עריכה</b>\n${actor?.name || 'משתמש'} · ${actionLabel(action)}\n${summary || ''}`);
+  // Generic alert only — no amounts/names/diff (details stay inside the app under /approvals).
+  notify(`📝 <b>בקשת אישור עריכה חדשה</b>\nמאת ${actor?.name || 'משתמש'} · ${actionLabel(action)}\nהיכנס למערכת לצפייה ואישור.`);
   return info.lastInsertRowid;
 }
 
@@ -63,7 +64,13 @@ export async function getRequest(id, x = getExecutor()) {
   return r;
 }
 
-/** Approve a request: apply it with the owner's authority, mark approved, notify. */
+/**
+ * Approve a request: apply it with the owner's authority AND mark it approved in a single DB
+ * transaction, so a failure anywhere rolls back both — the change is never applied while the
+ * request stays "pending" (which would allow a second approval = double-apply). The status is
+ * re-checked inside the transaction to close the race. The Telegram alert fires only after the
+ * commit and is fire-and-forget, so a notification failure can never undo an applied approval.
+ */
 export async function approveRequest(id, ownerActor, x = getExecutor()) {
   const req = await getRequest(id, x);
   if (req.status !== 'pending') throw new RuleError('STATE', 'הבקשה כבר טופלה');
@@ -71,14 +78,21 @@ export async function approveRequest(id, ownerActor, x = getExecutor()) {
   if (!spec) throw new RuleError('VALIDATION', `פעולה לא נתמכת: ${req.action}`);
 
   const payload = JSON.parse(req.payload);
-  await spec.apply(payload, ownerActor, x); // real service enforces its own rules
   const result = `אושר ובוצע: ${actionLabel(req.action)} — ${req.summary || ''}`;
-  await x.run(
-    "UPDATE change_requests SET status = 'approved', decided_by = ?, decided_at = ?, result_summary = ? WHERE id = ?",
-    [ownerActor?.id ?? null, nowTs(), result, id],
-  );
-  await logAction({ userId: ownerActor?.id ?? null, action: 'change_request.approve', entityType: 'change_request', entityId: id, details: { action: req.action } }, x);
-  notify(`✅ <b>בקשת עריכה אושרה ובוצעה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''})\n${req.summary || ''}`);
+
+  await tx(async (t) => {
+    // Re-check status inside the transaction to prevent a concurrent double-approve.
+    const fresh = await t.one('SELECT status FROM change_requests WHERE id = ?', [id]);
+    if (!fresh || fresh.status !== 'pending') throw new RuleError('STATE', 'הבקשה כבר טופלה');
+    await spec.apply(payload, ownerActor, t); // real service enforces its own rules, on the same txn
+    await t.run(
+      "UPDATE change_requests SET status = 'approved', decided_by = ?, decided_at = ?, result_summary = ? WHERE id = ?",
+      [ownerActor?.id ?? null, nowTs(), result, id],
+    );
+    await logAction({ userId: ownerActor?.id ?? null, action: 'change_request.approve', entityType: 'change_request', entityId: id, details: { action: req.action } }, t);
+  });
+
+  notify(`✅ <b>בקשת עריכה אושרה ובוצעה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''}). הפרטים במערכת.`);
   return getRequest(id, x);
 }
 
