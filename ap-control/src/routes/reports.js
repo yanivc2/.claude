@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import {
   createZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
   addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
+  setDeposit, cashReconciliation, DENOMS,
 } from '../services/zreports.js';
 import { getDb } from '../db/index.js';
 import { config } from '../config.js';
@@ -37,6 +38,9 @@ function renderZReport(req, res, id, extra = {}) {
     expenses: listExpenses(id),
     expensesTotal: expensesTotal(id),
     expenseTypes: EXPENSE_TYPES,
+    denoms: DENOMS,
+    depositCounts: zr.deposit_breakdown ? JSON.parse(zr.deposit_breakdown) : {},
+    cashRecon: cashReconciliation(id),
     error: null,
     notice: null,
     ...extra,
@@ -232,6 +236,20 @@ router.post('/zreports/:id/expenses', handleInvoiceImage, (req, res, next) => {
     renderZReport(req, res, id, { notice: 'הוצאה נוספה.' });
   } catch (err) {
     if (req.file) removeUpload(req.file.filename);
+    if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
+    next(err);
+  }
+});
+
+// Save the deposit (bill counts + bag number) for a Z report.
+router.post('/zreports/:id/deposit', (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    const counts = {};
+    for (const d of DENOMS) counts[d.value] = Number(req.body[`count_${d.key}`] || 0);
+    setDeposit(id, { counts, bag: req.body.deposit_bag }, req.user);
+    renderZReport(req, res, id, { notice: 'הפקדה נשמרה.' });
+  } catch (err) {
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
     next(err);
   }
