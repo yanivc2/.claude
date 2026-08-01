@@ -55,9 +55,21 @@ export async function putBuffer(buffer, ext, contentType) {
     });
     return url;
   }
-  fs.mkdirSync(config.uploadsDir, { recursive: true });
-  fs.writeFileSync(path.join(config.uploadsDir, key), buffer);
-  return key;
+  try {
+    fs.mkdirSync(config.uploadsDir, { recursive: true });
+    fs.writeFileSync(path.join(config.uploadsDir, key), buffer);
+    return key;
+  } catch (err) {
+    // On a serverless host (e.g. Vercel) the filesystem is read-only, so local storage fails.
+    // Cloud file storage must be configured — surface a clear, actionable message.
+    if (['EROFS', 'ENOENT', 'EACCES'].includes(err.code)) {
+      throw new Error(
+        'אחסון קבצים בענן אינו מוגדר. כדי לשמור תמונות/קבצים יש להוסיף Vercel Blob ' +
+          '(משתנה סביבה BLOB_READ_WRITE_TOKEN) ולפרוס מחדש.',
+      );
+    }
+    throw err;
+  }
 }
 
 /** Fetch a stored file as { buffer, contentType }. */
