@@ -21,10 +21,16 @@ export async function createEvent({ title, eventDate, eventTime, remind }, actor
 }
 
 export async function listEventsInRange(fromIso, toIso, x = getExecutor()) {
-  return x.many(
-    'SELECT * FROM calendar_events WHERE event_date BETWEEN ? AND ? ORDER BY event_date, event_time',
-    [fromIso, toIso],
-  );
+  // Tolerate a pre-upgrade DB that lacks the calendar_events table — show no events instead
+  // of crashing the whole יומן page (the settings "עדכן מסד נתונים" button creates the table).
+  try {
+    return await x.many(
+      'SELECT * FROM calendar_events WHERE event_date BETWEEN ? AND ? ORDER BY event_date, event_time',
+      [fromIso, toIso],
+    );
+  } catch {
+    return [];
+  }
 }
 
 export async function deleteEvent(id, actor, x = getExecutor()) {
@@ -40,7 +46,12 @@ export async function deleteEvent(id, actor, x = getExecutor()) {
  * @returns {Promise<{sent:number, due:number}>}
  */
 export async function runDueReminders(nowMs = Date.now(), x = getExecutor(), send = sendTelegram) {
-  const pending = await x.many('SELECT * FROM calendar_events WHERE remind = 1 AND remind_sent = 0', []);
+  let pending = [];
+  try {
+    pending = await x.many('SELECT * FROM calendar_events WHERE remind = 1 AND remind_sent = 0', []);
+  } catch {
+    return { sent: 0, due: 0 };
+  }
   const due = pending.filter((e) => {
     const iso = `${e.event_date}T${e.event_time || '00:00'}:00`;
     return new Date(iso).getTime() <= nowMs;
