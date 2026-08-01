@@ -1,11 +1,29 @@
 import { Router } from 'express';
-import { dashboardStats } from '../services/reports.js';
+import { dashboardStats, invoiceLookup } from '../services/reports.js';
+import { lookupChecks } from '../services/payments.js';
 import { listRecent } from '../services/audit.js';
+import { getDb } from '../db/index.js';
 
 const router = Router();
 
 router.get('/', (req, res) => {
-  res.render('dashboard', { title: 'לוח בקרה', stats: dashboardStats() });
+  const q = (req.query.q || '').trim();
+  const companyId = req.query.company ? Number(req.query.company) : null;
+  const storeId = req.query.store ? Number(req.query.store) : null;
+  const db = getDb();
+  res.render('dashboard', {
+    title: 'לוח בקרה',
+    stats: dashboardStats(),
+    q,
+    companyId,
+    storeId,
+    companies: db.prepare('SELECT id, name FROM companies ORDER BY name').all(),
+    stores: db
+      .prepare('SELECT id, name, company_id FROM stores ORDER BY name')
+      .all(),
+    invoiceResults: q ? invoiceLookup(q, { companyId, storeId }) : null,
+    checkResults: q ? lookupChecks(q) : null,
+  });
 });
 
 router.get('/audit', (req, res) => {

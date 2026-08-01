@@ -14,10 +14,17 @@ import { RuleError, AuthError } from '../lib/errors.js';
 const router = Router();
 
 router.get('/', (req, res) => {
+  const companyId = req.query.company ? Number(req.query.company) : null;
+  const storeId = req.query.store ? Number(req.query.store) : null;
+  const db = getDb();
   res.render('payments/index', {
     title: 'תשלומים (צ׳קים)',
-    payments: listPayments({ status: req.query.status || null }),
+    payments: listPayments({ status: req.query.status || null, companyId, storeId }),
     filter: req.query.status || '',
+    companyId,
+    storeId,
+    companies: db.prepare('SELECT id, name FROM companies ORDER BY name').all(),
+    stores: db.prepare('SELECT id, name, company_id FROM stores ORDER BY name').all(),
   });
 });
 
@@ -86,7 +93,7 @@ router.get('/:id/print', (req, res, next) => {
 router.post('/:id/clear', (req, res, next) => {
   try {
     markCleared(Number(req.params.id), req.body.cleared_date || null, req.user);
-    res.redirect(`/payments/${req.params.id}`);
+    res.redirect(req.get('referer') || `/payments/${req.params.id}`);
   } catch (err) {
     next(err);
   }
@@ -95,7 +102,7 @@ router.post('/:id/clear', (req, res, next) => {
 router.post('/:id/void', (req, res, next) => {
   try {
     voidPayment(Number(req.params.id), req.user, req.body.reason || null);
-    res.redirect(`/payments/${req.params.id}`);
+    res.redirect(req.get('referer') || `/payments/${req.params.id}`);
   } catch (err) {
     next(err);
   }

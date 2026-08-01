@@ -4,32 +4,66 @@
   <a class="btn" href="/payments/new">+ צ׳ק חדש</a>
 </div>
 
-<div class="filterms card">
-  סינון:
-  <a href="/payments">הכל</a>
-  <a href="/payments?status=issued">בחוץ (הונפקו)</a>
-  <a href="/payments?status=cleared">נפרעו</a>
-  <a href="/payments?status=voided">מבוטלים</a>
+<div class="card no-print">
+  <form method="get" action="/payments" class="actions" style="flex-wrap:wrap">
+    <select name="company" onchange="this.form.submit()">
+      <option value="">כל החברות</option>
+      <% companies.forEach(function(c){ %>
+        <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+      <% }); %>
+    </select>
+    <select name="store" onchange="this.form.submit()">
+      <option value="">כל החנויות</option>
+      <% stores.forEach(function(s){ %>
+        <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %></option>
+      <% }); %>
+    </select>
+    <input type="hidden" name="status" value="<%= filter %>" />
+    <span class="filterms">
+      סטטוס:
+      <a href="/payments?status=&company=<%= companyId||'' %>&store=<%= storeId||'' %>">הכל</a>
+      <a href="/payments?status=issued&company=<%= companyId||'' %>&store=<%= storeId||'' %>">בחוץ</a>
+      <a href="/payments?status=cleared&company=<%= companyId||'' %>&store=<%= storeId||'' %>">נפרעו</a>
+      <a href="/payments?status=voided&company=<%= companyId||'' %>&store=<%= storeId||'' %>">מבוטלים</a>
+    </span>
+  </form>
 </div>
 
 <table>
   <thead>
-    <tr><th>#</th><th>מס' צ׳ק</th><th>חשבון בנק</th><th>תאריך</th><th class="right">סכום</th><th>סטטוס</th></tr>
+    <tr><th>#</th><th>מס' צ׳ק</th><th>חברה / חנות</th><th>תאריך</th><th class="right">סכום</th><th>סטטוס</th><th class="no-print">פעולות</th></tr>
   </thead>
   <tbody>
     <% if (payments.length === 0) { %>
-      <tr><td colspan="6" class="muted">אין צ׳קים להצגה.</td></tr>
+      <tr><td colspan="7" class="muted">אין צ׳קים להצגה.</td></tr>
     <% } %>
     <% payments.forEach(function(p){ %>
       <tr onclick="location='/payments/<%= p.id %>'" style="cursor:pointer">
         <td><%= p.id %></td>
         <td class="mono"><%= p.check_number %></td>
-        <td><%= p.bank_account_name %></td>
+        <td><%= p.company_name %> · <%= p.store_name %></td>
         <td><%= p.payment_date %></td>
         <td class="right"><%= formatIls(p.amount) %></td>
         <td><span class="badge b-<%= p.status %>"><%= p.status === 'issued' ? 'הונפק' : p.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span></td>
+        <td class="no-print" onclick="event.stopPropagation()">
+          <% if (p.status === 'issued') { %>
+            <div class="actions">
+              <form method="post" action="/payments/<%= p.id %>/clear" style="display:inline">
+                <button class="ok small" type="submit">סמן כנפרע</button>
+              </form>
+              <% if (currentUser.role === 'owner') { %>
+                <form method="post" action="/payments/<%= p.id %>/void" style="display:inline" onsubmit="return confirm('לבטל את הצ׳ק?')">
+                  <button class="danger small" type="submit">בטל</button>
+                </form>
+              <% } %>
+            </div>
+          <% } else if (p.status === 'cleared') { %>
+            <span class="muted">נפרע <%= p.cleared_date || '' %></span>
+          <% } else { %>—<% } %>
+        </td>
       </tr>
     <% }); %>
   </tbody>
 </table>
+<p class="muted no-print">"סמן כנפרע" מסמן בתאריך היום. ביטול צ׳ק — בעלים בלבד.</p>
 <%- include('../partials/footer') %>

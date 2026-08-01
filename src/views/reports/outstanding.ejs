@@ -6,29 +6,29 @@
     <button class="secondary" onclick="window.print()">הדפסה / PDF</button>
   </div>
 </div>
-<p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7).</p>
+<p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7). לחץ על שורה לפירוט.</p>
 
 <div class="card">
   <table>
     <thead>
-      <tr><th>חברה</th><th>חנות / חשבון</th><th class="right">צ׳קים פתוחים</th><th class="right">סכום בחוץ</th><th></th></tr>
+      <tr><th>חברה</th><th>חנות / חשבון</th><th class="right">צ׳קים פתוחים</th><th class="right">סכום בחוץ</th></tr>
     </thead>
     <tbody>
       <% accounts.forEach(function(a){ %>
-        <tr>
+        <tr onclick="location='/reports/outstanding?account=<%= a.id %>'" style="cursor:pointer"
+            class="<%= detailAccountId === a.id ? 'b-approved' : '' %>">
           <td><%= a.company_name %></td>
           <td><%= a.display_name %></td>
           <td class="right"><%= a.outstanding_count %></td>
           <td class="right"><strong><%= formatIls(a.outstanding) %></strong></td>
-          <td class="right"><a href="/reports/outstanding?account=<%= a.id %>">פירוט</a></td>
         </tr>
       <% }); %>
     </tbody>
     <tfoot>
       <tr>
-        <th colspan="3">סה"כ כל החשבונות</th>
+        <th colspan="2">סה"כ כל החשבונות</th>
+        <th class="right"><%= a_total_count(accounts) %></th>
         <th class="right"><%= formatIls(totalOutstanding) %></th>
-        <th></th>
       </tr>
     </tfoot>
   </table>
@@ -38,7 +38,7 @@
   <div class="card">
     <h2>צ׳קים פתוחים בחשבון הנבחר</h2>
     <table>
-      <thead><tr><th>מס' צ׳ק</th><th>תאריך</th><th class="right">סכום</th><th></th></tr></thead>
+      <thead><tr><th>מס' צ׳ק</th><th>תאריך</th><th class="right">סכום</th><th class="no-print">פעולה</th></tr></thead>
       <tbody>
         <% if (detailChecks.length === 0) { %><tr><td colspan="4" class="muted">אין צ׳קים פתוחים.</td></tr><% } %>
         <% detailChecks.forEach(function(c){ %>
@@ -46,11 +46,18 @@
             <td class="mono"><a href="/payments/<%= c.id %>"><%= c.check_number %></a></td>
             <td><%= c.payment_date %></td>
             <td class="right"><%= formatIls(c.amount) %></td>
-            <td class="right"><a href="/payments/<%= c.id %>">סמן כנפרע</a></td>
+            <td class="no-print">
+              <form method="post" action="/payments/<%= c.id %>/clear" style="display:inline">
+                <button class="ok small" type="submit">סמן כנפרע</button>
+              </form>
+            </td>
           </tr>
         <% }); %>
       </tbody>
     </table>
   </div>
 <% } %>
+<%
+function a_total_count(list){ return list.reduce(function(s,a){ return s + a.outstanding_count; }, 0); }
+%>
 <%- include('../partials/footer') %>
