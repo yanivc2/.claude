@@ -1,6 +1,7 @@
 import { getExecutor, tx } from '../db/adapter.js';
 import { config } from '../config.js';
 import { NotFoundError, RuleError, AuthError } from '../lib/errors.js';
+import { userCan } from '../lib/permissions.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { logAction } from './audit.js';
 
@@ -161,7 +162,7 @@ export async function markCleared(id, clearedDate, actor, x = getExecutor()) {
 
 /** Void a check. Reverts its invoices back to approved_for_payment. Owner-only. */
 export async function voidPayment(id, actor, reason = null, x = getExecutor()) {
-  if (!actor || actor.role !== 'owner') throw new AuthError('ביטול צ׳ק — בעלים בלבד');
+  if (!userCan(actor, 'void_payment')) throw new AuthError('ביטול צ׳ק — נדרשת הרשאת ביטול תשלום');
   const payment = await x.one('SELECT * FROM payments WHERE id = ?', [id]);
   if (!payment) throw new NotFoundError(`תשלום ${id} לא נמצא`);
 
