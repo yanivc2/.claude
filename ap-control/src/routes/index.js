@@ -6,6 +6,7 @@ import {
   outstandingChecksInRange,
 } from '../services/reports.js';
 import { lookupChecks } from '../services/payments.js';
+import { transfersSummary, listTransfers } from '../services/transfers.js';
 import { searchSuppliers } from '../services/suppliers.js';
 import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
@@ -34,6 +35,8 @@ router.get('/', async (req, res, next) => {
     res.render('dashboard', {
       title: 'לוח בקרה',
       stats: await dashboardStats(),
+      transfers: await transfersSummary(),
+      recentTransfers: await listTransfers({ status: 'scheduled' }),
       q,
       companyId,
       storeId,

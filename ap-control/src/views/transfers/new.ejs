@@ -1,0 +1,69 @@
+<%- include('../partials/header') %>
+<h1>העברה חדשה</h1>
+<div class="card">
+  <p class="muted">ההעברה תיקלט כ<strong>מתוזמנת</strong>. יש לצרף אסמכתא; ביצוע ההעברה חסום עד אישור הבעלים (R6). העברה ללא התאמה לחשבונית שולחת התראה לבעלים.</p>
+  <% if (error) { %><div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div><% } %>
+
+  <form class="stack" method="post" action="/transfers">
+    <label>חשבון בנק *</label>
+    <select name="bank_account_id" required>
+      <option value="">— בחר חשבון —</option>
+      <% accounts.forEach(function(a){ %>
+        <option value="<%= a.id %>" <%= String(values.bank_account_id) === String(a.id) ? 'selected' : '' %>><%= a.display_name %></option>
+      <% }); %>
+    </select>
+
+    <div class="row">
+      <div>
+        <label>מקבל ההעברה *</label>
+        <input name="payee" required value="<%= values.payee || '' %>" placeholder="שם ספק / רשות / עובד" />
+      </div>
+      <div>
+        <label>סכום (₪) *</label>
+        <input name="amount" inputmode="decimal" required value="<%= values.amount || '' %>" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>תאריך העברה *</label>
+        <input type="date" name="transfer_date" required value="<%= values.transfer_date || '' %>" />
+      </div>
+      <div>
+        <label>אסמכתא (מס' העברה בבנק)</label>
+        <input name="reference" value="<%= values.reference || '' %>" placeholder="ניתן להשלים גם אחרי הביצוע" />
+      </div>
+      <div>
+        <label>תדירות</label>
+        <select name="recurrence">
+          <option value="once" <%= values.recurrence !== 'monthly' ? 'selected' : '' %>>חד-פעמי</option>
+          <option value="monthly" <%= values.recurrence === 'monthly' ? 'selected' : '' %>>חודשי</option>
+        </select>
+      </div>
+    </div>
+
+    <h3 style="margin:1.1rem 0 .2rem">התאמה לחשבונית</h3>
+    <label>חשבונית מתאימה (לא חובה)</label>
+    <select name="invoice_id">
+      <option value="">— ללא בחירה —</option>
+      <% invoices.forEach(function(i){ %>
+        <option value="<%= i.id %>" <%= String(values.invoice_id) === String(i.id) ? 'selected' : '' %>>
+          #<%= i.id %> · <%= i.supplier_name %> · <%= i.invoice_number %> · <%= formatIls(i.total_amount) %>
+        </option>
+      <% }); %>
+    </select>
+    <label>אם אין חשבונית</label>
+    <select name="match_type">
+      <option value="pending" <%= values.match_type !== 'none' ? 'selected' : '' %>>טרם התקבלה חשבונית (תזכורת לספק)</option>
+      <option value="none" <%= values.match_type === 'none' ? 'selected' : '' %>>ללא חשבונית (תשלום שאינו על חשבונית)</option>
+    </select>
+    <label>הסבר להתאמה / הערות</label>
+    <textarea name="match_note" rows="2" placeholder="למשל: ארנונה חודשית / טרם התקבלה חשבונית מהספק"><%= values.match_note || '' %></textarea>
+
+    <div style="margin-top:1.1rem" class="actions">
+      <button type="submit">שמור העברה</button>
+      <a href="/transfers" class="btn secondary">ביטול</a>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

@@ -249,6 +249,35 @@ CREATE TABLE IF NOT EXISTS sales_entries (
 );
 CREATE INDEX IF NOT EXISTS ix_sales_store_date ON sales_entries(store_id, sale_date);
 
+-- bank_transfers — scheduled/executed bank transfers (העברות בנקאיות, ROADMAP §D).
+-- A transfer is control over money that leaves an account WITHOUT a physical check: it is
+-- scheduled, must carry proof (an אסמכתא reference), is approved by the owner, and is then
+-- reconciled to an invoice (or flagged as having none). `reference` matches the bank statement
+-- line (like payments.reference) for verification against the bank feed.
+CREATE TABLE IF NOT EXISTS bank_transfers (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
+  payee           TEXT NOT NULL,                            -- מקבל ההעברה
+  amount          INTEGER NOT NULL,                         -- agorot
+  transfer_date   TEXT NOT NULL,                            -- planned/execution date 'YYYY-MM-DD'
+  reference       TEXT,                                     -- אסמכתא (matches bank statement)
+  recurrence      TEXT NOT NULL DEFAULT 'once'
+                  CHECK (recurrence IN ('once','monthly')),
+  status          TEXT NOT NULL DEFAULT 'scheduled'
+                  CHECK (status IN ('scheduled','executed','cancelled')),
+  proof_approved  INTEGER NOT NULL DEFAULT 0,               -- 0/1 — owner approved the אסמכתא (R6-style)
+  invoice_id      INTEGER REFERENCES invoices(id),          -- matched invoice (nullable)
+  match_type      TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (match_type IN ('invoice','none','pending')),
+  match_note      TEXT,                                     -- explanation for 'none' / 'pending'
+  cancel_reason   TEXT,
+  executed_at     TEXT,
+  notes           TEXT,
+  created_by      INTEGER NOT NULL REFERENCES users(id),
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_bank_transfers_status ON bank_transfers(status, transfer_date);
+
 -- §4 audit_log ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,

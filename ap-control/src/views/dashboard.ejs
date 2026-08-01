@@ -114,13 +114,42 @@
     <div class="num"><%= formatIls(stats.totalOutstanding) %></div>
     <div class="label">צ׳קים בחוץ</div>
   </a>
+  <a class="stat <%= transfers.awaitingApproval ? 'attn' : '' %>" href="/transfers?status=scheduled">
+    <div class="num"><%= transfers.scheduledCount %></div>
+    <div class="label">העברות מתוזמנות<%= transfers.awaitingApproval ? ' · ' + transfers.awaitingApproval + ' לאישור' : '' %></div>
+  </a>
 </div>
+
+<% if (recentTransfers && recentTransfers.length) { %>
+<div class="card">
+  <div class="toolbar" style="margin-bottom:.6rem">
+    <h2 style="margin:0">העברות מתוזמנות</h2>
+    <a class="btn secondary small" href="/transfers">לכל ההעברות</a>
+  </div>
+  <table>
+    <thead><tr><th>מקבל</th><th>חשבון</th><th>תאריך</th><th class="right">סכום</th><th>אסמכתא</th><th>התאמה</th></tr></thead>
+    <tbody>
+      <% recentTransfers.slice(0, 6).forEach(function(t){ %>
+        <tr onclick="location='/transfers'" style="cursor:pointer">
+          <td><strong><%= t.payee %></strong></td>
+          <td class="muted"><%= t.account_name %></td>
+          <td class="mono"><%= t.transfer_date %></td>
+          <td class="right mono"><%= formatIls(t.amount) %></td>
+          <td><% if (t.reference) { %><%= t.proof_approved ? '✔ מאושרת' : 'ממתינה' %><% } else { %><span class="neg">חסרה</span><% } %></td>
+          <td><%= t.match_type === 'invoice' ? 'חשבונית ' + (t.invoice_number || '') : (t.match_type === 'none' ? 'ללא חשבונית' : 'טרם הותאמה') %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<% } %>
 
 <div class="card">
   <h2>פעולות מהירות</h2>
   <div class="actions">
     <a class="btn" href="/invoices/new">+ חשבונית חדשה</a>
     <a class="btn" href="/payments/new">+ צ׳ק חדש</a>
+    <a class="btn secondary" href="/transfers/new">+ העברה בנקאית</a>
     <a class="btn secondary" href="/suppliers/new">+ ספק חדש</a>
     <a class="btn secondary" href="/reports/profitability">רווחיות</a>
   </div>
