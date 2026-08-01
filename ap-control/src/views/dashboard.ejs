@@ -1,6 +1,16 @@
 <%- include('partials/header') %>
 <h1>לוח בקרה</h1>
 
+<div class="card no-print">
+  <h2 style="margin-top:0">קיצורי תשלום</h2>
+  <div class="actions" style="flex-wrap:wrap">
+    <a class="btn" href="/payments/new?method=transfer">+ תשלום בהעברה</a>
+    <a class="btn" href="/payments/new?method=cash">+ תשלום במזומן</a>
+    <a class="btn" href="/payments/new?method=check">+ צ׳ק</a>
+    <a class="btn secondary" href="/payments/new">+ תשלום אחר</a>
+  </div>
+</div>
+
 <div class="card">
   <h2>בדיקת חשבונית / צ׳ק</h2>
   <form method="get" action="/" class="actions" style="flex-wrap:wrap">

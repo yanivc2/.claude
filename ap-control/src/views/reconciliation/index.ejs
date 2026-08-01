@@ -130,6 +130,12 @@
             <% } else { %>
               <span class="muted">זכות</span>
             <% } %>
+            <% if (!t.matched_payment_id) { %>
+              <form method="post" action="/reconciliation/txn/<%= t.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את התנועה?')">
+                <input type="hidden" name="account_id" value="<%= accountId %>" />
+                <button class="danger small" type="submit">מחק</button>
+              </form>
+            <% } %>
           </td>
         </tr>
       <% }); %>

@@ -10,7 +10,7 @@ function isHttps(req) {
 }
 
 router.get('/login', (req, res) => {
-  if (req.user) return res.redirect('/');
+  if (req.user) return res.redirect(303, '/');
   res.render('login', { title: 'התחברות', error: null });
 });
 
@@ -29,7 +29,7 @@ router.post('/login', async (req, res, next) => {
       maxAge: 12 * 3600 * 1000,
     });
     await logAction({ userId: user.id, action: 'auth.login', entityType: 'user', entityId: user.id });
-    res.redirect('/');
+    res.redirect(303, '/');
   } catch (err) {
     next(err);
   }
@@ -37,7 +37,7 @@ router.post('/login', async (req, res, next) => {
 
 router.post('/logout', (req, res) => {
   res.clearCookie('session');
-  res.redirect('/login');
+  res.redirect(303, '/login');
 });
 
 export default router;

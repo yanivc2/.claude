@@ -106,7 +106,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       confirmReason: b.confirm_reason || null,
     };
     const { invoice } = await createInvoice(input, req.user);
-    return res.redirect(`/invoices/${invoice.id}`);
+    return res.redirect(303, `/invoices/${invoice.id}`);
   } catch (err) {
     if (err instanceof RuleError && err.meta?.needsConfirmation) {
       return res.status(200).render('invoices/new', {
@@ -148,7 +148,7 @@ router.post('/:id/image', handleInvoiceImage, async (req, res, next) => {
     if (!req.file) return renderShow(res, Number(req.params.id), 'לא נבחר קובץ');
     const previous = await setImage(Number(req.params.id), req.file.filename, req.user);
     if (previous) removeUpload(previous);
-    res.redirect(`/invoices/${req.params.id}`);
+    res.redirect(303, `/invoices/${req.params.id}`);
   } catch (err) {
     if (req.file) removeUpload(req.file.filename);
     next(err);
@@ -174,7 +174,7 @@ router.post('/:id/ocr', async (req, res, next) => {
   const id = Number(req.params.id);
   try {
     await runOcrForInvoice(id, req.user);
-    res.redirect(`/invoices/${id}`);
+    res.redirect(303, `/invoices/${id}`);
   } catch (err) {
     return renderShow(res, id, err.message);
   }
@@ -183,7 +183,7 @@ router.post('/:id/ocr', async (req, res, next) => {
 router.post('/:id/approve', async (req, res, next) => {
   try {
     await approveInvoiceForPayment(Number(req.params.id), req.user);
-    res.redirect(`/invoices/${req.params.id}`);
+    res.redirect(303, `/invoices/${req.params.id}`);
   } catch (err) {
     if (err instanceof AuthError || err instanceof RuleError) {
       return renderShow(res, Number(req.params.id), err.message);
@@ -195,7 +195,7 @@ router.post('/:id/approve', async (req, res, next) => {
 router.post('/:id/hold', async (req, res, next) => {
   try {
     await putOnHold(Number(req.params.id), req.body.reason || null, req.user);
-    res.redirect(`/invoices/${req.params.id}`);
+    res.redirect(303, `/invoices/${req.params.id}`);
   } catch (err) {
     if (err instanceof AuthError || err instanceof RuleError) {
       return renderShow(res, Number(req.params.id), err.message);
@@ -207,7 +207,7 @@ router.post('/:id/hold', async (req, res, next) => {
 router.post('/:id/allocation', async (req, res, next) => {
   try {
     await setAllocationNumber(Number(req.params.id), req.body.allocation_number, req.user);
-    res.redirect(`/invoices/${req.params.id}`);
+    res.redirect(303, `/invoices/${req.params.id}`);
   } catch (err) {
     if (err instanceof RuleError) {
       return renderShow(res, Number(req.params.id), err.message);
