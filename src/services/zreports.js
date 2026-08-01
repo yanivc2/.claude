@@ -67,6 +67,47 @@ export function listZReports({ storeId = null, limit = 40 } = {}, db = getDb()) 
   return db.prepare(`${base} ORDER BY z.z_date DESC, z.id DESC LIMIT ?`).all(limit);
 }
 
+// Cash denominations for the deposit calculator (shekel value + a form-safe key).
+export const DENOMS = [
+  { value: 200, key: '200' }, { value: 100, key: '100' }, { value: 50, key: '50' },
+  { value: 20, key: '20' }, { value: 10, key: '10' }, { value: 5, key: '5' },
+  { value: 1, key: '1' }, { value: 0.5, key: '0_5' }, { value: 0.1, key: '0_1' },
+];
+
+/**
+ * Save the deposit for a Z report from bill counts. Amount (agorot) is computed from the
+ * denominations so it can't drift from the breakdown.
+ * @param {{counts: Record<string|number, number>, bag?: string}} input
+ */
+export function setDeposit(zReportId, { counts = {}, bag = null }, actor, db = getDb()) {
+  getZReport(zReportId, db);
+  let amount = 0;
+  const clean = {};
+  for (const d of DENOMS) {
+    const c = Number(counts[d.value] ?? counts[d.key] ?? 0);
+    if (!Number.isInteger(c) || c < 0) throw new RuleError('VALIDATION', `כמות שטרות לא תקינה עבור ${d.value}`);
+    clean[d.value] = c;
+    amount += Math.round(d.value * 100) * c;
+  }
+  db.prepare('UPDATE z_reports SET deposit_amount = ?, deposit_bag = ?, deposit_breakdown = ? WHERE id = ?')
+    .run(amount, bag?.trim() || null, JSON.stringify(clean), zReportId);
+  logAction({ userId: actor.id, action: 'zreport.deposit', entityType: 'z_report', entityId: zReportId, details: { amount, bag } }, db);
+  return getZReport(zReportId, db);
+}
+
+/**
+ * Cash reconciliation for a Z report: drawer cash should equal deposit + expenses.
+ * @returns {{cash:number, deposit:number, expenses:number, diff:number}}  diff = cash - (deposit+expenses)
+ *   diff < 0 => shortage (חוסר), diff > 0 => surplus (יתרה), 0 => match.
+ */
+export function cashReconciliation(zReportId, db = getDb()) {
+  const zr = getZReport(zReportId, db);
+  const deposit = zr.deposit_amount || 0;
+  const expenses = expensesTotal(zReportId, db);
+  const cash = zr.drawer_cash || 0;
+  return { cash, deposit, expenses, diff: cash - deposit - expenses };
+}
+
 // Expense description types (§ drawer expenses). Some require an employee name.
 export const EXPENSE_TYPES = [
   { value: 'tara', label: 'טרה', needsEmployee: false },

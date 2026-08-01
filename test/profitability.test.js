@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { freshDb, owner, secretary, firstStore } from './helpers.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice } from '../src/services/invoices.js';
-import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense } from '../src/services/zreports.js';
+import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense, setDeposit, cashReconciliation } from '../src/services/zreports.js';
 import { profitability } from '../src/services/reports.js';
 import { toAgorot } from '../src/lib/money.js';
 
@@ -97,3 +97,26 @@ test('Z expenses: add, total, delete', () => {
   deleteExpense(e2.id, sec, db);
   assert.equal(expensesTotal(z.id, db), toAgorot('120'));
 });
+
+test('deposit computes from bill counts; cash reconciliation = drawer cash - deposit - expenses', () => {
+  const db = freshDb();
+  const store = firstStore(db);
+  const sec = secretary(db);
+  // drawer cash 1000
+  const z = createZReport({ storeId: store.id, zNumber: '401', zDate: '2026-07-01', dailyTotal: toAgorot('2000'), drawerCash: toAgorot('1000') }, sec, db);
+  // deposit: 4×200 + 1×100 + 1×0.5 = 900.50
+  setDeposit(z.id, { counts: { 200: 4, 100: 1, 0.5: 1 } }, sec, db);
+  assert.equal(getZReportAmount(db, z.id), toAgorot('900.50'));
+  // expenses 100 -> cash should be 900.50 + 100 = 1000.50; drawer cash 1000 -> shortage of 0.50
+  addExpense(z.id, { descriptionType: 'tara', amount: toAgorot('100') }, sec, db);
+  const r = cashReconciliation(z.id, db);
+  assert.equal(r.cash, toAgorot('1000'));
+  assert.equal(r.deposit, toAgorot('900.50'));
+  assert.equal(r.expenses, toAgorot('100'));
+  assert.equal(r.diff, toAgorot('1000') - toAgorot('900.50') - toAgorot('100')); // -50 agorot (חוסר)
+  assert.ok(r.diff < 0);
+});
+
+function getZReportAmount(db, id) {
+  return db.prepare('SELECT deposit_amount FROM z_reports WHERE id = ?').get(id).deposit_amount;
+}

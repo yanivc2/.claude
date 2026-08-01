@@ -85,7 +85,74 @@
   </div>
 </div>
 
+<div class="row">
+  <div style="flex:1; min-width:300px">
+    <div class="card">
+      <h2>דוח הפקדות</h2>
+      <form method="post" action="/reports/zreports/<%= zr.id %>/deposit" class="stack">
+        <table>
+          <thead><tr><th>שטר</th><th>כמות</th><th class="right">סכום</th></tr></thead>
+          <tbody>
+            <% denoms.forEach(function(d){ var c = depositCounts[d.value] || 0; %>
+              <tr>
+                <td>₪<%= d.value %></td>
+                <td><input name="count_<%= d.key %>" class="dep" data-val="<%= d.value %>" inputmode="numeric" value="<%= c || '' %>" style="width:90px" /></td>
+                <td class="right dep-line"><%= formatIls(Math.round(d.value*100)*c) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+          <tfoot><tr><th>סכום ההפקדה</th><th></th><th class="right" id="dep_total"><%= formatIls(zr.deposit_amount || 0) %></th></tr></tfoot>
+        </table>
+        <label>מספר שקית</label>
+        <input name="deposit_bag" value="<%= zr.deposit_bag || '' %>" />
+        <div style="margin-top:.6rem"><button type="submit">שמור הפקדה</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div style="flex:1; min-width:300px">
+    <div class="card">
+      <h2>התאמת מזומן</h2>
+      <p class="muted">מזומן מגירה = הפקדה + הוצאות</p>
+      <table>
+        <tbody>
+          <tr><td>מזומן מגירה</td><td class="right"><%= formatIls(cashRecon.cash) %></td></tr>
+          <tr><td>הפקדה</td><td class="right"><%= formatIls(cashRecon.deposit) %></td></tr>
+          <tr><td>הוצאות</td><td class="right"><%= formatIls(cashRecon.expenses) %></td></tr>
+        </tbody>
+        <tfoot>
+          <tr>
+            <th><%= cashRecon.diff === 0 ? 'התאמה' : (cashRecon.diff < 0 ? 'חוסר' : 'יתרה') %></th>
+            <th class="right" style="color:<%= cashRecon.diff === 0 ? 'var(--ok)' : (cashRecon.diff < 0 ? 'var(--bad)' : 'var(--ok)') %>">
+              <%= cashRecon.diff === 0 ? '✓' : formatIls(cashRecon.diff) %>
+            </th>
+          </tr>
+        </tfoot>
+      </table>
+      <% if (cashRecon.diff !== 0) { %>
+        <p class="muted">פער בין מזומן המגירה לסכום ההפקדה + ההוצאות. (התאמות מגירה/אשראי מלאות + התראות — בשלב הבא.)</p>
+      <% } %>
+    </div>
+  </div>
+</div>
+
 <script>
+// Deposit calculator: live line totals + deposit sum.
+(function(){
+  var depForm = document.querySelector('form[action="/reports/zreports/<%= zr.id %>/deposit"]');
+  if (!depForm) return;
+  function fmt(agorot){ return '₪' + (agorot/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function recalc(){
+    var total = 0;
+    depForm.querySelectorAll('input.dep').forEach(function(inp){
+      var val = parseFloat(inp.dataset.val); var c = parseInt(inp.value,10)||0;
+      var line = Math.round(val*100)*c; total += line;
+      inp.closest('tr').querySelector('.dep-line').textContent = fmt(line);
+    });
+    document.getElementById('dep_total').textContent = fmt(total);
+  }
+  depForm.querySelectorAll('input.dep').forEach(function(i){ i.addEventListener('input', recalc); });
+})();
 function toggleEmp(){
   var sel = document.getElementById('exp_type');
   var needs = sel.options[sel.selectedIndex].getAttribute('data-emp') === 'true';
