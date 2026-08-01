@@ -33,6 +33,13 @@ function useBlob() {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
 }
 
+// Blobs are stored PRIVATE by default: the app serves every file through its own authenticated
+// routes (getObject reads server-side with the token), so files are never publicly reachable.
+// Override with BLOB_ACCESS=public only if the store requires it.
+function blobAccess() {
+  return process.env.BLOB_ACCESS === 'public' ? 'public' : 'private';
+}
+
 function isRemote(ref) {
   return /^https?:\/\//i.test(ref);
 }
@@ -48,7 +55,7 @@ export async function putBuffer(buffer, ext, contentType) {
   if (useBlob()) {
     const { put } = await import('@vercel/blob');
     const { url } = await put(`uploads/${key}`, buffer, {
-      access: 'public', // Blob has only public URLs; the UUID key is unguessable, served via our routes
+      access: blobAccess(), // private by default; served via our authenticated routes
       contentType,
       token: process.env.BLOB_READ_WRITE_TOKEN,
       addRandomSuffix: false, // key is already a UUID — keep a clean extension for content-type
@@ -75,6 +82,21 @@ export async function putBuffer(buffer, ext, contentType) {
 /** Fetch a stored file as { buffer, contentType }. */
 export async function getObject(ref) {
   if (isRemote(ref)) {
+    // Private blob: read server-side with the token via the SDK. Falls back to a plain fetch
+    // for public/legacy blobs (or if the SDK read fails).
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      try {
+        const { get } = await import('@vercel/blob');
+        const r = await get(ref, { access: blobAccess(), token: process.env.BLOB_READ_WRITE_TOKEN });
+        if (r && r.stream) {
+          const buffer = Buffer.from(await new Response(r.stream).arrayBuffer());
+          const contentType = r.blob?.contentType || r.headers?.get?.('content-type') || contentTypeForRef(ref);
+          return { buffer, contentType };
+        }
+      } catch {
+        /* fall through to public fetch */
+      }
+    }
     const res = await fetch(ref);
     if (!res.ok) throw new Error(`blob fetch failed: ${res.status}`);
     const buffer = Buffer.from(await res.arrayBuffer());
