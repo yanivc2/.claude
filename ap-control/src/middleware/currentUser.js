@@ -24,7 +24,8 @@ export async function currentUser(req, res, next) {
     const user = uid ? await getExecutor().one('SELECT * FROM users WHERE id = ?', [uid]) : null;
 
     if (!user) {
-      if (req.path === '/login') return next(); // allow the login page + its POST through
+      // Public auth pages: login + the email password-reset flow.
+      if (req.path === '/login' || req.path === '/forgot' || req.path.startsWith('/reset/')) return next();
       return res.redirect('/login');
     }
     req.user = user;
