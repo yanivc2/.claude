@@ -4,30 +4,61 @@ import { NotFoundError, RuleError, AuthError } from '../lib/errors.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { logAction } from './audit.js';
 
+const METHODS = ['check', 'cash', 'credit', 'transfer', 'batch'];
+
 /**
- * Issue a payment (physical check) against a set of invoices/credit notes.
+ * Issue a payment against a set of invoices/credit notes. Supports several methods:
+ * check, cash, credit, transfer, batch — each with its own identifier fields.
  *
- * Enforces the core payment controls:
- *   Check-blocking — a payment requires a check_number AND at least one linked invoice.
+ * Enforces the core payment controls for EVERY method:
+ *   No payment without at least one linked (approved) invoice + the method's identifier.
  *   R1 — every linked invoice must be `approved_for_payment` AND its supplier `approved`.
- *   R5 — the check amount must equal the sum of applied lines (invoices minus credits).
+ *   R5 — the amount must equal the sum of applied lines (invoices minus credits).
  *
- * In stage 1 each selected invoice is applied in full (amount_applied = total_amount);
- * partial payments are out of scope. All selected invoices must belong to the same bank
- * account as the check (a check is drawn on one store's account, §2 1:1 mapping).
+ * Each selected invoice is applied in full (amount_applied = total_amount). All selected
+ * invoices must belong to the same bank account as the payment (§2 1:1 mapping).
  *
  * @returns {object} the created payment with its lines
  */
 export function createPayment(input, actor, db = getDb()) {
-  const { bankAccountId, checkNumber, paymentDate, invoiceIds = [] } = input;
+  const {
+    bankAccountId,
+    method = 'check',
+    checkNumber,
+    reference,
+    payerName,
+    cardLast4,
+    batchNumber,
+    paymentDate,
+    invoiceIds = [],
+  } = input;
 
-  // ---- check-blocking rule ----------------------------------------------------
-  if (!checkNumber || !String(checkNumber).trim()) {
-    throw new RuleError('CHECK', 'לא ניתן להנפיק תשלום ללא מספר צ׳ק');
-  }
+  if (!METHODS.includes(method)) throw new RuleError('VALIDATION', `אמצעי תשלום לא תקין: ${method}`);
   if (!paymentDate) throw new RuleError('VALIDATION', 'תאריך תשלום חובה');
   if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
-    throw new RuleError('CHECK', 'לא ניתן להנפיק צ׳ק ללא חשבונית מקושרת');
+    throw new RuleError('CHECK', 'לא ניתן להנפיק תשלום ללא חשבונית מקושרת');
+  }
+
+  // ---- per-method identifier (the "no payment without an identifier" control) --
+  const fields = { check_number: null, reference: null, payer_name: null, card_last4: null, batch_number: null };
+  if (method === 'check') {
+    if (!checkNumber || !String(checkNumber).trim()) throw new RuleError('CHECK', 'לא ניתן להנפיק צ׳ק ללא מספר צ׳ק');
+    fields.check_number = String(checkNumber).trim();
+  } else if (method === 'cash') {
+    if (!payerName || !String(payerName).trim()) throw new RuleError('VALIDATION', 'תשלום מזומן — שם המשלם חובה');
+    fields.payer_name = String(payerName).trim();
+  } else if (method === 'credit') {
+    const last4 = String(cardLast4 || '').trim();
+    if (!/^\d{4}$/.test(last4)) throw new RuleError('VALIDATION', 'תשלום אשראי — 4 ספרות אחרונות חובה');
+    fields.card_last4 = last4;
+  } else if (method === 'transfer') {
+    if (!reference || !String(reference).trim()) throw new RuleError('VALIDATION', 'העברה — מספר אסמכתא חובה');
+    fields.reference = String(reference).trim();
+  } else if (method === 'batch') {
+    if (!batchNumber || !String(batchNumber).trim()) throw new RuleError('VALIDATION', 'מקבץ — מספר מקבץ חובה');
+    if (!reference || !String(reference).trim()) throw new RuleError('VALIDATION', 'מקבץ — מספר אסמכתא חובה');
+    fields.batch_number = String(batchNumber).trim();
+    fields.reference = String(reference).trim();
   }
 
   const account = db.prepare('SELECT * FROM bank_accounts WHERE id = ?').get(bankAccountId);
@@ -82,16 +113,29 @@ export function createPayment(input, actor, db = getDb()) {
     if (net <= 0) {
       throw new RuleError(
         'R5',
-        `נטו לתשלום הוא ${net / 100} ₪ — לא ניתן להנפיק צ׳ק בסכום אפס או שלילי`,
+        `נטו לתשלום הוא ${net / 100} ₪ — לא ניתן להנפיק תשלום בסכום אפס או שלילי`,
       );
     }
 
     const info = db
       .prepare(
-        `INSERT INTO payments (bank_account_id, check_number, payment_date, amount, status, created_by)
-         VALUES (?, ?, ?, ?, 'issued', ?)`,
+        `INSERT INTO payments
+           (bank_account_id, method, check_number, reference, payer_name, card_last4, batch_number,
+            payment_date, amount, status, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'issued', ?)`,
       )
-      .run(account.id, String(checkNumber).trim(), paymentDate, net, actor.id);
+      .run(
+        account.id,
+        method,
+        fields.check_number,
+        fields.reference,
+        fields.payer_name,
+        fields.card_last4,
+        fields.batch_number,
+        paymentDate,
+        net,
+        actor.id,
+      );
     const paymentId = info.lastInsertRowid;
 
     const insertLine = db.prepare(
@@ -119,7 +163,7 @@ export function createPayment(input, actor, db = getDb()) {
         action: 'payment.create',
         entityType: 'payment',
         entityId: paymentId,
-        details: { checkNumber: String(checkNumber).trim(), amount: net, invoiceIds },
+        details: { method, ...fields, amount: net, invoiceIds },
       },
       db,
     );
@@ -194,6 +238,9 @@ export function getPaymentDetail(id, db = getDb()) {
  */
 export function getCheckPrintData(id, db = getDb()) {
   const payment = getPaymentDetail(id, db);
+  if (payment.method !== 'check') {
+    throw new RuleError('PRINT', 'הדפסת צ׳ק זמינה רק לתשלום מסוג צ׳ק');
+  }
   const account = db
     .prepare(
       `SELECT ba.*, c.name AS company_name, c.tax_id AS company_tax_id
@@ -247,22 +294,24 @@ export function listPayments({ status = null, companyId = null, storeId = null }
   return db.prepare(sql).all(...params);
 }
 
-/** Lookup checks by (last digits of) check number, for the dashboard combined search. */
+/** Lookup payments by (last digits of) check number / transfer reference / batch number. */
 export function lookupChecks(query, db = getDb()) {
   const q = (query ?? '').trim();
   if (!q) return [];
+  const like = `%${q}%`;
   return db
     .prepare(
-      `SELECT p.id, p.check_number, p.payment_date, p.amount, p.status,
+      `SELECT p.id, p.method, p.check_number, p.reference, p.batch_number,
+              p.payment_date, p.amount, p.status,
               ba.display_name AS bank_account_name, s.name AS supplier_name
          FROM payments p
          JOIN bank_accounts ba ON ba.id = p.bank_account_id
          LEFT JOIN payment_lines pl ON pl.payment_id = p.id
          LEFT JOIN invoices i ON i.id = pl.invoice_id
          LEFT JOIN suppliers s ON s.id = i.supplier_id
-        WHERE p.check_number LIKE ?
+        WHERE p.check_number LIKE ? OR p.reference LIKE ? OR p.batch_number LIKE ?
         GROUP BY p.id
         ORDER BY p.id DESC`,
     )
-    .all(`%${q}%`);
+    .all(like, like, like);
 }

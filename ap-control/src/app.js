@@ -29,6 +29,17 @@ export function createApp() {
     res.locals.formatIls = formatIls;
     res.locals.fromAgorot = fromAgorot;
     res.locals.vatRate = config.vatRate;
+    res.locals.methodLabel = (m) =>
+      ({ check: 'צ׳ק', cash: 'מזומן', credit: 'אשראי', transfer: 'העברה', batch: 'מקבץ' }[m] || m || 'צ׳ק');
+    res.locals.paymentIdent = (p) => {
+      switch (p.method) {
+        case 'cash': return `מזומן · ${p.payer_name || ''}`;
+        case 'credit': return `אשראי ****${p.card_last4 || ''}`;
+        case 'transfer': return `העברה · ${p.reference || ''}`;
+        case 'batch': return `מקבץ ${p.batch_number || ''} · אסמכתא ${p.reference || ''}`;
+        default: return `צ׳ק ${p.check_number || ''}`;
+      }
+    };
     res.locals.path = req.path;
     next();
   });

@@ -48,14 +48,14 @@
   <% } %>
 
   <% if (checkResults) { %>
-    <h3 style="margin:1rem 0 .3rem">צ׳קים (<%= checkResults.length %>)</h3>
+    <h3 style="margin:1rem 0 .3rem">תשלומים (<%= checkResults.length %>)</h3>
     <table>
-      <thead><tr><th>מס' צ׳ק</th><th>ספק</th><th>חשבון</th><th>תאריך</th><th class="right">סכום</th><th>סטטוס</th></tr></thead>
+      <thead><tr><th>אמצעי / מזהה</th><th>ספק</th><th>חשבון</th><th>תאריך</th><th class="right">סכום</th><th>סטטוס</th></tr></thead>
       <tbody>
-        <% if (checkResults.length === 0) { %><tr><td colspan="6" class="muted">אין צ׳קים תואמים.</td></tr><% } %>
+        <% if (checkResults.length === 0) { %><tr><td colspan="6" class="muted">אין תשלומים תואמים.</td></tr><% } %>
         <% checkResults.forEach(function(c){ %>
           <tr onclick="location='/payments/<%= c.id %>'" style="cursor:pointer">
-            <td class="mono"><%= c.check_number %></td>
+            <td><%= paymentIdent(c) %></td>
             <td><%= c.supplier_name || '—' %></td>
             <td><%= c.bank_account_name %></td>
             <td><%= c.payment_date %></td>

@@ -31,7 +31,7 @@
 
 <table>
   <thead>
-    <tr><th>#</th><th>מס' צ׳ק</th><th>חברה / חנות</th><th>תאריך</th><th class="right">סכום</th><th>סטטוס</th><th class="no-print">פעולות</th></tr>
+    <tr><th>#</th><th>אמצעי / מזהה</th><th>חברה / חנות</th><th>תאריך</th><th class="right">סכום</th><th>סטטוס</th><th class="no-print">פעולות</th></tr>
   </thead>
   <tbody>
     <% if (payments.length === 0) { %>
@@ -40,7 +40,7 @@
     <% payments.forEach(function(p){ %>
       <tr onclick="location='/payments/<%= p.id %>'" style="cursor:pointer">
         <td><%= p.id %></td>
-        <td class="mono"><%= p.check_number %></td>
+        <td><%= paymentIdent(p) %></td>
         <td><%= p.company_name %> · <%= p.store_name %></td>
         <td><%= p.payment_date %></td>
         <td class="right"><%= formatIls(p.amount) %></td>

@@ -48,7 +48,7 @@
                 <input type="hidden" name="account_id" value="<%= accountId %>" />
                 <input type="hidden" name="txn_id" value="<%= c.txn.id %>" />
                 <input type="hidden" name="payment_id" value="<%= c.suggestion.id %>" />
-                <span>צ׳ק <span class="mono"><%= c.suggestion.check_number %></span>
+                <span><span class="mono"><%= paymentIdent(c.suggestion) %></span>
                   <% if (c.state === 'deterministic') { %><span class="badge b-approved">מס' צ׳ק תואם</span><% } %>
                 </span>
                 <button class="ok small" type="submit">אשר פירעון</button>
@@ -60,7 +60,7 @@
                 <span class="badge b-on_hold">להכרעה</span>
                 <select name="payment_id" style="width:auto">
                   <% c.candidates.forEach(function(p){ %>
-                    <option value="<%= p.id %>">צ׳ק <%= p.check_number %> · <%= p.payment_date %></option>
+                    <option value="<%= p.id %>"><%= paymentIdent(p) %> · <%= p.payment_date %></option>
                   <% }); %>
                 </select>
                 <button class="small" type="submit">התאם נבחר</button>
