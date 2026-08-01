@@ -43,10 +43,20 @@ export function outstandingChecksForAccount(bankAccountId, db = getDb()) {
  *
  * @param {string} query  free text
  */
-export function invoiceLookup(query, db = getDb()) {
+export function invoiceLookup(query, { companyId = null, storeId = null } = {}, db = getDb()) {
   const q = (query ?? '').trim();
   if (!q) return [];
   const like = `%${q}%`;
+  const params = [like, like, like];
+  let filter = '';
+  if (companyId) {
+    filter += ' AND i.company_id = ?';
+    params.push(companyId);
+  }
+  if (storeId) {
+    filter += ' AND i.store_id = ?';
+    params.push(storeId);
+  }
 
   return db
     .prepare(
@@ -59,12 +69,10 @@ export function invoiceLookup(query, db = getDb()) {
          JOIN stores st ON st.id = i.store_id
          LEFT JOIN payment_lines pl ON pl.invoice_id = i.id
          LEFT JOIN payments p ON p.id = pl.payment_id
-        WHERE i.invoice_number LIKE ?
-           OR i.allocation_number LIKE ?
-           OR s.name LIKE ?
+        WHERE (i.invoice_number LIKE ? OR i.allocation_number LIKE ? OR s.name LIKE ?)${filter}
         ORDER BY i.id DESC`,
     )
-    .all(like, like, like);
+    .all(...params);
 }
 
 /**

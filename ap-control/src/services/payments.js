@@ -221,9 +221,48 @@ export function getCheckPrintData(id, db = getDb()) {
   };
 }
 
-export function listPayments({ status = null } = {}, db = getDb()) {
-  const base = `SELECT p.*, ba.display_name AS bank_account_name
-                  FROM payments p JOIN bank_accounts ba ON ba.id = p.bank_account_id`;
-  if (status) return db.prepare(`${base} WHERE p.status = ? ORDER BY p.id DESC`).all(status);
-  return db.prepare(`${base} ORDER BY p.id DESC`).all();
+export function listPayments({ status = null, companyId = null, storeId = null } = {}, db = getDb()) {
+  const where = [];
+  const params = [];
+  if (status) {
+    where.push('p.status = ?');
+    params.push(status);
+  }
+  if (companyId) {
+    where.push('ba.company_id = ?');
+    params.push(companyId);
+  }
+  if (storeId) {
+    where.push('ba.store_id = ?');
+    params.push(storeId);
+  }
+  const sql = `SELECT p.*, ba.display_name AS bank_account_name,
+                      c.name AS company_name, st.name AS store_name
+                 FROM payments p
+                 JOIN bank_accounts ba ON ba.id = p.bank_account_id
+                 JOIN companies c ON c.id = ba.company_id
+                 JOIN stores st ON st.id = ba.store_id
+                ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+                ORDER BY p.id DESC`;
+  return db.prepare(sql).all(...params);
+}
+
+/** Lookup checks by (last digits of) check number, for the dashboard combined search. */
+export function lookupChecks(query, db = getDb()) {
+  const q = (query ?? '').trim();
+  if (!q) return [];
+  return db
+    .prepare(
+      `SELECT p.id, p.check_number, p.payment_date, p.amount, p.status,
+              ba.display_name AS bank_account_name, s.name AS supplier_name
+         FROM payments p
+         JOIN bank_accounts ba ON ba.id = p.bank_account_id
+         LEFT JOIN payment_lines pl ON pl.payment_id = p.id
+         LEFT JOIN invoices i ON i.id = pl.invoice_id
+         LEFT JOIN suppliers s ON s.id = i.supplier_id
+        WHERE p.check_number LIKE ?
+        GROUP BY p.id
+        ORDER BY p.id DESC`,
+    )
+    .all(`%${q}%`);
 }
