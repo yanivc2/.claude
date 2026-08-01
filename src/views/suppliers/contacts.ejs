@@ -1,0 +1,45 @@
+<%- include('../partials/header') %>
+<div class="toolbar">
+  <h1>אנשי קשר ספקים</h1>
+  <a href="/suppliers" class="btn secondary">כל הספקים</a>
+</div>
+
+<div class="card no-print">
+  <form method="get" action="/suppliers/contacts" class="row" style="align-items:flex-end">
+    <div style="flex:1">
+      <label>חיפוש ספק (שם / ח.פ. / טלפון / איש קשר)</label>
+      <input name="q" value="<%= q %>" placeholder="הקלד לחיפוש..." autofocus />
+    </div>
+    <div><button type="submit">חפש</button></div>
+    <% if (q) { %><div><a href="/suppliers/contacts" class="btn secondary">נקה</a></div><% } %>
+  </form>
+</div>
+
+<% if (suppliers.length === 0) { %>
+  <div class="card muted"><%= q ? 'לא נמצאו ספקים תואמים.' : 'אין ספקים.' %></div>
+<% } %>
+
+<% suppliers.forEach(function(s){ %>
+  <div class="card">
+    <form method="post" action="/suppliers/<%= s.id %>/contacts" class="stack">
+      <div class="toolbar" style="margin-bottom:.4rem">
+        <strong><%= s.name %></strong>
+        <% if (s.status !== 'approved') { %>
+          <span class="badge b-on_hold"><%= s.status === 'blocked' ? 'חסום' : 'ממתין' %></span>
+        <% } else { %>
+          <span class="badge b-approved">מאושר</span>
+        <% } %>
+      </div>
+      <div class="row">
+        <div><label>טלפון</label><input name="phone" inputmode="tel" value="<%= s.phone || '' %>" /></div>
+        <div><label>מייל</label><input name="email" inputmode="email" value="<%= s.email || '' %>" /></div>
+      </div>
+      <div class="row">
+        <div><label>איש קשר הנה"ח</label><input name="contact_name" value="<%= s.contact_name || '' %>" /></div>
+        <div><label>טלפון איש קשר</label><input name="contact_phone" inputmode="tel" value="<%= s.contact_phone || '' %>" /></div>
+      </div>
+      <div style="margin-top:.5rem"><button type="submit" class="small">שמור</button></div>
+    </form>
+  </div>
+<% }); %>
+<%- include('../partials/footer') %>

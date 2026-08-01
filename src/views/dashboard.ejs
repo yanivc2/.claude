@@ -66,6 +66,25 @@
       </tbody>
     </table>
   <% } %>
+
+  <% if (supplierResults) { %>
+    <h3 style="margin:1rem 0 .3rem">ספקים (<%= supplierResults.length %>)</h3>
+    <table>
+      <thead><tr><th>ספק</th><th>טלפון</th><th>מייל</th><th>איש קשר הנה"ח</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <% if (supplierResults.length === 0) { %><tr><td colspan="5" class="muted">אין ספקים תואמים.</td></tr><% } %>
+        <% supplierResults.forEach(function(s){ %>
+          <tr onclick="location='/suppliers/contacts?q=<%= encodeURIComponent(s.name) %>'" style="cursor:pointer">
+            <td><strong><%= s.name %></strong></td>
+            <td><%= s.phone || '—' %></td>
+            <td><%= s.email || '—' %></td>
+            <td><%= s.contact_name || '—' %><%= s.contact_phone ? ' · ' + s.contact_phone : '' %></td>
+            <td><span class="badge b-<%= s.status === 'approved' ? 'approved' : s.status === 'blocked' ? 'blocked' : 'on_hold' %>"><%= s.status === 'approved' ? 'מאושר' : s.status === 'blocked' ? 'חסום' : 'ממתין' %></span></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
 </div>
 
 <div class="stat-grid">
