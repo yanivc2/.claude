@@ -4,6 +4,15 @@
   <a class="btn" href="/invoices/new">+ חשבונית חדשה</a>
 </div>
 
+<div class="card no-print">
+  <strong>קיצורי תשלום:</strong>
+  <div class="actions" style="flex-wrap:wrap; margin-top:.4rem">
+    <a class="btn" href="/payments/new?method=transfer">+ תשלום בהעברה</a>
+    <a class="btn" href="/payments/new?method=cash">+ תשלום במזומן</a>
+    <a class="btn" href="/payments/new?method=check">+ צ׳ק</a>
+  </div>
+</div>
+
 <div class="filterms card">
   סינון:
   <a href="/invoices">הכל</a>
@@ -12,8 +21,9 @@
   <a href="/invoices?status=approved_for_payment">מאושרות לתשלום</a>
   <a href="/invoices?status=paid">שולמו</a>
 </div>
+<p class="muted no-print" style="margin:.2rem 0">לחיצה על כותרת עמודה ממיינת (א׳–ת׳ / גבוה–נמוך).</p>
 
-<table>
+<table class="sortable">
   <thead>
     <tr>
       <th>#</th><th>ספק</th><th>חנות</th><th>מס' חשבונית</th><th>הקצאה</th>

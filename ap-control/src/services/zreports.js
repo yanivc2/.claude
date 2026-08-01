@@ -28,6 +28,7 @@ export async function createZReport(input, actor, x = getExecutor()) {
   if (dup) throw new RuleError('VALIDATION', `דוח Z מספר ${zNum} כבר קיים לחנות זו`);
 
   const drawerTotal = drawerCash + drawerCheck + drawerCredit + drawerHakafa + drawerVouchers;
+  if (drawerTotal <= 0) throw new RuleError('VALIDATION', 'סה"כ מגירה חובה — הזן לפחות רכיב מגירה אחד.');
 
   const info = await x.run(
     `INSERT INTO z_reports

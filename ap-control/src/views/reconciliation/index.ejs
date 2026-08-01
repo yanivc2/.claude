@@ -78,7 +78,11 @@
 <div class="row">
   <div class="card">
     <h2>ייבוא CSV</h2>
-    <p class="muted">עמודות: <span class="mono">date, amount, description, reference</span>. הסכום בשקלים עם סימן — חובה שלילי.</p>
+    <p class="muted">
+      תומך בייצוא בנק הפועלים (עמודות <span class="mono">תאריך / חובה / זכות / אסמכתא</span>)
+      וגם בפורמט פשוט (<span class="mono">date, amount, description, reference</span> — חובה שלילי).
+      מזהה אוטומטית קידוד עברי (Windows-1255), מפריד ; או פסיק, ומדלג על שורות כותרת מיותרות.
+    </p>
     <form method="post" action="/reconciliation/import-csv" enctype="multipart/form-data" class="stack">
       <input type="hidden" name="account_id" value="<%= accountId %>" />
       <input type="file" name="csv" accept=".csv,text/csv" required />
@@ -105,32 +109,37 @@
 
 <div class="card">
   <h2>כל התנועות בחשבון</h2>
-  <table>
-    <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>מקור</th><th>סטטוס</th></tr></thead>
+  <table class="sortable">
+    <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th><th>סטטוס</th><th data-nosort class="no-print">פעולות</th></tr></thead>
     <tbody>
       <% if (transactions.length === 0) { %>
-        <tr><td colspan="5" class="muted">אין תנועות. ייבא CSV, הרץ scraper, או הוסף ידנית.</td></tr>
+        <tr><td colspan="7" class="muted">אין תנועות. ייבא CSV, הרץ scraper, או הוסף ידנית.</td></tr>
       <% } %>
       <% transactions.forEach(function(t){ %>
         <tr>
           <td><%= t.txn_date %></td>
           <td class="right <%= t.amount < 0 ? 'neg' : '' %>"><%= formatIls(t.amount) %></td>
           <td><%= t.description || '' %></td>
+          <td class="mono"><%= t.raw_reference || '—' %></td>
           <td class="muted"><%= t.source %></td>
           <td>
             <% if (t.matched_payment_id) { %>
               <span class="badge b-cleared">נפרע · צ׳ק <span class="mono"><%= t.matched_check_number %></span></span>
-              <form method="post" action="/reconciliation/unmatch" style="display:inline">
-                <input type="hidden" name="account_id" value="<%= accountId %>" />
-                <input type="hidden" name="txn_id" value="<%= t.id %>" />
-                <button class="secondary small" type="submit">בטל התאמה</button>
-              </form>
             <% } else if (t.amount < 0) { %>
               <span class="badge b-issued">ממתין להתאמה</span>
             <% } else { %>
               <span class="muted">זכות</span>
             <% } %>
-            <% if (!t.matched_payment_id) { %>
+          </td>
+          <td class="no-print">
+            <% if (t.matched_payment_id) { %>
+              <form method="post" action="/reconciliation/unmatch" style="display:inline">
+                <input type="hidden" name="account_id" value="<%= accountId %>" />
+                <input type="hidden" name="txn_id" value="<%= t.id %>" />
+                <button class="secondary small" type="submit">בטל התאמה</button>
+              </form>
+            <% } else { %>
+              <button type="button" class="secondary small" onclick="document.getElementById('edit-txn-<%= t.id %>').hidden = !document.getElementById('edit-txn-<%= t.id %>').hidden">ערוך</button>
               <form method="post" action="/reconciliation/txn/<%= t.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את התנועה?')">
                 <input type="hidden" name="account_id" value="<%= accountId %>" />
                 <button class="danger small" type="submit">מחק</button>
@@ -138,6 +147,20 @@
             <% } %>
           </td>
         </tr>
+        <% if (!t.matched_payment_id) { %>
+          <tr id="edit-txn-<%= t.id %>" hidden>
+            <td colspan="7">
+              <form method="post" action="/reconciliation/txn/<%= t.id %>/edit" class="actions" style="flex-wrap:wrap; gap:.5rem">
+                <input type="hidden" name="account_id" value="<%= accountId %>" />
+                <div><label style="margin:0">תאריך</label><input type="date" name="txn_date" value="<%= t.txn_date %>" required /></div>
+                <div><label style="margin:0">סכום (₪, שלילי=חובה)</label><input name="amount" inputmode="decimal" value="<%= (t.amount/100).toFixed(2) %>" required /></div>
+                <div><label style="margin:0">תיאור</label><input name="description" value="<%= t.description || '' %>" /></div>
+                <div><label style="margin:0">אסמכתא</label><input name="reference" value="<%= t.raw_reference || '' %>" /></div>
+                <div style="align-self:end"><button class="ok small" type="submit">שמור</button></div>
+              </form>
+            </td>
+          </tr>
+        <% } %>
       <% }); %>
     </tbody>
   </table>
