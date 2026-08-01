@@ -54,4 +54,12 @@ export const config = {
   checkPrinting: {
     approved: process.env.CHECK_PRINTING_APPROVED === 'true',
   },
+  // Z-close alerts via a DEDICATED Telegram bot (§ 2d). The bot token is a secret — read
+  // from env only, never committed. chatId defaults to the owner's id but can be overridden.
+  // With no token the notifier is a silent no-op, so the app runs fine before setup.
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN || null,
+    chatId: process.env.TELEGRAM_CHAT_ID || '5717967564',
+    enabled: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+  },
 };
