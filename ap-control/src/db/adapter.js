@@ -104,6 +104,7 @@ export async function initBackend(opts = {}) {
   } else if (process.env.DATABASE_URL) {
     const pg = (await import('pg')).default;
     pg.types.setTypeParser(20, (v) => (v === null ? null : parseInt(v, 10))); // int8 -> Number
+    pg.types.setTypeParser(1700, (v) => (v === null ? null : parseFloat(v))); // numeric (SUM of bigint) -> Number
     pgPool = new pg.Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
