@@ -55,6 +55,7 @@ CREATE TABLE IF NOT EXISTS users (
   name          TEXT NOT NULL,
   role          TEXT NOT NULL CHECK (role IN ('owner','secretary')),
   username      TEXT,           -- login handle (unique when set)
+  email         TEXT,           -- for password-reset by email
   password_hash TEXT            -- scrypt hash; null until a password is set
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;
@@ -131,6 +132,7 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   amount             INTEGER NOT NULL,                         -- agorot
   description        TEXT,
   raw_reference      TEXT,
+  balance_after      INTEGER,                                  -- agorot; running balance if the export provides it
   source             TEXT NOT NULL DEFAULT 'scraper',
   matched_payment_id INTEGER REFERENCES payments(id)
 );

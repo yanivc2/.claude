@@ -1,22 +1,77 @@
 <%- include('partials/header') %>
-<h1>יומן ביקורת</h1>
-<p class="muted">כל פעולה משנת-מצב נרשמת: מי, מה, מתי (§4 audit_log).</p>
-<div class="card">
-  <table>
-    <thead><tr><th>מזהה</th><th>זמן</th><th>משתמש</th><th>פעולה</th><th>ישות</th><th>פרטים</th></tr></thead>
-    <tbody>
-      <% if (entries.length === 0) { %><tr><td colspan="6" class="muted">היומן ריק.</td></tr><% } %>
-      <% entries.forEach(function(e){ %>
-        <tr>
-          <td><%= e.id %></td>
-          <td class="mono"><%= e.timestamp %></td>
-          <td><%= e.user_name || '—' %></td>
-          <td class="mono"><%= e.action %></td>
-          <td><%= e.entity_type %><%= e.entity_id ? ' #' + e.entity_id : '' %></td>
-          <td class="muted"><%= e.details || '' %></td>
-        </tr>
-      <% }); %>
-    </tbody>
-  </table>
+<div class="toolbar">
+  <h1 style="margin:0">יומן</h1>
+  <div class="actions no-print">
+    <a class="btn <%= view === 'week' ? 'secondary' : '' %>" href="/audit?view=month&anchor=<%= anchor %>">חודשי</a>
+    <a class="btn <%= view === 'week' ? '' : 'secondary' %>" href="/audit?view=week&anchor=<%= anchor %>">שבועי</a>
+  </div>
 </div>
+
+<!-- מצב חשבון (רק אם יש יתרה עדכנית) -->
+<% if (balances && balances.length) { %>
+  <div class="stat-grid" style="margin-bottom:1rem">
+    <% balances.forEach(function(b){ %>
+      <div class="stat">
+        <div class="num <%= b.balance < 0 ? 'neg' : '' %>"><%= formatIls(b.balance) %></div>
+        <div class="label"><%= b.display_name %> · מצב חשבון (<%= b.asOf %>)</div>
+      </div>
+    <% }); %>
+  </div>
+<% } %>
+
+<div class="card">
+  <div class="toolbar">
+    <div class="actions no-print">
+      <a class="btn secondary small" href="/audit?view=<%= view %>&anchor=<%= prevAnchor %>">‹ הקודם</a>
+      <a class="btn secondary small" href="/audit?view=<%= view %>&anchor=<%= todayAnchor %>">היום</a>
+      <a class="btn secondary small" href="/audit?view=<%= view %>&anchor=<%= nextAnchor %>">הבא ›</a>
+    </div>
+    <strong><%= periodLabel %></strong>
+  </div>
+  <p class="muted">צ׳קים בחוץ לפי תאריך פירעון — מתי צפויים לרדת מהחשבון. סה"כ בטווח המוצג:
+    <strong><%= rangeCount %></strong> צ׳קים · <strong><%= formatIls(rangeTotal) %></strong>.</p>
+
+  <div class="cal-grid" style="margin-bottom:6px">
+    <% ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'].forEach(function(d){ %>
+      <div class="cal-head"><%= d %></div>
+    <% }); %>
+  </div>
+  <% weeks.forEach(function(week){ %>
+    <div class="cal-grid" style="margin-bottom:6px">
+      <% week.forEach(function(c){ %>
+        <div class="cal-cell <%= c.inMonth ? '' : 'other' %> <%= c.isToday ? 'today' : '' %>">
+          <div class="daynum"><%= c.day %></div>
+          <% if (c.count > 0) { %>
+            <span class="chk neg"><%= c.count %> צ׳קים</span>
+            <span class="chk neg"><%= formatIls(c.total) %></span>
+          <% } %>
+        </div>
+      <% }); %>
+    </div>
+  <% }); %>
+</div>
+
+<!-- יומן ביקורת מלא (מצומצם לתחתית העמוד) -->
+<details class="section">
+  <summary>יומן ביקורת מלא</summary>
+  <div class="section-body">
+    <p class="muted">כל פעולה משנת-מצב נרשמת: מי, מה, מתי (§4 audit_log).</p>
+    <table class="sortable">
+      <thead><tr><th>מזהה</th><th>זמן</th><th>משתמש</th><th>פעולה</th><th>ישות</th><th data-nosort>פרטים</th></tr></thead>
+      <tbody>
+        <% if (entries.length === 0) { %><tr><td colspan="6" class="muted">היומן ריק.</td></tr><% } %>
+        <% entries.forEach(function(e){ %>
+          <tr>
+            <td><%= e.id %></td>
+            <td class="mono"><%= e.timestamp %></td>
+            <td><%= e.user_name || '—' %></td>
+            <td class="mono"><%= e.action %></td>
+            <td><%= e.entity_type %><%= e.entity_id ? ' #' + e.entity_id : '' %></td>
+            <td class="muted"><%= e.details || '' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</details>
 <%- include('partials/footer') %>

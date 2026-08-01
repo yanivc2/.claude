@@ -4,6 +4,7 @@ import {
   getInvoiceDetail,
   getInvoice,
   createInvoice,
+  updateInvoice,
   approveInvoiceForPayment,
   putOnHold,
   setAllocationNumber,
@@ -12,7 +13,7 @@ import {
 import { listSuppliers } from '../services/suppliers.js';
 import { runOcrForInvoice, compareToInvoice, getOcr } from '../services/ocr.js';
 import { getExecutor } from '../db/adapter.js';
-import { toAgorot } from '../lib/money.js';
+import { toAgorot, fromAgorot } from '../lib/money.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -122,6 +123,58 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       return rerender({ error: err.message });
     }
     if (req.file) removeUpload(req.file.filename);
+    next(err);
+  }
+});
+
+// Edit an invoice's core fields (available until it is paid).
+function invoiceToValues(inv) {
+  return {
+    supplier_id: inv.supplier_id,
+    store_id: inv.store_id,
+    invoice_number: inv.invoice_number,
+    allocation_number: inv.allocation_number || '',
+    invoice_date: inv.invoice_date,
+    doc_type: inv.doc_type,
+    amount_before_vat: fromAgorot(Math.abs(inv.amount_before_vat)),
+    vat_amount: fromAgorot(Math.abs(inv.vat_amount)),
+  };
+}
+
+router.get('/:id/edit', async (req, res, next) => {
+  try {
+    const invoice = await getInvoiceDetail(Number(req.params.id));
+    if (invoice.status === 'paid') return res.redirect(303, `/invoices/${invoice.id}`);
+    res.render('invoices/edit', { title: `עריכת חשבונית #${invoice.id}`, invoice, values: invoiceToValues(invoice), ...(await formData()), error: null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/edit', async (req, res, next) => {
+  const id = Number(req.params.id);
+  const b = req.body;
+  try {
+    await updateInvoice(
+      id,
+      {
+        supplierId: Number(b.supplier_id),
+        storeId: Number(b.store_id),
+        invoiceNumber: b.invoice_number,
+        allocationNumber: b.allocation_number,
+        invoiceDate: b.invoice_date,
+        amountBeforeVat: toAgorot(b.amount_before_vat),
+        vatAmount: toAgorot(b.vat_amount),
+        docType: b.doc_type,
+      },
+      req.user,
+    );
+    res.redirect(303, `/invoices/${id}`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      const invoice = await getInvoiceDetail(id);
+      return res.status(400).render('invoices/edit', { title: `עריכת חשבונית #${id}`, invoice, values: b, ...(await formData()), error: err.message });
+    }
     next(err);
   }
 });

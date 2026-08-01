@@ -17,6 +17,7 @@ const CREDIT_KEYS = ['זכות', 'זכות ₪', 'credit'];
 const AMOUNT_KEYS = ['סכום', 'סכום התנועה', 'סכום בש"ח', 'סכום בשח', 'amount'];
 const DESC_KEYS = ['תיאור הפעולה', 'פרטים', 'תיאור', 'סוג תנועה', 'פעולה', 'description'];
 const REF_KEYS = ['אסמכתא', 'אסמכתא/שיק', 'מספר אסמכתא', 'אסמכתה', 'reference', 'ref'];
+const BALANCE_KEYS = ['יתרה לאחר פעולה', 'יתרה', 'balance'];
 
 /** Normalize a date cell to 'YYYY-MM-DD' (accepts ISO or DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY). */
 function normalizeDate(value) {
@@ -62,7 +63,15 @@ export function normalizeBankRows(rows) {
   const dateKey = pick(keys, DATE_KEYS);
   const amountKey = pick(keys, AMOUNT_KEYS);
   const refKey = pick(keys, REF_KEYS);
+  const balanceKey = pick(keys, BALANCE_KEYS);
   const descKeys = DESC_KEYS.filter((n) => keys.includes(n));
+
+  const parseBalance = (r) => {
+    if (!balanceKey) return null;
+    const raw = firstNonEmpty(r, [balanceKey]);
+    if (!raw) return null;
+    try { return toAgorot(cleanAmount(raw)); } catch { return null; }
+  };
 
   const isBankFormat = !!(debitKey || creditKey || (dateKey && amountKey));
 
@@ -84,7 +93,7 @@ export function normalizeBankRows(rows) {
       if (!date) return; // rows without a date are summaries/footers — skip, don't fail
       const desc = descKeys.map((k) => firstNonEmpty(r, [k])).filter(Boolean).join(' — ') || null;
       const ref = refKey ? firstNonEmpty(r, [refKey]) || null : null;
-      out.push({ txnDate: date, amount, description: desc, rawReference: ref });
+      out.push({ txnDate: date, amount, description: desc, rawReference: ref, balanceAfter: parseBalance(r) });
     } else {
       if (!r.date || r.amount === undefined || r.amount === '') {
         const found = keys.filter((k) => k !== '').join(', ') || '—';
@@ -98,6 +107,7 @@ export function normalizeBankRows(rows) {
         amount: toAgorot(cleanAmount(r.amount)),
         description: r.description || null,
         rawReference: r.reference || null,
+        balanceAfter: parseBalance(r),
       });
     }
   });

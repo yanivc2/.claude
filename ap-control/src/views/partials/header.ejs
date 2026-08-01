@@ -8,6 +8,10 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="theme-color" content="#1f6feb" />
   <link rel="apple-touch-icon" href="/icon-180.png" />
+  <script>
+    // Apply saved theme before paint (no flash of light theme).
+    (function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();
+  </script>
   <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}</script>
 </head>
 <body>
@@ -27,12 +31,9 @@
       <% } %>
     </nav>
     <span class="spacer"></span>
-    <span class="role-badge <%= currentUser.role === 'owner' ? 'role-owner' : '' %>">
-      <%= currentUser.name %> · <%= currentUser.role === 'owner' ? 'בעלים' : 'מזכירה' %>
-    </span>
-    <a href="/account/password" class="btn secondary small">סיסמה</a>
+    <button type="button" class="theme-toggle" onclick="(function(){var d=document.documentElement.getAttribute('data-theme')==='dark';document.documentElement.setAttribute('data-theme',d?'light':'dark');try{localStorage.setItem('theme',d?'light':'dark');}catch(e){}})()" title="מצב כהה / בהיר" aria-label="מצב כהה / בהיר">🌓</button>
     <form method="post" action="/logout" style="display:inline">
-      <button type="submit" class="btn secondary small">התנתק</button>
+      <button type="submit" class="btn secondary logout">התנתק</button>
     </form>
   </header>
   <main>

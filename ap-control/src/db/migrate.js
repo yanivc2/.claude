@@ -10,6 +10,17 @@ export function migrate(db) {
   migratePaymentsMethods(db);
   migrateSupplierContacts(db);
   migrateUserAuth(db);
+  migrateBankBalance(db);
+}
+
+// Adds balance_after to bank_transactions for older databases.
+function migrateBankBalance(db) {
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='bank_transactions'")
+    .get();
+  if (!hasTable) return;
+  const cols = db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name);
+  if (!cols.includes('balance_after')) db.exec('ALTER TABLE bank_transactions ADD COLUMN balance_after INTEGER;');
 }
 
 // Adds login columns (username / password_hash) to users for older databases.
@@ -20,6 +31,7 @@ function migrateUserAuth(db) {
   if (!hasTable) return;
   const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!cols.includes('username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT;');
+  if (!cols.includes('email')) db.exec('ALTER TABLE users ADD COLUMN email TEXT;');
   if (!cols.includes('password_hash')) db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT;');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;');
 }

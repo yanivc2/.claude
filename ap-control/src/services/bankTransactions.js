@@ -35,9 +35,9 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
         continue;
       }
       await t.run(
-        `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, source)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [bankAccountId, r.txnDate, r.amount, desc, ref, source],
+        `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, balance_after, source)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [bankAccountId, r.txnDate, r.amount, desc, ref, Number.isFinite(r.balanceAfter) ? r.balanceAfter : null, source],
       );
       inserted += 1;
     }
