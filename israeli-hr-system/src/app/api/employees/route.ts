@@ -3,6 +3,14 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin, requireWriter, employeeScope } from "@/lib/rbac";
+import { hashPassword } from "@/lib/password";
+
+// סיסמה ראשונית קריאה (אותיות/ספרות, ללא תווים מבלבלים) — זהה למסך גישת העובד.
+function genPassword(): string {
+  const chars = "abcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
+}
 
 // GET /api/employees — רשימת עובדים פעילים (id + שם) לשיוך משימות/נהלים.
 // מסונן לפי היקף החברה של המשתמש (מנהל חנות — החברה שלו בלבד).
@@ -38,6 +46,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "נתונים שגויים" }, { status: 400 });
   }
   const d = parsed.data;
+  // מפיקים סיסמת כניסה ראשונית כבר בהקמה — כדי שהעובד יוכל להתחבר ולראות
+  // את המשימות המשויכות לו מיד. הסיסמה מוחזרת פעם אחת לשיתוף.
+  const password = genPassword();
   try {
     const emp = await prisma.employee.create({
       data: {
@@ -49,10 +60,14 @@ export async function POST(req: Request) {
         startDate: new Date(),
         companyId: me.companyId,
         status: "ACTIVE",
+        passwordHash: await hashPassword(password),
       },
-      select: { id: true, firstName: true, lastName: true },
+      select: { id: true, firstName: true, lastName: true, email: true },
     });
-    return NextResponse.json({ id: emp.id, name: `${emp.firstName} ${emp.lastName}` }, { status: 201 });
+    return NextResponse.json(
+      { id: emp.id, name: `${emp.firstName} ${emp.lastName}`, email: emp.email, password },
+      { status: 201 },
+    );
   } catch (err) {
     // התנגשות ייחודיות — ת"ז או מייל שכבר קיימים.
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {

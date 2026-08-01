@@ -14,6 +14,7 @@ import {
   Trash2,
   UserPlus,
   Users,
+  Copy,
 } from "lucide-react";
 import { PROCEDURE_TYPES, procedureTypeLabel } from "@/lib/procedure-types";
 
@@ -159,7 +160,8 @@ function EmployeePicker({
   );
 }
 
-// חלונית הקמת עובד מהירה — פרטי המינימום הדרושים לשיוך.
+// חלונית הקמת עובד מהירה — פרטי המינימום הדרושים לשיוך. בהצלחה מוצגים פרטי
+// כניסה חד-פעמיים, כדי שהעובד יוכל להתחבר ולראות מיד את המשימות המשויכות לו.
 function QuickAddEmployee({
   onClose,
   onCreated,
@@ -170,6 +172,9 @@ function QuickAddEmployee({
   const [form, setForm] = useState({ firstName: "", lastName: "", nationalId: "", email: "", phone: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [creds, setCreds] = useState<{ email: string; password: string } | null>(null);
+  const [created, setCreated] = useState<Employee | null>(null);
+  const [copied, setCopied] = useState(false);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -184,7 +189,9 @@ function QuickAddEmployee({
       });
       const b = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(b.error ?? "שגיאה בהקמת העובד");
-      onCreated({ id: b.id, name: b.name });
+      // מציגים את פרטי הכניסה החד-פעמיים לפני הסגירה.
+      setCreated({ id: b.id, name: b.name });
+      setCreds({ email: b.email, password: b.password });
     } catch (err) {
       setError(err instanceof Error ? err.message : "שגיאה");
     } finally {
@@ -192,49 +199,101 @@ function QuickAddEmployee({
     }
   }
 
+  async function copy() {
+    if (!creds) return;
+    const text = `כניסה לאפליקציית העובדים\nדוא״ל: ${creds.email}\nסיסמה: ${creds.password}`;
+    await navigator.clipboard.writeText(text).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
+
+  function finish() {
+    if (created) onCreated(created);
+    else onClose();
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onClose}
+      onClick={creds ? finish : onClose}
     >
       <div
         className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-slate-800 dark:bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">הקמת עובד חדש</h3>
-          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">
+            {creds ? "העובד הוקם — פרטי כניסה" : "הקמת עובד חדש"}
+          </h3>
+          <button type="button" onClick={creds ? finish : onClose} className="text-slate-400 hover:text-slate-600">
             <X size={18} />
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <input className={inputClass} placeholder="שם פרטי" value={form.firstName} onChange={set("firstName")} />
-          <input className={inputClass} placeholder="שם משפחה" value={form.lastName} onChange={set("lastName")} />
-        </div>
-        <input className={`${inputClass} mt-2`} placeholder="תעודת זהות" value={form.nationalId} onChange={set("nationalId")} />
-        <input className={`${inputClass} mt-2`} placeholder="דוא״ל" type="email" value={form.email} onChange={set("email")} />
-        <input className={`${inputClass} mt-2`} placeholder="טלפון (רשות)" value={form.phone} onChange={set("phone")} />
-        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-        <p className="mt-2 text-xs text-slate-400">
-          הקמה מהירה לצורך שיוך. קליטה מלאה (טופס 101, מסמכים) נעשית במסך קליטת העובד.
-        </p>
-        <div className="mt-4 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
-          >
-            ביטול
-          </button>
-          <button
-            type="button"
-            onClick={submit}
-            disabled={busy}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-accent-600 px-5 py-2 text-sm font-bold text-white shadow-glow transition hover:brightness-110 disabled:opacity-60"
-          >
-            <UserPlus size={15} /> הקמה
-          </button>
-        </div>
+
+        {creds ? (
+          <>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+              <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                הפרטים מוצגים פעם אחת — יש להעביר אותם לעובד/ת כעת
+              </p>
+              <div className="mt-2 space-y-1 font-mono text-sm text-slate-800 dark:text-slate-100" dir="ltr">
+                <div>{creds.email}</div>
+                <div className="font-bold">{creds.password}</div>
+              </div>
+              <button
+                type="button"
+                onClick={copy}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700"
+              >
+                {copied ? <Check size={14} /> : <Copy size={14} />}
+                {copied ? "הועתק" : "העתקת פרטי הכניסה"}
+              </button>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              העובד/ת מתחבר/ת עם דוא״ל וסיסמה אלו במסך הכניסה — ומיד רואה את המשימות המשויכות.
+            </p>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={finish}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-accent-600 px-5 py-2 text-sm font-bold text-white shadow-glow transition hover:brightness-110"
+              >
+                סיום ושיוך
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2">
+              <input className={inputClass} placeholder="שם פרטי" value={form.firstName} onChange={set("firstName")} />
+              <input className={inputClass} placeholder="שם משפחה" value={form.lastName} onChange={set("lastName")} />
+            </div>
+            <input className={`${inputClass} mt-2`} placeholder="תעודת זהות" value={form.nationalId} onChange={set("nationalId")} />
+            <input className={`${inputClass} mt-2`} placeholder="דוא״ל" type="email" value={form.email} onChange={set("email")} />
+            <input className={`${inputClass} mt-2`} placeholder="טלפון (רשות)" value={form.phone} onChange={set("phone")} />
+            {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+            <p className="mt-2 text-xs text-slate-400">
+              הקמה מהירה לצורך שיוך — תיווצר גם גישת כניסה לעובד. קליטה מלאה (טופס 101, מסמכים) נעשית במסך קליטת העובד.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300"
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                onClick={submit}
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-brand-500 to-accent-600 px-5 py-2 text-sm font-bold text-white shadow-glow transition hover:brightness-110 disabled:opacity-60"
+              >
+                <UserPlus size={15} /> הקמה
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
