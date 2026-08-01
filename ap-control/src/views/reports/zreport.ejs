@@ -23,10 +23,10 @@
       <table>
         <tbody>
           <tr><td>מזומן</td><td class="right"><%= formatIls(zr.drawer_cash) %></td></tr>
-          <tr><td>צ'ק</td><td class="right"><%= formatIls(zr.drawer_check) %></td></tr>
+          <tr><td title="תשלום חוב באמצעות צ'ק">צ'ק</td><td class="right"><%= formatIls(zr.drawer_check) %></td></tr>
           <tr><td>אשראי מגירה</td><td class="right"><%= formatIls(zr.drawer_credit) %></td></tr>
           <tr><td>הקפה</td><td class="right"><%= formatIls(zr.drawer_hakafa) %></td></tr>
-          <tr><td>תווי קניה</td><td class="right"><%= formatIls(zr.drawer_vouchers) %></td></tr>
+          <tr><td title="זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה">תווי קניה</td><td class="right"><%= formatIls(zr.drawer_vouchers) %></td></tr>
         </tbody>
         <tfoot><tr><th>סה"כ מגירה</th><th class="right"><%= formatIls(zr.drawer_total) %></th></tr></tfoot>
       </table>
