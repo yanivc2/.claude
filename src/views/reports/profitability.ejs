@@ -26,7 +26,7 @@
 <div class="card">
   <table>
     <thead>
-      <tr><th>חברה</th><th>חנות</th><th class="right">קניות</th><th class="right">מכירות (Z)</th><th class="right">רווח גולמי</th><th class="right">% רווח</th></tr>
+      <tr><th>חברה</th><th>חנות</th><th class="right">קניות</th><th class="right">מכירות (Z)</th><th class="right">רווח גולמי</th><th class="right">רווח מלמעלה<br><small class="muted">% מהמכירות</small></th><th class="right">רווח מלמטה<br><small class="muted">% מהעלות</small></th></tr>
     </thead>
     <tbody>
       <% stores.forEach(function(s){ %>
@@ -37,6 +37,7 @@
           <td class="right"><%= formatIls(s.sales) %></td>
           <td class="right <%= s.grossProfit < 0 ? 'neg' : '' %>"><strong><%= formatIls(s.grossProfit) %></strong></td>
           <td class="right"><%= s.marginPct === null ? '—' : s.marginPct.toFixed(1) + '%' %></td>
+          <td class="right"><%= s.markupPct === null ? '—' : s.markupPct.toFixed(1) + '%' %></td>
         </tr>
       <% }); %>
     </tbody>
@@ -47,6 +48,7 @@
         <th class="right"><%= formatIls(totals.sales) %></th>
         <th class="right <%= totals.grossProfit < 0 ? 'neg' : '' %>"><%= formatIls(totals.grossProfit) %></th>
         <th class="right"><%= totals.marginPct === null ? '—' : totals.marginPct.toFixed(1) + '%' %></th>
+        <th class="right"><%= totals.markupPct === null ? '—' : totals.markupPct.toFixed(1) + '%' %></th>
       </tr>
     </tfoot>
   </table>

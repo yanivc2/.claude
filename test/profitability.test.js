@@ -45,7 +45,9 @@ test('profitability: net purchases vs sales, gross profit and margin per store, 
   assert.equal(row.purchases, toAgorot('1638'));
   assert.equal(row.sales, toAgorot('8000'));
   assert.equal(row.grossProfit, toAgorot('6362')); // 8000 - 1638
+  // "רווח מלמעלה" = profit / sales; "רווח מלמטה" = profit / cost
   assert.equal(Number(row.marginPct.toFixed(2)), Number(((6362 / 8000) * 100).toFixed(2)));
+  assert.equal(Number(row.markupPct.toFixed(2)), Number(((6362 / 1638) * 100).toFixed(2)));
 
   // totals aggregate across stores (only this store has data)
   assert.equal(totals.purchases, toAgorot('1638'));

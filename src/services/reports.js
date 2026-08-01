@@ -98,8 +98,10 @@ export function profitability(fromDate, toDate, db = getDb()) {
 
   const stores = rows.map((r) => {
     const grossProfit = r.sales - r.purchases;
+    // "רווח מלמעלה": profit as % of sales.  "רווח מלמטה": profit as % of cost (purchases).
     const marginPct = r.sales > 0 ? (grossProfit / r.sales) * 100 : null;
-    return { ...r, grossProfit, marginPct };
+    const markupPct = r.purchases > 0 ? (grossProfit / r.purchases) * 100 : null;
+    return { ...r, grossProfit, marginPct, markupPct };
   });
 
   const totals = stores.reduce(
@@ -112,6 +114,7 @@ export function profitability(fromDate, toDate, db = getDb()) {
     { purchases: 0, sales: 0, grossProfit: 0 },
   );
   totals.marginPct = totals.sales > 0 ? (totals.grossProfit / totals.sales) * 100 : null;
+  totals.markupPct = totals.purchases > 0 ? (totals.grossProfit / totals.purchases) * 100 : null;
 
   return { stores, totals };
 }
