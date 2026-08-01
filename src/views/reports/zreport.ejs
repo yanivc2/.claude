@@ -85,6 +85,35 @@
   </div>
 </div>
 
+<div class="card">
+  <div class="toolbar">
+    <h2 style="margin:0">דוח כרטיסי אשראי</h2>
+    <strong>סה"כ אשראי: <span id="cc_total_disp"><%= formatIls(zr.cc_total || 0) %></span></strong>
+  </div>
+  <form method="post" action="/reports/zreports/<%= zr.id %>/creditcards" class="stack">
+    <div class="row">
+      <% ccBrands.forEach(function(b){ var val = zr['cc_' + b.key]; %>
+        <div>
+          <label><%= b.label %></label>
+          <input name="cc_<%= b.key %>" class="cc" inputmode="decimal" value="<%= val ? (val/100).toFixed(2) : '' %>" style="width:120px" />
+        </div>
+      <% }); %>
+    </div>
+    <div style="margin-top:.6rem"><button type="submit">שמור דוח אשראי</button></div>
+  </form>
+  <div style="margin-top:.6rem">
+    <span class="muted">אשראי מגירה: <%= formatIls(ccRecon.drawerCredit) %> · סה"כ מותגי אשראי: <%= formatIls(ccRecon.ccTotal) %></span><br>
+    <% if (ccRecon.debtOnCredit > 0) { %>
+      <strong style="color:var(--ok)">שולם בחוב באשראי: <%= formatIls(ccRecon.debtOnCredit) %></strong>
+      <span class="muted">(אשראי מגירה גבוה מסכום המותגים — צפוי כשמשלמים חוב באשראי)</span>
+    <% } else if (ccRecon.debtOnCredit === 0) { %>
+      <strong style="color:var(--ok)">✓ תואם לאשראי מגירה</strong>
+    <% } else { %>
+      <strong style="color:var(--bad)">סכום המותגים גבוה מאשראי מגירה ב-<%= formatIls(-ccRecon.debtOnCredit) %></strong>
+    <% } %>
+  </div>
+</div>
+
 <div class="row">
   <div style="flex:1; min-width:300px">
     <div class="card">
@@ -152,6 +181,18 @@
     document.getElementById('dep_total').textContent = fmt(total);
   }
   depForm.querySelectorAll('input.dep').forEach(function(i){ i.addEventListener('input', recalc); });
+})();
+// Credit-card report: live brand total.
+(function(){
+  var ccForm = document.querySelector('form[action="/reports/zreports/<%= zr.id %>/creditcards"]');
+  if (!ccForm) return;
+  function fmt(n){ return '₪' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+  function recalc(){
+    var total = 0;
+    ccForm.querySelectorAll('input.cc').forEach(function(i){ var v = parseFloat(i.value); if(!isNaN(v)) total += v; });
+    document.getElementById('cc_total_disp').textContent = fmt(total);
+  }
+  ccForm.querySelectorAll('input.cc').forEach(function(i){ i.addEventListener('input', recalc); });
 })();
 function toggleEmp(){
   var sel = document.getElementById('exp_type');
