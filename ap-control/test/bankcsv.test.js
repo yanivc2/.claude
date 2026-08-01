@@ -51,33 +51,32 @@ test('simple CSV format still works and reports a bad row', () => {
   assert.throws(() => normalizeBankRows(parseCsv('date,amount\n,,')), /שורה 2/);
 });
 
-test('deterministic match by check number wins even against a same-amount ambiguity', () => {
-  const db = freshDb();
-  const st = firstStore(db);
-  const sec = secretary(db);
-  const acct = db.prepare('SELECT id FROM bank_accounts WHERE store_id=?').get(st.id).id;
-  const sup = approveSupplier(createSupplier({ name: 'ספק' }, sec, db).id, owner(db), db);
+test('deterministic match by check number wins even against a same-amount ambiguity', async () => {
+  const db = await freshDb();
+  const st = await firstStore(db);
+  const sec = await secretary(db);
+  const acct = (await db.one('SELECT id FROM bank_accounts WHERE store_id=?', [st.id])).id;
+  const sup = await approveSupplier((await createSupplier({ name: 'ספק' }, sec, db)).id, await owner(db), db);
 
   // two checks, same amount + close dates -> would be ambiguous by amount alone
-  function issue(num) {
-    const { invoice } = createInvoice(
+  async function issue(num) {
+    const { invoice } = await createInvoice(
       { supplierId: sup.id, storeId: st.id, invoiceNumber: `I${num}`, invoiceDate: '2026-07-20', amountBeforeVat: toAgorot('1620'), vatAmount: toAgorot('291.66'), docType: 'tax_invoice', confirm: true, confirmReason: 'test setup' },
       sec,
       db,
     );
-    approveInvoiceForPayment(invoice.id, sec, db);
+    await approveInvoiceForPayment(invoice.id, sec, db);
     return createPayment({ bankAccountId: acct, checkNumber: num, paymentDate: '2026-07-20', invoiceIds: [invoice.id] }, sec, db);
   }
-  issue('31505');
-  const other = issue('31530');
+  await issue('31505');
+  const other = await issue('31530');
 
-  // import the real debit for check 31505 (amount 1911.66, reference = check number)
   const rows = normalizeBankRows(parseCsv(BANK_CSV)).filter((r) => r.rawReference === '31505');
-  importTransactions(acct, rows, 'csv', sec, db);
+  await importTransactions(acct, rows, 'csv', sec, db);
 
-  const res = autoReconcile(acct, sec, db);
+  const res = await autoReconcile(acct, sec, db);
   assert.equal(res.matched, 1); // deterministic despite the same-amount sibling
-  const cleared = db.prepare("SELECT check_number FROM payments WHERE status='cleared'").all().map((r) => r.check_number);
+  const cleared = (await db.many("SELECT check_number FROM payments WHERE status='cleared'", [])).map((r) => r.check_number);
   assert.deepEqual(cleared, ['31505']);
-  assert.equal(db.prepare('SELECT status FROM payments WHERE id=?').get(other.id).status, 'issued');
+  assert.equal((await db.one('SELECT status FROM payments WHERE id=?', [other.id])).status, 'issued');
 });

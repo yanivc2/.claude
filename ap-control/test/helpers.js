@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { newDb, DataType } from 'pg-mem';
 import { initDb } from '../src/db/index.js';
+import { initBackend } from '../src/db/adapter.js';
 import { seed } from '../src/db/seed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -13,6 +14,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
  * Pass the returned executor to service functions as their `x` argument.
  */
 export async function freshDb() {
+  // TEST_PG=1 runs the entire suite against the Postgres dialect (pg-mem) instead of SQLite.
+  if (process.env.TEST_PG === '1') return freshPgDb();
   const sqliteDb = new Database(':memory:');
   const x = await initDb({ sqliteDb });
   await seed(x);
@@ -34,9 +37,13 @@ export function freshPgPool() {
   return new Pool();
 }
 
-/** Fresh in-memory Postgres (pg-mem) database (schema + seed) as an async Executor. */
+/**
+ * Fresh in-memory Postgres (pg-mem) database (schema + seed) as an async Executor.
+ * The schema is applied via pg-mem's native loader (freshPgPool) because pg-mem's Pool.query
+ * path doesn't fully support IDENTITY DDL — real Postgres/Neon loads it via initDb.execScript.
+ */
 export async function freshPgDb() {
-  const x = await initDb({ pgPool: freshPgPool() });
+  const x = await initBackend({ pgPool: freshPgPool() });
   await seed(x);
   return x;
 }

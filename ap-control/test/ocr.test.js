@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { freshDb, owner, secretary, firstStore } from './helpers.js';
+import { freshDb, secretary, firstStore } from './helpers.js';
 import { createSupplier } from '../src/services/suppliers.js';
 import { createInvoice } from '../src/services/invoices.js';
 import { runOcrForInvoice, compareToInvoice, getOcr } from '../src/services/ocr.js';
@@ -41,12 +41,14 @@ test('extractFields reads allocation, amounts (VAT not confused with pre-VAT), d
 });
 
 // build an invoice with an image path, injecting a fake recognizer
-function invoiceWithImage(db, over = {}) {
-  const sup = createSupplier({ name: 'ספק' }, secretary(db), db);
-  return createInvoice(
+async function invoiceWithImage(db, over = {}) {
+  const sec = await secretary(db);
+  const st = await firstStore(db);
+  const sup = await createSupplier({ name: 'ספק' }, sec, db);
+  const { invoice } = await createInvoice(
     {
       supplierId: sup.id,
-      storeId: firstStore(db).id,
+      storeId: st.id,
       invoiceNumber: over.invoiceNumber ?? '10025',
       allocationNumber: over.allocationNumber ?? null,
       invoiceDate: '2026-07-05',
@@ -55,20 +57,22 @@ function invoiceWithImage(db, over = {}) {
       docType: 'tax_invoice',
       imagePath: 'scan.png',
     },
-    secretary(db),
+    sec,
     db,
-  ).invoice;
+  );
+  return invoice;
 }
 
 test('runOcrForInvoice stores result; compare flags a matching total and a missing allocation', async () => {
-  const db = freshDb();
-  const inv = invoiceWithImage(db); // typed allocation is null
-  await runOcrForInvoice(inv.id, secretary(db), { recognize: async () => SAMPLE }, db);
+  const db = await freshDb();
+  const sec = await secretary(db);
+  const inv = await invoiceWithImage(db); // typed allocation is null
+  await runOcrForInvoice(inv.id, sec, { recognize: async () => SAMPLE }, db);
 
-  const stored = getOcr(inv.id, db);
+  const stored = await getOcr(inv.id, db);
   assert.ok(stored && stored.extracted.allocationNumber === '123456789');
 
-  const cmp = compareToInvoice(inv.id, db);
+  const cmp = await compareToInvoice(inv.id, db);
   const byField = Object.fromEntries(cmp.rows.map((r) => [r.field, r.status]));
   assert.equal(byField.total_amount, 'match'); // 1170 == 1170
   assert.equal(byField.vat_amount, 'match'); // 170 == 170
@@ -78,29 +82,32 @@ test('runOcrForInvoice stores result; compare flags a matching total and a missi
 });
 
 test('compare reports a mismatch when the typed allocation differs from OCR', async () => {
-  const db = freshDb();
-  const inv = invoiceWithImage(db, { allocationNumber: '999999999' });
-  await runOcrForInvoice(inv.id, secretary(db), { recognize: async () => SAMPLE }, db);
-  const cmp = compareToInvoice(inv.id, db);
+  const db = await freshDb();
+  const sec = await secretary(db);
+  const inv = await invoiceWithImage(db, { allocationNumber: '999999999' });
+  await runOcrForInvoice(inv.id, sec, { recognize: async () => SAMPLE }, db);
+  const cmp = await compareToInvoice(inv.id, db);
   const alloc = cmp.rows.find((r) => r.field === 'allocation_number');
   assert.equal(alloc.status, 'mismatch');
   assert.equal(cmp.hasMismatch, true);
 });
 
 test('OCR refuses an invoice with no image or a PDF image', async () => {
-  const db = freshDb();
-  const sup = createSupplier({ name: 'ספק' }, secretary(db), db);
-  const noImg = createInvoice(
-    { supplierId: sup.id, storeId: firstStore(db).id, invoiceNumber: 'N', invoiceDate: '2026-07-05', amountBeforeVat: toAgorot('10'), vatAmount: 0, docType: 'tax_invoice' },
-    secretary(db),
+  const db = await freshDb();
+  const sec = await secretary(db);
+  const st = await firstStore(db);
+  const sup = await createSupplier({ name: 'ספק' }, sec, db);
+  const { invoice: noImg } = await createInvoice(
+    { supplierId: sup.id, storeId: st.id, invoiceNumber: 'N', invoiceDate: '2026-07-05', amountBeforeVat: toAgorot('10'), vatAmount: 0, docType: 'tax_invoice' },
+    sec,
     db,
-  ).invoice;
-  await assert.rejects(() => runOcrForInvoice(noImg.id, secretary(db), { recognize: async () => '' }, db), /אין תמונה/);
+  );
+  await assert.rejects(runOcrForInvoice(noImg.id, sec, { recognize: async () => '' }, db), /אין תמונה/);
 
-  const pdf = createInvoice(
-    { supplierId: sup.id, storeId: firstStore(db).id, invoiceNumber: 'P', invoiceDate: '2026-07-05', amountBeforeVat: toAgorot('20'), vatAmount: 0, docType: 'tax_invoice', imagePath: 'doc.pdf' },
-    secretary(db),
+  const { invoice: pdf } = await createInvoice(
+    { supplierId: sup.id, storeId: st.id, invoiceNumber: 'P', invoiceDate: '2026-07-05', amountBeforeVat: toAgorot('20'), vatAmount: 0, docType: 'tax_invoice', imagePath: 'doc.pdf' },
+    sec,
     db,
-  ).invoice;
-  await assert.rejects(() => runOcrForInvoice(pdf.id, secretary(db), { recognize: async () => '' }, db), /PDF/);
+  );
+  await assert.rejects(runOcrForInvoice(pdf.id, sec, { recognize: async () => '' }, db), /PDF/);
 });
