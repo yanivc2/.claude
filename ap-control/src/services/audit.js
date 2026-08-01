@@ -1,4 +1,4 @@
-import { getDb } from '../db/index.js';
+import { getExecutor } from '../db/adapter.js';
 
 /**
  * Append an entry to the audit log (§4 audit_log). Every state-changing action
@@ -10,29 +10,29 @@ import { getDb } from '../db/index.js';
  * @param {string} params.entityType  e.g. 'supplier', 'invoice', 'payment'
  * @param {number} [params.entityId]
  * @param {object|string} [params.details]  Serialized to JSON if an object
- * @param {import('better-sqlite3').Database} [db]
+ * @param {import('../db/adapter.js').Executor} [x]
  */
-export function logAction(
+export async function logAction(
   { userId, action, entityType, entityId = null, details = null },
-  db = getDb(),
+  x = getExecutor(),
 ) {
   const detailsText =
     details && typeof details === 'object' ? JSON.stringify(details) : details;
-  db.prepare(
+  await x.run(
     `INSERT INTO audit_log (user_id, action, entity_type, entity_id, details)
      VALUES (?, ?, ?, ?, ?)`,
-  ).run(userId ?? null, action, entityType, entityId, detailsText);
+    [userId ?? null, action, entityType, entityId, detailsText],
+  );
 }
 
 /** Recent audit entries, newest first, with the acting user's name joined in. */
-export function listRecent(limit = 100, db = getDb()) {
-  return db
-    .prepare(
-      `SELECT a.*, u.name AS user_name
-         FROM audit_log a
-         LEFT JOIN users u ON u.id = a.user_id
-        ORDER BY a.id DESC
-        LIMIT ?`,
-    )
-    .all(limit);
+export async function listRecent(limit = 100, x = getExecutor()) {
+  return x.many(
+    `SELECT a.*, u.name AS user_name
+       FROM audit_log a
+       LEFT JOIN users u ON u.id = a.user_id
+      ORDER BY a.id DESC
+      LIMIT ?`,
+    [limit],
+  );
 }

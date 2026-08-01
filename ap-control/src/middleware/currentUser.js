@@ -1,4 +1,4 @@
-import { getDb } from '../db/index.js';
+import { getExecutor } from '../db/adapter.js';
 
 // Stage 1 has no authentication: the app runs on the office PC and the secretary works
 // alone, with the owner supervising from the same machine/LAN (§9). We still need to know
@@ -18,21 +18,25 @@ function parseCookies(header = '') {
   return out;
 }
 
-export function currentUser(req, res, next) {
-  const db = getDb();
-  const cookies = parseCookies(req.headers.cookie);
-  let user;
-  if (cookies.uid) {
-    user = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(cookies.uid));
+export async function currentUser(req, res, next) {
+  try {
+    const x = getExecutor();
+    const cookies = parseCookies(req.headers.cookie);
+    let user;
+    if (cookies.uid) {
+      user = await x.one('SELECT * FROM users WHERE id = ?', [Number(cookies.uid)]);
+    }
+    if (!user) {
+      // Default to a secretary (the primary day-to-day operator).
+      user =
+        (await x.one("SELECT * FROM users WHERE role = 'secretary' ORDER BY id LIMIT 1", [])) ||
+        (await x.one('SELECT * FROM users ORDER BY id LIMIT 1', []));
+    }
+    req.user = user;
+    res.locals.currentUser = user;
+    res.locals.allUsers = await x.many('SELECT * FROM users ORDER BY role DESC, id', []);
+    next();
+  } catch (err) {
+    next(err);
   }
-  if (!user) {
-    // Default to a secretary (the primary day-to-day operator).
-    user =
-      db.prepare("SELECT * FROM users WHERE role = 'secretary' ORDER BY id LIMIT 1").get() ||
-      db.prepare('SELECT * FROM users ORDER BY id LIMIT 1').get();
-  }
-  req.user = user;
-  res.locals.currentUser = user;
-  res.locals.allUsers = db.prepare('SELECT * FROM users ORDER BY role DESC, id').all();
-  next();
 }

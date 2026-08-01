@@ -1,4 +1,4 @@
-import { getDb } from '../db/index.js';
+import { getExecutor, tx } from '../db/adapter.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { logAction } from './audit.js';
 
@@ -18,42 +18,43 @@ function validateTaxId(taxId) {
 }
 
 /** Nested structure for the settings view: companies -> stores -> account. */
-export function listStructure(db = getDb()) {
-  const companies = db.prepare('SELECT * FROM companies ORDER BY name').all();
-  const stores = db
-    .prepare(
-      `SELECT st.*, ba.id AS account_id, ba.bank_name, ba.branch, ba.account_number, ba.display_name
-         FROM stores st LEFT JOIN bank_accounts ba ON ba.store_id = st.id
-        ORDER BY st.name`,
-    )
-    .all();
+export async function listStructure(x = getExecutor()) {
+  const companies = await x.many('SELECT * FROM companies ORDER BY name', []);
+  const stores = await x.many(
+    `SELECT st.*, ba.id AS account_id, ba.bank_name, ba.branch, ba.account_number, ba.display_name
+       FROM stores st LEFT JOIN bank_accounts ba ON ba.store_id = st.id
+      ORDER BY st.name`,
+    [],
+  );
   return companies.map((c) => ({
     ...c,
     stores: stores.filter((s) => s.company_id === c.id),
   }));
 }
 
-export function createCompany({ name, companyType = 'ltd', taxId = null }, actor, db = getDb()) {
+export async function createCompany({ name, companyType = 'ltd', taxId = null }, actor, x = getExecutor()) {
   requireOwner(actor);
   const trimmed = (name ?? '').trim();
   if (!trimmed) throw new RuleError('VALIDATION', 'שם חברה חובה');
   const tax = validateTaxId(taxId);
-  const info = db
-    .prepare('INSERT INTO companies (name, company_type, tax_id) VALUES (?, ?, ?)')
-    .run(trimmed, companyType || 'ltd', tax);
-  logAction({ userId: actor.id, action: 'company.create', entityType: 'company', entityId: info.lastInsertRowid, details: { name: trimmed } }, db);
-  return db.prepare('SELECT * FROM companies WHERE id = ?').get(info.lastInsertRowid);
+  const info = await x.run('INSERT INTO companies (name, company_type, tax_id) VALUES (?, ?, ?)', [
+    trimmed,
+    companyType || 'ltd',
+    tax,
+  ]);
+  await logAction({ userId: actor.id, action: 'company.create', entityType: 'company', entityId: info.lastInsertRowid, details: { name: trimmed } }, x);
+  return x.one('SELECT * FROM companies WHERE id = ?', [info.lastInsertRowid]);
 }
 
-export function updateCompany(id, { name, taxId }, actor, db = getDb()) {
+export async function updateCompany(id, { name, taxId }, actor, x = getExecutor()) {
   requireOwner(actor);
-  const company = db.prepare('SELECT * FROM companies WHERE id = ?').get(id);
+  const company = await x.one('SELECT * FROM companies WHERE id = ?', [id]);
   if (!company) throw new NotFoundError(`חברה ${id} לא נמצאה`);
   const newName = name?.trim() || company.name;
   const newTax = taxId === undefined ? company.tax_id : validateTaxId(taxId);
-  db.prepare('UPDATE companies SET name = ?, tax_id = ? WHERE id = ?').run(newName, newTax, id);
-  logAction({ userId: actor.id, action: 'company.update', entityType: 'company', entityId: id }, db);
-  return db.prepare('SELECT * FROM companies WHERE id = ?').get(id);
+  await x.run('UPDATE companies SET name = ?, tax_id = ? WHERE id = ?', [newName, newTax, id]);
+  await logAction({ userId: actor.id, action: 'company.update', entityType: 'company', entityId: id }, x);
+  return x.one('SELECT * FROM companies WHERE id = ?', [id]);
 }
 
 /**
@@ -61,11 +62,11 @@ export function updateCompany(id, { name, taxId }, actor, db = getDb()) {
  * @param {{companyId:number, storeName:string, address?:string, bankName?:string,
  *   branch:string, accountNumber:string, displayName?:string}} input
  */
-export function createStoreWithAccount(input, actor, db = getDb()) {
+export async function createStoreWithAccount(input, actor, x = getExecutor()) {
   requireOwner(actor);
   const { companyId, storeName, address = null, bankName = 'הפועלים', branch, accountNumber } = input;
 
-  const company = db.prepare('SELECT * FROM companies WHERE id = ?').get(companyId);
+  const company = await x.one('SELECT * FROM companies WHERE id = ?', [companyId]);
   if (!company) throw new NotFoundError(`חברה ${companyId} לא נמצאה`);
   if (!storeName?.trim()) throw new RuleError('VALIDATION', 'שם חנות חובה');
   if (!branch?.trim() || !accountNumber?.trim()) {
@@ -75,29 +76,32 @@ export function createStoreWithAccount(input, actor, db = getDb()) {
   const displayName =
     input.displayName?.trim() || `${storeName.trim()} · ${bankName} ${branch}-${accountNumber}`;
 
-  const result = db.transaction(() => {
-    const storeInfo = db
-      .prepare('INSERT INTO stores (company_id, name, address) VALUES (?, ?, ?)')
-      .run(companyId, storeName.trim(), address?.trim() || null);
-    const storeId = storeInfo.lastInsertRowid;
-    db.prepare(
+  const storeId = await tx(async (t) => {
+    const storeInfo = await t.run('INSERT INTO stores (company_id, name, address) VALUES (?, ?, ?)', [
+      companyId,
+      storeName.trim(),
+      address?.trim() || null,
+    ]);
+    const sid = storeInfo.lastInsertRowid;
+    await t.run(
       `INSERT INTO bank_accounts (company_id, store_id, bank_name, branch, account_number, display_name)
        VALUES (?, ?, ?, ?, ?, ?)`,
-    ).run(companyId, storeId, bankName || 'הפועלים', branch.trim(), accountNumber.trim(), displayName);
-    logAction({ userId: actor.id, action: 'store.create', entityType: 'store', entityId: storeId, details: { storeName: storeName.trim(), accountNumber: accountNumber.trim() } }, db);
-    return storeId;
-  })();
+      [companyId, sid, bankName || 'הפועלים', branch.trim(), accountNumber.trim(), displayName],
+    );
+    await logAction({ userId: actor.id, action: 'store.create', entityType: 'store', entityId: sid, details: { storeName: storeName.trim(), accountNumber: accountNumber.trim() } }, t);
+    return sid;
+  });
 
-  return db.prepare('SELECT * FROM stores WHERE id = ?').get(result);
+  return x.one('SELECT * FROM stores WHERE id = ?', [storeId]);
 }
 
-export function updateAccountDisplayName(accountId, displayName, actor, db = getDb()) {
+export async function updateAccountDisplayName(accountId, displayName, actor, x = getExecutor()) {
   requireOwner(actor);
-  const acct = db.prepare('SELECT * FROM bank_accounts WHERE id = ?').get(accountId);
+  const acct = await x.one('SELECT * FROM bank_accounts WHERE id = ?', [accountId]);
   if (!acct) throw new NotFoundError(`חשבון ${accountId} לא נמצא`);
   const name = displayName?.trim();
   if (!name) throw new RuleError('VALIDATION', 'שם תצוגה חובה');
-  db.prepare('UPDATE bank_accounts SET display_name = ? WHERE id = ?').run(name, accountId);
-  logAction({ userId: actor.id, action: 'account.update', entityType: 'bank_account', entityId: accountId }, db);
-  return db.prepare('SELECT * FROM bank_accounts WHERE id = ?').get(accountId);
+  await x.run('UPDATE bank_accounts SET display_name = ? WHERE id = ?', [name, accountId]);
+  await logAction({ userId: actor.id, action: 'account.update', entityType: 'bank_account', entityId: accountId }, x);
+  return x.one('SELECT * FROM bank_accounts WHERE id = ?', [accountId]);
 }
