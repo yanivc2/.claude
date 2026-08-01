@@ -28,19 +28,8 @@
           <tr><td>הקפה</td><td class="right"><%= formatIls(zr.drawer_hakafa) %></td></tr>
           <tr><td title="זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה">תווי קניה</td><td class="right"><%= formatIls(zr.drawer_vouchers) %></td></tr>
         </tbody>
-        <tfoot>
-          <tr><th>סה"כ מגירה</th><th class="right"><%= formatIls(zr.drawer_total) %></th></tr>
-          <tr><td>מגירה Z</td><td class="right"><%= formatIls(zr.drawer_z) %></td></tr>
-        </tfoot>
+        <tfoot><tr><th>סה"כ מגירה</th><th class="right"><%= formatIls(zr.drawer_total) %></th></tr></tfoot>
       </table>
-      <div style="margin-top:.6rem">
-        <span class="muted">התאמת מגירה (מזומן + צ'ק + אשראי = מגירה Z):</span>
-        <% if (drawerRecon.diff === 0) { %>
-          <strong style="color:var(--ok)">✓ תואם</strong>
-        <% } else { %>
-          <strong style="color:var(--bad)"><%= drawerRecon.diff < 0 ? 'חוסר' : 'יתרה' %> <%= formatIls(drawerRecon.diff) %></strong>
-        <% } %>
-      </div>
     </div>
   </div>
 
