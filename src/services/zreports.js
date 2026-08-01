@@ -15,6 +15,7 @@ export function createZReport(input, actor, db = getDb()) {
   const {
     storeId, zNumber, zDate, dailyTotal = 0,
     drawerCash = 0, drawerCheck = 0, drawerCredit = 0, drawerHakafa = 0, drawerVouchers = 0,
+    drawerZ = 0,
     notes = null,
   } = input;
 
@@ -33,10 +34,10 @@ export function createZReport(input, actor, db = getDb()) {
     .prepare(
       `INSERT INTO z_reports
          (store_id, z_number, z_date, daily_total, drawer_cash, drawer_check, drawer_credit,
-          drawer_hakafa, drawer_vouchers, drawer_total, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          drawer_hakafa, drawer_vouchers, drawer_total, drawer_z, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(storeId, zNum, zDate, dailyTotal, drawerCash, drawerCheck, drawerCredit, drawerHakafa, drawerVouchers, drawerTotal, actor.id);
+    .run(storeId, zNum, zDate, dailyTotal, drawerCash, drawerCheck, drawerCredit, drawerHakafa, drawerVouchers, drawerTotal, drawerZ, actor.id);
 
   logAction(
     { userId: actor.id, action: 'zreport.create', entityType: 'z_report', entityId: info.lastInsertRowid, details: { storeId, zNumber: zNum, dailyTotal } },
@@ -106,6 +107,19 @@ export function cashReconciliation(zReportId, db = getDb()) {
   const expenses = expensesTotal(zReportId, db);
   const cash = zr.drawer_cash || 0;
   return { cash, deposit, expenses, diff: cash - deposit - expenses };
+}
+
+/**
+ * Drawer reconciliation: מזומן מגירה + צ'ק מגירה + אשראי מגירה should equal מגירה Z (the
+ * separate register printout amount).
+ * @returns {{sum:number, z:number, diff:number}}  diff = z - (cash+check+credit)
+ *   diff < 0 => shortage (חוסר), diff > 0 => surplus (יתרה), 0 => match.
+ */
+export function drawerReconciliation(zReportId, db = getDb()) {
+  const zr = getZReport(zReportId, db);
+  const sum = (zr.drawer_cash || 0) + (zr.drawer_check || 0) + (zr.drawer_credit || 0);
+  const z = zr.drawer_z || 0;
+  return { sum, z, diff: z - sum };
 }
 
 // Expense description types (§ drawer expenses). Some require an employee name.

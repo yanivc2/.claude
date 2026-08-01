@@ -90,6 +90,13 @@
           <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
           <div><label>סה"כ מגירה</label><input id="drawer_total" readonly value="₪0.00" /></div>
         </div>
+        <div class="row">
+          <div>
+            <label>מגירה Z</label>
+            <input name="drawer_z" id="drawer_z" inputmode="decimal" />
+            <small class="muted" id="drawer_z_note">מזומן + צ'ק + אשראי מגירה צריך להיות שווה למגירה Z</small>
+          </div>
+        </div>
         <div style="margin-top:.6rem"><button type="submit">הוסף דוח Z</button></div>
       </form>
     </div>
@@ -137,12 +144,27 @@
 (function(){
   var form = document.querySelector('form[action="/reports/zreports"]');
   if (!form) return;
+  function num(sel){ var v = parseFloat((form.querySelector(sel)||{}).value); return isNaN(v) ? 0 : v; }
   function recalc(){
     var sum = 0;
     form.querySelectorAll('input.dr').forEach(function(i){ var v = parseFloat(i.value); if(!isNaN(v)) sum += v; });
     form.querySelector('#drawer_total').value = '₪' + sum.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+    // Live drawer reconciliation: cash + check + credit vs מגירה Z.
+    var note = form.querySelector('#drawer_z_note');
+    var zInp = form.querySelector('#drawer_z');
+    var three = num('[name=drawer_cash]') + num('[name=drawer_check]') + num('[name=drawer_credit]');
+    if (zInp && zInp.value.trim() !== '') {
+      var diff = num('#drawer_z') - three;
+      var r = Math.round(diff * 100) / 100;
+      if (r === 0) { note.textContent = '✓ תואם למגירה Z'; note.style.color = 'var(--ok)'; }
+      else { note.textContent = (r < 0 ? 'חוסר ' : 'יתרה ') + '₪' + Math.abs(r).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' מול מגירה Z'; note.style.color = 'var(--bad)'; }
+    } else {
+      note.textContent = 'מזומן + צ׳ק + אשראי מגירה צריך להיות שווה למגירה Z';
+      note.style.color = '';
+    }
   }
   form.querySelectorAll('input.dr').forEach(function(i){ i.addEventListener('input', recalc); });
+  var zEl = form.querySelector('#drawer_z'); if (zEl) zEl.addEventListener('input', recalc);
 })();
 </script>
 <%- include('../partials/footer') %>
