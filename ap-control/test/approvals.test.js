@@ -55,6 +55,26 @@ test('reject leaves the entity unchanged', async () => {
   assert.equal(await countPending(db), 0);
 });
 
+test('approve is atomic: a failing apply rolls back and leaves the request pending', async () => {
+  const { db, sec, ow, invoice } = await setup();
+  // Another invoice already owns allocation 111111111.
+  await createInvoice(
+    { supplierId: invoice.supplier_id, storeId: invoice.store_id, invoiceNumber: 'OTHER', allocationNumber: '111111111', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('50'), vatAmount: 0, docType: 'tax_invoice' },
+    sec, db,
+  );
+  const current = await getInvoiceDetail(invoice.id, db);
+  // Request to give our invoice the duplicate allocation — apply() will throw (R2).
+  const fields = { supplierId: invoice.supplier_id, storeId: invoice.store_id, invoiceNumber: 'A1', allocationNumber: '111111111', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('1000'), vatAmount: toAgorot('180'), docType: 'tax_invoice' };
+  const rid = await submitRequest({ action: 'invoice.update', entityType: 'invoice', entityId: invoice.id, payload: { id: invoice.id, fields }, summary: describeInvoice(current, fields) }, sec, db);
+
+  await assert.rejects(approveRequest(rid, ow, db), /כבר קיים|R2/);
+  // request stays pending (not flipped to approved), and the invoice is untouched
+  assert.equal((await db.one('SELECT status FROM change_requests WHERE id = ?', [rid])).status, 'pending');
+  const inv = await getInvoice(invoice.id, db);
+  assert.equal(inv.allocation_number, null);
+  assert.equal(await countPending(db), 1);
+});
+
 test('cannot approve/reject an already-decided request', async () => {
   const { db, sec, ow, invoice } = await setup();
   const current = await getInvoiceDetail(invoice.id, db);
