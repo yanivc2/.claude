@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>איפוס סיסמה · AP Control</title>
+  <link rel="stylesheet" href="/style.css" />
+  <meta name="theme-color" content="#1f6feb" />
+  <script>(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();</script>
+</head>
+<body>
+  <main style="max-width:400px; margin:8vh auto">
+    <div class="card">
+      <h1 style="margin-top:0">איפוס סיסמה</h1>
+      <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+      <% if (token) { %>
+        <form method="post" action="/reset/<%= token %>" class="stack">
+          <label>סיסמה חדשה (לפחות 6 תווים)</label>
+          <input name="next" type="password" autocomplete="new-password" minlength="6" autofocus required />
+          <label>אישור סיסמה חדשה</label>
+          <input name="confirm" type="password" autocomplete="new-password" minlength="6" required />
+          <div style="margin-top:1rem"><button type="submit">עדכן סיסמה</button></div>
+        </form>
+      <% } else { %>
+        <p class="muted"><a href="/forgot">בקש קישור איפוס חדש</a></p>
+      <% } %>
+      <p class="muted" style="margin:.8rem 0 0"><a href="/login">חזרה להתחברות</a></p>
+    </div>
+  </main>
+</body>
+</html>
