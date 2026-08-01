@@ -70,6 +70,19 @@ CREATE TABLE IF NOT EXISTS password_resets (
 );
 CREATE INDEX IF NOT EXISTS ix_password_resets_token ON password_resets(token_hash);
 
+-- Calendar events / reminders shown on the "יומן" page. remind=1 + a time triggers a push
+-- (Telegram) reminder once (remind_sent flips to 1).
+CREATE TABLE IF NOT EXISTS calendar_events (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  title       TEXT NOT NULL,
+  event_date  TEXT NOT NULL,              -- 'YYYY-MM-DD'
+  event_time  TEXT,                       -- 'HH:MM' (optional)
+  remind      INTEGER NOT NULL DEFAULT 0, -- 0/1
+  remind_sent INTEGER NOT NULL DEFAULT 0, -- 0/1
+  created_by  INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS ix_calendar_events_date ON calendar_events(event_date);
+
 -- §4 invoices -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoices (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,

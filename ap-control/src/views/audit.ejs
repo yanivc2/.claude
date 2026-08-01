@@ -31,13 +31,14 @@
   <p class="muted">צ׳קים בחוץ לפי תאריך פירעון — מתי צפויים לרדת מהחשבון. סה"כ בטווח המוצג:
     <strong><%= rangeCount %></strong> צ׳קים · <strong><%= formatIls(rangeTotal) %></strong>.</p>
 
-  <div class="cal-grid" style="margin-bottom:6px">
+  <% var wk = view === 'week' ? 'week' : ''; %>
+  <div class="cal-grid <%= wk %>" style="margin-bottom:6px">
     <% ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'].forEach(function(d){ %>
       <div class="cal-head"><%= d %></div>
     <% }); %>
   </div>
   <% weeks.forEach(function(week){ %>
-    <div class="cal-grid" style="margin-bottom:6px">
+    <div class="cal-grid <%= wk %>" style="margin-bottom:6px">
       <% week.forEach(function(c){ %>
         <div class="cal-cell <%= c.inMonth ? '' : 'other' %> <%= c.isToday ? 'today' : '' %>">
           <div class="daynum"><%= c.day %></div>
@@ -45,10 +46,61 @@
             <span class="chk neg"><%= c.count %> צ׳קים</span>
             <span class="chk neg"><%= formatIls(c.total) %></span>
           <% } %>
+          <% (c.events || []).forEach(function(e){ %>
+            <span class="chk ev"><%= e.remind ? '🔔 ' : '' %><%= e.event_time ? e.event_time + ' ' : '' %><%= e.title %></span>
+          <% }); %>
         </div>
       <% }); %>
     </div>
   <% }); %>
+</div>
+
+<!-- אירועים ותזכורות -->
+<div class="card">
+  <div class="toolbar">
+    <h2 style="margin:0">אירועים ותזכורות</h2>
+    <% if (remindersEnabled) { %>
+      <form method="post" action="/audit/reminders/run" class="no-print">
+        <input type="hidden" name="view" value="<%= view %>" /><input type="hidden" name="anchor" value="<%= anchor %>" />
+        <button class="secondary small" type="submit">בדוק תזכורות עכשיו</button>
+      </form>
+    <% } %>
+  </div>
+  <form method="post" action="/audit/events" class="actions no-print" style="flex-wrap:wrap;gap:.5rem;align-items:flex-end">
+    <input type="hidden" name="view" value="<%= view %>" /><input type="hidden" name="anchor" value="<%= anchor %>" />
+    <div><label style="margin:0">כותרת *</label><input name="title" required placeholder="למשל: פגישה עם רו״ח" /></div>
+    <div><label style="margin:0">תאריך *</label><input type="date" name="event_date" value="<%= todayAnchor %>" required /></div>
+    <div><label style="margin:0">שעה</label><input type="time" name="event_time" /></div>
+    <label style="display:flex;align-items:center;gap:.3rem;margin:0"><input type="checkbox" name="remind" value="1" style="width:auto" /> תזכורת בפוש</label>
+    <div><button type="submit">הוסף אירוע</button></div>
+  </form>
+  <% if (!remindersEnabled) { %>
+    <p class="muted" style="margin:.4rem 0 0">תזכורות פוש נשלחות דרך בוט הטלגרם — כרגע אינו מוגדר (חסר <span class="mono">TELEGRAM_BOT_TOKEN</span>). אירועים עדיין נשמרים ומוצגים ביומן.</p>
+  <% } %>
+
+  <% if (events && events.length) { %>
+    <table class="sortable" style="margin-top:.8rem">
+      <thead><tr><th>תאריך</th><th>שעה</th><th>כותרת</th><th>תזכורת</th><th data-nosort class="no-print"></th></tr></thead>
+      <tbody>
+        <% events.forEach(function(e){ %>
+          <tr>
+            <td><%= e.event_date %></td>
+            <td class="mono"><%= e.event_time || '—' %></td>
+            <td><%= e.title %></td>
+            <td><%= e.remind ? (e.remind_sent ? 'נשלחה' : '🔔 ממתינה') : '—' %></td>
+            <td class="no-print">
+              <form method="post" action="/audit/events/<%= e.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את האירוע?')">
+                <input type="hidden" name="view" value="<%= view %>" /><input type="hidden" name="anchor" value="<%= anchor %>" />
+                <button class="danger small" type="submit">מחק</button>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } else { %>
+    <p class="muted" style="margin-top:.6rem">אין אירועים בטווח המוצג.</p>
+  <% } %>
 </div>
 
 <!-- יומן ביקורת מלא (מצומצם לתחתית העמוד) -->

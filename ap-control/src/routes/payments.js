@@ -36,11 +36,13 @@ router.get('/new', async (req, res, next) => {
   try {
     const methods = ['check', 'cash', 'credit', 'transfer', 'batch'];
     const method = methods.includes(req.query.method) ? req.query.method : 'check';
+    const preselectId = req.query.invoice ? Number(req.query.invoice) : null;
     res.render('payments/new', {
       title: 'תשלום חדש',
       payable: await listPayable(),
       accounts: await getExecutor().many('SELECT * FROM bank_accounts ORDER BY display_name', []),
       values: { method },
+      preselectId,
       error: null,
     });
   } catch (err) {
@@ -77,6 +79,7 @@ router.post('/', async (req, res, next) => {
         payable: await listPayable(),
         accounts: await getExecutor().many('SELECT * FROM bank_accounts ORDER BY display_name', []),
         values: b,
+        preselectId: null,
         error: err.message,
       });
     }

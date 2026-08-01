@@ -33,6 +33,7 @@ export function createApp() {
     res.locals.formatIls = formatIls;
     res.locals.fromAgorot = fromAgorot;
     res.locals.vatRate = config.vatRate;
+    res.locals.cashCeilingAgorot = config.cashCeilingAgorot;
     res.locals.methodLabel = (m) =>
       ({ check: 'צ׳ק', cash: 'מזומן', credit: 'אשראי', transfer: 'העברה', batch: 'מקבץ' }[m] || m || 'צ׳ק');
     res.locals.paymentIdent = (p) => {

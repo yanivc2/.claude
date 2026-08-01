@@ -1,9 +1,14 @@
 <%- include('../partials/header') %>
 <h1>תשלום חדש</h1>
 <p class="muted">
-  בחר חשבוניות מאושרות לתשלום (כולל זיכויים) מאותו חשבון בנק, הזן מספר הצ׳ק שנכתב ידנית ותאריך.
-  המערכת מחשבת נטו ואוכפת: אין צ׳ק ללא חשבונית מאושרת + מספר צ׳ק (R1), וסכום הצ׳ק = סכום השורות (R5).
+  בחר חשבוניות לתשלום (כולל זיכויים) מאותו חשבון בנק, בחר אמצעי תשלום, הזן את המזהה שלו ותאריך.
+  המערכת מחשבת נטו ואוכפת: אין תשלום ללא חשבונית + מזהה (R1), סכום = סכום השורות (R5),
+  ותקרת מזומן לפי חוק (<%= formatIls(cashCeilingAgorot) %>).
 </p>
+<% if (typeof error !== 'undefined' && error) { %>
+  <div class="alert alert-error"><%= error %></div>
+<% } %>
+<% const preId = (typeof preselectId !== 'undefined') ? preselectId : null; %>
 
 <%
 // group payable invoices by their (store's 1:1) bank account
@@ -31,7 +36,7 @@ const groupList = Object.values(groups);
         <tbody>
           <% g.rows.forEach(function(i){ %>
             <tr>
-              <td><input type="checkbox" name="invoice_ids" value="<%= i.id %>" data-amount="<%= i.total_amount %>" onchange="recalc(this.form)" style="width:auto"></td>
+              <td><input type="checkbox" name="invoice_ids" value="<%= i.id %>" data-amount="<%= i.total_amount %>" <%= preId === i.id ? 'checked' : '' %> onchange="recalc(this.form)" style="width:auto"></td>
               <td><%= i.supplier_name %></td>
               <td class="mono"><%= i.invoice_number %></td>
               <td><%= i.invoice_date %></td>
@@ -90,14 +95,25 @@ const groupList = Object.values(groups);
 
 <script>
 var METHODS = ['check','cash','credit','transfer','batch'];
-function recalc(form){
+var CASH_CEILING = <%= cashCeilingAgorot %>;
+function netOf(form){
   let net = 0;
-  form.querySelectorAll('input[name="invoice_ids"]:checked').forEach(function(c){
-    net += Number(c.dataset.amount);
-  });
+  form.querySelectorAll('input[name="invoice_ids"]:checked').forEach(function(c){ net += Number(c.dataset.amount); });
+  return net;
+}
+function recalc(form){
+  const net = netOf(form);
   const disp = form.querySelector('.net-display');
   disp.value = '₪' + (net/100).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   disp.style.color = net <= 0 ? '#b3261e' : '';
+  // Disable the cash option when over the legal ceiling.
+  const sel = form.querySelector('select[name="method"]');
+  const cashOpt = sel ? sel.querySelector('option[value="cash"]') : null;
+  if (cashOpt){
+    const over = CASH_CEILING > 0 && net > CASH_CEILING;
+    cashOpt.disabled = over;
+    if (over && sel.value === 'cash'){ sel.value = 'check'; onMethod(form); }
+  }
 }
 // Show only the selected method's fields; disable inputs in hidden rows so they are not
 // submitted (avoids duplicate `reference` names and stray values).
@@ -114,11 +130,14 @@ function onMethod(form){
 function validateCheck(form){
   const checked = form.querySelectorAll('input[name="invoice_ids"]:checked').length;
   if (checked === 0){ alert('בחר לפחות חשבונית אחת'); return false; }
+  const method = form.querySelector('select[name="method"]').value;
+  if (method === 'cash' && CASH_CEILING > 0 && netOf(form) > CASH_CEILING){
+    alert('תשלום במזומן מוגבל ל-' + (CASH_CEILING/100).toLocaleString('en-US') + ' ₪ לפי חוק. בחר אמצעי אחר.');
+    return false;
+  }
   return true;
 }
-// Apply the preselected method (from ?method=) on load.
-document.querySelectorAll('form[action="/payments"]').forEach(function(f){ onMethod(f); });
-// Initialize each form to the default method (check) on load.
-document.querySelectorAll('form').forEach(function(f){ if (f.querySelector('select[name="method"]')) onMethod(f); });
+// Apply the preselected method (from ?method=) and recalc (for a preselected invoice) on load.
+document.querySelectorAll('form[action="/payments"]').forEach(function(f){ onMethod(f); recalc(f); });
 </script>
 <%- include('../partials/footer') %>
