@@ -8,6 +8,19 @@
   <div class="alert alert-info"><%= notice %></div>
 <% } %>
 
+<% if (zStatus.matched) { %>
+  <div class="alert alert-ok">✓ הדוח תואם — כל ההתאמות סגורות.</div>
+<% } else { %>
+  <div class="alert alert-warn">
+    <strong>⚠ Z לא תואם</strong>
+    <ul style="margin:.4rem 0 0; padding-inline-start:1.2rem">
+      <% zStatus.issues.forEach(function(i){ %>
+        <li><%= i.label %>: <%= formatIls(i.diff) %></li>
+      <% }); %>
+    </ul>
+  </div>
+<% } %>
+
 <div class="card">
   <div class="row">
     <div><span class="muted">חנות / חברה</span><br><%= store.store_name %> · <%= store.company_name %></div>

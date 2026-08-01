@@ -12,6 +12,7 @@ import {
   addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
   setDeposit, cashReconciliation, DENOMS,
   setCreditCards, ccReconciliation, CC_BRANDS,
+  zReconciliationStatus,
 } from '../services/zreports.js';
 import { getDb } from '../db/index.js';
 import { config } from '../config.js';
@@ -44,6 +45,7 @@ function renderZReport(req, res, id, extra = {}) {
     cashRecon: cashReconciliation(id),
     ccBrands: CC_BRANDS,
     ccRecon: ccReconciliation(id),
+    zStatus: zReconciliationStatus(id),
     error: null,
     notice: null,
     ...extra,
@@ -86,6 +88,10 @@ function renderProfitability(req, res, extra = {}) {
   const { from, to, preset } = resolveRange(req);
   const { stores, totals } = profitability(from, to);
   const zStoreId = req.query.zstore ? Number(req.query.zstore) : null;
+  const zReports = listZReports({ storeId: zStoreId, limit: 30 }).map((z) => {
+    const status = zReconciliationStatus(z.id);
+    return { ...z, matched: status.matched, issues: status.issues };
+  });
   res.render('reports/profitability', {
     title: 'רווחיות',
     from,
@@ -94,7 +100,8 @@ function renderProfitability(req, res, extra = {}) {
     stores,
     totals,
     storeOptions: storeList(),
-    zReports: listZReports({ storeId: zStoreId, limit: 30 }),
+    zReports,
+    unmatchedCount: zReports.filter((z) => !z.matched).length,
     zStoreId,
     missingZ: zStoreId ? missingZNumbers(zStoreId) : [],
     error: null,
