@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { currentAdmin } from "@/lib/session";
-import { employeeScope } from "@/lib/rbac";
+import { employeeScope, canWriteEmployeeData } from "@/lib/rbac";
 import { TasksManager } from "@/components/TasksManager";
 
 export const metadata = { title: "משימות ונהלים" };
@@ -29,6 +29,7 @@ export default async function TasksPage() {
       </header>
       <TasksManager
         employees={employees.map((e) => ({ id: e.id, name: `${e.firstName} ${e.lastName}` }))}
+        canManageEmployees={!!me && canWriteEmployeeData(me)}
       />
     </div>
   );
