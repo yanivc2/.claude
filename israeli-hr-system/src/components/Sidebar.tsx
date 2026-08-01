@@ -189,7 +189,7 @@ export function Sidebar() {
                       : "משתמש"}
               </p>
             </div>
-            {me?.isOwner && <NotificationBell />}
+            {me?.isOwner && <NotificationBell openUp />}
           </div>
         </div>
       </aside>
