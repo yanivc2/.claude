@@ -20,6 +20,7 @@ function migrateUserAuth(db) {
   if (!hasTable) return;
   const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
   if (!cols.includes('username')) db.exec('ALTER TABLE users ADD COLUMN username TEXT;');
+  if (!cols.includes('email')) db.exec('ALTER TABLE users ADD COLUMN email TEXT;');
   if (!cols.includes('password_hash')) db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT;');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;');
 }
