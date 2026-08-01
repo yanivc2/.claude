@@ -24,6 +24,52 @@ export async function outstandingChecks(x = getExecutor()) {
   return { accounts, totalOutstanding };
 }
 
+/**
+ * Latest known balance per account (from the most recent bank transaction that carried one).
+ * Accounts without any stored balance are omitted — the caller shows nothing for them.
+ */
+export async function latestBalances(x = getExecutor()) {
+  const accounts = await x.many(
+    `SELECT ba.id AS account_id, ba.display_name, c.name AS company_name, st.name AS store_name
+       FROM bank_accounts ba
+       JOIN companies c ON c.id = ba.company_id
+       JOIN stores st ON st.id = ba.store_id
+      ORDER BY c.name, st.name`,
+    [],
+  );
+  // Fetch balance-bearing txns newest-first and pick the first per account in JS (portable).
+  const txns = await x.many(
+    `SELECT bank_account_id, balance_after, txn_date, id
+       FROM bank_transactions
+      WHERE balance_after IS NOT NULL
+      ORDER BY txn_date DESC, id DESC`,
+    [],
+  );
+  const latest = new Map();
+  for (const t of txns) if (!latest.has(t.bank_account_id)) latest.set(t.bank_account_id, t);
+  return accounts
+    .map((a) => {
+      const t = latest.get(a.account_id);
+      return t ? { ...a, balance: t.balance_after, asOf: t.txn_date } : null;
+    })
+    .filter(Boolean);
+}
+
+/** Issued (outstanding) checks whose payment_date falls in [fromIso, toIso], for the calendar. */
+export async function outstandingChecksInRange(fromIso, toIso, x = getExecutor()) {
+  return x.many(
+    `SELECT p.id, p.payment_date, p.amount, p.method, p.check_number, p.reference, p.batch_number,
+            c.name AS company_name, st.name AS store_name
+       FROM payments p
+       JOIN bank_accounts ba ON ba.id = p.bank_account_id
+       JOIN companies c ON c.id = ba.company_id
+       JOIN stores st ON st.id = ba.store_id
+      WHERE p.status = 'issued' AND p.payment_date BETWEEN ? AND ?
+      ORDER BY p.payment_date, p.id`,
+    [fromIso, toIso],
+  );
+}
+
 /** The individual outstanding (issued) checks for a given bank account. */
 export async function outstandingChecksForAccount(bankAccountId, x = getExecutor()) {
   return x.many(
