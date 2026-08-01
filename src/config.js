@@ -71,6 +71,15 @@ export const config = {
     seedSecretaryUsername: process.env.SECRETARY_USERNAME || 'secretary',
     seedSecretaryPassword: process.env.SECRETARY_PASSWORD || 'secretary1234',
   },
+  // Email (password-reset). Uses Resend's HTTP API (no dependency). With no RESEND_API_KEY the
+  // mailer is a no-op and the "forgot password" flow tells the user email isn't configured.
+  // appUrl builds absolute reset links; falls back to the request's own origin when unset.
+  mail: {
+    resendApiKey: process.env.RESEND_API_KEY || null,
+    from: process.env.MAIL_FROM || 'AP Control <onboarding@resend.dev>',
+    appUrl: process.env.APP_URL || null,
+    enabled: Boolean(process.env.RESEND_API_KEY),
+  },
   // Z-close alerts via a DEDICATED Telegram bot (§ 2d). The bot token is a secret — read
   // from env only, never committed. chatId defaults to the owner's id but can be overridden.
   // With no token the notifier is a silent no-op, so the app runs fine before setup.

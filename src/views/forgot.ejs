@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>שכחתי סיסמה · AP Control</title>
+  <link rel="stylesheet" href="/style.css" />
+  <meta name="theme-color" content="#1f6feb" />
+  <script>(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();</script>
+</head>
+<body>
+  <main style="max-width:400px; margin:8vh auto">
+    <div class="card">
+      <h1 style="margin-top:0">שחזור סיסמה</h1>
+      <% if (notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+      <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+      <% if (!mailEnabled) { %>
+        <div class="alert alert-warn">איפוס במייל אינו מוגדר עדיין במערכת. פנה לבעלים לאיפוס ידני של הסיסמה.</div>
+      <% } %>
+      <p class="muted">הזן שם משתמש או כתובת מייל, ונשלח קישור לאיפוס הסיסמה.</p>
+      <form method="post" action="/forgot" class="stack">
+        <label>שם משתמש או מייל</label>
+        <input name="identifier" autofocus required />
+        <div style="margin-top:1rem"><button type="submit">שלח קישור איפוס</button></div>
+      </form>
+      <p class="muted" style="margin:.8rem 0 0"><a href="/login">חזרה להתחברות</a></p>
+    </div>
+  </main>
+</body>
+</html>
