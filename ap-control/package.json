@@ -12,6 +12,7 @@
     "dev": "node --env-file-if-exists=.env --watch src/server.js",
     "seed": "node --env-file-if-exists=.env src/db/seed.js",
     "db:setup": "node --env-file-if-exists=.env src/db/setup.js",
+    "set-password": "node --env-file-if-exists=.env src/db/set-password.js",
     "reset-db": "node --env-file-if-exists=.env src/db/reset.js",
     "scrape": "node --env-file-if-exists=.env src/scraper/run.js",
     "test": "node --test"
