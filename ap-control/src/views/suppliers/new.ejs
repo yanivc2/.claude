@@ -7,6 +7,17 @@
     <input name="name" required value="<%= values.name || '' %>" />
     <label>ח.פ. / מס' עוסק (לא חובה)</label>
     <input name="tax_id" value="<%= values.tax_id || '' %>" />
+
+    <h3 style="margin:1rem 0 .2rem">פרטי קשר</h3>
+    <div class="row">
+      <div><label>טלפון</label><input name="phone" inputmode="tel" value="<%= values.phone || '' %>" /></div>
+      <div><label>מייל</label><input name="email" inputmode="email" value="<%= values.email || '' %>" /></div>
+    </div>
+    <div class="row">
+      <div><label>איש קשר הנהלת חשבונות</label><input name="contact_name" value="<%= values.contact_name || '' %>" /></div>
+      <div><label>טלפון איש קשר</label><input name="contact_phone" inputmode="tel" value="<%= values.contact_phone || '' %>" /></div>
+    </div>
+
     <label>הערות</label>
     <textarea name="notes" rows="2"><%= values.notes || '' %></textarea>
     <div style="margin-top:1rem" class="actions">

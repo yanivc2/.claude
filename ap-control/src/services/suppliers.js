@@ -22,19 +22,69 @@ export function getSupplier(id, db = getDb()) {
  * Create a supplier. Always starts as `pending` (§6.2) — the secretary may keep
  * recording invoices against it, but payment is blocked until an owner approves (R1/R6).
  */
-export function createSupplier({ name, taxId = null, notes = null }, actor, db = getDb()) {
+export function createSupplier(
+  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null },
+  actor,
+  db = getDb(),
+) {
   const trimmed = (name ?? '').trim();
   if (!trimmed) throw new RuleError('VALIDATION', 'שם ספק חובה');
 
   const info = db
-    .prepare('INSERT INTO suppliers (name, tax_id, status, notes) VALUES (?, ?, \'pending\', ?)')
-    .run(trimmed, taxId?.trim() || null, notes?.trim() || null);
+    .prepare(
+      `INSERT INTO suppliers (name, tax_id, status, notes, phone, email, contact_name, contact_phone)
+       VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      trimmed,
+      taxId?.trim() || null,
+      notes?.trim() || null,
+      phone?.trim() || null,
+      email?.trim() || null,
+      contactName?.trim() || null,
+      contactPhone?.trim() || null,
+    );
 
   logAction(
     { userId: actor.id, action: 'supplier.create', entityType: 'supplier', entityId: info.lastInsertRowid, details: { name: trimmed } },
     db,
   );
   return getSupplier(info.lastInsertRowid, db);
+}
+
+/** Update a supplier's contact details (phone/email/bookkeeping contact). */
+export function updateSupplierContacts(
+  id,
+  { phone = null, email = null, contactName = null, contactPhone = null },
+  actor,
+  db = getDb(),
+) {
+  getSupplier(id, db);
+  db.prepare(
+    'UPDATE suppliers SET phone = ?, email = ?, contact_name = ?, contact_phone = ? WHERE id = ?',
+  ).run(
+    phone?.trim() || null,
+    email?.trim() || null,
+    contactName?.trim() || null,
+    contactPhone?.trim() || null,
+    id,
+  );
+  logAction({ userId: actor.id, action: 'supplier.update_contacts', entityType: 'supplier', entityId: id }, db);
+  return getSupplier(id, db);
+}
+
+/** Quick supplier search by name / tax id / phone / contact — for the dashboard search box. */
+export function searchSuppliers(query, db = getDb()) {
+  const q = (query ?? '').trim();
+  if (!q) return [];
+  const like = `%${q}%`;
+  return db
+    .prepare(
+      `SELECT * FROM suppliers
+        WHERE name LIKE ? OR tax_id LIKE ? OR phone LIKE ? OR contact_name LIKE ? OR contact_phone LIKE ?
+        ORDER BY name LIMIT 20`,
+    )
+    .all(like, like, like, like, like);
 }
 
 /**

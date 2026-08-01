@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { dashboardStats, invoiceLookup } from '../services/reports.js';
 import { lookupChecks } from '../services/payments.js';
+import { searchSuppliers } from '../services/suppliers.js';
 import { listRecent } from '../services/audit.js';
 import { getDb } from '../db/index.js';
 
@@ -23,6 +24,7 @@ router.get('/', (req, res) => {
       .all(),
     invoiceResults: q ? invoiceLookup(q, { companyId, storeId }) : null,
     checkResults: q ? lookupChecks(q) : null,
+    supplierResults: q ? searchSuppliers(q) : null,
   });
 });
 

@@ -8,6 +8,19 @@
  */
 export function migrate(db) {
   migratePaymentsMethods(db);
+  migrateSupplierContacts(db);
+}
+
+// Adds supplier contact columns (phone/email/contact_name/contact_phone) to older databases.
+function migrateSupplierContacts(db) {
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='suppliers'")
+    .get();
+  if (!hasTable) return;
+  const cols = db.prepare('PRAGMA table_info(suppliers)').all().map((c) => c.name);
+  for (const col of ['phone', 'email', 'contact_name', 'contact_phone']) {
+    if (!cols.includes(col)) db.exec(`ALTER TABLE suppliers ADD COLUMN ${col} TEXT;`);
+  }
 }
 
 // Adds the payment-method columns (method/reference/payer_name/card_last4/batch_number) and

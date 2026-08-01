@@ -41,7 +41,12 @@ CREATE TABLE IF NOT EXISTS suppliers (
               CHECK (status IN ('pending','approved','blocked')),
   approved_by INTEGER REFERENCES users(id),
   approved_at TEXT,
-  notes       TEXT
+  notes       TEXT,
+  -- § priority 3: supplier contact details + bookkeeping contact
+  phone          TEXT,
+  email          TEXT,
+  contact_name   TEXT,   -- accounting/bookkeeping contact person
+  contact_phone  TEXT
 );
 
 -- §4 users ----------------------------------------------------------------------
