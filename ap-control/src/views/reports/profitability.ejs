@@ -93,54 +93,55 @@
         <div style="margin-top:.6rem"><button type="submit">הוסף דוח Z</button></div>
       </form>
     </div>
-
-    <div class="card">
-      <div class="toolbar">
-        <h2 style="margin:0">רשומות Z אחרונות</h2>
-        <form method="get" action="/reports/profitability" class="no-print">
-          <select name="zstore" onchange="this.form.submit()">
-            <option value="">כל החנויות</option>
-            <% storeOptions.forEach(function(st){ %>
-              <option value="<%= st.id %>" <%= zStoreId === st.id ? 'selected' : '' %>><%= st.name %></option>
-            <% }); %>
-          </select>
-        </form>
-      </div>
-      <% if (missingZ && missingZ.length) { %>
-        <div class="alert alert-warn">מספרי Z חסרים ברצף: <strong><%= missingZ.join(', ') %></strong> — בדוק אם הוזנו ביום אחר.</div>
-      <% } %>
-      <% if (unmatchedCount > 0) { %>
-        <div class="alert alert-warn">⚠ <strong><%= unmatchedCount %></strong> דוחות Z לא תואמים — ראה סימון בטבלה.</div>
-      <% } %>
-      <table>
-        <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מגירה</th><th>סטטוס</th><th class="no-print"></th></tr></thead>
-        <tbody>
-          <% if (zReports.length === 0) { %><tr><td colspan="7" class="muted">אין דוחות Z.</td></tr><% } %>
-          <% zReports.forEach(function(z){ %>
-            <tr>
-              <td class="mono"><a href="/reports/zreports/<%= z.id %>"><%= z.z_number %></a></td>
-              <td><%= z.z_date %></td>
-              <td><%= z.store_name %></td>
-              <td class="right"><%= formatIls(z.daily_total) %></td>
-              <td class="right"><%= formatIls(z.drawer_total) %></td>
-              <td>
-                <% if (z.matched) { %>
-                  <span class="badge b-approved">תואם</span>
-                <% } else { %>
-                  <span class="badge b-blocked" title="<%= z.issues.map(function(i){return i.label;}).join(', ') %>">לא תואם</span>
-                <% } %>
-              </td>
-              <td class="no-print">
-                <form method="post" action="/reports/zreports/<%= z.id %>/delete" onsubmit="return confirm('למחוק דוח Z זה?')" style="display:inline">
-                  <button class="danger small" type="submit">מחק</button>
-                </form>
-              </td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    </div>
   </div>
+</div>
+
+<!-- רשומות Z אחרונות — full width so recent records have room to breathe -->
+<div class="card">
+  <div class="toolbar">
+    <h2 style="margin:0">רשומות Z אחרונות</h2>
+    <form method="get" action="/reports/profitability" class="no-print">
+      <select name="zstore" onchange="this.form.submit()">
+        <option value="">כל החנויות</option>
+        <% storeOptions.forEach(function(st){ %>
+          <option value="<%= st.id %>" <%= zStoreId === st.id ? 'selected' : '' %>><%= st.name %></option>
+        <% }); %>
+      </select>
+    </form>
+  </div>
+  <% if (missingZ && missingZ.length) { %>
+    <div class="alert alert-warn">מספרי Z חסרים ברצף: <strong><%= missingZ.join(', ') %></strong> — בדוק אם הוזנו ביום אחר.</div>
+  <% } %>
+  <% if (unmatchedCount > 0) { %>
+    <div class="alert alert-warn">⚠ <strong><%= unmatchedCount %></strong> דוחות Z לא תואמים — ראה סימון בטבלה.</div>
+  <% } %>
+  <table class="sortable">
+    <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מגירה</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
+    <tbody>
+      <% if (zReports.length === 0) { %><tr><td colspan="7" class="muted">אין דוחות Z.</td></tr><% } %>
+      <% zReports.forEach(function(z){ %>
+        <tr>
+          <td class="mono"><a href="/reports/zreports/<%= z.id %>"><%= z.z_number %></a></td>
+          <td><%= z.z_date %></td>
+          <td><%= z.store_name %></td>
+          <td class="right"><%= formatIls(z.daily_total) %></td>
+          <td class="right"><%= formatIls(z.drawer_total) %></td>
+          <td>
+            <% if (z.matched) { %>
+              <span class="badge b-approved">תואם</span>
+            <% } else { %>
+              <span class="badge b-blocked" title="<%= z.issues.map(function(i){return i.label;}).join(', ') %>">לא תואם</span>
+            <% } %>
+          </td>
+          <td class="no-print">
+            <form method="post" action="/reports/zreports/<%= z.id %>/delete" onsubmit="return confirm('למחוק דוח Z זה?')" style="display:inline">
+              <button class="danger small" type="submit">מחק</button>
+            </form>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
 </div>
 
 <script>
