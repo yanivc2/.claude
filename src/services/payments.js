@@ -72,8 +72,11 @@ export async function createPayment(input, actor, x = getExecutor()) {
       );
       if (!inv) throw new NotFoundError(`חשבונית ${invId} לא נמצאה`);
 
-      if (inv.status !== 'approved_for_payment') {
-        throw new RuleError('R1', `חשבונית #${inv.id} בסטטוס "${inv.status}" — נדרש approved_for_payment לתשלום`, { invoiceId: inv.id });
+      // Paying an invoice implicitly approves it: accept "recorded" and "approved_for_payment".
+      // R3-blocked (on_hold) and already-paid invoices are still refused.
+      if (!['recorded', 'approved_for_payment'].includes(inv.status)) {
+        const why = inv.status === 'on_hold' ? 'החשבונית מוחזקת (R3) — שחרר אותה לפני תשלום' : `סטטוס "${inv.status}"`;
+        throw new RuleError('R1', `חשבונית #${inv.id}: ${why}`, { invoiceId: inv.id });
       }
       if (inv.supplier_status !== 'approved') {
         throw new RuleError('R1', `הספק "${inv.supplier_name}" אינו מאושר (status=${inv.supplier_status}) — תשלום חסום`, { invoiceId: inv.id });
@@ -88,6 +91,14 @@ export async function createPayment(input, actor, x = getExecutor()) {
 
     if (net <= 0) {
       throw new RuleError('R5', `נטו לתשלום הוא ${net / 100} ₪ — לא ניתן להנפיק תשלום בסכום אפס או שלילי`);
+    }
+
+    // Cash ceiling (חוק צמצום השימוש במזומן) — block cash over the legal limit.
+    if (method === 'cash' && config.cashCeilingAgorot > 0 && net > config.cashCeilingAgorot) {
+      throw new RuleError(
+        'CASH_LIMIT',
+        `תשלום במזומן מוגבל ל-${config.cashCeilingAgorot / 100} ₪ לפי חוק צמצום השימוש במזומן. שלם באמצעי אחר.`,
+      );
     }
 
     const info = await t.run(

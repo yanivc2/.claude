@@ -128,14 +128,13 @@ test('credit note is stored negative and exempt from R3 allocation', async () =>
   assert.ok(invoice.total_amount < 0);
 });
 
-test('R1: cannot issue a check for an unapproved-supplier or unapproved invoice', async () => {
+test('R1: cannot issue a check for an unapproved supplier', async () => {
   const db = await freshDb();
   const st = await firstStore(db);
   const sec = await secretary(db);
-  const sup = await createSupplier({ name: 'ספק' }, sec, db); // pending
+  const sup = await createSupplier({ name: 'ספק' }, sec, db); // pending — never approved
   const { invoice } = await createInvoice(baseInvoice(db, sup.id, st.id, {}), sec, db);
 
-  await approveSupplier(sup.id, await owner(db), db);
   const acct = (await db.one('SELECT id FROM bank_accounts WHERE store_id=?', [st.id])).id;
   await assert.rejects(
     createPayment(
@@ -143,7 +142,7 @@ test('R1: cannot issue a check for an unapproved-supplier or unapproved invoice'
       sec,
       db,
     ),
-    /approved_for_payment/,
+    /אינו מאושר/,
   );
 });
 

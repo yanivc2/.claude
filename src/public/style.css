@@ -166,15 +166,39 @@ details.section .section-body { padding: 0 1.1rem 1.1rem; }
 .theme-toggle { background: transparent; border: 1px solid #ffffff44; color: #fff; padding: 0.3rem 0.55rem; font-size: 1rem; line-height: 1; }
 .btn.logout { padding: 0.5rem 1.1rem; font-size: 1rem; }
 
+/* Payment method dropdown (invoice actions). */
+details.paymenu { display: inline-block; position: relative; }
+details.paymenu > summary { list-style: none; cursor: pointer; }
+details.paymenu > summary::-webkit-details-marker { display: none; }
+details.paymenu .paymenu-items {
+  position: absolute; right: 0; z-index: 30; margin-top: 0.35rem; min-width: 170px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 0.4rem;
+  display: flex; flex-direction: column; gap: 0.35rem; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+details.paymenu .paymenu-items .btn { text-align: center; }
+
+/* Contact icon buttons (suppliers). */
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; width: 2.1rem; height: 2.1rem;
+  border-radius: 8px; background: var(--secondary-bg); color: var(--ink); border: 1px solid var(--line);
+}
+.icon-btn:hover { text-decoration: none; background: var(--brand); color: #fff; }
+.icon-btn svg { width: 1.1rem; height: 1.1rem; fill: currentColor; }
+.icon-btn.disabled { opacity: 0.35; pointer-events: none; }
+
 /* Outstanding-checks calendar (יומן). */
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
 .cal-head { text-align: center; font-size: 0.8rem; color: var(--muted); font-weight: 600; padding: 0.3rem 0; }
 .cal-cell { min-height: 78px; border: 1px solid var(--line); border-radius: 8px; padding: 0.35rem; background: var(--card); font-size: 0.8rem; }
 .cal-cell.other { opacity: 0.4; }
+/* Weekly view: bigger, roomier day cells. */
+.cal-grid.week .cal-cell { min-height: 150px; padding: 0.55rem; font-size: 0.9rem; }
+.cal-grid.week .cal-head { font-size: 0.95rem; padding: 0.5rem 0; }
 .cal-cell.today { border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand) inset; }
 .cal-cell .daynum { color: var(--muted); font-size: 0.75rem; }
 .cal-cell .chk { display: block; margin-top: 0.2rem; padding: 0.15rem 0.35rem; border-radius: 6px; background: var(--secondary-bg); color: var(--ink); }
 .cal-cell .chk.neg { color: var(--bad); }
+.cal-cell .chk.ev { background: var(--pending); color: #fff; }
 .cal-week-total { text-align: center; font-weight: 700; font-size: 0.8rem; padding-top: 0.3rem; }
 
 /* Print: drop the app chrome so any report prints (or "saves as PDF") cleanly. */

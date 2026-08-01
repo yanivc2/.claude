@@ -142,28 +142,41 @@ function ocrStatusBadge(s){
   <div class="card">
     <h2>פעולות</h2>
 
-    <!-- שורה 1: אישור לתשלום -->
-    <% if (invoice.status !== 'approved_for_payment') { %>
-      <form method="post" action="/invoices/<%= invoice.id %>/approve" style="margin-bottom:.7rem">
-        <button class="ok" type="submit">אישור לתשלום</button>
-      </form>
+    <!-- תשלום: כפתור שנפתח לבחירת אמצעי (צ׳ק / אשראי / העברה / מזומן). מזומן חסום מעל תקרת החוק. -->
+    <% if (invoice.status === 'recorded' || invoice.status === 'approved_for_payment') { %>
+      <% var overCash = cashCeilingAgorot > 0 && invoice.total_amount > cashCeilingAgorot; %>
+      <details class="paymenu" style="margin-bottom:.7rem">
+        <summary class="btn ok">תשלום ▾</summary>
+        <div class="paymenu-items">
+          <a class="btn secondary" href="/payments/new?invoice=<%= invoice.id %>&method=check">צ׳ק</a>
+          <a class="btn secondary" href="/payments/new?invoice=<%= invoice.id %>&method=credit">אשראי</a>
+          <a class="btn secondary" href="/payments/new?invoice=<%= invoice.id %>&method=transfer">העברה</a>
+          <% if (overCash) { %>
+            <span class="btn secondary" style="opacity:.5;cursor:not-allowed" title="מעל תקרת המזומן">מזומן ✕</span>
+          <% } else { %>
+            <a class="btn secondary" href="/payments/new?invoice=<%= invoice.id %>&method=cash">מזומן</a>
+          <% } %>
+        </div>
+      </details>
+      <% if (overCash) { %>
+        <p class="muted" style="margin:.2rem 0 .7rem">מזומן חסום — הסכום מעל תקרת התשלום במזומן (<%= formatIls(cashCeilingAgorot) %>).</p>
+      <% } %>
     <% } %>
 
-    <!-- שורה 2: החזק (בעלים) מימין · סיבת החזקה משמאל -->
+    <!-- החזק (בעלים) מימין · סיבת החזקה משמאל לכפתור -->
     <% if (invoice.status !== 'on_hold') { %>
-      <form method="post" action="/invoices/<%= invoice.id %>/hold" class="actions" style="justify-content:space-between;margin-bottom:.7rem">
+      <form method="post" action="/invoices/<%= invoice.id %>/hold" class="actions" style="margin-bottom:.7rem">
         <button class="danger" type="submit">החזק (בעלים)</button>
         <input name="reason" placeholder="סיבת החזקה" style="width:260px" />
       </form>
     <% } %>
 
-    <!-- שורה 3: שמור הקצאה מימין · מספר הקצאה משמאל -->
+    <!-- שמור הקצאה מימין · מספר הקצאה משמאל לכפתור -->
     <% if (!invoice.allocation_number) { %>
-      <form method="post" action="/invoices/<%= invoice.id %>/allocation" class="actions" style="justify-content:space-between">
+      <form method="post" action="/invoices/<%= invoice.id %>/allocation" class="actions">
         <button class="secondary" type="submit">שמור הקצאה</button>
         <input name="allocation_number" placeholder="מספר הקצאה (9 ספרות)" maxlength="9" pattern="\d{9}" style="width:260px" />
       </form>
-      <p class="muted">הוספת מספר הקצאה תשחרר חסימת R3 אם קיימת.</p>
     <% } %>
   </div>
 <% } %>
