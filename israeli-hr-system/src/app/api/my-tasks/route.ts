@@ -13,6 +13,7 @@ export async function GET(req: Request) {
     where: {
       OR: [
         { employeeId: me.id },
+        { employeeIds: { has: me.id } },
         { assigneeScope: { in: ["ALL", "TEAM"] }, companyId: me.companyId },
       ],
     },

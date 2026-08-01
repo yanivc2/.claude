@@ -21,6 +21,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const mine =
     !!task &&
     (task.employeeId === me.id ||
+      task.employeeIds.includes(me.id) ||
       (["ALL", "TEAM"].includes(task.assigneeScope) && task.companyId === me.companyId));
   if (!task || !mine) return NextResponse.json({ error: "המשימה לא נמצאה" }, { status: 404 });
 
