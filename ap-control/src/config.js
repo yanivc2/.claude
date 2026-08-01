@@ -31,6 +31,9 @@ export const config = {
   projectRoot,
   // Israeli VAT rate (18% since 1.1.2025). Used for auto-calc on invoice entry.
   vatRate: Number(process.env.VAT_RATE ?? 0.18),
+  // Cash-payment ceiling (חוק צמצום השימוש במזומן). Business-to-business cash is capped at
+  // 6,000 ₪ per transaction. Configurable via CASH_CEILING (in ILS). 0 disables the check.
+  cashCeilingAgorot: Number(process.env.CASH_CEILING ?? 6000) * 100,
   rules: {
     dupWindowDays: DUP_WINDOW_DAYS,
     allocationThresholdAgorot: ALLOCATION_THRESHOLD_AGOROT,
@@ -80,6 +83,9 @@ export const config = {
     appUrl: process.env.APP_URL || null,
     enabled: Boolean(process.env.RESEND_API_KEY),
   },
+  // Shared secret so an external scheduler (e.g. Vercel Cron) can trigger the reminders runner
+  // without a login session: GET /audit/reminders/run?key=<CRON_SECRET>.
+  cronSecret: process.env.CRON_SECRET || null,
   // Z-close alerts via a DEDICATED Telegram bot (§ 2d). The bot token is a secret — read
   // from env only, never committed. chatId defaults to the owner's id but can be overridden.
   // With no token the notifier is a silent no-op, so the app runs fine before setup.

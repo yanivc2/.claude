@@ -359,7 +359,8 @@ export async function listInvoices({ status = null } = {}, x = getExecutor()) {
 }
 
 /**
- * Invoices eligible to be applied to a payment: approved_for_payment and not yet paid.
+ * Invoices eligible to be applied to a payment: recorded or approved_for_payment (paying
+ * implicitly approves), not on_hold and not yet paid.
  */
 export async function listPayable(x = getExecutor()) {
   return x.many(
@@ -369,7 +370,7 @@ export async function listPayable(x = getExecutor()) {
        JOIN suppliers s ON s.id = i.supplier_id
        JOIN stores st ON st.id = i.store_id
        JOIN bank_accounts ba ON ba.store_id = i.store_id
-      WHERE i.status = 'approved_for_payment'
+      WHERE i.status IN ('recorded', 'approved_for_payment')
       ORDER BY s.name, i.invoice_date`,
     [],
   );

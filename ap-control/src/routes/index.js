@@ -8,7 +8,9 @@ import {
 import { lookupChecks } from '../services/payments.js';
 import { searchSuppliers } from '../services/suppliers.js';
 import { listRecent } from '../services/audit.js';
+import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
 import { getExecutor } from '../db/adapter.js';
+import { config } from '../config.js';
 
 function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -85,6 +87,10 @@ router.get('/audit', async (req, res, next) => {
       byDate[c.payment_date].total += c.amount;
     }
 
+    const events = await listEventsInRange(ymd(gridStart), ymd(gridEnd));
+    const eventsByDate = {};
+    for (const e of events) (eventsByDate[e.event_date] ||= []).push(e);
+
     const weeks = [];
     for (let w = 0; w < weeksCount; w += 1) {
       const days = [];
@@ -100,6 +106,7 @@ router.get('/audit', async (req, res, next) => {
           isToday: iso === ymd(today),
           count: agg ? agg.count : 0,
           total: agg ? agg.total : 0,
+          events: eventsByDate[iso] || [],
         });
       }
       weeks.push(days);
@@ -117,8 +124,49 @@ router.get('/audit', async (req, res, next) => {
       balances: await latestBalances(),
       rangeCount: checks.length,
       rangeTotal: checks.reduce((s, c) => s + c.amount, 0),
+      events,
+      remindersEnabled: config.telegram.enabled,
       entries: await listRecent(200),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Create a calendar event / reminder, then return to the same calendar view.
+router.post('/audit/events', async (req, res, next) => {
+  try {
+    await createEvent(
+      { title: req.body.title, eventDate: req.body.event_date, eventTime: req.body.event_time, remind: req.body.remind === '1' },
+      req.user,
+    );
+    const q = new URLSearchParams({ view: req.body.view || 'month', anchor: req.body.anchor || '' }).toString();
+    res.redirect(303, `/audit?${q}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/audit/events/:id/delete', async (req, res, next) => {
+  try {
+    await deleteEvent(Number(req.params.id), req.user);
+    const q = new URLSearchParams({ view: req.body.view || 'month', anchor: req.body.anchor || '' }).toString();
+    res.redirect(303, `/audit?${q}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Reminders runner — for a cron ping (?key=CRON_SECRET, no session) or the manual button (owner).
+router.all('/audit/reminders/run', async (req, res, next) => {
+  try {
+    const keyOk = config.cronSecret && req.query.key === config.cronSecret;
+    if (!keyOk && !req.user) return res.status(401).json({ error: 'unauthorized' });
+    const r = await runDueReminders();
+    if (req.user && req.method === 'POST') {
+      return res.redirect(303, `/audit?view=${req.body.view || 'month'}&anchor=${req.body.anchor || ''}`);
+    }
+    return res.json(r);
   } catch (err) {
     next(err);
   }

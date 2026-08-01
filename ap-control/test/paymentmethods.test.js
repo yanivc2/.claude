@@ -121,19 +121,21 @@ test('batch payment requires batch number and reference', async () => {
   assert.equal(p.reference, '179889097');
 });
 
-test('R1 still enforced for non-check methods (unapproved invoice blocks a cash payment)', async () => {
+test('an on_hold (R3) invoice is blocked from payment; a recorded one is payable', async () => {
   const db = await freshDb();
   const st = await firstStore(db);
   const sec = await secretary(db);
   const acct = (await db.one('SELECT id FROM bank_accounts WHERE store_id=?', [st.id])).id;
   const sup = await approveSupplier((await createSupplier({ name: 'ספק R1' }, sec, db)).id, await owner(db), db);
+  // Tax invoice over the allocation threshold with no allocation number -> auto on_hold (R3).
   const { invoice } = await createInvoice(
-    { supplierId: sup.id, storeId: st.id, invoiceNumber: 'R1x', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('50'), vatAmount: 0, docType: 'tax_invoice' },
+    { supplierId: sup.id, storeId: st.id, invoiceNumber: 'R1x', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('9000'), vatAmount: 0, docType: 'tax_invoice' },
     sec,
     db,
-  ); // NOT approved for payment
+  );
+  assert.equal(invoice.status, 'on_hold');
   await assert.rejects(
-    createPayment({ bankAccountId: acct, method: 'cash', payerName: 'x', paymentDate: '2026-07-02', invoiceIds: [invoice.id] }, sec, db),
-    /approved_for_payment/,
+    createPayment({ bankAccountId: acct, method: 'transfer', reference: 'r1', paymentDate: '2026-07-02', invoiceIds: [invoice.id] }, sec, db),
+    /מוחזקת|R3/,
   );
 });
