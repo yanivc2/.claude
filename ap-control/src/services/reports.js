@@ -87,6 +87,61 @@ export async function outstandingChecksForAccount(bankAccountId, x = getExecutor
 }
 
 /**
+ * Detailed outstanding-check rows for a bank account — one row per open check, joining its
+ * invoice line(s) and any credit note(s). Columns for the report:
+ *   supplier, invoice number(s)+date+amount, credit number(s)+amount, due date, net amount.
+ */
+export async function outstandingCheckDetail(bankAccountId, x = getExecutor()) {
+  const payments = await x.many(
+    `SELECT p.id, p.payment_date, p.amount, p.method, p.check_number, p.reference, p.batch_number
+       FROM payments p
+      WHERE p.bank_account_id = ? AND p.status = 'issued'
+      ORDER BY p.payment_date, p.id`,
+    [bankAccountId],
+  );
+  if (payments.length === 0) return [];
+
+  const ph = payments.map(() => '?').join(',');
+  const lines = await x.many(
+    `SELECT pl.payment_id, pl.amount_applied,
+            i.id AS invoice_id, i.invoice_number, i.invoice_date, i.doc_type, i.total_amount,
+            s.name AS supplier_name
+       FROM payment_lines pl
+       JOIN invoices i ON i.id = pl.invoice_id
+       JOIN suppliers s ON s.id = i.supplier_id
+      WHERE pl.payment_id IN (${ph})
+      ORDER BY pl.id`,
+    payments.map((p) => p.id),
+  );
+
+  const byPayment = new Map();
+  for (const l of lines) {
+    if (!byPayment.has(l.payment_id)) byPayment.set(l.payment_id, []);
+    byPayment.get(l.payment_id).push(l);
+  }
+
+  return payments.map((p) => {
+    const ls = byPayment.get(p.id) || [];
+    const pos = ls.filter((l) => l.doc_type !== 'credit_note' && l.total_amount >= 0);
+    const neg = ls.filter((l) => l.doc_type === 'credit_note' || l.total_amount < 0);
+    return {
+      paymentId: p.id,
+      method: p.method,
+      ident: p.check_number || p.reference || p.batch_number || '',
+      supplierName: (pos[0] || ls[0] || {}).supplier_name || '',
+      invoiceNumbers: pos.map((l) => l.invoice_number).join(', '),
+      invoiceDate: (pos[0] || {}).invoice_date || '',
+      invoiceAmount: pos.reduce((s, l) => s + l.total_amount, 0),
+      creditNumbers: neg.map((l) => l.invoice_number).join(', '),
+      creditAmount: neg.reduce((s, l) => s + Math.abs(l.total_amount), 0),
+      dueDate: p.payment_date,
+      amount: p.amount,
+      invoiceIds: pos.map((l) => l.invoice_id),
+    };
+  });
+}
+
+/**
  * §7 "בדיקת חשבונית" — invoice lookup by invoice number, allocation number, or supplier name.
  */
 export async function invoiceLookup(query, { companyId = null, storeId = null } = {}, x = getExecutor()) {

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   outstandingChecks,
   outstandingChecksForAccount,
+  outstandingCheckDetail,
   invoiceLookup,
   profitability,
 } from '../services/reports.js';
@@ -142,8 +143,33 @@ router.get('/outstanding', async (req, res, next) => {
       accounts,
       totalOutstanding,
       detailAccountId,
-      detailChecks: detailAccountId ? await outstandingChecksForAccount(detailAccountId) : [],
+      detail: detailAccountId ? await outstandingCheckDetail(detailAccountId) : [],
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Detailed per-store CSV — one row per open check with invoice/credit breakdown.
+router.get('/outstanding-detail.csv', async (req, res, next) => {
+  try {
+    const accountId = Number(req.query.account);
+    const rows = (await outstandingCheckDetail(accountId)).map((r) => [
+      r.supplierName,
+      r.invoiceNumbers,
+      r.invoiceDate,
+      fromAgorot(r.invoiceAmount),
+      r.creditNumbers || '',
+      r.creditAmount ? fromAgorot(r.creditAmount) : '',
+      r.dueDate,
+      fromAgorot(r.amount),
+    ]);
+    sendCsv(
+      res,
+      `outstanding-detail-account-${accountId}.csv`,
+      ['ספק', 'מס׳ חשבונית', 'תאריך חשבונית', 'סכום חשבונית', 'מס׳ חשבונית זיכוי', 'סכום זיכוי', 'תאריך פירעון', 'סכום'],
+      rows,
+    );
   } catch (err) {
     next(err);
   }
