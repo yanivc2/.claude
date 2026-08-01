@@ -16,6 +16,7 @@ export default async function MyHomePage() {
         status: "SENT",
         OR: [
           { employeeId: me.id },
+          { employeeIds: { has: me.id } },
           { assigneeScope: { in: ["ALL", "TEAM"] }, companyId: me.companyId },
         ],
       },

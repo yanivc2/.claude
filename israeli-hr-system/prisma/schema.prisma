@@ -568,7 +568,8 @@ model Task {
   id            String        @id @default(cuid())
   title         String        @db.Text
   assigneeScope AssigneeScope @default(ALL)
-  employeeId    String? // כאשר scope=EMPLOYEE
+  employeeId    String? // תאימות לאחור: העובד הראשון כאשר scope=EMPLOYEE
+  employeeIds   String[]      @default([]) // שיוך לכמה עובדים (scope=EMPLOYEE)
   companyId     String? // שיוך לחברה (היקף)
   status        TaskStatus    @default(SENT)
   createdBy     String // שם המשתמש (מנהל) שיצר
@@ -591,13 +592,24 @@ model TaskPreset {
 enum ProcedureType {
   OPEN // פתיחת משמרת
   CLOSE // סגירת משמרת
+  MORNING // משמרת בוקר
+  EVENING // משמרת ערב
+  NIGHT // משמרת לילה
+  FRIDAY // יום שישי
+  SATURDAY // יום שבת
+  WEEKEND // שישישבת
+  HOLIDAY_EVE // ערב חג
+  HOLIDAY // חג
+  STORE_OPEN // נוהל פתיחת החנות
+  STORE_CLOSE // נוהל סגירת החנות
 }
 
 model ShiftProcedure {
   id            String        @id @default(cuid())
   type          ProcedureType
   assigneeScope AssigneeScope @default(ALL)
-  employeeId    String?
+  employeeId    String? // תאימות לאחור: העובד הראשון כאשר scope=EMPLOYEE
+  employeeIds   String[]      @default([]) // שיוך לכמה עובדים (scope=EMPLOYEE)
   companyId     String?
   items         String[] // סעיפי הנוהל (שורה = סעיף)
   createdBy     String

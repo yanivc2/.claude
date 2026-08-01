@@ -18,8 +18,12 @@ export async function GET(req: Request) {
     orderBy: { createdAt: "desc" },
     take: 100,
   });
-  // שמות עובדים משויכים (לתצוגה).
-  const empIds = [...new Set(tasks.map((t) => t.employeeId).filter(Boolean) as string[])];
+  // שמות העובדים המשויכים (לתצוגה) — אוסף גם employeeId (ישן) וגם employeeIds (רב).
+  const empIds = [
+    ...new Set(
+      tasks.flatMap((t) => [t.employeeId, ...t.employeeIds]).filter(Boolean) as string[],
+    ),
+  ];
   const emps = empIds.length
     ? await prisma.employee.findMany({
         where: { id: { in: empIds } },
@@ -28,7 +32,11 @@ export async function GET(req: Request) {
     : [];
   const nameById = new Map(emps.map((e) => [e.id, `${e.firstName} ${e.lastName}`]));
   return NextResponse.json(
-    tasks.map((t) => ({ ...t, employeeName: t.employeeId ? nameById.get(t.employeeId) ?? null : null })),
+    tasks.map((t) => {
+      const ids = t.employeeIds.length ? t.employeeIds : t.employeeId ? [t.employeeId] : [];
+      const names = ids.map((id) => nameById.get(id)).filter(Boolean) as string[];
+      return { ...t, employeeName: names[0] ?? null, employeeNames: names };
+    }),
   );
 }
 
@@ -36,6 +44,7 @@ const schema = z.object({
   title: z.string().trim().min(1, "יש להזין תיאור משימה"),
   assigneeScope: z.enum(["ALL", "TEAM", "EMPLOYEE"]).default("ALL"),
   employeeId: z.string().optional().nullable(),
+  employeeIds: z.array(z.string()).optional().default([]),
 });
 
 // POST /api/tasks — יצירת משימה ושיוכה. בעלים/מזכירה/מנהל חנות.
@@ -47,36 +56,45 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "נתונים שגויים" }, { status: 400 });
   }
   const d = parsed.data;
-  const employeeId = d.assigneeScope === "EMPLOYEE" ? d.employeeId || null : null;
-  if (d.assigneeScope === "EMPLOYEE" && !employeeId) {
-    return NextResponse.json({ error: "יש לבחור עובד" }, { status: 400 });
+  // שיוך לעובדים ספציפיים — תומך גם בשדה הישן (employeeId בודד) וגם ברב (employeeIds).
+  const employeeIds =
+    d.assigneeScope === "EMPLOYEE"
+      ? [...new Set([...(d.employeeIds ?? []), ...(d.employeeId ? [d.employeeId] : [])])]
+      : [];
+  if (d.assigneeScope === "EMPLOYEE" && employeeIds.length === 0) {
+    return NextResponse.json({ error: "יש לבחור עובד אחד לפחות" }, { status: 400 });
   }
 
-  // עובד ספציפי — נגזר גם ה-companyId מהעובד (לצורך היקף).
+  // עובדים ספציפיים — נגזר ה-companyId מהעובד הראשון (לצורך היקף) ונשלחת התראה לכל אחד.
   let companyId = me.companyId;
-  if (employeeId) {
-    const emp = await prisma.employee.findUnique({
-      where: { id: employeeId },
-      select: { companyId: true, email: true, firstName: true, lastName: true },
+  if (employeeIds.length) {
+    const emps = await prisma.employee.findMany({
+      where: { id: { in: employeeIds } },
+      select: { id: true, companyId: true },
     });
-    if (!emp) return NextResponse.json({ error: "העובד לא נמצא" }, { status: 404 });
-    companyId = emp.companyId;
-    // התראה + פוש לעובד (מזוהה לפי סשן העובד: emp:<id>).
-    await notifyUser(`emp:${employeeId}`, {
-      type: "TASK_ASSIGNED",
-      title: "משימה חדשה מהמנהל",
-      body: d.title,
-      link: "/my-tasks",
-      actorName: me.name,
-      companyId,
-    }).catch(() => {});
+    if (emps.length === 0) return NextResponse.json({ error: "העובד לא נמצא" }, { status: 404 });
+    companyId = emps[0].companyId;
+    // התראה + פוש לכל עובד (מזוהה לפי סשן העובד: emp:<id>).
+    await Promise.all(
+      emps.map((emp) =>
+        notifyUser(`emp:${emp.id}`, {
+          type: "TASK_ASSIGNED",
+          title: "משימה חדשה מהמנהל",
+          body: d.title,
+          link: "/my-tasks",
+          actorName: me.name,
+          companyId: emp.companyId,
+        }).catch(() => {}),
+      ),
+    );
   }
 
   const task = await prisma.task.create({
     data: {
       title: d.title,
       assigneeScope: d.assigneeScope,
-      employeeId,
+      employeeId: employeeIds[0] ?? null,
+      employeeIds,
       companyId,
       createdBy: me.username,
     },
