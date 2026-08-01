@@ -1,0 +1,6 @@
+data
+uploads
+*.sqlite
+*.sqlite-*
+.env
+test

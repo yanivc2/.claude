@@ -34,4 +34,16 @@ export function isReady() {
   return ready;
 }
 
+/**
+ * Connect to the backend WITHOUT applying the schema — for serverless request handlers, where
+ * the schema is applied once by the deploy-time setup step (`npm run db:setup`), not on every
+ * cold start. Idempotent: only initializes the pool the first time.
+ */
+export async function connectDb(opts = {}) {
+  if (ready) return getExecutor();
+  const x = await initBackend(opts);
+  ready = true;
+  return x;
+}
+
 export { getExecutor, getBackend } from './adapter.js';
