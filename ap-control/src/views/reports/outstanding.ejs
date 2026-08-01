@@ -11,7 +11,7 @@
 <div class="card">
   <table>
     <thead>
-      <tr><th>חברה</th><th>חנות / חשבון</th><th class="right">צ׳קים פתוחים</th><th class="right">סכום בחוץ</th></tr>
+      <tr><th>חברה</th><th>חנות / חשבון</th><th class="right">צ׳קים פתוחים</th><th class="right">סכום בחוץ</th><th class="no-print">ייצוא</th></tr>
     </thead>
     <tbody>
       <% accounts.forEach(function(a){ %>
@@ -21,6 +21,9 @@
           <td><%= a.display_name %></td>
           <td class="right"><%= a.outstanding_count %></td>
           <td class="right"><strong><%= formatIls(a.outstanding) %></strong></td>
+          <td class="no-print" onclick="event.stopPropagation()">
+            <a class="btn secondary small" href="/reports/outstanding-detail.csv?account=<%= a.id %>">CSV מפורט</a>
+          </td>
         </tr>
       <% }); %>
     </tbody>
@@ -29,6 +32,7 @@
         <th colspan="2">סה"כ כל החשבונות</th>
         <th class="right"><%= a_total_count(accounts) %></th>
         <th class="right"><%= formatIls(totalOutstanding) %></th>
+        <th class="no-print"></th>
       </tr>
     </tfoot>
   </table>
@@ -36,25 +40,45 @@
 
 <% if (detailAccountId) { %>
   <div class="card">
-    <h2>צ׳קים פתוחים בחשבון הנבחר</h2>
-    <table>
-      <thead><tr><th>מס' צ׳ק</th><th>תאריך</th><th class="right">סכום</th><th class="no-print">פעולה</th></tr></thead>
+    <div class="toolbar">
+      <h2 style="margin:0">פירוט צ׳קים שלא נפרעו — החשבון הנבחר</h2>
+      <a class="btn secondary no-print" href="/reports/outstanding-detail.csv?account=<%= detailAccountId %>">ייצוא CSV מפורט</a>
+    </div>
+    <table class="sortable">
+      <thead>
+        <tr>
+          <th>ספק</th><th>מס' חשבונית</th><th>תאריך חשבונית</th><th class="right">סכום חשבונית</th>
+          <th>מס' זיכוי</th><th class="right">סכום זיכוי</th><th>תאריך פירעון</th><th class="right">סכום</th>
+          <th class="no-print" data-nosort>פעולות</th>
+        </tr>
+      </thead>
       <tbody>
-        <% if (detailChecks.length === 0) { %><tr><td colspan="4" class="muted">אין צ׳קים פתוחים.</td></tr><% } %>
-        <% detailChecks.forEach(function(c){ %>
+        <% if (detail.length === 0) { %><tr><td colspan="9" class="muted">אין צ׳קים פתוחים.</td></tr><% } %>
+        <% detail.forEach(function(r){ %>
           <tr>
-            <td class="mono"><a href="/payments/<%= c.id %>"><%= c.check_number %></a></td>
-            <td><%= c.payment_date %></td>
-            <td class="right"><%= formatIls(c.amount) %></td>
+            <td><%= r.supplierName %></td>
+            <td class="mono"><a href="/payments/<%= r.paymentId %>"><%= r.invoiceNumbers || r.ident %></a></td>
+            <td><%= r.invoiceDate %></td>
+            <td class="right"><%= formatIls(r.invoiceAmount) %></td>
+            <td class="mono"><%= r.creditNumbers || '—' %></td>
+            <td class="right"><%= r.creditAmount ? '−' + formatIls(r.creditAmount) : '—' %></td>
+            <td><%= r.dueDate %></td>
+            <td class="right"><strong><%= formatIls(r.amount) %></strong></td>
             <td class="no-print">
-              <form method="post" action="/payments/<%= c.id %>/clear" style="display:inline">
+              <form method="post" action="/payments/<%= r.paymentId %>/clear" style="display:inline">
                 <button class="ok small" type="submit">סמן כנפרע</button>
               </form>
+              <% if (currentUser.role === 'owner') { %>
+                <% r.invoiceIds.forEach(function(iid){ %>
+                  <a class="btn secondary small" href="/invoices/<%= iid %>/edit">ערוך חשבונית</a>
+                <% }); %>
+              <% } %>
             </td>
           </tr>
         <% }); %>
       </tbody>
     </table>
+    <% if (currentUser.role !== 'owner') { %><p class="muted no-print">עריכת חשבוניות זמינה לבעלים בלבד.</p><% } %>
   </div>
 <% } %>
 <%
