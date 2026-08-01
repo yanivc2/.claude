@@ -85,6 +85,25 @@ CREATE TABLE IF NOT EXISTS calendar_events (
 );
 CREATE INDEX IF NOT EXISTS ix_calendar_events_date ON calendar_events(event_date);
 
+-- Approval workflow: edits by non-owners are queued here for the owner to approve/reject.
+CREATE TABLE IF NOT EXISTS change_requests (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  requested_by      INTEGER REFERENCES users(id),
+  requested_by_name TEXT,
+  action            TEXT NOT NULL,          -- e.g. 'invoice.update'
+  entity_type       TEXT,
+  entity_id         INTEGER,
+  payload           TEXT NOT NULL,          -- JSON to apply on approval
+  summary           TEXT,                   -- human-readable description of the change
+  status            TEXT NOT NULL DEFAULT 'pending', -- pending / approved / rejected
+  decided_by        INTEGER,
+  decided_at        TEXT,
+  decision_note     TEXT,
+  result_summary    TEXT,
+  created_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_change_requests_status ON change_requests(status);
+
 -- §4 invoices -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoices (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,
