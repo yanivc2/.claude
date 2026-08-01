@@ -19,6 +19,7 @@ import { config } from '../config.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
+import { notify } from '../lib/notify.js';
 import { RuleError } from '../lib/errors.js';
 
 const router = Router();
@@ -26,6 +27,28 @@ const router = Router();
 function removeUpload(filename) {
   if (!filename) return;
   fs.rm(path.join(config.uploadsDir, path.basename(filename)), { force: true }, () => {});
+}
+
+function zUrl(req, id) {
+  return `${req.protocol}://${req.get('host')}/reports/zreports/${id}`;
+}
+
+function ils(agorot) {
+  return `₪${fromAgorot(agorot)}`;
+}
+
+// Fire a Telegram alert if a Z report is unmatched after a save. No-op if the bot isn't
+// configured (see lib/notify.js). Best-effort — never throws into the request path.
+function alertIfUnmatched(req, id) {
+  try {
+    const st = zReconciliationStatus(id);
+    if (st.matched) return;
+    const zr = getZReport(id);
+    const lines = st.issues.map((i) => `• ${i.label}: ${ils(i.diff)}`);
+    notify(`⚠️ <b>Z לא תואם</b>\nדוח Z ${zr.z_number}\n${lines.join('\n')}\n${zUrl(req, id)}`);
+  } catch {
+    /* alerts are best-effort */
+  }
 }
 
 function renderZReport(req, res, id, extra = {}) {
@@ -184,9 +207,10 @@ router.get('/profitability.csv', (req, res) => {
 router.post('/zreports', (req, res, next) => {
   const b = req.body;
   try {
+    const storeId = Number(b.store_id);
     createZReport(
       {
-        storeId: Number(b.store_id),
+        storeId,
         zNumber: b.z_number,
         zDate: b.z_date,
         dailyTotal: toAgorot(b.daily_total),
@@ -198,6 +222,13 @@ router.post('/zreports', (req, res, next) => {
       },
       req.user,
     );
+    // §2a: every time Z reports are entered, remind about any gap in the sequence.
+    try {
+      const missing = missingZNumbers(storeId);
+      if (missing.length) {
+        notify(`🔢 <b>מספר Z חסר ברצף</b>\nחסרים: ${missing.join(', ')}\n${req.protocol}://${req.get('host')}/reports/profitability?zstore=${storeId}`);
+      }
+    } catch { /* best-effort */ }
     renderProfitability(req, res, { notice: 'דוח Z נוסף.' });
   } catch (err) {
     if (err instanceof RuleError) return renderProfitability(req, res, { error: err.message });
@@ -243,6 +274,7 @@ router.post('/zreports/:id/expenses', handleInvoiceImage, (req, res, next) => {
       },
       req.user,
     );
+    alertIfUnmatched(req, id);
     renderZReport(req, res, id, { notice: 'הוצאה נוספה.' });
   } catch (err) {
     if (req.file) removeUpload(req.file.filename);
@@ -258,6 +290,7 @@ router.post('/zreports/:id/deposit', (req, res, next) => {
     const counts = {};
     for (const d of DENOMS) counts[d.value] = Number(req.body[`count_${d.key}`] || 0);
     setDeposit(id, { counts, bag: req.body.deposit_bag }, req.user);
+    alertIfUnmatched(req, id);
     renderZReport(req, res, id, { notice: 'הפקדה נשמרה.' });
   } catch (err) {
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
@@ -272,6 +305,7 @@ router.post('/zreports/:id/creditcards', (req, res, next) => {
     const amounts = {};
     for (const b of CC_BRANDS) amounts[b.key] = toAgorot(req.body[`cc_${b.key}`]);
     setCreditCards(id, { amounts }, req.user);
+    alertIfUnmatched(req, id);
     renderZReport(req, res, id, { notice: 'דוח אשראי נשמר.' });
   } catch (err) {
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
