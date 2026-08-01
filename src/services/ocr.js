@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { getDb } from '../db/index.js';
+import { getExecutor, nowTs } from '../db/adapter.js';
 import { config } from '../config.js';
-import { NotFoundError, RuleError } from '../lib/errors.js';
+import { RuleError } from '../lib/errors.js';
 import { extractFields } from '../lib/ocrExtract.js';
 import { recognizeWithTesseract } from '../ocr/tesseract.js';
 import { getInvoice } from './invoices.js';
@@ -12,21 +12,14 @@ import { logAction } from './audit.js';
 
 /**
  * Run OCR on an invoice's image, extract candidate fields, and persist the result.
- * The recognizer is injectable so the pipeline is testable without a real OCR engine.
- *
- * @param {number} invoiceId
- * @param {object} actor
- * @param {object} [opts]
- * @param {(imagePath:string)=>Promise<string>} [opts.recognize]  defaults to local tesseract
- * @param {string} [opts.provider]
  */
 export async function runOcrForInvoice(
   invoiceId,
   actor,
   { recognize = recognizeWithTesseract, provider = 'tesseract' } = {},
-  db = getDb(),
+  x = getExecutor(),
 ) {
-  const invoice = getInvoice(invoiceId, db);
+  const invoice = await getInvoice(invoiceId, x);
   if (!invoice.image_path) throw new RuleError('OCR', 'לחשבונית אין תמונה לסריקה');
   if (/\.pdf$/i.test(invoice.image_path)) {
     throw new RuleError('OCR', 'OCR על PDF אינו נתמך בשלב 3 — צרף תמונה (JPG/PNG)');
@@ -36,24 +29,25 @@ export async function runOcrForInvoice(
   const rawText = await recognize(imagePath);
   const extracted = extractFields(rawText);
 
-  db.prepare(
+  await x.run(
     `INSERT INTO invoice_ocr (invoice_id, raw_text, extracted, provider)
      VALUES (?, ?, ?, ?)
      ON CONFLICT(invoice_id) DO UPDATE SET
        raw_text = excluded.raw_text, extracted = excluded.extracted,
-       provider = excluded.provider, ran_at = strftime('%Y-%m-%d %H:%M:%S','now')`,
-  ).run(invoiceId, rawText, JSON.stringify(extracted), provider);
+       provider = excluded.provider, ran_at = ?`,
+    [invoiceId, rawText, JSON.stringify(extracted), provider, nowTs()],
+  );
 
-  logAction(
+  await logAction(
     { userId: actor?.id ?? null, action: 'invoice.ocr', entityType: 'invoice', entityId: invoiceId, details: { provider } },
-    db,
+    x,
   );
   return { rawText, extracted };
 }
 
 /** Stored OCR result for an invoice, or null. */
-export function getOcr(invoiceId, db = getDb()) {
-  const row = db.prepare('SELECT * FROM invoice_ocr WHERE invoice_id = ?').get(invoiceId);
+export async function getOcr(invoiceId, x = getExecutor()) {
+  const row = await x.one('SELECT * FROM invoice_ocr WHERE invoice_id = ?', [invoiceId]);
   if (!row) return null;
   return { ...row, extracted: row.extracted ? JSON.parse(row.extracted) : null };
 }
@@ -61,14 +55,12 @@ export function getOcr(invoiceId, db = getDb()) {
 /**
  * Compare the stored OCR extraction against the typed invoice values (§3/§8).
  * @returns {{rows: Array<{field,label,typed,ocr,status}>, hasMismatch: boolean}|null}
- *   status: 'match' | 'mismatch' | 'missing' (typed present, OCR blank) | 'ocr_only'
  */
-export function compareToInvoice(invoiceId, db = getDb()) {
-  const ocr = getOcr(invoiceId, db);
+export async function compareToInvoice(invoiceId, x = getExecutor()) {
+  const ocr = await getOcr(invoiceId, x);
   if (!ocr || !ocr.extracted) return null;
-  const invoice = getInvoice(invoiceId, db);
+  const invoice = await getInvoice(invoiceId, x);
   const e = ocr.extracted;
-  // Credit notes are stored negative; compare magnitudes against OCR (which reads a printed amount).
   const magnitude = (n) => (n == null ? null : Math.abs(n));
 
   const spec = [
@@ -88,7 +80,7 @@ function compareValue(typed, ocr) {
   const typedEmpty = typed == null || typed === '';
   const ocrEmpty = ocr == null || ocr === '';
   if (typedEmpty && ocrEmpty) return 'match';
-  if (ocrEmpty) return 'missing'; // we typed something OCR didn't find
-  if (typedEmpty) return 'ocr_only'; // OCR found something not typed
+  if (ocrEmpty) return 'missing';
+  if (typedEmpty) return 'ocr_only';
   return String(typed) === String(ocr) ? 'match' : 'mismatch';
 }

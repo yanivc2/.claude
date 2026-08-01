@@ -1,4 +1,4 @@
-import { getDb } from '../db/index.js';
+import { getExecutor } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { logAction } from './audit.js';
 
@@ -11,60 +11,59 @@ import { logAction } from './audit.js';
  *   drawerCash?:number, drawerCheck?:number, drawerCredit?:number,
  *   drawerHakafa?:number, drawerVouchers?:number, notes?:string}} input  amounts in agorot
  */
-export function createZReport(input, actor, db = getDb()) {
+export async function createZReport(input, actor, x = getExecutor()) {
   const {
     storeId, zNumber, zDate, dailyTotal = 0,
     drawerCash = 0, drawerCheck = 0, drawerCredit = 0, drawerHakafa = 0, drawerVouchers = 0,
     notes = null,
   } = input;
 
-  const store = db.prepare('SELECT id FROM stores WHERE id = ?').get(storeId);
+  const store = await x.one('SELECT id FROM stores WHERE id = ?', [storeId]);
   if (!store) throw new NotFoundError(`חנות ${storeId} לא נמצאה`);
   if (!zNumber || !String(zNumber).trim()) throw new RuleError('VALIDATION', 'מספר Z חובה');
   if (!zDate) throw new RuleError('VALIDATION', 'תאריך Z חובה');
 
   const zNum = String(zNumber).trim();
-  const dup = db.prepare('SELECT id FROM z_reports WHERE store_id = ? AND z_number = ?').get(storeId, zNum);
+  const dup = await x.one('SELECT id FROM z_reports WHERE store_id = ? AND z_number = ?', [storeId, zNum]);
   if (dup) throw new RuleError('VALIDATION', `דוח Z מספר ${zNum} כבר קיים לחנות זו`);
 
   const drawerTotal = drawerCash + drawerCheck + drawerCredit + drawerHakafa + drawerVouchers;
 
-  const info = db
-    .prepare(
-      `INSERT INTO z_reports
-         (store_id, z_number, z_date, daily_total, drawer_cash, drawer_check, drawer_credit,
-          drawer_hakafa, drawer_vouchers, drawer_total, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(storeId, zNum, zDate, dailyTotal, drawerCash, drawerCheck, drawerCredit, drawerHakafa, drawerVouchers, drawerTotal, actor.id);
-
-  logAction(
-    { userId: actor.id, action: 'zreport.create', entityType: 'z_report', entityId: info.lastInsertRowid, details: { storeId, zNumber: zNum, dailyTotal } },
-    db,
+  const info = await x.run(
+    `INSERT INTO z_reports
+       (store_id, z_number, z_date, daily_total, drawer_cash, drawer_check, drawer_credit,
+        drawer_hakafa, drawer_vouchers, drawer_total, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [storeId, zNum, zDate, dailyTotal, drawerCash, drawerCheck, drawerCredit, drawerHakafa, drawerVouchers, drawerTotal, actor.id],
   );
-  return getZReport(info.lastInsertRowid, db);
+
+  await logAction(
+    { userId: actor.id, action: 'zreport.create', entityType: 'z_report', entityId: info.lastInsertRowid, details: { storeId, zNumber: zNum, dailyTotal } },
+    x,
+  );
+  return getZReport(info.lastInsertRowid, x);
 }
 
-export function getZReport(id, db = getDb()) {
-  const row = db.prepare('SELECT * FROM z_reports WHERE id = ?').get(id);
+export async function getZReport(id, x = getExecutor()) {
+  const row = await x.one('SELECT * FROM z_reports WHERE id = ?', [id]);
   if (!row) throw new NotFoundError(`דוח Z ${id} לא נמצא`);
   return row;
 }
 
-export function deleteZReport(id, actor, db = getDb()) {
-  getZReport(id, db);
-  db.prepare('DELETE FROM z_reports WHERE id = ?').run(id);
-  logAction({ userId: actor.id, action: 'zreport.delete', entityType: 'z_report', entityId: id }, db);
+export async function deleteZReport(id, actor, x = getExecutor()) {
+  await getZReport(id, x);
+  await x.run('DELETE FROM z_reports WHERE id = ?', [id]);
+  await logAction({ userId: actor.id, action: 'zreport.delete', entityType: 'z_report', entityId: id }, x);
 }
 
 /** Recent Z reports, newest first, optionally filtered by store. */
-export function listZReports({ storeId = null, limit = 40 } = {}, db = getDb()) {
+export async function listZReports({ storeId = null, limit = 40 } = {}, x = getExecutor()) {
   const base = `SELECT z.*, st.name AS store_name
                   FROM z_reports z JOIN stores st ON st.id = z.store_id`;
   if (storeId) {
-    return db.prepare(`${base} WHERE z.store_id = ? ORDER BY z.z_date DESC, z.id DESC LIMIT ?`).all(storeId, limit);
+    return x.many(`${base} WHERE z.store_id = ? ORDER BY z.z_date DESC, z.id DESC LIMIT ?`, [storeId, limit]);
   }
-  return db.prepare(`${base} ORDER BY z.z_date DESC, z.id DESC LIMIT ?`).all(limit);
+  return x.many(`${base} ORDER BY z.z_date DESC, z.id DESC LIMIT ?`, [limit]);
 }
 
 // Cash denominations for the deposit calculator (shekel value + a form-safe key).
@@ -77,10 +76,9 @@ export const DENOMS = [
 /**
  * Save the deposit for a Z report from bill counts. Amount (agorot) is computed from the
  * denominations so it can't drift from the breakdown.
- * @param {{counts: Record<string|number, number>, bag?: string}} input
  */
-export function setDeposit(zReportId, { counts = {}, bag = null }, actor, db = getDb()) {
-  getZReport(zReportId, db);
+export async function setDeposit(zReportId, { counts = {}, bag = null }, actor, x = getExecutor()) {
+  await getZReport(zReportId, x);
   let amount = 0;
   const clean = {};
   for (const d of DENOMS) {
@@ -89,39 +87,36 @@ export function setDeposit(zReportId, { counts = {}, bag = null }, actor, db = g
     clean[d.value] = c;
     amount += Math.round(d.value * 100) * c;
   }
-  db.prepare('UPDATE z_reports SET deposit_amount = ?, deposit_bag = ?, deposit_breakdown = ? WHERE id = ?')
-    .run(amount, bag?.trim() || null, JSON.stringify(clean), zReportId);
-  logAction({ userId: actor.id, action: 'zreport.deposit', entityType: 'z_report', entityId: zReportId, details: { amount, bag } }, db);
-  return getZReport(zReportId, db);
+  await x.run('UPDATE z_reports SET deposit_amount = ?, deposit_bag = ?, deposit_breakdown = ? WHERE id = ?', [
+    amount,
+    bag?.trim() || null,
+    JSON.stringify(clean),
+    zReportId,
+  ]);
+  await logAction({ userId: actor.id, action: 'zreport.deposit', entityType: 'z_report', entityId: zReportId, details: { amount, bag } }, x);
+  return getZReport(zReportId, x);
 }
 
 /**
  * Cash reconciliation for a Z report: drawer cash should equal deposit + expenses.
- * @returns {{cash:number, deposit:number, expenses:number, diff:number}}  diff = cash - (deposit+expenses)
- *   diff < 0 => shortage (חוסר), diff > 0 => surplus (יתרה), 0 => match.
+ * @returns {{cash:number, deposit:number, expenses:number, diff:number}}
  */
-export function cashReconciliation(zReportId, db = getDb()) {
-  const zr = getZReport(zReportId, db);
+export async function cashReconciliation(zReportId, x = getExecutor()) {
+  const zr = await getZReport(zReportId, x);
   const deposit = zr.deposit_amount || 0;
-  const expenses = expensesTotal(zReportId, db);
+  const expenses = await expensesTotal(zReportId, x);
   const cash = zr.drawer_cash || 0;
   return { cash, deposit, expenses, diff: cash - deposit - expenses };
 }
 
 /**
  * Overall reconciliation status for a Z report — "Z לא תואם" surfacing (§ 2d, option א).
- * A report is flagged only once the relevant data has been entered, so a half-filled Z is
- * not falsely marked unmatched:
- *  - cash: only when a deposit has been recorded (deposit_amount not null) and
- *    מזומן מגירה ≠ הפקדה + הוצאות.
- *  - credit: only when a credit-card report exists (cc_total not null) and the brand total
- *    EXCEEDS אשראי מגירה (a positive gap is the expected "שולם בחוב באשראי", not a mismatch).
  * @returns {{matched:boolean, issues:Array<{type:string,label:string,diff:number}>, cash:object, cc:object}}
  */
-export function zReconciliationStatus(zReportId, db = getDb()) {
-  const zr = getZReport(zReportId, db);
-  const cash = cashReconciliation(zReportId, db);
-  const cc = ccReconciliation(zReportId, db);
+export async function zReconciliationStatus(zReportId, x = getExecutor()) {
+  const zr = await getZReport(zReportId, x);
+  const cash = await cashReconciliation(zReportId, x);
+  const cc = await ccReconciliation(zReportId, x);
   const issues = [];
   if (zr.deposit_amount != null && cash.diff !== 0) {
     issues.push({ type: 'cash', label: cash.diff < 0 ? 'חוסר במזומן' : 'עודף במזומן', diff: cash.diff });
@@ -144,10 +139,9 @@ export const CC_BRANDS = [
 
 /**
  * Save the credit-card report from per-brand amounts. cc_total is computed from the brands.
- * @param {{amounts: Record<string, number>}} input  amounts in agorot
  */
-export function setCreditCards(zReportId, { amounts = {} }, actor, db = getDb()) {
-  getZReport(zReportId, db);
+export async function setCreditCards(zReportId, { amounts = {} }, actor, x = getExecutor()) {
+  await getZReport(zReportId, x);
   let total = 0;
   const v = {};
   for (const b of CC_BRANDS) {
@@ -156,22 +150,21 @@ export function setCreditCards(zReportId, { amounts = {} }, actor, db = getDb())
     v[b.key] = a;
     total += a;
   }
-  db.prepare(
+  await x.run(
     `UPDATE z_reports SET cc_kal = ?, cc_isracard = ?, cc_diners = ?, cc_amex = ?, cc_general = ?, cc_tourist = ?, cc_total = ?
      WHERE id = ?`,
-  ).run(v.kal, v.isracard, v.diners, v.amex, v.general, v.tourist, total, zReportId);
-  logAction({ userId: actor.id, action: 'zreport.creditcards', entityType: 'z_report', entityId: zReportId, details: { total } }, db);
-  return getZReport(zReportId, db);
+    [v.kal, v.isracard, v.diners, v.amex, v.general, v.tourist, total, zReportId],
+  );
+  await logAction({ userId: actor.id, action: 'zreport.creditcards', entityType: 'z_report', entityId: zReportId, details: { total } }, x);
+  return getZReport(zReportId, x);
 }
 
 /**
- * Credit-card reconciliation. The card-brand total normally sits BELOW אשראי מגירה, because
- * customer debts paid by credit inflate אשראי מגירה. The positive gap is shown as "שולם בחוב
- * באשראי" (informational only — not blocking).
- * @returns {{ccTotal:number, drawerCredit:number, debtOnCredit:number}}  debtOnCredit = drawerCredit - ccTotal
+ * Credit-card reconciliation. debtOnCredit = drawerCredit - ccTotal (positive = "שולם בחוב באשראי").
+ * @returns {{ccTotal:number, drawerCredit:number, debtOnCredit:number}}
  */
-export function ccReconciliation(zReportId, db = getDb()) {
-  const zr = getZReport(zReportId, db);
+export async function ccReconciliation(zReportId, x = getExecutor()) {
+  const zr = await getZReport(zReportId, x);
   const ccTotal = zr.cc_total || 0;
   const drawerCredit = zr.drawer_credit || 0;
   return { ccTotal, drawerCredit, debtOnCredit: drawerCredit - ccTotal };
@@ -188,38 +181,38 @@ export const EXPENSE_TYPES = [
 ];
 
 /** Add a drawer-expense line to a Z report. amount in agorot. */
-export function addExpense(zReportId, input, actor, db = getDb()) {
-  getZReport(zReportId, db);
+export async function addExpense(zReportId, input, actor, x = getExecutor()) {
+  await getZReport(zReportId, x);
   const { expenseDate = null, payerName = null, descriptionType = null, employeeName = null, amount = 0, imagePath = null } = input;
   if (!Number.isFinite(amount) || amount < 0) throw new RuleError('VALIDATION', 'סכום הוצאה חייב להיות מספר לא-שלילי');
-  const info = db
-    .prepare(
-      `INSERT INTO z_expenses (z_report_id, expense_date, payer_name, description_type, employee_name, amount, image_path)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(zReportId, expenseDate, payerName?.trim() || null, descriptionType || null, employeeName?.trim() || null, amount, imagePath);
-  logAction({ userId: actor.id, action: 'zexpense.add', entityType: 'z_expense', entityId: info.lastInsertRowid, details: { zReportId, amount } }, db);
-  return db.prepare('SELECT * FROM z_expenses WHERE id = ?').get(info.lastInsertRowid);
+  const info = await x.run(
+    `INSERT INTO z_expenses (z_report_id, expense_date, payer_name, description_type, employee_name, amount, image_path)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [zReportId, expenseDate, payerName?.trim() || null, descriptionType || null, employeeName?.trim() || null, amount, imagePath],
+  );
+  await logAction({ userId: actor.id, action: 'zexpense.add', entityType: 'z_expense', entityId: info.lastInsertRowid, details: { zReportId, amount } }, x);
+  return x.one('SELECT * FROM z_expenses WHERE id = ?', [info.lastInsertRowid]);
 }
 
-export function listExpenses(zReportId, db = getDb()) {
-  return db.prepare('SELECT * FROM z_expenses WHERE z_report_id = ? ORDER BY id').all(zReportId);
+export async function listExpenses(zReportId, x = getExecutor()) {
+  return x.many('SELECT * FROM z_expenses WHERE z_report_id = ? ORDER BY id', [zReportId]);
 }
 
-export function expensesTotal(zReportId, db = getDb()) {
-  return db.prepare('SELECT COALESCE(SUM(amount),0) AS s FROM z_expenses WHERE z_report_id = ?').get(zReportId).s;
+export async function expensesTotal(zReportId, x = getExecutor()) {
+  const row = await x.one('SELECT COALESCE(SUM(amount),0) AS s FROM z_expenses WHERE z_report_id = ?', [zReportId]);
+  return row.s;
 }
 
-export function getExpense(id, db = getDb()) {
-  const row = db.prepare('SELECT * FROM z_expenses WHERE id = ?').get(id);
+export async function getExpense(id, x = getExecutor()) {
+  const row = await x.one('SELECT * FROM z_expenses WHERE id = ?', [id]);
   if (!row) throw new NotFoundError(`הוצאה ${id} לא נמצאה`);
   return row;
 }
 
-export function deleteExpense(id, actor, db = getDb()) {
-  const row = getExpense(id, db);
-  db.prepare('DELETE FROM z_expenses WHERE id = ?').run(id);
-  logAction({ userId: actor.id, action: 'zexpense.delete', entityType: 'z_expense', entityId: id }, db);
+export async function deleteExpense(id, actor, x = getExecutor()) {
+  const row = await getExpense(id, x);
+  await x.run('DELETE FROM z_expenses WHERE id = ?', [id]);
+  await logAction({ userId: actor.id, action: 'zexpense.delete', entityType: 'z_expense', entityId: id }, x);
   return row;
 }
 
@@ -227,8 +220,8 @@ export function deleteExpense(id, actor, db = getDb()) {
  * Detect gaps in the Z-number sequence for a store (numeric Z numbers only).
  * @returns {number[]} the missing Z numbers between the min and max recorded
  */
-export function missingZNumbers(storeId, db = getDb()) {
-  const rows = db.prepare('SELECT z_number FROM z_reports WHERE store_id = ?').all(storeId);
+export async function missingZNumbers(storeId, x = getExecutor()) {
+  const rows = await x.many('SELECT z_number FROM z_reports WHERE store_id = ?', [storeId]);
   const nums = rows
     .map((r) => Number(String(r.z_number).trim()))
     .filter((n) => Number.isInteger(n))
