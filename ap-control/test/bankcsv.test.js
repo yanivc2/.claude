@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { freshDb, owner, secretary, firstStore } from './helpers.js';
 import { parseCsv } from '../src/lib/csv.js';
 import { normalizeBankRows } from '../src/lib/bankCsv.js';
+import { decodeBuffer } from '../src/lib/decodeText.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice, approveInvoiceForPayment } from '../src/services/invoices.js';
 import { createPayment } from '../src/services/payments.js';
@@ -44,11 +45,83 @@ test('unescaped quotes inside a field (בע"מ / מע"מ) do not shift columns',
   assert.ok(rows[0].description.includes('בע"מ'));
 });
 
-test('simple CSV format still works and reports a bad row', () => {
+test('simple CSV format still works; blank/summary rows are skipped, not fatal', () => {
   const ok = normalizeBankRows(parseCsv('date,amount,description,reference\n2026-07-01,-100.50,x,7'));
   assert.equal(ok[0].amount, -10050);
   assert.equal(ok[0].rawReference, '7');
-  assert.throws(() => normalizeBankRows(parseCsv('date,amount\n,,')), /שורה 2/);
+  // An empty movement row is skipped (banks emit trailing/summary blanks) rather
+  // than aborting the whole import with "שורה 2".
+  assert.deepEqual(normalizeBankRows(parseCsv('date,amount\n,,')), []);
+});
+
+// Encode an ASCII+Hebrew string to Windows-1255 bytes (the historical default of
+// Hebrew Excel/Windows). Hebrew letters occupy 0xE0–0xFA; ASCII is identity.
+function toWin1255(str) {
+  const HEB0 = 0x05d0; // 'א'
+  const bytes = [];
+  for (const ch of str) {
+    const cp = ch.codePointAt(0);
+    if (cp >= HEB0 && cp <= 0x05ea) bytes.push(0xe0 + (cp - HEB0));
+    else if (cp < 0x80) bytes.push(cp);
+    else bytes.push(0x3f); // '?' for anything else — fine for this test
+  }
+  return Buffer.from(bytes);
+}
+
+test('a Windows-1255 (Hebrew ANSI) export is decoded and parsed', () => {
+  const csv = ['תאריך,חובה,זכות,אסמכתא', '2026-07-26,1911.66,,31505'].join('\n');
+  const rows = normalizeBankRows(parseCsv(decodeBuffer(toWin1255(csv))));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].amount, -toAgorot('1911.66'));
+  assert.equal(rows[0].rawReference, '31505');
+});
+
+test('UTF-8 with a BOM does not break header detection', () => {
+  const csv = '﻿' + BANK_CSV;
+  const rows = normalizeBankRows(parseCsv(decodeBuffer(Buffer.from(csv, 'utf8'))));
+  assert.equal(rows.length, 3);
+  assert.equal(rows[0].rawReference, '31505');
+});
+
+test('semicolon-delimited CSV (Hebrew Excel default) is parsed', () => {
+  const csv = ['תאריך;חובה;זכות;אסמכתא', '2026-07-26;1911.66;;31505'].join('\n');
+  const rows = normalizeBankRows(parseCsv(csv));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].amount, -toAgorot('1911.66'));
+  assert.equal(rows[0].rawReference, '31505');
+});
+
+test('leading title/metadata rows before the header are skipped', () => {
+  const csv = [
+    'עוקב תנועות בחשבון',
+    'חשבון: 12-628-432110',
+    '',
+    'תאריך,תיאור הפעולה,אסמכתא,חובה,זכות',
+    '2026-07-26,שיק,31505,1911.66,',
+  ].join('\n');
+  const rows = normalizeBankRows(parseCsv(csv));
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].amount, -toAgorot('1911.66'));
+  assert.equal(rows[0].rawReference, '31505');
+});
+
+test('single signed-amount column (תאריך + סכום) is parsed', () => {
+  const csv = ['תאריך,תיאור,סכום,אסמכתא', '2026-07-26,שיק,-1911.66,31505', '2026-07-27,זיכוי,46.16,26000281'].join('\n');
+  const rows = normalizeBankRows(parseCsv(csv));
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].amount, -toAgorot('1911.66'));
+  assert.equal(rows[1].amount, toAgorot('46.16'));
+});
+
+test('amounts with ₪ / spaces / thousands separators are accepted', () => {
+  const csv = ['תאריך,חובה,זכות,אסמכתא', '26/07/2026,"₪1,911.66",,31505'].join('\n');
+  const rows = normalizeBankRows(parseCsv(csv));
+  assert.equal(rows[0].amount, -toAgorot('1911.66'));
+  assert.equal(rows[0].txnDate, '2026-07-26');
+});
+
+test('a bad simple-format row still errors with the columns it found', () => {
+  assert.throws(() => normalizeBankRows(parseCsv('foo,bar\nx,y')), /העמודות שנמצאו/);
 });
 
 test('deterministic match by check number wins even against a same-amount ambiguity', async () => {

@@ -4,12 +4,14 @@ import { getExecutor } from '../db/adapter.js';
 import { toAgorot } from '../lib/money.js';
 import { parseCsv } from '../lib/csv.js';
 import { normalizeBankRows } from '../lib/bankCsv.js';
+import { decodeBuffer } from '../lib/decodeText.js';
 import { RuleError } from '../lib/errors.js';
 import {
   importTransactions,
   listUnmatched,
   listTransactions,
   deleteTransaction,
+  editTransaction,
 } from '../services/bankTransactions.js';
 import {
   classify,
@@ -72,7 +74,7 @@ router.post('/import-csv', (req, res, next) => {
       if (!req.file) throw new RuleError('CSV', 'לא נבחר קובץ CSV');
       let mapped;
       try {
-        mapped = normalizeBankRows(parseCsv(req.file.buffer.toString('utf8')));
+        mapped = normalizeBankRows(parseCsv(decodeBuffer(req.file.buffer)));
       } catch (e) {
         throw new RuleError('CSV', e.message);
       }
@@ -129,6 +131,26 @@ router.post('/match', async (req, res, next) => {
   try {
     await confirmMatch(Number(req.body.txn_id), Number(req.body.payment_id), req.user);
     await renderPage(req, res, accountId, { notice: 'הצ׳ק סומן כנפרע.' });
+  } catch (err) {
+    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/txn/:id/edit', async (req, res, next) => {
+  const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  try {
+    await editTransaction(
+      Number(req.params.id),
+      {
+        txnDate: req.body.txn_date,
+        amount: toAgorot(req.body.amount),
+        description: req.body.description || null,
+        rawReference: req.body.reference || null,
+      },
+      req.user,
+    );
+    await renderPage(req, res, accountId, { notice: 'התנועה עודכנה.' });
   } catch (err) {
     if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
     next(err);

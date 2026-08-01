@@ -78,6 +78,34 @@ export async function getTransaction(id, x = getExecutor()) {
   return row;
 }
 
+/**
+ * Edit a manual/imported bank transaction's date, amount, description and reference.
+ * Refused while the transaction is matched to a check (unmatch it first, so a match
+ * can never silently point at changed figures).
+ * @param {number} id
+ * @param {{txnDate:string, amount:number, description:string|null, rawReference:string|null}} fields
+ */
+export async function editTransaction(id, fields, actor, x = getExecutor()) {
+  const txn = await getTransaction(id, x);
+  if (txn.matched_payment_id) {
+    throw new RuleError('MATCHED', 'התנועה מותאמת לצ׳ק — בטל את ההתאמה לפני עריכה.');
+  }
+  if (!fields.txnDate || !Number.isFinite(fields.amount)) {
+    throw new RuleError('VALIDATION', 'חסר תאריך או סכום תקין.');
+  }
+  await x.run(
+    `UPDATE bank_transactions
+        SET txn_date = ?, amount = ?, description = ?, raw_reference = ?
+      WHERE id = ?`,
+    [fields.txnDate, fields.amount, fields.description ?? null, fields.rawReference ?? null, id],
+  );
+  await logAction(
+    { userId: actor?.id ?? null, action: 'bank.txn_edit', entityType: 'bank_transaction', entityId: id, details: { amount: fields.amount, txn_date: fields.txnDate } },
+    x,
+  );
+  return getTransaction(id, x);
+}
+
 /** Delete a bank transaction. Refused if it is matched to a check (unmatch it first). */
 export async function deleteTransaction(id, actor, x = getExecutor()) {
   const txn = await getTransaction(id, x);
