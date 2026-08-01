@@ -113,12 +113,13 @@ router.get('/profitability.csv', (req, res) => {
   const from = req.query.from || def.from;
   const to = req.query.to || def.to;
   const { stores, totals } = profitability(from, to);
+  const pct = (v) => (v == null ? '' : `${v.toFixed(1)}%`);
   const rows = stores.map((s) => [
     s.company_name, s.store_name, fromAgorot(s.purchases), fromAgorot(s.sales),
-    fromAgorot(s.grossProfit), s.marginPct == null ? '' : `${s.marginPct.toFixed(1)}%`,
+    fromAgorot(s.grossProfit), pct(s.marginPct), pct(s.markupPct),
   ]);
-  rows.push(['', 'סה"כ', fromAgorot(totals.purchases), fromAgorot(totals.sales), fromAgorot(totals.grossProfit), totals.marginPct == null ? '' : `${totals.marginPct.toFixed(1)}%`]);
-  sendCsv(res, `profitability-${from}_${to}.csv`, ['חברה', 'חנות', 'קניות', 'מכירות', 'רווח גולמי', '% רווח'], rows);
+  rows.push(['', 'סה"כ', fromAgorot(totals.purchases), fromAgorot(totals.sales), fromAgorot(totals.grossProfit), pct(totals.marginPct), pct(totals.markupPct)]);
+  sendCsv(res, `profitability-${from}_${to}.csv`, ['חברה', 'חנות', 'קניות', 'מכירות', 'רווח גולמי', 'רווח מלמעלה (% מהמכירות)', 'רווח מלמטה (% מהעלות)'], rows);
 });
 
 // Add a register (Z) sales entry, then re-render the report.
