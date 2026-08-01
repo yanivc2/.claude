@@ -5,6 +5,21 @@
 <% if (typeof notice !== 'undefined' && notice) { %>
   <div class="alert alert-info"><%= notice %></div>
 <% } %>
+<% if (typeof schemaWarning !== 'undefined' && schemaWarning) { %>
+  <div class="alert alert-warn"><%= schemaWarning %></div>
+<% } %>
+
+<div class="card">
+  <div class="toolbar">
+    <div>
+      <strong>עדכון מסד נתונים</strong>
+      <p class="muted" style="margin:.2rem 0 0">מוסיף עמודות/טבלאות חדשות שנדרשות אחרי עדכון גרסה (בטוח, לא מוחק נתונים). הרץ פעם אחת אחרי כל פריסה חדשה.</p>
+    </div>
+    <form method="post" action="/settings/db-upgrade" onsubmit="return confirm('להריץ עדכון מסד נתונים?')">
+      <button type="submit">עדכן מסד נתונים</button>
+    </form>
+  </div>
+</div>
 
 <!-- ===== מבנה קיים (מצומצם) ===== -->
 <details class="section">

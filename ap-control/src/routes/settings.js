@@ -14,6 +14,7 @@ import {
   changeOwnPassword,
   deleteUser,
 } from '../services/users.js';
+import { upgradeSchema } from '../db/index.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
@@ -23,12 +24,28 @@ const router = Router();
 router.use(requireOwner);
 
 async function render(req, res, extra = {}) {
+  // Be resilient if the live DB predates a new column (e.g. users.email): still render the page
+  // so the owner can click "עדכן מסד נתונים" below. schemaWarning surfaces the need.
+  let companies = [];
+  let users = [];
+  let schemaWarning = null;
+  try {
+    companies = await listStructure();
+  } catch (e) {
+    schemaWarning = 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
+  }
+  try {
+    users = await listUsers();
+  } catch (e) {
+    schemaWarning = 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
+  }
   res.render('settings/index', {
     title: 'הגדרות',
-    companies: await listStructure(),
-    users: await listUsers(),
+    companies,
+    users,
     error: null,
     notice: null,
+    schemaWarning,
     ...extra,
   });
 }
@@ -143,6 +160,16 @@ router.post('/users/:id/delete', async (req, res, next) => {
     await render(req, res, { notice: 'המשתמש נמחק.' });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// One-click DB schema upgrade (idempotent) — adds any columns/tables a new deploy needs.
+router.post('/db-upgrade', async (req, res, next) => {
+  try {
+    await upgradeSchema();
+    await render(req, res, { notice: 'מסד הנתונים עודכן בהצלחה — כל העמודות והטבלאות החדשות קיימות.' });
+  } catch (err) {
     next(err);
   }
 });

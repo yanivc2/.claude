@@ -38,13 +38,19 @@ export async function latestBalances(x = getExecutor()) {
     [],
   );
   // Fetch balance-bearing txns newest-first and pick the first per account in JS (portable).
-  const txns = await x.many(
-    `SELECT bank_account_id, balance_after, txn_date, id
-       FROM bank_transactions
-      WHERE balance_after IS NOT NULL
-      ORDER BY txn_date DESC, id DESC`,
-    [],
-  );
+  // Tolerate a pre-upgrade DB that lacks the balance_after column — just show no balances.
+  let txns = [];
+  try {
+    txns = await x.many(
+      `SELECT bank_account_id, balance_after, txn_date, id
+         FROM bank_transactions
+        WHERE balance_after IS NOT NULL
+        ORDER BY txn_date DESC, id DESC`,
+      [],
+    );
+  } catch {
+    return [];
+  }
   const latest = new Map();
   for (const t of txns) if (!latest.has(t.bank_account_id)) latest.set(t.bank_account_id, t);
   return accounts
