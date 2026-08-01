@@ -38,13 +38,4 @@ router.get('/audit', async (req, res, next) => {
   }
 });
 
-// Stage-1 role switch (not a security boundary — see README / currentUser middleware).
-router.post('/switch-user', (req, res) => {
-  const uid = Number(req.body.uid);
-  if (Number.isInteger(uid)) {
-    res.cookie('uid', String(uid), { httpOnly: true, sameSite: 'lax' });
-  }
-  res.redirect(req.get('referer') || '/');
-});
-
 export default router;

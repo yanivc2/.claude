@@ -24,16 +24,10 @@
     </nav>
     <span class="spacer"></span>
     <span class="role-badge <%= currentUser.role === 'owner' ? 'role-owner' : '' %>">
-      <%= currentUser.role === 'owner' ? 'בעלים' : 'מזכירה' %>
+      <%= currentUser.name %> · <%= currentUser.role === 'owner' ? 'בעלים' : 'מזכירה' %>
     </span>
-    <form method="post" action="/switch-user">
-      <select name="uid" onchange="this.form.submit()" title="החלפת משתמש (שלב 1 בלבד)">
-        <% allUsers.forEach(function(u){ %>
-          <option value="<%= u.id %>" <%= u.id === currentUser.id ? 'selected' : '' %>>
-            <%= u.name %> (<%= u.role === 'owner' ? 'בעלים' : 'מזכירה' %>)
-          </option>
-        <% }); %>
-      </select>
+    <form method="post" action="/logout" style="display:inline">
+      <button type="submit" class="btn secondary small">התנתק</button>
     </form>
   </header>
   <main>

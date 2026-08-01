@@ -1,4 +1,6 @@
 import { getExecutor, tx } from './adapter.js';
+import { config } from '../config.js';
+import { hashPassword } from '../lib/auth.js';
 
 // Seed data from §2 of the brief. Companies, stores, bank accounts (1:1 store<->account),
 // and the two operating roles. Suppliers start empty by design (§11.4) — every new supplier
@@ -18,10 +20,12 @@ const STORES = [
   { company: 'pink_market', name: 'פינק רשל"צ', branch: '428', account: '88772' },
 ];
 
-const USERS = [
-  { name: 'בעלים', role: 'owner' },
-  { name: 'מזכירה', role: 'secretary' },
-];
+function seedUsers() {
+  return [
+    { name: 'בעלים', role: 'owner', username: config.auth.seedOwnerUsername, password: config.auth.seedOwnerPassword },
+    { name: 'מזכירה', role: 'secretary', username: config.auth.seedSecretaryUsername, password: config.auth.seedSecretaryPassword },
+  ];
+}
 
 /**
  * Idempotently seed reference data. Existing rows (matched by natural key) are left
@@ -63,10 +67,22 @@ export async function seed(x = getExecutor()) {
       }
     }
 
-    for (const u of USERS) {
-      const existing = await t.one('SELECT id FROM users WHERE name = ? AND role = ?', [u.name, u.role]);
+    for (const u of seedUsers()) {
+      const existing = await t.one('SELECT id, password_hash FROM users WHERE name = ? AND role = ?', [u.name, u.role]);
       if (!existing) {
-        await t.run('INSERT INTO users (name, role) VALUES (?, ?)', [u.name, u.role]);
+        await t.run('INSERT INTO users (name, role, username, password_hash) VALUES (?, ?, ?, ?)', [
+          u.name,
+          u.role,
+          u.username,
+          hashPassword(u.password),
+        ]);
+      } else if (existing.password_hash == null) {
+        // Older row (pre-auth): backfill a login so the account can be used.
+        await t.run('UPDATE users SET username = ?, password_hash = ? WHERE id = ?', [
+          u.username,
+          hashPassword(u.password),
+          existing.id,
+        ]);
       }
     }
   });

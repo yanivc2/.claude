@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>התחברות · AP Control</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <main style="max-width:380px; margin:8vh auto">
+    <div class="card">
+      <h1 style="margin-top:0">AP Control</h1>
+      <p class="muted">התחברות למערכת</p>
+      <% if (error) { %>
+        <div class="alert alert-error"><%= error %></div>
+      <% } %>
+      <form method="post" action="/login" class="stack">
+        <label>שם משתמש</label>
+        <input name="username" autocomplete="username" autofocus required />
+        <label>סיסמה</label>
+        <input name="password" type="password" autocomplete="current-password" required />
+        <div style="margin-top:1rem"><button type="submit">התחבר</button></div>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

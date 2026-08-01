@@ -1,12 +1,11 @@
 import { getExecutor } from '../db/adapter.js';
+import { readSession } from '../lib/auth.js';
 
-// Stage 1 has no authentication: the app runs on the office PC and the secretary works
-// alone, with the owner supervising from the same machine/LAN (§9). We still need to know
-// which role is acting so owner-only rules (R6) are enforced and the audit log is meaningful.
-// The acting user is kept in a plain `uid` cookie and switched from the header. This is a
-// deliberate stage-1 simplification, NOT a security boundary — document in README.
+// Authentication gate. Reads the signed `session` cookie, loads the acting user, and blocks
+// unauthenticated access to everything except the login page. Static assets are served earlier
+// in the chain (app.js) so they remain public (the login page needs its stylesheet).
 
-function parseCookies(header = '') {
+export function parseCookies(header = '') {
   const out = {};
   for (const part of header.split(';')) {
     const idx = part.indexOf('=');
@@ -20,23 +19,18 @@ function parseCookies(header = '') {
 
 export async function currentUser(req, res, next) {
   try {
-    const x = getExecutor();
     const cookies = parseCookies(req.headers.cookie);
-    let user;
-    if (cookies.uid) {
-      user = await x.one('SELECT * FROM users WHERE id = ?', [Number(cookies.uid)]);
-    }
+    const uid = readSession(cookies.session);
+    const user = uid ? await getExecutor().one('SELECT * FROM users WHERE id = ?', [uid]) : null;
+
     if (!user) {
-      // Default to a secretary (the primary day-to-day operator).
-      user =
-        (await x.one("SELECT * FROM users WHERE role = 'secretary' ORDER BY id LIMIT 1", [])) ||
-        (await x.one('SELECT * FROM users ORDER BY id LIMIT 1', []));
+      if (req.path === '/login') return next(); // allow the login page + its POST through
+      return res.redirect('/login');
     }
     req.user = user;
     res.locals.currentUser = user;
-    res.locals.allUsers = await x.many('SELECT * FROM users ORDER BY role DESC, id', []);
-    next();
+    return next();
   } catch (err) {
-    next(err);
+    return next(err);
   }
 }
