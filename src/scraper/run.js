@@ -1,4 +1,4 @@
-import { getDb } from '../db/index.js';
+import { initDb, getExecutor } from '../db/index.js';
 import { seed } from '../db/seed.js';
 import { config } from '../config.js';
 import { scrapeHapoalim } from './hapoalim.js';
@@ -12,8 +12,9 @@ import { importTransactions } from '../services/bankTransactions.js';
 // This is deliberately a CLI, not a web request — a Puppeteer scrape is slow and interactive.
 
 async function main() {
-  const db = getDb();
-  seed(db);
+  await initDb();
+  await seed();
+  const x = getExecutor();
 
   const startArg = process.argv[2];
   const startDate = startArg
@@ -26,9 +27,8 @@ async function main() {
 
   const accounts = await scrapeHapoalim({ userCode, password, startDate });
 
-  const byNumber = new Map(
-    db.prepare('SELECT id, account_number FROM bank_accounts').all().map((r) => [String(r.account_number), r.id]),
-  );
+  const rows = await x.many('SELECT id, account_number FROM bank_accounts', []);
+  const byNumber = new Map(rows.map((r) => [String(r.account_number), r.id]));
 
   let totalIn = 0;
   let totalSkip = 0;
@@ -41,9 +41,8 @@ async function main() {
       console.warn(`  ! account ${acc.accountNumber} is not registered in bank_accounts — skipped`);
       continue;
     }
-    // Only completed transactions represent settled movements (a cleared check).
-    const rows = acc.transactions.filter((t) => !t.status || t.status === 'completed');
-    const { inserted, skipped } = importTransactions(bankAccountId, rows, 'scraper', null, db);
+    const txnRows = acc.transactions.filter((t) => !t.status || t.status === 'completed');
+    const { inserted, skipped } = await importTransactions(bankAccountId, txnRows, 'scraper', null, x);
     totalIn += inserted;
     totalSkip += skipped;
     // eslint-disable-next-line no-console

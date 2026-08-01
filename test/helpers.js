@@ -3,25 +3,23 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
 import { newDb, DataType } from 'pg-mem';
+import { initDb } from '../src/db/index.js';
 import { seed } from '../src/db/seed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Build a fresh in-memory database with schema + seed for a test. */
-export function freshDb() {
-  const db = new Database(':memory:');
-  db.pragma('foreign_keys = ON');
-  const schema = fs.readFileSync(path.join(__dirname, '..', 'src', 'db', 'schema.sql'), 'utf8');
-  db.exec(schema);
-  seed(db);
-  return db;
+/**
+ * Build a fresh in-memory SQLite database (schema + seed) and return the async Executor.
+ * Pass the returned executor to service functions as their `x` argument.
+ */
+export async function freshDb() {
+  const sqliteDb = new Database(':memory:');
+  const x = await initDb({ sqliteDb });
+  await seed(x);
+  return x;
 }
 
-/**
- * Fresh in-memory Postgres (pg-mem) with the Postgres schema applied and to_char registered.
- * Returns a node-postgres-compatible Pool for the async adapter. Used to run the suite against
- * the Postgres dialect without a real server.
- */
+/** pg-mem Pool with the Postgres schema applied and to_char registered (for the adapter). */
 export function freshPgPool() {
   const db = newDb();
   db.public.registerFunction({
@@ -36,15 +34,22 @@ export function freshPgPool() {
   return new Pool();
 }
 
-export function owner(db) {
-  return db.prepare("SELECT * FROM users WHERE role = 'owner' LIMIT 1").get();
+/** Fresh in-memory Postgres (pg-mem) database (schema + seed) as an async Executor. */
+export async function freshPgDb() {
+  const x = await initDb({ pgPool: freshPgPool() });
+  await seed(x);
+  return x;
 }
-export function secretary(db) {
-  return db.prepare("SELECT * FROM users WHERE role = 'secretary' LIMIT 1").get();
+
+export async function owner(x) {
+  return x.one("SELECT * FROM users WHERE role = 'owner' LIMIT 1", []);
 }
-export function firstStore(db) {
-  return db.prepare('SELECT * FROM stores ORDER BY id LIMIT 1').get();
+export async function secretary(x) {
+  return x.one("SELECT * FROM users WHERE role = 'secretary' LIMIT 1", []);
 }
-export function accountForStore(db, storeId) {
-  return db.prepare('SELECT * FROM bank_accounts WHERE store_id = ?').get(storeId);
+export async function firstStore(x) {
+  return x.one('SELECT * FROM stores ORDER BY id LIMIT 1', []);
+}
+export async function accountForStore(x, storeId) {
+  return x.one('SELECT * FROM bank_accounts WHERE store_id = ?', [storeId]);
 }
