@@ -73,7 +73,7 @@ router.post('/', async (req, res, next) => {
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       return res.status(400).render('payments/new', {
-        title: 'צ׳ק חדש',
+        title: 'תשלום חדש',
         payable: await listPayable(),
         accounts: await getExecutor().many('SELECT * FROM bank_accounts ORDER BY display_name', []),
         values: b,

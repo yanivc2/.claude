@@ -1,12 +1,22 @@
 import { toAgorot } from './money.js';
 
-// Normalize parsed CSV rows into bank_transactions shape. Auto-detects two formats:
+// Normalize parsed CSV rows into bank_transactions shape. Auto-detects three shapes:
 //   1. Bank Hapoalim export (Hebrew headers, separate חובה/זכות columns, אסמכתא = check number)
-//   2. Simple format (date, amount, description, reference) for hand-made CSVs
+//   2. Single signed-amount column (Hebrew תאריך + סכום, or English date + amount)
+//   3. Simple format (date, amount, description, reference) for hand-made CSVs
 //
 // A debit (חובה) becomes a negative amount, a credit (זכות) positive — matching how the
 // reconciliation engine reads movements. `אסמכתא` maps to raw_reference, which for a שיק row
 // is the check number → deterministic matching.
+
+// Column aliases (lower-cased; Hebrew is unaffected by casing). parseCsv lower-cases headers,
+// so match against lower-case here too.
+const DATE_KEYS = ['תאריך', 'תאריך ערך', 'תאריך הפעולה', 'תאריך פעולה', 'value date', 'date'];
+const DEBIT_KEYS = ['חובה', 'חובה ₪', 'debit'];
+const CREDIT_KEYS = ['זכות', 'זכות ₪', 'credit'];
+const AMOUNT_KEYS = ['סכום', 'סכום התנועה', 'סכום בש"ח', 'סכום בשח', 'amount'];
+const DESC_KEYS = ['תיאור הפעולה', 'פרטים', 'תיאור', 'סוג תנועה', 'פעולה', 'description'];
+const REF_KEYS = ['אסמכתא', 'אסמכתא/שיק', 'מספר אסמכתא', 'אסמכתה', 'reference', 'ref'];
 
 /** Normalize a date cell to 'YYYY-MM-DD' (accepts ISO or DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY). */
 function normalizeDate(value) {
@@ -14,7 +24,17 @@ function normalizeDate(value) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
   const m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
   if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  const m2 = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2})$/); // 2-digit year
+  if (m2) return `20${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}`;
   return s; // leave as-is; caller validates
+}
+
+/** Strip currency symbols / spaces / unicode minus so toAgorot accepts real bank cells. */
+function cleanAmount(value) {
+  return String(value || '')
+    .replace(/[₪\s ]/g, '') // shekel sign, spaces, non-breaking space
+    .replace(/[−‒–—]/g, '-') // unicode minus / dashes -> ASCII hyphen
+    .trim();
 }
 
 function firstNonEmpty(row, keys) {
@@ -22,6 +42,10 @@ function firstNonEmpty(row, keys) {
     if (row[k] != null && String(row[k]).trim() !== '') return String(row[k]).trim();
   }
   return '';
+}
+
+function pick(keys, names) {
+  return names.find((n) => keys.includes(n)) || null;
 }
 
 /**
@@ -32,29 +56,46 @@ function firstNonEmpty(row, keys) {
 export function normalizeBankRows(rows) {
   if (!rows || rows.length === 0) return [];
   const keys = Object.keys(rows[0]);
-  const isBankFormat = keys.includes('חובה') || keys.includes('זכות');
+
+  const debitKey = pick(keys, DEBIT_KEYS);
+  const creditKey = pick(keys, CREDIT_KEYS);
+  const dateKey = pick(keys, DATE_KEYS);
+  const amountKey = pick(keys, AMOUNT_KEYS);
+  const refKey = pick(keys, REF_KEYS);
+  const descKeys = DESC_KEYS.filter((n) => keys.includes(n));
+
+  const isBankFormat = !!(debitKey || creditKey || (dateKey && amountKey));
 
   const out = [];
   rows.forEach((r, i) => {
     if (isBankFormat) {
-      const debit = firstNonEmpty(r, ['חובה']);
-      const credit = firstNonEmpty(r, ['זכות']);
-      if (!debit && !credit) return; // a row with no movement (e.g. balance-only) — skip
-      const amount = debit ? -toAgorot(debit) : toAgorot(credit);
-      const date = normalizeDate(firstNonEmpty(r, ['תאריך', 'תאריך ערך']));
-      const desc =
-        [firstNonEmpty(r, ['תיאור הפעולה']), firstNonEmpty(r, ['פרטים'])]
-          .filter(Boolean)
-          .join(' — ') || null;
-      const ref = firstNonEmpty(r, ['אסמכתא']) || null;
+      let amount;
+      if (debitKey || creditKey) {
+        const debit = debitKey ? firstNonEmpty(r, [debitKey]) : '';
+        const credit = creditKey ? firstNonEmpty(r, [creditKey]) : '';
+        if (!debit && !credit) return; // no movement (balance-only / summary row) — skip
+        amount = debit ? -toAgorot(cleanAmount(debit)) : toAgorot(cleanAmount(credit));
+      } else {
+        const raw = firstNonEmpty(r, [amountKey]);
+        if (!raw) return; // no amount on this row — skip
+        amount = toAgorot(cleanAmount(raw)); // may already carry a sign
+      }
+      const date = normalizeDate(firstNonEmpty(r, dateKey ? [dateKey] : []));
+      if (!date) return; // rows without a date are summaries/footers — skip, don't fail
+      const desc = descKeys.map((k) => firstNonEmpty(r, [k])).filter(Boolean).join(' — ') || null;
+      const ref = refKey ? firstNonEmpty(r, [refKey]) || null : null;
       out.push({ txnDate: date, amount, description: desc, rawReference: ref });
     } else {
       if (!r.date || r.amount === undefined || r.amount === '') {
-        throw new Error(`שורה ${i + 2}: חסר תאריך או סכום`);
+        const found = keys.filter((k) => k !== '').join(', ') || '—';
+        throw new Error(
+          `שורה ${i + 2}: חסר תאריך או סכום. לא זוהו עמודות בנק תקינות. ` +
+            `העמודות שנמצאו בקובץ: ${found}. ודא שהקובץ כולל כותרות כגון תאריך/חובה/זכות או תאריך/סכום.`,
+        );
       }
       out.push({
         txnDate: normalizeDate(r.date),
-        amount: toAgorot(r.amount),
+        amount: toAgorot(cleanAmount(r.amount)),
         description: r.description || null,
         rawReference: r.reference || null,
       });

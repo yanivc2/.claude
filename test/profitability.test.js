@@ -39,9 +39,9 @@ test('profitability: net purchases vs sales, gross profit and margin per store, 
   await invoice(db, sup, store, { invoiceNumber: 'C1', invoiceDate: '2026-07-12', beforeVat: toAgorot('100'), vat: toAgorot('17'), docType: 'credit_note' });
   await invoice(db, sup, store, { invoiceNumber: 'P3', invoiceDate: '2026-08-02', beforeVat: toAgorot('2000'), vat: toAgorot('340') });
 
-  await createZReport({ storeId: store.id, zNumber: '101', zDate: '2026-07-03', dailyTotal: toAgorot('5000') }, sec, db);
-  await createZReport({ storeId: store.id, zNumber: '102', zDate: '2026-07-31', dailyTotal: toAgorot('3000') }, sec, db);
-  await createZReport({ storeId: store.id, zNumber: '103', zDate: '2026-08-01', dailyTotal: toAgorot('9999') }, sec, db);
+  await createZReport({ storeId: store.id, zNumber: '101', zDate: '2026-07-03', dailyTotal: toAgorot('5000'), drawerCash: toAgorot('5000') }, sec, db);
+  await createZReport({ storeId: store.id, zNumber: '102', zDate: '2026-07-31', dailyTotal: toAgorot('3000'), drawerCash: toAgorot('3000') }, sec, db);
+  await createZReport({ storeId: store.id, zNumber: '103', zDate: '2026-08-01', dailyTotal: toAgorot('9999'), drawerCash: toAgorot('9999') }, sec, db);
 
   const { stores, totals } = await profitability('2026-07-01', '2026-07-31', db);
   const row = stores.find((s) => s.id === store.id);
@@ -80,7 +80,7 @@ test('Z report: drawer total auto-sums, duplicate Z number blocked, sequence gap
     createZReport({ storeId: store.id, zNumber: '201', zDate: '2026-07-02', dailyTotal: 100 }, sec, db),
     /כבר קיים/,
   );
-  await createZReport({ storeId: store.id, zNumber: '203', zDate: '2026-07-03', dailyTotal: 100 }, sec, db);
+  await createZReport({ storeId: store.id, zNumber: '203', zDate: '2026-07-03', dailyTotal: 100, drawerCash: 100 }, sec, db);
   assert.deepEqual(await missingZNumbers(store.id, db), [202]);
   assert.equal((await listZReports({ storeId: store.id }, db)).length, 2);
 });
@@ -89,7 +89,7 @@ test('Z expenses: add, total, delete', async () => {
   const db = await freshDb();
   const store = await firstStore(db);
   const sec = await secretary(db);
-  const z = await createZReport({ storeId: store.id, zNumber: '301', zDate: '2026-07-01', dailyTotal: toAgorot('1000') }, sec, db);
+  const z = await createZReport({ storeId: store.id, zNumber: '301', zDate: '2026-07-01', dailyTotal: toAgorot('1000'), drawerCash: toAgorot('1000') }, sec, db);
   await addExpense(z.id, { descriptionType: 'advance', employeeName: 'דני', amount: toAgorot('120') }, sec, db);
   const e2 = await addExpense(z.id, { descriptionType: 'tara', amount: toAgorot('30') }, sec, db);
   assert.equal(await expensesTotal(z.id, db), toAgorot('150'));

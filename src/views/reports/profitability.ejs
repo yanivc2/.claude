@@ -88,7 +88,7 @@
         </div>
         <div class="row">
           <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
-          <div><label>סה"כ מגירה</label><input id="drawer_total" readonly value="₪0.00" /></div>
+          <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
         </div>
         <div style="margin-top:.6rem"><button type="submit">הוסף דוח Z</button></div>
       </form>
@@ -147,12 +147,21 @@
 (function(){
   var form = document.querySelector('form[action="/reports/zreports"]');
   if (!form) return;
-  function recalc(){
+  function drawerSum(){
     var sum = 0;
     form.querySelectorAll('input.dr').forEach(function(i){ var v = parseFloat(i.value); if(!isNaN(v)) sum += v; });
-    form.querySelector('#drawer_total').value = '₪' + sum.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+    return sum;
+  }
+  function recalc(){
+    form.querySelector('#drawer_total').value = '₪' + drawerSum().toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
   }
   form.querySelectorAll('input.dr').forEach(function(i){ i.addEventListener('input', recalc); });
+  form.addEventListener('submit', function(e){
+    if (drawerSum() <= 0){
+      e.preventDefault();
+      alert('סה"כ מגירה חובה — הזן לפחות רכיב מגירה אחד.');
+    }
+  });
 })();
 </script>
 <%- include('../partials/footer') %>

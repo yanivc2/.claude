@@ -1,3 +1,48 @@
   </main>
+  <script>
+  // Click-to-sort for any <table class="sortable">. A header cell marked
+  // data-nosort is skipped. Amounts (₪, thousands, sign) and dates sort numerically.
+  (function () {
+    function cellValue(td) {
+      var t = (td ? td.textContent : '').trim();
+      var num = t.replace(/[₪,\s]/g, '').replace(/[−–—]/g, '-');
+      if (/^-?\d+(\.\d+)?$/.test(num)) return { n: parseFloat(num), s: t };
+      if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return { n: Date.parse(t), s: t };
+      return { n: null, s: t };
+    }
+    function sortTable(table, colIdx, asc) {
+      var tbody = table.tBodies[0];
+      if (!tbody) return;
+      var rows = Array.prototype.slice.call(tbody.rows).filter(function (r) {
+        return !r.querySelector('td[colspan]'); // keep "empty" placeholder rows out of sort
+      });
+      rows.sort(function (a, b) {
+        var va = cellValue(a.cells[colIdx]), vb = cellValue(b.cells[colIdx]);
+        var cmp;
+        if (va.n !== null && vb.n !== null) cmp = va.n - vb.n;
+        else cmp = va.s.localeCompare(vb.s, 'he');
+        return asc ? cmp : -cmp;
+      });
+      rows.forEach(function (r) { tbody.appendChild(r); });
+    }
+    document.querySelectorAll('table.sortable').forEach(function (table) {
+      var ths = table.tHead ? table.tHead.rows[0].cells : [];
+      Array.prototype.forEach.call(ths, function (th, idx) {
+        if (th.hasAttribute('data-nosort')) return;
+        th.style.cursor = 'pointer';
+        th.title = 'מיון';
+        var asc = true;
+        th.addEventListener('click', function () {
+          Array.prototype.forEach.call(ths, function (h) {
+            h.textContent = h.textContent.replace(/[\s▲▼]+$/, '');
+          });
+          sortTable(table, idx, asc);
+          th.textContent = th.textContent.replace(/[\s▲▼]+$/, '') + (asc ? ' ▲' : ' ▼');
+          asc = !asc;
+        });
+      });
+    });
+  })();
+  </script>
 </body>
 </html>
