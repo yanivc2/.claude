@@ -108,6 +108,30 @@ export function cashReconciliation(zReportId, db = getDb()) {
   return { cash, deposit, expenses, diff: cash - deposit - expenses };
 }
 
+/**
+ * Overall reconciliation status for a Z report — "Z לא תואם" surfacing (§ 2d, option א).
+ * A report is flagged only once the relevant data has been entered, so a half-filled Z is
+ * not falsely marked unmatched:
+ *  - cash: only when a deposit has been recorded (deposit_amount not null) and
+ *    מזומן מגירה ≠ הפקדה + הוצאות.
+ *  - credit: only when a credit-card report exists (cc_total not null) and the brand total
+ *    EXCEEDS אשראי מגירה (a positive gap is the expected "שולם בחוב באשראי", not a mismatch).
+ * @returns {{matched:boolean, issues:Array<{type:string,label:string,diff:number}>, cash:object, cc:object}}
+ */
+export function zReconciliationStatus(zReportId, db = getDb()) {
+  const zr = getZReport(zReportId, db);
+  const cash = cashReconciliation(zReportId, db);
+  const cc = ccReconciliation(zReportId, db);
+  const issues = [];
+  if (zr.deposit_amount != null && cash.diff !== 0) {
+    issues.push({ type: 'cash', label: cash.diff < 0 ? 'חוסר במזומן' : 'עודף במזומן', diff: cash.diff });
+  }
+  if (zr.cc_total != null && cc.debtOnCredit < 0) {
+    issues.push({ type: 'cc', label: 'מותגי אשראי גבוהים מאשראי מגירה', diff: cc.debtOnCredit });
+  }
+  return { matched: issues.length === 0, issues, cash, cc };
+}
+
 // Credit-card brands for the credit-card report (§ 2d). Each maps to a cc_<key> column.
 export const CC_BRANDS = [
   { key: 'kal', label: 'כאל' },

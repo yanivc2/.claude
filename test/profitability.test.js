@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { freshDb, owner, secretary, firstStore } from './helpers.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice } from '../src/services/invoices.js';
-import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense, setDeposit, cashReconciliation, setCreditCards, ccReconciliation } from '../src/services/zreports.js';
+import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense, setDeposit, cashReconciliation, setCreditCards, ccReconciliation, zReconciliationStatus } from '../src/services/zreports.js';
 import { profitability } from '../src/services/reports.js';
 import { toAgorot } from '../src/lib/money.js';
 
@@ -141,6 +141,33 @@ test('credit-card report: brand total + debt-on-credit gap vs אשראי מגי�
   assert.equal(r.debtOnCredit, toAgorot('200')); // paid in debt via credit (informational, not blocking)
   // negative amount rejected
   assert.throws(() => setCreditCards(z.id, { amounts: { kal: -1 } }, sec, db), /לא תקין/);
+});
+
+test('Z reconciliation status: matched only after data entered; flags cash + cc mismatches', () => {
+  const db = freshDb();
+  const store = firstStore(db);
+  const sec = secretary(db);
+  const z = createZReport({
+    storeId: store.id, zNumber: '701', zDate: '2026-07-01', dailyTotal: toAgorot('1000'),
+    drawerCash: toAgorot('1000'), drawerCredit: toAgorot('500'),
+  }, sec, db);
+  // No deposit/cc entered yet -> matched (not falsely flagged)
+  assert.equal(zReconciliationStatus(z.id, db).matched, true);
+  // Deposit 900 + expenses 50 = 950 ≠ 1000 cash -> cash mismatch (חוסר 50)
+  setDeposit(z.id, { counts: { 100: 9 } }, sec, db); // 900
+  addExpense(z.id, { descriptionType: 'tara', amount: toAgorot('50') }, sec, db);
+  let st = zReconciliationStatus(z.id, db);
+  assert.equal(st.matched, false);
+  assert.equal(st.issues.length, 1);
+  assert.equal(st.issues[0].type, 'cash');
+  // Fix cash: deposit 950 -> matched again
+  setDeposit(z.id, { counts: { 100: 9, 50: 1 } }, sec, db); // 950
+  assert.equal(zReconciliationStatus(z.id, db).matched, true);
+  // CC brands exceed drawer credit (600 > 500) -> cc mismatch flagged
+  setCreditCards(z.id, { amounts: { kal: toAgorot('600') } }, sec, db);
+  st = zReconciliationStatus(z.id, db);
+  assert.equal(st.matched, false);
+  assert.ok(st.issues.some((i) => i.type === 'cc'));
 });
 
 test('drawer_total sums all five drawer items (סה"כ מגירה)', () => {
