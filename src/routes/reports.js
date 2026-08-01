@@ -5,7 +5,7 @@ import {
   invoiceLookup,
   profitability,
 } from '../services/reports.js';
-import { addSalesEntry, deleteSalesEntry, listSalesEntries } from '../services/sales.js';
+import { createZReport, deleteZReport, listZReports, missingZNumbers } from '../services/zreports.js';
 import { getDb } from '../db/index.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
@@ -13,13 +13,27 @@ import { RuleError } from '../lib/errors.js';
 
 const router = Router();
 
-// Default the profitability range to the current calendar month.
-function defaultRange() {
+function ymd(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Date presets: month (1st..last), week (Sun..Sat of the current week), or explicit from/to.
+function resolveRange(req) {
+  const preset = req.query.preset || req.body?.preset;
   const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const last = new Date(y, now.getMonth() + 1, 0).getDate();
-  return { from: `${y}-${m}-01`, to: `${y}-${m}-${String(last).padStart(2, '0')}` };
+  if (preset === 'week') {
+    const sunday = new Date(now);
+    sunday.setDate(now.getDate() - now.getDay()); // getDay: 0=Sun
+    const saturday = new Date(sunday);
+    saturday.setDate(sunday.getDate() + 6);
+    return { from: ymd(sunday), to: ymd(saturday), preset: 'week' };
+  }
+  if (preset === 'month' || (!req.query.from && !req.body?.from)) {
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { from: ymd(first), to: ymd(last), preset: 'month' };
+  }
+  return { from: req.query.from || req.body?.from, to: req.query.to || req.body?.to, preset: '' };
 }
 
 function storeList() {
@@ -32,18 +46,20 @@ function storeList() {
 }
 
 function renderProfitability(req, res, extra = {}) {
-  const def = defaultRange();
-  const from = req.query.from || req.body?.from || def.from;
-  const to = req.query.to || req.body?.to || def.to;
+  const { from, to, preset } = resolveRange(req);
   const { stores, totals } = profitability(from, to);
+  const zStoreId = req.query.zstore ? Number(req.query.zstore) : null;
   res.render('reports/profitability', {
     title: 'רווחיות',
     from,
     to,
+    preset,
     stores,
     totals,
     storeOptions: storeList(),
-    salesEntries: listSalesEntries(30),
+    zReports: listZReports({ storeId: zStoreId, limit: 30 }),
+    zStoreId,
+    missingZ: zStoreId ? missingZNumbers(zStoreId) : [],
     error: null,
     notice: null,
     ...extra,
@@ -109,9 +125,7 @@ router.get('/profitability', (req, res) => {
 
 // CSV export — "רווחיות"
 router.get('/profitability.csv', (req, res) => {
-  const def = defaultRange();
-  const from = req.query.from || def.from;
-  const to = req.query.to || def.to;
+  const { from, to } = resolveRange(req);
   const { stores, totals } = profitability(from, to);
   const pct = (v) => (v == null ? '' : `${v.toFixed(1)}%`);
   const rows = stores.map((s) => [
@@ -122,29 +136,35 @@ router.get('/profitability.csv', (req, res) => {
   sendCsv(res, `profitability-${from}_${to}.csv`, ['חברה', 'חנות', 'קניות', 'מכירות', 'רווח גולמי', 'רווח מלמעלה (% מהמכירות)', 'רווח מלמטה (% מהעלות)'], rows);
 });
 
-// Add a register (Z) sales entry, then re-render the report.
-router.post('/sales', (req, res, next) => {
+// Add a Z report (יומי Z + drawer breakdown), then re-render.
+router.post('/zreports', (req, res, next) => {
+  const b = req.body;
   try {
-    addSalesEntry(
+    createZReport(
       {
-        storeId: Number(req.body.store_id),
-        saleDate: req.body.sale_date,
-        amount: toAgorot(req.body.amount),
-        notes: req.body.notes || null,
+        storeId: Number(b.store_id),
+        zNumber: b.z_number,
+        zDate: b.z_date,
+        dailyTotal: toAgorot(b.daily_total),
+        drawerCash: toAgorot(b.drawer_cash),
+        drawerCheck: toAgorot(b.drawer_check),
+        drawerCredit: toAgorot(b.drawer_credit),
+        drawerHakafa: toAgorot(b.drawer_hakafa),
+        drawerVouchers: toAgorot(b.drawer_vouchers),
       },
       req.user,
     );
-    renderProfitability(req, res, { notice: 'רשומת מכירות נוספה.' });
+    renderProfitability(req, res, { notice: 'דוח Z נוסף.' });
   } catch (err) {
     if (err instanceof RuleError) return renderProfitability(req, res, { error: err.message });
     next(err);
   }
 });
 
-router.post('/sales/:id/delete', (req, res, next) => {
+router.post('/zreports/:id/delete', (req, res, next) => {
   try {
-    deleteSalesEntry(Number(req.params.id), req.user);
-    renderProfitability(req, res, { notice: 'רשומת מכירות נמחקה.' });
+    deleteZReport(Number(req.params.id), req.user);
+    renderProfitability(req, res, { notice: 'דוח Z נמחק.' });
   } catch (err) {
     next(err);
   }

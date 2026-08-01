@@ -6,98 +6,143 @@
     <button class="secondary" onclick="window.print()">הדפסה / PDF</button>
   </div>
 </div>
-<p class="muted">
-  פר חנות בתקופה: קניות (סכום נטו של חשבוניות — אוטומטי) מול מכירות (Z מהקופות — ידני)
-  → רווח גולמי ואחוז רווח (§7). זיכויים מקטינים את הקניות.
-</p>
 
 <% if (typeof notice !== 'undefined' && notice) { %>
   <div class="alert alert-info"><%= notice %></div>
 <% } %>
 
-<div class="card">
-  <form method="get" action="/reports/profitability" class="actions">
-    <div><label style="margin:0">מתאריך</label><input type="date" name="from" value="<%= from %>" /></div>
-    <div><label style="margin:0">עד תאריך</label><input type="date" name="to" value="<%= to %>" /></div>
-    <div style="align-self:end"><button type="submit">הצג</button></div>
-  </form>
-</div>
-
-<div class="card">
-  <table>
-    <thead>
-      <tr><th>חברה</th><th>חנות</th><th class="right">קניות</th><th class="right">מכירות (Z)</th><th class="right">רווח גולמי</th><th class="right">רווח מלמעלה<br><small class="muted">% מהמכירות</small></th><th class="right">רווח מלמטה<br><small class="muted">% מהעלות</small></th></tr>
-    </thead>
-    <tbody>
-      <% stores.forEach(function(s){ %>
-        <tr>
-          <td><%= s.company_name %></td>
-          <td><%= s.store_name %></td>
-          <td class="right"><%= formatIls(s.purchases) %></td>
-          <td class="right"><%= formatIls(s.sales) %></td>
-          <td class="right <%= s.grossProfit < 0 ? 'neg' : '' %>"><strong><%= formatIls(s.grossProfit) %></strong></td>
-          <td class="right"><%= s.marginPct === null ? '—' : s.marginPct.toFixed(1) + '%' %></td>
-          <td class="right"><%= s.markupPct === null ? '—' : s.markupPct.toFixed(1) + '%' %></td>
-        </tr>
-      <% }); %>
-    </tbody>
-    <tfoot>
-      <tr>
-        <th colspan="2">סה"כ</th>
-        <th class="right"><%= formatIls(totals.purchases) %></th>
-        <th class="right"><%= formatIls(totals.sales) %></th>
-        <th class="right <%= totals.grossProfit < 0 ? 'neg' : '' %>"><%= formatIls(totals.grossProfit) %></th>
-        <th class="right"><%= totals.marginPct === null ? '—' : totals.marginPct.toFixed(1) + '%' %></th>
-        <th class="right"><%= totals.markupPct === null ? '—' : totals.markupPct.toFixed(1) + '%' %></th>
-      </tr>
-    </tfoot>
-  </table>
-  <p class="muted">קניות מחושבות לפי תאריך החשבונית; מכירות לפי תאריך ה-Z — שניהם בטווח שנבחר.</p>
-</div>
-
 <div class="row">
-  <div class="card">
-    <h2>הזנת מכירות (Z)</h2>
-    <form method="post" action="/reports/sales" class="stack">
-      <label>חנות</label>
-      <select name="store_id" required>
-        <% storeOptions.forEach(function(st){ %>
-          <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
-        <% }); %>
-      </select>
-      <label>תאריך</label>
-      <input type="date" name="sale_date" required />
-      <label>סכום מכירות (₪)</label>
-      <input name="amount" inputmode="decimal" required placeholder="0.00" />
-      <label>הערה</label>
-      <input name="notes" />
-      <div style="margin-top:.6rem"><button type="submit">הוסף Z</button></div>
-    </form>
+  <!-- Profitability (primary, right in RTL) -->
+  <div style="flex:2; min-width:440px">
+    <div class="card no-print">
+      <div class="actions" style="flex-wrap:wrap">
+        <a class="btn <%= preset==='week' ? '' : 'secondary' %>" href="/reports/profitability?preset=week">שבועי (א׳–שבת)</a>
+        <a class="btn <%= preset==='month' ? '' : 'secondary' %>" href="/reports/profitability?preset=month">חודשי</a>
+      </div>
+      <form method="get" action="/reports/profitability" class="actions" style="margin-top:.6rem">
+        <div><label style="margin:0">מתאריך</label><input type="date" name="from" value="<%= from %>" /></div>
+        <div><label style="margin:0">עד תאריך</label><input type="date" name="to" value="<%= to %>" /></div>
+        <div style="align-self:end"><button type="submit">הצג טווח</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <p class="muted">תקופה: <%= from %> — <%= to %>. מכירות מחושבות מ<strong>יומי Z</strong>.</p>
+      <table>
+        <thead>
+          <tr><th>חברה</th><th>חנות</th><th class="right">קניות</th><th class="right">מכירות (Z)</th><th class="right">רווח גולמי</th><th class="right">רווח מלמעלה<br><small class="muted">% מהמכירות</small></th><th class="right">רווח מלמטה<br><small class="muted">% מהעלות</small></th></tr>
+        </thead>
+        <tbody>
+          <% stores.forEach(function(s){ %>
+            <tr>
+              <td><%= s.company_name %></td>
+              <td><%= s.store_name %></td>
+              <td class="right"><%= formatIls(s.purchases) %></td>
+              <td class="right"><%= formatIls(s.sales) %></td>
+              <td class="right <%= s.grossProfit < 0 ? 'neg' : '' %>"><strong><%= formatIls(s.grossProfit) %></strong></td>
+              <td class="right"><%= s.marginPct === null ? '—' : s.marginPct.toFixed(1) + '%' %></td>
+              <td class="right"><%= s.markupPct === null ? '—' : s.markupPct.toFixed(1) + '%' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="2">סה"כ</th>
+            <th class="right"><%= formatIls(totals.purchases) %></th>
+            <th class="right"><%= formatIls(totals.sales) %></th>
+            <th class="right <%= totals.grossProfit < 0 ? 'neg' : '' %>"><%= formatIls(totals.grossProfit) %></th>
+            <th class="right"><%= totals.marginPct === null ? '—' : totals.marginPct.toFixed(1) + '%' %></th>
+            <th class="right"><%= totals.markupPct === null ? '—' : totals.markupPct.toFixed(1) + '%' %></th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   </div>
 
-  <div class="card">
-    <h2>רשומות Z אחרונות</h2>
-    <table>
-      <thead><tr><th>תאריך</th><th>חנות</th><th class="right">סכום</th><th></th></tr></thead>
-      <tbody>
-        <% if (salesEntries.length === 0) { %>
-          <tr><td colspan="4" class="muted">אין רשומות מכירות.</td></tr>
-        <% } %>
-        <% salesEntries.forEach(function(e){ %>
-          <tr>
-            <td><%= e.sale_date %></td>
-            <td><%= e.store_name %></td>
-            <td class="right"><%= formatIls(e.amount) %></td>
-            <td class="right">
-              <form method="post" action="/reports/sales/<%= e.id %>/delete" onsubmit="return confirm('למחוק רשומה זו?')" style="display:inline">
-                <button class="danger small" type="submit">מחק</button>
-              </form>
-            </td>
-          </tr>
-        <% }); %>
-      </tbody>
-    </table>
+  <!-- דוחות Z (secondary, left in RTL) -->
+  <div style="flex:1; min-width:340px">
+    <div class="card no-print">
+      <h2>דוחות Z</h2>
+      <form method="post" action="/reports/zreports" class="stack">
+        <label>חנות</label>
+        <select name="store_id" required>
+          <% storeOptions.forEach(function(st){ %>
+            <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
+          <% }); %>
+        </select>
+        <div class="row">
+          <div><label>מספר Z</label><input name="z_number" required /></div>
+          <div><label>תאריך</label><input type="date" name="z_date" required /></div>
+        </div>
+        <label>סה"כ (יומי Z) ₪</label>
+        <input name="daily_total" inputmode="decimal" required placeholder="0.00" />
+
+        <h3 style="margin:1rem 0 .2rem">דוח מגירה</h3>
+        <div class="row">
+          <div><label>מזומן</label><input name="drawer_cash" class="dr" inputmode="decimal" /></div>
+          <div><label>צ'ק</label><input name="drawer_check" class="dr" inputmode="decimal" /></div>
+        </div>
+        <div class="row">
+          <div><label>אשראי מגירה</label><input name="drawer_credit" class="dr" inputmode="decimal" /></div>
+          <div><label>הקפה</label><input name="drawer_hakafa" class="dr" inputmode="decimal" /></div>
+        </div>
+        <div class="row">
+          <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" /></div>
+          <div><label>סה"כ מגירה</label><input id="drawer_total" readonly value="₪0.00" /></div>
+        </div>
+        <div style="margin-top:.6rem"><button type="submit">הוסף דוח Z</button></div>
+      </form>
+    </div>
+
+    <div class="card">
+      <div class="toolbar">
+        <h2 style="margin:0">רשומות Z אחרונות</h2>
+        <form method="get" action="/reports/profitability" class="no-print">
+          <select name="zstore" onchange="this.form.submit()">
+            <option value="">כל החנויות</option>
+            <% storeOptions.forEach(function(st){ %>
+              <option value="<%= st.id %>" <%= zStoreId === st.id ? 'selected' : '' %>><%= st.name %></option>
+            <% }); %>
+          </select>
+        </form>
+      </div>
+      <% if (missingZ && missingZ.length) { %>
+        <div class="alert alert-warn">מספרי Z חסרים ברצף: <strong><%= missingZ.join(', ') %></strong> — בדוק אם הוזנו ביום אחר.</div>
+      <% } %>
+      <table>
+        <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מגירה</th><th class="no-print"></th></tr></thead>
+        <tbody>
+          <% if (zReports.length === 0) { %><tr><td colspan="6" class="muted">אין דוחות Z.</td></tr><% } %>
+          <% zReports.forEach(function(z){ %>
+            <tr>
+              <td class="mono"><%= z.z_number %></td>
+              <td><%= z.z_date %></td>
+              <td><%= z.store_name %></td>
+              <td class="right"><%= formatIls(z.daily_total) %></td>
+              <td class="right"><%= formatIls(z.drawer_total) %></td>
+              <td class="no-print">
+                <form method="post" action="/reports/zreports/<%= z.id %>/delete" onsubmit="return confirm('למחוק דוח Z זה?')" style="display:inline">
+                  <button class="danger small" type="submit">מחק</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
+<script>
+(function(){
+  var form = document.querySelector('form[action="/reports/zreports"]');
+  if (!form) return;
+  function recalc(){
+    var sum = 0;
+    form.querySelectorAll('input.dr').forEach(function(i){ var v = parseFloat(i.value); if(!isNaN(v)) sum += v; });
+    form.querySelector('#drawer_total').value = '₪' + sum.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2});
+  }
+  form.querySelectorAll('input.dr').forEach(function(i){ i.addEventListener('input', recalc); });
+})();
+</script>
 <%- include('../partials/footer') %>

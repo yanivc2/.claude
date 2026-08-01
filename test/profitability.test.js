@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { freshDb, owner, secretary, firstStore } from './helpers.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice } from '../src/services/invoices.js';
-import { addSalesEntry, deleteSalesEntry, listSalesEntries } from '../src/services/sales.js';
+import { createZReport, listZReports, missingZNumbers } from '../src/services/zreports.js';
 import { profitability } from '../src/services/reports.js';
 import { toAgorot } from '../src/lib/money.js';
 
@@ -35,10 +35,10 @@ test('profitability: net purchases vs sales, gross profit and margin per store, 
   // August invoice must NOT count in July range
   invoice(db, sup, store, { invoiceNumber: 'P3', invoiceDate: '2026-08-02', beforeVat: toAgorot('2000'), vat: toAgorot('340') });
 
-  // July sales (Z): 5000 + 3000 = 8000
-  addSalesEntry({ storeId: store.id, saleDate: '2026-07-03', amount: toAgorot('5000') }, secretary(db), db);
-  addSalesEntry({ storeId: store.id, saleDate: '2026-07-31', amount: toAgorot('3000') }, secretary(db), db);
-  addSalesEntry({ storeId: store.id, saleDate: '2026-08-01', amount: toAgorot('9999') }, secretary(db), db); // out of range
+  // July sales (daily Z): 5000 + 3000 = 8000
+  createZReport({ storeId: store.id, zNumber: '101', zDate: '2026-07-03', dailyTotal: toAgorot('5000') }, secretary(db), db);
+  createZReport({ storeId: store.id, zNumber: '102', zDate: '2026-07-31', dailyTotal: toAgorot('3000') }, secretary(db), db);
+  createZReport({ storeId: store.id, zNumber: '103', zDate: '2026-08-01', dailyTotal: toAgorot('9999') }, secretary(db), db); // out of range
 
   const { stores, totals } = profitability('2026-07-01', '2026-07-31', db);
   const row = stores.find((s) => s.id === store.id);
@@ -61,15 +61,26 @@ test('a store with sales=0 reports null margin (no divide-by-zero)', () => {
   assert.ok(stores.every((s) => s.marginPct === null));
 });
 
-test('addSalesEntry rejects a negative amount; delete removes it', () => {
+test('Z report: drawer total auto-sums, duplicate Z number blocked, sequence gaps detected', () => {
   const db = freshDb();
   const store = firstStore(db);
-  assert.throws(
-    () => addSalesEntry({ storeId: store.id, saleDate: '2026-07-01', amount: -100 }, secretary(db), db),
-    /לא-שלילי/,
+  const sec = secretary(db);
+  const z = createZReport(
+    {
+      storeId: store.id, zNumber: '201', zDate: '2026-07-01', dailyTotal: toAgorot('1000'),
+      drawerCash: toAgorot('600'), drawerCheck: toAgorot('150'), drawerCredit: toAgorot('200'),
+      drawerHakafa: toAgorot('40'), drawerVouchers: toAgorot('10'),
+    },
+    sec,
+    db,
   );
-  const e = addSalesEntry({ storeId: store.id, saleDate: '2026-07-01', amount: toAgorot('1000') }, secretary(db), db);
-  assert.equal(listSalesEntries(50, db).length, 1);
-  deleteSalesEntry(e.id, secretary(db), db);
-  assert.equal(listSalesEntries(50, db).length, 0);
+  assert.equal(z.drawer_total, toAgorot('1000')); // 600+150+200+40+10
+  assert.throws(
+    () => createZReport({ storeId: store.id, zNumber: '201', zDate: '2026-07-02', dailyTotal: 100 }, sec, db),
+    /כבר קיים/,
+  );
+  // 202 missing, 203 present -> gap detected
+  createZReport({ storeId: store.id, zNumber: '203', zDate: '2026-07-03', dailyTotal: 100 }, sec, db);
+  assert.deepEqual(missingZNumbers(store.id, db), [202]);
+  assert.equal(listZReports({ storeId: store.id }, db).length, 2);
 });

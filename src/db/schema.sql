@@ -139,6 +139,49 @@ CREATE TABLE IF NOT EXISTS invoice_ocr (
   ran_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
 
+-- z_reports — daily register (Z) close per store (priority 2 module). daily_total ("יומי Z")
+-- drives the profitability report; the drawer/deposit/credit-card fields support end-of-day
+-- reconciliation. Columns for later sub-phases (deposit/cc) are included now to avoid re-migration.
+CREATE TABLE IF NOT EXISTS z_reports (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id         INTEGER NOT NULL REFERENCES stores(id),
+  z_number         TEXT NOT NULL,
+  z_date           TEXT NOT NULL,
+  daily_total      INTEGER NOT NULL DEFAULT 0,   -- יומי Z (agorot) — profitability source
+  -- דוח מגירה
+  drawer_cash      INTEGER NOT NULL DEFAULT 0,
+  drawer_check     INTEGER NOT NULL DEFAULT 0,
+  drawer_credit    INTEGER NOT NULL DEFAULT 0,
+  drawer_hakafa    INTEGER NOT NULL DEFAULT 0,   -- הקפה
+  drawer_vouchers  INTEGER NOT NULL DEFAULT 0,   -- תווי קניה
+  drawer_total     INTEGER NOT NULL DEFAULT 0,   -- סה"כ מגירה (auto)
+  -- הפקדות (phase 2c)
+  deposit_amount   INTEGER,
+  deposit_bag      TEXT,
+  deposit_breakdown TEXT,                         -- JSON of bill counts
+  -- כרטיסי אשראי (phase 2d)
+  cc_kal INTEGER, cc_isracard INTEGER, cc_diners INTEGER, cc_amex INTEGER,
+  cc_general INTEGER, cc_tourist INTEGER, cc_total INTEGER,
+  status           TEXT NOT NULL DEFAULT 'ok' CHECK (status IN ('ok','unmatched')),
+  reconcile_notes  TEXT,
+  created_by       INTEGER NOT NULL REFERENCES users(id),
+  created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_zreports_store_date ON z_reports(store_id, z_date);
+
+-- z_expenses — drawer expense lines for a Z report (phase 2b).
+CREATE TABLE IF NOT EXISTS z_expenses (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  z_report_id      INTEGER NOT NULL REFERENCES z_reports(id) ON DELETE CASCADE,
+  expense_date     TEXT,
+  payer_name       TEXT,
+  description_type TEXT,
+  employee_name    TEXT,
+  amount           INTEGER NOT NULL DEFAULT 0,
+  image_path       TEXT,
+  created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+
 -- sales_entries — manual register (Z) totals per store, for the profitability report (§7).
 -- Purchases come automatically from invoices; sales are entered by hand here.
 CREATE TABLE IF NOT EXISTS sales_entries (
