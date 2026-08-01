@@ -34,11 +34,13 @@ router.get('/', async (req, res, next) => {
 
 router.get('/new', async (req, res, next) => {
   try {
+    const methods = ['check', 'cash', 'credit', 'transfer', 'batch'];
+    const method = methods.includes(req.query.method) ? req.query.method : 'check';
     res.render('payments/new', {
-      title: 'צ׳ק חדש',
+      title: 'תשלום חדש',
       payable: await listPayable(),
       accounts: await getExecutor().many('SELECT * FROM bank_accounts ORDER BY display_name', []),
-      values: {},
+      values: { method },
       error: null,
     });
   } catch (err) {
@@ -67,7 +69,7 @@ router.post('/', async (req, res, next) => {
       },
       req.user,
     );
-    res.redirect(`/payments/${payment.id}`);
+    res.redirect(303, `/payments/${payment.id}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       return res.status(400).render('payments/new', {
@@ -106,7 +108,7 @@ router.get('/:id/print', async (req, res, next) => {
 router.post('/:id/clear', async (req, res, next) => {
   try {
     await markCleared(Number(req.params.id), req.body.cleared_date || null, req.user);
-    res.redirect(req.get('referer') || `/payments/${req.params.id}`);
+    res.redirect(303, req.get('referer') || `/payments/${req.params.id}`);
   } catch (err) {
     next(err);
   }
@@ -115,7 +117,7 @@ router.post('/:id/clear', async (req, res, next) => {
 router.post('/:id/void', async (req, res, next) => {
   try {
     await voidPayment(Number(req.params.id), req.user, req.body.reason || null);
-    res.redirect(req.get('referer') || `/payments/${req.params.id}`);
+    res.redirect(303, req.get('referer') || `/payments/${req.params.id}`);
   } catch (err) {
     next(err);
   }

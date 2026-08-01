@@ -30,6 +30,9 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Defensive: a stray POST to / (e.g. a proxy preserving method on a redirect) -> dashboard.
+router.post('/', (req, res) => res.redirect(303, '/'));
+
 router.get('/audit', async (req, res, next) => {
   try {
     res.render('audit', { title: 'יומן ביקורת', entries: await listRecent(200) });

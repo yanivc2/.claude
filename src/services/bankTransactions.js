@@ -77,3 +77,14 @@ export async function getTransaction(id, x = getExecutor()) {
   if (!row) throw new NotFoundError(`תנועת בנק ${id} לא נמצאה`);
   return row;
 }
+
+/** Delete a bank transaction. Refused if it is matched to a check (unmatch it first). */
+export async function deleteTransaction(id, actor, x = getExecutor()) {
+  const txn = await getTransaction(id, x);
+  if (txn.matched_payment_id) {
+    throw new RuleError('MATCHED', 'התנועה מותאמת לצ׳ק — בטל את ההתאמה לפני מחיקה.');
+  }
+  await x.run('DELETE FROM bank_transactions WHERE id = ?', [id]);
+  await logAction({ userId: actor?.id ?? null, action: 'bank.txn_delete', entityType: 'bank_transaction', entityId: id }, x);
+  return txn;
+}

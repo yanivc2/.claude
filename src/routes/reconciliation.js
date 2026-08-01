@@ -9,6 +9,7 @@ import {
   importTransactions,
   listUnmatched,
   listTransactions,
+  deleteTransaction,
 } from '../services/bankTransactions.js';
 import {
   classify,
@@ -128,6 +129,17 @@ router.post('/match', async (req, res, next) => {
   try {
     await confirmMatch(Number(req.body.txn_id), Number(req.body.payment_id), req.user);
     await renderPage(req, res, accountId, { notice: 'הצ׳ק סומן כנפרע.' });
+  } catch (err) {
+    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/txn/:id/delete', async (req, res, next) => {
+  const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  try {
+    await deleteTransaction(Number(req.params.id), req.user);
+    await renderPage(req, res, accountId, { notice: 'התנועה נמחקה.' });
   } catch (err) {
     if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
     next(err);

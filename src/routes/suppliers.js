@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import {
   listSuppliers,
+  getSupplier,
   createSupplier,
+  updateSupplier,
   updateSupplierContacts,
   searchSuppliers,
   approveSupplier,
@@ -12,19 +14,32 @@ import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
 
+async function renderList(res, extra = {}) {
+  res.render('suppliers/index', {
+    title: 'ספקים',
+    suppliers: await listSuppliers(null),
+    filter: '',
+    error: null,
+    notice: null,
+    ...extra,
+  });
+}
+
 router.get('/', async (req, res, next) => {
   try {
     res.render('suppliers/index', {
       title: 'ספקים',
       suppliers: await listSuppliers(req.query.status || null),
       filter: req.query.status || '',
+      error: null,
+      notice: null,
     });
   } catch (err) {
     next(err);
   }
 });
 
-// "אנשי קשר ספקים" tab — searchable list with contact details, inline-editable.
+// "אנשי קשר ספקים" tab.
 router.get('/contacts', async (req, res, next) => {
   try {
     const q = req.query.q || '';
@@ -44,15 +59,10 @@ router.post('/:id/contacts', async (req, res, next) => {
   try {
     await updateSupplierContacts(
       Number(req.params.id),
-      {
-        phone: req.body.phone,
-        email: req.body.email,
-        contactName: req.body.contact_name,
-        contactPhone: req.body.contact_phone,
-      },
+      { phone: req.body.phone, email: req.body.email, contactName: req.body.contact_name, contactPhone: req.body.contact_phone },
       req.user,
     );
-    res.redirect('/suppliers/contacts?saved=' + req.params.id);
+    res.redirect(303, '/suppliers/contacts?saved=' + req.params.id);
   } catch (err) {
     next(err);
   }
@@ -66,22 +76,77 @@ router.post('/', async (req, res, next) => {
   try {
     const supplier = await createSupplier(
       {
-        name: req.body.name,
-        taxId: req.body.tax_id,
-        notes: req.body.notes,
-        phone: req.body.phone,
-        email: req.body.email,
-        contactName: req.body.contact_name,
-        contactPhone: req.body.contact_phone,
+        name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
+        phone: req.body.phone, email: req.body.email,
+        contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
       },
       req.user,
     );
-    res.redirect(`/suppliers?status=&created=${supplier.id}`);
+    res.redirect(303, `/suppliers?created=${supplier.id}`);
   } catch (err) {
     if (err instanceof RuleError) {
-      return res
-        .status(400)
-        .render('suppliers/new', { title: 'ספק חדש', values: req.body, error: err.message });
+      return res.status(400).render('suppliers/new', { title: 'ספק חדש', values: req.body, error: err.message });
+    }
+    next(err);
+  }
+});
+
+// Bulk action on selected suppliers: approve / block / delete.
+router.post('/bulk', async (req, res, next) => {
+  try {
+    const ids = [].concat(req.body.ids || []).map(Number).filter(Boolean);
+    const action = req.body.bulk_action;
+    if (!ids.length || !['approve', 'block', 'delete'].includes(action)) {
+      return renderList(res, { error: 'בחר פעולה ולפחות ספק אחד.' });
+    }
+    let ok = 0;
+    const failures = [];
+    for (const id of ids) {
+      try {
+        if (action === 'approve') await approveSupplier(id, req.user);
+        else if (action === 'block') await blockSupplier(id, req.user, null);
+        else await deleteSupplier(id, req.user);
+        ok += 1;
+      } catch (e) {
+        failures.push(`#${id}: ${e.message}`);
+      }
+    }
+    const label = { approve: 'אושרו', block: 'נחסמו', delete: 'נמחקו' }[action];
+    return renderList(res, {
+      notice: `${ok} ספקים ${label}.`,
+      error: failures.length ? failures.join(' · ') : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Edit a supplier's full details.
+router.get('/:id/edit', async (req, res, next) => {
+  try {
+    const supplier = await getSupplier(Number(req.params.id));
+    res.render('suppliers/edit', { title: `עריכת ספק — ${supplier.name}`, supplier, error: null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/edit', async (req, res, next) => {
+  try {
+    await updateSupplier(
+      Number(req.params.id),
+      {
+        name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
+        phone: req.body.phone, email: req.body.email,
+        contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
+      },
+      req.user,
+    );
+    res.redirect(303, '/suppliers');
+  } catch (err) {
+    if (err instanceof RuleError) {
+      const supplier = { ...req.body, id: Number(req.params.id), tax_id: req.body.tax_id, contact_name: req.body.contact_name, contact_phone: req.body.contact_phone };
+      return res.status(400).render('suppliers/edit', { title: 'עריכת ספק', supplier, error: err.message });
     }
     next(err);
   }
@@ -90,9 +155,9 @@ router.post('/', async (req, res, next) => {
 router.post('/:id/approve', async (req, res, next) => {
   try {
     await approveSupplier(Number(req.params.id), req.user);
-    res.redirect('/suppliers?status=pending');
+    res.redirect(303, '/suppliers?status=pending');
   } catch (err) {
-    if (err instanceof AuthError) return renderList(res, err.message);
+    if (err instanceof AuthError) return renderList(res, { error: err.message });
     next(err);
   }
 });
@@ -100,9 +165,9 @@ router.post('/:id/approve', async (req, res, next) => {
 router.post('/:id/block', async (req, res, next) => {
   try {
     await blockSupplier(Number(req.params.id), req.user, req.body.reason || null);
-    res.redirect('/suppliers');
+    res.redirect(303, '/suppliers');
   } catch (err) {
-    if (err instanceof AuthError) return renderList(res, err.message);
+    if (err instanceof AuthError) return renderList(res, { error: err.message });
     next(err);
   }
 });
@@ -110,20 +175,11 @@ router.post('/:id/block', async (req, res, next) => {
 router.post('/:id/delete', async (req, res, next) => {
   try {
     await deleteSupplier(Number(req.params.id), req.user);
-    res.redirect('/suppliers');
+    res.redirect(303, '/suppliers');
   } catch (err) {
-    if (err instanceof AuthError || err instanceof RuleError) return renderList(res, err.message);
+    if (err instanceof AuthError || err instanceof RuleError) return renderList(res, { error: err.message });
     next(err);
   }
 });
-
-async function renderList(res, error) {
-  res.status(403).render('suppliers/index', {
-    title: 'ספקים',
-    suppliers: await listSuppliers(null),
-    filter: '',
-    error,
-  });
-}
 
 export default router;

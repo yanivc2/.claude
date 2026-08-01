@@ -71,6 +71,34 @@ export async function updateSupplierContacts(
   return getSupplier(id, x);
 }
 
+/** Update a supplier's full details (name / tax id / notes / contacts). */
+export async function updateSupplier(
+  id,
+  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null },
+  actor,
+  x = getExecutor(),
+) {
+  await getSupplier(id, x);
+  const trimmed = (name ?? '').trim();
+  if (!trimmed) throw new RuleError('VALIDATION', 'שם ספק חובה');
+  await x.run(
+    `UPDATE suppliers SET name = ?, tax_id = ?, notes = ?, phone = ?, email = ?, contact_name = ?, contact_phone = ?
+     WHERE id = ?`,
+    [
+      trimmed,
+      taxId?.trim() || null,
+      notes?.trim() || null,
+      phone?.trim() || null,
+      email?.trim() || null,
+      contactName?.trim() || null,
+      contactPhone?.trim() || null,
+      id,
+    ],
+  );
+  await logAction({ userId: actor.id, action: 'supplier.update', entityType: 'supplier', entityId: id }, x);
+  return getSupplier(id, x);
+}
+
 /** Quick supplier search by name / tax id / phone / contact — for the dashboard search box. */
 export async function searchSuppliers(query, x = getExecutor()) {
   const q = (query ?? '').trim();

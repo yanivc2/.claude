@@ -45,11 +45,11 @@ const groupList = Object.values(groups);
         <div>
           <label>אמצעי תשלום *</label>
           <select name="method" onchange="onMethod(this.form)">
-            <option value="check">צ׳ק</option>
-            <option value="cash">מזומן</option>
-            <option value="credit">אשראי</option>
-            <option value="transfer">העברה</option>
-            <option value="batch">מקבץ</option>
+            <option value="check" <%= values.method === 'check' ? 'selected' : '' %>>צ׳ק</option>
+            <option value="cash" <%= values.method === 'cash' ? 'selected' : '' %>>מזומן</option>
+            <option value="credit" <%= values.method === 'credit' ? 'selected' : '' %>>אשראי</option>
+            <option value="transfer" <%= values.method === 'transfer' ? 'selected' : '' %>>העברה</option>
+            <option value="batch" <%= values.method === 'batch' ? 'selected' : '' %>>מקבץ</option>
           </select>
         </div>
         <div>
@@ -116,6 +116,8 @@ function validateCheck(form){
   if (checked === 0){ alert('בחר לפחות חשבונית אחת'); return false; }
   return true;
 }
+// Apply the preselected method (from ?method=) on load.
+document.querySelectorAll('form[action="/payments"]').forEach(function(f){ onMethod(f); });
 // Initialize each form to the default method (check) on load.
 document.querySelectorAll('form').forEach(function(f){ if (f.querySelector('select[name="method"]')) onMethod(f); });
 </script>
