@@ -1,14 +1,19 @@
 import { Router } from 'express';
 import {
   listTransfers,
+  getTransfer,
   createTransfer,
   approveTransferProof,
   executeTransfer,
   cancelTransfer,
   setTransferReference,
+  setTransferImage,
+  verifyTransfer,
   openInvoicesForMatch,
   transfersSummary,
 } from '../services/transfers.js';
+import { handleInvoiceImage } from '../middleware/upload.js';
+import { getObject } from '../lib/storage.js';
 import { getExecutor } from '../db/adapter.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
@@ -67,8 +72,17 @@ router.get('/new', async (req, res, next) => {
   }
 });
 
-router.post('/', async (req, res, next) => {
+router.post('/', handleInvoiceImage, async (req, res, next) => {
   try {
+    if (req.uploadError) {
+      return res.status(400).render('transfers/new', {
+        title: 'העברה חדשה',
+        accounts: await bankAccounts(),
+        invoices: await openInvoicesForMatch(),
+        values: req.body,
+        error: req.uploadError,
+      });
+    }
     const transfer = await createTransfer(
       {
         bankAccountId: req.body.bank_account_id,
@@ -80,6 +94,7 @@ router.post('/', async (req, res, next) => {
         invoiceId: req.body.invoice_id || null,
         matchType: req.body.match_type,
         matchNote: req.body.match_note,
+        imagePath: req.file ? req.file.filename : null,
         notes: req.body.notes,
       },
       req.user,
@@ -95,6 +110,41 @@ router.post('/', async (req, res, next) => {
         error: err.message,
       });
     }
+    next(err);
+  }
+});
+
+// Serve a transfer's proof image (אסמכתא).
+router.get('/:id/image', async (req, res, next) => {
+  try {
+    const tr = await getTransfer(Number(req.params.id));
+    if (!tr.image_path) return res.status(404).send('אין תמונה');
+    const { buffer, contentType } = await getObject(tr.image_path);
+    return res.type(contentType).send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Attach or replace a transfer's proof image.
+router.post('/:id/image', handleInvoiceImage, async (req, res, next) => {
+  try {
+    if (req.uploadError) return renderList(res, { error: req.uploadError });
+    if (!req.file) return renderList(res, { error: 'לא נבחר קובץ.' });
+    await setTransferImage(Number(req.params.id), req.file.filename, req.user);
+    res.redirect(303, '/transfers');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return renderList(res, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/:id/verify', async (req, res, next) => {
+  try {
+    await verifyTransfer(Number(req.params.id), req.user, req.body.undo !== '1');
+    res.redirect(303, '/transfers');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return renderList(res, { error: err.message });
     next(err);
   }
 });

@@ -225,6 +225,50 @@ export async function profitability(fromDate, toDate, x = getExecutor()) {
   return { stores, totals };
 }
 
+/**
+ * Purchases report (רכש) — invoice line items in a date range, filterable by supplier and store.
+ * Returns the rows, a per-supplier grouping, and the overall total. Purchases are the invoice
+ * totals (credit notes count as negatives), matching the profitability "purchases" figure.
+ */
+export async function purchasesReport(
+  { from = null, to = null, supplierId = null, storeId = null } = {},
+  x = getExecutor(),
+) {
+  const where = [];
+  const params = [];
+  if (from) { where.push('i.invoice_date >= ?'); params.push(from); }
+  if (to) { where.push('i.invoice_date <= ?'); params.push(to); }
+  if (supplierId) { where.push('i.supplier_id = ?'); params.push(supplierId); }
+  if (storeId) { where.push('i.store_id = ?'); params.push(storeId); }
+  const clause = where.length ? ` WHERE ${where.join(' AND ')}` : '';
+
+  const rows = await x.many(
+    `SELECT i.id, i.invoice_number, i.allocation_number, i.invoice_date, i.total_amount,
+            i.doc_type, i.status,
+            s.id AS supplier_id, s.name AS supplier_name,
+            st.name AS store_name, c.name AS company_name
+       FROM invoices i
+       JOIN suppliers s ON s.id = i.supplier_id
+       JOIN stores st ON st.id = i.store_id
+       JOIN companies c ON c.id = i.company_id${clause}
+      ORDER BY i.invoice_date DESC, i.id DESC`,
+    params,
+  );
+
+  const bySupplierMap = new Map();
+  let total = 0;
+  for (const r of rows) {
+    total += r.total_amount;
+    const g = bySupplierMap.get(r.supplier_id) || { supplier_name: r.supplier_name, count: 0, total: 0 };
+    g.count += 1;
+    g.total += r.total_amount;
+    bySupplierMap.set(r.supplier_id, g);
+  }
+  const bySupplier = [...bySupplierMap.values()].sort((a, b) => b.total - a.total);
+
+  return { rows, bySupplier, total, count: rows.length };
+}
+
 /** Small counters for the dashboard. */
 export async function dashboardStats(x = getExecutor()) {
   const pendingSuppliers = (await x.one("SELECT COUNT(*) AS n FROM suppliers WHERE status = 'pending'", [])).n;

@@ -5,6 +5,7 @@ import {
   outstandingCheckDetail,
   invoiceLookup,
   profitability,
+  purchasesReport,
 } from '../services/reports.js';
 import {
   createZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
@@ -102,6 +103,20 @@ async function storeList() {
        FROM stores st JOIN companies c ON c.id = st.company_id ORDER BY c.name, st.name`,
     [],
   );
+}
+
+async function supplierList() {
+  return getExecutor().many('SELECT id, name FROM suppliers ORDER BY name', []);
+}
+
+// Read the purchases-report filters from the query string.
+function purchaseFilters(req) {
+  return {
+    from: req.query.from || null,
+    to: req.query.to || null,
+    supplierId: req.query.supplier ? Number(req.query.supplier) : null,
+    storeId: req.query.store ? Number(req.query.store) : null,
+  };
 }
 
 async function renderProfitability(req, res, extra = {}) {
@@ -220,6 +235,45 @@ router.get('/lookup.csv', async (req, res, next) => {
       'invoice-lookup.csv',
       ['#', 'ספק', 'חנות', 'מס׳ חשבונית', 'הקצאה', 'תאריך', 'סכום', 'סטטוס', 'מס׳ צ׳ק', 'פירעון'],
       rows,
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
+// רכש — purchases report (invoices by supplier/store/date).
+router.get('/purchases', async (req, res, next) => {
+  try {
+    const f = purchaseFilters(req);
+    const { rows, bySupplier, total, count } = await purchasesReport(f);
+    res.render('reports/purchases', {
+      title: 'רכש',
+      filters: f,
+      rows,
+      bySupplier,
+      total,
+      count,
+      suppliers: await supplierList(),
+      stores: await storeList(),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// CSV export — רכש
+router.get('/purchases.csv', async (req, res, next) => {
+  try {
+    const { rows } = await purchasesReport(purchaseFilters(req));
+    const body = rows.map((r) => [
+      r.id, r.invoice_date, r.supplier_name, r.store_name, r.invoice_number,
+      r.allocation_number || '', fromAgorot(r.total_amount), r.doc_type, r.status,
+    ]);
+    sendCsv(
+      res,
+      'purchases.csv',
+      ['#', 'תאריך', 'ספק', 'חנות', 'מס׳ חשבונית', 'הקצאה', 'סכום', 'סוג', 'סטטוס'],
+      body,
     );
   } catch (err) {
     next(err);

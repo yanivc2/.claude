@@ -11,6 +11,20 @@ export function migrate(db) {
   migrateSupplierContacts(db);
   migrateUserAuth(db);
   migrateBankBalance(db);
+  migrateTransferColumns(db);
+}
+
+// Adds proof-image / bank-verification columns to bank_transfers for older databases that
+// created the table before these columns existed.
+function migrateTransferColumns(db) {
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='bank_transfers'")
+    .get();
+  if (!hasTable) return;
+  const cols = db.prepare('PRAGMA table_info(bank_transfers)').all().map((c) => c.name);
+  if (!cols.includes('image_path')) db.exec('ALTER TABLE bank_transfers ADD COLUMN image_path TEXT;');
+  if (!cols.includes('verified')) db.exec('ALTER TABLE bank_transfers ADD COLUMN verified INTEGER NOT NULL DEFAULT 0;');
+  if (!cols.includes('verified_at')) db.exec('ALTER TABLE bank_transfers ADD COLUMN verified_at TEXT;');
 }
 
 // Adds balance_after to bank_transactions for older databases.

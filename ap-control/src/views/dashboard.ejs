@@ -123,13 +123,13 @@
 <% if (recentTransfers && recentTransfers.length) { %>
 <div class="card">
   <div class="toolbar" style="margin-bottom:.6rem">
-    <h2 style="margin:0">העברות מתוזמנות</h2>
+    <h2 style="margin:0">העברות — שבועיים אחרונים</h2>
     <a class="btn secondary small" href="/transfers">לכל ההעברות</a>
   </div>
   <table>
-    <thead><tr><th>מקבל</th><th>חשבון</th><th>תאריך</th><th class="right">סכום</th><th>אסמכתא</th><th>התאמה</th></tr></thead>
+    <thead><tr><th>מקבל</th><th>חשבון</th><th>תאריך</th><th class="right">סכום</th><th>אסמכתא</th><th>התאמה</th><th>סטטוס</th></tr></thead>
     <tbody>
-      <% recentTransfers.slice(0, 6).forEach(function(t){ %>
+      <% recentTransfers.slice(0, 8).forEach(function(t){ %>
         <tr onclick="location='/transfers'" style="cursor:pointer">
           <td><strong><%= t.payee %></strong></td>
           <td class="muted"><%= t.account_name %></td>
@@ -137,6 +137,7 @@
           <td class="right mono"><%= formatIls(t.amount) %></td>
           <td><% if (t.reference) { %><%= t.proof_approved ? '✔ מאושרת' : 'ממתינה' %><% } else { %><span class="neg">חסרה</span><% } %></td>
           <td><%= t.match_type === 'invoice' ? 'חשבונית ' + (t.invoice_number || '') : (t.match_type === 'none' ? 'ללא חשבונית' : 'טרם הותאמה') %></td>
+          <td><span class="badge b-<%= t.status %>"><%= t.status === 'executed' ? 'בוצעה' : 'מתוזמנת' %></span></td>
         </tr>
       <% }); %>
     </tbody>

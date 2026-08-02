@@ -255,11 +255,17 @@ CREATE TABLE IF NOT EXISTS bank_transfers (
   match_note      TEXT,
   cancel_reason   TEXT,
   executed_at     TEXT,
+  image_path      TEXT,
+  verified        INTEGER NOT NULL DEFAULT 0,
+  verified_at     TEXT,
   notes           TEXT,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
 CREATE INDEX IF NOT EXISTS ix_bank_transfers_status ON bank_transfers(status, transfer_date);
+ALTER TABLE bank_transfers ADD COLUMN IF NOT EXISTS image_path TEXT;
+ALTER TABLE bank_transfers ADD COLUMN IF NOT EXISTS verified INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE bank_transfers ADD COLUMN IF NOT EXISTS verified_at TEXT;
 
 -- audit_log ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_log (

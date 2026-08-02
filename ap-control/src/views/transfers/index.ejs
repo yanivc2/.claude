@@ -83,6 +83,10 @@
               <span class="mono"><%= t.reference %></span>
               <% if (t.proof_approved) { %><span class="badge b-approved">מאושרת</span><% } else { %><span class="badge b-on_hold">ממתינה</span><% } %>
             <% } else { %><span class="badge b-blocked">חסרה</span><% } %>
+            <% if (t.image_path) { %> <a href="/transfers/<%= t.id %>/image" target="_blank" title="תמונת אסמכתא">📎</a><% } %>
+            <% if (t.status === 'executed') { %>
+              <% if (t.verified) { %><span class="badge b-cleared" title="אומת מול דף תנועות">אומת ✔</span><% } else { %><span class="badge b-on_hold" title="טרם אומת מול דף תנועות">לא אומת</span><% } %>
+            <% } %>
           </td>
           <td>
             <% if (t.match_type === 'invoice') { %><span class="badge b-approved_for_payment"><%= matchLabel(t) %></span>
@@ -113,6 +117,27 @@
                       </form>
                     </div>
                   </details>
+                <% } %>
+                <% if (!t.image_path && t.status !== 'cancelled') { %>
+                  <details class="paymenu">
+                    <summary class="btn secondary small">+ תמונה</summary>
+                    <div class="paymenu-items">
+                      <form method="post" action="/transfers/<%= t.id %>/image" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*,application/pdf" required />
+                        <button type="submit" class="btn small" style="margin-top:.3rem;width:100%">העלה</button>
+                      </form>
+                    </div>
+                  </details>
+                <% } %>
+                <% if (isOwner && t.status === 'executed') { %>
+                  <form method="post" action="/transfers/<%= t.id %>/verify" style="display:inline">
+                    <% if (t.verified) { %>
+                      <input type="hidden" name="undo" value="1" />
+                      <button type="submit" class="btn secondary small">בטל אימות</button>
+                    <% } else { %>
+                      <button type="submit" class="btn ok small">אמת מול בנק</button>
+                    <% } %>
+                  </form>
                 <% } %>
                 <% if (isOwner) { %>
                   <details class="paymenu">

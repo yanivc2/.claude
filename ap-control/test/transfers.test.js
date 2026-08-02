@@ -7,6 +7,9 @@ import {
   executeTransfer,
   cancelTransfer,
   setTransferReference,
+  setTransferImage,
+  verifyTransfer,
+  recentTransfers,
   getTransfer,
   transfersSummary,
 } from '../src/services/transfers.js';
@@ -115,6 +118,70 @@ test('transfersSummary counts scheduled, awaiting approval, and unmatched', asyn
   assert.equal(s.scheduledTotal, 30000);
   assert.equal(s.awaitingApproval, 2); // neither approved yet
   assert.equal(s.unmatched, 2); // neither matched to an invoice
+});
+
+test('setTransferImage stores a proof-image ref', async () => {
+  const db = await freshDb();
+  const o = await owner(db);
+  const acct = await anAccount(db);
+  const t = await createTransfer(
+    { bankAccountId: acct.id, payee: 'ספק', amount: '500', transferDate: '2026-08-05', imagePath: 'proof-1.jpg' },
+    o,
+    db,
+  );
+  assert.equal(t.image_path, 'proof-1.jpg');
+  const updated = await setTransferImage(t.id, 'proof-2.jpg', o, db);
+  assert.equal(updated.image_path, 'proof-2.jpg');
+});
+
+test('verifyTransfer is owner-only and toggles the verified flag', async () => {
+  const db = await freshDb();
+  const o = await owner(db);
+  const sec = await secretary(db);
+  const acct = await anAccount(db);
+  const t = await createTransfer(
+    { bankAccountId: acct.id, payee: 'ספק', amount: '500', transferDate: '2026-08-05', reference: 'R1' },
+    o,
+    db,
+  );
+  await approveTransferProof(t.id, o, db);
+  await executeTransfer(t.id, o, db);
+  await assert.rejects(() => verifyTransfer(t.id, sec, true, db), /בעלים/);
+  const v = await verifyTransfer(t.id, o, true, db);
+  assert.equal(v.verified, 1);
+  assert.ok(v.verified_at);
+  const uv = await verifyTransfer(t.id, o, false, db);
+  assert.equal(uv.verified, 0);
+});
+
+test('summary counts executed-but-unverified transfers', async () => {
+  const db = await freshDb();
+  const o = await owner(db);
+  const acct = await anAccount(db);
+  const t = await createTransfer(
+    { bankAccountId: acct.id, payee: 'ספק', amount: '500', transferDate: '2026-08-05', reference: 'R1' },
+    o,
+    db,
+  );
+  await approveTransferProof(t.id, o, db);
+  await executeTransfer(t.id, o, db);
+  let s = await transfersSummary(db);
+  assert.equal(s.unverifiedExecuted, 1);
+  await verifyTransfer(t.id, o, true, db);
+  s = await transfersSummary(db);
+  assert.equal(s.unverifiedExecuted, 0);
+});
+
+test('recentTransfers returns only active transfers within the window', async () => {
+  const db = await freshDb();
+  const o = await owner(db);
+  const acct = await anAccount(db);
+  await createTransfer({ bankAccountId: acct.id, payee: 'קרוב', amount: '100', transferDate: '2026-08-05' }, o, db);
+  await createTransfer({ bankAccountId: acct.id, payee: 'רחוק', amount: '100', transferDate: '2026-01-01' }, o, db);
+  const rows = await recentTransfers(14, '2026-08-02', db);
+  const payees = rows.map((r) => r.payee);
+  assert.ok(payees.includes('קרוב'));
+  assert.ok(!payees.includes('רחוק'));
 });
 
 test('getTransfer throws for a missing id', async () => {

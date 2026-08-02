@@ -272,6 +272,9 @@ CREATE TABLE IF NOT EXISTS bank_transfers (
   match_note      TEXT,                                     -- explanation for 'none' / 'pending'
   cancel_reason   TEXT,
   executed_at     TEXT,
+  image_path      TEXT,                                     -- proof (אסמכתא/חשבונית) image ref
+  verified        INTEGER NOT NULL DEFAULT 0,               -- 0/1 — reconciled against the bank statement
+  verified_at     TEXT,
   notes           TEXT,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))

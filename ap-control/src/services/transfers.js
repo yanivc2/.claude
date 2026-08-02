@@ -51,6 +51,7 @@ export async function createTransfer(
     invoiceId = null,
     matchType = 'pending',
     matchNote = null,
+    imagePath = null,
     notes = null,
   },
   actor,
@@ -77,8 +78,8 @@ export async function createTransfer(
   const info = await x.run(
     `INSERT INTO bank_transfers
        (bank_account_id, payee, amount, transfer_date, reference, recurrence, status,
-        proof_approved, invoice_id, match_type, match_note, notes, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, 'scheduled', 0, ?, ?, ?, ?, ?)`,
+        proof_approved, invoice_id, match_type, match_note, image_path, notes, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, 'scheduled', 0, ?, ?, ?, ?, ?, ?)`,
     [
       Number(bankAccountId),
       payeeTrim,
@@ -89,6 +90,7 @@ export async function createTransfer(
       resolvedInvoice,
       resolvedMatch,
       matchNote?.trim() || null,
+      imagePath || null,
       notes?.trim() || null,
       actor.id,
     ],
@@ -172,6 +174,63 @@ export async function setTransferReference(id, reference, actor, x = getExecutor
   return getTransfer(id, x);
 }
 
+/** Attach or replace the proof image (אסמכתא/חשבונית) on a transfer. */
+export async function setTransferImage(id, imagePath, actor, x = getExecutor()) {
+  await getTransfer(id, x);
+  await x.run('UPDATE bank_transfers SET image_path = ? WHERE id = ?', [imagePath || null, id]);
+  await logAction({ userId: actor.id, action: 'transfer.set_image', entityType: 'transfer', entityId: id }, x);
+  return getTransfer(id, x);
+}
+
+/**
+ * Mark a transfer as verified against the bank statement (אימות מול דף תנועות) — owner only.
+ * This is the reconciliation confirmation that the money actually left the account as recorded.
+ */
+export async function verifyTransfer(id, actor, verified = true, x = getExecutor()) {
+  requireOwner(actor, 'אימות העברה מול דף תנועות — בעלים בלבד');
+  const tr = await getTransfer(id, x);
+  if (tr.status === 'cancelled') throw new RuleError('STATE', 'העברה מבוטלת — אין מה לאמת.');
+  await x.run('UPDATE bank_transfers SET verified = ?, verified_at = ? WHERE id = ?', [
+    verified ? 1 : 0,
+    verified ? nowTs() : null,
+    id,
+  ]);
+  await logAction(
+    { userId: actor.id, action: verified ? 'transfer.verify' : 'transfer.unverify', entityType: 'transfer', entityId: id },
+    x,
+  );
+  return getTransfer(id, x);
+}
+
+/**
+ * Suggest a bank-statement match for a transfer: an unmatched debit on the same account whose
+ * reference equals the transfer's reference, or (failing that) whose amount matches within a
+ * date window. Returns the candidate txn or null. Read-only decision support for verification.
+ */
+export async function suggestBankMatch(id, windowDays = 14, x = getExecutor()) {
+  const tr = await getTransfer(id, x);
+  if (tr.reference) {
+    const byRef = await x.one(
+      `SELECT * FROM bank_transactions
+        WHERE bank_account_id = ? AND (raw_reference = ? OR description LIKE ?)
+        ORDER BY txn_date DESC LIMIT 1`,
+      [tr.bank_account_id, tr.reference, `%${tr.reference}%`],
+    );
+    if (byRef) return byRef;
+  }
+  const rows = await x.many(
+    `SELECT * FROM bank_transactions
+      WHERE bank_account_id = ? AND amount = ? AND matched_payment_id IS NULL
+      ORDER BY txn_date DESC`,
+    [tr.bank_account_id, -Math.abs(tr.amount)],
+  );
+  for (const r of rows) {
+    const diff = Math.abs((Date.parse(r.txn_date) - Date.parse(tr.transfer_date)) / 86400000);
+    if (Number.isFinite(diff) && diff <= windowDays) return r;
+  }
+  return null;
+}
+
 /** Dashboard widget figures: scheduled transfers and how many still await owner approval. */
 export async function transfersSummary(x = getExecutor()) {
   const scheduled = await x.one(
@@ -186,12 +245,34 @@ export async function transfersSummary(x = getExecutor()) {
     "SELECT COUNT(*) AS n FROM bank_transfers WHERE status != 'cancelled' AND match_type != 'invoice'",
     [],
   );
+  const unverified = await x.one(
+    "SELECT COUNT(*) AS n FROM bank_transfers WHERE status = 'executed' AND verified = 0",
+    [],
+  );
   return {
     scheduledCount: scheduled.n,
     scheduledTotal: scheduled.total,
     awaitingApproval: awaiting.n,
     unmatched: unmatched.n,
+    unverifiedExecuted: unverified.n,
   };
+}
+
+/**
+ * Transfers for the dashboard widget — a rolling two-week window (ROADMAP §D): active
+ * (non-cancelled) transfers whose date falls within ±`days` of today, newest first.
+ */
+export async function recentTransfers(days = 14, today = null, x = getExecutor()) {
+  const base = today ? new Date(`${today}T00:00:00`) : new Date();
+  const iso = (d) => d.toISOString().slice(0, 10);
+  const from = new Date(base); from.setDate(base.getDate() - days);
+  const to = new Date(base); to.setDate(base.getDate() + days);
+  return x.many(
+    `${SELECT_JOINED}
+      WHERE tr.status != 'cancelled' AND tr.transfer_date BETWEEN ? AND ?
+      ORDER BY tr.transfer_date DESC, tr.id DESC`,
+    [iso(from), iso(to)],
+  );
 }
 
 /** Open (approved-for-payment or recorded) invoices for the "match to invoice" picker. */
