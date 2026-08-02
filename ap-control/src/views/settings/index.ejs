@@ -8,6 +8,9 @@
 <% if (typeof schemaWarning !== 'undefined' && schemaWarning) { %>
   <div class="alert alert-warn"><%= schemaWarning %></div>
 <% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div>
+<% } %>
 
 <% if (currentUser.role === 'owner') { %>
 <div class="card">
@@ -18,6 +21,25 @@
     </div>
     <form method="post" action="/settings/db-upgrade" onsubmit="return confirm('להריץ עדכון מסד נתונים?')">
       <button type="submit">עדכן מסד נתונים</button>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <div>
+      <strong>התראות פוש (Telegram)</strong>
+      <p class="muted" style="margin:.2rem 0 0">
+        <% if (telegram.enabled) { %>
+          פוש מחובר — התראות נשלחות לצ׳אט <span class="mono"><%= telegram.chatId %></span>
+          (בקשות אישור, Z לא תואם, העברות ללא התאמה, חריגות פנסיה).
+        <% } else { %>
+          פוש אינו מוגדר. להפעלה: הגדר <span class="mono">TELEGRAM_BOT_TOKEN</span> (וגם <span class="mono">TELEGRAM_CHAT_ID</span> במידת הצורך) בסביבה ופרוס מחדש. הטוקן סודי ולעולם אינו נשמר בקוד.
+        <% } %>
+      </p>
+    </div>
+    <form method="post" action="/settings/test-push">
+      <button type="submit" <%= telegram.enabled ? '' : 'disabled' %>>שלח פוש בדיקה</button>
     </form>
   </div>
 </div>

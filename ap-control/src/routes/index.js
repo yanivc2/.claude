@@ -7,6 +7,7 @@ import {
 } from '../services/reports.js';
 import { lookupChecks } from '../services/payments.js';
 import { transfersSummary, recentTransfers } from '../services/transfers.js';
+import { pensionSummary } from '../services/pension.js';
 import { searchSuppliers } from '../services/suppliers.js';
 import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
@@ -37,6 +38,7 @@ router.get('/', async (req, res, next) => {
       stats: await dashboardStats(),
       transfers: await transfersSummary(),
       recentTransfers: await recentTransfers(14),
+      pension: await pensionSummary(),
       q,
       companyId,
       storeId,

@@ -301,6 +301,30 @@ CREATE TABLE IF NOT EXISTS salaries (
 );
 CREATE INDEX IF NOT EXISTS ix_salaries_date ON salaries(pay_date);
 
+-- employees — pension-file compliance tracking (מעקב פנסיה, ROADMAP §D via user spec).
+-- NOT a payroll/pension calculation — it tracks two legal duties: opening the pension file on
+-- time after hiring, and sending the release notice (טופס 161) to the fund on termination.
+CREATE TABLE IF NOT EXISTS employees (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  name                TEXT NOT NULL,
+  company_id          INTEGER REFERENCES companies(id),
+  store_id            INTEGER REFERENCES stores(id),
+  start_date          TEXT NOT NULL,                        -- hire date 'YYYY-MM-DD'
+  prior_pension       INTEGER NOT NULL DEFAULT 0,           -- had an active fund before hire → shorter deadline
+  pension_opened      INTEGER NOT NULL DEFAULT 0,           -- 0/1
+  pension_opened_date TEXT,
+  status              TEXT NOT NULL DEFAULT 'active'
+                      CHECK (status IN ('active','terminated')),
+  termination_date    TEXT,
+  termination_reason  TEXT CHECK (termination_reason IS NULL OR termination_reason IN ('resigned','dismissed')),
+  release_sent        INTEGER NOT NULL DEFAULT 0,           -- release/161 notice sent to the fund
+  release_sent_date   TEXT,
+  notes               TEXT,
+  created_by          INTEGER NOT NULL REFERENCES users(id),
+  created_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_employees_status ON employees(status);
+
 -- §4 audit_log ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,

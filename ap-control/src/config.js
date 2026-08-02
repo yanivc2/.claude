@@ -31,6 +31,15 @@ export const config = {
   projectRoot,
   // Israeli VAT rate (18% since 1.1.2025). Used for auto-calc on invoice entry.
   vatRate: Number(process.env.VAT_RATE ?? 0.18),
+  // Pension-file tracking (מעקב פנסיה). Legal deadlines for opening an employee's pension file,
+  // in months from the start date: an employee with an ACTIVE prior fund must be enrolled after
+  // ~3 months (retroactive), a new one after ~6 months. warnDays = how many days before the
+  // deadline to start flagging "מתקרב". Overridable via env; defaults follow the common statute.
+  pension: {
+    priorMonths: Number(process.env.PENSION_PRIOR_MONTHS ?? 3),
+    newMonths: Number(process.env.PENSION_NEW_MONTHS ?? 6),
+    warnDays: Number(process.env.PENSION_WARN_DAYS ?? 30),
+  },
   // Cash-payment ceiling (חוק צמצום השימוש במזומן). Business-to-business cash is capped at
   // 6,000 ₪ per transaction. Configurable via CASH_CEILING (in ILS). 0 disables the check.
   cashCeilingAgorot: Number(process.env.CASH_CEILING ?? 6000) * 100,

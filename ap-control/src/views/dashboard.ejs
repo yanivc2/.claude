@@ -118,6 +118,12 @@
     <div class="num"><%= transfers.scheduledCount %></div>
     <div class="label">העברות מתוזמנות<%= transfers.awaitingApproval ? ' · ' + transfers.awaitingApproval + ' לאישור' : '' %></div>
   </a>
+  <% if (typeof pension !== 'undefined' && pension.atRisk) { %>
+  <a class="stat attn" href="/pension">
+    <div class="num"><%= pension.atRisk %></div>
+    <div class="label">חריגות פנסיה — טפל מיד</div>
+  </a>
+  <% } %>
 </div>
 
 <% if (recentTransfers && recentTransfers.length) { %>
@@ -152,6 +158,7 @@
     <a class="btn" href="/payments/new">+ צ׳ק חדש</a>
     <a class="btn secondary" href="/transfers/new">+ העברה בנקאית</a>
     <a class="btn secondary" href="/salaries/new">+ רישום שכר</a>
+    <a class="btn secondary" href="/pension/new">+ עובד (פנסיה)</a>
     <a class="btn secondary" href="/suppliers/new">+ ספק חדש</a>
     <a class="btn secondary" href="/reports/profitability">רווחיות</a>
   </div>

@@ -12,6 +12,7 @@ import invoiceRoutes from './routes/invoices.js';
 import paymentRoutes from './routes/payments.js';
 import transferRoutes from './routes/transfers.js';
 import salaryRoutes from './routes/salaries.js';
+import pensionRoutes from './routes/pension.js';
 import reportRoutes from './routes/reports.js';
 import reconciliationRoutes from './routes/reconciliation.js';
 import settingsRoutes from './routes/settings.js';
@@ -59,6 +60,7 @@ export function createApp() {
   app.use('/payments', paymentRoutes);
   app.use('/transfers', transferRoutes);
   app.use('/salaries', salaryRoutes);
+  app.use('/pension', pensionRoutes);
   app.use('/reports', reportRoutes);
   app.use('/reconciliation', reconciliationRoutes);
   app.use('/settings', settingsRoutes);

@@ -17,6 +17,8 @@ import {
 import { upgradeSchema } from '../db/index.js';
 import { requireOwner, requirePermission } from '../middleware/requireOwner.js';
 import { PERMISSIONS } from '../lib/permissions.js';
+import { config } from '../config.js';
+import { sendTelegram } from '../lib/notify.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -46,12 +48,27 @@ async function render(req, res, extra = {}) {
     companies,
     users,
     permissionCatalog: PERMISSIONS,
+    telegram: { enabled: config.telegram.enabled, chatId: config.telegram.chatId },
     error: null,
     notice: null,
     schemaWarning,
     ...extra,
   });
 }
+
+// Send a test push so the owner can confirm the Telegram channel is wired (the bot token stays
+// env-only, §12 — this only verifies it, never sets it).
+router.post('/test-push', requireOwner, async (req, res, next) => {
+  try {
+    if (!config.telegram.enabled) {
+      return render(req, res, { error: 'פוש אינו מוגדר — יש להגדיר TELEGRAM_BOT_TOKEN בסביבה ולפרוס מחדש.' });
+    }
+    const ok = await sendTelegram('✅ <b>בדיקת פוש — AP Control</b>\nההתראות מחוברות ופועלות.');
+    return render(req, res, ok ? { notice: 'נשלחה הודעת בדיקה בטלגרם.' } : { error: 'שליחת הבדיקה נכשלה — בדוק את הטוקן/מזהה הצ׳אט.' });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get('/', async (req, res, next) => {
   try {

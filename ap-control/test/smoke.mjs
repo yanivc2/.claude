@@ -82,7 +82,7 @@ check('created transfer appears', r.body.includes('חברת החשמל'));
 check('created transfer amount formatted', r.body.includes('2,180.50'));
 
 // A couple of existing pages still render under the new CSS
-for (const p of ['/invoices', '/payments', '/transfers/new', '/salaries', '/salaries/new', '/suppliers', '/reports/outstanding', '/reports/purchases', '/reports/profitability', '/settings']) {
+for (const p of ['/invoices', '/payments', '/transfers/new', '/salaries', '/salaries/new', '/pension', '/pension/new', '/suppliers', '/reports/outstanding', '/reports/purchases', '/reports/profitability', '/settings']) {
   const rr = await get(p, owner);
   check(`page ${p} renders`, rr.status === 200, `status ${rr.status}`);
 }
