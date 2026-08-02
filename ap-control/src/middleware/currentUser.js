@@ -31,6 +31,8 @@ export async function currentUser(req, res, next) {
         req.path === '/login' ||
         req.path === '/forgot' ||
         req.path.startsWith('/reset/') ||
+        req.path === '/privacy' ||
+        req.path === '/accessibility' ||
         req.path === '/audit/reminders/run'
       ) return next();
       return res.redirect('/login');
