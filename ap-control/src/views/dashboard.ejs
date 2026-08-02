@@ -1,0 +1,166 @@
+<%- include('partials/header') %>
+<h1>לוח בקרה</h1>
+
+<div class="card no-print">
+  <h2 style="margin-top:0">קיצורי תשלום</h2>
+  <div class="actions" style="flex-wrap:wrap">
+    <a class="btn" href="/payments/new?method=transfer">+ תשלום בהעברה</a>
+    <a class="btn" href="/payments/new?method=cash">+ תשלום במזומן</a>
+    <a class="btn" href="/payments/new?method=check">+ צ׳ק</a>
+    <a class="btn secondary" href="/payments/new">+ תשלום אחר</a>
+  </div>
+</div>
+
+<div class="card">
+  <h2>בדיקת חשבונית / צ׳ק</h2>
+  <form method="get" action="/" class="actions" style="flex-wrap:wrap">
+    <input name="q" value="<%= q %>" placeholder="ספרות אחרונות של חשבונית / צ׳ק, מס' הקצאה, או שם ספק" style="max-width:340px" />
+    <select name="company">
+      <option value="">כל החברות</option>
+      <% companies.forEach(function(c){ %>
+        <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+      <% }); %>
+    </select>
+    <select name="store">
+      <option value="">כל החנויות</option>
+      <% stores.forEach(function(s){ %>
+        <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %></option>
+      <% }); %>
+    </select>
+    <button type="submit">חפש</button>
+  </form>
+
+  <% if (invoiceResults) { %>
+    <h3 style="margin:1rem 0 .3rem">חשבוניות (<%= invoiceResults.length %>)</h3>
+    <table>
+      <thead><tr><th>#</th><th>ספק</th><th>חנות</th><th>מס'</th><th>הקצאה</th><th>תאריך</th><th class="right">סכום</th><th>מס' צ׳ק</th><th>פירעון</th></tr></thead>
+      <tbody>
+        <% if (invoiceResults.length === 0) { %><tr><td colspan="9" class="muted">אין חשבוניות תואמות.</td></tr><% } %>
+        <% invoiceResults.forEach(function(r){ %>
+          <tr>
+            <td><a href="/invoices/<%= r.id %>"><%= r.id %></a></td>
+            <td><%= r.supplier_name %></td>
+            <td><%= r.store_name %></td>
+            <td class="mono"><%= r.invoice_number %></td>
+            <td class="mono"><%= r.allocation_number || '—' %></td>
+            <td><%= r.invoice_date %></td>
+            <td class="right <%= r.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(r.total_amount) %></td>
+            <td class="mono"><%= r.check_number || '—' %></td>
+            <td>
+              <% if (r.payment_status) { %>
+                <span class="badge b-<%= r.payment_status %>"><%= r.payment_status === 'issued' ? 'בחוץ' : r.payment_status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
+              <% } else { %>—<% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <% if (checkResults) { %>
+    <h3 style="margin:1rem 0 .3rem">תשלומים (<%= checkResults.length %>)</h3>
+    <table>
+      <thead><tr><th>אמצעי / מזהה</th><th>ספק</th><th>חשבון</th><th>תאריך</th><th class="right">סכום</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <% if (checkResults.length === 0) { %><tr><td colspan="6" class="muted">אין תשלומים תואמים.</td></tr><% } %>
+        <% checkResults.forEach(function(c){ %>
+          <tr onclick="location='/payments/<%= c.id %>'" style="cursor:pointer">
+            <td><%= paymentIdent(c) %></td>
+            <td><%= c.supplier_name || '—' %></td>
+            <td><%= c.bank_account_name %></td>
+            <td><%= c.payment_date %></td>
+            <td class="right"><%= formatIls(c.amount) %></td>
+            <td><span class="badge b-<%= c.status %>"><%= c.status === 'issued' ? 'בחוץ' : c.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+
+  <% if (supplierResults) { %>
+    <h3 style="margin:1rem 0 .3rem">ספקים (<%= supplierResults.length %>)</h3>
+    <table>
+      <thead><tr><th>ספק</th><th>טלפון</th><th>מייל</th><th>איש קשר הנה"ח</th><th>סטטוס</th></tr></thead>
+      <tbody>
+        <% if (supplierResults.length === 0) { %><tr><td colspan="5" class="muted">אין ספקים תואמים.</td></tr><% } %>
+        <% supplierResults.forEach(function(s){ %>
+          <tr onclick="location='/suppliers/contacts?q=<%= encodeURIComponent(s.name) %>'" style="cursor:pointer">
+            <td><strong><%= s.name %></strong></td>
+            <td><%= s.phone || '—' %></td>
+            <td><%= s.email || '—' %></td>
+            <td><%= s.contact_name || '—' %><%= s.contact_phone ? ' · ' + s.contact_phone : '' %></td>
+            <td><span class="badge b-<%= s.status === 'approved' ? 'approved' : s.status === 'blocked' ? 'blocked' : 'on_hold' %>"><%= s.status === 'approved' ? 'מאושר' : s.status === 'blocked' ? 'חסום' : 'ממתין' %></span></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<div class="stat-grid">
+  <a class="stat <%= stats.pendingSuppliers ? 'attn' : '' %>" href="/suppliers?status=pending">
+    <div class="num"><%= stats.pendingSuppliers %></div>
+    <div class="label">ספקים ממתינים לאישור</div>
+  </a>
+  <a class="stat <%= stats.onHoldInvoices ? 'attn' : '' %>" href="/invoices?status=on_hold">
+    <div class="num"><%= stats.onHoldInvoices %></div>
+    <div class="label">חשבוניות מוחזקות</div>
+  </a>
+  <a class="stat" href="/invoices?status=approved_for_payment">
+    <div class="num"><%= stats.approvedInvoices %></div>
+    <div class="label">מאושרות לתשלום</div>
+  </a>
+  <a class="stat" href="/reports/outstanding">
+    <div class="num"><%= formatIls(stats.totalOutstanding) %></div>
+    <div class="label">צ׳קים בחוץ</div>
+  </a>
+  <a class="stat <%= transfers.awaitingApproval ? 'attn' : '' %>" href="/transfers?status=scheduled">
+    <div class="num"><%= transfers.scheduledCount %></div>
+    <div class="label">העברות מתוזמנות<%= transfers.awaitingApproval ? ' · ' + transfers.awaitingApproval + ' לאישור' : '' %></div>
+  </a>
+  <% if (typeof pension !== 'undefined' && pension.atRisk) { %>
+  <a class="stat attn" href="/pension">
+    <div class="num"><%= pension.atRisk %></div>
+    <div class="label">חריגות פנסיה — טפל מיד</div>
+  </a>
+  <% } %>
+</div>
+
+<% if (recentTransfers && recentTransfers.length) { %>
+<div class="card">
+  <div class="toolbar" style="margin-bottom:.6rem">
+    <h2 style="margin:0">העברות — שבועיים אחרונים</h2>
+    <a class="btn secondary small" href="/transfers">לכל ההעברות</a>
+  </div>
+  <table>
+    <thead><tr><th>מקבל</th><th>חשבון</th><th>תאריך</th><th class="right">סכום</th><th>אסמכתא</th><th>התאמה</th><th>סטטוס</th></tr></thead>
+    <tbody>
+      <% recentTransfers.slice(0, 8).forEach(function(t){ %>
+        <tr onclick="location='/transfers'" style="cursor:pointer">
+          <td><strong><%= t.payee %></strong></td>
+          <td class="muted"><%= t.account_name %></td>
+          <td class="mono"><%= t.transfer_date %></td>
+          <td class="right mono"><%= formatIls(t.amount) %></td>
+          <td><% if (t.reference) { %><%= t.proof_approved ? '✔ מאושרת' : 'ממתינה' %><% } else { %><span class="neg">חסרה</span><% } %></td>
+          <td><%= t.match_type === 'invoice' ? 'חשבונית ' + (t.invoice_number || '') : (t.match_type === 'none' ? 'ללא חשבונית' : 'טרם הותאמה') %></td>
+          <td><span class="badge b-<%= t.status %>"><%= t.status === 'executed' ? 'בוצעה' : 'מתוזמנת' %></span></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<div class="card">
+  <h2>פעולות מהירות</h2>
+  <div class="actions">
+    <a class="btn" href="/invoices/new">+ חשבונית חדשה</a>
+    <a class="btn" href="/payments/new">+ צ׳ק חדש</a>
+    <a class="btn secondary" href="/transfers/new">+ העברה בנקאית</a>
+    <a class="btn secondary" href="/salaries/new">+ רישום שכר</a>
+    <a class="btn secondary" href="/pension/new">+ עובד (פנסיה)</a>
+    <a class="btn secondary" href="/suppliers/new">+ ספק חדש</a>
+    <a class="btn secondary" href="/reports/profitability">רווחיות</a>
+  </div>
+</div>
+<%- include('partials/footer') %>

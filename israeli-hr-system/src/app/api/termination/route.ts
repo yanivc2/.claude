@@ -6,6 +6,8 @@ import {
   generateTerminationLetter,
   type ReasonItem,
 } from "@/lib/documentGenerator";
+import { requireAdmin, canAccessEmployee, isStoreManager } from "@/lib/rbac";
+import { notifyOwner } from "@/lib/notifications";
 
 const schema = z.object({
   employeeId: z.string(),
@@ -35,7 +37,12 @@ function reasonSummary(reasons: ReasonItem[], notes: string): string {
 }
 
 // POST /api/termination — הפקת מסמכי סיום העסקה עם חישוב הודעה מוקדמת.
+// מותר לכל מנהל מחובר (כולל מנהל חנות, מוגבל לעובדי חברתו). כשמנהל חנות
+// מנפיק — נשלחת התראה + פוש לבעלים.
 export async function POST(req: Request) {
+  const me = await requireAdmin(req);
+  if (!me) return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) {
     return NextResponse.json({ error: "נתונים שגויים" }, { status: 400 });
@@ -44,6 +51,10 @@ export async function POST(req: Request) {
 
   if (d.reasons.length === 0 && !d.notes.trim()) {
     return NextResponse.json({ error: "יש לבחור נימוק אחד לפחות או להוסיף מלל." }, { status: 400 });
+  }
+
+  if (!(await canAccessEmployee(me, d.employeeId))) {
+    return NextResponse.json({ error: "העובד לא נמצא" }, { status: 404 });
   }
 
   const employee = await prisma.employee.findUnique({ where: { id: d.employeeId } });
@@ -89,6 +100,17 @@ export async function POST(req: Request) {
       },
     });
 
+    if (isStoreManager(me)) {
+      await notifyOwner({
+        type: "HEARING_ISSUED",
+        title: "הונפקה הזמנה לשימוע",
+        body: `${me.name} הנפיק/ה הזמנה לשימוע עבור ${employee.firstName} ${employee.lastName}.`,
+        link: `/employees/${d.employeeId}`,
+        actorName: me.name,
+        companyId: me.companyId,
+      });
+    }
+
     return NextResponse.json({ type: d.docType, title, html });
   }
 
@@ -117,6 +139,17 @@ export async function POST(req: Request) {
       data: { status: "NOTICE_PERIOD", endDate: lastWorkingDay },
     }),
   ]);
+
+  if (isStoreManager(me)) {
+    await notifyOwner({
+      type: "TERMINATION_ISSUED",
+      title: "הונפק מכתב סיום העסקה",
+      body: `${me.name} הנפיק/ה ${resignation ? "מכתב סיום העסקה (כדין מתפטר/ת)" : "מכתב פיטורין"} עבור ${employee.firstName} ${employee.lastName}.`,
+      link: `/employees/${d.employeeId}`,
+      actorName: me.name,
+      companyId: me.companyId,
+    });
+  }
 
   return NextResponse.json({
     type: d.docType,

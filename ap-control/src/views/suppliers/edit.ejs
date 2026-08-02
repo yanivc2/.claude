@@ -1,0 +1,30 @@
+<%- include('../partials/header') %>
+<h1>עריכת ספק</h1>
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+<div class="card">
+  <form class="stack" method="post" action="/suppliers/<%= supplier.id %>/edit">
+    <label>שם ספק *</label>
+    <input name="name" required value="<%= supplier.name || '' %>" />
+    <label>ח.פ. / מס' עוסק</label>
+    <input name="tax_id" value="<%= supplier.tax_id || '' %>" />
+
+    <h3 style="margin:1rem 0 .2rem">פרטי קשר</h3>
+    <div class="row">
+      <div><label>טלפון</label><input name="phone" inputmode="tel" value="<%= supplier.phone || '' %>" /></div>
+      <div><label>מייל</label><input name="email" inputmode="email" value="<%= supplier.email || '' %>" /></div>
+    </div>
+    <div class="row">
+      <div><label>איש קשר הנה"ח</label><input name="contact_name" value="<%= supplier.contact_name || '' %>" /></div>
+      <div><label>טלפון איש קשר</label><input name="contact_phone" inputmode="tel" value="<%= supplier.contact_phone || '' %>" /></div>
+    </div>
+
+    <label>הערות</label>
+    <textarea name="notes" rows="2"><%= supplier.notes || '' %></textarea>
+    <div style="margin-top:1rem" class="actions">
+      <button type="submit">שמור שינויים</button>
+      <a href="/suppliers" class="btn secondary">ביטול</a>
+    </div>
+  </form>
+</div>
+<%- include('../partials/footer') %>

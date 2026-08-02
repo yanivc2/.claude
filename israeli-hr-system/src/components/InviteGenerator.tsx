@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Send, Plus } from "lucide-react";
 
 interface Invite {
   id: string;
@@ -28,9 +29,9 @@ const STATUS_LABEL: Record<Invite["status"], string> = {
 };
 
 const STATUS_STYLE: Record<Invite["status"], string> = {
-  PENDING: "bg-amber-50 text-amber-700",
-  COMPLETED: "bg-green-50 text-green-700",
-  CANCELLED: "bg-slate-100 text-slate-500",
+  PENDING: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300",
+  COMPLETED: "bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-400",
+  CANCELLED: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400",
 };
 
 // כפתור העתקה לזיכרון עם משוב חזותי קצר.
@@ -57,7 +58,7 @@ function CopyButton({ url }: { url: string }) {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -252,16 +253,24 @@ export function InviteGenerator() {
   }
 
   return (
-    <section className="mb-8 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-      <h2 className="text-lg font-semibold text-slate-800">שליחת קישור קליטה לעובד</h2>
-      <p className="mt-1 text-sm text-slate-500">
-        צור/י קישור אישי ומאובטח ושלח/י לעובד (ב-WhatsApp, מייל או SMS). העובד ימלא את
-        הטופס, יעלה ת.ז ויחתום — והפרטים יישמרו כאן אוטומטית.
-      </p>
+    <section className="mb-8 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
+      <div className="flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+          <Send size={20} />
+        </span>
+        <div>
+          <h2 className="text-lg font-bold leading-tight text-slate-800 dark:text-slate-100">
+            שליחת קישור קליטה לעובד
+          </h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
+            העובד ממלא את הטופס בעצמו — פרטים, ת.ז וחתימה — והכול נשמר כאן אוטומטית.
+          </p>
+        </div>
+      </div>
 
       {/* בחירת חברה + ניהול רשימת החברות */}
       <div className="mt-4">
-        <label className="mb-1 block text-sm font-medium text-slate-700">
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
           חברה (תופיע ככותרת לעובד בקישור)
         </label>
         <select
@@ -277,8 +286,8 @@ export function InviteGenerator() {
           ))}
         </select>
 
-        <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 p-3">
-          <p className="mb-2 text-xs font-medium text-slate-500">
+        <div className="mt-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-3">
+          <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
             הוספת חברה חדשה (ח.פ. וכתובת נדרשים למדיניות הפרטיות)
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -304,9 +313,10 @@ export function InviteGenerator() {
           <button
             type="button"
             onClick={addCompany}
-            className="mt-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-sm font-medium text-brand-700 transition hover:bg-brand-100"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/15 px-3 py-2 text-sm font-medium text-brand-700 dark:text-brand-300 transition hover:bg-brand-100 dark:hover:bg-brand-500/25"
           >
-            ➕ הוספת חברה
+            <Plus size={15} strokeWidth={2.6} />
+            הוספת חברה
           </button>
         </div>
 
@@ -315,7 +325,7 @@ export function InviteGenerator() {
             {companies.map((c) => (
               <span
                 key={c.id}
-                className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600"
+                className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs text-slate-600 dark:text-slate-300"
               >
                 {c.name}
                 <button
@@ -355,8 +365,8 @@ export function InviteGenerator() {
       </div>
 
       {/* פרטי העסקה שה-HR קובע — אינם מוצגים לעובד */}
-      <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
-        <p className="mb-2 text-xs font-medium text-slate-500">
+      <div className="mt-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-3">
+        <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
           פרטי העסקה (למעסיק בלבד — לא מוצג לעובד)
         </p>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -393,17 +403,17 @@ export function InviteGenerator() {
 
       {/* צירוף הסכם עבודה שיישלח לעובד לקריאה וחתימה */}
       <div className="mt-3">
-        <label className="mb-1 block text-sm font-medium text-slate-700">
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">
           צירוף הסכם עבודה לשליחה לעובד (אופציונלי)
         </label>
         <input
           type="file"
           accept="image/*,application/pdf"
           onChange={(e) => setContractFile(e.target.files?.[0] ?? null)}
-          className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+          className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
         />
         {contractFile && (
-          <p className="mt-1 text-xs text-green-700">מצורף: {contractFile.name}</p>
+          <p className="mt-1 text-xs text-green-700 dark:text-green-400">מצורף: {contractFile.name}</p>
         )}
       </div>
 
@@ -411,24 +421,25 @@ export function InviteGenerator() {
         type="button"
         onClick={generate}
         disabled={loading}
-        className="mt-4 w-full rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
+        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
       >
-        {loading ? "יוצר קישור..." : "➕ יצירת קישור קליטה"}
+        <Plus size={17} strokeWidth={2.6} />
+        {loading ? "יוצר קישור..." : "יצירת קישור קליטה"}
       </button>
 
       {error && (
-        <p className="mt-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+        <p className="mt-3 rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-3 text-sm text-red-700 dark:text-red-400">{error}</p>
       )}
 
       {newInvite && (
-        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-4">
-          <p className="text-sm font-medium text-green-800">הקישור נוצר! שלח/י לעובד:</p>
+        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 dark:bg-green-500/15 p-4">
+          <p className="text-sm font-medium text-green-800 dark:text-green-300">הקישור נוצר! שלח/י לעובד:</p>
           <div className="mt-2 flex items-center gap-2">
             <input
               readOnly
               value={newInvite.url}
               onFocus={(e) => e.target.select()}
-              className="min-w-0 flex-1 rounded-lg border border-green-300 bg-white px-3 py-2 text-xs text-slate-700"
+              className="min-w-0 flex-1 rounded-lg border border-green-300 bg-white dark:bg-slate-900 px-3 py-2 text-xs text-slate-700 dark:text-slate-200"
             />
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -440,22 +451,22 @@ export function InviteGenerator() {
 
       {invites.length > 0 && (
         <div className="mt-6">
-          <h3 className="mb-2 text-sm font-semibold text-slate-700">קישורים שנוצרו</h3>
-          <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+          <h3 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-200">קישורים שנוצרו</h3>
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800 rounded-lg border border-slate-200 dark:border-slate-800">
             {invites.map((inv) => (
               <li
                 key={inv.id}
                 className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm text-slate-800">
+                  <p className="truncate text-sm text-slate-800 dark:text-slate-100">
                     {inv.employeeName ||
                       [inv.firstName, inv.lastName].filter(Boolean).join(" ") ||
                       "עובד ללא שם"}
                   </p>
-                  <p className="truncate text-xs text-slate-400">{linkFor(inv.token)}</p>
+                  <p className="truncate text-xs text-slate-400 dark:text-slate-400">{linkFor(inv.token)}</p>
                   {inv.hasContract && (
-                    <p className="mt-0.5 text-xs text-slate-500">📄 הסכם עבודה מצורף</p>
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">📄 הסכם עבודה מצורף</p>
                   )}
                 </div>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -475,7 +486,7 @@ export function InviteGenerator() {
                     onClick={() => deleteInvite(inv.id)}
                     aria-label="מחיקת קישור"
                     title="מחיקת קישור"
-                    className="shrink-0 rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-red-600 transition hover:bg-red-50"
+                    className="shrink-0 rounded-lg border border-slate-300 dark:border-slate-700 px-2 py-1.5 text-xs text-red-600 dark:text-red-400 transition hover:bg-red-50 dark:hover:bg-red-500/15"
                   >
                     🗑️ מחיקה
                   </button>

@@ -84,7 +84,7 @@ export function EmployeeExport({ data }: { data: ExportData }) {
         `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}.meta{font-size:13px;color:#475569}` +
         `.bar{position:sticky;top:0;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;background:#0f172a;padding:20px}` +
         `.bar button{border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;cursor:pointer}` +
-        `.b-print{background:#2563eb;color:#fff}.b-close{background:#ef4444;color:#fff}` +
+        `.b-print{background:#4c51b8;color:#fff}.b-close{background:#ef4444;color:#fff}` +
         `@media print{.bar{display:none}.page{margin:0}}</style>` +
         `</head><body>` +
         `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה / שמירה</button>` +

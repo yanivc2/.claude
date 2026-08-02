@@ -1,0 +1,129 @@
+<%- include('partials/header') %>
+<div class="toolbar">
+  <h1 style="margin:0">יומן</h1>
+  <div class="actions no-print">
+    <a class="btn <%= view === 'week' ? 'secondary' : '' %>" href="/audit?view=month&anchor=<%= anchor %>">חודשי</a>
+    <a class="btn <%= view === 'week' ? '' : 'secondary' %>" href="/audit?view=week&anchor=<%= anchor %>">שבועי</a>
+  </div>
+</div>
+
+<!-- מצב חשבון (רק אם יש יתרה עדכנית) -->
+<% if (balances && balances.length) { %>
+  <div class="stat-grid" style="margin-bottom:1rem">
+    <% balances.forEach(function(b){ %>
+      <div class="stat">
+        <div class="num <%= b.balance < 0 ? 'neg' : '' %>"><%= formatIls(b.balance) %></div>
+        <div class="label"><%= b.display_name %> · מצב חשבון (<%= b.asOf %>)</div>
+      </div>
+    <% }); %>
+  </div>
+<% } %>
+
+<div class="card">
+  <div class="toolbar">
+    <div class="actions no-print">
+      <a class="btn secondary small" href="/audit?view=<%= view %>&anchor=<%= prevAnchor %>">‹ הקודם</a>
+      <a class="btn secondary small" href="/audit?view=<%= view %>&anchor=<%= todayAnchor %>">היום</a>
+      <a class="btn secondary small" href="/audit?view=<%= view %>&anchor=<%= nextAnchor %>">הבא ›</a>
+    </div>
+    <strong><%= periodLabel %></strong>
+  </div>
+  <p class="muted">צ׳קים בחוץ לפי תאריך פירעון — מתי צפויים לרדת מהחשבון. סה"כ בטווח המוצג:
+    <strong><%= rangeCount %></strong> צ׳קים · <strong><%= formatIls(rangeTotal) %></strong>.</p>
+
+  <% var wk = view === 'week' ? 'week' : ''; %>
+  <div class="cal-grid <%= wk %>" style="margin-bottom:6px">
+    <% ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'].forEach(function(d){ %>
+      <div class="cal-head"><%= d %></div>
+    <% }); %>
+  </div>
+  <% weeks.forEach(function(week){ %>
+    <div class="cal-grid <%= wk %>" style="margin-bottom:6px">
+      <% week.forEach(function(c){ %>
+        <div class="cal-cell <%= c.inMonth ? '' : 'other' %> <%= c.isToday ? 'today' : '' %>">
+          <div class="daynum"><%= c.day %></div>
+          <% if (c.count > 0) { %>
+            <span class="chk neg"><%= c.count %> צ׳קים</span>
+            <span class="chk neg"><%= formatIls(c.total) %></span>
+          <% } %>
+          <% (c.events || []).forEach(function(e){ %>
+            <span class="chk ev"><%= e.remind ? '🔔 ' : '' %><%= e.event_time ? e.event_time + ' ' : '' %><%= e.title %></span>
+          <% }); %>
+        </div>
+      <% }); %>
+    </div>
+  <% }); %>
+</div>
+
+<!-- אירועים ותזכורות -->
+<div class="card">
+  <div class="toolbar">
+    <h2 style="margin:0">אירועים ותזכורות</h2>
+    <% if (remindersEnabled) { %>
+      <form method="post" action="/audit/reminders/run" class="no-print">
+        <input type="hidden" name="view" value="<%= view %>" /><input type="hidden" name="anchor" value="<%= anchor %>" />
+        <button class="secondary small" type="submit">בדוק תזכורות עכשיו</button>
+      </form>
+    <% } %>
+  </div>
+  <form method="post" action="/audit/events" class="actions no-print" style="flex-wrap:wrap;gap:.5rem;align-items:flex-end">
+    <input type="hidden" name="view" value="<%= view %>" /><input type="hidden" name="anchor" value="<%= anchor %>" />
+    <div><label style="margin:0">כותרת *</label><input name="title" required placeholder="למשל: פגישה עם רו״ח" /></div>
+    <div><label style="margin:0">תאריך *</label><input type="date" name="event_date" value="<%= todayAnchor %>" required /></div>
+    <div><label style="margin:0">שעה</label><input type="time" name="event_time" /></div>
+    <label style="display:flex;align-items:center;gap:.3rem;margin:0"><input type="checkbox" name="remind" value="1" style="width:auto" /> תזכורת בפוש</label>
+    <div><button type="submit">הוסף אירוע</button></div>
+  </form>
+  <% if (!remindersEnabled) { %>
+    <p class="muted" style="margin:.4rem 0 0">תזכורות פוש נשלחות דרך בוט הטלגרם — כרגע אינו מוגדר (חסר <span class="mono">TELEGRAM_BOT_TOKEN</span>). אירועים עדיין נשמרים ומוצגים ביומן.</p>
+  <% } %>
+
+  <% if (events && events.length) { %>
+    <table class="sortable" style="margin-top:.8rem">
+      <thead><tr><th>תאריך</th><th>שעה</th><th>כותרת</th><th>תזכורת</th><th data-nosort class="no-print"></th></tr></thead>
+      <tbody>
+        <% events.forEach(function(e){ %>
+          <tr>
+            <td><%= e.event_date %></td>
+            <td class="mono"><%= e.event_time || '—' %></td>
+            <td><%= e.title %></td>
+            <td><%= e.remind ? (e.remind_sent ? 'נשלחה' : '🔔 ממתינה') : '—' %></td>
+            <td class="no-print">
+              <form method="post" action="/audit/events/<%= e.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את האירוע?')">
+                <input type="hidden" name="view" value="<%= view %>" /><input type="hidden" name="anchor" value="<%= anchor %>" />
+                <button class="danger small" type="submit">מחק</button>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } else { %>
+    <p class="muted" style="margin-top:.6rem">אין אירועים בטווח המוצג.</p>
+  <% } %>
+</div>
+
+<!-- יומן ביקורת מלא (מצומצם לתחתית העמוד) -->
+<details class="section">
+  <summary>יומן ביקורת מלא</summary>
+  <div class="section-body">
+    <p class="muted">כל פעולה משנת-מצב נרשמת: מי, מה, מתי (§4 audit_log).</p>
+    <table class="sortable">
+      <thead><tr><th>מזהה</th><th>זמן</th><th>משתמש</th><th>פעולה</th><th>ישות</th><th data-nosort>פרטים</th></tr></thead>
+      <tbody>
+        <% if (entries.length === 0) { %><tr><td colspan="6" class="muted">היומן ריק.</td></tr><% } %>
+        <% entries.forEach(function(e){ %>
+          <tr>
+            <td><%= e.id %></td>
+            <td class="mono"><%= e.timestamp %></td>
+            <td><%= e.user_name || '—' %></td>
+            <td class="mono"><%= e.action %></td>
+            <td><%= e.entity_type %><%= e.entity_id ? ' #' + e.entity_id : '' %></td>
+            <td class="muted"><%= e.details || '' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</details>
+<%- include('partials/footer') %>

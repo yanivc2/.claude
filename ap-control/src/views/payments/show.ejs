@@ -1,0 +1,61 @@
+<%- include('../partials/header') %>
+<div class="toolbar">
+  <h1><%= methodLabel(payment.method) %> #<%= payment.id %> · <span class="mono"><%= paymentIdent(payment) %></span>
+    <span class="badge b-<%= payment.status %>"><%= payment.status === 'issued' ? 'הונפק' : payment.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
+  </h1>
+  <div class="actions">
+    <% if (payment.method === 'check') { %>
+      <a href="/payments/<%= payment.id %>/print" class="btn secondary" target="_blank">הדפס צ׳ק (טיוטה)</a>
+    <% } %>
+    <a href="/payments" class="btn secondary">חזרה לרשימה</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <div><span class="muted">חשבון בנק</span><br><%= payment.bank_account_name %></div>
+    <div><span class="muted">תאריך תשלום</span><br><%= payment.payment_date %></div>
+    <div><span class="muted">סכום</span><br><strong><%= formatIls(payment.amount) %></strong></div>
+    <div><span class="muted">נפרע בתאריך</span><br><%= payment.cleared_date || '—' %></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>שורות (חשבוניות / זיכויים)</h2>
+  <table>
+    <thead><tr><th>חשבונית</th><th>ספק</th><th>סוג</th><th>תאריך</th><th class="right">סכום מיושם</th></tr></thead>
+    <tbody>
+      <% payment.lines.forEach(function(l){ %>
+        <tr>
+          <td><a href="/invoices/<%= l.invoice_id %>" class="mono"><%= l.invoice_number %></a></td>
+          <td><%= l.supplier_name %></td>
+          <td><%= l.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
+          <td><%= l.invoice_date %></td>
+          <td class="right <%= l.amount_applied < 0 ? 'neg' : '' %>"><%= formatIls(l.amount_applied) %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
+<% if (payment.status === 'issued') { %>
+  <div class="card">
+    <h2>פעולות</h2>
+    <div class="actions">
+      <form method="post" action="/payments/<%= payment.id %>/clear" class="actions">
+        <input type="date" name="cleared_date" style="width:180px" />
+        <button class="ok" type="submit">סמן כנפרע</button>
+      </form>
+      <% if (currentUser.role === 'owner') { %>
+        <form method="post" action="/payments/<%= payment.id %>/void" class="actions" onsubmit="return confirm('לבטל את הצ׳ק? החשבוניות יחזרו לסטטוס מאושר לתשלום.')">
+          <input name="reason" placeholder="סיבת ביטול" style="width:200px" />
+          <button class="danger" type="submit">בטל צ׳ק (בעלים)</button>
+        </form>
+      <% } else { %>
+        <span class="muted">ביטול צ׳ק — בעלים בלבד</span>
+      <% } %>
+    </div>
+    <p class="muted">פירעון ידני בשלב 1; בשלב 2 יבוצע אוטומטית מול תנועות הבנק (R7).</p>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>

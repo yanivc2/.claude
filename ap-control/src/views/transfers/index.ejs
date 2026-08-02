@@ -1,0 +1,163 @@
+<%- include('../partials/header') %>
+<%
+  function statusLabel(s) { return s === 'executed' ? 'בוצעה' : s === 'cancelled' ? 'בוטלה' : 'מתוזמנת'; }
+  function matchLabel(t) {
+    if (t.match_type === 'invoice') return 'חשבונית ' + (t.invoice_number || t.invoice_id);
+    if (t.match_type === 'none') return 'ללא חשבונית';
+    return 'טרם הותאמה';
+  }
+  var isOwner = currentUser.role === 'owner';
+%>
+<div class="toolbar">
+  <h1 style="margin:0">העברות בנקאיות</h1>
+  <a class="btn" href="/transfers/new">+ העברה חדשה</a>
+</div>
+
+<% if (notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div><% } %>
+
+<div class="stat-grid">
+  <div class="stat">
+    <div class="num"><%= summary.scheduledCount %></div>
+    <div class="label">העברות מתוזמנות</div>
+  </div>
+  <div class="stat <%= summary.awaitingApproval ? 'attn' : '' %>">
+    <div class="num"><%= summary.awaitingApproval %></div>
+    <div class="label">ממתינות לאישור אסמכתא</div>
+  </div>
+  <div class="stat <%= summary.unmatched ? 'attn' : '' %>">
+    <div class="num"><%= summary.unmatched %></div>
+    <div class="label">ללא התאמה לחשבונית</div>
+  </div>
+  <div class="stat">
+    <div class="num" style="font-size:1.4rem"><%= formatIls(summary.scheduledTotal) %></div>
+    <div class="label">סה״כ מתוזמן</div>
+  </div>
+</div>
+
+<div class="card no-print">
+  <form method="get" action="/transfers" class="actions" style="flex-wrap:wrap">
+    <select name="status" style="max-width:180px">
+      <option value="">כל הסטטוסים</option>
+      <option value="scheduled" <%= filter === 'scheduled' ? 'selected' : '' %>>מתוזמנת</option>
+      <option value="executed" <%= filter === 'executed' ? 'selected' : '' %>>בוצעה</option>
+      <option value="cancelled" <%= filter === 'cancelled' ? 'selected' : '' %>>בוטלה</option>
+    </select>
+    <select name="account" style="max-width:260px">
+      <option value="">כל החשבונות</option>
+      <% accounts.forEach(function(a){ %>
+        <option value="<%= a.id %>" <%= String(accountId) === String(a.id) ? 'selected' : '' %>><%= a.display_name %></option>
+      <% }); %>
+    </select>
+    <button type="submit">סנן</button>
+    <% if (filter || accountId) { %><a class="btn secondary" href="/transfers">נקה</a><% } %>
+  </form>
+</div>
+
+<div class="card" style="padding:0">
+  <table class="sortable">
+    <thead>
+      <tr>
+        <th>מקבל</th>
+        <th>חשבון</th>
+        <th>תאריך</th>
+        <th class="right">סכום</th>
+        <th>אסמכתא</th>
+        <th>התאמה</th>
+        <th>סטטוס</th>
+        <th data-nosort>פעולות</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (transfers.length === 0) { %>
+        <tr><td colspan="8" class="muted">אין העברות להצגה.</td></tr>
+      <% } %>
+      <% transfers.forEach(function(t){ %>
+        <tr>
+          <td><strong><%= t.payee %></strong><% if (t.recurrence === 'monthly') { %> <span class="badge b-recorded">חודשי</span><% } %></td>
+          <td class="muted"><%= t.account_name %></td>
+          <td class="mono"><%= t.transfer_date %></td>
+          <td class="right mono"><%= formatIls(t.amount) %></td>
+          <td>
+            <% if (t.reference) { %>
+              <span class="mono"><%= t.reference %></span>
+              <% if (t.proof_approved) { %><span class="badge b-approved">מאושרת</span><% } else { %><span class="badge b-on_hold">ממתינה</span><% } %>
+            <% } else { %><span class="badge b-blocked">חסרה</span><% } %>
+            <% if (t.image_path) { %> <a href="/transfers/<%= t.id %>/image" target="_blank" title="תמונת אסמכתא">📎</a><% } %>
+            <% if (t.status === 'executed') { %>
+              <% if (t.verified) { %><span class="badge b-cleared" title="אומת מול דף תנועות">אומת ✔</span><% } else { %><span class="badge b-on_hold" title="טרם אומת מול דף תנועות">לא אומת</span><% } %>
+            <% } %>
+          </td>
+          <td>
+            <% if (t.match_type === 'invoice') { %><span class="badge b-approved_for_payment"><%= matchLabel(t) %></span>
+            <% } else if (t.match_type === 'none') { %><span class="badge b-recorded">ללא חשבונית</span>
+            <% } else { %><span class="badge b-on_hold">טרם הותאמה</span><% } %>
+          </td>
+          <td><span class="badge b-<%= t.status %>"><%= statusLabel(t.status) %></span></td>
+          <td>
+            <% if (t.status !== 'cancelled') { %>
+              <div class="actions">
+                <% if (isOwner && t.status === 'scheduled' && t.reference && !t.proof_approved) { %>
+                  <form method="post" action="/transfers/<%= t.id %>/approve" style="display:inline">
+                    <button type="submit" class="btn ok small">אשר אסמכתא</button>
+                  </form>
+                <% } %>
+                <% if (t.status === 'scheduled' && t.proof_approved) { %>
+                  <form method="post" action="/transfers/<%= t.id %>/execute" style="display:inline">
+                    <button type="submit" class="btn small">סמן כבוצעה</button>
+                  </form>
+                <% } %>
+                <% if (!t.reference && t.status === 'scheduled') { %>
+                  <details class="paymenu">
+                    <summary class="btn secondary small">+ אסמכתא</summary>
+                    <div class="paymenu-items">
+                      <form method="post" action="/transfers/<%= t.id %>/reference">
+                        <input name="reference" placeholder="מס' אסמכתא" required />
+                        <button type="submit" class="btn small" style="margin-top:.3rem;width:100%">שמור</button>
+                      </form>
+                    </div>
+                  </details>
+                <% } %>
+                <% if (!t.image_path && t.status !== 'cancelled') { %>
+                  <details class="paymenu">
+                    <summary class="btn secondary small">+ תמונה</summary>
+                    <div class="paymenu-items">
+                      <form method="post" action="/transfers/<%= t.id %>/image" enctype="multipart/form-data">
+                        <input type="file" name="image" accept="image/*,application/pdf" required />
+                        <button type="submit" class="btn small" style="margin-top:.3rem;width:100%">העלה</button>
+                      </form>
+                    </div>
+                  </details>
+                <% } %>
+                <% if (isOwner && t.status === 'executed') { %>
+                  <form method="post" action="/transfers/<%= t.id %>/verify" style="display:inline">
+                    <% if (t.verified) { %>
+                      <input type="hidden" name="undo" value="1" />
+                      <button type="submit" class="btn secondary small">בטל אימות</button>
+                    <% } else { %>
+                      <button type="submit" class="btn ok small">אמת מול בנק</button>
+                    <% } %>
+                  </form>
+                <% } %>
+                <% if (isOwner) { %>
+                  <details class="paymenu">
+                    <summary class="btn danger small">בטל</summary>
+                    <div class="paymenu-items">
+                      <form method="post" action="/transfers/<%= t.id %>/cancel">
+                        <input name="reason" placeholder="סיבת ביטול" />
+                        <button type="submit" class="btn danger small" style="margin-top:.3rem;width:100%">בטל העברה</button>
+                      </form>
+                    </div>
+                  </details>
+                <% } %>
+              </div>
+            <% } else if (t.cancel_reason) { %>
+              <span class="muted">בוטלה — <%= t.cancel_reason %></span>
+            <% } %>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

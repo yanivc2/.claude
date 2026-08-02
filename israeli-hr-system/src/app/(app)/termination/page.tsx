@@ -1,13 +1,18 @@
+import { Users } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { TerminationForm } from "@/components/TerminationForm";
+import { EmptyState } from "@/components/EmptyState";
+import { currentAdmin } from "@/lib/session";
+import { employeeScope } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "סיום העסקה" };
 
 export default async function TerminationPage() {
+  const me = await currentAdmin();
   const employees = await prisma.employee
     .findMany({
-      where: { status: { in: ["ACTIVE", "NOTICE_PERIOD"] } },
+      where: { status: { in: ["ACTIVE", "NOTICE_PERIOD"] }, ...(me ? employeeScope(me) : { id: "__none__" }) },
       orderBy: { lastName: "asc" },
       include: { onboardingInvite: { select: { companyName: true } } },
     })
@@ -23,8 +28,8 @@ export default async function TerminationPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">סיום העסקה</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">סיום העסקה</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           הפקת הזמנה לשימוע ומכתב פיטורין. ימי ההודעה המוקדמת מחושבים אוטומטית לפי
           חוק הודעה מוקדמת ומועד תחילת העבודה.
         </p>
@@ -32,9 +37,11 @@ export default async function TerminationPage() {
       {options.length > 0 ? (
         <TerminationForm employees={options} />
       ) : (
-        <p className="rounded-xl border border-dashed border-slate-300 bg-white p-10 text-center text-sm text-slate-500">
-          אין עובדים פעילים במערכת. יש לקלוט עובד תחילה.
-        </p>
+        <EmptyState
+          icon={Users}
+          title="אין עובדים פעילים"
+          subtitle="יש לקלוט עובד תחילה כדי להפיק מסמכי סיום העסקה."
+        />
       )}
     </div>
   );

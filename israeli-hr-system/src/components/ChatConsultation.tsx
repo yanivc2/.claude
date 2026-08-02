@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Scale, Mic, Send, Sparkles } from "lucide-react";
 
 interface Citation {
   title: string;
@@ -30,7 +31,23 @@ interface SpeechRecognitionLike {
 type SpeechRecognitionCtor = new () => SpeechRecognitionLike;
 
 const DISCLAIMER =
-  'ℹ️ המידע כללי בלבד, מבוסס על "כל זכות", ואינו מהווה תחליף לייעוץ משפטי פרטני. אין להסתמך עליו כראיה משפטית.';
+  'המידע כללי בלבד, מבוסס על "כל זכות", ואינו מהווה תחליף לייעוץ משפטי פרטני. אין להסתמך עליו כראיה משפטית.';
+
+// שאלות לדוגמה — לחיצה ממלאת את שדה הקלט.
+const SUGGESTIONS = [
+  "כמה ימי הודעה מוקדמת מגיעים לעובד עם שנתיים ותק?",
+  "מה גובה דמי ההבראה השנתיים?",
+  "מתי חובה לפתוח קרן פנסיה לעובד חדש?",
+  "כמה ימי חופשה בשנה מגיעים במשרה מלאה?",
+];
+
+// מפריד בין גוף התשובה לבין JSON הציטוטים בזרם (חייב להתאים לשרת).
+const CITES_SENTINEL = "\n CITES ";
+
+// מסתיר את שורת ה-SOURCES מהתצוגה (הציטוטים מוצגים בנפרד).
+function stripSources(s: string): string {
+  return s.replace(/\n?\s*SOURCES\s*:.*$/is, "").trimEnd();
+}
 
 // ממשק צ'אט להתייעצות על זכויות וחוקי עבודה. שולח שאלות ל-API מבוסס RAG.
 export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: string } = {}) {
@@ -42,6 +59,16 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   // הטקסט שהיה בשדה כשהתחילה ההקלטה — התמלול מתווסף אליו.
   const baseInputRef = useRef("");
+  // עזרי הקלטה: הטקסט העדכני, דגל "שלח בסיום", והפניה לפונקציית השליחה
+  // (כדי להימנע מ-closure מיושן בתוך onend של זיהוי הדיבור).
+  const latestInputRef = useRef("");
+  const autoSubmitRef = useRef(false);
+  const submitRef = useRef<(q: string) => void>(() => {});
+
+  // שמירת הטקסט העדכני והפונקציה העדכנית בכל רינדור.
+  useEffect(() => {
+    latestInputRef.current = input;
+  }, [input]);
 
   useEffect(() => {
     const w = window as unknown as {
@@ -65,8 +92,19 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
       setInput(base ? `${base} ${text}`.trim() : text.trim());
     };
     rec.onstart = () => setListening(true);
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
+    // בסיום ההקלטה: אם המשתמש לחץ "עצור" — שולחים אוטומטית את מה שתומלל.
+    rec.onend = () => {
+      setListening(false);
+      if (autoSubmitRef.current) {
+        autoSubmitRef.current = false;
+        const q = latestInputRef.current.trim();
+        if (q) submitRef.current(q);
+      }
+    };
+    rec.onerror = () => {
+      autoSubmitRef.current = false;
+      setListening(false);
+    };
     recognitionRef.current = rec;
   }, []);
 
@@ -74,7 +112,8 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
     const rec = recognitionRef.current;
     if (!rec) return;
     if (listening) {
-      rec.stop(); // מסיים ומתמלל את מה שנקלט (onend יעדכן את הסטטוס)
+      autoSubmitRef.current = true; // עצירה = שליחה אוטומטית
+      rec.stop();
     } else {
       baseInputRef.current = input;
       try {
@@ -85,53 +124,98 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
     }
   }
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
-    const question = input.trim();
-    if (!question || loading) return;
+  // עדכון הודעת העוזר האחרונה (הזורמת) בתוכן ובציטוטים.
+  function patchLastAssistant(content: string, citations?: Citation[]) {
+    setMessages((prev) => {
+      const copy = [...prev];
+      const last = copy[copy.length - 1];
+      if (last && last.role === "assistant") copy[copy.length - 1] = { ...last, content, citations };
+      return copy;
+    });
+  }
+
+  // שליחת שאלה (משותף להקלדה ולהקלטה קולית) — בסטרימינג: התשובה מופיעה מיד.
+  async function submitQuestion(question: string) {
+    const q = question.trim();
+    if (!q || loading) return;
 
     const history = messages.map((m) => ({ role: m.role, content: m.content }));
-    const next = [...messages, { role: "user" as const, content: question }];
-    setMessages(next);
+    // מוסיפים את שאלת המשתמש והודעת עוזר ריקה שתתמלא תוך כדי הזרמה.
+    setMessages((prev) => [...prev, { role: "user", content: q }, { role: "assistant", content: "" }]);
     setInput("");
+    latestInputRef.current = "";
     setLoading(true);
 
     try {
       const res = await fetch("/api/consultation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, history }),
+        body: JSON.stringify({ question: q, history }),
       });
-      const data = await res.json();
-      setMessages([
-        ...next,
-        {
-          role: "assistant",
-          content: data.answer ?? "אירעה שגיאה בקבלת התשובה.",
-          citations: data.citations,
-        },
-      ]);
+      if (!res.body) throw new Error("no stream");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let citations: Citation[] | undefined;
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let textPart = buffer;
+        const sep = buffer.indexOf(CITES_SENTINEL);
+        if (sep !== -1) {
+          textPart = buffer.slice(0, sep);
+          try {
+            citations = JSON.parse(buffer.slice(sep + CITES_SENTINEL.length));
+          } catch {
+            // JSON חלקי — ממתינים לקטע הבא.
+          }
+        }
+        patchLastAssistant(stripSources(textPart) || " ", citations);
+      }
     } catch {
-      setMessages([
-        ...next,
-        { role: "assistant", content: "אירעה שגיאה בחיבור לשרת. נסה שוב." },
-      ]);
+      patchLastAssistant("אירעה שגיאה בחיבור לשרת. נסה שוב.");
     } finally {
       setLoading(false);
     }
   }
 
+  // עדכון ההפניה לפונקציית השליחה בכל רינדור (למניעת closure מיושן ב-onend).
+  submitRef.current = submitQuestion;
+
+  function send(e: React.FormEvent) {
+    e.preventDefault();
+    submitQuestion(input);
+  }
+
   return (
-    <div className={`flex ${heightClass} flex-col rounded-xl border border-slate-200 bg-white`}>
+    <div className={`flex ${heightClass} flex-col overflow-hidden rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 shadow-card backdrop-blur-sm`}>
       <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
         {messages.length === 0 && (
-          <div className="flex h-full items-center justify-center text-center text-slate-400">
-            <div>
-              <p className="text-3xl">💬</p>
-              <p className="mt-2 text-base">שאל/י שאלה על זכויות וחוקי עבודה בישראל.</p>
-              <p className="mt-1 text-sm">
-                לדוגמה: &ldquo;כמה ימי הודעה מוקדמת מגיעים לעובד עם שנתיים ותק?&rdquo;
-              </p>
+          <div className="flex h-full flex-col items-center justify-center text-center">
+            <span className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-accent-600 text-white shadow-glow">
+              <Scale size={30} />
+            </span>
+            <p className="mt-4 text-lg font-bold text-slate-700 dark:text-slate-200">
+              שאל/י שאלה על זכויות וחוקי עבודה
+            </p>
+            <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">
+              בחר/י אחת מהשאלות הנפוצות למטה, או הקלד/י שאלה משלך.
+            </p>
+            <div className="mt-5 flex max-w-lg flex-wrap justify-center gap-2">
+              {SUGGESTIONS.map((q) => (
+                <button
+                  key={q}
+                  type="button"
+                  onClick={() => setInput(q)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 dark:hover:bg-brand-500/10 dark:hover:text-brand-300"
+                >
+                  <Sparkles size={13} className="text-brand-400" />
+                  {q}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -141,11 +225,21 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
             className={`flex ${m.role === "user" ? "justify-start" : "justify-end"}`}
           >
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-base ${
-                m.role === "user" ? "bg-brand-600 text-white" : "bg-slate-100 text-slate-800"
+              className={`max-w-[85%] px-4 py-3 text-base shadow-sm ${
+                m.role === "user"
+                  ? "rounded-2xl rounded-br-md bg-gradient-to-br from-brand-500 to-accent-600 text-white shadow-brand-600/20"
+                  : "rounded-2xl rounded-bl-md bg-white text-slate-800 ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/50"
               }`}
             >
-              <p className="whitespace-pre-wrap">{m.content}</p>
+              {m.role === "assistant" && m.content.trim() === "" ? (
+                <span className="flex items-center gap-1.5 py-1">
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.3s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400 [animation-delay:-0.15s]" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-slate-400" />
+                </span>
+              ) : (
+                <p className="whitespace-pre-wrap">{m.content}</p>
+              )}
               {m.citations && m.citations.length > 0 && (
                 <div className="mt-3 border-t border-slate-300/40 pt-2">
                   <p className="text-xs font-semibold">מקורות:</p>
@@ -166,51 +260,49 @@ export function ChatConsultation({ heightClass = "h-[70vh]" }: { heightClass?: s
                   </ul>
                 </div>
               )}
-              {m.role === "assistant" && (
-                <p className="mt-3 border-t border-slate-300/40 pt-2 text-xs italic text-slate-500">
+              {m.role === "assistant" && m.content.trim() !== "" && (
+                <p className="mt-3 border-t border-slate-300/40 pt-2 text-xs italic text-slate-500 dark:text-slate-400">
                   {DISCLAIMER}
                 </p>
               )}
             </div>
           </div>
         ))}
-        {loading && (
-          <div className="flex justify-end">
-            <div className="rounded-2xl bg-slate-100 px-4 py-3 text-base text-slate-500">
-              מנסח תשובה...
-            </div>
-          </div>
-        )}
       </div>
 
-      <form onSubmit={send} className="flex gap-2 border-t border-slate-200 p-4">
+      <form
+        onSubmit={send}
+        className="flex items-center gap-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 p-3 sm:p-4"
+      >
         {speechSupported && (
           <button
             type="button"
             onClick={toggleMic}
-            aria-label={listening ? "עצירת הקלטה" : "דיבור"}
-            title={listening ? "עצירת הקלטה" : "דיבור (הקלטה קולית)"}
-            className={`shrink-0 rounded-lg px-4 py-2 text-lg transition ${
+            aria-label={listening ? "עצירה ושליחה" : "דיבור"}
+            title={listening ? "עצירה ושליחה אוטומטית" : "דיבור (הקלטה קולית)"}
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl transition ${
               listening
                 ? "animate-pulse bg-red-500 text-white"
-                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700"
             }`}
           >
-            🎤
+            <Mic size={19} />
           </button>
         )}
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={listening ? "מקשיב... דבר/י עכשיו" : "הקלד/י שאלה..."}
-          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-4 py-2 text-base outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
+          placeholder={listening ? "מקשיב... לחצ/י על המיקרופון לעצור ולשלוח" : "הקלד/י שאלה..."}
+          className="min-w-0 flex-1 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2.5 text-base outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
         />
         <button
           type="submit"
-          disabled={loading}
-          className="shrink-0 rounded-lg bg-brand-600 px-5 py-2 text-base font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60"
+          disabled={loading || !input.trim()}
+          aria-label="שליחה"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand-500 to-accent-600 text-white shadow-glow transition hover:brightness-110 disabled:opacity-50 sm:h-auto sm:w-auto sm:px-5 sm:py-2.5"
         >
-          שליחה
+          <Send size={18} className="sm:hidden" />
+          <span className="hidden text-base font-bold sm:inline">שליחה</span>
         </button>
       </form>
     </div>

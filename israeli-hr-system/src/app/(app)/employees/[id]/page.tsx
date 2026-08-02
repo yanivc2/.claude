@@ -1,8 +1,16 @@
 import Link from "next/link";
+import { ArrowRight, CalendarDays, Wallet, Clock, type LucideIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import type { DocumentType, SignatureContext } from "@prisma/client";
 import { EmployeeExport, type ExportData } from "@/components/EmployeeExport";
 import { formatAvailability } from "@/lib/availability";
+import { avatarColor, initials } from "@/lib/avatar";
+import { currentAdmin } from "@/lib/session";
+import { canAccessEmployeeRecord, roleOf } from "@/lib/rbac";
+import { CompanyAssign } from "@/components/CompanyAssign";
+import { DocumentDeleteButton } from "@/components/DocumentDeleteButton";
+import { PensionDocuments } from "@/components/PensionDocuments";
+import { EmployeeAccess } from "@/components/EmployeeAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -18,12 +26,52 @@ const dateFmt = new Intl.DateTimeFormat("he-IL", { dateStyle: "medium" });
 const fmt = (d: Date | null | undefined) => (d ? dateFmt.format(d) : "—");
 const yesNo = (b: boolean) => (b ? "כן" : "לא");
 
+// ותק מחושב מתאריך תחילת העבודה (לתצוגה בלבד).
+function tenure(start: Date | null | undefined): string {
+  if (!start) return "—";
+  const now = new Date();
+  let months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
+  if (now.getDate() < start.getDate()) months -= 1;
+  if (months < 0) return "—";
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  if (y === 0 && m === 0) return "פחות מחודש";
+  const parts: string[] = [];
+  if (y > 0) parts.push(y === 1 ? "שנה" : `${y} שנים`);
+  if (m > 0) parts.push(m === 1 ? "חודש" : `${m} חודשים`);
+  return parts.join(" ו-");
+}
+
+// אריח נתון מודגש (סטטיסטיקה מרכזית בראש התיק).
+function StatTile({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+        <Icon size={19} />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
+        <p className="truncate text-base font-bold text-slate-800 dark:text-slate-100">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+const STATUS: Record<string, { label: string; cls: string }> = {
+  ONBOARDING: { label: "בתהליך קליטה", cls: "bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300" },
+  ACTIVE: { label: "פעיל", cls: "bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-400" },
+  NOTICE_PERIOD: { label: "בהודעה מוקדמת", cls: "bg-orange-50 dark:bg-orange-500/15 text-orange-700 dark:text-orange-300" },
+  INACTIVE: { label: "לא פעיל", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" },
+  TERMINATED: { label: "סיום העסקה", cls: "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400" },
+};
+
 const DOC_LABELS: Record<DocumentType, string> = {
   ID_CARD: "ספח תעודת זהות",
   CONTRACT: "הסכם עבודה",
   FORM_101: "טופס 101",
   HEARING_INVITATION: "הזמנה לשימוע",
   TERMINATION_LETTER: "מכתב סיום העסקה",
+  PENSION_TRANSFER: "מסמך העברת פנסיה",
   OTHER: "מסמך",
 };
 
@@ -35,8 +83,11 @@ const SIG_LABELS: Record<SignatureContext, string> = {
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-      <h2 className="mb-3 text-lg font-semibold text-slate-800">{title}</h2>
+    <section className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white/80 dark:bg-slate-900/70 p-4 shadow-card backdrop-blur-sm transition hover:shadow-card-hover sm:p-6">
+      <h2 className="mb-3 flex items-center gap-2 text-base font-bold text-slate-800 dark:text-slate-100">
+        <span aria-hidden className="h-4 w-1 rounded-full bg-gradient-to-b from-brand-500 to-accent-600" />
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -46,9 +97,9 @@ function Rows({ rows }: { rows: [string, string][] }) {
   return (
     <dl className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
       {rows.map(([k, v]) => (
-        <div key={k} className="flex justify-between gap-4 border-b border-slate-100 py-1">
-          <dt className="text-sm text-slate-500">{k}</dt>
-          <dd className="text-sm font-medium text-slate-800">{v}</dd>
+        <div key={k} className="flex justify-between gap-4 border-b border-slate-100 dark:border-slate-800 py-1">
+          <dt className="text-sm text-slate-500 dark:text-slate-400">{k}</dt>
+          <dd className="text-sm font-medium text-slate-800 dark:text-slate-100">{v}</dd>
         </div>
       ))}
     </dl>
@@ -61,6 +112,7 @@ export default async function EmployeeDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const me = await currentAdmin();
   const emp = await prisma.employee
     .findUnique({
       where: { id },
@@ -70,16 +122,20 @@ export default async function EmployeeDetailPage({
         signatures: true,
         pensionTask: true,
         surveys: { orderBy: { scheduledFor: "asc" } },
+        company: { select: { name: true } },
       },
     })
     .catch(() => null);
 
-  if (!emp) {
+  // הפרדה מולטי-חברה: מנהל חנות אינו רשאי לצפות בעובד מחברה אחרת (מונע IDOR).
+  const denied = !!emp && !!me && !canAccessEmployeeRecord(me, emp.companyId);
+
+  if (!emp || denied) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
         <p className="text-4xl">⚠️</p>
-        <h1 className="mt-4 text-xl font-bold text-slate-800">העובד לא נמצא</h1>
-        <Link href="/employees" className="mt-4 inline-block text-sm text-brand-700 underline">
+        <h1 className="mt-4 text-xl font-bold text-slate-800 dark:text-slate-100">העובד לא נמצא</h1>
+        <Link href="/employees" className="mt-4 inline-block text-sm text-brand-700 dark:text-brand-300 underline">
           חזרה לרשימת העובדים
         </Link>
       </div>
@@ -87,6 +143,8 @@ export default async function EmployeeDetailPage({
   }
 
   const fullName = `${emp.firstName} ${emp.lastName}`;
+  // בעלים/מזכירה בלבד רשאים ליצור/לאפס גישת עובד (self-service).
+  const canManageAccess = !!me && roleOf(me) !== "STORE_MANAGER";
 
   const personalRows: [string, string][] = [
     ["תעודת זהות", emp.nationalId],
@@ -145,15 +203,72 @@ export default async function EmployeeDetailPage({
 
   return (
     <div className="space-y-6">
+      <div>
+        <Link
+          href="/employees"
+          className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 dark:text-slate-400 transition hover:text-brand-600"
+        >
+          <ArrowRight size={14} />
+          חזרה לרשימת העובדים
+        </Link>
+      </div>
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <Link href="/employees" className="text-xs text-slate-500 hover:underline">
-            ← חזרה לרשימת העובדים
-          </Link>
-          <h1 className="mt-1 text-2xl font-bold text-slate-800">{fullName}</h1>
+        <div className="flex items-center gap-3">
+          <span
+            className={`grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br text-base font-bold text-white ${avatarColor(
+              emp.firstName + emp.lastName,
+            )}`}
+          >
+            {initials(emp.firstName, emp.lastName)}
+          </span>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">
+                {fullName}
+              </h1>
+              {STATUS[emp.status] && (
+                <span
+                  className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${STATUS[emp.status].cls}`}
+                >
+                  {STATUS[emp.status].label}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {emp.jobTitle || "עובד/ת"} · התחלה {fmt(emp.startDate)}
+            </p>
+          </div>
         </div>
         <EmployeeExport data={exportData} />
       </header>
+
+      {/* שיוך חברה — בסיס ההפרדה המולטי-חברה (עריכה לבעלים/מזכירה) */}
+      <div className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
+        <CompanyAssign employeeId={emp.id} companyId={emp.companyId} companyName={emp.company?.name ?? null} />
+      </div>
+
+      {/* אריחי נתונים מרכזיים — היררכיה ויזואלית בראש התיק */}
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <StatTile icon={CalendarDays} label="תחילת עבודה" value={fmt(emp.startDate)} />
+        <StatTile icon={Clock} label="ותק" value={tenure(emp.startDate)} />
+        <StatTile
+          icon={Wallet}
+          label="שכר"
+          value={
+            emp.monthlySalary
+              ? `${emp.monthlySalary.toLocaleString("he-IL")} ₪ לחודש`
+              : emp.hourlySalary
+                ? `${emp.hourlySalary.toLocaleString("he-IL")} ₪ לשעה`
+                : "—"
+          }
+        />
+      </div>
+
+      {canManageAccess && (
+        <Card title="גישת עובד לאפליקציה">
+          <EmployeeAccess employeeId={emp.id} email={emp.email} hasAccess={!!emp.passwordHash} />
+        </Card>
+      )}
 
       <Card title="פרטים אישיים">
         <Rows rows={personalRows} />
@@ -166,7 +281,7 @@ export default async function EmployeeDetailPage({
       {pensionRows && (
         <Card title="תיק פנסיה">
           <Rows rows={[pensionRows[0], pensionRows[1]]} />
-          <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          <p className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-500/15 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
             {emp.pensionTask!.basis}
           </p>
         </Card>
@@ -178,38 +293,61 @@ export default async function EmployeeDetailPage({
         </Card>
       )}
 
+      <Card title="מסמכי העברות פנסיה">
+        <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+          שמירת מסמכי העברת כספים לפנסיה. ניתן להדפיס, לשלוח במייל למטפל תיק הפנסיה, או
+          לשתף בוואטסאפ.
+        </p>
+        <PensionDocuments
+          employeeId={emp.id}
+          employeeName={fullName}
+          initialDocs={emp.documents
+            .filter((d) => d.type === "PENSION_TRANSFER")
+            .map((d) => ({
+              id: d.id,
+              fileName: d.fileName,
+              mimeType: d.mimeType,
+              fileUrl: d.fileUrl,
+              uploadedByRole: d.uploadedByRole,
+            }))}
+        />
+      </Card>
+
       <Card title="מסמכים">
-        {emp.documents.length === 0 ? (
-          <p className="text-sm text-slate-400">לא צורפו מסמכים.</p>
+        {emp.documents.filter((d) => d.type !== "PENSION_TRANSFER").length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-400">לא צורפו מסמכים.</p>
         ) : (
           <div className="space-y-4">
-            {emp.documents.map((d) => {
+            {emp.documents
+              .filter((d) => d.type !== "PENSION_TRANSFER")
+              .map((d) => {
               const isPdf = (d.mimeType || "").includes("pdf");
               return (
                 <div key={d.id}>
                   <div className="mb-2 flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-slate-700">
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
                       {DOC_LABELS[d.type]}: {d.fileName}
                     </span>
                     <a
                       href={d.fileUrl}
                       download={d.fileName}
-                      className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
+                      className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1 text-xs text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
                     >
                       הורדה
                     </a>
+                    <DocumentDeleteButton docId={d.id} uploadedByRole={d.uploadedByRole} />
                   </div>
                   {isPdf ? (
                     <iframe
                       src={d.fileUrl}
                       title={d.fileName}
-                      className="h-96 w-full rounded-lg border border-slate-200"
+                      className="h-96 w-full rounded-lg border border-slate-200 dark:border-slate-800"
                     />
                   ) : (
                     <img
                       src={d.fileUrl}
                       alt={d.fileName}
-                      className="max-h-96 w-full rounded-lg border border-slate-200 object-contain"
+                      className="max-h-96 w-full rounded-lg border border-slate-200 dark:border-slate-800 object-contain"
                     />
                   )}
                 </div>
@@ -221,16 +359,16 @@ export default async function EmployeeDetailPage({
 
       <Card title="חתימות">
         {emp.signatures.length === 0 ? (
-          <p className="text-sm text-slate-400">אין חתימות.</p>
+          <p className="text-sm text-slate-400 dark:text-slate-400">אין חתימות.</p>
         ) : (
           <div className="flex flex-wrap gap-6">
             {emp.signatures.map((s) => (
               <div key={s.id}>
-                <p className="mb-1 text-xs text-slate-500">{SIG_LABELS[s.context]}</p>
+                <p className="mb-1 text-xs text-slate-500 dark:text-slate-400">{SIG_LABELS[s.context]}</p>
                 <img
                   src={s.imageData}
                   alt={SIG_LABELS[s.context]}
-                  className="h-24 rounded-lg border border-slate-200 bg-white p-2"
+                  className="h-24 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2"
                 />
               </div>
             ))}

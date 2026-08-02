@@ -11,23 +11,43 @@ datasource db {
 }
 
 // ───────────────────────── אבטחה / כניסה ─────────────────────────
-// משתמש מנהל (כרגע יחיד). הסיסמה נשמרת כ-hash (PBKDF2). ניתן לשנות סיסמה
-// מתוך האפליקציה עם אישור קוד במייל (שדות ה-pending/confirm).
+// רמת הרשאה של משתמש מנהל:
+//   OWNER         — בעל המערכת. יכול הכל, כולל ניהול משתמשים וחברות.
+//   SECRETARY     — מזכירה. יכולה כמעט הכל, אך אינה יכולה למחוק קבצים
+//                   שהבעלים העלה (נאכף לפי uploadedByRole של הקובץ).
+//   STORE_MANAGER — מנהל חנות. צפייה בלבד בנתוני החברה שאליה שויך, פלוס
+//                   פעולות מוגדרות (הנפקת שימוע/פיטורין, שימוש בבוט, העלאת
+//                   מסמכים/נהלים לאישור). רואה אך ורק את החברה המשויכת אליו.
+enum AdminRole {
+  OWNER
+  SECRETARY
+  STORE_MANAGER
+}
+
+// משתמש מנהל. הסיסמה נשמרת כ-hash (PBKDF2). ניתן לשנות סיסמה מתוך האפליקציה
+// עם אישור קוד במייל (שדות ה-pending/confirm).
 model AdminUser {
   id                 String    @id @default(cuid())
   username           String    @unique
   name               String
   email              String
   passwordHash       String    @db.Text
-  // isOwner=בעל המערכת (יכול לנהל משתמשים). active=חשבון פעיל לכניסה.
+  // isOwner נשמר לתאימות לאחור; role הוא מקור האמת להרשאות. שניהם מסונכרנים
+  // (role=OWNER ⇔ isOwner=true) ע"י שכבת ה-RBAC.
   isOwner            Boolean   @default(false)
+  role               AdminRole @default(SECRETARY)
   active             Boolean   @default(true)
+  // שיוך לחברה — רלוונטי ומחייב עבור STORE_MANAGER (היקף הראייה שלו).
+  companyId          String?
+  company            Company?  @relation(fields: [companyId], references: [id])
   // שינוי סיסמה בהמתנה לאישור במייל
   pendingPasswordHash String?  @db.Text
   confirmCodeHash    String?   @db.Text
   confirmExpiresAt   DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+
+  @@index([companyId])
 }
 
 
@@ -45,6 +65,47 @@ model WebauthnCredential {
   @@index([username])
 }
 
+// ─────────────────────── התראות ופוש (שלב 2) ───────────────────────
+
+enum NotificationType {
+  HEARING_ISSUED // מנהל חנות הנפיק הזמנה לשימוע
+  TERMINATION_ISSUED // מנהל חנות הנפיק מכתב סיום העסקה
+  RESOURCE_PENDING // מנהל חנות העלה מסמך/נוהל הממתין לאישור
+  TASK_ASSIGNED // הוקצתה משימה לעובד
+  TASK_DONE // עובד סימן משימה כבוצעה
+}
+
+// התראה פנימית לבעלים. נוצרת כשמנהל חנות מבצע פעולה הדורשת ידיעה/אישור.
+model Notification {
+  id        String           @id @default(cuid())
+  type      NotificationType
+  title     String
+  body      String           @db.Text
+  link      String? // נתיב יעד בתוך האפליקציה (למשל /employees/<id>)
+  // מי מקבל את ההתראה — כרגע תמיד הבעלים (username).
+  forUsername String
+  // מי יצר את האירוע (שם מנהל החנות) — לתצוגה.
+  actorName String?
+  companyId String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([forUsername, read])
+  @@index([createdAt])
+}
+
+// מנוי Web Push של מכשיר (לכל בעלים יכולים להיות כמה מכשירים). endpoint ייחודי.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  username  String // המשתמש שאליו שייך המנוי
+  endpoint  String   @unique @db.Text
+  p256dh    String   @db.Text
+  auth      String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([username])
+}
+
 // ───────────────────────────── חברות ─────────────────────────────
 // רשימת חברות לניהול ה-HR — משמשות כאפשרויות בחירה (למשל בקישורי קליטה).
 model Company {
@@ -53,6 +114,9 @@ model Company {
   companyNumber String? // ח.פ.
   address       String? // כתובת רשומה
   createdAt     DateTime @default(now())
+
+  employees Employee[]
+  admins    AdminUser[]
 }
 
 // ───────────────────────────── משתמשים והרשאות ─────────────────────────────
@@ -108,11 +172,18 @@ model Employee {
   // זמינות לפי ימים ומשמרות: { "sun": ["morning","night"], ... }
   availability   Json?
   hasActivePension Boolean        @default(false) // האם קיים הסדר פנסיוני פעיל
+  // גישת עובד לאפליקציה (self-service). null = אין גישה עדיין. הסיסמה כ-hash.
+  passwordHash   String?          @db.Text
   privacyAcceptedAt DateTime? // מועד אישור מדיניות הפרטיות ע"י העובד
   privacyPolicyVersion String? // גרסת המדיניות שאושרה (למשל "2.0")
   privacyCompanyName   String? // שם החברה המעסיקה שתועדה במעמד ההסכמה
   privacyConsents      Json? // מפת אישורים: { notice_read: true, biometric: false, ... }
   status         EmploymentStatus @default(ONBOARDING)
+
+  // שיוך לחברה מעסיקה — בסיס ההפרדה המולטי-חברה. מנהל חנות רואה אך ורק
+  // עובדים ששויכו לחברה שלו. עובדים ללא שיוך גלויים רק לבעלים/מזכירה.
+  companyId String?
+  company   Company? @relation(fields: [companyId], references: [id])
 
   // מנהל ישיר
   managerId String?
@@ -135,6 +206,7 @@ model Employee {
 
   @@index([status])
   @@index([managerId])
+  @@index([companyId])
 }
 
 // טופס 101 דיגיטלי
@@ -168,7 +240,32 @@ enum DocumentType {
   FORM_101 // טופס 101
   HEARING_INVITATION // הזמנה לשימוע
   TERMINATION_LETTER // מכתב סיום העסקה
+  PENSION_TRANSFER // מסמך העברת כספים לפנסיה
   OTHER
+}
+
+// ─────────────────────── אנשי קשר ומטפלי פנסיה ───────────────────────
+enum ContactType {
+  GENERAL // איש קשר כללי
+  PENSION_AGENT // מטפל/מנהל תיק פנסיוני (סוכן/יועץ)
+}
+
+// איש קשר לשליחת מסמכים (מייל/וואטסאפ). כולל מטפל בתיק פנסיוני.
+model Contact {
+  id        String      @id @default(cuid())
+  type      ContactType @default(GENERAL)
+  name      String
+  agency    String? // שם הסוכנות/החברה של איש הקשר (טקסט חופשי)
+  email     String?
+  phone     String? // מספר טלפון/וואטסאפ (בפורמט בינלאומי לשליחה)
+  notes     String?     @db.Text
+  // שיוך אופציונלי לחברה במערכת (למשל מטפל פנסיה של חברה מסוימת).
+  companyId String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([type])
+  @@index([companyId])
 }
 
 model EmployeeDocument {
@@ -179,6 +276,8 @@ model EmployeeDocument {
   fileName   String
   fileUrl    String // כתובת האחסון של הקובץ
   mimeType   String?
+  // רמת ההרשאה של המעלה — לאכיפת הכלל "מזכירה אינה מוחקת קבצי בעלים".
+  uploadedByRole AdminRole?
   createdAt  DateTime     @default(now())
 
   form101Attachments Form101[] @relation("Form101IdAttachment")
@@ -396,4 +495,126 @@ model ChatMessage {
   createdAt DateTime    @default(now())
 
   @@index([sessionId])
+}
+
+// ───────────────────── מסמכים, נהלים וסרטוני הסברה ─────────────────────
+// ספריית משאבים לצוות: קבצים (נהלים, מסמכים) וקישורים (כולל סרטוני הסברה).
+enum ResourceKind {
+  FILE // קובץ שהועלה (נשמר כ-data URL)
+  LINK // קישור חיצוני, כולל קישור לסרטון
+}
+
+// תיקייה לארגון משאבים בעלת שם.
+model ResourceFolder {
+  id        String     @id @default(cuid())
+  name      String
+  createdBy String?
+  createdAt DateTime   @default(now())
+  resources Resource[]
+
+  @@index([createdAt])
+}
+
+// סטטוס אישור של משאב. משאב שמנהל חנות מעלה נכנס כ-PENDING וממתין לאישור
+// הבעלים; משאב שבעלים/מזכירה מעלים מאושר אוטומטית.
+enum ResourceStatus {
+  APPROVED
+  PENDING
+  REJECTED
+}
+
+model Resource {
+  id          String       @id @default(cuid())
+  title       String
+  kind        ResourceKind
+  description String?      @db.Text
+  url         String?      @db.Text // עבור LINK (כולל סרטונים)
+  fileName    String?
+  mimeType    String?
+  fileData    String?      @db.Text // עבור FILE — data URL
+  createdBy   String? // שם המשתמש שהוסיף
+  // רמת ההרשאה של המעלה — לאכיפת הכלל "מזכירה אינה מוחקת קבצי בעלים".
+  uploadedByRole AdminRole?
+  // סטטוס אישור — משאבי מנהל חנות ממתינים לאישור הבעלים.
+  status      ResourceStatus @default(APPROVED)
+  companyId   String? // שיוך לחברה (עבור העלאות מנהל חנות)
+  createdAt   DateTime     @default(now())
+
+  // שיוך לתיקייה (אופציונלי) — משאבים ללא תיקייה מוצגים ברמה העליונה.
+  folderId String?
+  folder   ResourceFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([folderId])
+  @@index([status])
+}
+
+// ─────────────────────── משימות ונהלי משמרת (מובייל) ───────────────────────
+// המנהל יוצר משימות/נהלים ומשייך אותם (כל העובדים / צוות משמרת / עובד ספציפי).
+// העובד מסמן "בוצע". פוש נשלח בשליחה (לעובד) ובסימון בוצע (למנהל).
+
+enum AssigneeScope {
+  ALL // כל העובדים
+  TEAM // צוות המשמרת
+  EMPLOYEE // עובד ספציפי
+}
+
+enum TaskStatus {
+  SENT // נשלחה, ממתינה לביצוע
+  DONE // בוצעה
+}
+
+model Task {
+  id            String        @id @default(cuid())
+  title         String        @db.Text
+  assigneeScope AssigneeScope @default(ALL)
+  employeeId    String? // תאימות לאחור: העובד הראשון כאשר scope=EMPLOYEE
+  employeeIds   String[]      @default([]) // שיוך לכמה עובדים (scope=EMPLOYEE)
+  companyId     String? // שיוך לחברה (היקף)
+  status        TaskStatus    @default(SENT)
+  createdBy     String // שם המשתמש (מנהל) שיצר
+  createdAt     DateTime      @default(now())
+  doneAt        DateTime?
+
+  @@index([status])
+  @@index([employeeId])
+  @@index([companyId])
+}
+
+// רובריקה לשימוש חוזר (preset) ליצירת משימות מהירה.
+model TaskPreset {
+  id        String   @id @default(cuid())
+  title     String
+  createdBy String
+  createdAt DateTime @default(now())
+}
+
+enum ProcedureType {
+  OPEN // פתיחת משמרת
+  CLOSE // סגירת משמרת
+  MORNING // משמרת בוקר
+  EVENING // משמרת ערב
+  NIGHT // משמרת לילה
+  FRIDAY // יום שישי
+  SATURDAY // יום שבת
+  WEEKEND // שישישבת
+  HOLIDAY_EVE // ערב חג
+  HOLIDAY // חג
+  STORE_OPEN // נוהל פתיחת החנות
+  STORE_CLOSE // נוהל סגירת החנות
+}
+
+model ShiftProcedure {
+  id            String        @id @default(cuid())
+  type          ProcedureType
+  assigneeScope AssigneeScope @default(ALL)
+  employeeId    String? // תאימות לאחור: העובד הראשון כאשר scope=EMPLOYEE
+  employeeIds   String[]      @default([]) // שיוך לכמה עובדים (scope=EMPLOYEE)
+  companyId     String?
+  items         String[] // סעיפי הנוהל (שורה = סעיף)
+  createdBy     String
+  createdAt     DateTime      @default(now())
+
+  @@index([type])
+  @@index([companyId])
 }

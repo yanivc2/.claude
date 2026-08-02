@@ -8,6 +8,7 @@ import { SESSION_COOKIE, verifySession, getAuthConfig } from "@/lib/auth";
 function isPublic(pathname: string): boolean {
   return (
     pathname === "/login" ||
+    pathname === "/sw.js" ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/onboard/") ||
     pathname.startsWith("/api/onboard/") ||

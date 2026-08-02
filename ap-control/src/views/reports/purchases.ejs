@@ -1,0 +1,87 @@
+<%- include('../partials/header') %>
+<div class="toolbar">
+  <h1 style="margin:0">רכש</h1>
+  <div class="actions no-print">
+    <a class="btn secondary" href="/reports/purchases.csv?<%= new URLSearchParams({ from: filters.from || '', to: filters.to || '', supplier: filters.supplierId || '', store: filters.storeId || '' }).toString() %>">ייצוא CSV</a>
+    <button class="btn secondary" onclick="window.print()">הדפסה / PDF</button>
+  </div>
+</div>
+<p class="muted" style="margin-top:-.4rem">סך הרכש (חשבוניות פחות זיכויים) לפי ספק, חנות ותקופה.</p>
+
+<div class="card no-print">
+  <form method="get" action="/reports/purchases" class="row">
+    <div><label class="muted">מתאריך</label><input type="date" name="from" value="<%= filters.from || '' %>" /></div>
+    <div><label class="muted">עד תאריך</label><input type="date" name="to" value="<%= filters.to || '' %>" /></div>
+    <div>
+      <label class="muted">ספק</label>
+      <select name="supplier">
+        <option value="">כל הספקים</option>
+        <% suppliers.forEach(function(s){ %>
+          <option value="<%= s.id %>" <%= String(filters.supplierId) === String(s.id) ? 'selected' : '' %>><%= s.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label class="muted">חנות</label>
+      <select name="store">
+        <option value="">כל החנויות</option>
+        <% stores.forEach(function(st){ %>
+          <option value="<%= st.id %>" <%= String(filters.storeId) === String(st.id) ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:.5rem">
+      <button type="submit">הצג</button>
+      <a class="btn secondary" href="/reports/purchases">נקה</a>
+    </div>
+  </form>
+</div>
+
+<div class="stat-grid">
+  <div class="stat"><div class="num"><%= count %></div><div class="label">חשבוניות בתקופה</div></div>
+  <div class="stat"><div class="num" style="font-size:1.5rem"><%= formatIls(total) %></div><div class="label">סך רכש נטו</div></div>
+  <div class="stat"><div class="num"><%= bySupplier.length %></div><div class="label">ספקים</div></div>
+</div>
+
+<% if (bySupplier.length) { %>
+<div class="card" style="padding:0">
+  <h2 style="padding:1rem 1.25rem 0;margin:0">לפי ספק</h2>
+  <table class="sortable">
+    <thead><tr><th>ספק</th><th>מס׳ חשבוניות</th><th class="right">סך רכש</th></tr></thead>
+    <tbody>
+      <% bySupplier.forEach(function(g){ %>
+        <tr>
+          <td><strong><%= g.supplier_name %></strong></td>
+          <td class="mono"><%= g.count %></td>
+          <td class="right mono <%= g.total < 0 ? 'neg' : '' %>"><%= formatIls(g.total) %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
+<div class="card" style="padding:0">
+  <h2 style="padding:1rem 1.25rem 0;margin:0">פירוט חשבוניות</h2>
+  <table class="sortable">
+    <thead>
+      <tr><th>#</th><th>תאריך</th><th>ספק</th><th>חנות</th><th>מס׳ חשבונית</th><th>הקצאה</th><th class="right">סכום</th><th>סטטוס</th></tr>
+    </thead>
+    <tbody>
+      <% if (rows.length === 0) { %><tr><td colspan="8" class="muted">אין חשבוניות תואמות לסינון.</td></tr><% } %>
+      <% rows.forEach(function(r){ %>
+        <tr onclick="location='/invoices/<%= r.id %>'" style="cursor:pointer">
+          <td class="muted"><%= r.id %></td>
+          <td class="mono"><%= r.invoice_date %></td>
+          <td><%= r.supplier_name %></td>
+          <td class="muted"><%= r.store_name %></td>
+          <td class="mono"><%= r.invoice_number %></td>
+          <td class="mono"><%= r.allocation_number || '—' %></td>
+          <td class="right mono <%= r.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(r.total_amount) %></td>
+          <td><span class="badge b-<%= r.status %>"><%= r.status === 'recorded' ? 'נרשם' : r.status === 'on_hold' ? 'מוחזק' : r.status === 'approved_for_payment' ? 'מאושר' : 'שולם' %></span></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

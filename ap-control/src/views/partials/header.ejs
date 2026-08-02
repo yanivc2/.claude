@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><%= title %> · AP Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Heebo:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#1d2530" />
+  <link rel="apple-touch-icon" href="/icon-180.png" />
+  <script>
+    // Apply saved theme before paint (no flash of light theme).
+    (function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();
+  </script>
+  <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}</script>
+</head>
+<body>
+  <header class="topbar">
+    <span class="brand">
+      <span class="logo-mark" aria-hidden="true">AP<i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i></span>
+      Control
+      <span class="unit">AP-01</span>
+    </span>
+    <nav>
+      <a href="/" class="<%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
+      <a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>">חשבוניות</a>
+      <a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>">תשלומים</a>
+      <a href="/transfers" class="<%= path.startsWith('/transfers') ? 'active' : '' %>">העברות</a>
+      <a href="/salaries" class="<%= path.startsWith('/salaries') ? 'active' : '' %>">משכורות</a>
+      <a href="/pension" class="<%= path.startsWith('/pension') ? 'active' : '' %>">פנסיה</a>
+      <a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>">ספקים</a>
+      <a href="/reports/outstanding" class="<%= path === '/reports/outstanding' ? 'active' : '' %>">צ׳קים בחוץ</a>
+      <a href="/reconciliation" class="<%= path.startsWith('/reconciliation') ? 'active' : '' %>">התאמת בנק</a>
+      <a href="/reports/purchases" class="<%= path === '/reports/purchases' ? 'active' : '' %>">רכש</a>
+      <a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>">רווחיות</a>
+      <a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>">יומן</a>
+      <% if (currentUser.role === 'owner') { %>
+        <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>">אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="badge b-on_hold"><%= pendingApprovals %></span><% } %></a>
+      <% } %>
+      <% if (typeof can === 'function' && can('settings')) { %><a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a><% } %>
+    </nav>
+    <span class="spacer"></span>
+    <% if (typeof currentUser !== 'undefined' && currentUser) { %>
+      <span class="user-chip">
+        <%= currentUser.name %>
+        <span class="role-badge <%= currentUser.role === 'owner' ? 'role-owner' : '' %>"><%= currentUser.role === 'owner' ? 'בעלים' : (currentUser.label || 'מזכירה') %></span>
+      </span>
+    <% } %>
+    <button type="button" class="theme-toggle" onclick="(function(){var d=document.documentElement.getAttribute('data-theme')==='dark';document.documentElement.setAttribute('data-theme',d?'light':'dark');try{localStorage.setItem('theme',d?'light':'dark');}catch(e){}})()" title="מצב כהה / בהיר" aria-label="מצב כהה / בהיר">🌓</button>
+    <form method="post" action="/logout" style="display:inline">
+      <button type="submit" class="btn secondary logout">התנתק</button>
+    </form>
+  </header>
+  <main>
+    <% if (typeof error !== 'undefined' && error) { %>
+      <div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div>
+    <% } %>

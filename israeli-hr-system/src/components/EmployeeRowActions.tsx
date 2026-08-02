@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCanWrite } from "./ViewerProvider";
 
 // כפתורי פעולה לעובד ברשימה: העברה ל"לא פעיל" / החזרה לפעיל, ומחיקה.
+// מוצג רק למי שרשאי לכתוב (בעלים/מזכירה); מנהל חנות — צפייה בלבד.
 export function EmployeeRowActions({
   id,
   name,
@@ -14,7 +16,10 @@ export function EmployeeRowActions({
   isInactive: boolean;
 }) {
   const router = useRouter();
+  const canWrite = useCanWrite();
   const [busy, setBusy] = useState(false);
+
+  if (!canWrite) return null;
 
   async function setStatus(status: "ACTIVE" | "INACTIVE") {
     setBusy(true);
@@ -49,7 +54,7 @@ export function EmployeeRowActions({
           type="button"
           onClick={() => setStatus("ACTIVE")}
           disabled={busy}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-green-700 transition hover:bg-green-50 disabled:opacity-50"
+          className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-green-700 dark:text-green-400 transition hover:bg-green-50 dark:hover:bg-green-500/15 disabled:opacity-50"
         >
           ↩︎ החזרה לפעיל
         </button>
@@ -58,7 +63,7 @@ export function EmployeeRowActions({
           type="button"
           onClick={() => setStatus("INACTIVE")}
           disabled={busy}
-          className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+          className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 transition hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50"
         >
           העברה ללא פעיל
         </button>
@@ -67,7 +72,7 @@ export function EmployeeRowActions({
         type="button"
         onClick={remove}
         disabled={busy}
-        className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+        className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-medium text-red-600 dark:text-red-400 transition hover:bg-red-50 dark:hover:bg-red-500/15 disabled:opacity-50"
       >
         🗑️ מחיקה
       </button>

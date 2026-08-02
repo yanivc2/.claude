@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { FileText, Printer, Plus, Check } from "lucide-react";
+import { EmptyState } from "@/components/EmptyState";
 
 interface EmployeeOption {
   id: string;
@@ -115,7 +117,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
     }
     const bar =
       `<div class="noprint" style="position:sticky;top:0;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;background:#0f172a;padding:20px">` +
-      `<button onclick="window.print()" style="border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;background:#2563eb;color:#fff;cursor:pointer">🖨️ הדפסה / שמירה</button>` +
+      `<button onclick="window.print()" style="border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;background:#4c51b8;color:#fff;cursor:pointer">🖨️ הדפסה / שמירה</button>` +
       `<button onclick="window.close()" style="border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;background:#ef4444;color:#fff;cursor:pointer">✕ סגירה</button>` +
       `</div><style>@media print{.noprint{display:none}}</style>`;
     w.document.write(html.replace("<body>", "<body>" + bar));
@@ -127,14 +129,14 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
   }
 
   const inputClass =
-    "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+    "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <form onSubmit={generate} className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <form onSubmit={generate} className="space-y-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">עובד</span>
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">עובד</span>
             <select className={inputClass} value={employeeId} onChange={(e) => onEmployeeChange(e.target.value)}>
               {employees.map((emp) => (
                 <option key={emp.id} value={emp.id}>
@@ -145,7 +147,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
           </label>
 
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">מין (לניסוח)</span>
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">מין (לניסוח)</span>
             <select
               className={inputClass}
               value={gender}
@@ -158,7 +160,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
         </div>
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">שם החברה</span>
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">שם החברה</span>
           <input
             className={inputClass}
             value={companyName}
@@ -168,7 +170,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
         </label>
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">סוג מסמך</span>
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">סוג מסמך</span>
           <select className={inputClass} value={docType} onChange={(e) => setDocType(e.target.value as DocType)}>
             <option value="HEARING_INVITATION">הזמנה לשיחת שימוע</option>
             <option value="TERMINATION_LETTER">מכתב סיום העסקה / פיטורין</option>
@@ -179,7 +181,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
         {isHearing && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">מועד השימוע</span>
+              <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">מועד השימוע</span>
               <input
                 type="date"
                 className={inputClass}
@@ -189,7 +191,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-sm font-medium text-slate-700">שעת השימוע</span>
+              <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">שעת השימוע</span>
               <input
                 type="time"
                 className={inputClass}
@@ -198,7 +200,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
               />
             </label>
             <label className="block sm:col-span-2">
-              <span className="mb-1 block text-sm font-medium text-slate-700">מקום השימוע</span>
+              <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">מקום השימוע</span>
               <input
                 className={inputClass}
                 value={location}
@@ -207,7 +209,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
               />
             </label>
             <label className="block sm:col-span-2">
-              <span className="mb-1 block text-sm font-medium text-slate-700">משתתפים בשימוע</span>
+              <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">משתתפים בשימוע</span>
               <input
                 className={inputClass}
                 value={participants}
@@ -220,8 +222,8 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
 
         {!isHearing && (
           <div>
-            <span className="mb-1 block text-sm font-medium text-slate-700">התייצבות לשימוע</span>
-            <div className="flex flex-wrap gap-4 text-sm text-slate-700">
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">התייצבות לשימוע</span>
+            <div className="flex flex-wrap gap-4 text-sm text-slate-700 dark:text-slate-200">
               <label className="flex items-center gap-2">
                 <input
                   type="radio"
@@ -246,7 +248,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
 
         {/* רובריקות נימוקים ללחיצה */}
         <div>
-          <span className="mb-1 block text-sm font-medium text-slate-700">נימוקים — לחצ/י להוספה</span>
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">נימוקים — לחצ/י להוספה</span>
           <div className="flex flex-wrap gap-2">
             {REASON_PRESETS.map((title) => {
               const added = reasons.some((r) => r.title === title);
@@ -256,13 +258,14 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
                   type="button"
                   onClick={() => addReason(title)}
                   disabled={added}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition ${
                     added
-                      ? "cursor-default border-slate-200 bg-slate-100 text-slate-400"
-                      : "border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100"
+                      ? "cursor-default border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-400"
+                      : "border-brand-200 dark:border-brand-500/30 bg-brand-50 dark:bg-brand-500/15 text-brand-700 dark:text-brand-300 hover:bg-brand-100 dark:hover:bg-brand-500/25"
                   }`}
                 >
-                  {added ? `✓ ${title}` : `+ ${title}`}
+                  {added ? <Check size={13} strokeWidth={2.6} /> : <Plus size={13} strokeWidth={2.6} />}
+                  {title}
                 </button>
               );
             })}
@@ -272,10 +275,10 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
         {reasons.length > 0 && (
           <div className="space-y-2">
             {reasons.map((r, i) => (
-              <div key={r.title} className="rounded-lg border border-slate-200 p-3">
+              <div key={r.title} className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-sm font-medium text-slate-800">{r.title}</span>
-                  <button type="button" onClick={() => removeReason(i)} className="text-xs text-red-600 hover:underline">
+                  <span className="text-sm font-medium text-slate-800 dark:text-slate-100">{r.title}</span>
+                  <button type="button" onClick={() => removeReason(i)} className="text-xs text-red-600 dark:text-red-400 hover:underline">
                     הסרה
                   </button>
                 </div>
@@ -291,7 +294,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
         )}
 
         <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">מלל חופשי נוסף (אופציונלי)</span>
+          <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">מלל חופשי נוסף (אופציונלי)</span>
           <textarea
             className={`${inputClass} min-h-20`}
             value={notes}
@@ -302,7 +305,7 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">שם החותם</span>
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">שם החותם</span>
             <input
               className={inputClass}
               value={signerName}
@@ -311,47 +314,57 @@ export function TerminationForm({ employees }: { employees: EmployeeOption[] }) 
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-700">תפקיד החותם</span>
+            <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-200">תפקיד החותם</span>
             <input className={inputClass} value={signerTitle} onChange={(e) => setSignerTitle(e.target.value)} />
           </label>
         </div>
 
-        {error && <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+        {error && <p className="rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
 
         <button
           type="submit"
           disabled={loading || !employeeId}
-          className="w-full rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-5 py-3 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
         >
+          <FileText size={16} />
           {loading ? "מפיק מסמך..." : "הפקת מסמך"}
         </button>
       </form>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm sm:p-6">
         {doc ? (
           <div>
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="font-semibold text-slate-800">{doc.title}</h3>
-              <button onClick={() => printDoc(doc.html)} className="text-sm text-brand-600 hover:underline">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h3 className="font-bold text-slate-800 dark:text-slate-100">{doc.title}</h3>
+              <button
+                onClick={() => printDoc(doc.html)}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:text-brand-300 transition hover:border-brand-300 hover:bg-brand-50 dark:hover:bg-brand-500/10"
+              >
+                <Printer size={14} />
                 הדפסה / PDF
               </button>
             </div>
             {doc.noticeDays !== undefined && (
-              <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              <p className="mb-3 rounded-lg bg-amber-50 dark:bg-amber-500/15 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
                 הודעה מוקדמת מחושבת: <strong>{doc.noticeDays} ימים</strong>
                 {doc.lastWorkingDay &&
                   ` · יום עבודה אחרון: ${new Intl.DateTimeFormat("he-IL").format(new Date(doc.lastWorkingDay))}`}
               </p>
             )}
             <div
-              className="prose prose-sm max-w-none rounded-lg border border-slate-100 bg-slate-50 p-4"
+              className="prose prose-sm max-w-none rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60 p-4"
               dangerouslySetInnerHTML={{ __html: doc.html }}
             />
           </div>
         ) : (
-          <p className="flex h-full items-center justify-center text-sm text-slate-400">
-            המסמך שייווצר יוצג כאן.
-          </p>
+          <div className="flex h-full items-center justify-center">
+            <EmptyState
+              bare
+              icon={FileText}
+              title="המסמך שייווצר יוצג כאן"
+              subtitle="בחר/י עובד, סוג מסמך ונימוקים — ולחצ/י על ״הפקת מסמך״."
+            />
+          </div>
         )}
       </div>
     </div>

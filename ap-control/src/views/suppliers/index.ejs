@@ -1,0 +1,57 @@
+<%- include('../partials/header') %>
+<div class="toolbar">
+  <h1>ספקים</h1>
+  <span>
+    <a class="btn secondary" href="/suppliers/contacts">אנשי קשר ספקים</a>
+    <a class="btn" href="/suppliers/new">+ ספק חדש</a>
+  </span>
+</div>
+
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+
+<div class="filterms card">
+  סינון:
+  <a href="/suppliers">הכל</a>
+  <a href="/suppliers?status=pending">ממתינים</a>
+  <a href="/suppliers?status=approved">מאושרים</a>
+  <a href="/suppliers?status=blocked">חסומים</a>
+</div>
+
+<form method="post" action="/suppliers/bulk">
+  <div class="card no-print" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap">
+    <strong>פעולה על הנבחרים:</strong>
+    <select name="bulk_action">
+      <option value="approve">אשר</option>
+      <option value="block">חסום</option>
+      <option value="delete">מחק</option>
+    </select>
+    <button type="submit" onclick="return confirm('לבצע את הפעולה על הספקים הנבחרים?')">בצע</button>
+    <span class="muted">סמן שורות עם התיבות. אישור/חסימה/מחיקה — פעולות בעלים. מחיקה רק לספק ללא חשבוניות.</span>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:2rem"><input type="checkbox" onclick="document.querySelectorAll('input.rowchk').forEach(c=>c.checked=this.checked)" title="בחר הכל" /></th>
+        <th>שם</th><th>ח.פ.</th><th>סטטוס</th><th>טלפון</th><th>הערות</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% if (suppliers.length === 0) { %>
+        <tr><td colspan="7" class="muted">אין ספקים להצגה.</td></tr>
+      <% } %>
+      <% suppliers.forEach(function(s){ %>
+        <tr>
+          <td><input type="checkbox" class="rowchk" name="ids" value="<%= s.id %>" /></td>
+          <td><%= s.name %></td>
+          <td class="mono"><%= s.tax_id || '—' %></td>
+          <td><span class="badge b-<%= s.status %>"><%= s.status === 'pending' ? 'ממתין' : s.status === 'approved' ? 'מאושר' : 'חסום' %></span></td>
+          <td><%= s.phone || '—' %></td>
+          <td class="muted"><%= s.notes || '' %></td>
+          <td class="right"><a class="btn secondary small" href="/suppliers/<%= s.id %>/edit">ערוך</a></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</form>
+<%- include('../partials/footer') %>

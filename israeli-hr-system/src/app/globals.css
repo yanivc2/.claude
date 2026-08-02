@@ -1,27 +1,231 @@
-@import url("https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Assistant:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --background: #f8fafc;
+  color-scheme: light;
+  --background: #f3f4f9;
   --foreground: #0f172a;
+}
+
+/* מצב כהה — כחול-לילה עמוק (לא שחור טהור) לפי הנחיות נגישות. */
+.dark {
+  color-scheme: dark; /* גורם לשדות הקלט המקוריים להיצבע כהה — מתקן טקסט שלא נראה */
+  --background: #0b1020;
+  --foreground: #e8eef7;
+}
+/* במצב כהה — הילות עמוקות ורוגעות יותר. */
+.dark body {
+  background-image:
+    radial-gradient(60rem 60rem at 100% -10%, rgb(124 58 237 / 0.12), transparent 60%),
+    radial-gradient(50rem 50rem at 0% 0%, rgb(95 102 207 / 0.12), transparent 55%),
+    radial-gradient(70rem 40rem at 50% 120%, rgb(95 102 207 / 0.08), transparent 60%);
 }
 
 html {
   direction: rtl;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
+  /* רקע חי ומעודן — מארג הילות מותג עדין מעל בסיס, במקום צבע שטוח. */
+  background-color: var(--background);
+  background-image:
+    radial-gradient(60rem 60rem at 100% -10%, rgb(124 58 237 / 0.06), transparent 60%),
+    radial-gradient(50rem 50rem at 0% 0%, rgb(95 102 207 / 0.07), transparent 55%),
+    radial-gradient(70rem 40rem at 50% 120%, rgb(95 102 207 / 0.05), transparent 60%);
+  background-attachment: fixed;
   color: var(--foreground);
   font-family: "Assistant", system-ui, sans-serif;
+  /* ליטוש טיפוגרפי — קרנל, החלקת גופן, וריווח בסיס נושם. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern", "liga", "calt";
+  line-height: 1.6;
+  letter-spacing: -0.006em;
+}
+
+/* טבעת פוקוס אחידה ונגישה על אלמנטים אינטראקטיביים (מקלדת בלבד). */
+:focus-visible {
+  outline: 2px solid rgb(76 81 184 / 0.7);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+/* בחירת טקסט בגוון המותג. */
+::selection {
+  background: rgb(76 81 184 / 0.18);
+}
+
+/* פס גלילה עדין (WebKit) — פחות בולט, יותר מלוטש. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(148 163 184 / 0.4);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184 / 0.6);
+  background-clip: content-box;
+}
+
+/* מצב כהה: תיקון גורף של שדות קלט — רקע כהה, טקסט בהיר, גבול נראה, placeholder
+   קריא. פותר שדות שבהם הכתב לא נראה בגלל רינדור בהיר של הדפדפן. */
+@layer base {
+  .dark input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+  .dark textarea,
+  .dark select {
+    background-color: #16202f;
+    color: #eef3fb;
+    border-color: #33415580;
+  }
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: #7c8aa0;
+  }
 }
 
 /* התאמות RTL כלליות */
 @layer utilities {
   .text-start {
     text-align: start;
+  }
+}
+
+/* ───────────────────────────── תנועה ואנימציות ─────────────────────────────
+   אנימציות כניסה עדינות שמעניקות תחושת "חיים" לממשק. עם כיבוד להעדפת
+   prefers-reduced-motion — משתמשים שביקשו פחות תנועה יקבלו הופעה מיידית. */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ריצוד עדין לשלדי טעינה (skeletons). */
+@keyframes shimmer {
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+/* ריחוף איטי להילות רקע — נותן תחושת עומק חי במסך הכניסה. */
+@keyframes float-slow {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(2%, -3%) scale(1.06); }
+}
+@keyframes float-slow-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-3%, 3%) scale(1.08); }
+}
+@keyframes pop {
+  0% { opacity: 0; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@layer utilities {
+  .animate-fade-up {
+    animation: fade-up 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out both;
+  }
+  .animate-float-slow {
+    animation: float-slow 14s ease-in-out infinite;
+  }
+  .animate-float-slow-2 {
+    animation: float-slow-2 18s ease-in-out infinite;
+  }
+  /* הופעה מדורגת — כרטיסים/שורות נכנסים ברצף עדין. השתמש עם --i (אינדקס). */
+  .animate-stagger {
+    animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: calc(var(--i, 0) * 45ms);
+  }
+  /* הרמה עדינה במעבר עכבר — עקבי בכל הכרטיסים האינטראקטיביים. */
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-3px);
+  }
+  /* פעימת הופעה קלה (למספרים/תגים חדשים). */
+  .animate-pop {
+    animation: pop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  /* משטח זכוכית — שקיפות + טשטוש + גבול עדין. למצב בהיר וכהה. */
+  .glass {
+    background: rgb(255 255 255 / 0.72);
+    backdrop-filter: blur(14px) saturate(1.3);
+    -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    border: 1px solid rgb(255 255 255 / 0.5);
+  }
+  .dark .glass {
+    background: rgb(17 24 39 / 0.62);
+    border: 1px solid rgb(148 163 184 / 0.12);
+  }
+  /* טקסט בגרדיאנט המותג (אינדיגו→סגול). */
+  .text-gradient {
+    background: linear-gradient(120deg, #4c51b8, #7c3aed);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .dark .text-gradient {
+    background: linear-gradient(120deg, #a9aeea, #c4b5fd);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* שלד טעינה עם ברק נע (RTL — נע משמאל לימין). */
+  .skeleton {
+    position: relative;
+    overflow: hidden;
+    background: rgb(148 163 184 / 0.15);
+  }
+  .skeleton::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(100%);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgb(148 163 184 / 0.18),
+      transparent
+    );
+    animation: shimmer 1.4s infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
   }
 }

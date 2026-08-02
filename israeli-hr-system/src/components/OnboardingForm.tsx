@@ -1,6 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import {
+  User,
+  Briefcase,
+  Landmark,
+  FileText,
+  FileSignature,
+  Download,
+  ShieldCheck,
+  CheckCircle2,
+  type LucideIcon,
+} from "lucide-react";
 import { SignaturePad } from "./SignaturePad";
 import { AVAILABILITY_DAYS, AVAILABILITY_SHIFTS } from "@/lib/availability";
 import { PRIVACY_POLICY_VERSION } from "./PrivacyPolicy";
@@ -74,7 +85,9 @@ interface FormState {
   monthlySalary: string;
   hourlySalary: string;
   availability: Record<string, string[]>; // מפתח-יום → רשימת מפתחות-משמרת
+  companyId: string; // שיוך לחברה (מצב HR)
   hasActivePension: boolean;
+  pensionHandled: boolean; // עובד קיים — הפנסיה כבר טופלה (ללא תזכורת)
   // טופס 101
   taxYear: string;
   maritalStatus: string;
@@ -97,7 +110,9 @@ const EMPTY: FormState = {
   monthlySalary: "",
   hourlySalary: "",
   availability: {},
+  companyId: "",
   hasActivePension: false,
+  pensionHandled: false,
   taxYear: String(new Date().getFullYear()),
   maritalStatus: "רווק/ה",
   numberOfChildren: "0",
@@ -127,15 +142,56 @@ function Field({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
+      <span className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-200">{label}</span>
       {children}
     </label>
   );
 }
 
+// כרטיס־מקטע מעוצב: תג אייקון רך + מספר שלב + כותרת ותת־כותרת אופציונלית.
+function Section({
+  icon: Icon,
+  step,
+  title,
+  subtitle,
+  children,
+  tone = "default",
+}: {
+  icon: LucideIcon;
+  step?: number;
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  tone?: "default" | "error";
+}) {
+  const wrap =
+    tone === "error"
+      ? "border-red-400 bg-red-50 dark:bg-red-500/15"
+      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900";
+  return (
+    <section className={`rounded-2xl border ${wrap} p-4 shadow-sm sm:p-6`}>
+      <div className="mb-4 flex items-center gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+          <Icon size={20} />
+        </span>
+        <div className="min-w-0">
+          {step !== undefined && (
+            <span className="text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+              שלב {step}
+            </span>
+          )}
+          <h2 className="text-lg font-bold leading-tight text-slate-800 dark:text-slate-100">{title}</h2>
+          {subtitle && <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{subtitle}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 // גופן 16px בסלולר (text-base) מונע זום אוטומטי ב-iOS בעת מיקוד בשדה; במסך רחב חוזר ל-14px.
 const inputClass =
-  "w-full rounded-lg border border-slate-300 px-3 py-2 text-base sm:text-sm outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
+  "w-full rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-2.5 text-base sm:text-sm outline-none transition focus:border-brand-500 focus:ring-1 focus:ring-brand-500";
 
 interface OnboardingFormProps {
   // נתיב ההגשה: ברירת מחדל הוא מסלול ה-HR; הפורטל הציבורי מעביר נתיב מבוסס-טוקן.
@@ -150,6 +206,9 @@ interface OnboardingFormProps {
   hideEmployerFields?: boolean;
   // קישור למדיניות פרטיות — כשמסופק, מוצג צ'קבוקס אישור חובה.
   privacyUrl?: string;
+  // הסתרת החתימות (קליטה ידנית ע"י HR — אין צורך שה-HR יחתום; חתימה נדרשת רק
+  // מהעובד בפורטל). במצב זה מוצגת גם אפשרות לצרף קובץ הסכם עבודה להורדה/תיוק.
+  hideSignatures?: boolean;
 }
 
 // בריחת תווים לצורך הזרקה בטוחה ל-HTML של חלון ההדפסה.
@@ -179,7 +238,7 @@ function printDocument(title: string, bodyHtml: string) {
       `td{border:1px solid #cbd5e1;padding:6px 10px;text-align:right}` +
       `.bar{position:sticky;top:0;display:flex;flex-wrap:wrap;gap:16px;justify-content:center;background:#0f172a;padding:20px}` +
       `.bar button{border:0;border-radius:12px;padding:20px 48px;font-size:24px;font-weight:800;cursor:pointer}` +
-      `.b-print{background:#2563eb;color:#fff}.b-close{background:#ef4444;color:#fff}` +
+      `.b-print{background:#4c51b8;color:#fff}.b-close{background:#ef4444;color:#fff}` +
       `@media print{.bar{display:none}.page{margin:0}}</style></head><body>` +
       `<div class="bar"><button class="b-print" onclick="window.print()">🖨️ הדפסה / שמירה</button>` +
       `<button class="b-close" onclick="window.close()">✕ סגירה</button></div>` +
@@ -191,6 +250,67 @@ function printDocument(title: string, bodyHtml: string) {
   w.document.close();
 }
 
+// כפתור הורדה/הדפסה מאוחד: אם יש אפשרות אחת — כפתור ישיר; אם כמה — תפריט נפתח.
+function DocDownloadMenu({
+  options,
+  variant = "solid",
+}: {
+  options: { label: string; run: () => void }[];
+  variant?: "solid" | "soft";
+}) {
+  const [open, setOpen] = useState(false);
+  if (options.length === 0) return null;
+
+  const base =
+    variant === "solid"
+      ? "bg-brand-600 text-white hover:bg-brand-700"
+      : "border border-green-300 dark:border-green-500/40 bg-white dark:bg-slate-900 text-green-800 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-500/15";
+
+  if (options.length === 1) {
+    return (
+      <button
+        type="button"
+        onClick={options[0].run}
+        className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${base}`}
+      >
+        📥 {options[0].label}
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${base}`}
+      >
+        📥 הורדה / הדפסה ▾
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} aria-hidden />
+          <div className="absolute z-20 mt-1 w-60 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1 shadow-lg">
+            {options.map((o) => (
+              <button
+                key={o.label}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  o.run();
+                }}
+                className="block w-full rounded-lg px-3 py-2 text-start text-sm font-medium text-slate-700 dark:text-slate-200 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 export function OnboardingForm({
   endpoint = "/api/onboarding",
   defaults,
@@ -198,11 +318,30 @@ export function OnboardingForm({
   agreement,
   hideEmployerFields = false,
   privacyUrl,
+  hideSignatures = false,
 }: OnboardingFormProps = {}) {
   const [form, setForm] = useState<FormState>({ ...EMPTY, ...defaults });
+  const [companies, setCompanies] = useState<{ id: string; name: string }[]>([]);
   const [idFile, setIdFile] = useState<File | null>(null);
+
+  // רשימת חברות לשיוך (מצב HR בלבד).
+  useEffect(() => {
+    if (hideEmployerFields) return;
+    fetch("/api/companies")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((list: { id: string; name: string }[]) => setCompanies(list))
+      .catch(() => {});
+  }, [hideEmployerFields]);
   const [contractSignature, setContractSignature] = useState<string | null>(null);
   const [form101Signature, setForm101Signature] = useState<string | null>(null);
+  // הסכם עבודה שצורף מקומית (במצב HR) — משמש להורדה/הדפסה ולתיוק בתיק העובד.
+  const [localAgreement, setLocalAgreement] = useState<{
+    fileName: string;
+    dataUrl: string;
+    mimeType: string;
+  } | null>(null);
+  // מקור ההסכם: מה שה-HR צירף בהזמנה (prop) או קובץ שהועלה כאן מקומית.
+  const agreementDoc = agreement ?? localAgreement;
   // מפת אישורי פרטיות: מפתח-תיבה → סומן/לא סומן. אף תיבה אינה מסומנת מראש.
   const [consents, setConsents] = useState<Record<string, boolean>>({});
   const [consentError, setConsentError] = useState(false);
@@ -266,7 +405,8 @@ export function OnboardingForm({
       return;
     }
 
-    if (!contractSignature) {
+    // חתימה נדרשת רק כשהחתימות מוצגות (בפורטל העובד). בקליטה ידנית ע"י HR אין צורך.
+    if (!hideSignatures && !contractSignature) {
       setStatus("error");
       setMessage("נדרשת חתימה על הסכם העבודה כדי להשלים את הקליטה.");
       return;
@@ -289,6 +429,14 @@ export function OnboardingForm({
           hourlySalary: form.hourlySalary ? Number(form.hourlySalary) : null,
           taxYear: Number(form.taxYear) || new Date().getFullYear(),
           idAttachment,
+          // הסכם עבודה שצורף מקומית (מצב HR) נשמר בתיק העובד כמסמך CONTRACT.
+          contractAttachment: localAgreement
+            ? {
+                fileName: localAgreement.fileName,
+                mimeType: localAgreement.mimeType,
+                data: localAgreement.dataUrl,
+              }
+            : undefined,
           contractSignature,
           form101Signature,
           // privacyAccepted=true רק כשכל אישורי החובה סומנו (שער תאימות לאחור).
@@ -320,43 +468,62 @@ export function OnboardingForm({
     }
   }
 
-  // מפיק מסמך אחד להדפסה/שמירה: ההסכם + פרטי העובד + החתימה.
-  // המשתמש יכול לבחור "שמירה כ-PDF" מתוך חלון ההדפסה של הדפדפן.
+  // קורא קובץ הסכם עבודה שהועלה מקומית (מצב HR) וממיר ל-data URL.
+  async function handleAgreementUpload(file: File | null) {
+    if (!file) {
+      setLocalAgreement(null);
+      return;
+    }
+    const dataUrl = await fileToDataUrl(file);
+    setLocalAgreement({ fileName: file.name, dataUrl, mimeType: file.type });
+  }
+
+  // בונה את גוף ה-HTML של ההסכם (תצוגה + חתימה) — משותף להדפסת ההסכם ולהדפסה המשולבת.
+  function agreementBodyHtml(): string {
+    if (!agreementDoc) return "";
+    const isPdf = (agreementDoc.mimeType ?? "").includes("pdf");
+    const view = isPdf
+      ? `<embed src="${agreementDoc.dataUrl}" type="application/pdf" style="width:100%;height:80vh;border:1px solid #ddd" />`
+      : `<img src="${agreementDoc.dataUrl}" style="max-width:100%;border:1px solid #ddd" />`;
+    const sigHtml = contractSignature
+      ? `<div class="sig"><p>חתימת העובד/ת (מאשר/ת את תנאי ההסכם):</p><img src="${contractSignature}" style="height:110px" alt="חתימה" /></div>`
+      : "";
+    return `<h1>הסכם עבודה</h1><h2>ההסכם:</h2>${view}${sigHtml}`;
+  }
+
+  // מפיק מסמך הסכם עבודה להדפסה/שמירה.
   function printSignedAgreement() {
-    if (!agreement) return;
+    if (!agreementDoc) return;
     const rawName = `${form.firstName} ${form.lastName}`.trim() || "—";
-    const name = escapeHtml(rawName);
     const nid = escapeHtml(form.nationalId || "—");
     const date = new Date().toLocaleDateString("he-IL");
-    const isPdf = (agreement.mimeType ?? "").includes("pdf");
-    const agreementHtml = isPdf
-      ? `<embed src="${agreement.dataUrl}" type="application/pdf" style="width:100%;height:80vh;border:1px solid #ddd" />`
-      : `<img src="${agreement.dataUrl}" style="max-width:100%;border:1px solid #ddd" />`;
-    const sigHtml = contractSignature
-      ? `<img src="${contractSignature}" style="height:110px" alt="חתימה" />`
-      : "<p>ללא חתימה</p>";
-
     printDocument(
-      `הסכם עבודה חתום — ${rawName}`,
-      `<h1>הסכם עבודה</h1>` +
-        `<p class="meta">עובד/ת: <strong>${name}</strong> · ת.ז: ${nid} · תאריך: ${date}</p>` +
-        `<h2>ההסכם:</h2>${agreementHtml}` +
-        `<div class="sig"><p>חתימת העובד/ת (מאשר/ת את תנאי ההסכם):</p>${sigHtml}` +
-        `<p class="meta">נחתם בתאריך ${date}</p></div>`,
+      `הסכם עבודה — ${rawName}`,
+      `<p class="meta">עובד/ת: <strong>${escapeHtml(rawName)}</strong> · ת.ז: ${nid} · תאריך: ${date}</p>` +
+        agreementBodyHtml(),
     );
   }
 
-  // מפיק מסמך טופס 101 להדפסה/שמירה: כל השדות + החתימה על טופס 101.
-  function printForm101() {
+  // הדפסה משולבת: טופס 101 + הסכם עבודה במסמך אחד.
+  function printBoth() {
+    if (!agreementDoc) return printForm101();
+    const rawName = `${form.firstName} ${form.lastName}`.trim() || "—";
+    printDocument(
+      `מסמכי קליטה — ${rawName}`,
+      form101BodyHtml() + `<div style="page-break-before:always"></div>` + agreementBodyHtml(),
+    );
+  }
+
+  // גוף ה-HTML של טופס 101 — משותף להדפסה בודדת ולהדפסה המשולבת.
+  function form101BodyHtml(): string {
     const g = (v: string) => escapeHtml(v || "—");
     const yesNo = (b: boolean) => (b ? "כן" : "לא");
-    const fullName = g(`${form.firstName} ${form.lastName}`.trim());
     const date = new Date().toLocaleDateString("he-IL");
     const sig = form101Signature
       ? `<img src="${form101Signature}" style="height:110px" alt="חתימה" />`
       : "<p>ללא חתימה</p>";
     const rows: Array<[string, string]> = [
-      ["שם מלא", fullName],
+      ["שם מלא", g(`${form.firstName} ${form.lastName}`.trim())],
       ["תעודת זהות", g(form.nationalId)],
       ["תאריך לידה", g(form.birthDate)],
       ["דוא״ל", g(form.email)],
@@ -370,42 +537,43 @@ export function OnboardingForm({
       ["בקשה לנקודות זיכוי", yesNo(form.requestsCredits)],
     ];
     const tableRows = rows
-      .map(
-        ([k, v]) =>
-          `<tr><td style="font-weight:600;width:40%">${k}</td><td>${v}</td></tr>`,
-      )
+      .map(([k, v]) => `<tr><td style="font-weight:600;width:40%">${k}</td><td>${v}</td></tr>`)
       .join("");
-
-    printDocument(
-      `טופס 101 — ${`${form.firstName} ${form.lastName}`.trim() || ""}`,
+    return (
       `<h1>טופס 101 — כרטיס עובד לצורכי מס</h1>` +
-        `<p class="meta">תאריך: ${date}</p>` +
-        `<table>${tableRows}</table>` +
-        `<div class="sig"><p>חתימת העובד/ת:</p>${sig}<p class="meta">נחתם בתאריך ${date}</p></div>`,
+      `<p class="meta">תאריך: ${date}</p>` +
+      `<table>${tableRows}</table>` +
+      `<div class="sig"><p>חתימת העובד/ת:</p>${sig}<p class="meta">נחתם בתאריך ${date}</p></div>`
     );
   }
 
+  // מפיק מסמך טופס 101 להדפסה/שמירה.
+  function printForm101() {
+    printDocument(`טופס 101 — ${`${form.firstName} ${form.lastName}`.trim() || ""}`, form101BodyHtml());
+  }
+
+  // אפשרויות ההורדה/הדפסה — טופס 101 תמיד; הסכם ושניהם רק כשקיים הסכם עבודה.
+  const docOptions: { label: string; run: () => void }[] = [
+    { label: "טופס 101", run: printForm101 },
+    ...(agreementDoc
+      ? [
+          { label: "הסכם עבודה", run: printSignedAgreement },
+          { label: "טופס 101 + הסכם עבודה", run: printBoth },
+        ]
+      : []),
+  ];
+
   if (status === "done") {
     return (
-      <div className="rounded-xl border border-green-200 bg-green-50 p-6 text-green-800">
-        <p className="text-lg font-semibold">✓ {message}</p>
+      <div className="rounded-2xl border border-green-200 dark:border-green-500/30 bg-green-50 dark:bg-green-500/15 p-6 shadow-sm">
+        <div className="flex items-start gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-green-100 text-green-700 dark:bg-green-500/25 dark:text-green-300">
+            <CheckCircle2 size={22} />
+          </span>
+          <p className="mt-1 text-lg font-semibold text-green-800 dark:text-green-300">{message}</p>
+        </div>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={printForm101}
-            className="rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-100"
-          >
-            🖨️ הדפסה / שמירת טופס 101
-          </button>
-          {agreement && contractSignature && (
-            <button
-              type="button"
-              onClick={printSignedAgreement}
-              className="rounded-lg border border-green-300 bg-white px-4 py-2 text-sm font-semibold text-green-800 transition hover:bg-green-100"
-            >
-              🖨️ הדפסה / שמירת ההסכם החתום
-            </button>
-          )}
+          <DocDownloadMenu options={docOptions} variant="soft" />
         </div>
       </div>
     );
@@ -414,8 +582,7 @@ export function OnboardingForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {/* פרטים אישיים */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">פרטים אישיים</h2>
+      <Section icon={User} step={1} title="פרטים אישיים" subtitle="פרטי הזיהוי והקשר של העובד/ת.">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="שם פרטי">
             <input
@@ -481,11 +648,10 @@ export function OnboardingForm({
             />
           </Field>
         </div>
-      </section>
+      </Section>
 
       {/* פרטי העסקה */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">פרטי העסקה</h2>
+      <Section icon={Briefcase} step={2} title="פרטי העסקה" subtitle="מועד תחילה, תפקיד, שכר וזמינות.">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="מועד תחילת עבודה">
             <input
@@ -498,6 +664,20 @@ export function OnboardingForm({
           </Field>
           {!hideEmployerFields && (
             <>
+              <Field label="חברה מעסיקה">
+                <select
+                  className={inputClass}
+                  value={form.companyId}
+                  onChange={(e) => set("companyId", e.target.value)}
+                >
+                  <option value="">— ללא שיוך —</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
               <Field label="תפקיד">
                 <select
                   className={inputClass}
@@ -536,13 +716,13 @@ export function OnboardingForm({
 
         {/* זמינות לפי ימים ומשמרות */}
         <div className="mt-4">
-          <span className="mb-2 block text-sm font-medium text-slate-700">
+          <span className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
             זמינות לפי ימים ומשמרות
           </span>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[24rem] border-collapse text-sm">
               <thead>
-                <tr className="text-slate-500">
+                <tr className="text-slate-500 dark:text-slate-400">
                   <th className="p-2 text-start font-medium">יום</th>
                   {AVAILABILITY_SHIFTS.map((s) => (
                     <th key={s.key} className="p-2 text-center font-medium">
@@ -553,8 +733,8 @@ export function OnboardingForm({
               </thead>
               <tbody>
                 {AVAILABILITY_DAYS.map((d) => (
-                  <tr key={d.key} className="border-t border-slate-100">
-                    <td className="p-2 text-slate-700">{d.label}</td>
+                  <tr key={d.key} className="border-t border-slate-100 dark:border-slate-800">
+                    <td className="p-2 text-slate-700 dark:text-slate-200">{d.label}</td>
                     {AVAILABILITY_SHIFTS.map((s) => (
                       <td key={s.key} className="p-2 text-center">
                         <input
@@ -572,18 +752,17 @@ export function OnboardingForm({
             </table>
           </div>
           {/* הצהרת זמינות — חובה משפטית להבהרה */}
-          <p className="mt-3 rounded-lg bg-red-50 p-3 text-sm font-medium text-red-700">
+          <p className="mt-3 rounded-lg bg-red-50 dark:bg-red-500/15 p-3 text-sm font-medium text-red-700 dark:text-red-400">
             ידוע לי כי קבלתי לעבודה הינה בהסתמך על זמינות המשמרות שאני מגיש וכי שינוי
             בזמינות הינה עילה לפיטורין בגין מתפטר.
           </p>
         </div>
-      </section>
+      </Section>
 
       {/* קרן פנסיה — נפרד ומודגש */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-3 text-lg font-semibold text-slate-800">קרן פנסיה</h2>
+      <Section icon={Landmark} step={3} title="קרן פנסיה" subtitle="סטטוס הסדר פנסיוני קיים בעת הקליטה.">
         <div className="space-y-2">
-          <label className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-base text-slate-700">
+          <label className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-base text-slate-700 dark:text-slate-200">
             <input
               type="radio"
               name="pension"
@@ -593,7 +772,7 @@ export function OnboardingForm({
             />
             קיימת קרן פנסיה פעילה
           </label>
-          <label className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 text-base text-slate-700">
+          <label className="flex items-center gap-3 rounded-lg border border-slate-200 dark:border-slate-800 p-3 text-base text-slate-700 dark:text-slate-200">
             <input
               type="radio"
               name="pension"
@@ -603,15 +782,34 @@ export function OnboardingForm({
             />
             לא קיימת קרן פנסיה פעילה
           </label>
+
+          {/* עובד קיים — הפנסיה כבר טופלה: מונע תזכורת פתיחה שגויה */}
+          {!hideEmployerFields && (
+            <label className="mt-2 flex items-start gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-5 w-5"
+                checked={form.pensionHandled}
+                onChange={(e) => set("pensionHandled", e.target.checked)}
+              />
+              <span>
+                תיק הפנסיה כבר נפתח וטופל (עובד קיים) — אין צורך בתזכורת פתיחה.
+                <span className="mt-0.5 block text-xs opacity-80">
+                  סמן/י בקליטת עובד ותיק שהפנסיה שלו כבר פעילה, כדי שלא תופיע משימת פתיחה.
+                </span>
+              </span>
+            </label>
+          )}
         </div>
-      </section>
+      </Section>
 
       {/* טופס 101 */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-1 text-lg font-semibold text-slate-800">טופס 101</h2>
-        <p className="mb-4 text-sm text-slate-500">
-          כרטיס עובד לצורכי ניכוי מס הכנסה במקור.
-        </p>
+      <Section
+        icon={FileText}
+        step={4}
+        title="טופס 101"
+        subtitle="כרטיס עובד לצורכי ניכוי מס הכנסה במקור."
+      >
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Field label="שנת המס">
             <input
@@ -644,7 +842,7 @@ export function OnboardingForm({
           </Field>
         </div>
         <div className="mt-4 space-y-2">
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={form.isResidentOfIsrael}
@@ -652,7 +850,7 @@ export function OnboardingForm({
             />
             תושב/ת ישראל
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={form.hasOtherIncome}
@@ -660,7 +858,7 @@ export function OnboardingForm({
             />
             קיימת הכנסה נוספת ממעסיק אחר
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
             <input
               type="checkbox"
               checked={form.requestsCredits}
@@ -677,96 +875,102 @@ export function OnboardingForm({
               type="file"
               accept="image/*,application/pdf"
               onChange={(e) => setIdFile(e.target.files?.[0] ?? null)}
-              className="block w-full text-sm text-slate-600 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+              className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
             />
           </Field>
-          {idFile && <p className="mt-1 text-xs text-green-700">נבחר: {idFile.name}</p>}
+          {idFile && <p className="mt-1 text-xs text-green-700 dark:text-green-400">נבחר: {idFile.name}</p>}
         </div>
 
-        {/* חתימה על טופס 101 */}
-        <div className="mt-4">
-          <SignaturePad label="חתימה על טופס 101" onChange={setForm101Signature} />
-        </div>
-
-        <button
-          type="button"
-          onClick={printForm101}
-          className="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100"
-        >
-          🖨️ הדפסה / שמירת טופס 101
-        </button>
-      </section>
-
-      {/* חתימה על הסכם העבודה */}
-      <section className="rounded-xl border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="mb-4 text-lg font-semibold text-slate-800">הסכם עבודה</h2>
-        <p className="mb-4 text-sm text-slate-500">
-          אנא קרא/י את הסכם העבודה וחתום/מי במקום המיועד. החתימה מהווה אישור לתנאי
-          ההעסקה.
-        </p>
-
-        {/* הסכם עבודה שצורף ע"י המעסיק — מוצג מוטמע לקריאה, עם הורדה */}
-        {agreement && (
-          <div className="mb-4">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              <span className="text-sm font-medium text-slate-700">
-                📄 הסכם העבודה: {agreement.fileName}
-              </span>
-              <a
-                href={agreement.dataUrl}
-                download={agreement.fileName}
-                className="rounded-lg border border-slate-300 px-3 py-1 text-xs text-slate-600 transition hover:bg-slate-50"
-              >
-                הורדה
-              </a>
-            </div>
-            {(agreement.mimeType ?? "").includes("pdf") ? (
-              <iframe
-                src={agreement.dataUrl}
-                title="הסכם עבודה"
-                className="h-96 w-full rounded-lg border border-slate-200"
-              />
-            ) : (
-              <img
-                src={agreement.dataUrl}
-                alt="הסכם עבודה"
-                className="max-h-96 w-full rounded-lg border border-slate-200 object-contain"
-              />
-            )}
+        {/* חתימה על טופס 101 — נדרשת רק מהעובד (בפורטל), לא בקליטה ידנית */}
+        {!hideSignatures && (
+          <div className="mt-4">
+            <SignaturePad label="חתימה על טופס 101" onChange={setForm101Signature} />
           </div>
         )}
+      </Section>
 
-        <SignaturePad label="חתימה על הסכם העבודה (חובה)" onChange={setContractSignature} />
-
-        {agreement && (
-          <button
-            type="button"
-            onClick={printSignedAgreement}
-            className="mt-4 rounded-lg border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100"
-          >
-            🖨️ הדפסה / שמירת ההסכם עם החתימה
-          </button>
+      {/* הסכם עבודה */}
+      <Section icon={FileSignature} step={5} title="הסכם עבודה">
+        {hideSignatures ? (
+          // מצב HR: צירוף קובץ הסכם (רשות) — יישמר בתיק העובד ויהיה זמין להורדה/הדפסה.
+          <>
+            <p className="mb-3 text-sm text-slate-500 dark:text-slate-400">
+              ניתן לצרף קובץ הסכם עבודה (PDF או תמונה). הוא יישמר בתיק העובד ותוכל/י להוריד או
+              להדפיס אותו יחד עם טופס 101.
+            </p>
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              onChange={(e) => handleAgreementUpload(e.target.files?.[0] ?? null)}
+              className="block w-full text-sm text-slate-600 dark:text-slate-300 file:ml-3 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700"
+            />
+            {localAgreement && (
+              <p className="mt-1 text-xs text-green-700 dark:text-green-400">צורף: {localAgreement.fileName}</p>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
+              אנא קרא/י את הסכם העבודה וחתום/מי במקום המיועד. החתימה מהווה אישור לתנאי ההעסקה.
+            </p>
+            {agreementDoc && (
+              <div className="mb-4">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                    📄 הסכם העבודה: {agreementDoc.fileName}
+                  </span>
+                  <a
+                    href={agreementDoc.dataUrl}
+                    download={agreementDoc.fileName}
+                    className="rounded-lg border border-slate-300 dark:border-slate-700 px-3 py-1 text-xs text-slate-600 dark:text-slate-300 transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                  >
+                    הורדה
+                  </a>
+                </div>
+                {(agreementDoc.mimeType ?? "").includes("pdf") ? (
+                  <iframe
+                    src={agreementDoc.dataUrl}
+                    title="הסכם עבודה"
+                    className="h-96 w-full rounded-lg border border-slate-200 dark:border-slate-800"
+                  />
+                ) : (
+                  <img
+                    src={agreementDoc.dataUrl}
+                    alt="הסכם עבודה"
+                    className="max-h-96 w-full rounded-lg border border-slate-200 dark:border-slate-800 object-contain"
+                  />
+                )}
+              </div>
+            )}
+            <SignaturePad label="חתימה על הסכם העבודה (חובה)" onChange={setContractSignature} />
+          </>
         )}
-      </section>
+      </Section>
+
+      {/* הורדה / הדפסה של המסמכים — כפתור אחד */}
+      <Section
+        icon={Download}
+        title="הורדה והדפסה"
+        subtitle={`הורדה או הדפסה של טופס 101${agreementDoc ? ", הסכם העבודה, או שניהם יחד" : ""} — כקובץ שניתן לשמור כ-PDF.`}
+      >
+        <DocDownloadMenu options={docOptions} variant="solid" />
+      </Section>
 
       {/* אישורי פרטיות (נספח ג') — חובה בפורטל העובד */}
       {privacyUrl && (
-        <section
-          className={`rounded-xl border p-4 transition sm:p-6 ${
-            consentError && !allMandatoryAccepted
-              ? "border-red-400 bg-red-50"
-              : "border-slate-200 bg-white"
-          }`}
+        <Section
+          icon={ShieldCheck}
+          title="אישורי פרטיות"
+          tone={consentError && !allMandatoryAccepted ? "error" : "default"}
         >
-          <h2 className="mb-1 text-lg font-semibold text-slate-800">אישורי פרטיות</h2>
           {/* הודעה תמציתית לפי סעיף 11 לחוק */}
-          <p className="mb-4 text-sm leading-6 text-slate-600">
+          <p className="mb-4 text-sm leading-6 text-slate-600 dark:text-slate-300">
             לפני השלמת הקליטה יש לקרוא את{" "}
             <a
               href={privacyUrl}
               target="_blank"
               rel="noreferrer"
-              className="font-semibold text-brand-700 underline"
+              className="font-semibold text-brand-700 dark:text-brand-300 underline"
             >
               מדיניות הפרטיות וההודעה לפי סעיף 11
             </a>{" "}
@@ -779,8 +983,8 @@ export function OnboardingForm({
           <label
             className={`flex items-start gap-3 rounded-lg border p-3 text-sm leading-6 transition ${
               consentError && !allMandatoryAccepted
-                ? "border-red-400 bg-red-50"
-                : "border-slate-200 bg-white"
+                ? "border-red-400 bg-red-50 dark:bg-red-500/15"
+                : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
             }`}
           >
             <input
@@ -789,8 +993,8 @@ export function OnboardingForm({
               checked={allMandatoryAccepted}
               onChange={(e) => toggleAllMandatory(e.target.checked)}
             />
-            <span className="text-slate-700">
-              <span className="font-semibold text-slate-800">
+            <span className="text-slate-700 dark:text-slate-200">
+              <span className="font-semibold text-slate-800 dark:text-slate-100">
                 קראתי ואני מאשר/ת את מדיניות הפרטיות וההודעה לפי סעיף 11
               </span>{" "}
               (גרסה {PRIVACY_POLICY_VERSION}), לרבות ארבעת האישורים הבאים. אישור זה מתעד קבלת
@@ -798,27 +1002,27 @@ export function OnboardingForm({
             </span>
           </label>
           {/* פירוט האישורים הכלולים — לשמירה על הסכמה מדעת */}
-          <ul className="mt-2 space-y-1.5 pe-2 text-xs leading-5 text-slate-500">
+          <ul className="mt-2 space-y-1.5 pe-2 text-xs leading-5 text-slate-500 dark:text-slate-400">
             {MANDATORY_CONSENTS.map((c) => (
               <li key={c.key}>
-                <span className="font-semibold text-slate-600">{c.label}</span> — {c.text}
+                <span className="font-semibold text-slate-600 dark:text-slate-300">{c.label}</span> — {c.text}
               </li>
             ))}
           </ul>
 
           {consentError && !allMandatoryAccepted && (
-            <p className="mt-2 text-sm font-semibold text-red-600">יש לאשר מדיניות פרטיות</p>
+            <p className="mt-2 text-sm font-semibold text-red-600 dark:text-red-400">יש לאשר מדיניות פרטיות</p>
           )}
 
           {/* ג.2 / ג.3 — הסכמות רשות, נפרדות ואינן חוסמות המשך */}
-          <p className="mb-2 mt-5 text-sm font-semibold text-slate-700">
+          <p className="mb-2 mt-5 text-sm font-semibold text-slate-700 dark:text-slate-200">
             הסכמות רשות (אופציונלי — אינן חובה להשלמת הקליטה)
           </p>
           <div className="space-y-2">
             {OPTIONAL_CONSENTS.map((c) => (
               <label
                 key={c.key}
-                className="flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm leading-6"
+                className="flex items-start gap-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 text-sm leading-6"
               >
                 <input
                   type="checkbox"
@@ -826,27 +1030,27 @@ export function OnboardingForm({
                   checked={!!consents[c.key]}
                   onChange={(e) => toggleConsent(c.key, e.target.checked)}
                 />
-                <span className="text-slate-700">
-                  <span className="font-semibold text-slate-800">{c.label}</span> — {c.text}
+                <span className="text-slate-700 dark:text-slate-200">
+                  <span className="font-semibold text-slate-800 dark:text-slate-100">{c.label}</span> — {c.text}
                 </span>
               </label>
             ))}
           </div>
-          <p className="mt-3 text-xs text-slate-400">
+          <p className="mt-3 text-xs text-slate-400 dark:text-slate-400">
             סירוב או ביטול הסכמת רשות לא יפגעו בשכר, בזכויות או בתנאי העבודה. אף אישור אינו ויתור
             על זכויות קוגנטיות.
           </p>
-        </section>
+        </Section>
       )}
 
       {status === "error" && (
-        <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{message}</p>
+        <p className="rounded-lg bg-red-50 dark:bg-red-500/15 px-4 py-3 text-sm text-red-700 dark:text-red-400">{message}</p>
       )}
 
       <button
         type="submit"
         disabled={status === "saving"}
-        className="w-full rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 disabled:opacity-60 sm:w-auto"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 px-6 py-3.5 text-sm font-bold text-white shadow-md shadow-brand-600/20 transition hover:brightness-105 disabled:opacity-60 sm:w-auto"
       >
         {status === "saving" ? "שומר..." : "השלמת קליטה"}
       </button>

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { requireOwner } from "@/lib/authz";
 
 // GET /api/companies — רשימת החברות.
 export async function GET() {
@@ -27,6 +28,9 @@ const createSchema = z.object({
 
 // POST /api/companies — הוספת חברה (עם ח.פ. וכתובת למדיניות הפרטיות).
 export async function POST(req: Request) {
+  const owner = await requireOwner(req);
+  if (!owner) return NextResponse.json({ error: "אין הרשאה" }, { status: 403 });
+
   const parsed = createSchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: "שם חברה חסר" }, { status: 400 });

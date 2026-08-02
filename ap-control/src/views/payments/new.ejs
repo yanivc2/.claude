@@ -1,0 +1,143 @@
+<%- include('../partials/header') %>
+<h1>תשלום חדש</h1>
+<p class="muted">
+  בחר חשבוניות לתשלום (כולל זיכויים) מאותו חשבון בנק, בחר אמצעי תשלום, הזן את המזהה שלו ותאריך.
+  המערכת מחשבת נטו ואוכפת: אין תשלום ללא חשבונית + מזהה (R1), סכום = סכום השורות (R5),
+  ותקרת מזומן לפי חוק (<%= formatIls(cashCeilingAgorot) %>).
+</p>
+<% if (typeof error !== 'undefined' && error) { %>
+  <div class="alert alert-error"><%= error %></div>
+<% } %>
+<% const preId = (typeof preselectId !== 'undefined') ? preselectId : null; %>
+
+<%
+// group payable invoices by their (store's 1:1) bank account
+const groups = {};
+payable.forEach(function(i){
+  const k = i.derived_bank_account_id;
+  (groups[k] = groups[k] || { name: i.bank_account_name, id: k, rows: [] }).rows.push(i);
+});
+const groupList = Object.values(groups);
+%>
+
+<% if (groupList.length === 0) { %>
+  <div class="card muted">אין חשבוניות מאושרות לתשלום. אשר חשבוניות תחילה במסך החשבוניות.</div>
+<% } %>
+
+<% groupList.forEach(function(g){ %>
+  <div class="card">
+    <h2><%= g.name %></h2>
+    <form method="post" action="/payments" onsubmit="return validateCheck(this)">
+      <input type="hidden" name="bank_account_id" value="<%= g.id %>" />
+      <table>
+        <thead>
+          <tr><th></th><th>ספק</th><th>מס' חשבונית</th><th>תאריך</th><th>סוג</th><th class="right">סכום</th></tr>
+        </thead>
+        <tbody>
+          <% g.rows.forEach(function(i){ %>
+            <tr>
+              <td><input type="checkbox" name="invoice_ids" value="<%= i.id %>" data-amount="<%= i.total_amount %>" <%= preId === i.id ? 'checked' : '' %> onchange="recalc(this.form)" style="width:auto"></td>
+              <td><%= i.supplier_name %></td>
+              <td class="mono"><%= i.invoice_number %></td>
+              <td><%= i.invoice_date %></td>
+              <td><%= i.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
+              <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+      <div class="row" style="margin-top:.8rem">
+        <div>
+          <label>אמצעי תשלום *</label>
+          <select name="method" onchange="onMethod(this.form)">
+            <option value="check" <%= values.method === 'check' ? 'selected' : '' %>>צ׳ק</option>
+            <option value="cash" <%= values.method === 'cash' ? 'selected' : '' %>>מזומן</option>
+            <option value="credit" <%= values.method === 'credit' ? 'selected' : '' %>>אשראי</option>
+            <option value="transfer" <%= values.method === 'transfer' ? 'selected' : '' %>>העברה</option>
+            <option value="batch" <%= values.method === 'batch' ? 'selected' : '' %>>מקבץ</option>
+          </select>
+        </div>
+        <div>
+          <label>תאריך תשלום *</label>
+          <input type="date" name="payment_date" required />
+        </div>
+        <div>
+          <label>נטו לתשלום</label>
+          <input class="net-display" readonly value="₪0.00" />
+        </div>
+      </div>
+
+      <div class="row m-check">
+        <div><label>מספר צ׳ק *</label><input name="check_number" /></div>
+      </div>
+      <div class="row m-cash" style="display:none">
+        <div><label>שם המשלם *</label><input name="payer_name" /></div>
+      </div>
+      <div class="row m-credit" style="display:none">
+        <div><label>4 ספרות אחרונות של האשראי *</label><input name="card_last4" maxlength="4" pattern="\d{4}" /></div>
+      </div>
+      <div class="row m-transfer" style="display:none">
+        <div><label>מספר אסמכתא *</label><input name="reference" /></div>
+      </div>
+      <div class="row m-batch" style="display:none">
+        <div><label>מספר מקבץ *</label><input name="batch_number" /></div>
+        <div><label>מספר אסמכתא *</label><input name="reference" /></div>
+      </div>
+
+      <div style="margin-top:1rem" class="actions">
+        <button type="submit">הנפק תשלום</button>
+      </div>
+    </form>
+  </div>
+<% }); %>
+
+<a href="/payments" class="btn secondary">חזרה לרשימת הצ׳קים</a>
+
+<script>
+var METHODS = ['check','cash','credit','transfer','batch'];
+var CASH_CEILING = <%= cashCeilingAgorot %>;
+function netOf(form){
+  let net = 0;
+  form.querySelectorAll('input[name="invoice_ids"]:checked').forEach(function(c){ net += Number(c.dataset.amount); });
+  return net;
+}
+function recalc(form){
+  const net = netOf(form);
+  const disp = form.querySelector('.net-display');
+  disp.value = '₪' + (net/100).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  disp.style.color = net <= 0 ? '#b3261e' : '';
+  // Disable the cash option when over the legal ceiling.
+  const sel = form.querySelector('select[name="method"]');
+  const cashOpt = sel ? sel.querySelector('option[value="cash"]') : null;
+  if (cashOpt){
+    const over = CASH_CEILING > 0 && net > CASH_CEILING;
+    cashOpt.disabled = over;
+    if (over && sel.value === 'cash'){ sel.value = 'check'; onMethod(form); }
+  }
+}
+// Show only the selected method's fields; disable inputs in hidden rows so they are not
+// submitted (avoids duplicate `reference` names and stray values).
+function onMethod(form){
+  var method = form.querySelector('select[name="method"]').value;
+  METHODS.forEach(function(m){
+    var row = form.querySelector('.m-' + m);
+    if (!row) return;
+    var active = (m === method);
+    row.style.display = active ? '' : 'none';
+    row.querySelectorAll('input').forEach(function(inp){ inp.disabled = !active; });
+  });
+}
+function validateCheck(form){
+  const checked = form.querySelectorAll('input[name="invoice_ids"]:checked').length;
+  if (checked === 0){ alert('בחר לפחות חשבונית אחת'); return false; }
+  const method = form.querySelector('select[name="method"]').value;
+  if (method === 'cash' && CASH_CEILING > 0 && netOf(form) > CASH_CEILING){
+    alert('תשלום במזומן מוגבל ל-' + (CASH_CEILING/100).toLocaleString('en-US') + ' ₪ לפי חוק. בחר אמצעי אחר.');
+    return false;
+  }
+  return true;
+}
+// Apply the preselected method (from ?method=) and recalc (for a preselected invoice) on load.
+document.querySelectorAll('form[action="/payments"]').forEach(function(f){ onMethod(f); recalc(f); });
+</script>
+<%- include('../partials/footer') %>

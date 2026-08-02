@@ -1,0 +1,103 @@
+<%- include('../partials/header') %>
+<%
+  function riskBadge(level) {
+    return level === 'overdue' ? 'b-blocked' : level === 'release_due' ? 'b-on_hold'
+      : level === 'due_soon' ? 'b-on_hold' : 'b-approved';
+  }
+%>
+<div class="toolbar">
+  <h1 style="margin:0">מעקב פנסיה</h1>
+  <div class="actions">
+    <form method="post" action="/pension/alerts/run" style="display:inline" class="no-print">
+      <button type="submit" class="btn secondary" title="שלח סיכום התראות לטלגרם">שלח פוש התראות</button>
+    </form>
+    <a class="btn" href="/pension/new">+ עובד חדש</a>
+  </div>
+</div>
+<p class="muted" style="margin-top:-.4rem">מעקב על פתיחת תיק פנסיה בזמן (חובה חוקית) ועל שליחת טופס שחרור (161) לקרן בסיום העסקה.</p>
+
+<% if (notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div><% } %>
+
+<% if (alerts.length) { %>
+  <div class="alert alert-warn">
+    <strong>⚠ <%= alerts.length %> חריגות ציות פנסיה:</strong>
+    <ul style="margin:.4rem 0 0;padding-inline-start:1.2rem">
+      <% alerts.forEach(function(a){ %><li><%= a.name %> — <%= a.risk.label %></li><% }); %>
+    </ul>
+  </div>
+<% } else { %>
+  <div class="alert alert-ok">אין חריגות — כל התיקים נפתחו במועד והשחרורים מעודכנים.</div>
+<% } %>
+
+<div class="stat-grid">
+  <div class="stat"><div class="num"><%= summary.active %></div><div class="label">עובדים פעילים</div></div>
+  <div class="stat <%= summary.overdue ? 'attn' : '' %>"><div class="num"><%= summary.overdue %></div><div class="label">חריגה — תיק לא נפתח</div></div>
+  <div class="stat <%= summary.dueSoon ? 'attn' : '' %>"><div class="num"><%= summary.dueSoon %></div><div class="label">מתקרב למועד</div></div>
+  <div class="stat <%= summary.releaseDue ? 'attn' : '' %>"><div class="num"><%= summary.releaseDue %></div><div class="label">טופס שחרור ממתין</div></div>
+</div>
+
+<div class="card no-print">
+  <div class="actions">
+    <a class="btn <%= filter === '' ? '' : 'secondary' %>" href="/pension">הכל</a>
+    <a class="btn <%= filter === 'active' ? '' : 'secondary' %>" href="/pension?status=active">פעילים</a>
+    <a class="btn <%= filter === 'terminated' ? '' : 'secondary' %>" href="/pension?status=terminated">סיימו</a>
+  </div>
+</div>
+
+<div class="card" style="padding:0">
+  <table class="sortable">
+    <thead>
+      <tr><th>עובד</th><th>חברה</th><th>תחילת עבודה</th><th>תיק קודם</th><th>מועד פתיחה</th><th>סטטוס תיק</th><th>מצב</th><th data-nosort>פעולות</th></tr>
+    </thead>
+    <tbody>
+      <% if (employees.length === 0) { %><tr><td colspan="8" class="muted">אין עובדים רשומים.</td></tr><% } %>
+      <% employees.forEach(function(e){ %>
+        <tr>
+          <td><strong><%= e.name %></strong><% if (e.status === 'terminated') { %> <span class="badge b-recorded"><%= e.termination_reason === 'dismissed' ? 'פוטר/ה' : 'התפטר/ה' %></span><% } %></td>
+          <td class="muted"><%= e.company_name || '—' %></td>
+          <td class="mono"><%= e.start_date %></td>
+          <td><%= e.prior_pension ? 'כן' : 'לא' %></td>
+          <td class="mono"><%= e.pension_deadline %></td>
+          <td>
+            <% if (e.pension_opened) { %><span class="badge b-approved">נפתח <%= e.pension_opened_date || '' %></span>
+            <% } else { %><span class="badge b-on_hold">טרם נפתח</span><% } %>
+          </td>
+          <td><span class="badge <%= riskBadge(e.risk.level) %>"><%= e.risk.label %></span></td>
+          <td>
+            <div class="actions">
+              <% if (e.status === 'active' && !e.pension_opened) { %>
+                <form method="post" action="/pension/<%= e.id %>/open" style="display:inline">
+                  <button type="submit" class="btn ok small">סמן תיק נפתח</button>
+                </form>
+              <% } %>
+              <% if (e.status === 'active') { %>
+                <details class="paymenu">
+                  <summary class="btn secondary small">סיום העסקה</summary>
+                  <div class="paymenu-items">
+                    <form method="post" action="/pension/<%= e.id %>/terminate">
+                      <label class="muted" style="font-size:.8rem">סיבה</label>
+                      <select name="reason" required>
+                        <option value="dismissed">פיטורים</option>
+                        <option value="resigned">התפטרות</option>
+                      </select>
+                      <label class="muted" style="font-size:.8rem;margin-top:.3rem">תאריך</label>
+                      <input type="date" name="date" />
+                      <button type="submit" class="btn small" style="margin-top:.4rem;width:100%">שמור סיום</button>
+                    </form>
+                  </div>
+                </details>
+              <% } %>
+              <% if (e.status === 'terminated' && !e.release_sent) { %>
+                <form method="post" action="/pension/<%= e.id %>/release" style="display:inline">
+                  <button type="submit" class="btn ok small">סמן שחרור נשלח</button>
+                </form>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

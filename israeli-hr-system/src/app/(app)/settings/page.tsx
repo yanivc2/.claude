@@ -1,5 +1,6 @@
 import { ChangePassword } from "@/components/ChangePassword";
 import { UserManagement } from "@/components/UserManagement";
+import { EmailTest } from "@/components/EmailTest";
 import { currentAdmin } from "@/lib/session";
 import { ensureAdmin } from "@/lib/admin";
 
@@ -14,11 +15,12 @@ export default async function SettingsPage() {
   return (
     <div>
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">הגדרות</h1>
-        <p className="mt-1 text-sm text-slate-500">ניהול חשבון ואבטחה.</p>
+        <h1 className="text-2xl font-extrabold tracking-tight text-slate-800 dark:text-slate-100">הגדרות</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">ניהול חשבון, אבטחה ומשתמשים.</p>
       </header>
       <ChangePassword />
-      {/* ניהול משתמשים — מוצג לבעל המערכת בלבד. */}
+      {/* בדיקת מייל וניהול משתמשים — מוצגים לבעל המערכת בלבד. */}
+      {me?.isOwner && <EmailTest />}
       {me?.isOwner && <UserManagement />}
     </div>
   );

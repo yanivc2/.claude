@@ -1,0 +1,202 @@
+<%- include('../partials/header') %>
+<h1>התאמת בנק</h1>
+<p class="muted">
+  התאמת תנועות חובה מהבנק לצ׳קים פתוחים (R7): לפי סכום + חלון תאריך + כיוון חובה.
+  התאמה חד-משמעית מסומנת אוטומטית; שני צ׳קים באותו סכום+חלון מסומנים להכרעתך.
+</p>
+
+<% if (typeof notice !== 'undefined' && notice) { %>
+  <div class="alert alert-info"><%= notice %></div>
+<% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div>
+<% } %>
+
+<!-- ══ משיכת תנועות מהבנק בלחיצה אחת ══ -->
+<div class="card" style="border-color:var(--brand)">
+  <div class="toolbar" style="margin-bottom:.5rem">
+    <h2 style="margin:0">משיכת תנועות מהבנק</h2>
+    <span class="kicker">Hapoalim · אוטומטי</span>
+  </div>
+  <% if (currentUser.role !== 'owner') { %>
+    <p class="muted">משיכת תנועות מהבנק היא פעולת בעלים. ניתן לייבא קובץ CSV למטה.</p>
+  <% } else if (!scrapeRunnable) { %>
+    <p class="muted">בסביבת ענן (serverless) לא ניתן להריץ סורק דפדפן. הרץ את המשיכה מהמחשב המקומי, או ייבא CSV למטה.</p>
+  <% } else { %>
+    <form method="post" action="/reconciliation/scrape" class="actions" style="flex-wrap:wrap" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='מושך… (~40 שנ׳)';">
+      <input type="hidden" name="account_id" value="<%= accountId %>" />
+      <div>
+        <label class="muted" style="margin:0;font-size:.8rem">מתאריך (ברירת מחדל: 60 יום אחרונים)</label>
+        <input type="date" name="start_date" />
+      </div>
+      <button type="submit" style="align-self:end" <%= scrapeConfigured ? '' : 'disabled' %>>⭳ משוך תנועות עכשיו</button>
+    </form>
+    <% if (!scrapeConfigured) { %>
+      <p class="muted" style="margin:.6rem 0 0">
+        כדי להפעיל את הכפתור, הגדר במחשב את משתני הסביבה
+        <span class="mono">BANK_HAPOALIM_USER_CODE</span> ו-<span class="mono">BANK_HAPOALIM_PASSWORD</span>,
+        ופעם אחת התקן את הסורק: <span class="mono">npm install israeli-bank-scrapers</span>.
+      </p>
+    <% } else { %>
+      <p class="muted" style="margin:.6rem 0 0">לחיצה תמשוך את התנועות ותייבא אותן אוטומטית (כפילויות מדולגות). לאחר מכן אפשר "התאמה אוטומטית".</p>
+    <% } %>
+  <% } %>
+</div>
+
+<div class="card">
+  <form method="get" action="/reconciliation" class="actions">
+    <label style="margin:0">חשבון בנק:</label>
+    <select name="account" onchange="this.form.submit()" style="max-width:340px">
+      <% accounts.forEach(function(a){ %>
+        <option value="<%= a.id %>" <%= a.id === accountId ? 'selected' : '' %>><%= a.display_name %></option>
+      <% }); %>
+    </select>
+  </form>
+</div>
+
+<div class="card">
+  <div class="toolbar">
+    <h2 style="margin:0">תנועות לא מותאמות (חובה)</h2>
+    <form method="post" action="/reconciliation/auto">
+      <input type="hidden" name="account_id" value="<%= accountId %>" />
+      <button type="submit">התאמה אוטומטית</button>
+    </form>
+  </div>
+  <table>
+    <thead>
+      <tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>התאמה</th></tr>
+    </thead>
+    <tbody>
+      <% if (classified.length === 0) { %>
+        <tr><td colspan="5" class="muted">אין תנועות חובה לא מותאמות.</td></tr>
+      <% } %>
+      <% classified.forEach(function(c){ %>
+        <tr>
+          <td><%= c.txn.txn_date %></td>
+          <td class="right neg"><%= formatIls(c.txn.amount) %></td>
+          <td><%= c.txn.description || '' %></td>
+          <td class="mono"><%= c.txn.raw_reference || '—' %></td>
+          <td>
+            <% if (c.state === 'deterministic' || c.state === 'single') { %>
+              <form method="post" action="/reconciliation/match" class="actions">
+                <input type="hidden" name="account_id" value="<%= accountId %>" />
+                <input type="hidden" name="txn_id" value="<%= c.txn.id %>" />
+                <input type="hidden" name="payment_id" value="<%= c.suggestion.id %>" />
+                <span><span class="mono"><%= paymentIdent(c.suggestion) %></span>
+                  <% if (c.state === 'deterministic') { %><span class="badge b-approved">מס' צ׳ק תואם</span><% } %>
+                </span>
+                <button class="ok small" type="submit">אשר פירעון</button>
+              </form>
+            <% } else if (c.state === 'ambiguous') { %>
+              <form method="post" action="/reconciliation/match" class="actions">
+                <input type="hidden" name="account_id" value="<%= accountId %>" />
+                <input type="hidden" name="txn_id" value="<%= c.txn.id %>" />
+                <span class="badge b-on_hold">להכרעה</span>
+                <select name="payment_id" style="width:auto">
+                  <% c.candidates.forEach(function(p){ %>
+                    <option value="<%= p.id %>"><%= paymentIdent(p) %> · <%= p.payment_date %></option>
+                  <% }); %>
+                </select>
+                <button class="small" type="submit">התאם נבחר</button>
+              </form>
+            <% } else { %>
+              <span class="muted">אין צ׳ק פתוח תואם</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
+<div class="row">
+  <div class="card">
+    <h2>ייבוא CSV</h2>
+    <p class="muted">
+      תומך בייצוא בנק הפועלים (עמודות <span class="mono">תאריך / חובה / זכות / אסמכתא</span>)
+      וגם בפורמט פשוט (<span class="mono">date, amount, description, reference</span> — חובה שלילי).
+      מזהה אוטומטית קידוד עברי (Windows-1255), מפריד ; או פסיק, ומדלג על שורות כותרת מיותרות.
+    </p>
+    <form method="post" action="/reconciliation/import-csv" enctype="multipart/form-data" class="stack">
+      <input type="hidden" name="account_id" value="<%= accountId %>" />
+      <input type="file" name="csv" accept=".csv,text/csv" required />
+      <div style="margin-top:.6rem"><button type="submit">ייבא</button></div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>הוספת תנועה ידנית</h2>
+    <form method="post" action="/reconciliation/add" class="stack">
+      <input type="hidden" name="account_id" value="<%= accountId %>" />
+      <label>תאריך</label>
+      <input type="date" name="txn_date" required />
+      <label>סכום (₪, שלילי = חובה)</label>
+      <input name="amount" inputmode="decimal" placeholder="-1170.00" required />
+      <label>תיאור</label>
+      <input name="description" />
+      <label>אסמכתא (למשל מס' צ׳ק)</label>
+      <input name="reference" />
+      <div style="margin-top:.6rem"><button class="secondary" type="submit">הוסף</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="card">
+  <h2>כל התנועות בחשבון</h2>
+  <table class="sortable">
+    <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th><th>סטטוס</th><th data-nosort class="no-print">פעולות</th></tr></thead>
+    <tbody>
+      <% if (transactions.length === 0) { %>
+        <tr><td colspan="7" class="muted">אין תנועות. ייבא CSV, הרץ scraper, או הוסף ידנית.</td></tr>
+      <% } %>
+      <% transactions.forEach(function(t){ %>
+        <tr>
+          <td><%= t.txn_date %></td>
+          <td class="right <%= t.amount < 0 ? 'neg' : '' %>"><%= formatIls(t.amount) %></td>
+          <td><%= t.description || '' %></td>
+          <td class="mono"><%= t.raw_reference || '—' %></td>
+          <td class="muted"><%= t.source %></td>
+          <td>
+            <% if (t.matched_payment_id) { %>
+              <span class="badge b-cleared">נפרע · צ׳ק <span class="mono"><%= t.matched_check_number %></span></span>
+            <% } else if (t.amount < 0) { %>
+              <span class="badge b-issued">ממתין להתאמה</span>
+            <% } else { %>
+              <span class="muted">זכות</span>
+            <% } %>
+          </td>
+          <td class="no-print">
+            <% if (t.matched_payment_id) { %>
+              <form method="post" action="/reconciliation/unmatch" style="display:inline">
+                <input type="hidden" name="account_id" value="<%= accountId %>" />
+                <input type="hidden" name="txn_id" value="<%= t.id %>" />
+                <button class="secondary small" type="submit">בטל התאמה</button>
+              </form>
+            <% } else { %>
+              <button type="button" class="secondary small" onclick="document.getElementById('edit-txn-<%= t.id %>').hidden = !document.getElementById('edit-txn-<%= t.id %>').hidden">ערוך</button>
+              <form method="post" action="/reconciliation/txn/<%= t.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את התנועה?')">
+                <input type="hidden" name="account_id" value="<%= accountId %>" />
+                <button class="danger small" type="submit">מחק</button>
+              </form>
+            <% } %>
+          </td>
+        </tr>
+        <% if (!t.matched_payment_id) { %>
+          <tr id="edit-txn-<%= t.id %>" hidden>
+            <td colspan="7">
+              <form method="post" action="/reconciliation/txn/<%= t.id %>/edit" class="actions" style="flex-wrap:wrap; gap:.5rem">
+                <input type="hidden" name="account_id" value="<%= accountId %>" />
+                <div><label style="margin:0">תאריך</label><input type="date" name="txn_date" value="<%= t.txn_date %>" required /></div>
+                <div><label style="margin:0">סכום (₪, שלילי=חובה)</label><input name="amount" inputmode="decimal" value="<%= (t.amount/100).toFixed(2) %>" required /></div>
+                <div><label style="margin:0">תיאור</label><input name="description" value="<%= t.description || '' %>" /></div>
+                <div><label style="margin:0">אסמכתא</label><input name="reference" value="<%= t.raw_reference || '' %>" /></div>
+                <div style="align-self:end"><button class="ok small" type="submit">שמור</button></div>
+              </form>
+            </td>
+          </tr>
+        <% } %>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>

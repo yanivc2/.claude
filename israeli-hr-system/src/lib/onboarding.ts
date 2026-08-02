@@ -1,3 +1,4 @@
+import type { AdminRole } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "./prisma";
 import { scheduleRetentionSurveys } from "./retention";
@@ -31,6 +32,9 @@ export const onboardingSchema = z.object({
   // זמינות: מפתח-יום → רשימת מפתחות-משמרת
   availability: z.record(z.array(z.string())).optional().nullable(),
   hasActivePension: z.boolean().optional().default(false),
+  // עובד קיים שתיק הפנסיה שלו כבר נפתח וטופל — אין צורך בתזכורת פתיחה.
+  // מסמן את משימת הפנסיה כ"טופלה" מיד, כדי שלא תופיע כמשימה פתוחה/באיחור.
+  pensionHandled: z.boolean().optional().default(false),
   // טופס 101
   taxYear: z.number(),
   maritalStatus: z.string(),
@@ -42,7 +46,8 @@ export const onboardingSchema = z.object({
   idAttachment: attachment,
   // הסכם העבודה מגיע מההזמנה (מוזרק בצד השרת), לא מהטופס — לכן אופציונלי.
   contractAttachment: attachment.optional(),
-  contractSignature: z.string(),
+  // חתימה על ההסכם — נדרשת מהעובד בפורטל, אך אופציונלית בקליטה ידנית ע"י HR.
+  contractSignature: z.string().nullable().optional(),
   form101Signature: z.string().nullable(),
   // אישור מדיניות פרטיות ע"י העובד (בפורטל).
   // privacyAccepted=true משמעו שכל אישורי החובה סומנו (תאימות לאחור לשער הקיים).
@@ -52,13 +57,23 @@ export const onboardingSchema = z.object({
   privacyConsents: z.record(z.boolean()).optional(),
   // שם החברה המעסיקה — מוזרק בצד השרת מתוך ההזמנה, לא נמסר ע"י הלקוח.
   privacyCompanyName: z.string().optional(),
+
+  // שיוך העובד לחברה (בסיס ההפרדה המולטי-חברה). אופציונלי — עובד ללא שיוך
+  // גלוי רק לבעלים/מזכירה.
+  companyId: z.string().optional().nullable(),
 });
 
 export type OnboardingInput = z.infer<typeof onboardingSchema>;
 
 // יוצר עובד מלא (עובד + טופס 101 + מסמכים + חתימות) בטרנזקציה אחת,
 // ומתזמן אוטומטית את סקרי השימור. מחזיר את מזהה העובד שנוצר.
-export async function createEmployeeFromOnboarding(data: OnboardingInput): Promise<string> {
+// uploaderRole — רמת ההרשאה של מי שמבצע את הקליטה (לתיוג מסמכים לצורך כלל
+// המזכירה). בקליטה עצמית ע"י העובד (טוקן) — undefined (מסמכי העובד אינם
+// "קבצי בעלים" ולכן המזכירה רשאית למחקם).
+export async function createEmployeeFromOnboarding(
+  data: OnboardingInput,
+  uploaderRole?: AdminRole,
+): Promise<string> {
   const startDate = new Date(data.startDate);
   const birthDate = data.birthDate ? new Date(data.birthDate) : null;
 
@@ -85,6 +100,7 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
         privacyCompanyName: data.privacyAccepted ? data.privacyCompanyName ?? null : null,
         privacyConsents:
           data.privacyAccepted && data.privacyConsents ? data.privacyConsents : undefined,
+        companyId: data.companyId || null,
         status: "ACTIVE",
       },
     });
@@ -99,6 +115,7 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
           fileName: data.idAttachment.fileName,
           fileUrl: data.idAttachment.data, // בפרודקשן: העלאה ל-object storage וקבלת URL
           mimeType: data.idAttachment.mimeType,
+          uploadedByRole: uploaderRole ?? null,
         },
       });
       idDocId = doc.id;
@@ -113,6 +130,7 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
           fileName: data.contractAttachment.fileName,
           fileUrl: data.contractAttachment.data,
           mimeType: data.contractAttachment.mimeType,
+          uploadedByRole: uploaderRole ?? null,
         },
       });
     }
@@ -132,10 +150,12 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
       },
     });
 
-    // חתימה על הסכם העבודה (חובה).
-    await tx.signature.create({
-      data: { employeeId: emp.id, context: "CONTRACT", imageData: data.contractSignature },
-    });
+    // חתימה על הסכם העבודה (נשמרת רק אם נמסרה — בקליטה ידנית אין חתימה).
+    if (data.contractSignature) {
+      await tx.signature.create({
+        data: { employeeId: emp.id, context: "CONTRACT", imageData: data.contractSignature },
+      });
+    }
 
     // חתימה על טופס 101 (אופציונלי).
     if (data.form101Signature) {
@@ -152,6 +172,14 @@ export async function createEmployeeFromOnboarding(data: OnboardingInput): Promi
 
   // תזמון פתיחת תיק פנסיה לפי החוק (3 חודשים עם הסדר קיים, 6 חודשים בלעדיו).
   await schedulePensionTask(employee.id, startDate, data.hasActivePension);
+  // עובד קיים שהפנסיה שלו כבר טופלה — מסמנים את המשימה כהושלמה כדי שלא תיווצר
+  // תזכורת שגויה (למשל "באיחור") על תיק שכבר פעיל.
+  if (data.pensionHandled) {
+    await prisma.pensionTask.update({
+      where: { employeeId: employee.id },
+      data: { status: "DONE", completedAt: new Date() },
+    });
+  }
 
   return employee.id;
 }
