@@ -14,6 +14,7 @@
     "db:setup": "node --env-file-if-exists=.env src/db/setup.js",
     "set-password": "node --env-file-if-exists=.env src/db/set-password.js",
     "reset-db": "node --env-file-if-exists=.env src/db/reset.js",
+    "scraper:install": "npm install israeli-bank-scrapers",
     "scrape": "node --env-file-if-exists=.env src/scraper/run.js",
     "test": "node --test"
   },

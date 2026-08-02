@@ -22,6 +22,7 @@ import {
   unmatch,
   autoReconcile,
 } from '../services/reconciliation.js';
+import { scrapeAndImport, scrapeConfigured, scrapeRunnable } from '../services/bankScrape.js';
 
 const router = Router();
 
@@ -54,6 +55,8 @@ async function renderPage(req, res, accountId, extra = {}) {
     accountId,
     classified,
     transactions: accountId ? await listTransactions(accountId) : [],
+    scrapeConfigured: scrapeConfigured(),
+    scrapeRunnable: scrapeRunnable(),
     error: null,
     notice: null,
     ...extra,
@@ -64,6 +67,26 @@ router.get('/', async (req, res, next) => {
   try {
     await renderPage(req, res, await resolveAccountId(req));
   } catch (err) {
+    next(err);
+  }
+});
+
+// One-click bank pull (owner only): scrape Hapoalim and import transactions.
+router.post('/scrape', async (req, res, next) => {
+  const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  try {
+    if (req.user.role !== 'owner') {
+      return renderPage(req, res, accountId, { error: 'משיכת תנועות מהבנק — בעלים בלבד.' });
+    }
+    const r = await scrapeAndImport({ startDate: req.body.start_date || null }, req.user);
+    const unmap = r.unmapped.length
+      ? ` · ${r.unmapped.length} חשבונות שנמשכו אינם רשומים במערכת (${r.unmapped.join(', ')})`
+      : '';
+    return renderPage(req, res, accountId, {
+      notice: `נמשכו ${r.accounts} חשבונות מ-${r.from}: ${r.imported} תנועות חדשות, ${r.skipped} כבר היו קיימות${unmap}.`,
+    });
+  } catch (err) {
+    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
     next(err);
   }
 });

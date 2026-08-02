@@ -8,6 +8,40 @@
 <% if (typeof notice !== 'undefined' && notice) { %>
   <div class="alert alert-info"><%= notice %></div>
 <% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div>
+<% } %>
+
+<!-- ══ משיכת תנועות מהבנק בלחיצה אחת ══ -->
+<div class="card" style="border-color:var(--brand)">
+  <div class="toolbar" style="margin-bottom:.5rem">
+    <h2 style="margin:0">משיכת תנועות מהבנק</h2>
+    <span class="kicker">Hapoalim · אוטומטי</span>
+  </div>
+  <% if (currentUser.role !== 'owner') { %>
+    <p class="muted">משיכת תנועות מהבנק היא פעולת בעלים. ניתן לייבא קובץ CSV למטה.</p>
+  <% } else if (!scrapeRunnable) { %>
+    <p class="muted">בסביבת ענן (serverless) לא ניתן להריץ סורק דפדפן. הרץ את המשיכה מהמחשב המקומי, או ייבא CSV למטה.</p>
+  <% } else { %>
+    <form method="post" action="/reconciliation/scrape" class="actions" style="flex-wrap:wrap" onsubmit="this.querySelector('button').disabled=true;this.querySelector('button').textContent='מושך… (~40 שנ׳)';">
+      <input type="hidden" name="account_id" value="<%= accountId %>" />
+      <div>
+        <label class="muted" style="margin:0;font-size:.8rem">מתאריך (ברירת מחדל: 60 יום אחרונים)</label>
+        <input type="date" name="start_date" />
+      </div>
+      <button type="submit" style="align-self:end" <%= scrapeConfigured ? '' : 'disabled' %>>⭳ משוך תנועות עכשיו</button>
+    </form>
+    <% if (!scrapeConfigured) { %>
+      <p class="muted" style="margin:.6rem 0 0">
+        כדי להפעיל את הכפתור, הגדר במחשב את משתני הסביבה
+        <span class="mono">BANK_HAPOALIM_USER_CODE</span> ו-<span class="mono">BANK_HAPOALIM_PASSWORD</span>,
+        ופעם אחת התקן את הסורק: <span class="mono">npm install israeli-bank-scrapers</span>.
+      </p>
+    <% } else { %>
+      <p class="muted" style="margin:.6rem 0 0">לחיצה תמשוך את התנועות ותייבא אותן אוטומטית (כפילויות מדולגות). לאחר מכן אפשר "התאמה אוטומטית".</p>
+    <% } %>
+  <% } %>
+</div>
 
 <div class="card">
   <form method="get" action="/reconciliation" class="actions">
