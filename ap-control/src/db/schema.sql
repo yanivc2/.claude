@@ -281,6 +281,26 @@ CREATE TABLE IF NOT EXISTS bank_transfers (
 );
 CREATE INDEX IF NOT EXISTS ix_bank_transfers_status ON bank_transfers(status, transfer_date);
 
+-- salaries — employee wage payments (משכורות, ROADMAP §D). Mirrors the payments table shape
+-- (method + reference + amount + date) with an employee name and a free-text note. Kept
+-- separate from `payments` because these are NOT invoice-backed and must not enter the
+-- accounts-payable control flow (R1/R5).
+CREATE TABLE IF NOT EXISTS salaries (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_name   TEXT NOT NULL,
+  bank_account_id INTEGER REFERENCES bank_accounts(id),      -- account paid from (null for cash)
+  method          TEXT NOT NULL DEFAULT 'transfer'
+                  CHECK (method IN ('check','transfer','cash')),
+  reference       TEXT,                                       -- check number / transfer אסמכתא
+  amount          INTEGER NOT NULL,                           -- agorot
+  pay_date        TEXT NOT NULL,
+  period          TEXT,                                       -- e.g. '2026-07' (the salary month)
+  notes           TEXT,
+  created_by      INTEGER NOT NULL REFERENCES users(id),
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_salaries_date ON salaries(pay_date);
+
 -- §4 audit_log ------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,0 +1,63 @@
+<%- include('../partials/header') %>
+<% var isOwner = currentUser.role === 'owner'; %>
+<div class="toolbar">
+  <h1 style="margin:0">משכורות</h1>
+  <a class="btn" href="/salaries/new">+ רישום שכר</a>
+</div>
+<p class="muted" style="margin-top:-.4rem">תשלומי שכר לעובדים (מחוץ לזרימת החשבוניות). צ׳ק / העברה / מזומן.</p>
+
+<% if (notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (error) { %><div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div><% } %>
+
+<div class="stat-grid">
+  <div class="stat"><div class="num"><%= summary.count %></div><div class="label">רישומים בתקופה</div></div>
+  <div class="stat"><div class="num" style="font-size:1.5rem"><%= formatIls(summary.total) %></div><div class="label">סך שולם</div></div>
+</div>
+
+<div class="card no-print">
+  <form method="get" action="/salaries" class="row">
+    <div><label class="muted">מתאריך</label><input type="date" name="from" value="<%= filters.from || '' %>" /></div>
+    <div><label class="muted">עד תאריך</label><input type="date" name="to" value="<%= filters.to || '' %>" /></div>
+    <div><label class="muted">עובד</label><input name="employee" value="<%= filters.employee || '' %>" placeholder="שם עובד" /></div>
+    <div style="display:flex;align-items:flex-end;gap:.5rem">
+      <button type="submit">סנן</button>
+      <% if (filters.from || filters.to || filters.employee) { %><a class="btn secondary" href="/salaries">נקה</a><% } %>
+    </div>
+  </form>
+</div>
+
+<div class="card" style="padding:0">
+  <table class="sortable">
+    <thead>
+      <tr><th>עובד</th><th>תאריך</th><th>עבור חודש</th><th>אמצעי</th><th>אסמכתא</th><th>חשבון</th><th class="right">סכום</th><th>הערות</th><% if (isOwner) { %><th data-nosort></th><% } %></tr>
+    </thead>
+    <tbody>
+      <% if (salaries.length === 0) { %><tr><td colspan="<%= isOwner ? 9 : 8 %>" class="muted">אין רישומי שכר.</td></tr><% } %>
+      <% salaries.forEach(function(s){ %>
+        <tr>
+          <td><strong><%= s.employee_name %></strong></td>
+          <td class="mono"><%= s.pay_date %></td>
+          <td class="mono"><%= s.period || '—' %></td>
+          <td><%= methodLabel(s.method) %></td>
+          <td class="mono"><%= s.reference || '—' %></td>
+          <td class="muted"><%= s.account_name || '—' %></td>
+          <td class="right mono"><%= formatIls(s.amount) %></td>
+          <td class="muted"><%= s.notes || '' %></td>
+          <% if (isOwner) { %>
+            <td>
+              <details class="paymenu">
+                <summary class="btn danger small">מחק</summary>
+                <div class="paymenu-items">
+                  <form method="post" action="/salaries/<%= s.id %>/delete">
+                    <button type="submit" class="btn danger small" style="width:100%">אשר מחיקה</button>
+                  </form>
+                </div>
+              </details>
+            </td>
+          <% } %>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/footer') %>
