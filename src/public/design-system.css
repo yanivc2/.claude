@@ -1,0 +1,198 @@
+/*
+ * AP Control — "Industry" design system (from Claude Design handoff).
+ * Design-system tokens + component classes. Plain CSS on plain HTML, no build step.
+ * This is the source of truth for the new look; the legal pages (/privacy, /accessibility)
+ * are the first surfaces to adopt it. Fonts: Barlow / Barlow Condensed (Latin), Heebo (Hebrew),
+ * loaded via <link> in each page's <head>. Light theme (the design ships light-only).
+ */
+
+:root {
+  --color-bg: #f2f2f3;
+  --color-surface: #e9e9ea;
+  --color-text: #1d1f20;
+  --color-accent: #5980a6;
+  --color-accent-2: #728fab;
+  --color-divider: color-mix(in srgb, #1d1f20 16%, transparent);
+
+  /* Tonal ramps (OKLCH, shared lightness scale). */
+  --color-neutral-100: #f5f5f8;
+  --color-neutral-200: #e7e7ea;
+  --color-neutral-300: #d4d4d7;
+  --color-neutral-400: #b7b7ba;
+  --color-neutral-500: #98989b;
+  --color-neutral-600: #7a7a7d;
+  --color-neutral-700: #5d5d60;
+  --color-neutral-800: #424244;
+  --color-neutral-900: #2b2b2d;
+
+  --color-accent-100: #eef6ff;
+  --color-accent-200: #d6ebff;
+  --color-accent-300: #b5d9fd;
+  --color-accent-400: #94bce3;
+  --color-accent-500: #749dc4;
+  --color-accent-600: #597ea3;
+  --color-accent-700: #416180;
+  --color-accent-800: #2c455d;
+  --color-accent-900: #1d2d3d;
+
+  --color-accent-2-100: #eef6ff;
+  --color-accent-2-200: #d6ebff;
+  --color-accent-2-300: #bdd8f2;
+  --color-accent-2-400: #9ebbd8;
+  --color-accent-2-500: #7e9cb8;
+  --color-accent-2-600: #627d98;
+  --color-accent-2-700: #486077;
+  --color-accent-2-800: #314457;
+  --color-accent-2-900: #1f2d3a;
+
+  /* Faces exactly as in the design handoff. Barlow has no Hebrew glyphs, so Hebrew text
+     falls back to system-ui (same behavior as the source design). */
+  --font-heading: "Barlow Condensed", system-ui, sans-serif;
+  --font-heading-weight: 600;
+  --font-body: "Barlow", system-ui, sans-serif;
+
+  --space-1: 3.4px;
+  --space-2: 6.8px;
+  --space-3: 10.2px;
+  --space-4: 13.6px;
+  --space-6: 20.4px;
+  --space-8: 27.2px;
+
+  /* AP Control runs the "blueprint" variant of the system: everything is square. */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2b2b2d 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2b2b2d 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 400;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  line-height: 1.12;
+  letter-spacing: -0.015em;
+  margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+/* Document rhythm: give section headings breathing room on long legal pages
+   (layout concern, not a token change). */
+.page h2 { margin-top: var(--space-8); }
+.page h3 { margin-top: var(--space-6); }
+
+p { margin: 0 0 var(--space-3); }
+ul { margin: 0 0 var(--space-3); padding-inline-start: 1.3em; }
+li { margin-bottom: 4px; }
+
+a { color: var(--color-accent); text-underline-offset: 3px; }
+a:hover { color: var(--color-accent-700); }
+
+.text-muted, .muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+.hr, hr {
+  height: 1px; border: 0; margin: var(--space-6) 0;
+  background: var(--color-divider);
+}
+
+/* Square everything — the blueprint variant (matches AP Control's chrome). */
+.card, .btn, .input, .tag, .seg, .dialog { border-radius: 0; }
+
+/* Blueprint registration marks — small accent "+" ticks at panel corners. */
+.bp-corner { position: absolute; width: 9px; height: 9px; pointer-events: none; z-index: 3; }
+.bp-corner::before, .bp-corner::after { content: ''; position: absolute; background: var(--color-accent); }
+.bp-corner::before { left: 0; top: 50%; width: 100%; height: 1.5px; transform: translateY(-50%); }
+.bp-corner::after  { top: 0; left: 50%; height: 100%; width: 1.5px; transform: translateX(-50%); }
+
+/* Blueprint panel — square, hairline-bordered, with corner marks that sit on the edge. */
+.blueprint { position: relative; border: 1px solid var(--color-divider); border-radius: 0; background: var(--color-bg); }
+
+/* layout */
+.page {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6);
+}
+
+.nav {
+  display: flex; align-items: center; gap: var(--space-4);
+  max-width: 780px; margin: 0 auto;
+  padding: var(--space-3) var(--space-4);
+}
+.nav .brand {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 18px; letter-spacing: 0.02em; text-transform: uppercase;
+}
+.nav .spacer { flex: 1; }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text);
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+}
+.btn-primary { background: var(--color-accent); color: var(--color-bg); }
+.btn-primary:hover { background: var(--color-accent-600); color: var(--color-bg); }
+.btn-secondary { border-color: var(--color-divider); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+
+/* cards */
+.card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.card-title { font-family: var(--font-heading); font-weight: var(--font-heading-weight); font-size: 17px; line-height: 1.2; }
+.card-body { margin: 0; font-size: 13px; opacity: 0.85; }
+
+/* tag / kicker chip */
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px; border-radius: 0;
+}
+.tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+.tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* tables */
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th, .table td { text-align: start; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--color-divider); }
+.table th { font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+
+/* forms (available for future surfaces) */
+.field > label { display: block; font-size: 12px; margin-bottom: 5px; color: color-mix(in srgb, var(--color-text) 70%, transparent); }
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit; font-size: 14px;
+  color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface); border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
