@@ -115,8 +115,10 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <% if (invoice.status !== 'paid') { %>
   <% var overCash = cashCeilingAgorot > 0 && Math.abs(invoice.total_amount) > cashCeilingAgorot; %>
   <%
-    var payLabel = invoice.status === 'approved_for_payment' ? 'תשלום'
-      : canApprove ? 'אישור תשלום' : 'בקשת אישור תשלום';
+    // בעלים/מנהל משלמים ישירות (הם ממילא מאשרים). מזכירה — רק דרך בקשת אישור.
+    var canPayNow = !requiresAllocation && invoice.status !== 'on_hold'
+      && (invoice.status === 'approved_for_payment' || isManager);
+    var payLabel = (invoice.status === 'approved_for_payment' || isManager) ? 'תשלום' : 'בקשת אישור תשלום';
   %>
   <div class="card no-print" style="display:flex; justify-content:flex-start">
     <details class="menu up open-in">
@@ -132,8 +134,16 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
           <div class="menu-sep"></div>
         <% } %>
 
-        <% if (invoice.status === 'approved_for_payment') { %>
-          <!-- מאושר לתשלום → אמצעי תשלום זמינים -->
+        <% if (invoice.status === 'on_hold') { %>
+          <span class="mi disabled">החשבונית מוחזקת — יש לשחרר אותה (בתגית הסטטוס) לפני תשלום.</span>
+        <% } else if (requiresAllocation) { %>
+          <span class="mi disabled">הזן מספר הקצאה כדי לאפשר תשלום.</span>
+        <% } else if (canPayNow) { %>
+          <!-- מאושר לתשלום, או בעלים/מנהל שמשלמים ישירות → אמצעי תשלום -->
+          <% if (payReq && isManager && invoice.status !== 'approved_for_payment') { %>
+            <form method="post" action="/invoices/<%= invoice.id %>/approve"><button class="mi" type="submit">אשר את הבקשה (בלי לשלם עכשיו)</button></form>
+            <div class="menu-sep"></div>
+          <% } %>
           <a href="/payments/new?invoice=<%= invoice.id %>&method=check">צ׳ק</a>
           <a href="/payments/new?invoice=<%= invoice.id %>&method=credit">אשראי</a>
           <a href="/payments/new?invoice=<%= invoice.id %>&method=transfer">העברה</a>
@@ -142,20 +152,12 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
           <% } else { %>
             <a href="/payments/new?invoice=<%= invoice.id %>&method=cash">מזומן</a>
           <% } %>
-        <% } else if (invoice.status === 'on_hold') { %>
-          <span class="mi disabled">החשבונית מוחזקת — יש לשחרר אותה (בתגית הסטטוס) לפני אישור תשלום.</span>
+        <% } else if (payReq) { %>
+          <span class="mi disabled">בקשת אישור תשלום נשלחה וממתינה לאישור מנהל/בעלים.</span>
+        <% } else if (!invoice.image_path) { %>
+          <span class="mi disabled">יש לצרף צילום של החשבונית לפני בקשת אישור תשלום.</span>
         <% } else { %>
-          <!-- recorded: אישור תשלום דרך בקשה -->
-          <% if (canApprove) { %>
-            <form method="post" action="/invoices/<%= invoice.id %>/approve"><button class="mi" type="submit">אשר לתשלום</button></form>
-            <% if (payReq) { %><span class="mi disabled">קיימת בקשת אישור ממתינה מ<%= payReq.requested_by_name || 'מזכירה' %></span><% } %>
-          <% } else if (payReq) { %>
-            <span class="mi disabled">בקשת אישור תשלום נשלחה וממתינה לאישור מנהל/בעלים.</span>
-          <% } else if (!invoice.image_path) { %>
-            <span class="mi disabled">יש לצרף צילום של החשבונית לפני בקשת אישור תשלום.</span>
-          <% } else { %>
-            <form method="post" action="/invoices/<%= invoice.id %>/request-payment"><button class="mi" type="submit">בקש אישור תשלום מהמנהל</button></form>
-          <% } %>
+          <form method="post" action="/invoices/<%= invoice.id %>/request-payment"><button class="mi" type="submit">בקש אישור תשלום מהמנהל</button></form>
         <% } %>
       </div>
     </details>
