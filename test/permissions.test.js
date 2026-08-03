@@ -23,14 +23,14 @@ test('a "manager" (secretary + granted perms) can manage suppliers; a plain secr
   const db = await freshDb();
   const ow = await owner(db);
   const manager = await createUser(
-    { name: 'מנהל', username: 'mgr', role: 'secretary', label: 'מנהל', permissions: ['manage_suppliers'], password: 'pass123' },
+    { name: 'מנהל', username: 'mgr', role: 'secretary', label: 'מנהל', permissions: ['manage_suppliers'], password: 'Pass123' },
     ow, db,
   );
   assert.equal(manager.label, 'מנהל');
   assert.deepEqual(manager.permissions, ['manage_suppliers']);
 
   const plain = await createUser(
-    { name: 'מזכירה', username: 'sec2', role: 'secretary', password: 'pass123' },
+    { name: 'מזכירה', username: 'sec2', role: 'secretary', password: 'Pass123' },
     ow, db,
   );
 
@@ -44,7 +44,7 @@ test('owner role ignores per-key permissions (always full)', async () => {
   const db = await freshDb();
   const ow = await owner(db);
   const u = await createUser(
-    { name: 'x', username: 'ux', role: 'owner', permissions: ['settings'], password: 'pass123' },
+    { name: 'x', username: 'ux', role: 'owner', permissions: ['settings'], password: 'Pass123' },
     ow, db,
   );
   assert.equal(u.permissions.length, 0); // owner stored with no per-key perms (has all anyway)
