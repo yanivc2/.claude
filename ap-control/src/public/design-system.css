@@ -68,6 +68,41 @@
   --shadow-lg: 0 12px 32px color-mix(in srgb, #2b2b2d 22%, transparent);
 }
 
+/* Dark theme — derived from the same "Industry" ramps (neutral/accent), kept square and
+   blueprint-flat. Applied when the <html data-theme="dark"> flag is set by the init script
+   (which honors saved choice or prefers-color-scheme). Light stays the default. */
+:root[data-theme="dark"] {
+  --color-bg: #15171c;
+  --color-surface: #1e2026;
+  --color-text: #e9e9ec;
+  --color-accent: #7ea6cc;
+  --color-accent-2: #8fa8c2;
+  --color-divider: color-mix(in srgb, #e9e9ec 16%, transparent);
+
+  /* neutral ramp flipped so "light" steps read as dark surfaces and vice-versa */
+  --color-neutral-100: #242731;
+  --color-neutral-200: #2b2e39;
+  --color-neutral-300: #3a3e4a;
+  --color-neutral-400: #565b68;
+  --color-neutral-500: #6b6e82;
+  --color-neutral-600: #8b8fa3;
+  --color-neutral-700: #b7b9c4;
+  --color-neutral-800: #d4d5db;
+  --color-neutral-900: #eceef2;
+
+  /* accent hovers + chip colors tuned for a dark ground */
+  --color-accent-600: #6f97bd;
+  --color-accent-700: #5e83a6;
+  --color-accent-100: color-mix(in srgb, #7ea6cc 16%, #15171c);
+  --color-accent-800: #cfe0f2;
+  --color-accent-2-100: color-mix(in srgb, #8fa8c2 16%, #15171c);
+  --color-accent-2-800: #d3e0ee;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 3px 10px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
 *, *::before, *::after { box-sizing: border-box; }
 
 body {

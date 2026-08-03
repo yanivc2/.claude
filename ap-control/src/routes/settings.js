@@ -15,11 +15,30 @@ import {
   deleteUser,
 } from '../services/users.js';
 import { upgradeSchema } from '../db/index.js';
+import { getExecutor } from '../db/adapter.js';
 import { requireOwner, requirePermission } from '../middleware/requireOwner.js';
 import { PERMISSIONS } from '../lib/permissions.js';
+import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
+import { createInviteLink } from '../services/passwordReset.js';
+import { PASSWORD_POLICY_TEXT } from '../lib/auth.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
+
+function isHttps(req) { return req.secure || req.headers['x-forwarded-proto'] === 'https'; }
+function origin(req) { return `${isHttps(req) ? 'https' : req.protocol}://${req.get('host')}`; }
+
+// Build the wa.me deep link for an invite. No phone → WhatsApp lets the sender pick a contact.
+function whatsappUrl(user, link) {
+  const msg =
+    `שלום ${user.name || ''}, נפתח עבורך חשבון ב-AP Control.\n` +
+    `שם המשתמש שלך: ${user.username}\n` +
+    `להגדרת סיסמה: ${link}\n` +
+    `${PASSWORD_POLICY_TEXT}.`;
+  const phone = (user.phone || '').replace(/[^0-9]/g, '');
+  const base = phone ? `https://wa.me/${phone}` : 'https://wa.me/';
+  return `${base}?text=${encodeURIComponent(msg)}`;
+}
 
 // Settings requires the "settings" permission (owner always passes). User-management and
 // DB-upgrade actions are additionally owner-only — enforced per-route below and in services.
@@ -30,6 +49,8 @@ async function render(req, res, extra = {}) {
   // so the owner can click "עדכן מסד נתונים" below. schemaWarning surfaces the need.
   let companies = [];
   let users = [];
+  let companyList = [];
+  let grants = {}; // { userId: [companyId, ...] } for the company×user matrix
   let schemaWarning = null;
   try {
     companies = await listStructure();
@@ -41,14 +62,24 @@ async function render(req, res, extra = {}) {
   } catch (e) {
     schemaWarning = 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
   }
+  try {
+    companyList = await getExecutor().many('SELECT id, name FROM companies ORDER BY name', []);
+    const m = await companyGrantMatrix();
+    grants = Object.fromEntries([...m.entries()].map(([uid, set]) => [uid, [...set]]));
+  } catch (e) {
+    schemaWarning = 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
+  }
   res.render('settings/index', {
     title: 'הגדרות',
     companies,
     users,
+    companyList,
+    grants,
     permissionCatalog: PERMISSIONS,
     error: null,
     notice: null,
     schemaWarning,
+    invite: null,
     ...extra,
   });
 }
@@ -161,6 +192,31 @@ router.post('/users/:id/reset-password', async (req, res, next) => {
   try {
     await resetPasswordByOwner(Number(req.params.id), req.body.password, req.user);
     await render(req, res, { notice: 'הסיסמה אופסה.' });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// Generate a set-password link and show a "פתח וואטסאפ" button (owner picks the contact).
+router.post('/users/:id/invite', async (req, res, next) => {
+  try {
+    const result = await createInviteLink(Number(req.params.id), { origin: origin(req) }, getExecutor());
+    if (!result) return render(req, res, { error: 'משתמש לא נמצא' });
+    const invite = { userId: result.user.id, name: result.user.name, link: result.link, waUrl: whatsappUrl(result.user, result.link) };
+    await render(req, res, { notice: `נוצר קישור הזמנה ל-${result.user.name}. לחץ "פתח וואטסאפ" לשליחה.`, invite });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// Set a user's company access (הפרדת חברות matrix).
+router.post('/users/:id/companies', async (req, res, next) => {
+  try {
+    const companyIds = [].concat(req.body.companies || []).map(Number).filter(Boolean);
+    await setUserCompanies(Number(req.params.id), companyIds, getExecutor());
+    await render(req, res, { notice: 'הרשאות החברה עודכנו.' });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);

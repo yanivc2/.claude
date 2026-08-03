@@ -31,14 +31,14 @@ test('a valid token resets the password and is single-use', async () => {
   await insertToken(db, ow.id, token, new Date(Date.now() + 3600_000).toISOString());
 
   assert.ok(await verifyResetToken(token, db));
-  const res = await completeReset(token, 'freshpass1', db);
+  const res = await completeReset(token, 'Freshpass1', db);
   assert.equal(res.ok, true);
   const row = await db.one('SELECT password_hash FROM users WHERE id = ?', [ow.id]);
-  assert.ok(verifyPassword('freshpass1', row.password_hash));
+  assert.ok(verifyPassword('Freshpass1', row.password_hash));
 
   // token is burned now
   assert.equal(await verifyResetToken(token, db), null);
-  assert.equal((await completeReset(token, 'another1', db)).ok, false);
+  assert.equal((await completeReset(token, 'Another1', db)).ok, false);
 });
 
 test('expired token is rejected; short password rejected', async () => {
@@ -48,5 +48,5 @@ test('expired token is rejected; short password rejected', async () => {
   assert.equal(await verifyResetToken('expired_tok', db), null);
 
   await insertToken(db, ow.id, 'short_tok', new Date(Date.now() + 3600_000).toISOString());
-  assert.equal((await completeReset('short_tok', '123', db)).reason, 'short');
+  assert.equal((await completeReset('short_tok', '123', db)).reason, 'policy');
 });

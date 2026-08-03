@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { getExecutor } from '../db/adapter.js';
-import { hashPassword } from '../lib/auth.js';
+import { hashPassword, passwordPolicyError } from '../lib/auth.js';
 import { sendMail, mailEnabled } from '../lib/mailer.js';
 import { config } from '../config.js';
 import { logAction } from './audit.js';
@@ -58,6 +58,24 @@ export async function requestReset(identifier, { origin } = {}, x = getExecutor(
   return res;
 }
 
+/**
+ * Create a set-password link for a user WITHOUT sending email — used by the owner to invite a
+ * team member via WhatsApp. Invite tokens live longer (7 days) than email-reset tokens.
+ * @returns {Promise<{user:object, link:string}|null>}
+ */
+export async function createInviteLink(userId, { origin } = {}, x = getExecutor()) {
+  const user = await x.one('SELECT id, name, username, phone FROM users WHERE id = ?', [userId]);
+  if (!user) return null;
+  const token = crypto.randomBytes(32).toString('hex');
+  const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  await x.run(
+    'INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?, ?, ?)',
+    [user.id, sha256(token), expires],
+  );
+  await logAction({ userId: user.id, action: 'auth.invite_link', entityType: 'user', entityId: user.id }, x);
+  return { user, link: resetLink(origin, token) };
+}
+
 /** Return the valid (unexpired, unused) reset row + user for a raw token, or null. */
 export async function verifyResetToken(token, x = getExecutor()) {
   if (!token) return null;
@@ -72,7 +90,7 @@ export async function verifyResetToken(token, x = getExecutor()) {
 export async function completeReset(token, newPassword, x = getExecutor()) {
   const found = await verifyResetToken(token, x);
   if (!found) return { ok: false, reason: 'invalid' };
-  if ((newPassword || '').length < 6) return { ok: false, reason: 'short' };
+  if (passwordPolicyError(newPassword)) return { ok: false, reason: 'policy' };
   await x.run('UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword(newPassword), found.user.id]);
   await x.run('UPDATE password_resets SET used_at = ? WHERE id = ?', [new Date().toISOString(), found.reset.id]);
   await logAction({ userId: found.user.id, action: 'auth.password_reset_complete', entityType: 'user', entityId: found.user.id }, x);

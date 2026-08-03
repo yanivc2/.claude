@@ -9,6 +9,7 @@ import {
 } from '../services/payments.js';
 import { listPayable } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
+import { scopeClause } from '../lib/scope.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -17,15 +18,18 @@ router.get('/', async (req, res, next) => {
   try {
     const companyId = req.query.company ? Number(req.query.company) : null;
     const storeId = req.query.store ? Number(req.query.store) : null;
+    const scope = req.scope.companyIds;
+    const cScope = scopeClause(scope, 'id');
+    const sScope = scopeClause(scope, 'company_id');
     const x = getExecutor();
     res.render('payments/index', {
       title: 'תשלומים (צ׳קים)',
-      payments: await listPayments({ status: req.query.status || null, companyId, storeId }),
+      payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope }),
       filter: req.query.status || '',
       companyId,
       storeId,
-      companies: await x.many('SELECT id, name FROM companies ORDER BY name', []),
-      stores: await x.many('SELECT id, name, company_id FROM stores ORDER BY name', []),
+      companies: await x.many(`SELECT id, name FROM companies WHERE 1 = 1${cScope.sql} ORDER BY name`, [...cScope.params]),
+      stores: await x.many(`SELECT id, name, company_id FROM stores WHERE 1 = 1${sScope.sql} ORDER BY name`, [...sScope.params]),
     });
   } catch (err) {
     next(err);

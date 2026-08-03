@@ -106,7 +106,7 @@ async function storeList() {
 
 async function renderProfitability(req, res, extra = {}) {
   const { from, to, preset } = resolveRange(req);
-  const { stores, totals } = await profitability(from, to);
+  const { stores, totals } = await profitability(from, to, req.scope.companyIds);
   const zStoreId = req.query.zstore ? Number(req.query.zstore) : null;
   const zRows = await listZReports({ storeId: zStoreId, limit: 30 });
   const zReports = await Promise.all(
@@ -136,14 +136,16 @@ async function renderProfitability(req, res, extra = {}) {
 // §7 "צ׳קים בחוץ"
 router.get('/outstanding', async (req, res, next) => {
   try {
-    const { accounts, totalOutstanding } = await outstandingChecks();
+    const { accounts, totalOutstanding } = await outstandingChecks(req.scope.companyIds);
     const detailAccountId = req.query.account ? Number(req.query.account) : null;
+    // Scope guard: only show detail for an account the user is allowed to see.
+    const inScope = detailAccountId != null && accounts.some((a) => a.id === detailAccountId);
     res.render('reports/outstanding', {
       title: 'צ׳קים בחוץ',
       accounts,
       totalOutstanding,
-      detailAccountId,
-      detail: detailAccountId ? await outstandingCheckDetail(detailAccountId) : [],
+      detailAccountId: inScope ? detailAccountId : null,
+      detail: inScope ? await outstandingCheckDetail(detailAccountId) : [],
     });
   } catch (err) {
     next(err);
@@ -154,6 +156,8 @@ router.get('/outstanding', async (req, res, next) => {
 router.get('/outstanding-detail.csv', async (req, res, next) => {
   try {
     const accountId = Number(req.query.account);
+    const { accounts } = await outstandingChecks(req.scope.companyIds);
+    if (!accounts.some((a) => a.id === accountId)) { res.status(404).send('not found'); return; }
     const rows = (await outstandingCheckDetail(accountId)).map((r) => [
       r.supplierName,
       r.invoiceNumbers,
@@ -184,7 +188,7 @@ function sendCsv(res, filename, headers, rows) {
 // CSV export — "צ׳קים בחוץ"
 router.get('/outstanding.csv', async (req, res, next) => {
   try {
-    const { accounts } = await outstandingChecks();
+    const { accounts } = await outstandingChecks(req.scope.companyIds);
     const rows = accounts.map((a) => [a.company_name, a.store_name, a.display_name, a.outstanding_count, fromAgorot(a.outstanding)]);
     sendCsv(res, 'outstanding-checks.csv', ['חברה', 'חנות', 'חשבון', 'מס׳ צ׳קים פתוחים', 'סכום בחוץ'], rows);
   } catch (err) {
@@ -199,7 +203,7 @@ router.get('/lookup', async (req, res, next) => {
     res.render('reports/lookup', {
       title: 'בדיקת חשבונית',
       query: q,
-      results: q ? await invoiceLookup(q) : [],
+      results: q ? await invoiceLookup(q, { scope: req.scope.companyIds }) : [],
     });
   } catch (err) {
     next(err);
@@ -210,7 +214,7 @@ router.get('/lookup', async (req, res, next) => {
 router.get('/lookup.csv', async (req, res, next) => {
   try {
     const q = req.query.q || '';
-    const results = q ? await invoiceLookup(q) : [];
+    const results = q ? await invoiceLookup(q, { scope: req.scope.companyIds }) : [];
     const rows = results.map((r) => [
       r.id, r.supplier_name, r.store_name, r.invoice_number, r.allocation_number || '',
       r.invoice_date, fromAgorot(r.total_amount), r.invoice_status, r.check_number || '', r.payment_status || '',

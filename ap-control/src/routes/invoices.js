@@ -13,6 +13,7 @@ import {
 import { listSuppliers } from '../services/suppliers.js';
 import { runOcrForInvoice, compareToInvoice, getOcr } from '../services/ocr.js';
 import { getExecutor } from '../db/adapter.js';
+import { scopeClause } from '../lib/scope.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
@@ -27,13 +28,15 @@ function removeUpload(ref) {
   if (ref) void removeStored(ref);
 }
 
-async function formData() {
+async function formData(scope = null) {
+  const sc = scopeClause(scope, 'c.id');
   return {
     suppliers: await listSuppliers(),
     stores: await getExecutor().many(
       `SELECT st.id, st.name, c.name AS company_name
-         FROM stores st JOIN companies c ON c.id = st.company_id ORDER BY c.name, st.name`,
-      [],
+         FROM stores st JOIN companies c ON c.id = st.company_id
+        WHERE 1 = 1${sc.sql} ORDER BY c.name, st.name`,
+      [...sc.params],
     ),
   };
 }
@@ -42,7 +45,7 @@ router.get('/', async (req, res, next) => {
   try {
     res.render('invoices/index', {
       title: 'חשבוניות',
-      invoices: await listInvoices({ status: req.query.status || null }),
+      invoices: await listInvoices({ status: req.query.status || null, scope: req.scope.companyIds }),
       filter: req.query.status || '',
     });
   } catch (err) {
@@ -54,7 +57,7 @@ router.get('/new', async (req, res, next) => {
   try {
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
-      ...(await formData()),
+      ...(await formData(req.scope.companyIds)),
       values: {},
       warnings: [],
       error: null,
@@ -73,7 +76,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
   const rerender = async (extra) => {
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
-      ...(await formData()),
+      ...(await formData(req.scope.companyIds)),
       values: b,
       warnings: [],
       error: null,
@@ -86,7 +89,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
     if (imagePath) removeUpload(imagePath);
     return res.status(400).render('invoices/new', {
       title: 'חשבונית חדשה',
-      ...(await formData()),
+      ...(await formData(req.scope.companyIds)),
       values: b,
       warnings: [],
       error: req.uploadError,
@@ -114,7 +117,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
     if (err instanceof RuleError && err.meta?.needsConfirmation) {
       return res.status(200).render('invoices/new', {
         title: 'חשבונית חדשה — אישור אזהרות',
-        ...(await formData()),
+        ...(await formData(req.scope.companyIds)),
         values: b,
         warnings: err.meta.warnings,
         error: null,
@@ -147,7 +150,7 @@ router.get('/:id/edit', async (req, res, next) => {
   try {
     const invoice = await getInvoiceDetail(Number(req.params.id));
     if (invoice.status === 'paid') return res.redirect(303, `/invoices/${invoice.id}`);
-    res.render('invoices/edit', { title: `עריכת חשבונית #${invoice.id}`, invoice, values: invoiceToValues(invoice), ...(await formData()), error: null });
+    res.render('invoices/edit', { title: `עריכת חשבונית #${invoice.id}`, invoice, values: invoiceToValues(invoice), ...(await formData(req.scope.companyIds)), error: null });
   } catch (err) {
     next(err);
   }
@@ -178,7 +181,7 @@ router.post('/:id/edit', async (req, res, next) => {
         title: `עריכת חשבונית #${id}`,
         invoice: current,
         values: b,
-        ...(await formData()),
+        ...(await formData(req.scope.companyIds)),
         error: null,
         notice: 'בקשת העריכה נשלחה לאישור הבעלים. השינוי יבוצע לאחר אישור.',
       });
@@ -188,7 +191,7 @@ router.post('/:id/edit', async (req, res, next) => {
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       const invoice = await getInvoiceDetail(id);
-      return res.status(400).render('invoices/edit', { title: `עריכת חשבונית #${id}`, invoice, values: b, ...(await formData()), error: err.message });
+      return res.status(400).render('invoices/edit', { title: `עריכת חשבונית #${id}`, invoice, values: b, ...(await formData(req.scope.companyIds)), error: err.message });
     }
     next(err);
   }

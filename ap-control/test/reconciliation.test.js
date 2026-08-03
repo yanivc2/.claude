@@ -70,7 +70,7 @@ test('auto-reconcile matches a single candidate by amount + date window and clea
   const sec = await secretary(db);
   const { acct, payment } = await issueCheck(db, { amountShekels: 1170, date: '2026-07-01', checkNumber: '1001', invoiceNumber: 'A' });
 
-  assert.equal((await outstandingChecks(db)).totalOutstanding, payment.amount);
+  assert.equal((await outstandingChecks(null, db)).totalOutstanding, payment.amount);
 
   await importTransactions(acct, [{ txnDate: '2026-07-05', amount: -payment.amount, description: 'משיכת צ׳ק' }], 'manual', sec, db);
   const res = await autoReconcile(acct, sec, db);
@@ -79,7 +79,7 @@ test('auto-reconcile matches a single candidate by amount + date window and clea
   const p = await db.one('SELECT status, cleared_date FROM payments WHERE id=?', [payment.id]);
   assert.equal(p.status, 'cleared');
   assert.equal(p.cleared_date, '2026-07-05');
-  assert.equal((await outstandingChecks(db)).totalOutstanding, 0);
+  assert.equal((await outstandingChecks(null, db)).totalOutstanding, 0);
 });
 
 test('two open checks of the same amount in the window are ambiguous, not auto-matched', async () => {

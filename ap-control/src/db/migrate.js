@@ -11,6 +11,24 @@ export function migrate(db) {
   migrateSupplierContacts(db);
   migrateUserAuth(db);
   migrateBankBalance(db);
+  migrateUserCompanies(db);
+}
+
+// Adds users.phone + the user_companies table (per-user company access) to older databases.
+function migrateUserCompanies(db) {
+  const hasUsers = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'")
+    .get();
+  if (hasUsers) {
+    const cols = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+    if (!cols.includes('phone')) db.exec('ALTER TABLE users ADD COLUMN phone TEXT;');
+  }
+  db.exec(`CREATE TABLE IF NOT EXISTS user_companies (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    UNIQUE (user_id, company_id)
+  );`);
 }
 
 // Adds balance_after to bank_transactions for older databases.

@@ -43,7 +43,7 @@ test('profitability: net purchases vs sales, gross profit and margin per store, 
   await createZReport({ storeId: store.id, zNumber: '102', zDate: '2026-07-31', dailyTotal: toAgorot('3000'), drawerCash: toAgorot('3000') }, sec, db);
   await createZReport({ storeId: store.id, zNumber: '103', zDate: '2026-08-01', dailyTotal: toAgorot('9999'), drawerCash: toAgorot('9999') }, sec, db);
 
-  const { stores, totals } = await profitability('2026-07-01', '2026-07-31', db);
+  const { stores, totals } = await profitability('2026-07-01', '2026-07-31', null, db);
   const row = stores.find((s) => s.id === store.id);
   assert.equal(row.purchases, toAgorot('1638'));
   assert.equal(row.sales, toAgorot('8000'));
@@ -58,7 +58,7 @@ test('profitability: net purchases vs sales, gross profit and margin per store, 
 
 test('a store with sales=0 reports null margin (no divide-by-zero)', async () => {
   const db = await freshDb();
-  const { stores } = await profitability('2026-01-01', '2026-01-31', db);
+  const { stores } = await profitability('2026-01-01', '2026-01-31', null, db);
   assert.ok(stores.every((s) => s.marginPct === null));
 });
 

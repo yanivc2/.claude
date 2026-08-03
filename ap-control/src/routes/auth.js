@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { getExecutor } from '../db/adapter.js';
-import { verifyPassword, createSession } from '../lib/auth.js';
+import { verifyPassword, createSession, PASSWORD_POLICY_TEXT } from '../lib/auth.js';
 import { requestReset, verifyResetToken, completeReset } from '../services/passwordReset.js';
 import { mailEnabled } from '../lib/mailer.js';
 import { logAction } from '../services/audit.js';
@@ -85,8 +85,8 @@ router.post('/reset/:token', async (req, res, next) => {
     }
     const result = await completeReset(req.params.token, next1);
     if (!result.ok) {
-      const msg = result.reason === 'short' ? 'הסיסמה חייבת להיות לפחות 6 תווים.' : 'הקישור אינו תקף או שפג תוקפו.';
-      return res.status(400).render('reset', { title: 'איפוס סיסמה', token: result.reason === 'short' ? req.params.token : null, error: msg });
+      const msg = result.reason === 'policy' ? PASSWORD_POLICY_TEXT : 'הקישור אינו תקף או שפג תוקפו.';
+      return res.status(400).render('reset', { title: 'איפוס סיסמה', token: result.reason === 'policy' ? req.params.token : null, error: msg });
     }
     res.render('login', { title: 'התחברות', error: null, notice: 'הסיסמה עודכנה — אפשר להתחבר עם הסיסמה החדשה.' });
   } catch (err) {

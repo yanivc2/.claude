@@ -4,40 +4,55 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= title %> · AP Control</title>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Heebo:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/nocturne.css" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <meta name="theme-color" content="#1f6feb" />
+  <meta name="theme-color" content="#161826" />
   <link rel="apple-touch-icon" href="/icon-180.png" />
-  <script>
-    // Apply saved theme before paint (no flash of light theme).
-    (function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();
-  </script>
   <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){})})}</script>
 </head>
 <body>
-  <header class="topbar">
-    <span class="brand">AP Control</span>
-    <nav>
-      <a href="/" class="<%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
-      <a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>">חשבוניות</a>
-      <a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>">תשלומים</a>
-      <a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>">ספקים</a>
-      <a href="/reports/outstanding" class="<%= path === '/reports/outstanding' ? 'active' : '' %>">צ׳קים בחוץ</a>
-      <a href="/reconciliation" class="<%= path.startsWith('/reconciliation') ? 'active' : '' %>">התאמת בנק</a>
-      <a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>">רווחיות</a>
-      <a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>">יומן</a>
+  <!-- ambient background -->
+  <div class="amb amb-glow"></div>
+  <div class="amb amb-grid"></div>
+  <div class="amb amb-vignette"></div>
+
+  <header class="nav">
+    <a href="/" class="nav-brand"><span class="mark">AP</span>Control</a>
+    <nav style="display:flex;flex-wrap:wrap;gap:2px">
+      <a href="/" class="navlink <%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
+      <a href="/invoices" class="navlink <%= path.startsWith('/invoices') ? 'active' : '' %>">חשבוניות</a>
+      <a href="/payments" class="navlink <%= path.startsWith('/payments') ? 'active' : '' %>">תשלומים</a>
+      <a href="/suppliers" class="navlink <%= path.startsWith('/suppliers') ? 'active' : '' %>">ספקים</a>
+      <a href="/reports/outstanding" class="navlink <%= path === '/reports/outstanding' ? 'active' : '' %>">צ׳קים בחוץ</a>
+      <a href="/reconciliation" class="navlink <%= path.startsWith('/reconciliation') ? 'active' : '' %>">התאמת בנק</a>
+      <a href="/reports/profitability" class="navlink <%= path === '/reports/profitability' ? 'active' : '' %>">רווחיות</a>
+      <a href="/audit" class="navlink <%= path === '/audit' ? 'active' : '' %>">יומן</a>
       <% if (currentUser.role === 'owner') { %>
-        <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>">אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="badge b-on_hold"><%= pendingApprovals %></span><% } %></a>
+        <a href="/approvals" class="navlink <%= path.startsWith('/approvals') ? 'active' : '' %>">אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="tag tag-accent" style="margin-inline-start:4px"><%= pendingApprovals %></span><% } %></a>
       <% } %>
-      <% if (typeof can === 'function' && can('settings')) { %><a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a><% } %>
+      <% if (typeof can === 'function' && can('settings')) { %><a href="/settings" class="navlink <%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a><% } %>
     </nav>
     <span class="spacer"></span>
-    <button type="button" class="theme-toggle" onclick="(function(){var d=document.documentElement.getAttribute('data-theme')==='dark';document.documentElement.setAttribute('data-theme',d?'light':'dark');try{localStorage.setItem('theme',d?'light':'dark');}catch(e){}})()" title="מצב כהה / בהיר" aria-label="מצב כהה / בהיר">🌓</button>
+    <span class="tag tag-neutral" title="משתמש מחובר"><%= currentUser.label || currentUser.name || currentUser.username %></span>
     <form method="post" action="/logout" style="display:inline">
-      <button type="submit" class="btn secondary logout">התנתק</button>
+      <button type="submit" class="btn btn-secondary btn-sm">התנתק</button>
     </form>
   </header>
-  <main>
+
+  <main class="page fade-up">
+    <% if (typeof scopeCompanies !== 'undefined' && scopeCompanies) { %>
+      <div class="scope-strip">
+        <span class="tag tag-outline">חברות מורשות</span>
+        <% if (scopeCompanies.length === 0) { %>
+          <span>אין גישה לאף חברה — פנה לבעלים</span>
+        <% } else { %>
+          <span><%= scopeCompanies.map(function(c){return c.name;}).join(' · ') %></span>
+        <% } %>
+      </div>
+    <% } %>
     <% if (typeof error !== 'undefined' && error) { %>
       <div class="alert alert-error"><strong>שגיאה:</strong> <%= error %></div>
     <% } %>
