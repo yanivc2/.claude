@@ -1,6 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
-import { hashPassword, verifyPassword } from '../lib/auth.js';
+import { hashPassword, verifyPassword, passwordPolicyError } from '../lib/auth.js';
 import { serializePermissions, parsePermissions } from '../lib/permissions.js';
 import { logAction } from './audit.js';
 
@@ -47,7 +47,8 @@ export async function createUser({ name, username, email, role, label, permissio
   if (!un) throw new RuleError('VALIDATION', 'שם משתמש (לוגין) חובה');
   if (!ROLES.includes(role)) throw new RuleError('VALIDATION', 'תפקיד לא תקין');
   const em = validateEmail(email);
-  if ((password ?? '').length < 6) throw new RuleError('VALIDATION', 'סיסמה ראשונית — לפחות 6 תווים');
+  const pwErr = passwordPolicyError(password);
+  if (pwErr) throw new RuleError('VALIDATION', pwErr);
 
   const dup = await x.one('SELECT id FROM users WHERE username = ?', [un]);
   if (dup) throw new RuleError('VALIDATION', `שם המשתמש "${un}" כבר קיים`);
@@ -94,7 +95,8 @@ export async function updateUser(id, { name, email, role, label, permissions }, 
 export async function resetPasswordByOwner(id, newPassword, actor, x = getExecutor()) {
   requireOwner(actor);
   await getUser(id, x);
-  if ((newPassword ?? '').length < 6) throw new RuleError('VALIDATION', 'סיסמה חדשה — לפחות 6 תווים');
+  const pwErr = passwordPolicyError(newPassword);
+  if (pwErr) throw new RuleError('VALIDATION', pwErr);
   await x.run('UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword(newPassword), id]);
   await logAction({ userId: actor.id, action: 'user.password_reset', entityType: 'user', entityId: id }, x);
 }
@@ -104,7 +106,8 @@ export async function changeOwnPassword(userId, { current, next, confirm }, x = 
   const user = await x.one('SELECT * FROM users WHERE id = ?', [userId]);
   if (!user) throw new NotFoundError('משתמש לא נמצא');
   if (!verifyPassword(current || '', user.password_hash)) throw new RuleError('VALIDATION', 'הסיסמה הנוכחית שגויה');
-  if ((next || '').length < 6) throw new RuleError('VALIDATION', 'הסיסמה החדשה חייבת להיות לפחות 6 תווים');
+  const pwErr = passwordPolicyError(next);
+  if (pwErr) throw new RuleError('VALIDATION', pwErr);
   if (next !== confirm) throw new RuleError('VALIDATION', 'אישור הסיסמה אינו תואם');
   await x.run('UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword(next), userId]);
   await logAction({ userId, action: 'auth.password_change', entityType: 'user', entityId: userId }, x);

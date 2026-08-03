@@ -9,6 +9,18 @@
   <div class="alert alert-warn"><%= schemaWarning %></div>
 <% } %>
 
+<% if (typeof invite !== 'undefined' && invite) { %>
+  <div class="card" style="border-color:var(--color-accent)">
+    <div class="card-kicker">הזמנה בוואטסאפ</div>
+    <strong>קישור הגדרת סיסמה עבור <%= invite.name %></strong>
+    <p class="card-body" style="margin:.3rem 0">לחץ "פתח וואטסאפ" — ההודעה מוכנה (שם משתמש + קישור), ותוכל לבחור למי לשלוח. הקישור תקף לשבוע.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="<%= invite.waUrl %>" target="_blank" rel="noopener">פתח וואטסאפ</a>
+      <input class="input" style="max-width:440px" value="<%= invite.link %>" readonly onclick="this.select()" />
+    </div>
+  </div>
+<% } %>
+
 <% if (currentUser.role === 'owner') { %>
 <div class="card">
   <div class="toolbar">
@@ -111,7 +123,7 @@
     <form method="post" action="/settings/password" class="stack" style="max-width:420px">
       <label>סיסמה נוכחית</label>
       <input type="password" name="current" required />
-      <label>סיסמה חדשה (לפחות 6 תווים)</label>
+      <label>סיסמה חדשה (6+ תווים, אות גדולה, קטנה וספרה)</label>
       <input type="password" name="next" required minlength="6" />
       <label>אישור סיסמה חדשה</label>
       <input type="password" name="confirm" required minlength="6" />
@@ -119,6 +131,45 @@
     </form>
   </div>
 </details>
+
+<!-- ===== מטריצת הרשאות חברות (הפרדת חברות, בעלים בלבד) ===== -->
+<% if (currentUser.role === 'owner') { %>
+<details class="section" open>
+  <summary>מטריצת הרשאות חברות (הפרדת חברות)</summary>
+  <div class="section-body">
+    <p class="muted">בעלים ("לי") רואה את כל החברות. לכל משתמש אחר סמן לאילו חברות יש גישה — ההגבלה חלה על כל המסכים.</p>
+    <% users.filter(function(u){return u.role !== 'owner';}).forEach(function(u){ %>
+      <form id="grant-<%= u.id %>" method="post" action="/settings/users/<%= u.id %>/companies"></form>
+    <% }); %>
+    <table>
+      <thead>
+        <tr>
+          <th>משתמש</th>
+          <% companyList.forEach(function(c){ %><th style="text-align:center"><%= c.name %></th><% }); %>
+          <th class="no-print"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% users.filter(function(u){return u.role !== 'owner';}).forEach(function(u){ %>
+          <tr>
+            <td><strong><%= u.label || u.name %></strong> <span class="muted mono" style="font-size:.8rem"><%= u.username || '' %></span></td>
+            <% companyList.forEach(function(c){ %>
+              <td style="text-align:center">
+                <input form="grant-<%= u.id %>" type="checkbox" name="companies" value="<%= c.id %>" style="width:auto"
+                  <%= (grants[u.id] || []).includes(c.id) ? 'checked' : '' %> />
+              </td>
+            <% }); %>
+            <td class="no-print"><button form="grant-<%= u.id %>" class="small" type="submit">שמור</button></td>
+          </tr>
+        <% }); %>
+        <% if (users.filter(function(u){return u.role !== 'owner';}).length === 0) { %>
+          <tr><td colspan="<%= companyList.length + 2 %>" class="muted">אין משתמשים שאינם בעלים.</td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</details>
+<% } %>
 
 <!-- ===== ניהול משתמשים והרשאות (בעלים בלבד) ===== -->
 <% if (currentUser.role === 'owner') { %>
@@ -144,6 +195,9 @@ function permLabel(key){ var f = permissionCatalog.find(function(p){return p.key
             </td>
             <td class="no-print">
               <button type="button" class="secondary small" onclick="var e=document.getElementById('edit-user-<%= u.id %>'); e.hidden=!e.hidden">ערוך</button>
+              <form method="post" action="/settings/users/<%= u.id %>/invite" style="display:inline">
+                <button class="secondary small" type="submit">שלח בוואטסאפ</button>
+              </form>
               <% if (u.id !== currentUser.id) { %>
                 <form method="post" action="/settings/users/<%= u.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את המשתמש <%= u.name %>?')">
                   <button class="danger small" type="submit">מחק</button>
@@ -180,7 +234,7 @@ function permLabel(key){ var f = permissionCatalog.find(function(p){return p.key
                 <div style="margin-top:.5rem"><button class="small" type="submit">שמור</button></div>
               </form>
               <form method="post" action="/settings/users/<%= u.id %>/reset-password" class="actions" style="gap:.5rem;margin-top:.5rem" onsubmit="return confirm('לאפס סיסמה למשתמש זה?')">
-                <div><label style="margin:0">סיסמה חדשה (איפוס ע"י בעלים)</label><input type="text" name="password" minlength="6" placeholder="לפחות 6 תווים" required /></div>
+                <div><label style="margin:0">סיסמה חדשה (איפוס ע"י בעלים)</label><input type="text" name="password" minlength="6" placeholder="6+ תווים, אות גדולה/קטנה וספרה" required /></div>
                 <div style="align-self:end"><button class="secondary small" type="submit">אפס סיסמה</button></div>
               </form>
             </td>
