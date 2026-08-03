@@ -2,7 +2,7 @@ import { getExecutor, nowTs, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { notify } from '../lib/notify.js';
 import { logAction } from './audit.js';
-import { updateInvoice } from './invoices.js';
+import { updateInvoice, approveInvoiceForPayment, releaseHold } from './invoices.js';
 import { updateSupplier } from './suppliers.js';
 import { editTransaction } from './bankTransactions.js';
 
@@ -14,6 +14,14 @@ const ACTIONS = {
   'invoice.update': {
     label: 'עריכת חשבונית',
     apply: (payload, actor, x) => updateInvoice(payload.id, payload.fields, actor, x),
+  },
+  'invoice.approve_payment': {
+    label: 'אישור תשלום לחשבונית',
+    apply: (payload, actor, x) => approveInvoiceForPayment(payload.id, actor, x),
+  },
+  'invoice.release_hold': {
+    label: 'שחרור החזקת חשבונית',
+    apply: (payload, actor, x) => releaseHold(payload.id, actor, x),
   },
   'supplier.update': {
     label: 'עריכת ספק',
@@ -55,6 +63,18 @@ export async function countPending(x = getExecutor()) {
     return Number(r?.n || 0);
   } catch {
     return 0; // table may not exist pre-upgrade
+  }
+}
+
+/** The most recent pending request of a given action for an entity, or null. */
+export async function pendingRequestFor(entityType, entityId, action, x = getExecutor()) {
+  try {
+    return await x.one(
+      "SELECT * FROM change_requests WHERE status = 'pending' AND entity_type = ? AND entity_id = ? AND action = ? ORDER BY id DESC",
+      [entityType, entityId, action],
+    );
+  } catch {
+    return null; // table may not exist pre-upgrade
   }
 }
 
