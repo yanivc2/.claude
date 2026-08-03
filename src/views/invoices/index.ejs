@@ -1,25 +1,29 @@
 <%- include('../partials/header') %>
+<% var filterLabel = filter === 'recorded' ? 'נרשמו' : filter === 'on_hold' ? 'מוחזקות' : filter === 'approved_for_payment' ? 'מאושרות לתשלום' : filter === 'paid' ? 'שולמו' : 'הכל'; %>
 <div class="toolbar">
   <h1>חשבוניות</h1>
-  <a class="btn" href="/invoices/new">+ חשבונית חדשה</a>
-</div>
-
-<div class="card no-print">
-  <strong>קיצורי תשלום:</strong>
-  <div class="actions" style="flex-wrap:wrap; margin-top:.4rem">
-    <a class="btn" href="/payments/new?method=transfer">+ תשלום בהעברה</a>
-    <a class="btn" href="/payments/new?method=cash">+ תשלום במזומן</a>
-    <a class="btn" href="/payments/new?method=check">+ צ׳ק</a>
+  <div class="actions no-print">
+    <details class="menu">
+      <summary class="btn btn-primary">+ חשבונית חדשה <span class="caret">▾</span></summary>
+      <div class="menu-panel">
+        <a href="/invoices/new">+ חשבונית חדשה</a>
+        <div class="menu-sep"></div>
+        <a href="/payments/new?method=transfer">+ תשלום בהעברה</a>
+        <a href="/payments/new?method=cash">+ תשלום במזומן</a>
+        <a href="/payments/new?method=check">+ צ׳ק</a>
+      </div>
+    </details>
+    <details class="menu">
+      <summary class="btn btn-secondary">סינון · <%= filterLabel %> <span class="caret">▾</span></summary>
+      <div class="menu-panel">
+        <a href="/invoices" class="<%= !filter ? 'active' : '' %>">הכל</a>
+        <a href="/invoices?status=recorded" class="<%= filter === 'recorded' ? 'active' : '' %>">נרשמו</a>
+        <a href="/invoices?status=on_hold" class="<%= filter === 'on_hold' ? 'active' : '' %>">מוחזקות</a>
+        <a href="/invoices?status=approved_for_payment" class="<%= filter === 'approved_for_payment' ? 'active' : '' %>">מאושרות לתשלום</a>
+        <a href="/invoices?status=paid" class="<%= filter === 'paid' ? 'active' : '' %>">שולמו</a>
+      </div>
+    </details>
   </div>
-</div>
-
-<div class="filterms card">
-  סינון:
-  <a href="/invoices">הכל</a>
-  <a href="/invoices?status=recorded">נרשמו</a>
-  <a href="/invoices?status=on_hold">מוחזקות</a>
-  <a href="/invoices?status=approved_for_payment">מאושרות לתשלום</a>
-  <a href="/invoices?status=paid">שולמו</a>
 </div>
 <p class="muted no-print" style="margin:.2rem 0">לחיצה על כותרת עמודה ממיינת (א׳–ת׳ / גבוה–נמוך).</p>
 
