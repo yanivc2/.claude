@@ -117,12 +117,16 @@
 </div>
 
 <div class="card">
-  <h2>פעולות מהירות</h2>
-  <div class="actions">
-    <a class="btn" href="/invoices/new">+ חשבונית חדשה</a>
-    <a class="btn" href="/payments/new">+ צ׳ק חדש</a>
-    <a class="btn secondary" href="/suppliers/new">+ ספק חדש</a>
-    <a class="btn secondary" href="/reports/profitability">רווחיות</a>
-  </div>
+  <h2 style="margin-top:0">פעולות מהירות</h2>
+  <details class="menu">
+    <summary class="btn btn-primary">פעולות מהירות <span class="caret">▾</span></summary>
+    <div class="menu-panel">
+      <a href="/invoices/new">+ חשבונית חדשה</a>
+      <a href="/payments/new">+ צ׳ק חדש</a>
+      <a href="/suppliers/new">+ ספק חדש</a>
+      <div class="menu-sep"></div>
+      <a href="/reports/profitability">רווחיות</a>
+    </div>
+  </details>
 </div>
 <%- include('partials/footer') %>
