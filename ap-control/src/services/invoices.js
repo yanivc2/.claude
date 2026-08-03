@@ -2,6 +2,7 @@ import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
+import { scopeClause } from '../lib/scope.js';
 import { logAction } from './audit.js';
 
 const DOC_TYPES = ['tax_invoice', 'tax_invoice_receipt', 'credit_note'];
@@ -347,16 +348,19 @@ export async function getInvoiceDetail(id, x = getExecutor()) {
 }
 
 /** List invoices with joined names, optional status filter. */
-export async function listInvoices({ status = null } = {}, x = getExecutor()) {
+export async function listInvoices({ status = null, scope = null } = {}, x = getExecutor()) {
   const base = `SELECT i.*, s.name AS supplier_name, s.status AS supplier_status,
                        st.name AS store_name
                   FROM invoices i
                   JOIN suppliers s ON s.id = i.supplier_id
                   JOIN stores st ON st.id = i.store_id`;
-  if (status) {
-    return x.many(`${base} WHERE i.status = ? ORDER BY i.id DESC`, [status]);
-  }
-  return x.many(`${base} ORDER BY i.id DESC`, []);
+  const sc = scopeClause(scope, 'i.company_id');
+  let sql = `${base} WHERE 1 = 1`;
+  const params = [];
+  if (status) { sql += ' AND i.status = ?'; params.push(status); }
+  sql += sc.sql; params.push(...sc.params);
+  sql += ' ORDER BY i.id DESC';
+  return x.many(sql, params);
 }
 
 /**

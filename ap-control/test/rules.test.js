@@ -197,7 +197,7 @@ test('R5 + happy path: check total equals net of invoices minus credits; outstan
 
   assert.equal((await db.one('SELECT status FROM invoices WHERE id=?', [inv.id])).status, 'paid');
 
-  const { totalOutstanding } = await outstandingChecks(db);
+  const { totalOutstanding } = await outstandingChecks(null, db);
   assert.equal(totalOutstanding, 105300);
 });
 

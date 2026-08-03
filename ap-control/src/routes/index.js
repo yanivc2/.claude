@@ -11,6 +11,7 @@ import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
 import { listRequests, approveRequest, rejectRequest, actionLabel } from '../services/changeRequests.js';
 import { getExecutor } from '../db/adapter.js';
+import { scopeClause } from '../lib/scope.js';
 import { config } from '../config.js';
 import { AuthError } from '../lib/errors.js';
 
@@ -30,17 +31,20 @@ router.get('/', async (req, res, next) => {
     const q = (req.query.q || '').trim();
     const companyId = req.query.company ? Number(req.query.company) : null;
     const storeId = req.query.store ? Number(req.query.store) : null;
+    const scope = req.scope.companyIds; // null = all (owner)
+    const cScope = scopeClause(scope, 'id');
+    const sScope = scopeClause(scope, 'company_id');
     const x = getExecutor();
     res.render('dashboard', {
       title: 'לוח בקרה',
-      stats: await dashboardStats(),
+      stats: await dashboardStats(scope),
       q,
       companyId,
       storeId,
-      companies: await x.many('SELECT id, name FROM companies ORDER BY name', []),
-      stores: await x.many('SELECT id, name, company_id FROM stores ORDER BY name', []),
-      invoiceResults: q ? await invoiceLookup(q, { companyId, storeId }) : null,
-      checkResults: q ? await lookupChecks(q) : null,
+      companies: await x.many(`SELECT id, name FROM companies WHERE 1 = 1${cScope.sql} ORDER BY name`, [...cScope.params]),
+      stores: await x.many(`SELECT id, name, company_id FROM stores WHERE 1 = 1${sScope.sql} ORDER BY name`, [...sScope.params]),
+      invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope }) : null,
+      checkResults: q ? await lookupChecks(q, scope) : null,
       supplierResults: q ? await searchSuppliers(q) : null,
     });
   } catch (err) {
@@ -130,7 +134,7 @@ router.get('/audit', async (req, res, next) => {
     const gridEnd = new Date(gridStart);
     gridEnd.setDate(gridStart.getDate() + weeksCount * 7 - 1);
 
-    const checks = await outstandingChecksInRange(ymd(gridStart), ymd(gridEnd));
+    const checks = await outstandingChecksInRange(ymd(gridStart), ymd(gridEnd), req.scope.companyIds);
     const byDate = {};
     for (const c of checks) {
       (byDate[c.payment_date] ||= { count: 0, total: 0 });
@@ -172,7 +176,7 @@ router.get('/audit', async (req, res, next) => {
       todayAnchor: ymd(today),
       periodLabel: anchor.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }),
       weeks,
-      balances: await latestBalances(),
+      balances: await latestBalances(req.scope.companyIds),
       rangeCount: checks.length,
       rangeTotal: checks.reduce((s, c) => s + c.amount, 0),
       events,

@@ -58,9 +58,19 @@ CREATE TABLE IF NOT EXISTS users (
   email         TEXT,           -- for password-reset by email
   label         TEXT,           -- optional display role name (e.g. "מנהל")
   permissions   TEXT,           -- JSON array of granted permission keys (non-owner)
+  phone         TEXT,           -- E.164-ish digits for WhatsApp invites (optional)
   password_hash TEXT            -- scrypt hash; null until a password is set
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;
+
+-- Per-user company access (הפרדת חברות). A non-owner sees ONLY the companies listed here;
+-- an owner ignores this table and sees everything. No rows for a non-owner = sees nothing.
+CREATE TABLE IF NOT EXISTS user_companies (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  UNIQUE (user_id, company_id)
+);
 
 -- Password-reset tokens (email flow). Only a SHA-256 hash of the token is stored.
 CREATE TABLE IF NOT EXISTS password_resets (
