@@ -7,6 +7,7 @@ export const PERMISSIONS = [
   { key: 'settings', label: 'גישה להגדרות (חנויות / חשבונות)' },
   { key: 'manage_suppliers', label: 'אישור / חסימה / מחיקת ספקים' },
   { key: 'hold_invoice', label: 'החזקה / שחרור חשבונית' },
+  { key: 'approve_payment', label: 'אישור תשלום (מנהל חנות)' },
   { key: 'void_payment', label: 'ביטול תשלום / צ׳ק' },
 ];
 

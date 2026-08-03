@@ -217,6 +217,23 @@ export async function putOnHold(id, reason, actor, x = getExecutor()) {
 }
 
 /**
+ * Release a held invoice back to 'recorded'. Requires manager/owner authority: hold_invoice
+ * (החזקה/שחרור) or approve_payment (מנהל חנות). A plain secretary cannot flip a hold placed by
+ * an owner/manager — they must file a change request instead (routes/invoices.js).
+ */
+export async function releaseHold(id, actor, x = getExecutor()) {
+  if (!userCan(actor, 'hold_invoice') && !userCan(actor, 'approve_payment')) {
+    throw new AuthError('שחרור החזקה — נדרשת הרשאת מנהל/בעלים');
+  }
+  const invoice = await getInvoice(id, x);
+  if (invoice.status === 'paid') throw new RuleError('R', 'חשבונית ששולמה — לא ניתן לשנות');
+  if (invoice.status !== 'on_hold') return invoice;
+  await x.run("UPDATE invoices SET status = 'recorded', hold_reason = NULL WHERE id = ?", [id]);
+  await logAction({ userId: actor.id, action: 'invoice.release_hold', entityType: 'invoice', entityId: id }, x);
+  return getInvoice(id, x);
+}
+
+/**
  * Set/replace the allocation number on an invoice.
  */
 export async function setAllocationNumber(id, allocationNumber, actor, x = getExecutor()) {
@@ -295,6 +312,23 @@ export async function updateInvoice(id, input, actor, x = getExecutor()) {
       WHERE id = ?`,
     [supplierId, store.company_id, storeId, String(invoiceNumber).trim(), alloc, invoiceDate, beforeVat, vat, total, docType, id],
   );
+
+  // R3 re-evaluation: an automatic hold (placed when the amount was over the allocation
+  // threshold) is stale once the invoice no longer qualifies — the amount was corrected below
+  // the threshold, an allocation number was added, or the doc type changed. Clear it so the
+  // invoice stops showing as "מוחזק (R3)" for a case that no longer applies. Manual owner holds
+  // (whose reason does not start with "R3") are never touched here.
+  const stillR3 =
+    docType === 'tax_invoice' && !alloc && Math.abs(beforeVat) > config.rules.allocationThresholdAgorot;
+  if (
+    invoice.status === 'on_hold' &&
+    typeof invoice.hold_reason === 'string' &&
+    invoice.hold_reason.startsWith('R3') &&
+    !stillR3
+  ) {
+    await x.run("UPDATE invoices SET status = 'recorded', hold_reason = NULL WHERE id = ?", [id]);
+  }
+
   await logAction(
     { userId: actor.id, action: 'invoice.update', entityType: 'invoice', entityId: id, details: { total, docType } },
     x,

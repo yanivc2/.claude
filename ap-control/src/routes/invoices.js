@@ -7,6 +7,7 @@ import {
   updateInvoice,
   approveInvoiceForPayment,
   putOnHold,
+  releaseHold,
   setAllocationNumber,
   setImage,
   clearImage,
@@ -19,7 +20,8 @@ import { scopeClause } from '../lib/scope.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
-import { submitRequest } from '../services/changeRequests.js';
+import { submitRequest, pendingRequestFor } from '../services/changeRequests.js';
+import { userCan } from '../lib/permissions.js';
 import { describeInvoice } from '../lib/changeSummary.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
@@ -232,11 +234,14 @@ router.get('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     res.render('invoices/show', {
-      title: `חשבונית #${id}`,
+      title: `חשבונית`,
       invoice: await getInvoiceDetail(id),
       ocr: await getOcr(id),
       comparison: await compareToInvoice(id),
-      notice: null,
+      pendingPayReq: await pendingRequestFor('invoice', id, 'invoice.approve_payment'),
+      pendingReleaseReq: await pendingRequestFor('invoice', id, 'invoice.release_hold'),
+      notice: req.query.sent === 'pay' ? 'בקשת אישור התשלום נשלחה למנהל/בעלים.'
+        : req.query.sent === 'release' ? 'בקשת שחרור ההחזקה נשלחה למנהל/בעלים.' : null,
       ocrOpen: req.query.ocr === '1',
     });
   } catch (err) {
@@ -255,14 +260,72 @@ router.post('/:id/ocr', async (req, res, next) => {
   }
 });
 
+// Approve an invoice for payment — owner / store-manager (approve_payment) only. This is the
+// action a secretary's payment-approval request unlocks; once approved, payment methods appear.
 router.post('/:id/approve', async (req, res, next) => {
+  const id = Number(req.params.id);
   try {
-    await approveInvoiceForPayment(Number(req.params.id), req.user);
-    res.redirect(303, `/invoices/${req.params.id}`);
-  } catch (err) {
-    if (err instanceof AuthError || err instanceof RuleError) {
-      return renderShow(res, Number(req.params.id), err.message);
+    if (!userCan(req.user, 'approve_payment')) {
+      throw new AuthError('אישור תשלום — נדרשת הרשאת מנהל חנות / בעלים');
     }
+    await approveInvoiceForPayment(id, req.user);
+    res.redirect(303, `/invoices/${id}`);
+  } catch (err) {
+    if (err instanceof AuthError || err instanceof RuleError) return renderShow(res, id, err.message);
+    next(err);
+  }
+});
+
+// Secretary asks an owner/manager to approve this invoice for payment. A photo of the invoice is
+// mandatory — the approver reviews the scan before releasing funds. Recorded as a change request.
+router.post('/:id/request-payment', async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    const invoice = await getInvoiceDetail(id);
+    if (invoice.status === 'paid') throw new RuleError('R', 'החשבונית כבר שולמה');
+    if (!invoice.image_path) {
+      throw new RuleError('IMG', 'יש לצרף צילום של החשבונית לפני שליחת בקשה לאישור תשלום');
+    }
+    await submitRequest(
+      {
+        action: 'invoice.approve_payment',
+        entityType: 'invoice',
+        entityId: id,
+        payload: { id },
+        summary: `אישור תשלום — ${invoice.supplier_name} · ${invoice.store_name} · ${fromAgorot(Math.abs(invoice.total_amount))} ₪`,
+      },
+      req.user,
+    );
+    res.redirect(303, `/invoices/${id}?sent=pay`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return renderShow(res, id, err.message);
+    next(err);
+  }
+});
+
+// Move an invoice out of "on hold". Owner/manager release it directly; a secretary — who cannot
+// flip a hold placed by an owner/manager — files a release request for approval instead.
+router.post('/:id/release', async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    if (userCan(req.user, 'approve_payment') || userCan(req.user, 'hold_invoice')) {
+      await releaseHold(id, req.user);
+      return res.redirect(303, `/invoices/${id}`);
+    }
+    const invoice = await getInvoiceDetail(id);
+    await submitRequest(
+      {
+        action: 'invoice.release_hold',
+        entityType: 'invoice',
+        entityId: id,
+        payload: { id },
+        summary: `שחרור החזקה — ${invoice.supplier_name} · ${invoice.store_name}`,
+      },
+      req.user,
+    );
+    res.redirect(303, `/invoices/${id}?sent=release`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return renderShow(res, id, err.message);
     next(err);
   }
 });
@@ -359,10 +422,12 @@ router.post('/:id/allocation', async (req, res, next) => {
 
 async function renderShow(res, id, error, notice = null) {
   res.status(error ? 400 : 200).render('invoices/show', {
-    title: `חשבונית #${id}`,
+    title: `חשבונית`,
     invoice: await getInvoiceDetail(id),
     ocr: await getOcr(id),
     comparison: await compareToInvoice(id),
+    pendingPayReq: await pendingRequestFor('invoice', id, 'invoice.approve_payment'),
+    pendingReleaseReq: await pendingRequestFor('invoice', id, 'invoice.release_hold'),
     error,
     notice,
     ocrOpen: false,
