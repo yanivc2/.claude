@@ -281,6 +281,10 @@ textarea { min-height: 92px; resize: vertical; }
 }
 .menu[open] > .menu-panel { animation: menu-in .2s cubic-bezier(.22,1,.36,1); }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-8px) scale(.97); } to { opacity: 1; transform: none; } }
+/* opens upward — panel sits above the button (for buttons near the bottom of the page) */
+.menu.up > .menu-panel { top: auto; bottom: 100%; margin-top: 0; margin-bottom: 8px; transform-origin: bottom; }
+.menu.up[open] > .menu-panel { animation: menu-in-up .2s cubic-bezier(.22,1,.36,1); }
+@keyframes menu-in-up { from { opacity: 0; transform: translateY(8px) scale(.97); } to { opacity: 1; transform: none; } }
 .menu-panel a, .menu-panel button {
   display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-radius: var(--radius-md);
   color: var(--color-body); background: transparent; border: 0; font: inherit; font-size: 14px;
