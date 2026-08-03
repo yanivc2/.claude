@@ -14,18 +14,55 @@ var requiresAllocation = invoice.doc_type === 'tax_invoice'
   && Math.abs(invoice.amount_before_vat) > allocationThresholdAgorot
   && !invoice.allocation_number;
 var ex = (ocrData && ocrData.extracted) || {};
+var canApprove = (typeof can === 'function') && can('approve_payment');
+var canHold = (typeof can === 'function') && can('hold_invoice');
+var isManager = canApprove || canHold;              // בעלים / מנהל חנות
+var payReq = (typeof pendingPayReq !== 'undefined') ? pendingPayReq : null;
+var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : null;
 %>
-<div class="toolbar">
-  <h1 style="margin:0">חשבונית #<%= invoice.id %> <span class="badge b-<%= invoice.status %>"><%= statusLabel(invoice.status) %></span></h1>
-  <div class="actions no-print">
-    <% if (invoice.status !== 'paid') { %><a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">ערוך</a><% } %>
-    <a href="/invoices" class="btn btn-secondary">חזרה לרשימה</a>
-  </div>
+
+<!-- כותרת: ללא מספר חשבונית; תגית הסטטוס משמאל, נלחצת לשינוי מצב -->
+<div class="toolbar" style="align-items:center">
+  <h1 style="margin:0">חשבונית</h1>
+  <% if (invoice.status === 'paid') { %>
+    <span class="status-pill b-paid">שולם</span>
+  <% } else { %>
+    <details class="menu open-in statusmenu no-print">
+      <summary class="status-pill b-<%= invoice.status %>"><%= statusLabel(invoice.status) %> <span class="caret">▾</span></summary>
+      <div class="menu-panel" style="min-width:230px">
+        <div class="menu-cap">שינוי מצב החשבונית</div>
+        <% if (invoice.status === 'on_hold') { %>
+          <% if (isManager) { %>
+            <form method="post" action="/invoices/<%= invoice.id %>/release"><button class="mi" type="submit">שחרר החזקה → נרשם</button></form>
+          <% } else if (relReq) { %>
+            <span class="mi disabled">בקשת שחרור ממתינה לאישור מנהל</span>
+          <% } else { %>
+            <form method="post" action="/invoices/<%= invoice.id %>/release"><button class="mi" type="submit">בקש שחרור מהמנהל</button></form>
+          <% } %>
+        <% } else if (isManager) { %>
+          <form method="post" action="/invoices/<%= invoice.id %>/hold" class="pay-hold">
+            <label class="hold-opt"><input type="radio" name="reason_type" value="credit" required> מחכה לזיכוי</label>
+            <label class="hold-opt"><input type="radio" name="reason_type" value="review"> חשבונית בבירור</label>
+            <div class="hold-remind">
+              <label class="lbl">תזכורת בפוש בתאריך</label>
+              <input type="date" name="remind_date" />
+            </div>
+            <label class="hold-opt"><input type="radio" name="reason_type" value="not_now"> לא לתשלום כרגע</label>
+            <button class="btn btn-secondary btn-sm btn-block" type="submit" style="margin-top:6px">החזק חשבונית</button>
+          </form>
+        <% } else { %>
+          <span class="mi disabled">שינוי מצב — נדרשת הרשאת מנהל/בעלים</span>
+        <% } %>
+      </div>
+    </details>
+  <% } %>
 </div>
 
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <% if (invoice.status === 'on_hold' && invoice.hold_reason) { %><div class="alert alert-warn"><strong>מוחזק:</strong> <%= invoice.hold_reason %></div><% } %>
-<% if (requiresAllocation) { %><div class="alert alert-error"><strong>נדרש מספר הקצאה</strong> — חשבונית מס מעל <%= formatIls(allocationThresholdAgorot) %> ללא מספר הקצאה. הזן מספר הקצאה בכפתור התשלום למטה.</div><% } %>
+<% if (payReq) { %><div class="alert alert-info">בקשת אישור תשלום ממתינה<% if (isManager) { %> — אפשר לאשר בכפתור למטה<% } else { %> לאישור מנהל/בעלים<% } %>.</div><% } %>
+<% if (requiresAllocation) { %><div class="alert alert-error"><strong>נדרש מספר הקצאה</strong> — חשבונית מס מעל <%= formatIls(allocationThresholdAgorot) %> ללא מספר הקצאה. הזן מספר הקצאה בכפתור למטה.</div><% } %>
 
 <!-- פרטי החשבונית (ללא מספר חשבונית; רק החנות) -->
 <div class="card" style="<%= requiresAllocation ? 'border-color:var(--color-bad)' : '' %>">
@@ -74,13 +111,18 @@ var ex = (ocrData && ocrData.extracted) || {};
   </div>
 <% } %>
 
-<!-- כפתור תשלום/החזקה — ללא כותרת, נפתח למעלה-שמאלה -->
+<!-- כפתור תשלום / אישור — ללא כותרת, נפתח למעלה-שמאלה. תשלום נפתח רק לאחר אישור מבעלים/מנהל. -->
 <% if (invoice.status !== 'paid') { %>
   <% var overCash = cashCeilingAgorot > 0 && Math.abs(invoice.total_amount) > cashCeilingAgorot; %>
+  <%
+    var payLabel = invoice.status === 'approved_for_payment' ? 'תשלום'
+      : canApprove ? 'אישור תשלום' : 'בקשת אישור תשלום';
+  %>
   <div class="card no-print" style="display:flex; justify-content:flex-start">
     <details class="menu up open-in">
-      <summary class="btn btn-primary">תשלום <span class="caret">▾</span></summary>
-      <div class="menu-panel" style="min-width:250px">
+      <summary class="btn btn-primary"><%= payLabel %> <span class="caret">▾</span></summary>
+      <div class="menu-panel" style="min-width:260px">
+
         <% if (requiresAllocation) { %>
           <form method="post" action="/invoices/<%= invoice.id %>/allocation" style="padding:8px 12px">
             <label class="lbl" style="color:var(--color-bad)">נדרש מספר הקצאה (9 ספרות)</label>
@@ -89,34 +131,49 @@ var ex = (ocrData && ocrData.extracted) || {};
           </form>
           <div class="menu-sep"></div>
         <% } %>
-        <% if (invoice.status === 'recorded' || invoice.status === 'approved_for_payment') { %>
+
+        <% if (invoice.status === 'approved_for_payment') { %>
+          <!-- מאושר לתשלום → אמצעי תשלום זמינים -->
           <a href="/payments/new?invoice=<%= invoice.id %>&method=check">צ׳ק</a>
           <a href="/payments/new?invoice=<%= invoice.id %>&method=credit">אשראי</a>
           <a href="/payments/new?invoice=<%= invoice.id %>&method=transfer">העברה</a>
           <% if (overCash) { %>
-            <span style="padding:10px 12px;color:var(--color-muted);opacity:.6" title="מעל תקרת המזומן">מזומן ✕ (מעל התקרה)</span>
+            <span class="mi disabled" title="מעל תקרת המזומן">מזומן ✕ (מעל התקרה)</span>
           <% } else { %>
             <a href="/payments/new?invoice=<%= invoice.id %>&method=cash">מזומן</a>
           <% } %>
-        <% } %>
-        <% if (typeof can === 'function' && can('hold_invoice') && invoice.status !== 'on_hold') { %>
-          <div class="menu-sep"></div>
-          <form method="post" action="/invoices/<%= invoice.id %>/hold" class="pay-hold">
-            <div style="padding:2px 12px;color:var(--color-muted);font-size:12px">החזק (בעלים)</div>
-            <label class="hold-opt"><input type="radio" name="reason_type" value="credit" required> מחכה לזיכוי</label>
-            <label class="hold-opt"><input type="radio" name="reason_type" value="review"> חשבונית בבירור</label>
-            <div class="hold-remind">
-              <label class="lbl">תזכורת בפוש בתאריך</label>
-              <input type="date" name="remind_date" />
-            </div>
-            <label class="hold-opt"><input type="radio" name="reason_type" value="not_now"> לא לתשלום כרגע</label>
-            <button class="btn btn-secondary btn-sm btn-block" type="submit" style="margin-top:6px">החזק</button>
-          </form>
+        <% } else if (invoice.status === 'on_hold') { %>
+          <span class="mi disabled">החשבונית מוחזקת — יש לשחרר אותה (בתגית הסטטוס) לפני אישור תשלום.</span>
+        <% } else { %>
+          <!-- recorded: אישור תשלום דרך בקשה -->
+          <% if (canApprove) { %>
+            <form method="post" action="/invoices/<%= invoice.id %>/approve"><button class="mi" type="submit">אשר לתשלום</button></form>
+            <% if (payReq) { %><span class="mi disabled">קיימת בקשת אישור ממתינה מ<%= payReq.requested_by_name || 'מזכירה' %></span><% } %>
+          <% } else if (payReq) { %>
+            <span class="mi disabled">בקשת אישור תשלום נשלחה וממתינה לאישור מנהל/בעלים.</span>
+          <% } else if (!invoice.image_path) { %>
+            <span class="mi disabled">יש לצרף צילום של החשבונית לפני בקשת אישור תשלום.</span>
+          <% } else { %>
+            <form method="post" action="/invoices/<%= invoice.id %>/request-payment"><button class="mi" type="submit">בקש אישור תשלום מהמנהל</button></form>
+          <% } %>
         <% } %>
       </div>
     </details>
   </div>
 <% } %>
+
+<!-- שורת פעולות: אפשרויות (עריכה) + חזרה לרשימה משמאלו -->
+<div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">
+  <% if (invoice.status !== 'paid') { %>
+    <details class="menu up open-in">
+      <summary class="btn btn-secondary">אפשרויות <span class="caret">▾</span></summary>
+      <div class="menu-panel" style="min-width:180px">
+        <a href="/invoices/<%= invoice.id %>/edit">ערוך חשבונית</a>
+      </div>
+    </details>
+  <% } %>
+  <a href="/invoices" class="btn btn-secondary">חזרה לרשימה</a>
+</div>
 
 <!-- מודל תמונת החשבונית -->
 <dialog id="imgDlg" class="dlg wide">
@@ -131,7 +188,7 @@ var ex = (ocrData && ocrData.extracted) || {};
       <a href="/invoices/<%= invoice.id %>/image" target="_blank"><img src="/invoices/<%= invoice.id %>/image" alt="תמונת חשבונית" style="max-width:100%;max-height:60vh;border:1px solid var(--color-line);border-radius:var(--radius-md)" /></a>
     <% } %>
     <div class="dlg-actions" style="display:flex;gap:8px;margin-top:var(--space-3);flex-wrap:wrap">
-      <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center">
+      <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" class="bw-form" style="display:flex;gap:8px;align-items:center">
         <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
         <button class="btn btn-secondary btn-sm" type="submit">החלף</button>
       </form>
@@ -139,12 +196,14 @@ var ex = (ocrData && ocrData.extracted) || {};
         <button class="btn btn-danger btn-sm" type="submit">מחק תמונה</button>
       </form>
     </div>
+    <p class="text-muted" style="font-size:12px;margin-top:6px">התמונה מעובדת אוטומטית לשחור-לבן ברור לפני השמירה.</p>
   <% } else { %>
-    <p class="text-muted">לא צורפה תמונה.</p>
-    <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center">
+    <p class="text-muted">לא צורפה תמונה. ניתן לצלם/להעלות מספר עמודים — כל עמוד כתמונה נפרדת.</p>
+    <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" class="bw-form" style="display:flex;gap:8px;align-items:center">
       <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
       <button class="btn btn-primary btn-sm" type="submit">צרף תמונה</button>
     </form>
+    <p class="text-muted" style="font-size:12px;margin-top:6px">התמונה מעובדת אוטומטית לשחור-לבן ברור לפני השמירה.</p>
   <% } %>
 </dialog>
 
@@ -189,6 +248,47 @@ var ex = (ocrData && ocrData.extracted) || {};
     <% } %>
   <% } %>
 </dialog>
+
+<script>
+// עיבוד תמונה בצד הלקוח: גווני-אפור + ניגודיות → שחור-לבן ברור, לפני ההעלאה. PDF עובר כמו שהוא.
+function bwProcess(file, cb){
+  if(!file || !/^image\//.test(file.type)) { cb(file); return; }
+  var url = URL.createObjectURL(file), img = new Image();
+  img.onload = function(){
+    var maxD = 2000, w = img.naturalWidth, h = img.naturalHeight;
+    var s = Math.min(1, maxD / Math.max(w, h)); w = Math.round(w*s); h = Math.round(h*s);
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+    var d = ctx.getImageData(0, 0, w, h), p = d.data, k = 1.45, b = 128*(1-k);
+    for(var i=0;i<p.length;i+=4){
+      var g = 0.299*p[i] + 0.587*p[i+1] + 0.114*p[i+2];
+      g = g*k + b; g = g<0?0:g>255?255:g;
+      p[i] = p[i+1] = p[i+2] = g;
+    }
+    ctx.putImageData(d, 0, 0); URL.revokeObjectURL(url);
+    c.toBlob(function(blob){
+      if(!blob){ cb(file); return; }
+      cb(new File([blob], 'invoice-bw.jpg', { type:'image/jpeg' }));
+    }, 'image/jpeg', 0.9);
+  };
+  img.onerror = function(){ URL.revokeObjectURL(url); cb(file); };
+  img.src = url;
+}
+document.querySelectorAll('form.bw-form').forEach(function(form){
+  var inp = form.querySelector('input[type=file][name=image]');
+  if(!inp) return;
+  form.addEventListener('submit', function(e){
+    if(form.__bwDone) return;
+    var f = inp.files && inp.files[0];
+    if(!f || !/^image\//.test(f.type)) return; // PDF/ריק → שליחה רגילה
+    e.preventDefault();
+    bwProcess(f, function(nf){
+      try { var dt = new DataTransfer(); dt.items.add(nf); inp.files = dt.files; } catch(_){}
+      form.__bwDone = true; form.submit();
+    });
+  });
+});
+</script>
 
 <% if (typeof ocrOpen !== 'undefined' && ocrOpen) { %>
   <script>var d=document.getElementById('ocrDlg'); if(d) d.showModal();</script>
