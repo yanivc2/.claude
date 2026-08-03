@@ -4,16 +4,6 @@
   <h1>חשבוניות</h1>
   <div class="actions no-print">
     <details class="menu">
-      <summary class="btn btn-primary">+ חשבונית חדשה <span class="caret">▾</span></summary>
-      <div class="menu-panel">
-        <a href="/invoices/new">+ חשבונית חדשה</a>
-        <div class="menu-sep"></div>
-        <a href="/payments/new?method=transfer">+ תשלום בהעברה</a>
-        <a href="/payments/new?method=cash">+ תשלום במזומן</a>
-        <a href="/payments/new?method=check">+ צ׳ק</a>
-      </div>
-    </details>
-    <details class="menu">
       <summary class="btn btn-secondary">סינון · <%= filterLabel %> <span class="caret">▾</span></summary>
       <div class="menu-panel">
         <a href="/invoices" class="<%= !filter ? 'active' : '' %>">הכל</a>
@@ -23,52 +13,40 @@
         <a href="/invoices?status=paid" class="<%= filter === 'paid' ? 'active' : '' %>">שולמו</a>
       </div>
     </details>
+    <details class="menu">
+      <summary class="btn btn-primary">+ חשבונית חדשה <span class="caret">▾</span></summary>
+      <div class="menu-panel">
+        <a href="/invoices/new">+ חשבונית חדשה</a>
+        <div class="menu-sep"></div>
+        <a href="/payments/new?method=transfer">+ תשלום בהעברה</a>
+        <a href="/payments/new?method=cash">+ תשלום במזומן</a>
+        <a href="/payments/new?method=check">+ צ׳ק</a>
+      </div>
+    </details>
   </div>
 </div>
-<p class="muted no-print" style="margin:.2rem 0">לחיצה על כותרת עמודה ממיינת (א׳–ת׳ / גבוה–נמוך).</p>
+<p class="muted no-print" style="margin:.2rem 0">לחיצה על שורה פותחת את פרטי החשבונית. חשבונית מוחזקת (חסרה הקצאה) מסומנת באדום.</p>
 
 <table class="sortable">
   <thead>
-    <tr>
-      <th>#</th><th>ספק</th><th>חנות</th><th>מס' חשבונית</th><th>הקצאה</th>
-      <th>תאריך</th><th>סוג</th><th class="right">סכום</th><th class="no-print" data-nosort>עריכה</th><th>סטטוס</th>
-    </tr>
+    <tr><th>ספק</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th></tr>
   </thead>
   <tbody>
     <% if (invoices.length === 0) { %>
-      <tr><td colspan="10" class="muted">אין חשבוניות להצגה.</td></tr>
+      <tr><td colspan="4" class="muted">אין חשבוניות להצגה.</td></tr>
     <% } %>
     <% invoices.forEach(function(i){ %>
-      <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer">
-        <td><%= i.id %></td>
+      <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= i.status === 'on_hold' ? 'row-hold' : '' %>">
         <td><%= i.supplier_name %>
           <% if (i.supplier_status !== 'approved') { %>
             <span class="badge b-<%= i.supplier_status %>">ספק <%= i.supplier_status === 'pending' ? 'ממתין' : 'חסום' %></span>
           <% } %>
         </td>
         <td><%= i.store_name %></td>
-        <td class="mono"><%= i.invoice_number %></td>
-        <td class="mono"><%= i.allocation_number || '—' %></td>
         <td><%= i.invoice_date %></td>
-        <td><%= i.doc_type === 'credit_note' ? 'זיכוי' : i.doc_type === 'tax_invoice_receipt' ? 'חש/קבלה' : 'חש. מס' %></td>
         <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
-        <td class="no-print" onclick="event.stopPropagation()">
-          <% if (i.status !== 'paid') { %>
-            <a class="btn secondary small" href="/invoices/<%= i.id %>/edit">ערוך</a>
-          <% } else { %>—<% } %>
-        </td>
-        <td><span class="badge b-<%= i.status %>"><%= statusLabel(i.status) %></span></td>
       </tr>
     <% }); %>
   </tbody>
 </table>
-
-<%
-function statusLabel(s){
-  return s === 'recorded' ? 'נרשם'
-    : s === 'on_hold' ? 'מוחזק'
-    : s === 'approved_for_payment' ? 'מאושר לתשלום'
-    : s === 'paid' ? 'שולם' : s;
-}
-%>
 <%- include('../partials/footer') %>
