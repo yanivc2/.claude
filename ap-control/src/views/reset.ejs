@@ -4,27 +4,34 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>איפוס סיסמה · AP Control</title>
-  <link rel="stylesheet" href="/style.css" />
-  <meta name="theme-color" content="#1f6feb" />
-  <script>(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Heebo:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/nocturne.css" />
+  <meta name="theme-color" content="#161826" />
 </head>
 <body>
-  <main style="max-width:400px; margin:8vh auto">
-    <div class="card">
-      <h1 style="margin-top:0">איפוס סיסמה</h1>
+  <div class="amb amb-glow"></div>
+  <div class="amb amb-grid"></div>
+  <div class="amb amb-vignette"></div>
+
+  <main class="page" style="max-width:400px; margin-top:12vh">
+    <div class="card fade-up">
+      <div class="nav-brand" style="margin-bottom:var(--space-4)"><span class="mark">AP</span>Control</div>
+      <h1 style="font-size:22px">איפוס סיסמה</h1>
       <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
       <% if (token) { %>
         <form method="post" action="/reset/<%= token %>" class="stack">
-          <label>סיסמה חדשה (לפחות 6 תווים)</label>
+          <label>סיסמה חדשה (6+ תווים, אות גדולה, קטנה וספרה)</label>
           <input name="next" type="password" autocomplete="new-password" minlength="6" autofocus required />
           <label>אישור סיסמה חדשה</label>
           <input name="confirm" type="password" autocomplete="new-password" minlength="6" required />
-          <div style="margin-top:1rem"><button type="submit">עדכן סיסמה</button></div>
+          <div style="margin-top:var(--space-4)"><button type="submit" class="btn btn-primary btn-block">עדכן סיסמה</button></div>
         </form>
       <% } else { %>
-        <p class="muted"><a href="/forgot">בקש קישור איפוס חדש</a></p>
+        <p class="text-muted"><a href="/forgot">בקש קישור איפוס חדש</a></p>
       <% } %>
-      <p class="muted" style="margin:.8rem 0 0"><a href="/login">חזרה להתחברות</a></p>
+      <p class="text-muted" style="margin:var(--space-3) 0 0"><a href="/login">חזרה להתחברות</a></p>
     </div>
   </main>
 </body>

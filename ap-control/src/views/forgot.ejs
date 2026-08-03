@@ -4,26 +4,33 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>שכחתי סיסמה · AP Control</title>
-  <link rel="stylesheet" href="/style.css" />
-  <meta name="theme-color" content="#1f6feb" />
-  <script>(function(){try{var t=localStorage.getItem('theme');if(t==='dark'||(t===null&&window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.setAttribute('data-theme','dark');}}catch(e){}})();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Heebo:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/nocturne.css" />
+  <meta name="theme-color" content="#161826" />
 </head>
 <body>
-  <main style="max-width:400px; margin:8vh auto">
-    <div class="card">
-      <h1 style="margin-top:0">שחזור סיסמה</h1>
+  <div class="amb amb-glow"></div>
+  <div class="amb amb-grid"></div>
+  <div class="amb amb-vignette"></div>
+
+  <main class="page" style="max-width:420px; margin-top:12vh">
+    <div class="card fade-up">
+      <div class="nav-brand" style="margin-bottom:var(--space-4)"><span class="mark">AP</span>Control</div>
+      <h1 style="font-size:22px">שחזור סיסמה</h1>
       <% if (notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
       <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
       <% if (!mailEnabled) { %>
         <div class="alert alert-warn">איפוס במייל אינו מוגדר עדיין במערכת. פנה לבעלים לאיפוס ידני של הסיסמה.</div>
       <% } %>
-      <p class="muted">הזן שם משתמש או כתובת מייל, ונשלח קישור לאיפוס הסיסמה.</p>
+      <p class="text-muted">הזן שם משתמש או כתובת מייל, ונשלח קישור לאיפוס הסיסמה.</p>
       <form method="post" action="/forgot" class="stack">
         <label>שם משתמש או מייל</label>
         <input name="identifier" autofocus required />
-        <div style="margin-top:1rem"><button type="submit">שלח קישור איפוס</button></div>
+        <div style="margin-top:var(--space-4)"><button type="submit" class="btn btn-primary btn-block">שלח קישור איפוס</button></div>
       </form>
-      <p class="muted" style="margin:.8rem 0 0"><a href="/login">חזרה להתחברות</a></p>
+      <p class="text-muted" style="margin:var(--space-3) 0 0"><a href="/login">חזרה להתחברות</a></p>
     </div>
   </main>
 </body>

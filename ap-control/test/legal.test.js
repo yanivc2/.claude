@@ -24,11 +24,11 @@ test('privacy notice renders with the group, processors and cross-border section
   assert.match(html, /העברת מידע לחו"ל/);
   assert.match(html, /Neon/);
   assert.match(html, new RegExp(legalLocals.contactEmail));
-  // blueprint chrome from the shared shell
-  assert.match(html, /design-system\.css/);
-  assert.match(html, /Barlow/);
-  assert.match(html, /CONTROL|Control/);
-  assert.match(html, /bp-corner/);
+  // Nocturne chrome from the shared shell
+  assert.match(html, /nocturne\.css/);
+  assert.match(html, /Inter/);
+  assert.match(html, /Control/);
+  assert.match(html, /amb-glow/);
 });
 
 test('accessibility statement renders with the standard and coordinator contact', async () => {
