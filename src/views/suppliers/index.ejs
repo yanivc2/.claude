@@ -1,21 +1,28 @@
 <%- include('../partials/header') %>
+<% var supLabel = filter === 'pending' ? 'ממתינים' : filter === 'approved' ? 'מאושרים' : filter === 'blocked' ? 'חסומים' : 'הכל'; %>
 <div class="toolbar">
   <h1>ספקים</h1>
-  <span>
-    <a class="btn secondary" href="/suppliers/contacts">אנשי קשר ספקים</a>
-    <a class="btn" href="/suppliers/new">+ ספק חדש</a>
-  </span>
+  <div class="actions no-print">
+    <details class="menu">
+      <summary class="btn btn-primary">+ ספק חדש <span class="caret">▾</span></summary>
+      <div class="menu-panel">
+        <a href="/suppliers/new">+ ספק חדש</a>
+        <a href="/suppliers/contacts">אנשי קשר ספקים</a>
+      </div>
+    </details>
+    <details class="menu">
+      <summary class="btn btn-secondary">סינון · <%= supLabel %> <span class="caret">▾</span></summary>
+      <div class="menu-panel">
+        <a href="/suppliers" class="<%= !filter ? 'active' : '' %>">הכל</a>
+        <a href="/suppliers?status=pending" class="<%= filter === 'pending' ? 'active' : '' %>">ממתינים</a>
+        <a href="/suppliers?status=approved" class="<%= filter === 'approved' ? 'active' : '' %>">מאושרים</a>
+        <a href="/suppliers?status=blocked" class="<%= filter === 'blocked' ? 'active' : '' %>">חסומים</a>
+      </div>
+    </details>
+  </div>
 </div>
 
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
-
-<div class="filterms card">
-  סינון:
-  <a href="/suppliers">הכל</a>
-  <a href="/suppliers?status=pending">ממתינים</a>
-  <a href="/suppliers?status=approved">מאושרים</a>
-  <a href="/suppliers?status=blocked">חסומים</a>
-</div>
 
 <form method="post" action="/suppliers/bulk">
   <div class="card no-print" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap">
