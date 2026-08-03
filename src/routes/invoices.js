@@ -9,9 +9,11 @@ import {
   putOnHold,
   setAllocationNumber,
   setImage,
+  clearImage,
 } from '../services/invoices.js';
 import { listSuppliers } from '../services/suppliers.js';
-import { runOcrForInvoice, compareToInvoice, getOcr } from '../services/ocr.js';
+import { runOcrForInvoice, compareToInvoice, getOcr, deleteOcr } from '../services/ocr.js';
+import { createEvent } from '../services/calendar.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
@@ -234,6 +236,8 @@ router.get('/:id', async (req, res, next) => {
       invoice: await getInvoiceDetail(id),
       ocr: await getOcr(id),
       comparison: await compareToInvoice(id),
+      notice: null,
+      ocrOpen: req.query.ocr === '1',
     });
   } catch (err) {
     next(err);
@@ -245,7 +249,7 @@ router.post('/:id/ocr', async (req, res, next) => {
   const id = Number(req.params.id);
   try {
     await runOcrForInvoice(id, req.user);
-    res.redirect(303, `/invoices/${id}`);
+    res.redirect(303, `/invoices/${id}?ocr=1`);
   } catch (err) {
     return renderShow(res, id, err.message);
   }
@@ -264,13 +268,79 @@ router.post('/:id/approve', async (req, res, next) => {
 });
 
 router.post('/:id/hold', async (req, res, next) => {
+  const id = Number(req.params.id);
   try {
-    await putOnHold(Number(req.params.id), req.body.reason || null, req.user);
-    res.redirect(303, `/invoices/${req.params.id}`);
+    const type = req.body.reason_type;
+    const who = req.user.label || req.user.name || req.user.username;
+    let reason;
+    if (type === 'credit') reason = `מחכה לזיכוי — הוזן ע"י ${who}`;
+    else if (type === 'review') reason = `חשבונית בבירור — הוזן ע"י ${who}`;
+    else if (type === 'not_now') reason = `לא לתשלום כרגע — הוזן ע"י ${who}`;
+    else reason = (req.body.reason || '').trim() || null;
+
+    // "חשבונית בבירור" may schedule a push reminder on a chosen date.
+    if (type === 'review' && /^\d{4}-\d{2}-\d{2}$/.test(req.body.remind_date || '')) {
+      await createEvent({ title: `בירור חשבונית #${id}`, eventDate: req.body.remind_date, remind: true }, req.user);
+      reason += ` · תזכורת ${req.body.remind_date}`;
+    }
+    await putOnHold(id, reason, req.user);
+    res.redirect(303, `/invoices/${id}`);
   } catch (err) {
     if (err instanceof AuthError || err instanceof RuleError) {
-      return renderShow(res, Number(req.params.id), err.message);
+      return renderShow(res, id, err.message);
     }
+    next(err);
+  }
+});
+
+// Delete the invoice image (and its OCR).
+router.post('/:id/image/delete', async (req, res, next) => {
+  try {
+    const previous = await clearImage(Number(req.params.id), req.user);
+    if (previous) removeUpload(previous);
+    res.redirect(303, `/invoices/${req.params.id}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Delete the stored OCR result.
+router.post('/:id/ocr/delete', async (req, res, next) => {
+  try {
+    await deleteOcr(Number(req.params.id), req.user);
+    res.redirect(303, `/invoices/${req.params.id}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Apply (possibly edited) OCR fields to the invoice — owner applies directly; others queue.
+router.post('/:id/ocr/apply', async (req, res, next) => {
+  const id = Number(req.params.id);
+  const b = req.body;
+  try {
+    const current = await getInvoiceDetail(id);
+    const fields = {
+      supplierId: current.supplier_id,
+      storeId: current.store_id,
+      invoiceNumber: current.invoice_number,
+      allocationNumber: (b.allocation_number || current.allocation_number) || null,
+      invoiceDate: b.invoice_date || current.invoice_date,
+      amountBeforeVat: b.amount_before_vat ? toAgorot(b.amount_before_vat) : Math.abs(current.amount_before_vat),
+      vatAmount: b.vat_amount ? toAgorot(b.vat_amount) : Math.abs(current.vat_amount),
+      docType: current.doc_type,
+    };
+    if (req.user.role !== 'owner') {
+      await submitRequest(
+        { action: 'invoice.update', entityType: 'invoice', entityId: id, payload: { id, fields }, summary: describeInvoice(current, fields) },
+        req.user,
+      );
+      return renderShow(res, id, null, 'עדכון מ-OCR נשלח לאישור הבעלים.');
+    }
+    await updateInvoice(id, fields, req.user);
+    res.redirect(303, `/invoices/${id}`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return renderShow(res, id, err.message);
     next(err);
   }
 });
@@ -287,13 +357,15 @@ router.post('/:id/allocation', async (req, res, next) => {
   }
 });
 
-async function renderShow(res, id, error) {
-  res.status(400).render('invoices/show', {
+async function renderShow(res, id, error, notice = null) {
+  res.status(error ? 400 : 200).render('invoices/show', {
     title: `חשבונית #${id}`,
     invoice: await getInvoiceDetail(id),
     ocr: await getOcr(id),
     comparison: await compareToInvoice(id),
     error,
+    notice,
+    ocrOpen: false,
   });
 }
 

@@ -318,6 +318,16 @@ export async function setImage(id, imagePath, actor, x = getExecutor()) {
 
 // ---- reads -------------------------------------------------------------------
 
+/** Remove the invoice image (and any OCR derived from it). Returns the old ref for cleanup. */
+export async function clearImage(id, actor, x = getExecutor()) {
+  const invoice = await getInvoice(id, x);
+  const previous = invoice.image_path;
+  await x.run('UPDATE invoices SET image_path = NULL WHERE id = ?', [id]);
+  await x.run('DELETE FROM invoice_ocr WHERE invoice_id = ?', [id]);
+  await logAction({ userId: actor.id, action: 'invoice.clear_image', entityType: 'invoice', entityId: id }, x);
+  return previous;
+}
+
 export async function getInvoice(id, x = getExecutor()) {
   const row = await x.one('SELECT * FROM invoices WHERE id = ?', [id]);
   if (!row) throw new NotFoundError(`חשבונית ${id} לא נמצאה`);

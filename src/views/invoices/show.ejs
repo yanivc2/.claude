@@ -6,131 +6,67 @@ function statusLabel(s){
     : s === 'approved_for_payment' ? 'מאושר לתשלום'
     : s === 'paid' ? 'שולם' : s;
 }
+var imgIsPdf = invoice.image_path && /\.pdf$/i.test(invoice.image_path);
+var ocrData = (typeof ocr !== 'undefined') ? ocr : null;
+var cmp = (typeof comparison !== 'undefined') ? comparison : null;
+// R3: a tax invoice above the allocation threshold with no allocation number needs one.
+var requiresAllocation = invoice.doc_type === 'tax_invoice'
+  && Math.abs(invoice.amount_before_vat) > allocationThresholdAgorot
+  && !invoice.allocation_number;
+var ex = (ocrData && ocrData.extracted) || {};
 %>
 <div class="toolbar">
-  <h1>חשבונית #<%= invoice.id %>
-    <span class="badge b-<%= invoice.status %>"><%= statusLabel(invoice.status) %></span>
-  </h1>
-  <div class="actions">
-    <% if (invoice.status !== 'paid') { %>
-      <a href="/invoices/<%= invoice.id %>/edit" class="btn secondary">ערוך חשבונית</a>
-    <% } %>
-    <a href="/invoices" class="btn secondary">חזרה לרשימה</a>
+  <h1 style="margin:0">חשבונית #<%= invoice.id %> <span class="badge b-<%= invoice.status %>"><%= statusLabel(invoice.status) %></span></h1>
+  <div class="actions no-print">
+    <% if (invoice.status !== 'paid') { %><a href="/invoices/<%= invoice.id %>/edit" class="btn btn-secondary">ערוך</a><% } %>
+    <a href="/invoices" class="btn btn-secondary">חזרה לרשימה</a>
   </div>
 </div>
 
-<% if (invoice.status === 'on_hold' && invoice.hold_reason) { %>
-  <div class="alert alert-warn"><strong>מוחזק:</strong> <%= invoice.hold_reason %></div>
-<% } %>
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (invoice.status === 'on_hold' && invoice.hold_reason) { %><div class="alert alert-warn"><strong>מוחזק:</strong> <%= invoice.hold_reason %></div><% } %>
+<% if (requiresAllocation) { %><div class="alert alert-error"><strong>נדרש מספר הקצאה</strong> — חשבונית מס מעל <%= formatIls(allocationThresholdAgorot) %> ללא מספר הקצאה. הזן מספר הקצאה בכפתור התשלום למטה.</div><% } %>
 
-<div class="card">
+<!-- פרטי החשבונית (ללא מספר חשבונית; רק החנות) -->
+<div class="card" style="<%= requiresAllocation ? 'border-color:var(--color-bad)' : '' %>">
   <div class="row">
-    <div><span class="muted">ספק</span><br><%= invoice.supplier_name %>
-      <% if (invoice.supplier_status !== 'approved') { %>
-        <span class="badge b-<%= invoice.supplier_status %>">ספק <%= invoice.supplier_status === 'pending' ? 'ממתין לאישור' : 'חסום' %></span>
-      <% } %>
+    <div><span class="text-muted">ספק</span><br><%= invoice.supplier_name %>
+      <% if (invoice.supplier_status !== 'approved') { %><span class="badge b-<%= invoice.supplier_status %>">ספק <%= invoice.supplier_status === 'pending' ? 'ממתין לאישור' : 'חסום' %></span><% } %>
     </div>
-    <div><span class="muted">חנות / חברה</span><br><%= invoice.store_name %> · <%= invoice.company_name %></div>
-    <div><span class="muted">תאריך</span><br><%= invoice.invoice_date %></div>
+    <div><span class="text-muted">חנות</span><br><%= invoice.store_name %></div>
+    <div><span class="text-muted">תאריך</span><br><%= invoice.invoice_date %></div>
   </div>
   <div class="row" style="margin-top:.8rem">
-    <div><span class="muted">מספר חשבונית</span><br class="mono"><%= invoice.invoice_number %></div>
-    <div><span class="muted">מספר הקצאה</span><br><span class="mono"><%= invoice.allocation_number || '—' %></span></div>
-    <div><span class="muted">סוג</span><br><%= invoice.doc_type === 'credit_note' ? 'זיכוי' : invoice.doc_type === 'tax_invoice_receipt' ? 'חשבונית מס/קבלה' : 'חשבונית מס' %></div>
-  </div>
-  <div class="row" style="margin-top:.8rem">
-    <div><span class="muted">לפני מע"מ</span><br><%= formatIls(invoice.amount_before_vat) %></div>
-    <div><span class="muted">מע"מ</span><br><%= formatIls(invoice.vat_amount) %></div>
-    <div><span class="muted">סה"כ</span><br><strong class="<%= invoice.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(invoice.total_amount) %></strong></div>
+    <div><span class="text-muted">מספר הקצאה</span><br><span class="mono <%= requiresAllocation ? 'neg' : '' %>"><%= invoice.allocation_number || '— חסר' %></span></div>
+    <div><span class="text-muted">סוג</span><br><%= invoice.doc_type === 'credit_note' ? 'זיכוי' : invoice.doc_type === 'tax_invoice_receipt' ? 'חשבונית מס/קבלה' : 'חשבונית מס' %></div>
+    <div><span class="text-muted">סה"כ</span><br><strong class="<%= invoice.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(invoice.total_amount) %></strong>
+      <span class="text-muted" style="font-size:12px">(לפני מע"מ <%= formatIls(invoice.amount_before_vat) %> · מע"מ <%= formatIls(invoice.vat_amount) %>)</span>
+    </div>
   </div>
 </div>
 
-<div class="card">
-  <h2>תמונת חשבונית</h2>
-  <% if (invoice.image_path) { %>
-    <% const isPdf = /\.pdf$/i.test(invoice.image_path); %>
-    <% if (isPdf) { %>
-      <p><a href="/invoices/<%= invoice.id %>/image" target="_blank" class="btn secondary">פתח קובץ PDF</a></p>
-    <% } else { %>
-      <a href="/invoices/<%= invoice.id %>/image" target="_blank">
-        <img src="/invoices/<%= invoice.id %>/image" alt="תמונת חשבונית" style="max-width:100%;max-height:420px;border:1px solid var(--line);border-radius:8px" />
-      </a>
-    <% } %>
-    <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" class="actions" style="margin-top:.8rem">
-      <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
-      <button class="secondary" type="submit">החלף תמונה</button>
-    </form>
-  <% } else { %>
-    <p class="muted">לא צורפה תמונה.</p>
-    <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" class="actions">
-      <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
-      <button class="secondary" type="submit">צרף תמונה</button>
-    </form>
+<!-- כפתורי עיגול: OCR (שמאל) · תמונת חשבונית (ימין) -->
+<div class="card no-print" style="display:flex; gap:var(--space-8); align-items:flex-start">
+  <div class="icon-tile">
+    <button type="button" class="icon-circle" onclick="document.getElementById('imgDlg').showModal()" aria-label="תמונת חשבונית" title="תמונת חשבונית">
+      <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M9.5 12h5M9.5 15.5h5M9.5 8.5h2"/></svg>
+    </button>
+    <span class="cap">תמונת חשבונית</span>
+  </div>
+  <% if (invoice.image_path && !imgIsPdf) { %>
+    <div class="icon-tile">
+      <button type="button" class="icon-circle accent" onclick="document.getElementById('ocrDlg').showModal()" aria-label="OCR" title="קריאת OCR">
+        <svg viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 011-1h3M20 8V5a1 1 0 00-1-1h-3M4 16v3a1 1 0 001 1h3M20 16v3a1 1 0 01-1 1h-3"/><path d="M7.5 12h9"/></svg>
+      </button>
+      <span class="cap">OCR</span>
+    </div>
   <% } %>
 </div>
 
-<%
-var ocrData = (typeof ocr !== 'undefined') ? ocr : null;
-var cmp = (typeof comparison !== 'undefined') ? comparison : null;
-var imgIsPdf = invoice.image_path && /\.pdf$/i.test(invoice.image_path);
-function ocrStatusBadge(s){
-  return s === 'match' ? '<span class="badge b-approved">תואם</span>'
-    : s === 'mismatch' ? '<span class="badge b-blocked">אי-התאמה</span>'
-    : s === 'missing' ? '<span class="badge b-on_hold">OCR לא זיהה</span>'
-    : s === 'ocr_only' ? '<span class="badge b-issued">רק ב-OCR</span>' : s;
-}
-%>
-<% if (invoice.image_path && !imgIsPdf) { %>
-  <div class="card">
-    <div class="toolbar">
-      <h2 style="margin:0">OCR — קריאה מהתמונה</h2>
-      <form method="post" action="/invoices/<%= invoice.id %>/ocr">
-        <button class="secondary" type="submit"><%= ocrData ? 'סרוק מחדש' : 'הרץ OCR' %></button>
-      </form>
-    </div>
-    <p class="muted">OCR מקומי, לתמיכה בלבד — אינו דורס נתונים שהוקלדו; משמש להשוואה ואיתור טעויות (§3/§8).</p>
-
-    <% if (cmp) { %>
-      <% if (cmp.hasMismatch) { %>
-        <div class="alert alert-warn">נמצאו אי-התאמות בין הקריאה למה שהוקלד — כדאי לבדוק.</div>
-      <% } %>
-      <table>
-        <thead><tr><th>שדה</th><th>הוקלד</th><th>OCR זיהה</th><th>סטטוס</th></tr></thead>
-        <tbody>
-          <% cmp.rows.forEach(function(r){ %>
-            <tr>
-              <td><%= r.label %></td>
-              <td><%= r.kind === 'money' ? (r.typed == null ? '—' : formatIls(r.typed)) : (r.typed || '—') %></td>
-              <td><%= r.kind === 'money' ? (r.ocr == null ? '—' : formatIls(r.ocr)) : (r.ocr || '—') %></td>
-              <td><%- ocrStatusBadge(r.status) %></td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-
-      <% var allocRow = cmp.rows.find(function(r){ return r.field === 'allocation_number'; }); %>
-      <% if (allocRow && allocRow.status === 'ocr_only' && ocrData.extracted && ocrData.extracted.allocationNumber) { %>
-        <form method="post" action="/invoices/<%= invoice.id %>/allocation" class="actions" style="margin-top:.8rem">
-          <input type="hidden" name="allocation_number" value="<%= ocrData.extracted.allocationNumber %>" />
-          <span>OCR זיהה מספר הקצאה <span class="mono"><%= ocrData.extracted.allocationNumber %></span></span>
-          <button class="secondary small" type="submit">החל על החשבונית</button>
-        </form>
-      <% } %>
-
-      <details style="margin-top:.8rem">
-        <summary class="muted">טקסט גולמי מה-OCR (<%= ocrData.ran_at %>)</summary>
-        <pre style="white-space:pre-wrap;background:#fafbfc;border:1px solid var(--line);border-radius:6px;padding:.6rem;max-height:240px;overflow:auto"><%= ocrData.raw_text %></pre>
-      </details>
-    <% } else { %>
-      <p class="muted">טרם הורץ OCR על תמונה זו.</p>
-    <% } %>
-  </div>
-<% } %>
-
 <% if (invoice.payment) { %>
   <div class="card">
-    <h2>תשלום</h2>
-    <p>שולם בצ׳ק מס' <a href="/payments/<%= invoice.payment.id %>"><span class="mono"><%= invoice.payment.check_number %></span></a>
+    <h2 style="margin-top:0">תשלום</h2>
+    <p>שולם ב<%= methodLabel(invoice.payment.method || 'check') %> <a href="/payments/<%= invoice.payment.id %>"><span class="mono"><%= invoice.payment.check_number || '' %></span></a>
       מתאריך <%= invoice.payment.payment_date %> —
       <span class="badge b-<%= invoice.payment.payment_status %>"><%= invoice.payment.payment_status === 'issued' ? 'הונפק' : invoice.payment.payment_status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
       <% if (invoice.payment.cleared_date) { %> · נפרע ב-<%= invoice.payment.cleared_date %><% } %>
@@ -138,47 +74,123 @@ function ocrStatusBadge(s){
   </div>
 <% } %>
 
+<!-- כפתור תשלום/החזקה — ללא כותרת, נפתח למעלה-שמאלה -->
 <% if (invoice.status !== 'paid') { %>
-  <div class="card">
-    <h2>פעולות</h2>
-
-    <!-- תשלום: כפתור שנפתח לבחירת אמצעי (צ׳ק / אשראי / העברה / מזומן). מזומן חסום מעל תקרת החוק. -->
-    <% if (invoice.status === 'recorded' || invoice.status === 'approved_for_payment') { %>
-      <% var overCash = cashCeilingAgorot > 0 && invoice.total_amount > cashCeilingAgorot; %>
-      <details class="paymenu" style="margin-bottom:.7rem">
-        <summary class="btn ok">תשלום ▾</summary>
-        <div class="paymenu-items">
-          <a class="btn secondary" href="/payments/new?invoice=<%= invoice.id %>&method=check">צ׳ק</a>
-          <a class="btn secondary" href="/payments/new?invoice=<%= invoice.id %>&method=credit">אשראי</a>
-          <a class="btn secondary" href="/payments/new?invoice=<%= invoice.id %>&method=transfer">העברה</a>
+  <% var overCash = cashCeilingAgorot > 0 && Math.abs(invoice.total_amount) > cashCeilingAgorot; %>
+  <div class="card no-print" style="display:flex; justify-content:flex-start">
+    <details class="menu up open-in">
+      <summary class="btn btn-primary">תשלום <span class="caret">▾</span></summary>
+      <div class="menu-panel" style="min-width:250px">
+        <% if (requiresAllocation) { %>
+          <form method="post" action="/invoices/<%= invoice.id %>/allocation" style="padding:8px 12px">
+            <label class="lbl" style="color:var(--color-bad)">נדרש מספר הקצאה (9 ספרות)</label>
+            <input name="allocation_number" maxlength="9" pattern="\d{9}" placeholder="9 ספרות" required />
+            <button class="btn btn-secondary btn-sm btn-block" type="submit" style="margin-top:6px">שמור הקצאה</button>
+          </form>
+          <div class="menu-sep"></div>
+        <% } %>
+        <% if (invoice.status === 'recorded' || invoice.status === 'approved_for_payment') { %>
+          <a href="/payments/new?invoice=<%= invoice.id %>&method=check">צ׳ק</a>
+          <a href="/payments/new?invoice=<%= invoice.id %>&method=credit">אשראי</a>
+          <a href="/payments/new?invoice=<%= invoice.id %>&method=transfer">העברה</a>
           <% if (overCash) { %>
-            <span class="btn secondary" style="opacity:.5;cursor:not-allowed" title="מעל תקרת המזומן">מזומן ✕</span>
+            <span style="padding:10px 12px;color:var(--color-muted);opacity:.6" title="מעל תקרת המזומן">מזומן ✕ (מעל התקרה)</span>
           <% } else { %>
-            <a class="btn secondary" href="/payments/new?invoice=<%= invoice.id %>&method=cash">מזומן</a>
+            <a href="/payments/new?invoice=<%= invoice.id %>&method=cash">מזומן</a>
           <% } %>
-        </div>
-      </details>
-      <% if (overCash) { %>
-        <p class="muted" style="margin:.2rem 0 .7rem">מזומן חסום — הסכום מעל תקרת התשלום במזומן (<%= formatIls(cashCeilingAgorot) %>).</p>
-      <% } %>
-    <% } %>
-
-    <!-- החזק (בעלים) מימין · סיבת החזקה משמאל לכפתור -->
-    <% if (invoice.status !== 'on_hold') { %>
-      <form method="post" action="/invoices/<%= invoice.id %>/hold" class="actions" style="margin-bottom:.7rem">
-        <button class="danger" type="submit">החזק (בעלים)</button>
-        <input name="reason" placeholder="סיבת החזקה" style="width:260px" />
-      </form>
-    <% } %>
-
-    <!-- שמור הקצאה מימין · מספר הקצאה משמאל לכפתור -->
-    <% if (!invoice.allocation_number) { %>
-      <form method="post" action="/invoices/<%= invoice.id %>/allocation" class="actions">
-        <button class="secondary" type="submit">שמור הקצאה</button>
-        <input name="allocation_number" placeholder="מספר הקצאה (9 ספרות)" maxlength="9" pattern="\d{9}" style="width:260px" />
-      </form>
-    <% } %>
+        <% } %>
+        <% if (typeof can === 'function' && can('hold_invoice') && invoice.status !== 'on_hold') { %>
+          <div class="menu-sep"></div>
+          <form method="post" action="/invoices/<%= invoice.id %>/hold" class="pay-hold">
+            <div style="padding:2px 12px;color:var(--color-muted);font-size:12px">החזק (בעלים)</div>
+            <label class="hold-opt"><input type="radio" name="reason_type" value="credit" required> מחכה לזיכוי</label>
+            <label class="hold-opt"><input type="radio" name="reason_type" value="review"> חשבונית בבירור</label>
+            <div class="hold-remind">
+              <label class="lbl">תזכורת בפוש בתאריך</label>
+              <input type="date" name="remind_date" />
+            </div>
+            <label class="hold-opt"><input type="radio" name="reason_type" value="not_now"> לא לתשלום כרגע</label>
+            <button class="btn btn-secondary btn-sm btn-block" type="submit" style="margin-top:6px">החזק</button>
+          </form>
+        <% } %>
+      </div>
+    </details>
   </div>
 <% } %>
 
+<!-- מודל תמונת החשבונית -->
+<dialog id="imgDlg" class="dlg wide">
+  <div class="dlg-head">
+    <strong>תמונת חשבונית</strong>
+    <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
+  </div>
+  <% if (invoice.image_path) { %>
+    <% if (imgIsPdf) { %>
+      <p><a href="/invoices/<%= invoice.id %>/image" target="_blank" class="btn btn-secondary">פתח קובץ PDF</a></p>
+    <% } else { %>
+      <a href="/invoices/<%= invoice.id %>/image" target="_blank"><img src="/invoices/<%= invoice.id %>/image" alt="תמונת חשבונית" style="max-width:100%;max-height:60vh;border:1px solid var(--color-line);border-radius:var(--radius-md)" /></a>
+    <% } %>
+    <div class="dlg-actions" style="display:flex;gap:8px;margin-top:var(--space-3);flex-wrap:wrap">
+      <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center">
+        <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
+        <button class="btn btn-secondary btn-sm" type="submit">החלף</button>
+      </form>
+      <form method="post" action="/invoices/<%= invoice.id %>/image/delete" onsubmit="return confirm('למחוק את תמונת החשבונית?')">
+        <button class="btn btn-danger btn-sm" type="submit">מחק תמונה</button>
+      </form>
+    </div>
+  <% } else { %>
+    <p class="text-muted">לא צורפה תמונה.</p>
+    <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" style="display:flex;gap:8px;align-items:center">
+      <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
+      <button class="btn btn-primary btn-sm" type="submit">צרף תמונה</button>
+    </form>
+  <% } %>
+</dialog>
+
+<!-- מודל OCR -->
+<dialog id="ocrDlg" class="dlg wide">
+  <div class="dlg-head">
+    <strong>OCR — קריאה מהתמונה</strong>
+    <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
+  </div>
+  <% if (!ocrData) { %>
+    <p class="text-muted">הרץ OCR כדי לקרוא את השדות מהתמונה. OCR משמש לתמיכה בלבד ואינו דורס נתונים ללא אישורך.</p>
+    <form method="post" action="/invoices/<%= invoice.id %>/ocr"><button class="btn btn-primary" type="submit">הרץ OCR</button></form>
+  <% } else { %>
+    <% if (cmp && cmp.hasMismatch) { %><div class="alert alert-warn">נמצאו אי-התאמות בין הקריאה למה שהוקלד.</div><% } %>
+    <p class="text-muted" style="font-size:13px">לחץ על שדה כדי לתקן אותו, ואז "אישור" כדי להחיל על החשבונית.</p>
+    <form method="post" action="/invoices/<%= invoice.id %>/ocr/apply">
+      <div class="row">
+        <div class="field"><label>מספר הקצאה<% if (ex.allocationNumber) { %> · OCR זיהה <span class="mono"><%= ex.allocationNumber %></span><% } %></label><input name="allocation_number" maxlength="9" pattern="\d{9}" value="<%= ex.allocationNumber || invoice.allocation_number || '' %>" /></div>
+        <div class="field"><label>תאריך</label><input name="invoice_date" type="date" value="<%= invoice.invoice_date %>" /></div>
+      </div>
+      <div class="row">
+        <div class="field"><label>לפני מע"מ (₪)</label><input name="amount_before_vat" value="<%= fromAgorot(Math.abs(invoice.amount_before_vat)) %>" /></div>
+        <div class="field"><label>מע"מ (₪)</label><input name="vat_amount" value="<%= fromAgorot(Math.abs(invoice.vat_amount)) %>" /></div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:var(--space-2)">
+        <button class="btn btn-primary" type="submit">אישור</button>
+        <button class="btn btn-danger" type="submit" formaction="/invoices/<%= invoice.id %>/ocr/delete" formnovalidate onclick="return confirm('למחוק את תוצאת ה-OCR?')">מחק OCR</button>
+      </div>
+    </form>
+    <% if (cmp) { %>
+      <details style="margin-top:var(--space-3)">
+        <summary class="text-muted">השוואה מלאה + טקסט גולמי</summary>
+        <table style="margin-top:8px"><thead><tr><th>שדה</th><th>הוקלד</th><th>OCR</th></tr></thead><tbody>
+          <% cmp.rows.forEach(function(r){ %>
+            <tr><td><%= r.label %></td>
+              <td><%= r.kind === 'money' ? (r.typed == null ? '—' : formatIls(r.typed)) : (r.typed || '—') %></td>
+              <td><%= r.kind === 'money' ? (r.ocr == null ? '—' : formatIls(r.ocr)) : (r.ocr || '—') %></td></tr>
+          <% }); %>
+        </tbody></table>
+        <pre style="white-space:pre-wrap;background:var(--color-surface-2);border:1px solid var(--color-line);border-radius:var(--radius-md);padding:.6rem;max-height:200px;overflow:auto;margin-top:8px"><%= ocrData.raw_text %></pre>
+      </details>
+    <% } %>
+  <% } %>
+</dialog>
+
+<% if (typeof ocrOpen !== 'undefined' && ocrOpen) { %>
+  <script>var d=document.getElementById('ocrDlg'); if(d) d.showModal();</script>
+<% } %>
 <%- include('../partials/footer') %>
