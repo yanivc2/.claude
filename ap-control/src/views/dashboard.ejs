@@ -3,12 +3,16 @@
 
 <div class="card no-print">
   <h2 style="margin-top:0">קיצורי תשלום</h2>
-  <div class="actions" style="flex-wrap:wrap">
-    <a class="btn" href="/payments/new?method=transfer">+ תשלום בהעברה</a>
-    <a class="btn" href="/payments/new?method=cash">+ תשלום במזומן</a>
-    <a class="btn" href="/payments/new?method=check">+ צ׳ק</a>
-    <a class="btn secondary" href="/payments/new">+ תשלום אחר</a>
-  </div>
+  <details class="menu">
+    <summary class="btn btn-primary">קיצורי תשלום <span class="caret">▾</span></summary>
+    <div class="menu-panel">
+      <a href="/payments/new?method=transfer">+ תשלום בהעברה</a>
+      <a href="/payments/new?method=cash">+ תשלום במזומן</a>
+      <a href="/payments/new?method=check">+ צ׳ק</a>
+      <div class="menu-sep"></div>
+      <a href="/payments/new">+ תשלום אחר</a>
+    </div>
+  </details>
 </div>
 
 <div class="card">
@@ -118,7 +122,7 @@
 
 <div class="card">
   <h2 style="margin-top:0">פעולות מהירות</h2>
-  <details class="menu">
+  <details class="menu up">
     <summary class="btn btn-primary">פעולות מהירות <span class="caret">▾</span></summary>
     <div class="menu-panel">
       <a href="/invoices/new">+ חשבונית חדשה</a>
