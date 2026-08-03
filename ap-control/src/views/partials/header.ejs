@@ -21,7 +21,7 @@
 
   <header class="nav">
     <a href="/" class="nav-brand"><span class="mark">AP</span>Control</a>
-    <nav style="display:flex;flex-wrap:wrap;gap:2px">
+    <nav class="mainnav">
       <a href="/" class="navlink <%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
       <a href="/invoices" class="navlink <%= path.startsWith('/invoices') ? 'active' : '' %>">חשבוניות</a>
       <a href="/payments" class="navlink <%= path.startsWith('/payments') ? 'active' : '' %>">תשלומים</a>
