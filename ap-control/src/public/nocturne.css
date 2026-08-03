@@ -306,6 +306,9 @@ textarea { min-height: 92px; resize: vertical; }
 .table tbody tr:hover { background: color-mix(in srgb, var(--color-accent) 6%, transparent); }
 .table .num { font-variant-numeric: tabular-nums; }
 .neg { color: var(--color-bad); }
+/* an on-hold invoice (missing allocation number) is flagged red across its row */
+tr.row-hold td { background: color-mix(in srgb, var(--color-bad) 10%, transparent); }
+tr.row-hold:hover td { background: color-mix(in srgb, var(--color-bad) 16%, transparent); }
 
 /* alerts */
 .alert { border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }
