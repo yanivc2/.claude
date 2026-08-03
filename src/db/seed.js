@@ -85,6 +85,33 @@ export async function seed(x = getExecutor()) {
         ]);
       }
     }
+
+    // Owner is "לי" in the UI (the switcher in Claude Design's prototype).
+    await t.run("UPDATE users SET label = 'לי' WHERE role = 'owner' AND (label IS NULL OR label = '')", []);
+
+    // Named team members with per-company access (הפרדת חברות). No password yet — each sets
+    // their own via a WhatsApp invite link. Company access is granted in user_companies.
+    const TEAM = [
+      { name: 'ויקי', username: 'vicky', companies: ['al_haderech', 'yaniv_rom', 'pink_market'] },
+      { name: 'אדם', username: 'adam', companies: ['al_haderech'] },
+      { name: 'רון', username: 'ron', companies: ['pink_market'] },
+    ];
+    for (const m of TEAM) {
+      let row = await t.one('SELECT id FROM users WHERE username = ?', [m.username]);
+      if (!row) {
+        const info = await t.run(
+          'INSERT INTO users (name, role, username, password_hash) VALUES (?, ?, ?, NULL)',
+          [m.name, 'secretary', m.username],
+        );
+        row = { id: info.lastInsertRowid };
+      }
+      // (Re)assert this member's company grants.
+      await t.run('DELETE FROM user_companies WHERE user_id = ?', [row.id]);
+      for (const key of m.companies) {
+        const cid = companyIdByKey[key];
+        if (cid) await t.run('INSERT INTO user_companies (user_id, company_id) VALUES (?, ?)', [row.id, cid]);
+      }
+    }
   });
 }
 

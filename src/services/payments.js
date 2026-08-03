@@ -2,6 +2,7 @@ import { getExecutor, tx } from '../db/adapter.js';
 import { config } from '../config.js';
 import { NotFoundError, RuleError, AuthError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
+import { scopeClause } from '../lib/scope.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { logAction } from './audit.js';
 
@@ -229,7 +230,7 @@ export async function getCheckPrintData(id, x = getExecutor()) {
   };
 }
 
-export async function listPayments({ status = null, companyId = null, storeId = null } = {}, x = getExecutor()) {
+export async function listPayments({ status = null, companyId = null, storeId = null, scope = null } = {}, x = getExecutor()) {
   const where = [];
   const params = [];
   if (status) {
@@ -244,6 +245,10 @@ export async function listPayments({ status = null, companyId = null, storeId = 
     where.push('ba.store_id = ?');
     params.push(storeId);
   }
+  if (scope != null) {
+    if (scope.length === 0) where.push('1 = 0');
+    else { where.push(`ba.company_id IN (${scope.map(() => '?').join(',')})`); params.push(...scope); }
+  }
   const sql = `SELECT p.*, ba.display_name AS bank_account_name,
                       c.name AS company_name, st.name AS store_name
                  FROM payments p
@@ -256,10 +261,11 @@ export async function listPayments({ status = null, companyId = null, storeId = 
 }
 
 /** Lookup payments by (last digits of) check number / transfer reference / batch number. */
-export async function lookupChecks(query, x = getExecutor()) {
+export async function lookupChecks(query, scope = null, x = getExecutor()) {
   const q = (query ?? '').trim();
   if (!q) return [];
   const like = `%${q}%`;
+  const sc = scopeClause(scope, 'ba.company_id');
   // Correlated subquery for one supplier name -> one row per payment, portable across SQLite/Postgres.
   return x.many(
     `SELECT p.id, p.method, p.check_number, p.reference, p.batch_number,
@@ -272,8 +278,8 @@ export async function lookupChecks(query, x = getExecutor()) {
               ORDER BY pl.id LIMIT 1) AS supplier_name
        FROM payments p
        JOIN bank_accounts ba ON ba.id = p.bank_account_id
-      WHERE p.check_number LIKE ? OR p.reference LIKE ? OR p.batch_number LIKE ?
+      WHERE (p.check_number LIKE ? OR p.reference LIKE ? OR p.batch_number LIKE ?)${sc.sql}
       ORDER BY p.id DESC`,
-    [like, like, like],
+    [like, like, like, ...sc.params],
   );
 }

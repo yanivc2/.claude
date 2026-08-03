@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { getExecutor } from '../db/adapter.js';
+import { scopeClause } from '../lib/scope.js';
 import { toAgorot } from '../lib/money.js';
 import { parseCsv } from '../lib/csv.js';
 import { normalizeBankRows } from '../lib/bankCsv.js';
@@ -30,17 +31,19 @@ const csvUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
 }).single('csv');
 
-async function accounts() {
+async function accounts(scope = null) {
+  const sc = scopeClause(scope, 'ba.company_id');
   return getExecutor().many(
     `SELECT ba.*, c.name AS company_name, st.name AS store_name
        FROM bank_accounts ba JOIN companies c ON c.id = ba.company_id
-       JOIN stores st ON st.id = ba.store_id ORDER BY c.name, st.name`,
-    [],
+       JOIN stores st ON st.id = ba.store_id
+      WHERE 1 = 1${sc.sql} ORDER BY c.name, st.name`,
+    [...sc.params],
   );
 }
 
 async function resolveAccountId(req) {
-  const all = await accounts();
+  const all = await accounts(req.scope.companyIds);
   const requested = Number(req.query.account);
   return all.some((a) => a.id === requested) ? requested : all[0]?.id;
 }
@@ -50,7 +53,7 @@ async function renderPage(req, res, accountId, extra = {}) {
   const classified = await Promise.all(unmatched.map(async (t) => ({ txn: t, ...(await classify(t)) })));
   res.render('reconciliation/index', {
     title: 'התאמת בנק',
-    accounts: await accounts(),
+    accounts: await accounts(req.scope.companyIds),
     accountId,
     classified,
     transactions: accountId ? await listTransactions(accountId) : [],
