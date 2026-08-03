@@ -3,6 +3,19 @@
   </footer>
   </main>
   <script>
+  // Close any open floating menu (<details class="menu">) when clicking outside it or pressing Esc.
+  (function () {
+    document.addEventListener('click', function (e) {
+      document.querySelectorAll('details.menu[open]').forEach(function (d) {
+        if (!d.contains(e.target)) d.removeAttribute('open');
+      });
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') document.querySelectorAll('details.menu[open]').forEach(function (d) { d.removeAttribute('open'); });
+    });
+  })();
+  </script>
+  <script>
   // Click-to-sort for any <table class="sortable">. A header cell marked
   // data-nosort is skipped. Amounts (₪, thousands, sign) and dates sort numerically.
   (function () {
