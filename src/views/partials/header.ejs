@@ -21,20 +21,26 @@
 
   <header class="nav">
     <a href="/" class="nav-brand"><span class="mark">AP</span>Control</a>
-    <nav class="mainnav">
-      <a href="/" class="navlink <%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
-      <a href="/invoices" class="navlink <%= path.startsWith('/invoices') ? 'active' : '' %>">חשבוניות</a>
-      <a href="/payments" class="navlink <%= path.startsWith('/payments') ? 'active' : '' %>">תשלומים</a>
-      <a href="/suppliers" class="navlink <%= path.startsWith('/suppliers') ? 'active' : '' %>">ספקים</a>
-      <a href="/reports/outstanding" class="navlink <%= path === '/reports/outstanding' ? 'active' : '' %>">צ׳קים בחוץ</a>
-      <a href="/reconciliation" class="navlink <%= path.startsWith('/reconciliation') ? 'active' : '' %>">התאמת בנק</a>
-      <a href="/reports/profitability" class="navlink <%= path === '/reports/profitability' ? 'active' : '' %>">רווחיות</a>
-      <a href="/audit" class="navlink <%= path === '/audit' ? 'active' : '' %>">יומן</a>
-      <% if (currentUser.role === 'owner') { %>
-        <a href="/approvals" class="navlink <%= path.startsWith('/approvals') ? 'active' : '' %>">אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="tag tag-accent" style="margin-inline-start:4px"><%= pendingApprovals %></span><% } %></a>
-      <% } %>
-      <% if (typeof can === 'function' && can('settings')) { %><a href="/settings" class="navlink <%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a><% } %>
-    </nav>
+    <details class="menu navmenu">
+      <summary class="btn btn-secondary btn-sm">☰ ניווט דפים <span class="caret">▾</span></summary>
+      <div class="menu-panel">
+        <a href="/" class="<%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
+        <a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>">חשבוניות</a>
+        <a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>">תשלומים</a>
+        <a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>">ספקים</a>
+        <a href="/reports/outstanding" class="<%= path === '/reports/outstanding' ? 'active' : '' %>">צ׳קים בחוץ</a>
+        <a href="/reconciliation" class="<%= path.startsWith('/reconciliation') ? 'active' : '' %>">התאמת בנק</a>
+        <a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>">רווחיות</a>
+        <a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>">יומן</a>
+        <% if (currentUser.role === 'owner') { %>
+          <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>">אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="tag tag-accent"><%= pendingApprovals %></span><% } %></a>
+        <% } %>
+        <% if (typeof can === 'function' && can('settings')) { %>
+          <div class="menu-sep"></div>
+          <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a>
+        <% } %>
+      </div>
+    </details>
     <span class="spacer"></span>
     <span class="tag tag-neutral" title="משתמש מחובר"><%= currentUser.label || currentUser.name || currentUser.username %></span>
     <form method="post" action="/logout" style="display:inline">

@@ -266,6 +266,30 @@ textarea { min-height: 92px; resize: vertical; }
 /* payment-shortcuts menu */
 .paymenu { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
+/* ---- floating menu (ניווט דפים / פעולות מהירות) — a <details> that pops an animated panel ---- */
+.menu { position: relative; display: inline-block; }
+.menu > summary { list-style: none; cursor: pointer; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu > summary .caret { transition: transform .2s ease; display: inline-block; }
+.menu[open] > summary .caret { transform: rotate(180deg); }
+.menu-panel {
+  position: absolute; z-index: 40; inset-inline-start: 0; margin-top: 8px; min-width: 230px;
+  background: var(--color-surface); border: 1px solid var(--color-line);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 7px;
+  display: flex; flex-direction: column; gap: 2px; transform-origin: top;
+}
+.menu[open] > .menu-panel { animation: menu-in .2s cubic-bezier(.22,1,.36,1); }
+@keyframes menu-in { from { opacity: 0; transform: translateY(-8px) scale(.97); } to { opacity: 1; transform: none; } }
+.menu-panel a, .menu-panel button {
+  display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-radius: var(--radius-md);
+  color: var(--color-body); background: transparent; border: 0; font: inherit; font-size: 14px;
+  text-align: start; cursor: pointer; white-space: nowrap; text-decoration: none; width: 100%;
+}
+.menu-panel a:hover, .menu-panel button:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); color: var(--color-accent-200); text-decoration: none; }
+.menu-panel a.active { color: var(--color-accent-200); background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.menu-panel .menu-sep { height: 1px; background: var(--color-line); margin: 5px 4px; }
+.menu-panel .badge, .menu-panel .tag { margin-inline-start: auto; }
+
 /* ---- tables ---- */
 .table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .table th, .table td { text-align: start; padding: 10px 12px; border-bottom: 1px solid var(--color-line); }
