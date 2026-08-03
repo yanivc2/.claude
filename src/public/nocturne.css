@@ -221,7 +221,7 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
 /* ---- cards ---- */
 .card {
   position: relative; background: var(--color-surface); border: 1px solid var(--color-line);
-  border-radius: var(--radius-lg); padding: var(--space-5);
+  border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-4);
   transition: transform .18s cubic-bezier(.22,1,.36,1), box-shadow .18s ease, border-color .18s ease;
 }
 .card.hoverable:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-line)); box-shadow: var(--shadow-md); }
@@ -230,8 +230,9 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
 .card-body { color: var(--color-body); font-size: 13.5px; }
 .elev-sm { box-shadow: var(--shadow-sm); } .elev-md { box-shadow: var(--shadow-md); } .elev-lg { box-shadow: var(--shadow-lg); }
 
-/* stat grid */
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-4); }
+/* stat grid — same small gap between tiles as the gap between cards, for even spacing */
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4); }
+.stat { margin-bottom: 0; }
 .stat { display: block; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); color: inherit; transition: transform .18s cubic-bezier(.22,1,.36,1), border-color .18s ease, box-shadow .18s ease; }
 .stat:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-line)); box-shadow: var(--shadow-md); text-decoration: none; }
 .stat .label { color: var(--color-muted); font-size: 12.5px; }
