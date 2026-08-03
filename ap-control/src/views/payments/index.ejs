@@ -1,41 +1,47 @@
 <%- include('../partials/header') %>
+<% var statusLabel = filter === 'issued' ? 'בחוץ' : filter === 'cleared' ? 'נפרעו' : filter === 'voided' ? 'מבוטלים' : 'הכל'; %>
+<% var cq = companyId || ''; var sq = storeId || ''; %>
 <div class="toolbar">
   <h1>תשלומים</h1>
-  <a class="btn" href="/payments/new">+ תשלום חדש</a>
-</div>
-
-<div class="card no-print">
-  <strong>קיצורי תשלום:</strong>
-  <div class="actions" style="flex-wrap:wrap; margin-top:.4rem">
-    <a class="btn" href="/payments/new?method=transfer">+ תשלום בהעברה</a>
-    <a class="btn" href="/payments/new?method=cash">+ תשלום במזומן</a>
-    <a class="btn" href="/payments/new?method=check">+ צ׳ק</a>
+  <div class="actions no-print">
+    <details class="menu">
+      <summary class="btn btn-primary">+ תשלום חדש <span class="caret">▾</span></summary>
+      <div class="menu-panel">
+        <a href="/payments/new">+ תשלום חדש</a>
+        <div class="menu-sep"></div>
+        <a href="/payments/new?method=transfer">+ תשלום בהעברה</a>
+        <a href="/payments/new?method=cash">+ תשלום במזומן</a>
+        <a href="/payments/new?method=check">+ צ׳ק</a>
+      </div>
+    </details>
+    <details class="menu">
+      <summary class="btn btn-secondary">סינון · <%= statusLabel %> <span class="caret">▾</span></summary>
+      <div class="menu-panel" style="min-width:250px; padding:12px">
+        <form method="get" action="/payments">
+          <label class="lbl">חברה</label>
+          <select name="company" onchange="this.form.submit()">
+            <option value="">כל החברות</option>
+            <% companies.forEach(function(c){ %>
+              <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+            <% }); %>
+          </select>
+          <label class="lbl" style="margin-top:10px">חנות</label>
+          <select name="store" onchange="this.form.submit()">
+            <option value="">כל החנויות</option>
+            <% stores.forEach(function(s){ %>
+              <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %></option>
+            <% }); %>
+          </select>
+          <input type="hidden" name="status" value="<%= filter %>" />
+        </form>
+        <div class="menu-sep"></div>
+        <a href="/payments?status=&company=<%= cq %>&store=<%= sq %>" class="<%= !filter ? 'active' : '' %>">הכל</a>
+        <a href="/payments?status=issued&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'issued' ? 'active' : '' %>">בחוץ</a>
+        <a href="/payments?status=cleared&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'cleared' ? 'active' : '' %>">נפרעו</a>
+        <a href="/payments?status=voided&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'voided' ? 'active' : '' %>">מבוטלים</a>
+      </div>
+    </details>
   </div>
-</div>
-
-<div class="card no-print">
-  <form method="get" action="/payments" class="actions" style="flex-wrap:wrap">
-    <select name="company" onchange="this.form.submit()">
-      <option value="">כל החברות</option>
-      <% companies.forEach(function(c){ %>
-        <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
-      <% }); %>
-    </select>
-    <select name="store" onchange="this.form.submit()">
-      <option value="">כל החנויות</option>
-      <% stores.forEach(function(s){ %>
-        <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %></option>
-      <% }); %>
-    </select>
-    <input type="hidden" name="status" value="<%= filter %>" />
-    <span class="filterms">
-      סטטוס:
-      <a href="/payments?status=&company=<%= companyId||'' %>&store=<%= storeId||'' %>">הכל</a>
-      <a href="/payments?status=issued&company=<%= companyId||'' %>&store=<%= storeId||'' %>">בחוץ</a>
-      <a href="/payments?status=cleared&company=<%= companyId||'' %>&store=<%= storeId||'' %>">נפרעו</a>
-      <a href="/payments?status=voided&company=<%= companyId||'' %>&store=<%= storeId||'' %>">מבוטלים</a>
-    </span>
-  </form>
 </div>
 
 <p class="muted no-print" style="margin:.2rem 0">לחיצה על כותרת עמודה ממיינת (א׳–ת׳ / גבוה–נמוך).</p>
