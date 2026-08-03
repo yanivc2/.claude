@@ -21,6 +21,7 @@
 
   <header class="nav">
     <a href="/" class="nav-brand"><span class="mark">AP</span>Control</a>
+    <span class="spacer"></span>
     <details class="menu navmenu">
       <summary class="btn btn-secondary btn-sm">☰ ניווט דפים <span class="caret">▾</span></summary>
       <div class="menu-panel">
@@ -39,13 +40,12 @@
           <div class="menu-sep"></div>
           <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a>
         <% } %>
+        <div class="menu-sep"></div>
+        <form method="post" action="/logout" style="margin:0">
+          <button type="submit">התנתק</button>
+        </form>
       </div>
     </details>
-    <span class="spacer"></span>
-    <span class="tag tag-neutral" title="משתמש מחובר"><%= currentUser.label || currentUser.name || currentUser.username %></span>
-    <form method="post" action="/logout" style="display:inline">
-      <button type="submit" class="btn btn-secondary btn-sm">התנתק</button>
-    </form>
   </header>
 
   <main class="page fade-up">

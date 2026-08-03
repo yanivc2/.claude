@@ -294,6 +294,9 @@ textarea { min-height: 92px; resize: vertical; }
 .menu-panel a.active { color: var(--color-accent-200); background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
 .menu-panel .menu-sep { height: 1px; background: var(--color-line); margin: 5px 4px; }
 .menu-panel .badge, .menu-panel .tag { margin-inline-start: auto; }
+/* buttons that sit at the inline-end (left in RTL) open their panel toward the page,
+   anchored to the button's inline-end edge, so it never overflows off-screen */
+.navmenu > .menu-panel, .menu.open-in > .menu-panel { inset-inline-start: auto; inset-inline-end: 0; }
 
 /* ---- tables ---- */
 .table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
