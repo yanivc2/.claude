@@ -45,6 +45,12 @@ export async function runOcrForInvoice(
 }
 
 /** Stored OCR result for an invoice, or null. */
+/** Delete the stored OCR result for an invoice. */
+export async function deleteOcr(invoiceId, actor, x = getExecutor()) {
+  await x.run('DELETE FROM invoice_ocr WHERE invoice_id = ?', [invoiceId]);
+  await logAction({ userId: actor?.id ?? null, action: 'invoice.ocr_delete', entityType: 'invoice', entityId: invoiceId }, x);
+}
+
 export async function getOcr(invoiceId, x = getExecutor()) {
   const row = await x.one('SELECT * FROM invoice_ocr WHERE invoice_id = ?', [invoiceId]);
   if (!row) return null;
