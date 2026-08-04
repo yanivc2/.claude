@@ -1,4 +1,11 @@
 <%- include('../partials/header') %>
+<%
+var PT_PRESETS = ['מיידי', 'דחוי 14', 'דחוי 30', 'דחוי 45'];
+var pmVal = supplier.payment_method || '';
+var ptStored = supplier.payment_terms || '';
+var ptSel = ptStored && PT_PRESETS.indexOf(ptStored) === -1 ? 'other' : ptStored;
+var ptCustom = ptSel === 'other' ? ptStored : '';
+%>
 <h1>עריכת ספק</h1>
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
@@ -17,6 +24,34 @@
     <div class="row">
       <div><label>איש קשר הנה"ח</label><input name="contact_name" value="<%= supplier.contact_name || '' %>" /></div>
       <div><label>טלפון איש קשר</label><input name="contact_phone" inputmode="tel" value="<%= supplier.contact_phone || '' %>" /></div>
+    </div>
+
+    <h3 style="margin:1rem 0 .2rem">תשלום</h3>
+    <div class="row">
+      <div>
+        <label>אמצעי תשלום</label>
+        <select name="payment_method">
+          <option value="">— ללא —</option>
+          <option value="transfer" <%= pmVal === 'transfer' ? 'selected' : '' %>>העברה</option>
+          <option value="check" <%= pmVal === 'check' ? 'selected' : '' %>>צק</option>
+          <option value="cash" <%= pmVal === 'cash' ? 'selected' : '' %>>מזומן</option>
+        </select>
+      </div>
+      <div>
+        <label>תנאי תשלום</label>
+        <select name="payment_terms" onchange="document.getElementById('ptOther').style.display=this.value==='other'?'block':'none'">
+          <option value="">— ללא —</option>
+          <option value="מיידי" <%= ptSel === 'מיידי' ? 'selected' : '' %>>תשלום מיידי</option>
+          <option value="דחוי 14" <%= ptSel === 'דחוי 14' ? 'selected' : '' %>>דחוי 14</option>
+          <option value="דחוי 30" <%= ptSel === 'דחוי 30' ? 'selected' : '' %>>דחוי 30</option>
+          <option value="דחוי 45" <%= ptSel === 'דחוי 45' ? 'selected' : '' %>>דחוי 45</option>
+          <option value="other" <%= ptSel === 'other' ? 'selected' : '' %>>אחר…</option>
+        </select>
+      </div>
+    </div>
+    <div id="ptOther" style="margin-top:.5rem;<%= ptSel === 'other' ? '' : 'display:none' %>">
+      <label>תנאי תשלום אחר</label>
+      <input name="payment_terms_other" value="<%= ptCustom || '' %>" placeholder="לדוגמה: שוטף 60, 50% מקדמה" />
     </div>
 
     <label>הערות</label>

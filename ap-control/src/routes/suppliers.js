@@ -74,6 +74,12 @@ router.get('/new', (req, res) => {
   res.render('suppliers/new', { title: 'ספק חדש', values: {}, error: null });
 });
 
+// Payment fields from the form: method code + terms, where "other" swaps in the free-text value.
+function paymentFields(body) {
+  const terms = body.payment_terms === 'other' ? (body.payment_terms_other || '').trim() : (body.payment_terms || '').trim();
+  return { paymentMethod: (body.payment_method || '').trim() || null, paymentTerms: terms || null };
+}
+
 router.post('/', async (req, res, next) => {
   try {
     const supplier = await createSupplier(
@@ -81,6 +87,7 @@ router.post('/', async (req, res, next) => {
         name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
         phone: req.body.phone, email: req.body.email,
         contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
+        ...paymentFields(req.body),
       },
       req.user,
     );
@@ -140,6 +147,7 @@ router.post('/:id/edit', async (req, res, next) => {
       name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
       phone: req.body.phone, email: req.body.email,
       contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
+      ...paymentFields(req.body),
     };
     // Non-owners: queue the edit for approval.
     if (req.user.role !== 'owner') {

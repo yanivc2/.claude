@@ -110,8 +110,13 @@ CREATE TABLE IF NOT EXISTS suppliers (
   phone          TEXT,
   email          TEXT,
   contact_name   TEXT,
-  contact_phone  TEXT
+  contact_phone  TEXT,
+  payment_method TEXT,
+  payment_terms  TEXT
 );
+-- migrations for existing databases (idempotent)
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_method TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_terms  TEXT;
 
 -- invoices ----------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoices (

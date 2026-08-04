@@ -63,7 +63,7 @@ function migrateSupplierContacts(db) {
     .get();
   if (!hasTable) return;
   const cols = db.prepare('PRAGMA table_info(suppliers)').all().map((c) => c.name);
-  for (const col of ['phone', 'email', 'contact_name', 'contact_phone']) {
+  for (const col of ['phone', 'email', 'contact_name', 'contact_phone', 'payment_method', 'payment_terms']) {
     if (!cols.includes(col)) db.exec(`ALTER TABLE suppliers ADD COLUMN ${col} TEXT;`);
   }
 }
