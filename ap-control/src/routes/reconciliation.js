@@ -4,6 +4,7 @@ import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
 import { toAgorot } from '../lib/money.js';
 import { parseCsv } from '../lib/csv.js';
+import { parseXlsx } from '../lib/xlsx.js';
 import { normalizeBankRows } from '../lib/bankCsv.js';
 import { decodeBuffer } from '../lib/decodeText.js';
 import { RuleError } from '../lib/errors.js';
@@ -30,6 +31,15 @@ const csvUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
 }).single('csv');
+
+// A .xlsx is a ZIP archive — its first bytes are the local-file-header magic "PK\x03\x04".
+// Detect by content (robust to a wrong/missing extension from a phone) or by name.
+function looksLikeXlsx(file) {
+  const name = (file.originalname || '').toLowerCase();
+  if (name.endsWith('.xlsx')) return true;
+  const b = file.buffer;
+  return !!b && b.length >= 4 && b[0] === 0x50 && b[1] === 0x4b && b[2] === 0x03 && b[3] === 0x04;
+}
 
 async function accounts(scope = null) {
   const sc = scopeClause(scope, 'ba.company_id');
@@ -71,16 +81,20 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// CSV import. Expected headers: date, amount, description, reference.
+// Statement import — CSV or Excel (.xlsx). Recognised bank columns:
+// תאריך / חובה / זכות (or תאריך / סכום), plus אסמכתא and a description column.
 router.post('/import-csv', (req, res, next) => {
   csvUpload(req, res, async (uploadErr) => {
     const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
     try {
       if (uploadErr) throw new RuleError('CSV', 'העלאת הקובץ נכשלה');
-      if (!req.file) throw new RuleError('CSV', 'לא נבחר קובץ CSV');
+      if (!req.file) throw new RuleError('CSV', 'לא נבחר קובץ');
       let mapped;
       try {
-        mapped = normalizeBankRows(parseCsv(decodeBuffer(req.file.buffer)));
+        const rows = looksLikeXlsx(req.file)
+          ? parseXlsx(req.file.buffer)
+          : parseCsv(decodeBuffer(req.file.buffer));
+        mapped = normalizeBankRows(rows);
       } catch (e) {
         throw new RuleError('CSV', e.message);
       }
