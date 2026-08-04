@@ -526,3 +526,22 @@ details.paymenu .paymenu-items .btn { text-align: center; }
   a { color: #111; text-decoration: none; }
   table { font-size: 11px; }
 }
+
+/* ---- mobile pull-to-refresh indicator + swipe-nav flash (PWA standalone) ---- */
+#ptr {
+  position: fixed; top: 8px; inset-inline-start: 50%;
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--color-surface-2); border: 1px solid var(--color-line);
+  box-shadow: 0 6px 18px rgba(0,0,0,.4);
+  opacity: 0; z-index: 1200; pointer-events: none;
+  transform: translate(-50%, -60px);
+}
+#ptr .ptr-ico {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--color-line); border-top-color: var(--color-accent);
+}
+#ptr.ready .ptr-ico { border-top-color: var(--color-accent-300); transform: scale(1.1); }
+#ptr.spin { opacity: 1 !important; transform: translate(-50%, 6px) !important; }
+#ptr.spin .ptr-ico { animation: ptr-spin .7s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
