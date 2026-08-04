@@ -33,32 +33,16 @@
       <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
       <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
     </div>
-    <div style="margin-top:.6rem"><button type="submit">הוסף דוח Z</button></div>
-  </form>
-</div>
-
-<!-- הצהרה על הפקדה: מספר שקית + סכום + סימון הופקד לבנק -->
-<div class="card no-print">
-  <h2>הצהרה על הפקדה</h2>
-  <form method="post" action="/reports/deposits" class="stack">
+    <h3 style="margin:1.1rem 0 .2rem">הצהרה על הפקדה (לא חובה)</h3>
+    <p class="muted" style="margin:0 0 .4rem">אם הפקדת מזומן לבנק — הזן פרטי הפקדה. החנות והתאריך נלקחים מדוח ה-Z שלמעלה.</p>
     <div class="row">
-      <div><label>חנות</label>
-        <select name="store_id" required>
-          <% storeOptions.forEach(function(st){ %>
-            <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
-          <% }); %>
-        </select>
-      </div>
-      <div><label>תאריך</label><input type="date" name="deposit_date" required /></div>
-    </div>
-    <div class="row">
-      <div><label>מספר שקית הפקדה</label><input name="bag_number" /></div>
-      <div><label>סכום הפקדה (₪)</label><input name="amount" inputmode="decimal" placeholder="0.00" required /></div>
+      <div><label>מספר שקית הפקדה</label><input name="dep_bag" /></div>
+      <div><label>סכום הפקדה (₪)</label><input name="dep_amount" inputmode="decimal" placeholder="0.00" /></div>
     </div>
     <label style="display:flex;align-items:center;gap:8px;margin-top:.6rem">
-      <input type="checkbox" name="deposited" value="1" style="width:auto;min-height:0" /> הופקד לבנק
+      <input type="checkbox" name="dep_deposited" value="1" style="width:auto;min-height:0" /> הופקד לבנק
     </label>
-    <div style="margin-top:.6rem"><button type="submit">שמור הפקדה</button></div>
+    <div style="margin-top:.8rem"><button type="submit">הוסף דוח Z</button></div>
   </form>
 </div>
 
