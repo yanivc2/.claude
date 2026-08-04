@@ -1,6 +1,10 @@
 <%- include('../partials/header') %>
 <h1>חשבונית חדשה</h1>
 
+<% if (typeof notice !== 'undefined' && notice) { %>
+  <div class="alert alert-ok"><%= notice %></div>
+<% } %>
+
 <% if (warnings && warnings.length) { %>
   <div class="alert alert-warn">
     <strong>אזהרות כפילות — ודא לפני המשך:</strong>
@@ -159,10 +163,80 @@
       <input name="confirm_reason" required placeholder="למשל: חשבונית חוזרת חודשית, לא כפילות" />
     <% } %>
 
-    <div style="margin-top:1rem" class="actions">
-      <button type="submit"><%= warnings && warnings.length ? 'אשר ושמור בכל זאת' : 'שמור חשבונית' %></button>
+    <div style="margin-top:1rem; flex-wrap:wrap" class="actions">
+      <button type="submit" name="action" value="save"><%= warnings && warnings.length ? 'אשר ושמור בכל זאת' : 'שמור חשבונית' %></button>
+      <button type="submit" name="action" value="add_another" class="btn secondary"><%= warnings && warnings.length ? 'אשר, שמור והוסף עוד' : 'שמור והוסף עוד לספק' %></button>
       <a href="/invoices" class="btn secondary">ביטול</a>
     </div>
+    <p class="muted" style="margin:.4rem 0 0">"שמור והוסף עוד לספק" — שומר ופותח טופס ריק לאותו ספק/חנות, כדי להזין עוד חשבוניות (כולל זיכוי) ואז לשייך את כולן לתשלום למטה.</p>
   </form>
 </div>
+
+<% if (typeof batchInvoices !== 'undefined' && batchInvoices && batchInvoices.length) { %>
+  <% var bnet = 0; batchInvoices.forEach(function(iv){ bnet += iv.total_amount; }); %>
+  <div class="card">
+    <h2 style="margin:0 0 .3rem">שיוך לתשלום — <%= batchInvoices[0].supplier_name %> · <%= batchInvoices[0].store_name %></h2>
+    <p class="muted" style="margin:0 0 .6rem">בחר את החשבוניות שברצונך לשלם יחד (זיכויים מקזזים) ובחר אמצעי תשלום. ייווצר תשלום אחד וישויך לכולן.</p>
+    <form method="post" action="/invoices/pay-batch" class="stack">
+      <input type="hidden" name="supplier_id" value="<%= batchInvoices[0].supplier_id %>" />
+      <input type="hidden" name="store_id" value="<%= batchInvoices[0].store_id %>" />
+      <table>
+        <thead><tr><th data-nosort></th><th>מס'</th><th>תאריך</th><th>סוג</th><th class="right">סכום</th></tr></thead>
+        <tbody>
+          <% batchInvoices.forEach(function(iv){ %>
+            <tr>
+              <td><input type="checkbox" class="bp-check" name="invoice_ids" value="<%= iv.id %>" checked style="width:auto;min-height:0" /></td>
+              <td class="mono"><a href="/invoices/<%= iv.id %>"><%= iv.invoice_number %></a></td>
+              <td><%= formatDate(iv.invoice_date) %></td>
+              <td><%= iv.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
+              <td class="right <%= iv.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(iv.total_amount) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+        <tfoot><tr><td colspan="4" class="right"><strong>נטו לתשלום (מסומנות)</strong></td><td class="right"><strong id="bpNet"><%= formatIls(bnet) %></strong></td></tr></tfoot>
+      </table>
+
+      <label style="margin-top:.6rem">אמצעי תשלום</label>
+      <select name="pay_method" id="bp_method">
+        <option value="check">צ׳ק</option>
+        <option value="transfer">העברה</option>
+        <option value="cash">מזומן</option>
+      </select>
+      <div class="bpay-row" data-m="check">
+        <div class="row">
+          <div><label>מספר צ׳ק</label><input name="check_number" /></div>
+          <div><label>תאריך פירעון</label><input type="date" name="check_due_date" /></div>
+        </div>
+      </div>
+      <div class="bpay-row" data-m="transfer">
+        <div class="row">
+          <div><label>מספר אסמכתה</label><input name="transfer_ref" /></div>
+          <div><label>תאריך פירעון</label><input type="date" name="transfer_date" /></div>
+        </div>
+      </div>
+      <div class="bpay-row" data-m="cash">
+        <div class="row">
+          <div><label>שולם ע"י</label><input name="cash_payer" /></div>
+          <div><label>תאריך תשלום</label><input type="date" name="cash_date" /></div>
+        </div>
+      </div>
+      <div style="margin-top:.8rem"><button type="submit">צור תשלום לחשבוניות המסומנות</button></div>
+    </form>
+  </div>
+  <script>
+    (function(){
+      var sel = document.getElementById('bp_method');
+      function upd(){ document.querySelectorAll('.bpay-row').forEach(function(r){ r.style.display = (r.dataset.m === sel.value) ? 'block' : 'none'; }); }
+      sel.addEventListener('change', upd); upd();
+      // live net of the checked rows
+      var amounts = [<%- batchInvoices.map(function(iv){ return iv.total_amount; }).join(',') %>];
+      var checks = Array.prototype.slice.call(document.querySelectorAll('.bp-check'));
+      var net = document.getElementById('bpNet');
+      function fmt(ag){ var s = ag<0?'-':''; ag=Math.abs(ag); return '₪'+s+(Math.floor(ag/100)).toLocaleString('en-US')+'.'+String(ag%100).padStart(2,'0'); }
+      function recalc(){ var sum=0; checks.forEach(function(c,i){ if(c.checked) sum+=amounts[i]; }); net.textContent = fmt(sum); }
+      checks.forEach(function(c){ c.addEventListener('change', recalc); });
+      recalc();
+    })();
+  </script>
+<% } %>
 <%- include('../partials/footer') %>
