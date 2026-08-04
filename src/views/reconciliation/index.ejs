@@ -75,38 +75,6 @@
   </table>
 </div>
 
-<div class="row">
-  <div class="card">
-    <h2>ייבוא CSV</h2>
-    <p class="muted">
-      תומך בייצוא בנק הפועלים (עמודות <span class="mono">תאריך / חובה / זכות / אסמכתא</span>)
-      וגם בפורמט פשוט (<span class="mono">date, amount, description, reference</span> — חובה שלילי).
-      מזהה אוטומטית קידוד עברי (Windows-1255), מפריד ; או פסיק, ומדלג על שורות כותרת מיותרות.
-    </p>
-    <form method="post" action="/reconciliation/import-csv" enctype="multipart/form-data" class="stack">
-      <input type="hidden" name="account_id" value="<%= accountId %>" />
-      <input type="file" name="csv" accept=".csv,text/csv" required />
-      <div style="margin-top:.6rem"><button type="submit">ייבא</button></div>
-    </form>
-  </div>
-
-  <div class="card">
-    <h2>הוספת תנועה ידנית</h2>
-    <form method="post" action="/reconciliation/add" class="stack">
-      <input type="hidden" name="account_id" value="<%= accountId %>" />
-      <label>תאריך</label>
-      <input type="date" name="txn_date" required />
-      <label>סכום (₪, שלילי = חובה)</label>
-      <input name="amount" inputmode="decimal" placeholder="-1170.00" required />
-      <label>תיאור</label>
-      <input name="description" />
-      <label>אסמכתא (למשל מס' צ׳ק)</label>
-      <input name="reference" />
-      <div style="margin-top:.6rem"><button class="secondary" type="submit">הוסף</button></div>
-    </form>
-  </div>
-</div>
-
 <div class="card">
   <h2>כל התנועות בחשבון</h2>
   <table class="sortable">
@@ -152,7 +120,7 @@
             <td colspan="7">
               <form method="post" action="/reconciliation/txn/<%= t.id %>/edit" class="actions" style="flex-wrap:wrap; gap:.5rem">
                 <input type="hidden" name="account_id" value="<%= accountId %>" />
-                <div><label style="margin:0">תאריך</label><input type="date" name="txn_date" value="<%= formatDate(t.txn_date) %>" required /></div>
+                <div><label style="margin:0">תאריך</label><input type="date" name="txn_date" value="<%= t.txn_date %>" required /></div>
                 <div><label style="margin:0">סכום (₪, שלילי=חובה)</label><input name="amount" inputmode="decimal" value="<%= (t.amount/100).toFixed(2) %>" required /></div>
                 <div><label style="margin:0">תיאור</label><input name="description" value="<%= t.description || '' %>" /></div>
                 <div><label style="margin:0">אסמכתא</label><input name="reference" value="<%= t.raw_reference || '' %>" /></div>
@@ -165,4 +133,58 @@
     </tbody>
   </table>
 </div>
+
+<!-- כפתורים עגולים למטה-מימין: ייבוא CSV + הוספת תנועה (נפתחים בחלון) -->
+<div class="card no-print" style="display:flex; gap:var(--space-8); justify-content:flex-start; align-items:flex-start">
+  <div class="icon-tile">
+    <button type="button" class="icon-circle accent" onclick="document.getElementById('csvDlg').showModal()" aria-label="ייבוא CSV" title="ייבוא CSV">
+      <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M12 11v6M9.5 14.5 12 17l2.5-2.5"/></svg>
+    </button>
+    <span class="cap">ייבוא CSV</span>
+  </div>
+  <div class="icon-tile">
+    <button type="button" class="icon-circle" onclick="document.getElementById('txnDlg').showModal()" aria-label="הוספת תנועה" title="הוספת תנועה">
+      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <span class="cap">הוספת תנועה</span>
+  </div>
+</div>
+
+<!-- מודל ייבוא CSV -->
+<dialog id="csvDlg" class="dlg wide">
+  <div class="dlg-head">
+    <strong>ייבוא CSV</strong>
+    <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
+  </div>
+  <p class="muted" style="font-size:13px">
+    תומך בייצוא בנק הפועלים (עמודות <span class="mono">תאריך / חובה / זכות / אסמכתא</span>)
+    וגם בפורמט פשוט (<span class="mono">date, amount, description, reference</span> — חובה שלילי).
+    מזהה אוטומטית קידוד עברי (Windows-1255), מפריד ; או פסיק, ומדלג על שורות כותרת מיותרות.
+  </p>
+  <form method="post" action="/reconciliation/import-csv" enctype="multipart/form-data" class="stack">
+    <input type="hidden" name="account_id" value="<%= accountId %>" />
+    <input type="file" name="csv" accept=".csv,text/csv" required />
+    <div style="margin-top:.6rem"><button class="btn btn-primary" type="submit">ייבא</button></div>
+  </form>
+</dialog>
+
+<!-- מודל הוספת תנועה ידנית -->
+<dialog id="txnDlg" class="dlg">
+  <div class="dlg-head">
+    <strong>הוספת תנועה ידנית</strong>
+    <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
+  </div>
+  <form method="post" action="/reconciliation/add" class="stack">
+    <input type="hidden" name="account_id" value="<%= accountId %>" />
+    <label>תאריך</label>
+    <input type="date" name="txn_date" required />
+    <label>סכום (₪, שלילי = חובה)</label>
+    <input name="amount" inputmode="decimal" placeholder="-1170.00" required />
+    <label>תיאור</label>
+    <input name="description" />
+    <label>אסמכתא (למשל מס' צ׳ק)</label>
+    <input name="reference" />
+    <div style="margin-top:.6rem"><button class="btn btn-primary" type="submit">הוסף</button></div>
+  </form>
+</dialog>
 <%- include('../partials/footer') %>
