@@ -9,6 +9,7 @@ import {
   Gavel,
   Scale,
   ListChecks,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 import { useViewer } from "./ViewerProvider";
@@ -22,6 +23,7 @@ interface Tab {
 // טאבים לפי תפקיד. עובד (self-service) יתווסף בשלב חוויית העובד.
 const MANAGER_TABS: Tab[] = [
   { href: "/", label: "בית", icon: LayoutDashboard },
+  { href: "/assistant", label: "עוזר", icon: Sparkles },
   { href: "/tasks", label: "משימות", icon: ListChecks },
   { href: "/onboarding", label: "קליטה", icon: UserPlus },
   { href: "/termination", label: "סיום", icon: FileX2 },
@@ -32,6 +34,7 @@ const MANAGER_TABS: Tab[] = [
 // מנהל חנות — צפייה בלבד פרט לסיום; ללא קליטה.
 const STORE_MANAGER_TABS: Tab[] = [
   { href: "/", label: "בית", icon: LayoutDashboard },
+  { href: "/assistant", label: "עוזר", icon: Sparkles },
   { href: "/tasks", label: "משימות", icon: ListChecks },
   { href: "/termination", label: "סיום", icon: FileX2 },
   { href: "/legal-updates", label: "חקיקה", icon: Gavel },

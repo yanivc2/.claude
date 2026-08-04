@@ -497,7 +497,7 @@ function TasksTab({
               <li
                 key={t.id}
                 style={{ "--i": i } as React.CSSProperties}
-                className="animate-stagger flex items-center justify-between gap-2 rounded-xl border border-slate-200/80 bg-white/80 p-3 shadow-soft backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/70"
+                className="animate-stagger flex flex-col items-stretch gap-2.5 rounded-xl border border-slate-200/80 bg-white/80 p-3.5 shadow-soft backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/70 sm:flex-row sm:items-center sm:justify-between sm:gap-2"
               >
                 {editingId === t.id ? (
                   <div className="flex min-w-0 flex-1 items-center gap-2">
@@ -526,22 +526,22 @@ function TasksTab({
                 ) : (
                   <>
                     <div className="min-w-0">
-                      <p className={`font-semibold ${t.status === "DONE" ? "text-slate-400 line-through dark:text-slate-500" : "text-slate-800 dark:text-slate-100"}`}>
+                      <p className={`text-base font-semibold sm:text-[15px] ${t.status === "DONE" ? "text-slate-400 line-through dark:text-slate-500" : "text-slate-800 dark:text-slate-100"}`}>
                         {t.title}
                       </p>
-                      <p className="text-xs text-slate-400">{assigneeText(t.assigneeScope, t.employeeNames)}</p>
+                      <p className="mt-0.5 text-sm text-slate-400">{assigneeText(t.assigneeScope, t.employeeNames)}</p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-1">
+                    <div className="flex shrink-0 items-center justify-end gap-1.5">
                       <button
                         type="button"
                         onClick={() => markDone(t)}
-                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-bold ${
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-bold ${
                           t.status === "DONE"
                             ? "bg-green-50 text-green-600 dark:bg-green-500/15 dark:text-green-400"
                             : "bg-accent-50 text-accent-700 dark:bg-accent-500/15 dark:text-accent-300"
                         }`}
                       >
-                        {t.status === "DONE" ? <Check size={13} /> : <Clock size={13} />}
+                        {t.status === "DONE" ? <Check size={16} /> : <Clock size={16} />}
                         {t.status === "DONE" ? "בוצע" : "ממתין"}
                       </button>
                       <button
@@ -551,17 +551,17 @@ function TasksTab({
                           setEditValue(t.title);
                         }}
                         aria-label="עריכה"
-                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                        className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
                       >
-                        <Pencil size={15} />
+                        <Pencil size={18} />
                       </button>
                       <button
                         type="button"
                         onClick={() => deleteTask(t.id)}
                         aria-label="מחיקה"
-                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/15"
+                        className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-500/15"
                       >
-                        <Trash2 size={15} />
+                        <Trash2 size={18} />
                       </button>
                     </div>
                   </>
