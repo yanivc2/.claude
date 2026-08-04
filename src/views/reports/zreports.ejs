@@ -37,6 +37,60 @@
   </form>
 </div>
 
+<!-- הצהרה על הפקדה: מספר שקית + סכום + סימון הופקד לבנק -->
+<div class="card no-print">
+  <h2>הצהרה על הפקדה</h2>
+  <form method="post" action="/reports/deposits" class="stack">
+    <div class="row">
+      <div><label>חנות</label>
+        <select name="store_id" required>
+          <% storeOptions.forEach(function(st){ %>
+            <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div><label>תאריך</label><input type="date" name="deposit_date" required /></div>
+    </div>
+    <div class="row">
+      <div><label>מספר שקית הפקדה</label><input name="bag_number" /></div>
+      <div><label>סכום הפקדה (₪)</label><input name="amount" inputmode="decimal" placeholder="0.00" required /></div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:.6rem">
+      <input type="checkbox" name="deposited" value="1" style="width:auto;min-height:0" /> הופקד לבנק
+    </label>
+    <div style="margin-top:.6rem"><button type="submit">שמור הפקדה</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>הפקדות אחרונות</h2>
+  <table class="sortable">
+    <thead><tr><th>תאריך</th><th>חנות</th><th>מס' שקית</th><th class="right">סכום</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
+    <tbody>
+      <% if (!deposits || deposits.length === 0) { %><tr><td colspan="6" class="muted">אין הפקדות.</td></tr><% } %>
+      <% (deposits || []).forEach(function(d){ %>
+        <tr>
+          <td><%= formatDate(d.deposit_date) %></td>
+          <td><%= d.store_name %></td>
+          <td class="mono"><%= d.bag_number || '—' %></td>
+          <td class="right"><%= formatIls(d.amount) %></td>
+          <td>
+            <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
+          </td>
+          <td class="no-print">
+            <% if (!d.deposited) { %>
+              <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="1" /><button class="ok small" type="submit">סמן כהופקד</button></form>
+            <% } else { %>
+              <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="0" /><button class="secondary small" type="submit">בטל</button></form>
+            <% } %>
+            <form method="post" action="/reports/deposits/<%= d.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק הפקדה?')"><button class="danger small" type="submit">מחק</button></form>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
 <div class="card">
   <div class="toolbar">
     <h2 style="margin:0">רשומות Z אחרונות</h2>

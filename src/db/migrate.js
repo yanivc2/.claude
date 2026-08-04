@@ -12,6 +12,21 @@ export function migrate(db) {
   migrateUserAuth(db);
   migrateBankBalance(db);
   migrateUserCompanies(db);
+  migrateDeposits(db);
+}
+
+// Adds the deposits table (bank deposit declarations) to older databases.
+function migrateDeposits(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS deposits (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    store_id     INTEGER NOT NULL REFERENCES stores(id),
+    deposit_date TEXT NOT NULL,
+    bag_number   TEXT,
+    amount       INTEGER NOT NULL DEFAULT 0,
+    deposited    INTEGER NOT NULL DEFAULT 0,
+    created_by   INTEGER NOT NULL REFERENCES users(id),
+    created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+  );`);
 }
 
 // Adds users.phone + the user_companies table (per-user company access) to older databases.
