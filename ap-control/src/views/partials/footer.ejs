@@ -182,5 +182,92 @@
     }, true);
   })();
   </script>
+
+  <!-- מחוות סלולר (רק ב-PWA מותקן, שם אין מחוות דפדפן טבעיות):
+       גלילה מטה מלמעלה = רענון · סחיבה שמאלה = חזרה · סחיבה ימינה = הדף הבא -->
+  <div id="ptr" aria-hidden="true"><span class="ptr-ico"></span></div>
+  <script>
+  (function () {
+    var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+      || window.navigator.standalone === true;
+    if (!standalone) return; // בדפדפן רגיל מחוות אלה קיימות במקור — לא נכפיל אותן
+
+    var ptr = document.getElementById('ptr');
+    var V_THRESH = 80, H_THRESH = 70, MAX_PULL = 130, TIME = 800;
+    var sx = 0, sy = 0, st = 0, active = false, hOk = false, topStart = false, mode = '';
+
+    function atTop() { return (window.scrollY || document.documentElement.scrollTop || 0) <= 0; }
+    function hScrollable(el) {
+      while (el && el.nodeType === 1 && el !== document.body) {
+        if (el.scrollWidth - el.clientWidth > 6) {
+          var ov = getComputedStyle(el).overflowX;
+          if (ov === 'auto' || ov === 'scroll') return true;
+        }
+        el = el.parentElement;
+      }
+      return false;
+    }
+    function blocked(t) {
+      return !!(t && t.closest && t.closest('.dp-pop, dialog[open], input[type="range"]'));
+    }
+    function showPull(dy) {
+      var p = Math.min(dy, MAX_PULL);
+      ptr.style.transition = 'none';
+      ptr.style.opacity = Math.min(p / V_THRESH, 1);
+      ptr.style.transform = 'translate(-50%, ' + (Math.min(p, MAX_PULL) - 60) + 'px)';
+      ptr.classList.toggle('ready', dy >= V_THRESH);
+    }
+    function reset() {
+      ptr.classList.remove('ready');
+      ptr.style.transition = 'transform .2s, opacity .2s';
+      ptr.style.opacity = '0';
+      ptr.style.transform = 'translate(-50%, -60px)';
+    }
+
+    window.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) { active = false; return; }
+      var t = e.touches[0];
+      sx = t.clientX; sy = t.clientY; st = Date.now(); mode = '';
+      active = !blocked(e.target);
+      hOk = active && !hScrollable(e.target);
+      topStart = atTop();
+    }, { passive: true });
+
+    window.addEventListener('touchmove', function (e) {
+      if (!active || e.touches.length !== 1) return;
+      var t = e.touches[0];
+      var dx = t.clientX - sx, dy = t.clientY - sy;
+      if (!mode) {
+        if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 8) mode = 'v';
+        else if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 8) mode = 'h';
+      }
+      if (mode === 'v' && topStart && dy > 0) {
+        showPull(dy);
+        if (dy > 4 && e.cancelable) e.preventDefault(); // עצור גלישת-יתר בזמן המשיכה
+      }
+    }, { passive: false });
+
+    window.addEventListener('touchend', function (e) {
+      if (!active) return;
+      active = false;
+      var ct = e.changedTouches[0];
+      var dx = ct.clientX - sx, dy = ct.clientY - sy, dt = Date.now() - st;
+
+      if (mode === 'v' && topStart && dy > V_THRESH) {
+        ptr.classList.add('spin');
+        setTimeout(function () { location.reload(); }, 120);
+        return;
+      }
+      reset();
+
+      if (mode === 'h' && hOk && Math.abs(dx) > H_THRESH && Math.abs(dx) > Math.abs(dy) * 1.5 && dt < TIME) {
+        if (dx < 0) history.back();   // סחיבה שמאלה → אחורה
+        else history.forward();       // סחיבה ימינה → קדימה
+      }
+    }, { passive: true });
+
+    window.addEventListener('touchcancel', function () { active = false; reset(); }, { passive: true });
+  })();
+  </script>
 </body>
 </html>
