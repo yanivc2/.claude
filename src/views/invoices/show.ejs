@@ -71,7 +71,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
       <% if (invoice.supplier_status !== 'approved') { %><span class="badge b-<%= invoice.supplier_status %>">ספק <%= invoice.supplier_status === 'pending' ? 'ממתין לאישור' : 'חסום' %></span><% } %>
     </div>
     <div><span class="text-muted">חנות</span><br><%= invoice.store_name %></div>
-    <div><span class="text-muted">תאריך</span><br><%= invoice.invoice_date %></div>
+    <div><span class="text-muted">תאריך</span><br><%= formatDate(invoice.invoice_date) %></div>
   </div>
   <div class="row" style="margin-top:.8rem">
     <div><span class="text-muted">מספר הקצאה</span><br><span class="mono <%= requiresAllocation ? 'neg' : '' %>"><%= invoice.allocation_number || '— חסר' %></span></div>
@@ -104,9 +104,9 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
   <div class="card">
     <h2 style="margin-top:0">תשלום</h2>
     <p>שולם ב<%= methodLabel(invoice.payment.method || 'check') %> <a href="/payments/<%= invoice.payment.id %>"><span class="mono"><%= invoice.payment.check_number || '' %></span></a>
-      מתאריך <%= invoice.payment.payment_date %> —
+      מתאריך <%= formatDate(invoice.payment.payment_date) %> —
       <span class="badge b-<%= invoice.payment.payment_status %>"><%= invoice.payment.payment_status === 'issued' ? 'הונפק' : invoice.payment.payment_status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
-      <% if (invoice.payment.cleared_date) { %> · נפרע ב-<%= invoice.payment.cleared_date %><% } %>
+      <% if (invoice.payment.cleared_date) { %> · נפרע ב-<%= formatDate(invoice.payment.cleared_date) %><% } %>
     </p>
   </div>
 <% } %>
@@ -241,7 +241,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
     <form method="post" action="/invoices/<%= invoice.id %>/ocr/apply">
       <div class="row">
         <div class="field"><label>מספר הקצאה<% if (ex.allocationNumber) { %> · OCR זיהה <span class="mono"><%= ex.allocationNumber %></span><% } %></label><input name="allocation_number" maxlength="9" pattern="\d{9}" value="<%= ex.allocationNumber || invoice.allocation_number || '' %>" /></div>
-        <div class="field"><label>תאריך</label><input name="invoice_date" type="date" value="<%= invoice.invoice_date %>" /></div>
+        <div class="field"><label>תאריך</label><input name="invoice_date" type="date" value="<%= formatDate(invoice.invoice_date) %>" /></div>
       </div>
       <div class="row">
         <div class="field"><label>לפני מע"מ (₪)</label><input name="amount_before_vat" value="<%= fromAgorot(Math.abs(invoice.amount_before_vat)) %>" /></div>

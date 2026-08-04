@@ -122,7 +122,7 @@
       <% zReports.forEach(function(z){ %>
         <tr>
           <td class="mono"><a href="/reports/zreports/<%= z.id %>"><%= z.z_number %></a></td>
-          <td><%= z.z_date %></td>
+          <td><%= formatDate(z.z_date) %></td>
           <td><%= z.store_name %></td>
           <td class="right"><%= formatIls(z.daily_total) %></td>
           <td class="right"><%= formatIls(z.drawer_total) %></td>

@@ -39,7 +39,7 @@ const groupList = Object.values(groups);
               <td><input type="checkbox" name="invoice_ids" value="<%= i.id %>" data-amount="<%= i.total_amount %>" <%= preId === i.id ? 'checked' : '' %> onchange="recalc(this.form)" style="width:auto"></td>
               <td><%= i.supplier_name %></td>
               <td class="mono"><%= i.invoice_number %></td>
-              <td><%= i.invoice_date %></td>
+              <td><%= formatDate(i.invoice_date) %></td>
               <td><%= i.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
               <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
             </tr>

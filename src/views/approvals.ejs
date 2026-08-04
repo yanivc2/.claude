@@ -15,7 +15,7 @@
       <div class="toolbar" style="margin-bottom:.4rem">
         <div>
           <strong><%= actionLabel(r.action) %></strong>
-          <span class="muted">· מבקש: <%= r.requested_by_name || '—' %> · <%= r.created_at %></span>
+          <span class="muted">· מבקש: <%= r.requested_by_name || '—' %> · <%= formatDate(r.created_at) %></span>
         </div>
         <div class="actions no-print">
           <form method="post" action="/approvals/<%= r.id %>/approve" style="display:inline" onsubmit="return confirm('לאשר ולבצע את השינוי?')">

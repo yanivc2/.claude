@@ -38,7 +38,7 @@
       <% } %>
       <% classified.forEach(function(c){ %>
         <tr>
-          <td><%= c.txn.txn_date %></td>
+          <td><%= formatDate(c.txn.txn_date) %></td>
           <td class="right neg"><%= formatIls(c.txn.amount) %></td>
           <td><%= c.txn.description || '' %></td>
           <td class="mono"><%= c.txn.raw_reference || '—' %></td>
@@ -117,7 +117,7 @@
       <% } %>
       <% transactions.forEach(function(t){ %>
         <tr>
-          <td><%= t.txn_date %></td>
+          <td><%= formatDate(t.txn_date) %></td>
           <td class="right <%= t.amount < 0 ? 'neg' : '' %>"><%= formatIls(t.amount) %></td>
           <td><%= t.description || '' %></td>
           <td class="mono"><%= t.raw_reference || '—' %></td>
@@ -152,7 +152,7 @@
             <td colspan="7">
               <form method="post" action="/reconciliation/txn/<%= t.id %>/edit" class="actions" style="flex-wrap:wrap; gap:.5rem">
                 <input type="hidden" name="account_id" value="<%= accountId %>" />
-                <div><label style="margin:0">תאריך</label><input type="date" name="txn_date" value="<%= t.txn_date %>" required /></div>
+                <div><label style="margin:0">תאריך</label><input type="date" name="txn_date" value="<%= formatDate(t.txn_date) %>" required /></div>
                 <div><label style="margin:0">סכום (₪, שלילי=חובה)</label><input name="amount" inputmode="decimal" value="<%= (t.amount/100).toFixed(2) %>" required /></div>
                 <div><label style="margin:0">תיאור</label><input name="description" value="<%= t.description || '' %>" /></div>
                 <div><label style="margin:0">אסמכתא</label><input name="reference" value="<%= t.raw_reference || '' %>" /></div>
