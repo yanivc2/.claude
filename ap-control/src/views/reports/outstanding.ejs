@@ -1,10 +1,6 @@
 <%- include('../partials/header') %>
 <div class="toolbar">
   <h1>צ׳קים בחוץ</h1>
-  <div class="actions no-print">
-    <a class="btn secondary" href="/reports/outstanding.csv">ייצוא CSV</a>
-    <button class="secondary" onclick="window.print()">הדפסה / PDF</button>
-  </div>
 </div>
 <p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7). לחץ על שורה לפירוט.</p>
 
@@ -22,7 +18,13 @@
           <td class="right"><%= a.outstanding_count %></td>
           <td class="right"><strong><%= formatIls(a.outstanding) %></strong></td>
           <td class="no-print" onclick="event.stopPropagation()">
-            <a class="btn secondary small" href="/reports/outstanding-detail.csv?account=<%= a.id %>">CSV מפורט</a>
+            <details class="menu open-in">
+              <summary class="btn btn-secondary btn-sm">ייצוא <span class="caret">▾</span></summary>
+              <div class="menu-panel" style="min-width:150px">
+                <a href="/reports/outstanding-detail.csv?account=<%= a.id %>">📄 ייצוא CSV</a>
+                <a href="/reports/outstanding?account=<%= a.id %>&print=1">🖨️ הדפסה</a>
+              </div>
+            </details>
           </td>
         </tr>
       <% }); %>
@@ -81,6 +83,18 @@
     <% if (currentUser.role !== 'owner') { %><p class="muted no-print">עריכת חשבוניות זמינה לבעלים בלבד.</p><% } %>
   </div>
 <% } %>
+<!-- פעולות ייצוא/הדפסה — למטה -->
+<div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">
+  <a class="btn btn-secondary" href="/reports/outstanding.csv">📄 ייצוא CSV</a>
+  <button type="button" class="btn btn-secondary" onclick="window.print()">🖨️ הדפסה / PDF</button>
+</div>
+
+<script>
+  // "הדפסה" מהתפריט בשורה פותח את פירוט החשבון ומריץ הדפסה אוטומטית.
+  if (new URLSearchParams(location.search).get('print') === '1') {
+    window.addEventListener('load', function () { setTimeout(function () { window.print(); }, 350); });
+  }
+</script>
 <%
 function a_total_count(list){ return list.reduce(function(s,a){ return s + a.outstanding_count; }, 0); }
 %>
