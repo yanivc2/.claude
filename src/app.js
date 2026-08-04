@@ -27,16 +27,17 @@ export function createApp() {
 
   app.use(express.urlencoded({ extended: true }));
   app.use(express.static(path.join(__dirname, 'public')));
-  app.use(currentUser);
 
-  // Never let the browser (or Safari's back-forward cache) serve a stale page: dynamic
-  // responses are always re-fetched, so a fresh deploy shows up immediately and financial
-  // data is never retained on-device. Static assets were already served above by
-  // express.static and are unaffected.
+  // Never let the browser (or Safari's back-forward cache) serve a stale page. Runs BEFORE the
+  // auth gate so it also covers the /login redirect and every other dynamic response — a fresh
+  // deploy shows up immediately and financial data is never retained on-device. Static assets
+  // were already served above by express.static and are unaffected.
   app.use((req, res, next) => {
     res.set('Cache-Control', 'no-store, must-revalidate');
     next();
   });
+
+  app.use(currentUser);
 
   // View helpers available to every template.
   app.use((req, res, next) => {
