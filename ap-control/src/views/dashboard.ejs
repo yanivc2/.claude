@@ -153,8 +153,8 @@
     <div class="num" style="font-size:22px"><%= stats.lastReconciledAt ? formatDate(String(stats.lastReconciledAt).slice(0,10)) : '—' %></div>
     <div class="label">התאמת בנק אחרונה</div>
   </a>
-  <div class="stat" style="position:relative">
-    <details class="menu no-print" style="position:absolute; inset-inline-start:10px; top:10px">
+  <div class="stat oc-tile" style="position:relative; display:flex; align-items:flex-start; gap:10px">
+    <details class="menu up no-print" style="flex:0 0 auto">
       <summary class="icon-circle sm" title="בחירת חנות" aria-label="בחירת חנות" style="list-style:none">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9M4 9v10a1 1 0 001 1h14a1 1 0 001-1V9M4 9h16M9 20v-6h6v6"/></svg>
       </summary>
@@ -166,7 +166,7 @@
         <% }); %>
       </div>
     </details>
-    <a href="/reports/outstanding" style="display:block; color:inherit; text-decoration:none">
+    <a href="/reports/outstanding" style="flex:1 1 auto; min-width:0; color:inherit; text-decoration:none">
       <div class="num"><%= formatIls(outstandingDisplay) %></div>
       <div class="label">צ׳קים בחוץ<%= ocSelectedName ? ' · ' + ocSelectedName : ' · כל החנויות' %></div>
     </a>
