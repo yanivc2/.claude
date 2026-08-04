@@ -16,14 +16,29 @@
   <div style="flex:2; min-width:440px">
     <div class="card no-print">
       <div class="actions" style="flex-wrap:wrap">
-        <a class="btn <%= preset==='week' ? '' : 'secondary' %>" href="/reports/profitability?preset=week">שבועי (א׳–שבת)</a>
-        <a class="btn <%= preset==='month' ? '' : 'secondary' %>" href="/reports/profitability?preset=month">חודשי</a>
+        <a class="btn <%= !preset ? '' : 'secondary' %>" href="/reports/profitability?from=<%= from %>&to=<%= to %>">טווח ימים</a>
+        <a class="btn <%= preset==='week' ? '' : 'secondary' %>" href="/reports/profitability?preset=week&from=<%= from %>">שבועי (א׳–שבת)</a>
+        <a class="btn <%= preset==='month' ? '' : 'secondary' %>" href="/reports/profitability?preset=month&from=<%= from %>">חודשי</a>
       </div>
-      <form method="get" action="/reports/profitability" class="actions" style="margin-top:.6rem">
-        <div><label style="margin:0">מתאריך</label><input type="date" name="from" value="<%= from %>" /></div>
-        <div><label style="margin:0">עד תאריך</label><input type="date" name="to" value="<%= to %>" /></div>
-        <div style="align-self:end"><button type="submit">הצג טווח</button></div>
-      </form>
+      <% if (preset === 'week') { %>
+        <form method="get" action="/reports/profitability" style="margin-top:.6rem">
+          <input type="hidden" name="preset" value="week" />
+          <label style="margin:0">בחר שבוע</label>
+          <input type="date" name="from" value="<%= from %>" data-dp-mode="week" data-dp-submit="1" />
+        </form>
+      <% } else if (preset === 'month') { %>
+        <form method="get" action="/reports/profitability" style="margin-top:.6rem">
+          <input type="hidden" name="preset" value="month" />
+          <label style="margin:0">בחר חודש</label>
+          <input type="date" name="from" value="<%= from %>" data-dp-mode="month" data-dp-submit="1" />
+        </form>
+      <% } else { %>
+        <form method="get" action="/reports/profitability" class="actions" style="margin-top:.6rem">
+          <div><label style="margin:0">מתאריך</label><input type="date" name="from" value="<%= from %>" /></div>
+          <div><label style="margin:0">עד תאריך</label><input type="date" name="to" value="<%= to %>" /></div>
+          <div style="align-self:end"><button type="submit">הצג טווח</button></div>
+        </form>
+      <% } %>
     </div>
 
     <div class="card">
