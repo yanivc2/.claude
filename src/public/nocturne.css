@@ -381,6 +381,8 @@ tr.row-hold:hover td { background: color-mix(in srgb, var(--color-bad) 16%, tran
   transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease, color .15s ease;
 }
 .icon-circle:hover { transform: translateY(-2px); border-color: var(--color-accent); box-shadow: var(--shadow-md); color: var(--color-accent-100); text-decoration: none; }
+.icon-circle.sm { width: 34px; height: 34px; }
+.icon-circle.sm svg { width: 17px; height: 17px; }
 .icon-circle.accent { background: var(--accent-grad); color: #fff; border-color: transparent; }
 .icon-circle svg { width: 27px; height: 27px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .icon-sm svg { width: 17px; height: 17px; }
