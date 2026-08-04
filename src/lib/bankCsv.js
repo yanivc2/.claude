@@ -15,9 +15,9 @@ const DATE_KEYS = ['תאריך', 'תאריך ערך', 'תאריך הפעולה',
 const DEBIT_KEYS = ['חובה', 'חובה ₪', 'debit'];
 const CREDIT_KEYS = ['זכות', 'זכות ₪', 'credit'];
 const AMOUNT_KEYS = ['סכום', 'סכום התנועה', 'סכום בש"ח', 'סכום בשח', 'amount'];
-const DESC_KEYS = ['תיאור הפעולה', 'פרטים', 'תיאור', 'סוג תנועה', 'פעולה', 'description'];
+const DESC_KEYS = ['תיאור הפעולה', 'הפעולה', 'פרטים', 'תיאור', 'סוג תנועה', 'פעולה', 'הערה', 'description'];
 const REF_KEYS = ['אסמכתא', 'אסמכתא/שיק', 'מספר אסמכתא', 'אסמכתה', 'reference', 'ref'];
-const BALANCE_KEYS = ['יתרה לאחר פעולה', 'יתרה', 'balance'];
+const BALANCE_KEYS = ["יתרה לאחר פעולה", "יתרה בש''ח", 'יתרה בש"ח', 'יתרה', 'balance'];
 
 /** Normalize a date cell to 'YYYY-MM-DD' (accepts ISO or DD/MM/YYYY, DD.MM.YYYY, DD-MM-YYYY). */
 function normalizeDate(value) {

@@ -81,7 +81,7 @@
     <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th><th>סטטוס</th><th data-nosort class="no-print">פעולות</th></tr></thead>
     <tbody>
       <% if (transactions.length === 0) { %>
-        <tr><td colspan="7" class="muted">אין תנועות. ייבא CSV, הרץ scraper, או הוסף ידנית.</td></tr>
+        <tr><td colspan="7" class="muted">אין תנועות. ייבא CSV/Excel, הרץ scraper, או הוסף ידנית.</td></tr>
       <% } %>
       <% transactions.forEach(function(t){ %>
         <tr>
@@ -137,10 +137,10 @@
 <!-- כפתורים עגולים למטה-מימין: ייבוא CSV + הוספת תנועה (נפתחים בחלון) -->
 <div class="card no-print" style="display:flex; gap:var(--space-8); justify-content:flex-start; align-items:flex-start">
   <div class="icon-tile">
-    <button type="button" class="icon-circle accent" onclick="document.getElementById('csvDlg').showModal()" aria-label="ייבוא CSV" title="ייבוא CSV">
+    <button type="button" class="icon-circle accent" onclick="document.getElementById('csvDlg').showModal()" aria-label="ייבוא CSV / Excel" title="ייבוא CSV / Excel">
       <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M12 11v6M9.5 14.5 12 17l2.5-2.5"/></svg>
     </button>
-    <span class="cap">ייבוא CSV</span>
+    <span class="cap">ייבוא CSV / Excel</span>
   </div>
   <div class="icon-tile">
     <button type="button" class="icon-circle" onclick="document.getElementById('txnDlg').showModal()" aria-label="הוספת תנועה" title="הוספת תנועה">
@@ -150,21 +150,23 @@
   </div>
 </div>
 
-<!-- מודל ייבוא CSV -->
+<!-- מודל ייבוא CSV / Excel -->
 <dialog id="csvDlg" class="dlg wide">
   <div class="dlg-head">
-    <strong>ייבוא CSV</strong>
+    <strong>ייבוא CSV / Excel</strong>
     <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
   </div>
   <p class="muted" style="font-size:13px">
-    תומך בייצוא בנק הפועלים (עמודות <span class="mono">תאריך / חובה / זכות / אסמכתא</span>)
-    וגם בפורמט פשוט (<span class="mono">date, amount, description, reference</span> — חובה שלילי).
+    תומך בייצוא בנק הפועלים ב-CSV או ב-Excel (<span class="mono">.xlsx</span>) — עמודות
+    <span class="mono">תאריך / חובה / זכות / אסמכתא</span> — וגם בפורמט פשוט
+    (<span class="mono">date, amount, description, reference</span> — חובה שלילי).
     מזהה אוטומטית קידוד עברי (Windows-1255), מפריד ; או פסיק, ומדלג על שורות כותרת מיותרות.
   </p>
   <form method="post" action="/reconciliation/import-csv" enctype="multipart/form-data"
-        onsubmit="if(!document.getElementById('csvFile').files.length){alert('יש לבחור קובץ CSV');return false;}">
+        onsubmit="if(!document.getElementById('csvFile').files.length){alert('יש לבחור קובץ');return false;}">
     <input type="hidden" name="account_id" value="<%= accountId %>" />
-    <input id="csvFile" type="file" name="csv" accept=".csv,text/csv" hidden
+    <input id="csvFile" type="file" name="csv"
+           accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden
            onchange="document.getElementById('csvName').textContent = this.files[0] ? this.files[0].name : 'לא נבחר קובץ'" />
     <div style="display:flex; gap:var(--space-8); align-items:flex-start; justify-content:flex-start; margin-top:var(--space-2)">
       <div class="icon-tile">
