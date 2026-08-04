@@ -430,6 +430,11 @@ button:disabled, .btn:disabled { opacity: .45; cursor: not-allowed; }
 @media (max-width: 640px) {
   .toolbar:has(> .actions) { flex-direction: column; align-items: stretch; gap: var(--space-3); }
   .toolbar:has(> .actions) > .actions { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: var(--space-2); }
+  /* hide secondary table columns on phones so wide tables fit in one screen */
+  .hide-sm { display: none; }
+  /* tighter table cells on phones so the remaining columns fit without horizontal scroll */
+  .table th, .table td, table th, table td { padding: 8px 6px; }
+  table .btn-sm { padding: 5px 9px; font-size: 12.5px; }
 }
 .filterms a { margin-inline-start: var(--space-3); font-size: 13px; }
 .right { text-align: left; }        /* RTL: numeric columns flush to the left edge */
