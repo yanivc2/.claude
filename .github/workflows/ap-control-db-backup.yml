@@ -23,20 +23,28 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: pg_dump (PostgreSQL 17 client, matches Neon) and compress
+      - name: pg_dump (PostgreSQL 18 client, matches Neon) and compress
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          if [ -z "$DATABASE_URL" ]; then
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
             echo "::error::DATABASE_URL secret is not set. Add it in repo Settings -> Secrets -> Actions."
             exit 1
           fi
           OUT="ap-control-db-$(date +%F).sql.gz"
-          # pg_dump 17 via docker so the client version matches Neon; stream through gzip on the host.
-          docker run --rm postgres:17-alpine \
+          # pg_dump 18 via docker so the client major matches Neon (server 18.x); stream through gzip.
+          # pipefail makes a pg_dump failure fail the job instead of uploading a truncated/empty file.
+          docker run --rm postgres:18-alpine \
             pg_dump --no-owner --no-privileges --format=plain "$DATABASE_URL" \
             | gzip -9 > "$OUT"
-          echo "Wrote $OUT ($(du -h "$OUT" | cut -f1))"
+          # Integrity guard: a real dump defines tables. An empty/aborted dump does not — fail loudly
+          # so a broken backup can never masquerade as a successful one.
+          if ! zcat "$OUT" | grep -q "CREATE TABLE"; then
+            echo "::error::backup contains no tables — pg_dump likely failed. Not a valid backup."
+            exit 1
+          fi
+          echo "Wrote $OUT ($(du -h "$OUT" | cut -f1)), $(zcat "$OUT" | grep -c 'CREATE TABLE') tables"
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
