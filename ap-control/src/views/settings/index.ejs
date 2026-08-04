@@ -60,6 +60,20 @@
     <div style="margin-top:.6rem"><button class="danger" type="submit">אפס נתונים והתחל מחדש</button></div>
   </form>
 </div>
+
+<div class="card" style="border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line))">
+  <strong style="color:var(--color-bad)">שחזור מגיבוי</strong>
+  <p class="muted" style="margin:.3rem 0 .6rem">
+    טוען קובץ גיבוי (JSON שהורדת מהכפתור למעלה) ו<strong>מחליף בו את כל הנתונים הקיימים</strong> — לשחזור מאסון או למעבר למערכת חדשה.
+    <br>⚠️ בלתי הפיך: כל הנתונים הנוכחיים יימחקו ויוחלפו בתוכן הקובץ. ודא שאתה טוען את הגיבוי הנכון והעדכני.
+  </p>
+  <form method="post" action="/settings/restore" enctype="multipart/form-data" onsubmit="return confirm('לשחזר מהגיבוי? כל הנתונים הנוכחיים יוחלפו בתוכן הקובץ. פעולה בלתי הפיכה.')">
+    <input type="file" name="backup" accept=".json,application/json" required />
+    <label class="lbl" style="margin-top:.5rem">לאישור, הקלד את המילה <span class="mono">שחזר</span></label>
+    <input name="confirm" placeholder="שחזר" autocomplete="off" required style="max-width:200px" />
+    <div style="margin-top:.6rem"><button class="danger" type="submit">שחזר מגיבוי</button></div>
+  </form>
+</div>
 <% } %>
 
 <!-- ===== מבנה קיים (מצומצם) ===== -->

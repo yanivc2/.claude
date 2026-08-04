@@ -1,5 +1,6 @@
-import { getExecutor, tx } from '../db/adapter.js';
+import { getExecutor, tx, getBackend } from '../db/adapter.js';
 import { del as delStored } from '../lib/storage.js';
+import { RuleError } from '../lib/errors.js';
 import { logAction } from './audit.js';
 
 // Full logical backup + a "start fresh" reset for go-live. Both are owner-only (enforced at the
@@ -24,6 +25,15 @@ const RESET_ORDER = [
 
 // Tables that are preserved by a reset (the business setup) — surfaced to the UI.
 export const RESET_KEEPS = ['companies', 'stores', 'bank_accounts', 'users', 'user_companies'];
+
+// Insert order for a restore: parents before children (satisfies every FK). The wipe runs in
+// the reverse order (children first).
+const RESTORE_ORDER = [
+  'companies', 'stores', 'bank_accounts', 'users', 'user_companies', 'suppliers',
+  'invoices', 'payments', 'payment_lines', 'bank_transactions', 'invoice_ocr',
+  'z_reports', 'z_expenses', 'deposits', 'sales_entries', 'calendar_events',
+  'change_requests', 'password_resets', 'audit_log',
+];
 
 /** Complete snapshot of every table as a plain JS object, ready to JSON.stringify. */
 export async function exportAll(x = getExecutor()) {
@@ -75,4 +85,58 @@ export async function resetTransactionalData({ alsoSuppliers = false } = {}, act
     x,
   );
   return { deletedImages };
+}
+
+/**
+ * Restore a full backup produced by exportAll(). Replaces ALL data with the snapshot's rows,
+ * atomically (wipe + insert in one transaction — a malformed file rolls back and leaves the
+ * live data untouched). After commit, Postgres identity sequences are reseeded so new inserts
+ * don't collide with restored ids (SQLite continues from max automatically).
+ * @returns {{restored: Record<string,number>}}
+ */
+export async function restoreAll(dump, actor, x = getExecutor()) {
+  if (!dump || dump.meta?.app !== 'ap-control' || !dump.tables || typeof dump.tables !== 'object') {
+    throw new RuleError('RESTORE', 'קובץ גיבוי לא תקין — לא זוהה כגיבוי של AP Control.');
+  }
+  const restored = {};
+  const idTables = [];
+  await tx(async (t) => {
+    // Wipe everything, children first.
+    for (const table of [...RESTORE_ORDER].reverse()) await t.run(`DELETE FROM ${table}`, []);
+    // Insert, parents first, preserving primary keys.
+    for (const table of RESTORE_ORDER) {
+      const rows = dump.tables[table];
+      if (!Array.isArray(rows) || rows.length === 0) { restored[table] = 0; continue; }
+      for (const row of rows) {
+        const cols = Object.keys(row);
+        const q = cols.map((c) => `"${c}"`).join(', ');
+        const ph = cols.map(() => '?').join(', ');
+        await t.run(`INSERT INTO ${table} (${q}) VALUES (${ph})`, cols.map((c) => row[c]));
+      }
+      restored[table] = rows.length;
+      if (Object.prototype.hasOwnProperty.call(rows[0], 'id')) idTables.push(table);
+    }
+  });
+
+  // Reseed Postgres identity sequences (no-op / unsupported on pg-mem — caught; SQLite N/A).
+  if (getBackend() === 'pg') {
+    for (const table of idTables) {
+      try {
+        await x.run(`SELECT setval(pg_get_serial_sequence('${table}', 'id'), (SELECT MAX(id) FROM ${table}))`, []);
+      } catch {
+        /* real Neon supports this; the in-memory test backend does not */
+      }
+    }
+  }
+
+  // Best-effort audit entry (the acting user should exist in a same-system backup).
+  try {
+    await logAction(
+      { userId: actor?.id ?? null, action: 'data.restore', entityType: 'system', entityId: null, details: { tables: Object.keys(restored).length } },
+      x,
+    );
+  } catch {
+    /* the restore already committed; a missing-user FK on the log must not fail it */
+  }
+  return { restored };
 }
