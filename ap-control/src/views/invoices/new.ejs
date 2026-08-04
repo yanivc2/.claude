@@ -114,6 +114,16 @@
       <p class="muted">קובץ צורף וישמר עם החשבונית. בחירת קובץ חדש תחליף אותו.</p>
     <% } %>
 
+    <!-- שולם בצ׳ק? (לא חובה) — אם מוזן, ייווצר צ׳ק וישויך לחשבונית -->
+    <div style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--color-line)">
+      <h3 style="margin:0 0 .2rem">שולם בצ׳ק? (לא חובה)</h3>
+      <p class="muted" style="margin:0 0 .5rem">אם שילמת עבור החשבונית בצ׳ק — הזן את הפרטים והצ׳ק ייווצר וישויך אוטומטית.</p>
+      <div class="row">
+        <div><label>מספר צ׳ק</label><input name="check_number" value="<%= values.check_number || '' %>" /></div>
+        <div><label>תאריך פירעון</label><input type="date" name="check_due_date" value="<%= values.check_due_date || '' %>" /></div>
+      </div>
+    </div>
+
     <% if (warnings && warnings.length) { %>
       <input type="hidden" name="confirm" value="1" />
       <label>סיבת אישור למרות האזהרה *</label>
