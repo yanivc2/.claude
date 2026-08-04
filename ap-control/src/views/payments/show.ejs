@@ -1,14 +1,35 @@
 <%- include('../partials/header') %>
-<div class="toolbar">
-  <h1><%= methodLabel(payment.method) %> #<%= payment.id %> · <span class="mono"><%= paymentIdent(payment) %></span>
-    <span class="badge b-<%= payment.status %>"><%= payment.status === 'issued' ? 'הונפק' : payment.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
-  </h1>
-  <div class="actions">
-    <% if (payment.method === 'check') { %>
-      <a href="/payments/<%= payment.id %>/print" class="btn secondary" target="_blank">הדפס צ׳ק (טיוטה)</a>
-    <% } %>
-    <a href="/payments" class="btn secondary">חזרה לרשימה</a>
-  </div>
+<% function payStatusLabel(s){ return s === 'issued' ? 'הונפק' : s === 'cleared' ? 'נפרע' : 'מבוטל'; } %>
+<!-- כותרת: רק מזהה הצ׳ק (מספר הצ׳ק שהוזן); תגית הסטטוס משמאל, נלחצת לשינוי -->
+<div class="toolbar" style="align-items:center">
+  <h1 style="margin:0"><span class="mono"><%= paymentIdent(payment) %></span></h1>
+  <% if (payment.status === 'voided') { %>
+    <span class="status-pill b-voided">מבוטל</span>
+  <% } else { %>
+    <details class="menu open-in statusmenu no-print">
+      <summary class="status-pill b-<%= payment.status %>"><%= payStatusLabel(payment.status) %> <span class="caret">▾</span></summary>
+      <div class="menu-panel" style="min-width:240px">
+        <div class="menu-cap">שינוי סטטוס הצ׳ק</div>
+        <% if (payment.status === 'issued') { %>
+          <form method="post" action="/payments/<%= payment.id %>/clear" style="padding:8px 12px">
+            <label class="lbl">תאריך פירעון (ריק = היום)</label>
+            <input type="date" name="cleared_date" />
+            <button class="btn btn-secondary btn-sm btn-block" type="submit" style="margin-top:6px">סמן כנפרע</button>
+          </form>
+        <% } else if (payment.status === 'cleared') { %>
+          <form method="post" action="/payments/<%= payment.id %>/unclear"><button class="mi" type="submit">החזר ל״הונפק״</button></form>
+        <% } %>
+        <% if (currentUser.role === 'owner') { %>
+          <div class="menu-sep"></div>
+          <form method="post" action="/payments/<%= payment.id %>/void" style="padding:8px 12px" onsubmit="return confirm('לבטל את הצ׳ק? החשבוניות יחזרו לסטטוס מאושר לתשלום.')">
+            <label class="lbl" style="color:var(--color-bad)">ביטול צ׳ק (בעלים)</label>
+            <input name="reason" placeholder="סיבת ביטול" />
+            <button class="btn btn-secondary btn-sm btn-block" type="submit" style="margin-top:6px;color:var(--color-bad)">בטל צ׳ק</button>
+          </form>
+        <% } %>
+      </div>
+    </details>
+  <% } %>
 </div>
 
 <div class="card">
@@ -38,24 +59,11 @@
   </table>
 </div>
 
-<% if (payment.status === 'issued') { %>
-  <div class="card">
-    <h2>פעולות</h2>
-    <div class="actions">
-      <form method="post" action="/payments/<%= payment.id %>/clear" class="actions">
-        <input type="date" name="cleared_date" style="width:180px" />
-        <button class="ok" type="submit">סמן כנפרע</button>
-      </form>
-      <% if (currentUser.role === 'owner') { %>
-        <form method="post" action="/payments/<%= payment.id %>/void" class="actions" onsubmit="return confirm('לבטל את הצ׳ק? החשבוניות יחזרו לסטטוס מאושר לתשלום.')">
-          <input name="reason" placeholder="סיבת ביטול" style="width:200px" />
-          <button class="danger" type="submit">בטל צ׳ק (בעלים)</button>
-        </form>
-      <% } else { %>
-        <span class="muted">ביטול צ׳ק — בעלים בלבד</span>
-      <% } %>
-    </div>
-    <p class="muted">פירעון ידני בשלב 1; בשלב 2 יבוצע אוטומטית מול תנועות הבנק (R7).</p>
-  </div>
-<% } %>
+<!-- שורת פעולות: הדפסה + חזרה לרשימה -->
+<div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">
+  <% if (payment.method === 'check') { %>
+    <a href="/payments/<%= payment.id %>/print" class="btn btn-secondary" target="_blank">הדפס צ׳ק (טיוטה)</a>
+  <% } %>
+  <a href="/payments" class="btn btn-secondary">חזרה לרשימה</a>
+</div>
 <%- include('../partials/footer') %>

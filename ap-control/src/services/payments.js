@@ -161,6 +161,17 @@ export async function markCleared(id, clearedDate, actor, x = getExecutor()) {
   return getPaymentDetail(id, x);
 }
 
+/** Revert a manually-cleared check back to 'issued' (undo an accidental "mark cleared"). */
+export async function markIssued(id, actor, x = getExecutor()) {
+  const payment = await x.one('SELECT * FROM payments WHERE id = ?', [id]);
+  if (!payment) throw new NotFoundError(`תשלום ${id} לא נמצא`);
+  if (payment.status === 'voided') throw new RuleError('R', 'צ׳ק מבוטל — לא ניתן לשנות סטטוס');
+  if (payment.status === 'issued') return getPaymentDetail(id, x);
+  await x.run("UPDATE payments SET status = 'issued', cleared_date = NULL WHERE id = ?", [id]);
+  await logAction({ userId: actor.id, action: 'payment.unclear', entityType: 'payment', entityId: id }, x);
+  return getPaymentDetail(id, x);
+}
+
 /** Void a check. Reverts its invoices back to approved_for_payment. Owner-only. */
 export async function voidPayment(id, actor, reason = null, x = getExecutor()) {
   if (!userCan(actor, 'void_payment')) throw new AuthError('ביטול צ׳ק — נדרשת הרשאת ביטול תשלום');
