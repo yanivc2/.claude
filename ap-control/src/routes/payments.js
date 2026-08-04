@@ -9,6 +9,7 @@ import {
   listPayments,
 } from '../services/payments.js';
 import { listPayable } from '../services/invoices.js';
+import { autoReconcile } from '../services/reconciliation.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -21,17 +22,65 @@ router.get('/', async (req, res, next) => {
     const storeId = req.query.store ? Number(req.query.store) : null;
     const scope = req.scope.companyIds;
     const cScope = scopeClause(scope, 'id');
-    const sScope = scopeClause(scope, 'company_id');
+    const sScope = scopeClause(scope, 'st.company_id');
     const x = getExecutor();
+    // Auto-reconcile summary is passed back via the query string (rc=1) after a run.
+    let notice = null;
+    if (req.query.rc) {
+      const m = Number(req.query.m) || 0;
+      const a = Number(req.query.a) || 0;
+      const u = Number(req.query.u) || 0;
+      notice = `הותאמו אוטומטית ${m} צ׳קים · ${a} דורשים הכרעה · ${u} ללא התאמה.`;
+    }
     res.render('payments/index', {
       title: 'מרקורים',
       payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope }),
       filter: req.query.status || '',
       companyId,
       storeId,
+      notice,
       companies: await x.many(`SELECT id, name FROM companies WHERE 1 = 1${cScope.sql} ORDER BY name`, [...cScope.params]),
-      stores: await x.many(`SELECT id, name, company_id FROM stores WHERE 1 = 1${sScope.sql} ORDER BY name`, [...sScope.params]),
+      stores: await x.many(
+        `SELECT st.id, st.name, st.company_id, ba.display_name AS bank_account_name
+           FROM stores st LEFT JOIN bank_accounts ba ON ba.store_id = st.id
+          WHERE 1 = 1${sScope.sql} ORDER BY st.name`,
+        [...sScope.params],
+      ),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Auto-reconcile (R7) every open check in view against imported bank transactions —
+// the same engine as the reconciliation page, but callable from the payments list.
+// Honours the current company/store filter; otherwise runs on all in-scope accounts.
+router.post('/auto-reconcile', async (req, res, next) => {
+  try {
+    const companyId = req.body.company ? Number(req.body.company) : null;
+    const storeId = req.body.store ? Number(req.body.store) : null;
+    const sScope = scopeClause(req.scope.companyIds, 'ba.company_id');
+    const params = [...sScope.params];
+    let sql = `SELECT ba.id FROM bank_accounts ba WHERE 1 = 1${sScope.sql}`;
+    if (companyId) { sql += ' AND ba.company_id = ?'; params.push(companyId); }
+    if (storeId) { sql += ' AND ba.store_id = ?'; params.push(storeId); }
+    const accounts = await getExecutor().many(sql, params);
+
+    let m = 0;
+    let a = 0;
+    let u = 0;
+    for (const acc of accounts) {
+      const r = await autoReconcile(acc.id, req.user);
+      m += r.matched;
+      a += r.ambiguous;
+      u += r.unmatched;
+    }
+
+    const q = new URLSearchParams({ rc: '1', m: String(m), a: String(a), u: String(u) });
+    if (req.body.status) q.set('status', req.body.status);
+    if (companyId) q.set('company', String(companyId));
+    if (storeId) q.set('store', String(storeId));
+    res.redirect(303, `/payments?${q.toString()}`);
   } catch (err) {
     next(err);
   }

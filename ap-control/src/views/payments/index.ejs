@@ -4,6 +4,13 @@
 <div class="toolbar">
   <h1>מרקורים</h1>
   <div class="actions no-print">
+    <form method="post" action="/payments/auto-reconcile" style="display:inline"
+          title="התאמת צ׳קים פתוחים לתנועות בנק שיובאו (R7)">
+      <input type="hidden" name="status" value="<%= filter %>" />
+      <input type="hidden" name="company" value="<%= cq %>" />
+      <input type="hidden" name="store" value="<%= sq %>" />
+      <button class="btn btn-secondary" type="submit">⟳ התאמה אוטומטית</button>
+    </form>
     <details class="menu">
       <summary class="btn btn-primary">+ תשלום חדש <span class="caret">▾</span></summary>
       <div class="menu-panel">
@@ -25,11 +32,11 @@
               <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
             <% }); %>
           </select>
-          <label class="lbl" style="margin-top:10px">חנות</label>
+          <label class="lbl" style="margin-top:10px">חנות / חשבון בנק</label>
           <select name="store" onchange="this.form.submit()">
-            <option value="">כל החנויות</option>
+            <option value="">כל החנויות (הכל יחד)</option>
             <% stores.forEach(function(s){ %>
-              <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %></option>
+              <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %><%= s.bank_account_name ? ' · ' + s.bank_account_name : '' %></option>
             <% }); %>
           </select>
           <input type="hidden" name="status" value="<%= filter %>" />
@@ -44,6 +51,13 @@
   </div>
 </div>
 
+<% if (typeof notice !== 'undefined' && notice) { %>
+  <div class="alert alert-ok no-print"><%= notice %>
+    <% if (/[1-9]/.test(String(notice).split('·')[1] || '')) { %>
+      <a href="/reconciliation">הכרעה ידנית ›</a>
+    <% } %>
+  </div>
+<% } %>
 <p class="muted no-print" style="margin:.2rem 0">לחיצה על כותרת עמודה ממיינת (א׳–ת׳ / גבוה–נמוך).</p>
 <table class="sortable">
   <thead>
