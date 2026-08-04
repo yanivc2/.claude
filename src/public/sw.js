@@ -3,7 +3,7 @@
 // always go to the network and are never cached, so financial data is never stored on-device
 // or leaked between users on a shared device.
 
-const CACHE = 'apc-static-v1';
+const CACHE = 'apc-static-v2';
 const ASSETS = ['/style.css', '/icon-192.png', '/icon-512.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
