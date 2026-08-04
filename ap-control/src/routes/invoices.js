@@ -21,6 +21,7 @@ import { scopeClause } from '../lib/scope.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
+import { createPayment } from '../services/payments.js';
 import { submitRequest, pendingRequestFor } from '../services/changeRequests.js';
 import { userCan } from '../lib/permissions.js';
 import { describeInvoice } from '../lib/changeSummary.js';
@@ -117,6 +118,26 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       confirmReason: b.confirm_reason || null,
     };
     const { invoice } = await createInvoice(input, req.user);
+    // Optional: the invoice was paid by check — create the check and link it.
+    if ((b.check_number || '').trim()) {
+      try {
+        const ba = await getExecutor().one('SELECT id FROM bank_accounts WHERE store_id = ?', [invoice.store_id]);
+        await createPayment(
+          {
+            bankAccountId: ba?.id,
+            method: 'check',
+            checkNumber: b.check_number,
+            paymentDate: b.check_due_date || invoice.invoice_date,
+            invoiceIds: [invoice.id],
+          },
+          req.user,
+        );
+        return res.redirect(303, `/invoices/${invoice.id}?paid=check`);
+      } catch (payErr) {
+        // The invoice is saved; only the check failed (e.g. R3 hold / unapproved supplier).
+        return res.redirect(303, `/invoices/${invoice.id}?payfail=${encodeURIComponent(payErr.message || 'שגיאה')}`);
+      }
+    }
     return res.redirect(303, `/invoices/${invoice.id}`);
   } catch (err) {
     if (err instanceof RuleError && err.meta?.needsConfirmation) {
@@ -243,7 +264,9 @@ router.get('/:id', async (req, res, next) => {
       pendingPayReq: await pendingRequestFor('invoice', id, 'invoice.approve_payment'),
       pendingReleaseReq: await pendingRequestFor('invoice', id, 'invoice.release_hold'),
       notice: req.query.sent === 'pay' ? 'בקשת אישור התשלום נשלחה למנהל/בעלים.'
-        : req.query.sent === 'release' ? 'בקשת שחרור ההחזקה נשלחה למנהל/בעלים.' : null,
+        : req.query.sent === 'release' ? 'בקשת שחרור ההחזקה נשלחה למנהל/בעלים.'
+        : req.query.paid === 'check' ? 'החשבונית נוצרה והצ׳ק נוצר ושויך אליה.' : null,
+      error: req.query.payfail ? `החשבונית נשמרה, אך יצירת הצ׳ק נכשלה: ${req.query.payfail}` : null,
       ocrOpen: req.query.ocr === '1',
     });
   } catch (err) {
