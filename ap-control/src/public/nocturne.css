@@ -309,6 +309,27 @@ textarea { min-height: 92px; resize: vertical; }
 .menu-panel button.danger { color: var(--color-bad); }
 .menu-panel button.danger:hover { background: color-mix(in srgb, var(--color-bad) 14%, transparent); color: var(--color-bad); }
 
+/* ---- custom day-first date picker (replaces the native month/year wheel) ---- */
+.dp-wrap { position: relative; display: block; }
+.dp-pop {
+  position: absolute; z-index: 60; top: calc(100% + 6px); inset-inline-start: 0; width: min(300px, 88vw);
+  background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg); padding: 10px;
+}
+.dp-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; gap: 8px; }
+.dp-nav { background: transparent; border: 1px solid var(--color-line); border-radius: 8px; color: var(--color-body); width: 34px; height: 34px; cursor: pointer; font-size: 18px; line-height: 1; }
+.dp-nav:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+.dp-title { font-weight: 600; font-size: 14px; }
+.dp-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dp-dow { text-align: center; font-size: 11px; color: var(--color-muted); padding: 4px 0; }
+.dp-day { text-align: center; padding: 8px 0; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--color-body); background: transparent; border: 0; font: inherit; }
+.dp-day:hover { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
+.dp-day.dp-today { outline: 1px solid var(--color-accent); outline-offset: -1px; }
+.dp-day.dp-sel { background: var(--color-accent); color: #fff; }
+.dp-foot { display: flex; justify-content: space-between; margin-top: 8px; }
+.dp-foot button { background: transparent; border: 1px solid var(--color-line); border-radius: 8px; color: var(--color-body); padding: 6px 12px; cursor: pointer; font-size: 13px; }
+.dp-foot button:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+
 /* clickable status pill (top of the invoice), sized to sit level with the title */
 .statusmenu > summary { list-style: none; }
 .statusmenu > summary::-webkit-details-marker { display: none; }
