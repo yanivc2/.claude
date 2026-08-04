@@ -79,21 +79,24 @@ function ymd(d) {
 
 // Date presets: month (1st..last), week (Sun..Sat of the current week), or explicit from/to.
 function resolveRange(req) {
-  const preset = req.query.preset || req.body?.preset;
+  const q = (k) => req.query[k] || req.body?.[k];
+  const preset = q('preset');
   const now = new Date();
+  // The chosen week/month is anchored on `from` (any day inside it) when provided, else "now".
+  const anchor = /^\d{4}-\d{2}-\d{2}$/.test(q('from') || '') ? new Date(`${q('from')}T00:00:00`) : now;
   if (preset === 'week') {
-    const sunday = new Date(now);
-    sunday.setDate(now.getDate() - now.getDay());
+    const sunday = new Date(anchor);
+    sunday.setDate(anchor.getDate() - anchor.getDay());
     const saturday = new Date(sunday);
     saturday.setDate(sunday.getDate() + 6);
     return { from: ymd(sunday), to: ymd(saturday), preset: 'week' };
   }
-  if (preset === 'month' || (!req.query.from && !req.body?.from)) {
-    const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    return { from: ymd(first), to: ymd(last), preset: 'month' };
+  if (preset === 'month' || !q('from')) {
+    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+    return { from: ymd(first), to: ymd(last), preset: preset === 'month' ? 'month' : '' };
   }
-  return { from: req.query.from || req.body?.from, to: req.query.to || req.body?.to, preset: '' };
+  return { from: q('from'), to: q('to'), preset: '' };
 }
 
 async function storeList() {
