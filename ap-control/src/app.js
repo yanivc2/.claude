@@ -37,6 +37,31 @@ export function createApp() {
     next();
   });
 
+  // Security headers (defense in depth). CSP allows the app's own inline scripts/handlers and
+  // Google Fonts, but blocks external scripts, framing (clickjacking), and MIME sniffing.
+  app.use((req, res, next) => {
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('X-Frame-Options', 'DENY');
+    res.set('Referrer-Policy', 'same-origin');
+    res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+    res.set(
+      'Content-Security-Policy',
+      [
+        "default-src 'self'",
+        "img-src 'self' data: blob:",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "script-src 'self' 'unsafe-inline'",
+        "connect-src 'self'",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'none'",
+      ].join('; '),
+    );
+    next();
+  });
+
   app.use(currentUser);
 
   // View helpers available to every template.

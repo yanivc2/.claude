@@ -12,7 +12,7 @@ test('owner can add a user, change permissions, and reset password; secretary ca
   const sec = await secretary(db);
 
   await assert.rejects(
-    createUser({ name: 'x', username: 'x', role: 'secretary', password: 'Secret1' }, sec, db),
+    createUser({ name: 'x', username: 'x', role: 'secretary', password: 'Secret12' }, sec, db),
     /בעלים בלבד/,
   );
 
@@ -38,10 +38,10 @@ test('owner can add a user, change permissions, and reset password; secretary ca
 test('duplicate username rejected; short initial password rejected; bad email rejected', async () => {
   const db = await freshDb();
   const ow = await owner(db);
-  await createUser({ name: 'a', username: 'dup', role: 'secretary', password: 'Abcdef1' }, ow, db);
-  await assert.rejects(createUser({ name: 'b', username: 'dup', role: 'secretary', password: 'Abcdef1' }, ow, db), /כבר קיים/);
-  await assert.rejects(createUser({ name: 'c', username: 'c', role: 'secretary', password: '123' }, ow, db), /לפחות 6/);
-  await assert.rejects(createUser({ name: 'd', username: 'd', role: 'secretary', email: 'nope', password: 'Abcdef1' }, ow, db), /מייל/);
+  await createUser({ name: 'a', username: 'dup', role: 'secretary', password: 'Abcdefg1' }, ow, db);
+  await assert.rejects(createUser({ name: 'b', username: 'dup', role: 'secretary', password: 'Abcdefg1' }, ow, db), /כבר קיים/);
+  await assert.rejects(createUser({ name: 'c', username: 'c', role: 'secretary', password: '123' }, ow, db), /לפחות 8/);
+  await assert.rejects(createUser({ name: 'd', username: 'd', role: 'secretary', email: 'nope', password: 'Abcdefg1' }, ow, db), /מייל/);
 });
 
 test('cannot demote or delete the last owner; cannot delete self', async () => {
