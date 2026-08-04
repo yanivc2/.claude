@@ -1,4 +1,14 @@
 <%- include('../partials/header') %>
+<%
+// Plain-text summary of the report, for sharing via WhatsApp / email.
+var _lines = ['דוח רווחיות', 'תקופה: ' + from + ' — ' + to, ''];
+stores.forEach(function (s) {
+  _lines.push(s.store_name + ': מכירות ' + formatIls(s.sales) + ' · קניות ' + formatIls(s.purchases) + ' · רווח ' + formatIls(s.grossProfit));
+});
+_lines.push('', 'סה"כ: מכירות ' + formatIls(totals.sales) + ' · קניות ' + formatIls(totals.purchases) + ' · רווח ' + formatIls(totals.grossProfit));
+var reportText = _lines.join('\n');
+var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
+%>
 <div class="toolbar"><h1>רווחיות</h1></div>
 
 <% if (typeof notice !== 'undefined' && notice) { %>
@@ -54,12 +64,25 @@
     <span class="cap">הדפסה</span>
   </div>
   <div class="icon-tile">
-    <a class="icon-circle" href="/reports/profitability.csv?from=<%= from %>&to=<%= to %>" aria-label="ייצוא" title="ייצוא CSV">
+    <button type="button" class="icon-circle" onclick="document.getElementById('exportDlg').showModal()" aria-label="ייצוא" title="ייצוא">
       <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M12 11v6M9.5 14.5 12 17l2.5-2.5"/></svg>
-    </a>
+    </button>
     <span class="cap">ייצוא</span>
   </div>
 </div>
+
+<!-- מודל ייצוא: CSV · וואטסאפ · מייל -->
+<dialog id="exportDlg" class="dlg">
+  <div class="dlg-head">
+    <strong>ייצוא</strong>
+    <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:.5rem">
+    <a class="btn btn-secondary btn-block" href="/reports/profitability.csv?from=<%= from %>&to=<%= to %>">📄 ייצוא CSV</a>
+    <a class="btn btn-secondary btn-block" href="https://wa.me/?text=<%= encodeURIComponent(reportText) %>" target="_blank" rel="noopener">💬 וואטסאפ (בחירת איש קשר)</a>
+    <a class="btn btn-secondary btn-block" href="mailto:?subject=<%= encodeURIComponent(mailSubject) %>&body=<%= encodeURIComponent(reportText) %>">✉️ מייל</a>
+  </div>
+</dialog>
 
 <!-- מודל בחירת טווח: יומי / שבועי / חודשי -->
 <dialog id="rangeDlg" class="dlg">
