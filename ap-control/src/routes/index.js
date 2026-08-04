@@ -29,20 +29,33 @@ const router = Router();
 router.get('/', async (req, res, next) => {
   try {
     const q = (req.query.q || '').trim();
-    const companyId = req.query.company ? Number(req.query.company) : null;
-    const storeId = req.query.store ? Number(req.query.store) : null;
+    let companyId = req.query.company ? Number(req.query.company) : null;
+    let storeId = req.query.store ? Number(req.query.store) : null;
     const scope = req.scope.companyIds; // null = all (owner)
     const cScope = scopeClause(scope, 'id');
     const sScope = scopeClause(scope, 'company_id');
     const x = getExecutor();
+    const companies = await x.many(`SELECT id, name FROM companies WHERE 1 = 1${cScope.sql} ORDER BY name`, [...cScope.params]);
+    const stores = await x.many(`SELECT id, name, company_id FROM stores WHERE 1 = 1${sScope.sql} ORDER BY name`, [...sScope.params]);
+
+    // בחירת חנות משייכת אותה מיד לחברה שלה. בחירת חברה בלבד: אם יש חנות אחת בחברה
+    // היא נבחרת אוטומטית; אם יש שתיים או יותר, מחפשים בכל חנויות החברה (storeId נשאר ריק).
+    if (storeId) {
+      const s = stores.find((st) => st.id === storeId);
+      if (s) companyId = s.company_id;
+    } else if (companyId) {
+      const inCompany = stores.filter((st) => st.company_id === companyId);
+      if (inCompany.length === 1) storeId = inCompany[0].id;
+    }
+
     res.render('dashboard', {
       title: 'לוח בקרה',
       stats: await dashboardStats(scope),
       q,
       companyId,
       storeId,
-      companies: await x.many(`SELECT id, name FROM companies WHERE 1 = 1${cScope.sql} ORDER BY name`, [...cScope.params]),
-      stores: await x.many(`SELECT id, name, company_id FROM stores WHERE 1 = 1${sScope.sql} ORDER BY name`, [...sScope.params]),
+      companies,
+      stores,
       invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope }) : null,
       checkResults: q ? await lookupChecks(q, scope) : null,
       supplierResults: q ? await searchSuppliers(q) : null,
