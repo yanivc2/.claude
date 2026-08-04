@@ -1,6 +1,6 @@
 <%- include('../partials/header') %>
 <%
-var PT_PRESETS = ['מיידי', 'דחוי 14', 'דחוי 30', 'דחוי 45'];
+var PT_PRESETS = ['מיידי', 'שוטף 14', 'שוטף 30', 'שוטף 45'];
 var pmVal = supplier.payment_method || '';
 var ptStored = supplier.payment_terms || '';
 var ptSel = ptStored && PT_PRESETS.indexOf(ptStored) === -1 ? 'other' : ptStored;
@@ -42,9 +42,9 @@ var ptCustom = ptSel === 'other' ? ptStored : '';
         <select name="payment_terms" onchange="document.getElementById('ptOther').style.display=this.value==='other'?'block':'none'">
           <option value="">— ללא —</option>
           <option value="מיידי" <%= ptSel === 'מיידי' ? 'selected' : '' %>>תשלום מיידי</option>
-          <option value="דחוי 14" <%= ptSel === 'דחוי 14' ? 'selected' : '' %>>דחוי 14</option>
-          <option value="דחוי 30" <%= ptSel === 'דחוי 30' ? 'selected' : '' %>>דחוי 30</option>
-          <option value="דחוי 45" <%= ptSel === 'דחוי 45' ? 'selected' : '' %>>דחוי 45</option>
+          <option value="שוטף 14" <%= ptSel === 'שוטף 14' ? 'selected' : '' %>>שוטף 14</option>
+          <option value="שוטף 30" <%= ptSel === 'שוטף 30' ? 'selected' : '' %>>שוטף 30</option>
+          <option value="שוטף 45" <%= ptSel === 'שוטף 45' ? 'selected' : '' %>>שוטף 45</option>
           <option value="other" <%= ptSel === 'other' ? 'selected' : '' %>>אחר…</option>
         </select>
       </div>
