@@ -27,8 +27,13 @@ import { submitRequest, pendingRequestFor } from '../services/changeRequests.js'
 import { userCan } from '../lib/permissions.js';
 import { describeInvoice } from '../lib/changeSummary.js';
 import { RuleError, AuthError } from '../lib/errors.js';
+import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
 
 const router = Router();
+
+// Company-separation guard: every /invoices/:id route (read AND write) is refused with 404
+// when the invoice belongs to a company the caller isn't authorized for.
+router.param('id', scopeParam('invoice'));
 
 /** Best-effort delete of a stored upload by its ref (fire-and-forget; never throws). */
 function removeUpload(ref) {
@@ -196,6 +201,8 @@ router.post('/pay-batch', async (req, res, next) => {
     .filter(Boolean);
   try {
     if (invoiceIds.length === 0) throw new RuleError('R', 'לא נבחרו חשבוניות לתשלום');
+    // Company separation: refuse if any selected invoice is outside the caller's scope.
+    for (const invId of invoiceIds) await assertInScope('invoice', invId, req.scope.companyIds);
     const ba = await getExecutor().one('SELECT id FROM bank_accounts WHERE store_id = ?', [storeId]);
     const method = (b.pay_method || 'check').trim();
     const payInput = { bankAccountId: ba?.id, method, invoiceIds };
