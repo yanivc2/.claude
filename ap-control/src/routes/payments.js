@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   createPayment,
   markCleared,
+  markIssued,
   voidPayment,
   getPaymentDetail,
   getCheckPrintData,
@@ -115,6 +116,15 @@ router.get('/:id/print', async (req, res, next) => {
 router.post('/:id/clear', async (req, res, next) => {
   try {
     await markCleared(Number(req.params.id), req.body.cleared_date || null, req.user);
+    res.redirect(303, req.get('referer') || `/payments/${req.params.id}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/unclear', async (req, res, next) => {
+  try {
+    await markIssued(Number(req.params.id), req.user);
     res.redirect(303, req.get('referer') || `/payments/${req.params.id}`);
   } catch (err) {
     next(err);
