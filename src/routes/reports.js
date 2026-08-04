@@ -110,6 +110,21 @@ async function storeList() {
 async function renderProfitability(req, res, extra = {}) {
   const { from, to, preset } = resolveRange(req);
   const { stores, totals } = await profitability(from, to, req.scope.companyIds);
+  res.render('reports/profitability', {
+    title: 'רווחיות',
+    from,
+    to,
+    preset,
+    stores,
+    totals,
+    error: null,
+    notice: null,
+    ...extra,
+  });
+}
+
+// Z reports live on their own tab (form to add + recent records table).
+async function renderZReports(req, res, extra = {}) {
   const zStoreId = req.query.zstore ? Number(req.query.zstore) : null;
   const zRows = await listZReports({ storeId: zStoreId, limit: 30 });
   const zReports = await Promise.all(
@@ -118,13 +133,8 @@ async function renderProfitability(req, res, extra = {}) {
       return { ...z, matched: status.matched, issues: status.issues };
     }),
   );
-  res.render('reports/profitability', {
-    title: 'רווחיות',
-    from,
-    to,
-    preset,
-    stores,
-    totals,
+  res.render('reports/zreports', {
+    title: 'דוחות Z',
     storeOptions: await storeList(),
     zReports,
     unmatchedCount: zReports.filter((z) => !z.matched).length,
@@ -135,6 +145,14 @@ async function renderProfitability(req, res, extra = {}) {
     ...extra,
   });
 }
+
+router.get('/zreports', async (req, res, next) => {
+  try {
+    await renderZReports(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
 
 // §7 "צ׳קים בחוץ"
 router.get('/outstanding', async (req, res, next) => {
@@ -282,12 +300,12 @@ router.post('/zreports', async (req, res, next) => {
     try {
       const missing = await missingZNumbers(storeId);
       if (missing.length) {
-        notify(`🔢 <b>מספר Z חסר ברצף</b>\nחסרים: ${missing.join(', ')}\n${req.protocol}://${req.get('host')}/reports/profitability?zstore=${storeId}`);
+        notify(`🔢 <b>מספר Z חסר ברצף</b>\nחסרים: ${missing.join(', ')}\n${req.protocol}://${req.get('host')}/reports/zreports?zstore=${storeId}`);
       }
     } catch { /* best-effort */ }
-    await renderProfitability(req, res, { notice: 'דוח Z נוסף.' });
+    await renderZReports(req, res, { notice: 'דוח Z נוסף.' });
   } catch (err) {
-    if (err instanceof RuleError) return renderProfitability(req, res, { error: err.message });
+    if (err instanceof RuleError) return renderZReports(req, res, { error: err.message });
     next(err);
   }
 });
@@ -295,7 +313,7 @@ router.post('/zreports', async (req, res, next) => {
 router.post('/zreports/:id/delete', async (req, res, next) => {
   try {
     await deleteZReport(Number(req.params.id), req.user);
-    await renderProfitability(req, res, { notice: 'דוח Z נמחק.' });
+    await renderZReports(req, res, { notice: 'דוח Z נמחק.' });
   } catch (err) {
     next(err);
   }
