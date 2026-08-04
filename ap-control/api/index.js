@@ -4,6 +4,12 @@
 
 import { createApp } from '../src/app.js';
 import { connectDb } from '../src/db/index.js';
+import { config } from '../src/config.js';
+
+// Fail fast if a cloud deployment is missing a persistent SESSION_SECRET (see server.js).
+if (process.env.DATABASE_URL && !config.auth.hasExplicitSecret) {
+  throw new Error('SESSION_SECRET must be set in production.');
+}
 
 const app = createApp();
 

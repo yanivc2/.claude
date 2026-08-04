@@ -33,6 +33,47 @@
     </form>
   </div>
 </div>
+
+<div class="card">
+  <div class="toolbar">
+    <div>
+      <strong>גיבוי מלא</strong>
+      <p class="muted" style="margin:.2rem 0 0">הורדת עותק מלא של כל הנתונים (JSON) — שמור אותו במקום שבשליטתך (Google Drive / דיסק). מומלץ אחת לשבוע. גיבוי אוטומטי שבועי רץ בנפרד (pg_dump) ושומר עותק מלא כארכיון.</p>
+    </div>
+    <a href="/settings/backup" class="btn btn-primary">⬇ הורד גיבוי (JSON)</a>
+  </div>
+</div>
+
+<div class="card" style="border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line))">
+  <strong style="color:var(--color-bad)">אזור מסוכן — התחל מחדש</strong>
+  <p class="muted" style="margin:.3rem 0 .6rem">
+    מוחק את כל <strong>נתוני העבודה</strong> — חשבוניות, תשלומים, תנועות בנק, דוחות Z, הפקדות, הוצאות, יומן ובקשות — <strong>כולל הסריקות</strong>.
+    <br><strong>נשמרים:</strong> חברות, חנויות, חשבונות בנק, משתמשים והרשאות.
+    פעולה בלתי הפיכה — <a href="/settings/backup">הורד גיבוי קודם</a>.
+  </p>
+  <form method="post" action="/settings/reset-data" onsubmit="return confirm('לאפס את כל נתוני העבודה? פעולה בלתי הפיכה. ודא שהורדת גיבוי.')">
+    <label style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
+      <input type="checkbox" name="also_suppliers" value="1" style="width:auto;min-height:0" /> לנקות גם את רשימת הספקים
+    </label>
+    <label class="lbl">לאישור, הקלד את המילה <span class="mono">אפס</span></label>
+    <input name="confirm" placeholder="אפס" autocomplete="off" required style="max-width:200px" />
+    <div style="margin-top:.6rem"><button class="danger" type="submit">אפס נתונים והתחל מחדש</button></div>
+  </form>
+</div>
+
+<div class="card" style="border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line))">
+  <strong style="color:var(--color-bad)">שחזור מגיבוי</strong>
+  <p class="muted" style="margin:.3rem 0 .6rem">
+    טוען קובץ גיבוי (JSON שהורדת מהכפתור למעלה) ו<strong>מחליף בו את כל הנתונים הקיימים</strong> — לשחזור מאסון או למעבר למערכת חדשה.
+    <br>⚠️ בלתי הפיך: כל הנתונים הנוכחיים יימחקו ויוחלפו בתוכן הקובץ. ודא שאתה טוען את הגיבוי הנכון והעדכני.
+  </p>
+  <form method="post" action="/settings/restore" enctype="multipart/form-data" onsubmit="return confirm('לשחזר מהגיבוי? כל הנתונים הנוכחיים יוחלפו בתוכן הקובץ. פעולה בלתי הפיכה.')">
+    <input type="file" name="backup" accept=".json,application/json" required />
+    <label class="lbl" style="margin-top:.5rem">לאישור, הקלד את המילה <span class="mono">שחזר</span></label>
+    <input name="confirm" placeholder="שחזר" autocomplete="off" required style="max-width:200px" />
+    <div style="margin-top:.6rem"><button class="danger" type="submit">שחזר מגיבוי</button></div>
+  </form>
+</div>
 <% } %>
 
 <!-- ===== מבנה קיים (מצומצם) ===== -->

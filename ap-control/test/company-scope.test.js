@@ -4,6 +4,8 @@ import { freshDb, owner } from './helpers.js';
 import { authorizedCompanyIds, setUserCompanies, getUserCompanyIds } from '../src/lib/scope.js';
 import { listInvoices } from '../src/services/invoices.js';
 import { dashboardStats } from '../src/services/reports.js';
+import { assertInScope } from '../src/lib/scopeGuard.js';
+import { NotFoundError } from '../src/lib/errors.js';
 
 // Per-user company separation (הפרדת חברות): a non-owner sees only their granted companies;
 // the owner sees everything. Seeded team: ויקי=all, אדם=על הדרך, רון=פינק מרקט.
@@ -68,6 +70,33 @@ test('listInvoices + dashboardStats are scoped per user', async () => {
 
   const stats = await dashboardStats(null, db);
   assert.equal(Number(stats.pendingSuppliers), 0);
+});
+
+test('assertInScope blocks cross-company direct-by-id access (IDOR guard)', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const alHaderech = await companyIdByName(db, 'על הדרך 24 שעות בע"מ');
+  const yaniv = await companyIdByName(db, 'יניב רום יזמות בע"מ');
+  const alStore = await db.one('SELECT id FROM stores WHERE company_id = ? LIMIT 1', [alHaderech]);
+  const sup = await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק','approved')", []);
+  await makeInvoice(db, { companyId: alHaderech, storeId: alStore.id, supplierId: sup.lastInsertRowid, userId: ow.id, number: 'AL-9' });
+  const inv = await db.one("SELECT id FROM invoices WHERE invoice_number = 'AL-9'", []);
+
+  // owner (null scope) and the owning company pass; a foreign company is refused as NotFound.
+  assert.equal(await assertInScope('invoice', inv.id, null, db), alHaderech);
+  assert.equal(await assertInScope('invoice', inv.id, [alHaderech], db), alHaderech);
+  await assert.rejects(() => assertInScope('invoice', inv.id, [yaniv], db), NotFoundError);
+  await assert.rejects(() => assertInScope('invoice', 999999, [alHaderech], db), NotFoundError);
+
+  // payments are scoped via their bank account's company.
+  const ba = await db.one('SELECT id FROM bank_accounts WHERE store_id = ?', [alStore.id]);
+  const pay = await db.run(
+    `INSERT INTO payments (bank_account_id, method, check_number, payment_date, amount, status, created_by)
+     VALUES (?, 'check', '900', '2026-07-01', 1180, 'issued', ?)`,
+    [ba.id, ow.id],
+  );
+  assert.equal(await assertInScope('payment', pay.lastInsertRowid, [alHaderech], db), alHaderech);
+  await assert.rejects(() => assertInScope('payment', pay.lastInsertRowid, [yaniv], db), NotFoundError);
 });
 
 test('setUserCompanies replaces grants', async () => {

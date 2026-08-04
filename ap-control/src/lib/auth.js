@@ -25,10 +25,10 @@ export function verifyPassword(password, stored) {
 }
 
 // Password policy: at least 6 chars, with an uppercase letter, a lowercase letter and a digit.
-export const PASSWORD_POLICY_TEXT = 'הסיסמה חייבת לפחות 6 תווים, ולכלול אות גדולה, אות קטנה וספרה';
+export const PASSWORD_POLICY_TEXT = 'הסיסמה חייבת לפחות 8 תווים, ולכלול אות גדולה, אות קטנה וספרה';
 export function passwordPolicyError(pw) {
   const p = String(pw ?? '');
-  if (p.length < 6) return PASSWORD_POLICY_TEXT;
+  if (p.length < 8) return PASSWORD_POLICY_TEXT;
   if (!/[A-Z]/.test(p)) return PASSWORD_POLICY_TEXT;
   if (!/[a-z]/.test(p)) return PASSWORD_POLICY_TEXT;
   if (!/[0-9]/.test(p)) return PASSWORD_POLICY_TEXT;
