@@ -161,10 +161,26 @@
     וגם בפורמט פשוט (<span class="mono">date, amount, description, reference</span> — חובה שלילי).
     מזהה אוטומטית קידוד עברי (Windows-1255), מפריד ; או פסיק, ומדלג על שורות כותרת מיותרות.
   </p>
-  <form method="post" action="/reconciliation/import-csv" enctype="multipart/form-data" class="stack">
+  <form method="post" action="/reconciliation/import-csv" enctype="multipart/form-data"
+        onsubmit="if(!document.getElementById('csvFile').files.length){alert('יש לבחור קובץ CSV');return false;}">
     <input type="hidden" name="account_id" value="<%= accountId %>" />
-    <input type="file" name="csv" accept=".csv,text/csv" required />
-    <div style="margin-top:.6rem"><button class="btn btn-primary" type="submit">ייבא</button></div>
+    <input id="csvFile" type="file" name="csv" accept=".csv,text/csv" hidden
+           onchange="document.getElementById('csvName').textContent = this.files[0] ? this.files[0].name : 'לא נבחר קובץ'" />
+    <div style="display:flex; gap:var(--space-8); align-items:flex-start; justify-content:flex-start; margin-top:var(--space-2)">
+      <div class="icon-tile">
+        <button type="button" class="icon-circle" onclick="document.getElementById('csvFile').click()" aria-label="בחר קובץ" title="בחר קובץ">
+          <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        </button>
+        <span class="cap">בחר קובץ</span>
+      </div>
+      <div class="icon-tile">
+        <button type="submit" class="icon-circle accent" aria-label="ייבא" title="ייבא">
+          <svg viewBox="0 0 24 24"><path d="M12 3v12M12 15l-4-4M12 15l4-4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        </button>
+        <span class="cap">ייבא</span>
+      </div>
+    </div>
+    <p class="muted" id="csvName" style="margin-top:10px; font-size:12px">לא נבחר קובץ</p>
   </form>
 </dialog>
 
