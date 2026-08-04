@@ -12,9 +12,14 @@ import { listPayable } from '../services/invoices.js';
 import { autoReconcile } from '../services/reconciliation.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
+import { scopeParam } from '../lib/scopeGuard.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
+
+// Company-separation guard: every /payments/:id route (view, print, clear, void) is refused
+// with 404 when the payment belongs to a company the caller isn't authorized for.
+router.param('id', scopeParam('payment'));
 
 router.get('/', async (req, res, next) => {
   try {

@@ -21,8 +21,15 @@ import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
 import { RuleError } from '../lib/errors.js';
+import { scopeParam } from '../lib/scopeGuard.js';
 
 const router = Router();
+
+// Company-separation guards on every id-bearing route (Z reports, deposits, expense images).
+// Each prefix resolves the entity's owning company and 404s when it's outside the caller's scope.
+router.use('/zreports/:id', scopeParam('zreport'));
+router.use('/deposits/:id', scopeParam('deposit'));
+router.use('/zexpenses/:id', scopeParam('expense'));
 
 function removeUpload(ref) {
   if (ref) void removeStored(ref);
