@@ -216,6 +216,9 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
 .b-recorded, .b-issued, .b-pending, .b-on_hold { color: var(--color-warn); background: var(--color-warn-bg); }
 .b-approved_for_payment, .b-approved { color: var(--color-pending); background: var(--color-pending-bg); }
 .b-paid, .b-cleared { color: var(--color-ok); background: var(--color-ok-bg); }
+/* נפרע אוטומטית ע"י שיוך בהתאמת בנק — ירוק מלא עם כיתוב לבן (להבדיל מסימון ידני) */
+.b-cleared-auto { color: #fff; background: #1f9d57; background: color-mix(in srgb, var(--color-ok) 70%, #0b7a43); }
+.b-cleared-auto::before { background: #fff; opacity: 1; }
 .b-voided, .b-blocked { color: var(--color-bad); background: var(--color-bad-bg); }
 
 /* ---- cards ---- */
