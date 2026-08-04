@@ -18,23 +18,60 @@
 </div>
 
 <div class="card">
-  <h2>בדיקת חשבונית / צ׳ק</h2>
-  <form method="get" action="/" class="actions" style="flex-wrap:wrap">
-    <input name="q" value="<%= q %>" placeholder="ספרות אחרונות של חשבונית / צ׳ק, מס' הקצאה, או שם ספק" style="max-width:340px" />
-    <select name="company">
-      <option value="">כל החברות</option>
-      <% companies.forEach(function(c){ %>
-        <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
-      <% }); %>
-    </select>
-    <select name="store">
-      <option value="">כל החנויות</option>
-      <% stores.forEach(function(s){ %>
-        <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %></option>
-      <% }); %>
-    </select>
-    <button type="submit">חפש</button>
+  <h2>בדיקת חשבונית / אמצעי תשלום</h2>
+  <form method="get" action="/" class="actions" style="flex-wrap:wrap; gap:.6rem; align-items:flex-end" id="lookupForm">
+    <div>
+      <label class="lbl">חנות</label>
+      <select name="store" id="lk_store">
+        <option value="">כל החנויות</option>
+        <% stores.forEach(function(s){ %>
+          <option value="<%= s.id %>" data-company="<%= s.company_id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label class="lbl">חברה</label>
+      <select name="company" id="lk_company">
+        <option value="">כל החברות</option>
+        <% companies.forEach(function(c){ %>
+          <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label class="lbl">מספר / שם לחיפוש</label>
+      <input name="q" value="<%= q %>" inputmode="text" placeholder="ספרות אחרונות של חשבונית / צ׳ק, מס' הקצאה, או שם ספק" style="max-width:340px" />
+    </div>
+    <div><button type="submit">חפש</button></div>
   </form>
+  <script>
+    (function(){
+      var store = document.getElementById('lk_store');
+      var company = document.getElementById('lk_company');
+      if (!store || !company) return;
+      // בחירת חנות → שיוך מיידי לחברה שלה.
+      store.addEventListener('change', function(){
+        var opt = store.options[store.selectedIndex];
+        var co = opt && opt.getAttribute('data-company');
+        if (co) company.value = co;
+      });
+      // בחירת חברה → הצג רק את חנויותיה; אם יש חנות אחת בחר אותה, אחרת אפס ל"כל החנויות".
+      company.addEventListener('change', function(){
+        var co = company.value;
+        var matches = [];
+        for (var i = 0; i < store.options.length; i++) {
+          var o = store.options[i];
+          if (o.value === '') { o.hidden = false; continue; }
+          var oc = o.getAttribute('data-company');
+          o.hidden = !!co && oc !== co;
+          if (co && oc === co) matches.push(o);
+        }
+        var cur = store.options[store.selectedIndex];
+        if (store.value && cur && cur.getAttribute('data-company') !== co) store.value = '';
+        if (co && matches.length === 1) store.value = matches[0].value;
+      });
+    })();
+  </script>
 
   <% if (invoiceResults) { %>
     <h3 style="margin:1rem 0 .3rem">חשבוניות (<%= invoiceResults.length %>)</h3>
