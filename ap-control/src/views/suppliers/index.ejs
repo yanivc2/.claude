@@ -40,7 +40,8 @@
     <thead>
       <tr>
         <th style="width:2rem"><input type="checkbox" onclick="document.querySelectorAll('input.rowchk').forEach(c=>c.checked=this.checked)" title="בחר הכל" /></th>
-        <th>שם</th><th>ח.פ.</th><th>סטטוס</th><th>טלפון</th><th>הערות</th><th></th>
+        <th data-nosort></th>
+        <th>שם</th><th class="hide-sm">ח.פ.</th><th>סטטוס</th><th>טלפון</th><th class="hide-sm">הערות</th>
       </tr>
     </thead>
     <tbody>
@@ -50,12 +51,22 @@
       <% suppliers.forEach(function(s){ %>
         <tr>
           <td><input type="checkbox" class="rowchk" name="ids" value="<%= s.id %>" /></td>
+          <td><a class="btn btn-secondary btn-sm" href="/suppliers/<%= s.id %>/edit">ערוך</a></td>
           <td><%= s.name %></td>
-          <td class="mono"><%= s.tax_id || '—' %></td>
+          <td class="mono hide-sm"><%= s.tax_id || '—' %></td>
           <td><span class="badge b-<%= s.status %>"><%= s.status === 'pending' ? 'ממתין' : s.status === 'approved' ? 'מאושר' : 'חסום' %></span></td>
-          <td><%= s.phone || '—' %></td>
-          <td class="muted"><%= s.notes || '' %></td>
-          <td class="right"><a class="btn secondary small" href="/suppliers/<%= s.id %>/edit">ערוך</a></td>
+          <td onclick="event.stopPropagation()">
+            <% if (s.phone) { %>
+              <details class="menu">
+                <summary class="btn btn-secondary btn-sm mono" style="white-space:nowrap"><%= s.phone %> <span class="caret">▾</span></summary>
+                <div class="menu-panel" style="min-width:160px">
+                  <a href="<%= telLink(s.phone) %>">📞 התקשר</a>
+                  <a href="<%= waLink(s.phone) %>" target="_blank" rel="noopener">💬 וואטסאפ</a>
+                </div>
+              </details>
+            <% } else { %>—<% } %>
+          </td>
+          <td class="muted hide-sm"><%= s.notes || '' %></td>
         </tr>
       <% }); %>
     </tbody>

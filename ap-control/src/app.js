@@ -50,6 +50,15 @@ export function createApp() {
       const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d));
       return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : String(d);
     };
+    // Phone links: a raw local number ('050-2288123') -> tel: and a wa.me deep link. WhatsApp
+    // needs the international form, so a leading 0 becomes Israel's 972 country code.
+    res.locals.telLink = (p) => 'tel:' + String(p || '').replace(/[^\d+]/g, '');
+    res.locals.waLink = (p) => {
+      let d = String(p || '').replace(/\D/g, '');
+      if (!d) return '';
+      if (!d.startsWith('972')) d = d.startsWith('0') ? '972' + d.slice(1) : '972' + d;
+      return 'https://wa.me/' + d;
+    };
     res.locals.vatRate = config.vatRate;
     res.locals.cashCeilingAgorot = config.cashCeilingAgorot;
     res.locals.allocationThresholdAgorot = config.rules.allocationThresholdAgorot;
