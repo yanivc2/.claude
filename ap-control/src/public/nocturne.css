@@ -547,3 +547,12 @@ details.paymenu .paymenu-items .btn { text-align: center; }
 #ptr.spin { opacity: 1 !important; transform: translate(-50%, 6px) !important; }
 #ptr.spin .ptr-ico { animation: ptr-spin .7s linear infinite; }
 @keyframes ptr-spin { to { transform: rotate(360deg); } }
+
+/* ---- per-column table filter row (payments list) ---- */
+.filter-row th { padding-top: 4px; padding-bottom: 6px; }
+.filter-row input, .filter-row select {
+  width: 100%; min-width: 70px; padding: 5px 7px; font-size: 12px; font-weight: 400;
+  background: var(--color-surface-2); border: 1px solid var(--color-line);
+  border-radius: var(--radius-sm); color: var(--color-text);
+}
+.filter-row input::placeholder { color: var(--color-muted); font-size: 11px; }
