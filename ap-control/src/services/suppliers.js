@@ -22,7 +22,7 @@ export async function getSupplier(id, x = getExecutor()) {
  * recording invoices against it, but payment is blocked until an owner approves (R1/R6).
  */
 export async function createSupplier(
-  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null },
+  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null },
   actor,
   x = getExecutor(),
 ) {
@@ -30,8 +30,8 @@ export async function createSupplier(
   if (!trimmed) throw new RuleError('VALIDATION', 'שם ספק חובה');
 
   const info = await x.run(
-    `INSERT INTO suppliers (name, tax_id, status, notes, phone, email, contact_name, contact_phone)
-     VALUES (?, ?, 'pending', ?, ?, ?, ?, ?)`,
+    `INSERT INTO suppliers (name, tax_id, status, notes, phone, email, contact_name, contact_phone, payment_method, payment_terms)
+     VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)`,
     [
       trimmed,
       taxId?.trim() || null,
@@ -40,6 +40,8 @@ export async function createSupplier(
       email?.trim() || null,
       contactName?.trim() || null,
       contactPhone?.trim() || null,
+      paymentMethod?.trim() || null,
+      paymentTerms?.trim() || null,
     ],
   );
 
@@ -75,7 +77,7 @@ export async function updateSupplierContacts(
 /** Update a supplier's full details (name / tax id / notes / contacts). */
 export async function updateSupplier(
   id,
-  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null },
+  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null },
   actor,
   x = getExecutor(),
 ) {
@@ -83,7 +85,8 @@ export async function updateSupplier(
   const trimmed = (name ?? '').trim();
   if (!trimmed) throw new RuleError('VALIDATION', 'שם ספק חובה');
   await x.run(
-    `UPDATE suppliers SET name = ?, tax_id = ?, notes = ?, phone = ?, email = ?, contact_name = ?, contact_phone = ?
+    `UPDATE suppliers SET name = ?, tax_id = ?, notes = ?, phone = ?, email = ?, contact_name = ?, contact_phone = ?,
+            payment_method = ?, payment_terms = ?
      WHERE id = ?`,
     [
       trimmed,
@@ -93,6 +96,8 @@ export async function updateSupplier(
       email?.trim() || null,
       contactName?.trim() || null,
       contactPhone?.trim() || null,
+      paymentMethod?.trim() || null,
+      paymentTerms?.trim() || null,
       id,
     ],
   );

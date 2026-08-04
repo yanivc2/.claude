@@ -46,7 +46,9 @@ CREATE TABLE IF NOT EXISTS suppliers (
   phone          TEXT,
   email          TEXT,
   contact_name   TEXT,   -- accounting/bookkeeping contact person
-  contact_phone  TEXT
+  contact_phone  TEXT,
+  payment_method TEXT,   -- העברה / צק / מזומן (transfer/check/cash)
+  payment_terms  TEXT    -- מיידי / דחוי 14 / 30 / 45 / טקסט חופשי
 );
 
 -- §4 users ----------------------------------------------------------------------
