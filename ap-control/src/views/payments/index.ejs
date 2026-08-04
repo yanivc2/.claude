@@ -58,10 +58,23 @@
     <% } %>
   </div>
 <% } %>
-<p class="muted no-print" style="margin:.2rem 0">לחיצה על כותרת עמודה ממיינת (א׳–ת׳ / גבוה–נמוך).</p>
-<table class="sortable">
+<p class="muted no-print" style="margin:.2rem 0">לחיצה על כותרת עמודה ממיינת · שורת הסינון מתחת לכותרות מסננת לפי עמודה.</p>
+<table class="sortable" id="paymentsTable">
   <thead>
     <tr><th>אמצעי / מזהה</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th data-nosort>סטטוס/פעולות</th></tr>
+    <tr class="filter-row no-print">
+      <th><input type="text" data-fcol="0" placeholder="סינון מזהה" aria-label="סינון מזהה" /></th>
+      <th><input type="text" data-fcol="1" placeholder="סינון חנות" aria-label="סינון חנות" /></th>
+      <th><input type="text" data-fcol="2" placeholder="סינון תאריך" aria-label="סינון תאריך" /></th>
+      <th class="right"><input type="text" data-fcol="3" inputmode="decimal" placeholder="סינון סכום" aria-label="סינון סכום" /></th>
+      <th data-nosort>
+        <select id="fStatus" aria-label="סינון סטטוס">
+          <option value="">הכל</option>
+          <option value="paid">נפרע</option>
+          <option value="unpaid">לא נפרע</option>
+        </select>
+      </th>
+    </tr>
   </thead>
   <tbody>
     <% if (payments.length === 0) { %>
@@ -93,6 +106,7 @@
         </td>
       </tr>
     <% }); %>
+    <tr id="pmNoMatch" style="display:none"><td colspan="5" class="muted">אין תוצאות התואמות לסינון.</td></tr>
   </tbody>
 </table>
 <p class="muted no-print" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
@@ -100,4 +114,46 @@
   <span style="display:inline-flex;gap:6px;align-items:center"><span class="badge b-cleared">נפרע</span> = סימון ידני</span>
   <span style="display:inline-flex;gap:6px;align-items:center"><span class="badge b-cleared-auto">נפרע</span> = אוטומטי (שיוך בהתאמת בנק)</span>
 </p>
+
+<script>
+  // סינון פר-עמודה בטבלת המרקורים: שדות טקסט לכל עמודה + בורר סטטוס נפרע/לא נפרע.
+  // סינון בצד לקוח בלבד — מסתיר שורות שאינן תואמות, בלי לפנות לשרת.
+  (function () {
+    var table = document.getElementById('paymentsTable');
+    if (!table || !table.tBodies[0]) return;
+    var tbody = table.tBodies[0];
+    var inputs = table.querySelectorAll('.filter-row input[data-fcol]');
+    var statusSel = document.getElementById('fStatus');
+    function norm(s) { return (s || '').toLowerCase().replace(/[₪,\s]/g, '').trim(); }
+    function apply() {
+      var terms = [];
+      inputs.forEach(function (inp) {
+        var v = norm(inp.value);
+        if (v) terms.push({ col: +inp.getAttribute('data-fcol'), v: v });
+      });
+      var st = statusSel ? statusSel.value : '';
+      var shown = 0;
+      Array.prototype.forEach.call(tbody.rows, function (r) {
+        if (r.querySelector('td[colspan]')) return; // שורת "אין תוצאות"
+        var ok = true;
+        for (var i = 0; i < terms.length && ok; i++) {
+          var cell = r.cells[terms[i].col];
+          if (!cell || norm(cell.textContent).indexOf(terms[i].v) === -1) ok = false;
+        }
+        if (ok && st) {
+          // סטטוס נקבע לפי התגית עצמה (לא לפי טקסט הכפתור "סמן כנפרע").
+          var paid = !!(r.cells[4] && r.cells[4].querySelector('.b-cleared, .b-cleared-auto'));
+          if (st === 'paid' && !paid) ok = false;
+          if (st === 'unpaid' && paid) ok = false;
+        }
+        r.style.display = ok ? '' : 'none';
+        if (ok) shown += 1;
+      });
+      var empty = document.getElementById('pmNoMatch');
+      if (empty) empty.style.display = shown === 0 ? '' : 'none';
+    }
+    inputs.forEach(function (inp) { inp.addEventListener('input', apply); });
+    if (statusSel) statusSel.addEventListener('change', apply);
+  })();
+</script>
 <%- include('../partials/footer') %>
