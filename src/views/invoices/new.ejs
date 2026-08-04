@@ -114,14 +114,43 @@
       <p class="muted">קובץ צורף וישמר עם החשבונית. בחירת קובץ חדש תחליף אותו.</p>
     <% } %>
 
-    <!-- שולם בצ׳ק? (לא חובה) — אם מוזן, ייווצר צ׳ק וישויך לחשבונית -->
+    <!-- אמצעי תשלום (לא חובה) — אם נבחר, ייווצר תשלום וישויך לחשבונית -->
     <div style="margin-top:1rem;padding-top:.8rem;border-top:1px solid var(--color-line)">
-      <h3 style="margin:0 0 .2rem">שולם בצ׳ק? (לא חובה)</h3>
-      <p class="muted" style="margin:0 0 .5rem">אם שילמת עבור החשבונית בצ׳ק — הזן את הפרטים והצ׳ק ייווצר וישויך אוטומטית.</p>
-      <div class="row">
-        <div><label>מספר צ׳ק</label><input name="check_number" value="<%= values.check_number || '' %>" /></div>
-        <div><label>תאריך פירעון</label><input type="date" name="check_due_date" value="<%= values.check_due_date || '' %>" /></div>
+      <h3 style="margin:0 0 .2rem">אמצעי תשלום (לא חובה)</h3>
+      <p class="muted" style="margin:0 0 .5rem">אם שילמת עבור החשבונית — בחר אמצעי והזן פרטים; התשלום ייווצר וישויך אוטומטית.</p>
+      <label>אמצעי תשלום</label>
+      <select name="pay_method" id="pay_method">
+        <option value="" <%= !values.pay_method ? 'selected' : '' %>>— ללא —</option>
+        <option value="check" <%= values.pay_method === 'check' ? 'selected' : '' %>>צ׳ק</option>
+        <option value="transfer" <%= values.pay_method === 'transfer' ? 'selected' : '' %>>העברה</option>
+        <option value="cash" <%= values.pay_method === 'cash' ? 'selected' : '' %>>מזומן</option>
+      </select>
+      <div class="pay-row" data-m="check">
+        <div class="row">
+          <div><label>מספר צ׳ק</label><input name="check_number" value="<%= values.check_number || '' %>" /></div>
+          <div><label>תאריך פירעון</label><input type="date" name="check_due_date" value="<%= values.check_due_date || '' %>" /></div>
+        </div>
       </div>
+      <div class="pay-row" data-m="transfer">
+        <div class="row">
+          <div><label>מספר אסמכתה</label><input name="transfer_ref" value="<%= values.transfer_ref || '' %>" /></div>
+          <div><label>תאריך פירעון</label><input type="date" name="transfer_date" value="<%= values.transfer_date || '' %>" /></div>
+        </div>
+      </div>
+      <div class="pay-row" data-m="cash">
+        <div class="row">
+          <div><label>שולם ע"י</label><input name="cash_payer" value="<%= values.cash_payer || '' %>" /></div>
+          <div><label>תאריך תשלום</label><input type="date" name="cash_date" value="<%= values.cash_date || '' %>" /></div>
+          <div><label>סכום ששולם (₪)</label><input name="cash_amount" inputmode="decimal" value="<%= values.cash_amount || '' %>" /><small class="muted">הסכום שיירשם = סכום החשבונית</small></div>
+        </div>
+      </div>
+      <script>
+        (function(){
+          var sel = document.getElementById('pay_method');
+          function upd(){ document.querySelectorAll('.pay-row').forEach(function(r){ r.style.display = (r.dataset.m === sel.value) ? 'block' : 'none'; }); }
+          sel.addEventListener('change', upd); upd();
+        })();
+      </script>
     </div>
 
     <% if (warnings && warnings.length) { %>
