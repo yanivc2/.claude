@@ -60,5 +60,84 @@
     });
   })();
   </script>
+  <script>
+  // Day-first date picker: replace every <input type="date"> (whose native mobile picker opens
+  // to a month/year wheel) with a calendar popover that opens straight to the day grid. The real
+  // value is kept ISO (YYYY-MM-DD) in a hidden input under the original name, so forms submit
+  // exactly as before; the visible field just shows DD/MM/YYYY.
+  (function () {
+    var MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+    var DOW = ['א','ב','ג','ד','ה','ו','ש'];
+    function pad(n){ return (n < 10 ? '0' : '') + n; }
+    function toISO(y,m,d){ return y + '-' + pad(m+1) + '-' + pad(d); }
+    function fmt(iso){ var p = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return p ? p[3]+'/'+p[2]+'/'+p[1] : ''; }
+    function parse(iso){ var p = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return p ? {y:+p[1], m:+p[2]-1, d:+p[3]} : null; }
+
+    function makePicker(hidden, visible) {
+      var pop = document.createElement('div'); pop.className = 'dp-pop'; pop.hidden = true;
+      var view;
+      function render() {
+        var sel = parse(hidden.value), today = new Date();
+        var startDow = new Date(view.y, view.m, 1).getDay();
+        var days = new Date(view.y, view.m + 1, 0).getDate();
+        var h = '<div class="dp-head"><button type="button" class="dp-nav" data-nav="-1">‹</button>'
+          + '<span class="dp-title">' + MONTHS[view.m] + ' ' + view.y + '</span>'
+          + '<button type="button" class="dp-nav" data-nav="1">›</button></div><div class="dp-grid">';
+        DOW.forEach(function(d){ h += '<div class="dp-dow">' + d + '</div>'; });
+        for (var i = 0; i < startDow; i++) h += '<span></span>';
+        for (var day = 1; day <= days; day++) {
+          var cls = 'dp-day';
+          if (sel && sel.y === view.y && sel.m === view.m && sel.d === day) cls += ' dp-sel';
+          if (today.getFullYear() === view.y && today.getMonth() === view.m && today.getDate() === day) cls += ' dp-today';
+          h += '<button type="button" class="' + cls + '" data-day="' + day + '">' + day + '</button>';
+        }
+        h += '</div><div class="dp-foot"><button type="button" data-today="1">היום</button><button type="button" data-clear="1">נקה</button></div>';
+        pop.innerHTML = h;
+      }
+      function set(iso){ hidden.value = iso; visible.value = fmt(iso); hidden.dispatchEvent(new Event('change', { bubbles: true })); }
+      pop.addEventListener('click', function(e){
+        var t = e.target;
+        if (t.dataset.nav) { view.m += (+t.dataset.nav); if (view.m < 0) { view.m = 11; view.y--; } if (view.m > 11) { view.m = 0; view.y++; } render(); }
+        else if (t.dataset.day) { set(toISO(view.y, view.m, +t.dataset.day)); pop.hidden = true; }
+        else if (t.dataset.today) { var d = new Date(); set(toISO(d.getFullYear(), d.getMonth(), d.getDate())); pop.hidden = true; }
+        else if (t.dataset.clear) { hidden.value = ''; visible.value = ''; pop.hidden = true; }
+      });
+      return { pop: pop, open: function(){ var s = parse(hidden.value) || (function(){ var t = new Date(); return { y:t.getFullYear(), m:t.getMonth() }; })(); view = { y:s.y, m:s.m }; render(); pop.hidden = false; }, el: pop };
+    }
+
+    function enhance(input) {
+      if (input.dataset.dpDone) return; input.dataset.dpDone = '1';
+      var name = input.getAttribute('name'), iso = input.value, req = input.required;
+      var wrap = document.createElement('span'); wrap.className = 'dp-wrap';
+      if (req) wrap.dataset.req = '1';
+      input.parentNode.insertBefore(wrap, input); wrap.appendChild(input);
+      var hidden = document.createElement('input'); hidden.type = 'hidden'; if (name) hidden.name = name; hidden.value = iso || '';
+      wrap.appendChild(hidden);
+      input.removeAttribute('name'); input.required = false; input.type = 'text'; input.readOnly = true;
+      input.setAttribute('inputmode', 'none'); input.autocomplete = 'off';
+      if (!input.placeholder) input.placeholder = 'בחר תאריך';
+      input.value = iso ? fmt(iso) : '';
+      var dp = makePicker(hidden, input); wrap.appendChild(dp.el);
+      function toggle(e){ e.preventDefault(); input.blur();
+        document.querySelectorAll('.dp-pop').forEach(function(p){ if (p !== dp.el) p.hidden = true; });
+        if (dp.el.hidden) dp.open(); else dp.el.hidden = true; }
+      input.addEventListener('mousedown', toggle);
+    }
+    function enhanceAll(root){ (root || document).querySelectorAll('input[type="date"]').forEach(enhance); }
+
+    document.addEventListener('DOMContentLoaded', function(){ enhanceAll(); });
+    document.addEventListener('click', function(e){
+      document.querySelectorAll('.dp-pop').forEach(function(p){ if (!p.parentNode.contains(e.target)) p.hidden = true; });
+    });
+    // Enforce "required" for enhanced date fields (readonly inputs skip native required validation).
+    document.addEventListener('submit', function(e){
+      var wraps = e.target.querySelectorAll ? e.target.querySelectorAll('.dp-wrap[data-req="1"]') : [];
+      for (var i = 0; i < wraps.length; i++) {
+        var h = wraps[i].querySelector('input[type="hidden"]');
+        if (h && !h.value) { e.preventDefault(); alert('יש לבחור תאריך'); wraps[i].querySelector('input[type="text"]').focus(); return; }
+      }
+    }, true);
+  })();
+  </script>
 </body>
 </html>
