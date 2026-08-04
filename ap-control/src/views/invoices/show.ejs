@@ -121,7 +121,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
     var payLabel = (invoice.status === 'approved_for_payment' || isManager) ? 'תשלום' : 'בקשת אישור תשלום';
   %>
   <div class="card no-print" style="display:flex; justify-content:flex-start">
-    <details class="menu up open-in">
+    <details class="menu up">
       <summary class="btn btn-primary"><%= payLabel %> <span class="caret">▾</span></summary>
       <div class="menu-panel" style="min-width:260px">
 
@@ -167,7 +167,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <!-- שורת פעולות: אפשרויות (עריכה) + חזרה לרשימה משמאלו -->
 <div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">
   <% if (invoice.status !== 'paid') { %>
-    <details class="menu up open-in">
+    <details class="menu up">
       <summary class="btn btn-secondary">אפשרויות <span class="caret">▾</span></summary>
       <div class="menu-panel" style="min-width:180px">
         <a href="/invoices/<%= invoice.id %>/edit">ערוך חשבונית</a>
@@ -183,29 +183,46 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
     <strong>תמונת חשבונית</strong>
     <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
   </div>
+  <!-- קלט קובץ נסתר; ההעלאה/החלפה מתבצעת דרך הכפתור העגול (עיבוד לשחור-לבן לפני השמירה) -->
+  <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" class="bw-form">
+    <input id="imgFile" type="file" name="image" accept="image/*,application/pdf" hidden />
+  </form>
   <% if (invoice.image_path) { %>
     <% if (imgIsPdf) { %>
       <p><a href="/invoices/<%= invoice.id %>/image" target="_blank" class="btn btn-secondary">פתח קובץ PDF</a></p>
     <% } else { %>
-      <a href="/invoices/<%= invoice.id %>/image" target="_blank"><img src="/invoices/<%= invoice.id %>/image" alt="תמונת חשבונית" style="max-width:100%;max-height:60vh;border:1px solid var(--color-line);border-radius:var(--radius-md)" /></a>
+      <a href="/invoices/<%= invoice.id %>/image" target="_blank"><img src="/invoices/<%= invoice.id %>/image" alt="תמונת חשבונית" style="max-width:100%;max-height:56vh;border:1px solid var(--color-line);border-radius:var(--radius-md)" /></a>
     <% } %>
-    <div class="dlg-actions" style="display:flex;gap:8px;margin-top:var(--space-3);flex-wrap:wrap">
-      <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" class="bw-form" style="display:flex;gap:8px;align-items:center">
-        <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
-        <button class="btn btn-secondary btn-sm" type="submit">החלף</button>
-      </form>
-      <form method="post" action="/invoices/<%= invoice.id %>/image/delete" onsubmit="return confirm('למחוק את תמונת החשבונית?')">
-        <button class="btn btn-danger btn-sm" type="submit">מחק תמונה</button>
-      </form>
+    <!-- כפתור עיגול להעלאה/החלפה (ימין) + כפתור מאוחד לתמונה (שמאלו): החלף / מחק -->
+    <div style="display:flex;gap:var(--space-6);align-items:flex-start;margin-top:var(--space-3)">
+      <div class="icon-tile">
+        <button type="button" class="icon-circle accent" onclick="document.getElementById('imgFile').click()" aria-label="החלף תמונה" title="החלף תמונה">
+          <svg viewBox="0 0 24 24"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M5 15v3a2 2 0 002 2h10a2 2 0 002-2v-3"/></svg>
+        </button>
+        <span class="cap">החלף תמונה</span>
+      </div>
+      <div class="icon-tile">
+        <details class="menu">
+          <summary class="btn btn-secondary btn-sm">תמונה <span class="caret">▾</span></summary>
+          <div class="menu-panel" style="min-width:170px">
+            <button type="button" onclick="document.getElementById('imgFile').click()">החלף תמונה</button>
+            <form method="post" action="/invoices/<%= invoice.id %>/image/delete" onsubmit="return confirm('למחוק את תמונת החשבונית?')">
+              <button type="submit" class="danger">מחק תמונה</button>
+            </form>
+          </div>
+        </details>
+        <span class="cap">פעולות</span>
+      </div>
     </div>
-    <p class="text-muted" style="font-size:12px;margin-top:6px">התמונה מעובדת אוטומטית לשחור-לבן ברור לפני השמירה.</p>
+    <p class="text-muted" style="font-size:12px;margin-top:8px">התמונה מעובדת אוטומטית לשחור-לבן ברור לפני השמירה.</p>
   <% } else { %>
-    <p class="text-muted">לא צורפה תמונה. ניתן לצלם/להעלות מספר עמודים — כל עמוד כתמונה נפרדת.</p>
-    <form method="post" action="/invoices/<%= invoice.id %>/image" enctype="multipart/form-data" class="bw-form" style="display:flex;gap:8px;align-items:center">
-      <input type="file" name="image" accept="image/*,application/pdf" style="width:auto" />
-      <button class="btn btn-primary btn-sm" type="submit">צרף תמונה</button>
-    </form>
-    <p class="text-muted" style="font-size:12px;margin-top:6px">התמונה מעובדת אוטומטית לשחור-לבן ברור לפני השמירה.</p>
+    <div class="icon-tile" style="margin:var(--space-2) auto 0">
+      <button type="button" class="icon-circle accent" onclick="document.getElementById('imgFile').click()" aria-label="העלאת חשבונית" title="העלאת חשבונית">
+        <svg viewBox="0 0 24 24"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M5 15v3a2 2 0 002 2h10a2 2 0 002-2v-3"/></svg>
+      </button>
+      <span class="cap">העלאת חשבונית</span>
+    </div>
+    <p class="text-muted" style="font-size:12px;margin-top:10px;text-align:center">צלם/י או בחר/י קובץ. התמונה מעובדת אוטומטית לשחור-לבן ברור לפני השמירה.</p>
   <% } %>
 </dialog>
 
@@ -279,6 +296,10 @@ function bwProcess(file, cb){
 document.querySelectorAll('form.bw-form').forEach(function(form){
   var inp = form.querySelector('input[type=file][name=image]');
   if(!inp) return;
+  // בחירת קובץ (מהכפתור העגול) → שליחה אוטומטית
+  inp.addEventListener('change', function(){
+    if(inp.files && inp.files.length){ form.requestSubmit ? form.requestSubmit() : form.submit(); }
+  });
   form.addEventListener('submit', function(e){
     if(form.__bwDone) return;
     var f = inp.files && inp.files[0];
