@@ -12,6 +12,7 @@ import {
   setAllocationNumber,
   setImage,
   clearImage,
+  listPayable,
 } from '../services/invoices.js';
 import { listSuppliers } from '../services/suppliers.js';
 import { runOcrForInvoice, compareToInvoice, getOcr, deleteOcr } from '../services/ocr.js';
@@ -47,6 +48,16 @@ async function formData(scope = null) {
   };
 }
 
+// For the "save & add another" batch flow: the still-payable invoices already recorded
+// for one supplier at one store, so they can be paid together from the new-invoice screen.
+async function batchContext(supplierId, storeId) {
+  const sid = Number(supplierId);
+  const stid = Number(storeId);
+  if (!sid || !stid) return { batchInvoices: [] };
+  const payable = await listPayable();
+  return { batchInvoices: payable.filter((i) => i.supplier_id === sid && i.store_id === stid) };
+}
+
 router.get('/', async (req, res, next) => {
   try {
     res.render('invoices/index', {
@@ -61,12 +72,17 @@ router.get('/', async (req, res, next) => {
 
 router.get('/new', async (req, res, next) => {
   try {
+    const supplierId = req.query.supplier ? Number(req.query.supplier) : null;
+    const storeId = req.query.store ? Number(req.query.store) : null;
+    const ctx = await batchContext(supplierId, storeId);
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
       ...(await formData(req.scope.companyIds)),
-      values: {},
+      values: supplierId ? { supplier_id: supplierId, store_id: storeId || '' } : {},
       warnings: [],
       error: null,
+      notice: req.query.added ? 'החשבונית נשמרה. אפשר להזין עוד חשבונית לאותו הספק, או לשייך את הכל לתשלום למטה.' : null,
+      ...ctx,
     });
   } catch (err) {
     next(err);
@@ -87,6 +103,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       warnings: [],
       error: null,
       uploadedImage: imagePath,
+      ...(await batchContext(b.supplier_id, b.store_id)),
       ...extra,
     });
   };
@@ -100,6 +117,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       warnings: [],
       error: req.uploadError,
       uploadedImage: null,
+      ...(await batchContext(b.supplier_id, b.store_id)),
     });
   }
 
@@ -141,6 +159,10 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
         return res.redirect(303, `/invoices/${invoice.id}?payfail=${encodeURIComponent(payErr.message || 'שגיאה')}`);
       }
     }
+    // "שמור והוסף עוד לספק" — reopen the form for the same supplier/store to keep entering.
+    if (b.action === 'add_another') {
+      return res.redirect(303, `/invoices/new?supplier=${invoice.supplier_id}&store=${invoice.store_id}&added=1`);
+    }
     return res.redirect(303, `/invoices/${invoice.id}`);
   } catch (err) {
     if (err instanceof RuleError && err.meta?.needsConfirmation) {
@@ -151,12 +173,57 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
         warnings: err.meta.warnings,
         error: null,
         uploadedImage: imagePath,
+        ...(await batchContext(b.supplier_id, b.store_id)),
       });
     }
     if (err instanceof RuleError) {
       return rerender({ error: err.message });
     }
     if (req.file) removeUpload(req.file.filename);
+    next(err);
+  }
+});
+
+// Combined payment from the new-invoice screen: pay several recorded invoices of one
+// supplier/store together (credit notes net out). Reuses createPayment (R1/R5 enforced).
+router.post('/pay-batch', async (req, res, next) => {
+  const b = req.body;
+  const supplierId = Number(b.supplier_id);
+  const storeId = Number(b.store_id);
+  const invoiceIds = []
+    .concat(b.invoice_ids || [])
+    .map(Number)
+    .filter(Boolean);
+  try {
+    if (invoiceIds.length === 0) throw new RuleError('R', 'לא נבחרו חשבוניות לתשלום');
+    const ba = await getExecutor().one('SELECT id FROM bank_accounts WHERE store_id = ?', [storeId]);
+    const method = (b.pay_method || 'check').trim();
+    const payInput = { bankAccountId: ba?.id, method, invoiceIds };
+    if (method === 'check') {
+      payInput.checkNumber = b.check_number;
+      payInput.paymentDate = b.check_due_date;
+    } else if (method === 'transfer') {
+      payInput.reference = b.transfer_ref;
+      payInput.paymentDate = b.transfer_date;
+    } else if (method === 'cash') {
+      payInput.payerName = b.cash_payer;
+      payInput.paymentDate = b.cash_date;
+    }
+    if (!payInput.paymentDate) payInput.paymentDate = new Date().toISOString().slice(0, 10);
+    const payment = await createPayment(payInput, req.user);
+    return res.redirect(303, `/payments/${payment.id}`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.status(400).render('invoices/new', {
+        title: 'חשבונית חדשה',
+        ...(await formData(req.scope.companyIds)),
+        values: { supplier_id: supplierId, store_id: storeId },
+        warnings: [],
+        error: err.message,
+        notice: null,
+        ...(await batchContext(supplierId, storeId)),
+      });
+    }
     next(err);
   }
 });
