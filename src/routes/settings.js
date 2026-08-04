@@ -21,6 +21,7 @@ import { PERMISSIONS } from '../lib/permissions.js';
 import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { createInviteLink } from '../services/passwordReset.js';
 import { PASSWORD_POLICY_TEXT } from '../lib/auth.js';
+import { exportAll, resetTransactionalData } from '../services/backup.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -238,6 +239,40 @@ router.post('/db-upgrade', requireOwner, async (req, res, next) => {
   try {
     await upgradeSchema();
     await render(req, res, { notice: 'מסד הנתונים עודכן בהצלחה — כל העמודות והטבלאות החדשות קיימות.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Full backup download (owner-only): a complete JSON snapshot of every table. The owner keeps
+// this file somewhere they control (Drive / disk). Images live in Blob and are referenced by path.
+router.get('/backup', requireOwner, async (req, res, next) => {
+  try {
+    const data = await exportAll();
+    const date = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="ap-control-backup-${date}.json"`);
+    res.send(JSON.stringify(data, null, 2));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// "Start fresh" (owner-only): wipe transactional data + its Blob images, keep the setup. Guarded
+// by a typed confirmation word so it can't be triggered by accident.
+router.post('/reset-data', requireOwner, async (req, res, next) => {
+  try {
+    if ((req.body.confirm || '').trim() !== 'אפס') {
+      return render(req, res, { error: 'האיפוס לא בוצע — יש להקליד "אפס" בשדה האישור.' });
+    }
+    const { deletedImages } = await resetTransactionalData(
+      { alsoSuppliers: req.body.also_suppliers === '1' },
+      req.user,
+    );
+    const supMsg = req.body.also_suppliers === '1' ? ' (כולל ספקים)' : '';
+    await render(req, res, {
+      notice: `הנתונים אופסו${supMsg}. נמחקו ${deletedImages} תמונות. ההגדרה (חברות/חנויות/חשבונות/משתמשים) נשמרה.`,
+    });
   } catch (err) {
     next(err);
   }
