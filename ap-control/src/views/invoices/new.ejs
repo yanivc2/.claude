@@ -173,7 +173,6 @@
 </div>
 
 <% if (typeof batchInvoices !== 'undefined' && batchInvoices && batchInvoices.length) { %>
-  <% var bnet = 0; batchInvoices.forEach(function(iv){ bnet += iv.total_amount; }); %>
   <div class="card">
     <h2 style="margin:0 0 .3rem">שיוך לתשלום — <%= batchInvoices[0].supplier_name %> · <%= batchInvoices[0].store_name %></h2>
     <p class="muted" style="margin:0 0 .6rem">בחר את החשבוניות שברצונך לשלם יחד (זיכויים מקזזים) ובחר אמצעי תשלום. ייווצר תשלום אחד וישויך לכולן.</p>
@@ -185,7 +184,7 @@
         <tbody>
           <% batchInvoices.forEach(function(iv){ %>
             <tr>
-              <td><input type="checkbox" class="bp-check" name="invoice_ids" value="<%= iv.id %>" checked style="width:auto;min-height:0" /></td>
+              <td><input type="checkbox" class="bp-check" name="invoice_ids" value="<%= iv.id %>" style="width:auto;min-height:0" /></td>
               <td class="mono"><a href="/invoices/<%= iv.id %>"><%= iv.invoice_number %></a></td>
               <td><%= formatDate(iv.invoice_date) %></td>
               <td><%= iv.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
@@ -193,7 +192,7 @@
             </tr>
           <% }); %>
         </tbody>
-        <tfoot><tr><td colspan="4" class="right"><strong>נטו לתשלום (מסומנות)</strong></td><td class="right"><strong id="bpNet"><%= formatIls(bnet) %></strong></td></tr></tfoot>
+        <tfoot><tr><td colspan="4" class="right"><strong>נטו לתשלום (מסומנות)</strong></td><td class="right"><strong id="bpNet"><%= formatIls(0) %></strong></td></tr></tfoot>
       </table>
 
       <label style="margin-top:.6rem">אמצעי תשלום</label>
