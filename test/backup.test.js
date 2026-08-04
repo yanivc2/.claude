@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { freshDb, owner } from './helpers.js';
-import { exportAll, resetTransactionalData } from '../src/services/backup.js';
+import { exportAll, resetTransactionalData, restoreAll } from '../src/services/backup.js';
 
 async function seedTransactional(db, ow) {
   const store = await db.one('SELECT id, company_id FROM stores LIMIT 1', []);
@@ -77,4 +77,37 @@ test('resetTransactionalData with alsoSuppliers clears the supplier list too', a
   await resetTransactionalData({ alsoSuppliers: true }, ow, db);
   assert.equal(await countOf(db, 'suppliers'), 0);
   assert.equal(await countOf(db, 'companies') >= 1, true); // setup still there
+});
+
+test('restoreAll round-trips a backup (wipe + reinsert everything)', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  await seedTransactional(db, ow);
+  const before = {
+    invoices: await countOf(db, 'invoices'),
+    payments: await countOf(db, 'payments'),
+    payment_lines: await countOf(db, 'payment_lines'),
+    companies: await countOf(db, 'companies'),
+    users: await countOf(db, 'users'),
+  };
+  const dump = await exportAll(db);
+
+  // wipe EVERYTHING, then restore from the snapshot
+  await resetTransactionalData({ alsoSuppliers: true }, ow, db);
+  assert.equal(await countOf(db, 'invoices'), 0);
+
+  await restoreAll(dump, ow, db);
+  assert.equal(await countOf(db, 'invoices'), before.invoices);
+  assert.equal(await countOf(db, 'payments'), before.payments);
+  assert.equal(await countOf(db, 'payment_lines'), before.payment_lines);
+  assert.equal(await countOf(db, 'suppliers'), 1);
+  assert.equal(await countOf(db, 'companies'), before.companies);
+  assert.equal(await countOf(db, 'users'), before.users);
+});
+
+test('restoreAll rejects a file that is not an AP Control backup', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  await assert.rejects(() => restoreAll({ meta: { app: 'other' }, tables: {} }, ow, db), /לא תקין/);
+  await assert.rejects(() => restoreAll(null, ow, db), /לא תקין/);
 });

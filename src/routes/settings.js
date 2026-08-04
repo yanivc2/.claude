@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import multer from 'multer';
 import {
   listStructure,
   createCompany,
@@ -21,7 +22,7 @@ import { PERMISSIONS } from '../lib/permissions.js';
 import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { createInviteLink } from '../services/passwordReset.js';
 import { PASSWORD_POLICY_TEXT } from '../lib/auth.js';
-import { exportAll, resetTransactionalData } from '../services/backup.js';
+import { exportAll, resetTransactionalData, restoreAll } from '../services/backup.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -276,6 +277,33 @@ router.post('/reset-data', requireOwner, async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+// Restore from a backup JSON (owner-only). REPLACES all data with the file's snapshot,
+// atomically. Guarded by a typed confirmation because it overwrites everything.
+const backupUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1 } }).single('backup');
+router.post('/restore', requireOwner, (req, res, next) => {
+  backupUpload(req, res, async (uploadErr) => {
+    try {
+      if (uploadErr) throw new RuleError('RESTORE', 'העלאת הקובץ נכשלה (מוגבל ל-50MB).');
+      if ((req.body.confirm || '').trim() !== 'שחזר') {
+        return render(req, res, { error: 'השחזור לא בוצע — יש להקליד "שחזר" בשדה האישור.' });
+      }
+      if (!req.file) throw new RuleError('RESTORE', 'לא נבחר קובץ גיבוי.');
+      let dump;
+      try {
+        dump = JSON.parse(req.file.buffer.toString('utf8'));
+      } catch {
+        throw new RuleError('RESTORE', 'הקובץ אינו JSON תקין.');
+      }
+      const { restored } = await restoreAll(dump, req.user);
+      const total = Object.values(restored).reduce((a, b) => a + b, 0);
+      await render(req, res, { notice: `השחזור הושלם — ${total} רשומות שוחזרו מהגיבוי.` });
+    } catch (err) {
+      if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+      next(err);
+    }
+  });
 });
 
 export default router;
