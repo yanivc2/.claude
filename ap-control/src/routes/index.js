@@ -3,6 +3,7 @@ import {
   dashboardStats,
   invoiceLookup,
   latestBalances,
+  outstandingChecks,
   outstandingChecksInRange,
 } from '../services/reports.js';
 import { lookupChecks } from '../services/payments.js';
@@ -48,12 +49,29 @@ router.get('/', async (req, res, next) => {
       if (inCompany.length === 1) storeId = inCompany[0].id;
     }
 
+    // "צ׳קים בחוץ" tile — pick a store (oc_store) to see just its outstanding total,
+    // otherwise all stores combined. Reuses the per-account outstanding breakdown.
+    const ocStore = req.query.oc_store ? Number(req.query.oc_store) : null;
+    const { accounts: ocAccounts, totalOutstanding } = await outstandingChecks(scope);
+    const ocSelected = ocStore ? ocAccounts.find((a) => a.store_id === ocStore) : null;
+    const outstandingDisplay = ocSelected ? ocSelected.outstanding : totalOutstanding;
+    const ocBase = new URLSearchParams();
+    if (q) ocBase.set('q', q);
+    if (req.query.company) ocBase.set('company', String(req.query.company));
+    if (req.query.store) ocBase.set('store', String(req.query.store));
+    const ocLinkBase = ocBase.toString();
+
     res.render('dashboard', {
       title: 'לוח בקרה',
       stats: await dashboardStats(scope),
       q,
       companyId,
       storeId,
+      ocAccounts,
+      ocStore,
+      ocSelectedName: ocSelected ? ocSelected.store_name : null,
+      outstandingDisplay,
+      ocLinkBase,
       companies,
       stores,
       invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope }) : null,

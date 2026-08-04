@@ -149,14 +149,28 @@
     <div class="num"><%= stats.onHoldInvoices %></div>
     <div class="label">חשבוניות מוחזקות</div>
   </a>
-  <a class="stat" href="/invoices?status=approved_for_payment">
-    <div class="num"><%= stats.approvedInvoices %></div>
-    <div class="label">מאושרות לתשלום</div>
+  <a class="stat" href="/reconciliation">
+    <div class="num" style="font-size:22px"><%= stats.lastReconciledAt ? formatDate(String(stats.lastReconciledAt).slice(0,10)) : '—' %></div>
+    <div class="label">התאמת בנק אחרונה</div>
   </a>
-  <a class="stat" href="/reports/outstanding">
-    <div class="num"><%= formatIls(stats.totalOutstanding) %></div>
-    <div class="label">צ׳קים בחוץ</div>
-  </a>
+  <div class="stat" style="position:relative">
+    <details class="menu no-print" style="position:absolute; inset-inline-start:10px; top:10px">
+      <summary class="icon-circle sm" title="בחירת חנות" aria-label="בחירת חנות" style="list-style:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9M4 9v10a1 1 0 001 1h14a1 1 0 001-1V9M4 9h16M9 20v-6h6v6"/></svg>
+      </summary>
+      <div class="menu-panel" style="min-width:220px">
+        <div class="menu-cap">צ׳קים בחוץ לפי חנות</div>
+        <a href="/?<%= ocLinkBase %><%= ocLinkBase ? '&' : '' %>oc_store=" class="<%= !ocStore ? 'active' : '' %>">כל החנויות</a>
+        <% ocAccounts.forEach(function(a){ %>
+          <a href="/?<%= ocLinkBase %><%= ocLinkBase ? '&' : '' %>oc_store=<%= a.store_id %>" class="<%= ocStore === a.store_id ? 'active' : '' %>"><%= a.store_name %></a>
+        <% }); %>
+      </div>
+    </details>
+    <a href="/reports/outstanding" style="display:block; color:inherit; text-decoration:none">
+      <div class="num"><%= formatIls(outstandingDisplay) %></div>
+      <div class="label">צ׳קים בחוץ<%= ocSelectedName ? ' · ' + ocSelectedName : ' · כל החנויות' %></div>
+    </a>
+  </div>
 </div>
 
 <div class="card">
@@ -166,9 +180,11 @@
       <summary class="btn btn-primary">אפשרויות <span class="caret">▾</span></summary>
       <div class="menu-panel">
         <a href="/invoices/new">+ חשבונית חדשה</a>
+        <a href="/payments/new">+ מרקור חדש</a>
         <a href="/reports/zreports">+ דוח Z חדש</a>
         <a href="/suppliers/new">+ ספק חדש</a>
         <div class="menu-sep"></div>
+        <a href="/payments">מרקורים</a>
         <a href="/reports/profitability">רווחיות</a>
       </div>
     </details>

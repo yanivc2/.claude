@@ -10,7 +10,7 @@ import { scopeClause } from '../lib/scope.js';
 export async function outstandingChecks(scope = null, x = getExecutor()) {
   const sc = scopeClause(scope, 'ba.company_id');
   const accounts = await x.many(
-    `SELECT ba.id, ba.display_name, c.name AS company_name, st.name AS store_name,
+    `SELECT ba.id, ba.display_name, st.id AS store_id, c.name AS company_name, st.name AS store_name,
             COALESCE(SUM(CASE WHEN p.status = 'issued' THEN p.amount ELSE 0 END), 0) AS outstanding,
             COUNT(CASE WHEN p.status = 'issued' THEN 1 END) AS outstanding_count
        FROM bank_accounts ba
@@ -18,7 +18,7 @@ export async function outstandingChecks(scope = null, x = getExecutor()) {
        JOIN stores st ON st.id = ba.store_id
        LEFT JOIN payments p ON p.bank_account_id = ba.id
       WHERE 1 = 1${sc.sql}
-      GROUP BY ba.id, ba.display_name, c.name, st.name
+      GROUP BY ba.id, ba.display_name, st.id, c.name, st.name
       ORDER BY c.name, st.name`,
     [...sc.params],
   );
@@ -243,5 +243,19 @@ export async function dashboardStats(scope = null, x = getExecutor()) {
   const onHoldInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'on_hold'${sc.sql}`, [...sc.params])).n;
   const approvedInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'approved_for_payment'${sc.sql}`, [...sc.params])).n;
   const { totalOutstanding } = await outstandingChecks(scope, x);
-  return { pendingSuppliers, onHoldInvoices, approvedInvoices, totalOutstanding };
+  const lastReconciledAt = await lastReconciliationAt(x);
+  return { pendingSuppliers, onHoldInvoices, approvedInvoices, totalOutstanding, lastReconciledAt };
+}
+
+/**
+ * The timestamp of the most recent bank-reconciliation action (auto-match or a
+ * confirmed manual match). Used on the dashboard as "התאמת בנק אחרונה".
+ * @returns {string|null} audit_log timestamp ('YYYY-MM-DD HH:MM:SS') or null if never reconciled.
+ */
+export async function lastReconciliationAt(x = getExecutor()) {
+  const row = await x.one(
+    `SELECT MAX(timestamp) AS ts FROM audit_log WHERE action IN ('reconcile.match', 'reconcile.auto')`,
+    [],
+  );
+  return row && row.ts ? row.ts : null;
 }
