@@ -234,6 +234,25 @@ export async function releaseHold(id, actor, x = getExecutor()) {
 }
 
 /**
+ * Self-heal a stale automatic R3 hold. If an invoice is on_hold with an R3 reason but no longer
+ * qualifies — the amount dropped below the allocation threshold, an allocation number was added,
+ * or the doc type changed — move it back to 'recorded'. Idempotent; safe to call on every view.
+ * This fixes invoices that were flagged R3 before the amount was corrected below 5,000 ₪.
+ */
+export async function reconcileR3Hold(id, x = getExecutor()) {
+  const inv = await getInvoice(id, x);
+  if (inv.status !== 'on_hold') return inv;
+  if (typeof inv.hold_reason !== 'string' || !inv.hold_reason.startsWith('R3')) return inv;
+  const stillR3 =
+    inv.doc_type === 'tax_invoice' &&
+    !inv.allocation_number &&
+    Math.abs(inv.amount_before_vat) > config.rules.allocationThresholdAgorot;
+  if (stillR3) return inv;
+  await x.run("UPDATE invoices SET status = 'recorded', hold_reason = NULL WHERE id = ?", [id]);
+  return getInvoice(id, x);
+}
+
+/**
  * Set/replace the allocation number on an invoice.
  */
 export async function setAllocationNumber(id, allocationNumber, actor, x = getExecutor()) {

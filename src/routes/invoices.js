@@ -8,6 +8,7 @@ import {
   approveInvoiceForPayment,
   putOnHold,
   releaseHold,
+  reconcileR3Hold,
   setAllocationNumber,
   setImage,
   clearImage,
@@ -233,6 +234,7 @@ router.post('/:id/image', handleInvoiceImage, async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
+    await reconcileR3Hold(id); // self-heal a stale R3 hold before displaying
     res.render('invoices/show', {
       title: `חשבונית`,
       invoice: await getInvoiceDetail(id),
@@ -421,6 +423,7 @@ router.post('/:id/allocation', async (req, res, next) => {
 });
 
 async function renderShow(res, id, error, notice = null) {
+  await reconcileR3Hold(id); // self-heal a stale R3 hold before displaying
   res.status(error ? 400 : 200).render('invoices/show', {
     title: `חשבונית`,
     invoice: await getInvoiceDetail(id),
