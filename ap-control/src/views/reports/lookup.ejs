@@ -33,14 +33,14 @@
             <td><%= r.supplier_name %></td>
             <td class="mono"><%= r.invoice_number %></td>
             <td class="mono"><%= r.allocation_number || '—' %></td>
-            <td><%= r.invoice_date %></td>
+            <td><%= formatDate(r.invoice_date) %></td>
             <td class="right <%= r.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(r.total_amount) %></td>
             <td><span class="badge b-<%= r.invoice_status %>"><%= r.invoice_status %></span></td>
             <td class="mono"><%= r.check_number || '—' %></td>
             <td>
               <% if (r.payment_status) { %>
                 <span class="badge b-<%= r.payment_status %>"><%= r.payment_status === 'issued' ? 'בחוץ' : r.payment_status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
-                <% if (r.cleared_date) { %><br><span class="muted"><%= r.cleared_date %></span><% } %>
+                <% if (r.cleared_date) { %><br><span class="muted"><%= formatDate(r.cleared_date) %></span><% } %>
               <% } else { %>—<% } %>
             </td>
           </tr>

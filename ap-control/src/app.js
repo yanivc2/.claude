@@ -42,6 +42,13 @@ export function createApp() {
   app.use((req, res, next) => {
     res.locals.formatIls = formatIls;
     res.locals.fromAgorot = fromAgorot;
+    // Human date format across the app: 'YYYY-MM-DD' (or with a time suffix) -> 'DD/MM/YY'.
+    // Leaves anything that isn't an ISO date untouched, and empty values as ''.
+    res.locals.formatDate = (d) => {
+      if (!d) return '';
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d));
+      return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : String(d);
+    };
     res.locals.vatRate = config.vatRate;
     res.locals.cashCeilingAgorot = config.cashCeilingAgorot;
     res.locals.allocationThresholdAgorot = config.rules.allocationThresholdAgorot;

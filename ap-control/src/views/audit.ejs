@@ -84,7 +84,7 @@
       <tbody>
         <% events.forEach(function(e){ %>
           <tr>
-            <td><%= e.event_date %></td>
+            <td><%= formatDate(e.event_date) %></td>
             <td class="mono"><%= e.event_time || '—' %></td>
             <td><%= e.title %></td>
             <td><%= e.remind ? (e.remind_sent ? 'נשלחה' : '🔔 ממתינה') : '—' %></td>
