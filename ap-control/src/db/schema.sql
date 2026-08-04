@@ -248,6 +248,19 @@ CREATE TABLE IF NOT EXISTS z_expenses (
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
 
+-- deposits — "הצהרה על הפקדה": a bank deposit declaration (bag number + amount), with a flag
+-- marking whether it was actually deposited to the bank.
+CREATE TABLE IF NOT EXISTS deposits (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id     INTEGER NOT NULL REFERENCES stores(id),
+  deposit_date TEXT NOT NULL,
+  bag_number   TEXT,
+  amount       INTEGER NOT NULL DEFAULT 0,   -- agorot
+  deposited    INTEGER NOT NULL DEFAULT 0,   -- 0/1 — הופקד לבנק
+  created_by   INTEGER NOT NULL REFERENCES users(id),
+  created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+
 -- sales_entries — manual register (Z) totals per store, for the profitability report (§7).
 -- Purchases come automatically from invoices; sales are entered by hand here.
 CREATE TABLE IF NOT EXISTS sales_entries (

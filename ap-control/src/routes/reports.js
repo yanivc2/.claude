@@ -13,6 +13,7 @@ import {
   setCreditCards, ccReconciliation, CC_BRANDS,
   zReconciliationStatus,
 } from '../services/zreports.js';
+import { createDeposit, listDeposits, setDeposited, deleteDeposit } from '../services/deposits.js';
 import { getExecutor } from '../db/adapter.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
@@ -140,6 +141,7 @@ async function renderZReports(req, res, extra = {}) {
     unmatchedCount: zReports.filter((z) => !z.matched).length,
     zStoreId,
     missingZ: zStoreId ? await missingZNumbers(zStoreId) : [],
+    deposits: await listDeposits({ storeId: zStoreId }),
     error: null,
     notice: null,
     ...extra,
@@ -149,6 +151,45 @@ async function renderZReports(req, res, extra = {}) {
 router.get('/zreports', async (req, res, next) => {
   try {
     await renderZReports(req, res);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Deposit declarations (הצהרה על הפקדה) — live on the Z-reports tab.
+router.post('/deposits', async (req, res, next) => {
+  const b = req.body;
+  try {
+    await createDeposit(
+      {
+        storeId: Number(b.store_id),
+        depositDate: b.deposit_date,
+        bagNumber: b.bag_number,
+        amount: toAgorot(b.amount),
+        deposited: b.deposited === '1' || b.deposited === 'on',
+      },
+      req.user,
+    );
+    await renderZReports(req, res, { notice: 'הצהרת ההפקדה נשמרה.' });
+  } catch (err) {
+    if (err instanceof RuleError) return renderZReports(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/deposits/:id/deposited', async (req, res, next) => {
+  try {
+    await setDeposited(Number(req.params.id), req.body.value === '1', req.user);
+    res.redirect(303, req.get('referer') || '/reports/zreports');
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/deposits/:id/delete', async (req, res, next) => {
+  try {
+    await deleteDeposit(Number(req.params.id), req.user);
+    res.redirect(303, req.get('referer') || '/reports/zreports');
   } catch (err) {
     next(err);
   }
