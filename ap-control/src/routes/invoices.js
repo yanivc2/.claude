@@ -118,23 +118,26 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       confirmReason: b.confirm_reason || null,
     };
     const { invoice } = await createInvoice(input, req.user);
-    // Optional: the invoice was paid by check — create the check and link it.
-    if ((b.check_number || '').trim()) {
+    // Optional: the invoice was paid — create the payment (check/transfer/cash) and link it.
+    const method = (b.pay_method || '').trim();
+    if (method) {
       try {
         const ba = await getExecutor().one('SELECT id FROM bank_accounts WHERE store_id = ?', [invoice.store_id]);
-        await createPayment(
-          {
-            bankAccountId: ba?.id,
-            method: 'check',
-            checkNumber: b.check_number,
-            paymentDate: b.check_due_date || invoice.invoice_date,
-            invoiceIds: [invoice.id],
-          },
-          req.user,
-        );
-        return res.redirect(303, `/invoices/${invoice.id}?paid=check`);
+        const payInput = { bankAccountId: ba?.id, method, invoiceIds: [invoice.id] };
+        if (method === 'check') {
+          payInput.checkNumber = b.check_number;
+          payInput.paymentDate = b.check_due_date || invoice.invoice_date;
+        } else if (method === 'transfer') {
+          payInput.reference = b.transfer_ref;
+          payInput.paymentDate = b.transfer_date || invoice.invoice_date;
+        } else if (method === 'cash') {
+          payInput.payerName = b.cash_payer;
+          payInput.paymentDate = b.cash_date || invoice.invoice_date;
+        }
+        await createPayment(payInput, req.user);
+        return res.redirect(303, `/invoices/${invoice.id}?paid=1`);
       } catch (payErr) {
-        // The invoice is saved; only the check failed (e.g. R3 hold / unapproved supplier).
+        // The invoice is saved; only the payment failed (e.g. R3 hold / unapproved supplier / cash ceiling).
         return res.redirect(303, `/invoices/${invoice.id}?payfail=${encodeURIComponent(payErr.message || 'שגיאה')}`);
       }
     }
@@ -265,7 +268,7 @@ router.get('/:id', async (req, res, next) => {
       pendingReleaseReq: await pendingRequestFor('invoice', id, 'invoice.release_hold'),
       notice: req.query.sent === 'pay' ? 'בקשת אישור התשלום נשלחה למנהל/בעלים.'
         : req.query.sent === 'release' ? 'בקשת שחרור ההחזקה נשלחה למנהל/בעלים.'
-        : req.query.paid === 'check' ? 'החשבונית נוצרה והצ׳ק נוצר ושויך אליה.' : null,
+        : req.query.paid === '1' ? 'החשבונית נוצרה והתשלום נוצר ושויך אליה.' : null,
       error: req.query.payfail ? `החשבונית נשמרה, אך יצירת הצ׳ק נכשלה: ${req.query.payfail}` : null,
       ocrOpen: req.query.ocr === '1',
     });

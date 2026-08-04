@@ -156,27 +156,7 @@ router.get('/zreports', async (req, res, next) => {
   }
 });
 
-// Deposit declarations (הצהרה על הפקדה) — live on the Z-reports tab.
-router.post('/deposits', async (req, res, next) => {
-  const b = req.body;
-  try {
-    await createDeposit(
-      {
-        storeId: Number(b.store_id),
-        depositDate: b.deposit_date,
-        bagNumber: b.bag_number,
-        amount: toAgorot(b.amount),
-        deposited: b.deposited === '1' || b.deposited === 'on',
-      },
-      req.user,
-    );
-    await renderZReports(req, res, { notice: 'הצהרת ההפקדה נשמרה.' });
-  } catch (err) {
-    if (err instanceof RuleError) return renderZReports(req, res, { error: err.message });
-    next(err);
-  }
-});
-
+// Deposit declarations (הצהרה על הפקדה) — created together with a Z report (POST /zreports).
 router.post('/deposits/:id/deposited', async (req, res, next) => {
   try {
     await setDeposited(Number(req.params.id), req.body.value === '1', req.user);
@@ -337,6 +317,19 @@ router.post('/zreports', async (req, res, next) => {
       },
       req.user,
     );
+    // Optional deposit declaration entered on the same form — reuses the Z's store + date.
+    if ((b.dep_bag || '').trim() || (b.dep_amount || '').trim()) {
+      await createDeposit(
+        {
+          storeId,
+          depositDate: b.z_date,
+          bagNumber: b.dep_bag,
+          amount: toAgorot(b.dep_amount || '0'),
+          deposited: b.dep_deposited === '1' || b.dep_deposited === 'on',
+        },
+        req.user,
+      );
+    }
     // §2a: every time Z reports are entered, remind about any gap in the sequence.
     try {
       const missing = await missingZNumbers(storeId);
