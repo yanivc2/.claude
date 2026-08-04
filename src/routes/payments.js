@@ -24,7 +24,7 @@ router.get('/', async (req, res, next) => {
     const sScope = scopeClause(scope, 'company_id');
     const x = getExecutor();
     res.render('payments/index', {
-      title: 'תשלומים (צ׳קים)',
+      title: 'מרקורים',
       payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope }),
       filter: req.query.status || '',
       companyId,
