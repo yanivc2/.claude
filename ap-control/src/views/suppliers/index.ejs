@@ -56,12 +56,17 @@
           <td class="mono hide-sm"><%= s.tax_id || '—' %></td>
           <td><span class="badge b-<%= s.status %>"><%= s.status === 'pending' ? 'ממתין' : s.status === 'approved' ? 'מאושר' : 'חסום' %></span></td>
           <td onclick="event.stopPropagation()">
-            <% if (s.phone) { %>
+            <% if (s.phone || s.email) { %>
               <details class="menu">
-                <summary class="btn btn-secondary btn-sm mono" style="white-space:nowrap"><%= s.phone %> <span class="caret">▾</span></summary>
+                <summary class="btn btn-secondary btn-sm mono" style="white-space:nowrap"><%= s.phone || 'קשר' %> <span class="caret">▾</span></summary>
                 <div class="menu-panel" style="min-width:160px">
-                  <a href="<%= telLink(s.phone) %>">📞 התקשר</a>
-                  <a href="<%= waLink(s.phone) %>" target="_blank" rel="noopener">💬 וואטסאפ</a>
+                  <% if (s.phone) { %>
+                    <a href="<%= telLink(s.phone) %>">📞 התקשר</a>
+                    <a href="<%= waLink(s.phone) %>" target="_blank" rel="noopener">💬 וואטסאפ</a>
+                  <% } %>
+                  <% if (s.email) { %>
+                    <a href="mailto:<%= s.email %>">✉️ מייל</a>
+                  <% } %>
                 </div>
               </details>
             <% } else { %>—<% } %>
