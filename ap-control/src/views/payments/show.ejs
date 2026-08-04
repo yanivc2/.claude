@@ -6,10 +6,12 @@
   <% if (payment.status === 'voided') { %>
     <span class="status-pill b-voided">מבוטל</span>
   <% } else { %>
+    <% var autoCleared = payment.status === 'cleared' && payment.auto_cleared; %>
     <details class="menu open-in statusmenu no-print">
-      <summary class="status-pill b-<%= payment.status %>"><%= payStatusLabel(payment.status) %> <span class="caret">▾</span></summary>
+      <summary class="status-pill <%= autoCleared ? 'b-cleared-auto' : ('b-' + payment.status) %>"
+               title="<%= autoCleared ? 'נפרע אוטומטית ע״י שיוך בהתאמת בנק' : (payment.status === 'cleared' ? 'נפרע — סימון ידני' : '') %>"><%= payStatusLabel(payment.status) %> <span class="caret">▾</span></summary>
       <div class="menu-panel" style="min-width:240px">
-        <div class="menu-cap">שינוי סטטוס הצ׳ק</div>
+        <div class="menu-cap">שינוי סטטוס הצ׳ק<% if (autoCleared) { %> · נפרע אוטומטית משיוך בנק<% } %></div>
         <% if (payment.status === 'issued') { %>
           <form method="post" action="/payments/<%= payment.id %>/clear" style="padding:8px 12px">
             <label class="lbl">תאריך פירעון (ריק = היום)</label>

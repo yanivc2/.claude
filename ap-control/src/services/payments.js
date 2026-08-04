@@ -192,8 +192,12 @@ export async function voidPayment(id, actor, reason = null, x = getExecutor()) {
 
 export async function getPaymentDetail(id, x = getExecutor()) {
   const payment = await x.one(
-    `SELECT p.*, ba.display_name AS bank_account_name
-       FROM payments p JOIN bank_accounts ba ON ba.id = p.bank_account_id
+    `SELECT p.*, ba.display_name AS bank_account_name,
+            CASE WHEN mt.matched_payment_id IS NOT NULL THEN 1 ELSE 0 END AS auto_cleared
+       FROM payments p
+       JOIN bank_accounts ba ON ba.id = p.bank_account_id
+       LEFT JOIN (SELECT DISTINCT matched_payment_id FROM bank_transactions WHERE matched_payment_id IS NOT NULL) mt
+              ON mt.matched_payment_id = p.id
       WHERE p.id = ?`,
     [id],
   );
@@ -261,11 +265,14 @@ export async function listPayments({ status = null, companyId = null, storeId = 
     else { where.push(`ba.company_id IN (${scope.map(() => '?').join(',')})`); params.push(...scope); }
   }
   const sql = `SELECT p.*, ba.display_name AS bank_account_name,
-                      c.name AS company_name, st.name AS store_name
+                      c.name AS company_name, st.name AS store_name,
+                      CASE WHEN mt.matched_payment_id IS NOT NULL THEN 1 ELSE 0 END AS auto_cleared
                  FROM payments p
                  JOIN bank_accounts ba ON ba.id = p.bank_account_id
                  JOIN companies c ON c.id = ba.company_id
                  JOIN stores st ON st.id = ba.store_id
+                 LEFT JOIN (SELECT DISTINCT matched_payment_id FROM bank_transactions WHERE matched_payment_id IS NOT NULL) mt
+                        ON mt.matched_payment_id = p.id
                 ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
                 ORDER BY p.id DESC`;
   return x.many(sql, params);
