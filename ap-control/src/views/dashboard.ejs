@@ -49,7 +49,7 @@
             <td><%= r.store_name %></td>
             <td class="mono"><%= r.invoice_number %></td>
             <td class="mono"><%= r.allocation_number || '—' %></td>
-            <td><%= r.invoice_date %></td>
+            <td><%= formatDate(r.invoice_date) %></td>
             <td class="right <%= r.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(r.total_amount) %></td>
             <td class="mono"><%= r.check_number || '—' %></td>
             <td>
@@ -74,7 +74,7 @@
             <td><%= paymentIdent(c) %></td>
             <td><%= c.supplier_name || '—' %></td>
             <td><%= c.bank_account_name %></td>
-            <td><%= c.payment_date %></td>
+            <td><%= formatDate(c.payment_date) %></td>
             <td class="right"><%= formatIls(c.amount) %></td>
             <td><span class="badge b-<%= c.status %>"><%= c.status === 'issued' ? 'בחוץ' : c.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span></td>
           </tr>

@@ -43,7 +43,7 @@
           <% } %>
         </td>
         <td><%= i.store_name %></td>
-        <td><%= i.invoice_date %></td>
+        <td><%= formatDate(i.invoice_date) %></td>
         <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
       </tr>
     <% }); %>

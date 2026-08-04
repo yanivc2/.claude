@@ -88,7 +88,7 @@
       </div>
     </div>
 
-    <div class="date">תאריך: <span class="box"><%= payment.payment_date %></span></div>
+    <div class="date">תאריך: <span class="box"><%= formatDate(payment.payment_date) %></span></div>
 
     <div class="amountbox">₪ <%= formatIls(payment.amount) %></div>
 

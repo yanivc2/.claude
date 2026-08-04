@@ -47,23 +47,23 @@
 <p class="muted no-print" style="margin:.2rem 0">לחיצה על כותרת עמודה ממיינת (א׳–ת׳ / גבוה–נמוך).</p>
 <table class="sortable">
   <thead>
-    <tr><th>#</th><th>אמצעי / מזהה</th><th>חברה / חנות</th><th>תאריך</th><th class="right">סכום</th><th>סטטוס</th><th class="no-print" data-nosort>פעולות</th></tr>
+    <tr><th>אמצעי / מזהה</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th data-nosort>סטטוס/פעולות</th></tr>
   </thead>
   <tbody>
     <% if (payments.length === 0) { %>
-      <tr><td colspan="7" class="muted">אין צ׳קים להצגה.</td></tr>
+      <tr><td colspan="5" class="muted">אין צ׳קים להצגה.</td></tr>
     <% } %>
     <% payments.forEach(function(p){ %>
       <tr onclick="location='/payments/<%= p.id %>'" style="cursor:pointer">
-        <td><%= p.id %></td>
         <td><%= paymentIdent(p) %></td>
-        <td><%= p.company_name %> · <%= p.store_name %></td>
-        <td><%= p.payment_date %></td>
+        <td><%= p.store_name %></td>
+        <td><%= formatDate(p.payment_date) %></td>
         <td class="right"><%= formatIls(p.amount) %></td>
-        <td><span class="badge b-<%= p.status %>"><%= p.status === 'issued' ? 'הונפק' : p.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span></td>
-        <td class="no-print" onclick="event.stopPropagation()">
+        <td onclick="event.stopPropagation()">
+          <span class="badge b-<%= p.status %>"><%= p.status === 'issued' ? 'הונפק' : p.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
+          <% if (p.status === 'cleared' && p.cleared_date) { %> <span class="muted" style="font-size:12px"><%= formatDate(p.cleared_date) %></span><% } %>
           <% if (p.status === 'issued') { %>
-            <div class="actions">
+            <div class="actions no-print" style="margin-top:5px">
               <form method="post" action="/payments/<%= p.id %>/clear" style="display:inline">
                 <button class="ok small" type="submit">סמן כנפרע</button>
               </form>
@@ -73,9 +73,7 @@
                 </form>
               <% } %>
             </div>
-          <% } else if (p.status === 'cleared') { %>
-            <span class="muted">נפרע <%= p.cleared_date || '' %></span>
-          <% } else { %>—<% } %>
+          <% } %>
         </td>
       </tr>
     <% }); %>
