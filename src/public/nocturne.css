@@ -326,6 +326,11 @@ textarea { min-height: 92px; resize: vertical; }
 .dp-day:hover { background: color-mix(in srgb, var(--color-accent) 16%, transparent); }
 .dp-day.dp-today { outline: 1px solid var(--color-accent); outline-offset: -1px; }
 .dp-day.dp-sel { background: var(--color-accent); color: #fff; }
+.dp-mgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.dp-mo { padding: 12px 4px; border-radius: 8px; cursor: pointer; background: transparent; border: 1px solid var(--color-line); color: var(--color-body); font: inherit; font-size: 13px; }
+.dp-mo:hover { background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.dp-mo.dp-sel { background: var(--color-accent); color: #fff; border-color: transparent; }
+.dp-mo.dp-today { outline: 1px solid var(--color-accent); outline-offset: -1px; }
 .dp-foot { display: flex; justify-content: space-between; margin-top: 8px; }
 .dp-foot button { background: transparent; border: 1px solid var(--color-line); border-radius: 8px; color: var(--color-body); padding: 6px 12px; cursor: pointer; font-size: 13px; }
 .dp-foot button:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }

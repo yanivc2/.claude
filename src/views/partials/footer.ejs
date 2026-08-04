@@ -72,42 +72,85 @@
     function toISO(y,m,d){ return y + '-' + pad(m+1) + '-' + pad(d); }
     function fmt(iso){ var p = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return p ? p[3]+'/'+p[2]+'/'+p[1] : ''; }
     function parse(iso){ var p = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return p ? {y:+p[1], m:+p[2]-1, d:+p[3]} : null; }
+    function isoOf(dt){ return toISO(dt.getFullYear(), dt.getMonth(), dt.getDate()); }
+    function weekBounds(y,m,d){ var dt = new Date(y,m,d); var sun = new Date(y,m,d - dt.getDay()); var sat = new Date(sun); sat.setDate(sun.getDate()+6); return { sun: sun, sat: sat }; }
+    function weekLabel(iso){ var p = parse(iso); if (!p) return ''; var w = weekBounds(p.y,p.m,p.d); return fmt(isoOf(w.sun)) + ' – ' + fmt(isoOf(w.sat)); }
+    function monthLabel(iso){ var p = parse(iso); return p ? MONTHS[p.m] + ' ' + p.y : ''; }
+    function label(iso, mode){ return mode === 'month' ? monthLabel(iso) : mode === 'week' ? weekLabel(iso) : fmt(iso); }
 
-    function makePicker(hidden, visible) {
+    // mode: 'day' (default) | 'week' (pick a whole Sun–Sat week) | 'month' (pick a whole month)
+    function makePicker(hidden, visible, mode, autosubmit) {
       var pop = document.createElement('div'); pop.className = 'dp-pop'; pop.hidden = true;
       var view;
-      function render() {
+      function commit(iso){ hidden.value = iso; visible.value = label(iso, mode); hidden.dispatchEvent(new Event('change', { bubbles: true }));
+        if (autosubmit && hidden.form) { hidden.form.requestSubmit ? hidden.form.requestSubmit() : hidden.form.submit(); } }
+      function renderDays() {
         var sel = parse(hidden.value), today = new Date();
-        var startDow = new Date(view.y, view.m, 1).getDay();
-        var days = new Date(view.y, view.m + 1, 0).getDate();
+        var selWeek = (mode === 'week' && sel) ? weekBounds(sel.y, sel.m, sel.d) : null;
+        var startDow = new Date(view.y, view.m, 1).getDay(), days = new Date(view.y, view.m + 1, 0).getDate();
         var h = '<div class="dp-head"><button type="button" class="dp-nav" data-nav="-1">‹</button>'
           + '<span class="dp-title">' + MONTHS[view.m] + ' ' + view.y + '</span>'
           + '<button type="button" class="dp-nav" data-nav="1">›</button></div><div class="dp-grid">';
         DOW.forEach(function(d){ h += '<div class="dp-dow">' + d + '</div>'; });
         for (var i = 0; i < startDow; i++) h += '<span></span>';
         for (var day = 1; day <= days; day++) {
-          var cls = 'dp-day';
-          if (sel && sel.y === view.y && sel.m === view.m && sel.d === day) cls += ' dp-sel';
+          var cls = 'dp-day', cur = new Date(view.y, view.m, day);
+          if (selWeek) { if (cur >= selWeek.sun && cur <= selWeek.sat) cls += ' dp-sel'; }
+          else if (sel && sel.y === view.y && sel.m === view.m && sel.d === day) cls += ' dp-sel';
           if (today.getFullYear() === view.y && today.getMonth() === view.m && today.getDate() === day) cls += ' dp-today';
           h += '<button type="button" class="' + cls + '" data-day="' + day + '">' + day + '</button>';
         }
-        h += '</div><div class="dp-foot"><button type="button" data-today="1">היום</button><button type="button" data-clear="1">נקה</button></div>';
+        h += '</div><div class="dp-foot">'
+          + (mode === 'week' ? '<button type="button" data-thisweek="1">השבוע</button>'
+             : '<button type="button" data-today="1">היום</button><button type="button" data-clear="1">נקה</button>')
+          + '</div>';
         pop.innerHTML = h;
       }
-      function set(iso){ hidden.value = iso; visible.value = fmt(iso); hidden.dispatchEvent(new Event('change', { bubbles: true })); }
+      function renderMonths() {
+        var sel = parse(hidden.value), today = new Date();
+        var h = '<div class="dp-head"><button type="button" class="dp-nav" data-nav="-12">‹</button>'
+          + '<span class="dp-title">' + view.y + '</span>'
+          + '<button type="button" class="dp-nav" data-nav="12">›</button></div><div class="dp-mgrid">';
+        for (var mo = 0; mo < 12; mo++) {
+          var cls = 'dp-mo';
+          if (sel && sel.y === view.y && sel.m === mo) cls += ' dp-sel';
+          if (today.getFullYear() === view.y && today.getMonth() === mo) cls += ' dp-today';
+          h += '<button type="button" class="' + cls + '" data-mo="' + mo + '">' + MONTHS[mo] + '</button>';
+        }
+        pop.innerHTML = h + '</div>';
+      }
+      function render(){ if (mode === 'month') renderMonths(); else renderDays(); }
       pop.addEventListener('click', function(e){
+        e.stopPropagation(); // keep the popover open — the outside-click handler must not fire
         var t = e.target;
-        if (t.dataset.nav) { view.m += (+t.dataset.nav); if (view.m < 0) { view.m = 11; view.y--; } if (view.m > 11) { view.m = 0; view.y++; } render(); }
-        else if (t.dataset.day) { set(toISO(view.y, view.m, +t.dataset.day)); pop.hidden = true; }
-        else if (t.dataset.today) { var d = new Date(); set(toISO(d.getFullYear(), d.getMonth(), d.getDate())); pop.hidden = true; }
-        else if (t.dataset.clear) { hidden.value = ''; visible.value = ''; pop.hidden = true; }
+        if (t.dataset.nav != null) {
+          var d = +t.dataset.nav;
+          if (mode === 'month') view.y += d / 12;
+          else { view.m += d; while (view.m < 0) { view.m += 12; view.y--; } while (view.m > 11) { view.m -= 12; view.y++; } }
+          render();
+        } else if (t.dataset.day) {
+          var day = +t.dataset.day;
+          if (mode === 'week') { var w = weekBounds(view.y, view.m, day); commit(isoOf(w.sun)); }
+          else commit(toISO(view.y, view.m, day));
+          pop.hidden = true;
+        } else if (t.dataset.mo != null && t.dataset.mo !== '') {
+          commit(toISO(view.y, +t.dataset.mo, 1)); pop.hidden = true;
+        } else if (t.dataset.today) {
+          var td = new Date(); commit(toISO(td.getFullYear(), td.getMonth(), td.getDate())); pop.hidden = true;
+        } else if (t.dataset.thisweek) {
+          var tw = new Date(), wb = weekBounds(tw.getFullYear(), tw.getMonth(), tw.getDate()); commit(isoOf(wb.sun)); pop.hidden = true;
+        } else if (t.dataset.clear) {
+          hidden.value = ''; visible.value = ''; pop.hidden = true;
+        }
       });
-      return { pop: pop, open: function(){ var s = parse(hidden.value) || (function(){ var t = new Date(); return { y:t.getFullYear(), m:t.getMonth() }; })(); view = { y:s.y, m:s.m }; render(); pop.hidden = false; }, el: pop };
+      return { el: pop, open: function(){ var s = parse(hidden.value) || (function(){ var t = new Date(); return { y:t.getFullYear(), m:t.getMonth() }; })(); view = { y:s.y, m:s.m }; render(); pop.hidden = false; } };
     }
 
     function enhance(input) {
       if (input.dataset.dpDone) return; input.dataset.dpDone = '1';
       var name = input.getAttribute('name'), iso = input.value, req = input.required;
+      var mode = input.getAttribute('data-dp-mode') || 'day';
+      var autosubmit = input.getAttribute('data-dp-submit') === '1';
       var wrap = document.createElement('span'); wrap.className = 'dp-wrap';
       if (req) wrap.dataset.req = '1';
       input.parentNode.insertBefore(wrap, input); wrap.appendChild(input);
@@ -115,9 +158,9 @@
       wrap.appendChild(hidden);
       input.removeAttribute('name'); input.required = false; input.type = 'text'; input.readOnly = true;
       input.setAttribute('inputmode', 'none'); input.autocomplete = 'off';
-      if (!input.placeholder) input.placeholder = 'בחר תאריך';
-      input.value = iso ? fmt(iso) : '';
-      var dp = makePicker(hidden, input); wrap.appendChild(dp.el);
+      if (!input.placeholder) input.placeholder = mode === 'month' ? 'בחר חודש' : mode === 'week' ? 'בחר שבוע' : 'בחר תאריך';
+      input.value = iso ? label(iso, mode) : '';
+      var dp = makePicker(hidden, input, mode, autosubmit); wrap.appendChild(dp.el);
       function toggle(e){ e.preventDefault(); input.blur();
         document.querySelectorAll('.dp-pop').forEach(function(p){ if (p !== dp.el) p.hidden = true; });
         if (dp.el.hidden) dp.open(); else dp.el.hidden = true; }
