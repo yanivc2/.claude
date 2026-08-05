@@ -38,21 +38,8 @@
 <% } %>
 
 <% if (currentUser.role === 'owner') { %>
-<!-- כפתורי פעולה עגולים (בעלים) -->
-<div class="owner-dials">
-  <button type="button" class="dial" onclick="document.getElementById('dlg-db').showModal()">
-    <span class="dial-ic">🗄️</span><span class="dial-lbl">עדכון מסד נתונים</span>
-  </button>
-  <button type="button" class="dial" onclick="document.getElementById('dlg-backup').showModal()">
-    <span class="dial-ic">⬇</span><span class="dial-lbl">גיבוי מלא</span>
-  </button>
-  <button type="button" class="dial danger" onclick="document.getElementById('dlg-reset').showModal()">
-    <span class="dial-ic">⚠</span><span class="dial-lbl">איפוס התוכנה — התחל מחדש</span>
-  </button>
-  <button type="button" class="dial danger" onclick="document.getElementById('dlg-restore').showModal()">
-    <span class="dial-ic">♻</span><span class="dial-lbl">שחזור מגיבוי</span>
-  </button>
-</div>
+<!-- פעולות הבעלים (עדכון DB / גיבוי / איפוס / שחזור) מופיעות בסרגל הצד מתחת ל"התנתק";
+     כאן נשארים רק חלונות הפעולה (dialogs) שהכפתורים פותחים. -->
 
 <dialog id="dlg-db" class="ndialog">
   <form method="post" action="/settings/db-upgrade" class="stack">
