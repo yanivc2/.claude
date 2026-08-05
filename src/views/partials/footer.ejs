@@ -5,13 +5,20 @@
   <script>
   // Close any open floating menu (<details class="menu">) when clicking outside it or pressing Esc.
   (function () {
+    var deskMq = window.matchMedia('(min-width: 1000px)');
+    // On desktop the .navmenu is a fixed sidebar (always open) — never auto-close it. Other
+    // floating menus (store pickers) still close normally.
+    function closables() {
+      return document.querySelectorAll(deskMq.matches ? 'details.menu[open]:not(.navmenu)' : 'details.menu[open]');
+    }
     document.addEventListener('click', function (e) {
-      document.querySelectorAll('details.menu[open]').forEach(function (d) {
-        if (!d.contains(e.target)) d.removeAttribute('open');
-      });
+      if (document.querySelector('dialog[open]')) return; // a modal is open — leave menus alone
+      closables().forEach(function (d) { if (!d.contains(e.target)) d.removeAttribute('open'); });
     });
     document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') document.querySelectorAll('details.menu[open]').forEach(function (d) { d.removeAttribute('open'); });
+      if (e.key !== 'Escape') return;
+      if (document.querySelector('dialog[open]')) return; // let the dialog swallow the Escape
+      closables().forEach(function (d) { d.removeAttribute('open'); });
     });
   })();
   </script>

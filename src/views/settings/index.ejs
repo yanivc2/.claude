@@ -41,7 +41,7 @@
 <!-- פעולות הבעלים (עדכון DB / גיבוי / איפוס / שחזור) מופיעות בסרגל הצד מתחת ל"התנתק";
      כאן נשארים רק חלונות הפעולה (dialogs) שהכפתורים פותחים. -->
 
-<dialog id="dlg-db" class="ndialog">
+<dialog id="dlg-db" class="ndialog" onclick="event.stopPropagation()">
   <form method="post" action="/settings/db-upgrade" class="stack">
     <h3 style="margin:0">עדכון מסד נתונים</h3>
     <p class="muted" style="margin:.2rem 0">מוסיף עמודות/טבלאות חדשות שנדרשות אחרי עדכון גרסה (בטוח, לא מוחק נתונים). הרץ פעם אחת אחרי כל פריסה חדשה.</p>
@@ -52,7 +52,7 @@
   </form>
 </dialog>
 
-<dialog id="dlg-backup" class="ndialog">
+<dialog id="dlg-backup" class="ndialog" onclick="event.stopPropagation()">
   <div class="stack">
     <h3 style="margin:0">גיבוי מלא</h3>
     <p class="muted" style="margin:.2rem 0">הורדת עותק מלא של כל הנתונים (JSON) — שמור אותו במקום שבשליטתך (Google Drive / דיסק). מומלץ אחת לשבוע. גיבוי אוטומטי שבועי רץ בנפרד (pg_dump) ושומר עותק מלא כארכיון.</p>
@@ -63,7 +63,7 @@
   </div>
 </dialog>
 
-<dialog id="dlg-reset" class="ndialog">
+<dialog id="dlg-reset" class="ndialog" onclick="event.stopPropagation()">
   <form method="post" action="/settings/reset-data" class="stack" onsubmit="return apReset(event)">
     <h3 style="margin:0;color:var(--color-bad)">אזור מסוכן — התחל מחדש</h3>
     <p class="muted" style="margin:.2rem 0">
@@ -82,7 +82,7 @@
   </form>
 </dialog>
 
-<dialog id="dlg-restore" class="ndialog">
+<dialog id="dlg-restore" class="ndialog" onclick="event.stopPropagation()">
   <form method="post" action="/settings/restore" enctype="multipart/form-data" class="stack" onsubmit="return confirm('לשחזר מהגיבוי? כל הנתונים הנוכחיים יוחלפו בתוכן הקובץ. פעולה בלתי הפיכה.')">
     <h3 style="margin:0;color:var(--color-bad)">שחזור מגיבוי</h3>
     <p class="muted" style="margin:.2rem 0">טוען קובץ גיבוי (JSON) ו<strong>מחליף בו את כל הנתונים הקיימים</strong>. ⚠️ בלתי הפיך — כל הנתונים הנוכחיים יימחקו ויוחלפו.</p>
