@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { freshDb, owner, secretary, firstStore, accountForStore } from './helpers.js';
 import {
-  createZReport, replaceExpenses, listExpenses,
+  createZReport, updateZReport, getZReport, replaceExpenses, listExpenses,
   unmatchedCashExpenses, zSequenceStatus,
 } from '../src/services/zreports.js';
-import { createDeposit, listDeposits } from '../src/services/deposits.js';
+import { createDeposit, listDeposits, upsertDepositForZ, depositForZ } from '../src/services/deposits.js';
 import { reconcileDeposits } from '../src/services/reconciliation.js';
 import { importTransactions } from '../src/services/bankTransactions.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
@@ -89,6 +89,39 @@ test('reconcileDeposits matches by bag=reference and records יתרה/חוסר',
 
   // Running again does not re-match the same deposit/txn.
   assert.equal((await reconcileDeposits(acct.id, ow, db)).matched, 0);
+});
+
+test('updateZReport edits fields, recomputes drawer_total and stamps updated_at', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  const z = await createZReport({ storeId: store.id, zNumber: '500', zDate: '2026-08-05', dailyTotal: 100000, drawerCash: 100000 }, ow, db);
+  assert.equal(z.updated_at, null);
+
+  await updateZReport(z.id, {
+    storeId: store.id, zNumber: '500', zDate: '2026-08-05', dailyTotal: 120000,
+    drawerCash: 100000, drawerCredit: 50000,
+  }, ow, db);
+
+  const after = await getZReport(z.id, db);
+  assert.equal(after.daily_total, 120000);
+  assert.equal(after.drawer_total, 150000); // 100000 + 50000
+  assert.ok(after.updated_at); // stamped
+});
+
+test('upsertDepositForZ updates the linked deposit in place (edit form)', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  const z = await createZReport({ storeId: store.id, zNumber: '501', zDate: '2026-08-05', drawerCash: 10000 }, ow, db);
+  await createDeposit({ storeId: store.id, zReportId: z.id, depositDate: '2026-08-05', bagNumber: 'B1', amount: 10000 }, ow, db);
+
+  await upsertDepositForZ(z.id, { storeId: store.id, depositDate: '2026-08-05', bagNumber: 'B1', amount: 22200, deposited: true }, ow, db);
+  const d = await depositForZ(z.id, db);
+  assert.equal(d.amount, 22200);
+  assert.equal(d.deposited, 1);
+  // still exactly one deposit for this Z (updated, not duplicated)
+  assert.equal((await listDeposits({ scope: null }, db)).filter((r) => r.z_report_id === z.id).length, 1);
 });
 
 test('zSequenceStatus reports a gap with the Z before and after it', async () => {

@@ -232,7 +232,8 @@ CREATE TABLE IF NOT EXISTS z_reports (
   reconcile_notes  TEXT,
   image_path       TEXT,                         -- scan of the printed Z slip
   created_by       INTEGER NOT NULL REFERENCES users(id),
-  created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+  created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  updated_at       TEXT                            -- last edit (date+time); NULL until first edited
 );
 CREATE INDEX IF NOT EXISTS ix_zreports_store_date ON z_reports(store_id, z_date);
 

@@ -52,6 +52,36 @@ export async function getZReport(id, x = getExecutor()) {
   return row;
 }
 
+/**
+ * Update a Z report's core + drawer fields (edit page). Recomputes drawer_total, stamps
+ * updated_at (UTC 'YYYY-MM-DD HH:MM:SS', matching created_at). Same validation as create.
+ */
+export async function updateZReport(id, input, actor, x = getExecutor()) {
+  await getZReport(id, x);
+  const {
+    storeId, zNumber, zDate, dailyTotal = 0,
+    drawerCash = 0, drawerCheck = 0, drawerCredit = 0, drawerHakafa = 0, drawerVouchers = 0,
+  } = input;
+  const store = await x.one('SELECT id FROM stores WHERE id = ?', [storeId]);
+  if (!store) throw new NotFoundError(`חנות ${storeId} לא נמצאה`);
+  if (!zNumber || !String(zNumber).trim()) throw new RuleError('VALIDATION', 'מספר Z חובה');
+  if (!zDate) throw new RuleError('VALIDATION', 'תאריך Z חובה');
+  const zNum = String(zNumber).trim();
+  const dup = await x.one('SELECT id FROM z_reports WHERE store_id = ? AND z_number = ? AND id <> ?', [storeId, zNum, id]);
+  if (dup) throw new RuleError('VALIDATION', `דוח Z מספר ${zNum} כבר קיים לחנות זו`);
+  const drawerTotal = drawerCash + drawerCheck + drawerCredit + drawerHakafa + drawerVouchers;
+  if (drawerTotal <= 0) throw new RuleError('VALIDATION', 'סה"כ מגירה חובה — הזן לפחות רכיב מגירה אחד.');
+  const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  await x.run(
+    `UPDATE z_reports SET store_id = ?, z_number = ?, z_date = ?, daily_total = ?, drawer_cash = ?,
+       drawer_check = ?, drawer_credit = ?, drawer_hakafa = ?, drawer_vouchers = ?, drawer_total = ?, updated_at = ?
+     WHERE id = ?`,
+    [storeId, zNum, zDate, dailyTotal, drawerCash, drawerCheck, drawerCredit, drawerHakafa, drawerVouchers, drawerTotal, now, id],
+  );
+  await logAction({ userId: actor.id, action: 'zreport.update', entityType: 'z_report', entityId: id, details: { zNumber: zNum } }, x);
+  return getZReport(id, x);
+}
+
 export async function deleteZReport(id, actor, x = getExecutor()) {
   await getZReport(id, x);
   await x.run('DELETE FROM z_reports WHERE id = ?', [id]);
@@ -131,12 +161,12 @@ export async function zReconciliationStatus(zReportId, x = getExecutor()) {
 
 // Credit-card brands for the credit-card report (§ 2d). Each maps to a cc_<key> column.
 export const CC_BRANDS = [
-  { key: 'kal', label: 'כאל' },
+  { key: 'kal', label: 'כ.א.ל' },
   { key: 'isracard', label: 'ישראכרט' },
   { key: 'diners', label: 'דיינרס' },
-  { key: 'amex', label: 'אמקס' },
+  { key: 'amex', label: 'אמ. אקס' },
+  { key: 'tourist', label: 'כרטיס תייר' },
   { key: 'general', label: 'כללי' },
-  { key: 'tourist', label: 'תייר' },
 ];
 
 /**

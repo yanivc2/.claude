@@ -42,6 +42,31 @@ export async function listDeposits({ storeId = null, scope = null, limit = 30 } 
   return x.many(sql, params);
 }
 
+/**
+ * Create-or-update the deposit declaration linked to a Z report (used by the Z edit form).
+ * With nothing declared (no bag and no amount) it's a no-op. Preserves any bank-reconciliation
+ * fields on an existing row (only bag/amount/deposited/date are touched).
+ */
+export async function upsertDepositForZ(zReportId, { storeId, depositDate, bagNumber = null, amount = 0, deposited = false }, actor, x = getExecutor()) {
+  const bag = (bagNumber && String(bagNumber).trim()) || null;
+  const existing = await x.one('SELECT id FROM deposits WHERE z_report_id = ? ORDER BY id LIMIT 1', [zReportId]);
+  if (!bag && !amount) return existing ? existing.id : null; // nothing declared
+  if (existing) {
+    await x.run(
+      'UPDATE deposits SET store_id = ?, deposit_date = ?, bag_number = ?, amount = ?, deposited = ? WHERE id = ?',
+      [Number(storeId), depositDate, bag, amount, deposited ? 1 : 0, existing.id],
+    );
+    await logAction({ userId: actor.id, action: 'deposit.update', entityType: 'deposit', entityId: existing.id, details: { amount } }, x);
+    return existing.id;
+  }
+  return createDeposit({ storeId, zReportId, depositDate, bagNumber: bag, amount, deposited }, actor, x);
+}
+
+/** The (first) deposit declaration linked to a Z report, or null. */
+export async function depositForZ(zReportId, x = getExecutor()) {
+  return x.one('SELECT * FROM deposits WHERE z_report_id = ? ORDER BY id LIMIT 1', [zReportId]);
+}
+
 /** Total declared deposit (agorot) linked to a given Z report. */
 export async function depositTotalForZ(zReportId, x = getExecutor()) {
   const row = await x.one('SELECT COALESCE(SUM(amount),0) AS s FROM deposits WHERE z_report_id = ?', [zReportId]);

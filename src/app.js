@@ -78,6 +78,12 @@ export function createApp() {
       const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d));
       return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : String(d);
     };
+    // 'YYYY-MM-DD HH:MM:SS' (or ISO) -> 'DD/MM/YY HH:MM'. Leaves non-timestamps untouched.
+    res.locals.formatDateTime = (d) => {
+      if (!d) return '';
+      const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(d));
+      return m ? `${m[3]}/${m[2]}/${m[1].slice(2)} ${m[4]}:${m[5]}` : res.locals.formatDate(d);
+    };
     // Phone links: a raw local number ('050-2288123') -> tel: and a wa.me deep link. WhatsApp
     // needs the international form, so a leading 0 becomes Israel's 972 country code.
     res.locals.telLink = (p) => 'tel:' + String(p || '').replace(/[^\d+]/g, '');

@@ -1,261 +1,33 @@
 <%- include('../partials/header') %>
 <div class="toolbar">
-  <h1>דוח Z <span class="mono"><%= zr.z_number %></span> · <%= store.store_name %></h1>
-  <a href="/reports/profitability?zstore=<%= zr.store_id %>" class="btn secondary">חזרה</a>
+  <h1>עריכת דוח Z <span class="mono"><%= zr.z_number %></span> · <%= store.store_name %></h1>
+  <a href="/reports/zreports" class="btn btn-secondary">← חזרה לדוחות Z</a>
 </div>
 
-<% if (typeof notice !== 'undefined' && notice) { %>
-  <div class="alert alert-info"><%= notice %></div>
-<% } %>
-
-<% if (zStatus.matched) { %>
-  <div class="alert alert-ok">✓ הדוח תואם — כל ההתאמות סגורות.</div>
-<% } else { %>
-  <div class="alert alert-warn">
-    <strong>⚠ Z לא תואם</strong>
-    <ul style="margin:.4rem 0 0; padding-inline-start:1.2rem">
-      <% zStatus.issues.forEach(function(i){ %>
-        <li><%= i.label %>: <%= formatIls(i.diff) %></li>
-      <% }); %>
-    </ul>
-  </div>
-<% } %>
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
 <div class="card">
-  <div class="row">
-    <div><span class="muted">חנות / חברה</span><br><%= store.store_name %> · <%= store.company_name %></div>
-    <div><span class="muted">תאריך</span><br><%= formatDate(zr.z_date) %></div>
-    <div><span class="muted">יומי Z</span><br><strong><%= formatIls(zr.daily_total) %></strong></div>
-  </div>
+  <p class="muted" style="margin:0">
+    נוצר: <strong><%= formatDateTime(zr.created_at) %></strong>
+    <% if (zr.updated_at) { %> · עודכן לאחרונה: <strong><%= formatDateTime(zr.updated_at) %></strong><% } else { %> · טרם נערך<% } %>
+  </p>
 </div>
 
-<div class="row">
-  <div style="flex:1; min-width:280px">
-    <div class="card">
-      <h2>דוח מגירה</h2>
-      <table>
-        <tbody>
-          <tr><td>מזומן</td><td class="right"><%= formatIls(zr.drawer_cash) %></td></tr>
-          <tr><td title="תשלום חוב באמצעות צ'ק">צ'ק</td><td class="right"><%= formatIls(zr.drawer_check) %></td></tr>
-          <tr><td>אשראי מגירה</td><td class="right"><%= formatIls(zr.drawer_credit) %></td></tr>
-          <tr><td>הקפה</td><td class="right"><%= formatIls(zr.drawer_hakafa) %></td></tr>
-          <tr><td title="זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה">תווי קניה</td><td class="right"><%= formatIls(zr.drawer_vouchers) %></td></tr>
-        </tbody>
-        <tfoot><tr><th>סה"כ מגירה</th><th class="right"><%= formatIls(zr.drawer_total) %></th></tr></tfoot>
-      </table>
-    </div>
-  </div>
-
-  <div style="flex:2; min-width:360px">
-    <div class="card">
-      <div class="toolbar">
-        <h2 style="margin:0">תמונת הדוח</h2>
-        <% if (zr.image_path) { %><a href="/reports/zreports/<%= zr.id %>/image" target="_blank" class="btn btn-secondary btn-sm">צפה בתמונה</a><% } %>
-      </div>
-      <p class="muted">סריקה/צילום של פתק ה-Z המודפס.</p>
-      <form method="post" action="/reports/zreports/<%= zr.id %>/image" enctype="multipart/form-data" class="stack">
-        <input type="file" name="image" accept="image/*,application/pdf" required />
-        <div style="margin-top:.6rem"><button type="submit">📷 העלה תמונת דוח</button></div>
-      </form>
-    </div>
-  </div>
+<div class="card no-print">
+  <h2>עריכת דוח</h2>
+  <%- include('_zform', { action: '/reports/zreports/' + zr.id, submitLabel: 'שמור שינויים', storeOptions: storeOptions, invoiceOptions: invoiceOptions, ccBrands: ccBrands, zr: zr, dep: dep, expenses: expenses }) %>
 </div>
 
-<div class="card">
+<div class="card no-print">
   <div class="toolbar">
-    <h2 style="margin:0">דוח כרטיסי אשראי</h2>
-    <strong>סה"כ אשראי: <span id="cc_total_disp"><%= formatIls(zr.cc_total || 0) %></span></strong>
+    <h2 style="margin:0">תמונת הדוח</h2>
+    <% if (zr.image_path) { %><a href="/reports/zreports/<%= zr.id %>/image" target="_blank" class="btn btn-secondary btn-sm">צפה בתמונה</a><% } %>
   </div>
-  <form method="post" action="/reports/zreports/<%= zr.id %>/creditcards" class="stack">
-    <div class="row">
-      <% ccBrands.forEach(function(b){ var val = zr['cc_' + b.key]; %>
-        <div>
-          <label><%= b.label %></label>
-          <input name="cc_<%= b.key %>" class="cc" inputmode="decimal" value="<%= val ? (val/100).toFixed(2) : '' %>" style="width:120px" />
-        </div>
-      <% }); %>
-    </div>
-    <div style="margin-top:.6rem"><button type="submit">שמור דוח אשראי</button></div>
+  <p class="muted">סריקה/צילום של פתק ה-Z המודפס.</p>
+  <form method="post" action="/reports/zreports/<%= zr.id %>/image" enctype="multipart/form-data" class="stack">
+    <input type="file" name="image" accept="image/*,application/pdf" required />
+    <div style="margin-top:.6rem"><button type="submit">📷 העלה תמונת דוח</button></div>
   </form>
-  <div style="margin-top:.6rem">
-    <span class="muted">אשראי מגירה: <%= formatIls(ccRecon.drawerCredit) %> · סה"כ מותגי אשראי: <%= formatIls(ccRecon.ccTotal) %></span><br>
-    <% if (ccRecon.debtOnCredit > 0) { %>
-      <strong style="color:var(--ok)">שולם בחוב באשראי: <%= formatIls(ccRecon.debtOnCredit) %></strong>
-      <span class="muted">(אשראי מגירה גבוה מסכום המותגים — צפוי כשמשלמים חוב באשראי)</span>
-    <% } else if (ccRecon.debtOnCredit === 0) { %>
-      <strong style="color:var(--ok)">✓ תואם לאשראי מגירה</strong>
-    <% } else { %>
-      <strong style="color:var(--bad)">סכום המותגים גבוה מאשראי מגירה ב-<%= formatIls(-ccRecon.debtOnCredit) %></strong>
-    <% } %>
-  </div>
 </div>
-
-<div class="card" id="cash-expenses">
-  <div class="toolbar">
-    <div style="display:flex;align-items:center;gap:.6rem">
-      <h2 style="margin:0">הוצאות במזומן</h2>
-      <button type="button" class="round-btn" title="פירוט הוצאות" onclick="var p=document.getElementById('cx-panel');p.hidden=!p.hidden;">🧾</button>
-    </div>
-    <strong>סה"כ הוצאות: <span id="cx-total"><%= formatIls(expensesTotal) %></span></strong>
-  </div>
-  <%
-    // Invoice-picker options, built once; reused for existing rows (with `selected`) and the auto-add JS.
-    function cxEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-    var cxInvList = (typeof invoiceOptions !== 'undefined' ? invoiceOptions : []);
-    function cxInvOptsFor(sel){
-      var h = '<option value="">— ללא חשבונית —</option>';
-      cxInvList.forEach(function(iv){
-        h += '<option value="' + iv.id + '"' + (Number(sel) === iv.id ? ' selected' : '') + '>#' + iv.id + ' · ' + cxEsc(iv.supplier_name) + ' · ' + cxEsc(iv.invoice_number) + ' · ' + formatIls(iv.total_amount) + '</option>';
-      });
-      return h;
-    }
-  %>
-  <div id="cx-panel" <%= expenses.length ? '' : 'hidden' %>>
-    <form method="post" action="/reports/zreports/<%= zr.id %>/expenses-bulk">
-      <table>
-        <thead><tr><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום (₪)</th><th>חשבונית</th><th></th></tr></thead>
-        <tbody id="cx-body">
-          <% expenses.forEach(function(e){ %>
-            <tr>
-              <td><input type="date" name="expense_date" value="<%= e.expense_date || '' %>" /></td>
-              <td><input name="payer_name" value="<%= e.payer_name || '' %>" /></td>
-              <td><input name="purpose" value="<%= e.purpose || '' %>" /></td>
-              <td><input name="amount" class="cx-amt" inputmode="decimal" value="<%= e.amount ? (e.amount/100).toFixed(2) : '' %>" /></td>
-              <td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px"><%- cxInvOptsFor(e.invoice_id) %></select></td>
-              <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
-            </tr>
-          <% }); %>
-          <tr>
-            <td><input type="date" name="expense_date" /></td>
-            <td><input name="payer_name" /></td>
-            <td><input name="purpose" /></td>
-            <td><input name="amount" class="cx-amt" inputmode="decimal" /></td>
-            <td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px"><%- cxInvOptsFor(null) %></select></td>
-            <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
-          </tr>
-        </tbody>
-      </table>
-      <div style="margin-top:.6rem"><button type="submit">סכם</button></div>
-    </form>
-  </div>
-</div>
-
-<div class="row">
-  <div style="flex:1; min-width:300px">
-    <div class="card">
-      <h2>דוח הפקדות</h2>
-      <form method="post" action="/reports/zreports/<%= zr.id %>/deposit" class="stack">
-        <table>
-          <thead><tr><th>שטר</th><th>כמות</th><th class="right">סכום</th></tr></thead>
-          <tbody>
-            <% denoms.forEach(function(d){ var c = depositCounts[d.value] || 0; %>
-              <tr>
-                <td>₪<%= d.value %></td>
-                <td><input name="count_<%= d.key %>" class="dep" data-val="<%= d.value %>" inputmode="numeric" value="<%= c || '' %>" style="width:90px" /></td>
-                <td class="right dep-line"><%= formatIls(Math.round(d.value*100)*c) %></td>
-              </tr>
-            <% }); %>
-          </tbody>
-          <tfoot><tr><th>סכום ההפקדה</th><th></th><th class="right" id="dep_total"><%= formatIls(zr.deposit_amount || 0) %></th></tr></tfoot>
-        </table>
-        <label>מספר שקית</label>
-        <input name="deposit_bag" value="<%= zr.deposit_bag || '' %>" />
-        <div style="margin-top:.6rem"><button type="submit">שמור הפקדה</button></div>
-      </form>
-    </div>
-  </div>
-
-  <div style="flex:1; min-width:300px">
-    <div class="card">
-      <h2>התאמת מזומן</h2>
-      <p class="muted">מזומן מגירה = הפקדה + הוצאות</p>
-      <table>
-        <tbody>
-          <tr><td>מזומן מגירה</td><td class="right"><%= formatIls(cashRecon.cash) %></td></tr>
-          <tr><td>הפקדה</td><td class="right"><%= formatIls(cashRecon.deposit) %></td></tr>
-          <tr><td>הוצאות</td><td class="right"><%= formatIls(cashRecon.expenses) %></td></tr>
-        </tbody>
-        <tfoot>
-          <tr>
-            <th><%= cashRecon.diff === 0 ? 'התאמה' : (cashRecon.diff < 0 ? 'חוסר' : 'יתרה') %></th>
-            <th class="right" style="color:<%= cashRecon.diff === 0 ? 'var(--ok)' : (cashRecon.diff < 0 ? 'var(--bad)' : 'var(--ok)') %>">
-              <%= cashRecon.diff === 0 ? '✓' : formatIls(cashRecon.diff) %>
-            </th>
-          </tr>
-        </tfoot>
-      </table>
-      <% if (cashRecon.diff !== 0) { %>
-        <p class="muted">פער בין מזומן המגירה לסכום ההפקדה + ההוצאות. התראת טלגרם נשלחת ליצירת/עדכון דוח עם פער (אם טלגרם מוגדר).</p>
-      <% } %>
-      <a class="btn btn-secondary" style="margin-top:.4rem" href="https://wa.me/?text=<%- encodeURIComponent(waText) %>" target="_blank" rel="noopener">📲 שלח סיכום בוואטסאפ</a>
-    </div>
-  </div>
-</div>
-
-<script>
-// Deposit calculator: live line totals + deposit sum.
-(function(){
-  var depForm = document.querySelector('form[action="/reports/zreports/<%= zr.id %>/deposit"]');
-  if (!depForm) return;
-  function fmt(agorot){ return '₪' + (agorot/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-  function recalc(){
-    var total = 0;
-    depForm.querySelectorAll('input.dep').forEach(function(inp){
-      var val = parseFloat(inp.dataset.val); var c = parseInt(inp.value,10)||0;
-      var line = Math.round(val*100)*c; total += line;
-      inp.closest('tr').querySelector('.dep-line').textContent = fmt(line);
-    });
-    document.getElementById('dep_total').textContent = fmt(total);
-  }
-  depForm.querySelectorAll('input.dep').forEach(function(i){ i.addEventListener('input', recalc); });
-})();
-// Credit-card report: live brand total.
-(function(){
-  var ccForm = document.querySelector('form[action="/reports/zreports/<%= zr.id %>/creditcards"]');
-  if (!ccForm) return;
-  function fmt(n){ return '₪' + n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); }
-  function recalc(){
-    var total = 0;
-    ccForm.querySelectorAll('input.cc').forEach(function(i){ var v = parseFloat(i.value); if(!isNaN(v)) total += v; });
-    document.getElementById('cc_total_disp').textContent = fmt(total);
-  }
-  ccForm.querySelectorAll('input.cc').forEach(function(i){ i.addEventListener('input', recalc); });
-})();
-// Cash-expenses table: live total + auto-add a fresh row when the last row is filled.
-(function(){
-  var body = document.getElementById('cx-body');
-  if (!body) return;
-  function recalc(){
-    var t = 0;
-    body.querySelectorAll('.cx-amt').forEach(function(i){ var v = parseFloat(i.value); if(!isNaN(v)) t += v; });
-    var el = document.getElementById('cx-total'); if (el) el.textContent = '₪' + t.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-  }
-  window.cxDel = function(btn){
-    var rows = body.querySelectorAll('tr');
-    if (rows.length > 1) btn.closest('tr').remove();
-    else btn.closest('tr').querySelectorAll('input').forEach(function(i){ i.value=''; });
-    recalc();
-  };
-  var CX_INV_OPTS = <%- JSON.stringify(cxInvOptsFor(null)) %>;
-  function addRow(){
-    var tr = document.createElement('tr');
-    tr.innerHTML = '<td><input type="date" name="expense_date"></td>'
-      + '<td><input name="payer_name"></td>'
-      + '<td><input name="purpose"></td>'
-      + '<td><input name="amount" class="cx-amt" inputmode="decimal"></td>'
-      + '<td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px">' + CX_INV_OPTS + '</select></td>'
-      + '<td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>';
-    body.appendChild(tr);
-  }
-  body.addEventListener('input', function(e){
-    recalc();
-    var rows = body.querySelectorAll('tr');
-    var last = rows[rows.length - 1];
-    if (last.contains(e.target)) {
-      var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
-      if (filled) addRow();
-    }
-  });
-})();
-</script>
 <%- include('../partials/footer') %>

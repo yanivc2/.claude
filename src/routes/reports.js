@@ -7,14 +7,14 @@ import {
   profitability,
 } from '../services/reports.js';
 import {
-  createZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
+  createZReport, updateZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
   addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
-  replaceExpenses, setZReportImage, previousZReport,
+  replaceExpenses, setZReportImage,
   setDeposit, cashReconciliation, DENOMS,
   setCreditCards, ccReconciliation, CC_BRANDS,
   zReconciliationStatus,
 } from '../services/zreports.js';
-import { createDeposit, listDeposits, setDeposited, deleteDeposit, depositTotalForZ } from '../services/deposits.js';
+import { createDeposit, listDeposits, setDeposited, deleteDeposit, depositTotalForZ, upsertDepositForZ, depositForZ } from '../services/deposits.js';
 import { listInvoices } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
@@ -46,6 +46,34 @@ function ils(agorot) {
   return `₪${fromAgorot(agorot)}`;
 }
 
+// Parse the per-brand credit-card amounts from the Z form. Returns { amounts, total } (agorot).
+function parseCc(b) {
+  const amounts = {};
+  let total = 0;
+  for (const brand of CC_BRANDS) {
+    const a = toAgorot(b[`cc_${brand.key}`] || '0');
+    amounts[brand.key] = a;
+    total += a;
+  }
+  return { amounts, total };
+}
+
+// Parse the itemized cash-expense rows (arrays) from the Z form into replaceExpenses() shape.
+function parseExpenseRows(b) {
+  const dates = [].concat(b.expense_date || []);
+  const names = [].concat(b.payer_name || []);
+  const purposes = [].concat(b.purpose || []);
+  const amounts = [].concat(b.amount || []);
+  const invoiceIds = [].concat(b.expense_invoice_id || []);
+  return amounts.map((a, i) => ({
+    expenseDate: dates[i] || null,
+    payerName: names[i],
+    purpose: purposes[i],
+    amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
+    invoiceId: invoiceIds[i] || null,
+  }));
+}
+
 // Recent invoices offered as match targets for a cash expense (מס' · ספק · סכום). Scoped, capped.
 async function invoicePickOptions(scope) {
   const rows = await listInvoices({ scope });
@@ -70,18 +98,6 @@ async function alertIfUnmatched(req, id) {
   }
 }
 
-// WhatsApp summary text for the cash discrepancy (the diff between drawer cash and
-// deposit+expenses), referencing the previous Z's date+time as the period start.
-function zWhatsappText(zr, cashRecon, prevZ) {
-  const diff = cashRecon.diff;
-  const head = `Z מס ${zr.z_number} מתאריך ${zr.z_date}`;
-  const body = diff === 0 ? 'מאוזן ✓' : `${diff < 0 ? 'חוסר' : 'פלוס'} ע"ס ₪${fromAgorot(Math.abs(diff))}`;
-  const prev = prevZ
-    ? `\nמתאריך Z קודם: ${prevZ.z_date}${prevZ.created_at ? ' ' + String(prevZ.created_at).slice(11, 16) : ''} (Z מס ${prevZ.z_number})`
-    : '';
-  return `${head}\n${body}${prev}`;
-}
-
 // WhatsApp status for a Z in the "רשומות Z אחרונות" list, per the owner's rule:
 // base = סה"כ מגירה + הוצאות במזומן, compared to סכום ההפקדה (הצהרה על הפקדה).
 // equal → תואם; base < deposit → חוסר <diff>; base > deposit → יתרה <diff>.
@@ -98,24 +114,15 @@ async function renderZReport(req, res, id, extra = {}) {
     'SELECT st.name AS store_name, c.name AS company_name FROM stores st JOIN companies c ON c.id = st.company_id WHERE st.id = ?',
     [zr.store_id],
   );
-  const cashRecon = await cashReconciliation(id);
-  const prevZ = await previousZReport(zr);
   res.render('reports/zreport', {
-    title: `דוח Z ${zr.z_number}`,
+    title: `עריכת דוח Z ${zr.z_number}`,
     zr,
     store,
-    expenses: await listExpenses(id),
-    expensesTotal: await expensesTotal(id),
-    expenseTypes: EXPENSE_TYPES,
+    storeOptions: await storeList(),
     invoiceOptions: await invoicePickOptions(req.scope.companyIds),
-    denoms: DENOMS,
-    depositCounts: zr.deposit_breakdown ? JSON.parse(zr.deposit_breakdown) : {},
-    cashRecon,
-    prevZ,
-    waText: zWhatsappText(zr, cashRecon, prevZ),
     ccBrands: CC_BRANDS,
-    ccRecon: await ccReconciliation(id),
-    zStatus: await zReconciliationStatus(id),
+    dep: await depositForZ(id),
+    expenses: await listExpenses(id),
     error: null,
     notice: null,
     ...extra,
@@ -191,6 +198,7 @@ async function renderZReports(req, res, extra = {}) {
   res.render('reports/zreports', {
     title: 'דוחות Z',
     storeOptions: await storeList(),
+    ccBrands: CC_BRANDS,
     zReports,
     unmatchedCount: zReports.filter((z) => !z.matched).length,
     zStoreId,
@@ -358,6 +366,10 @@ router.post('/zreports', async (req, res, next) => {
   const b = req.body;
   try {
     const storeId = Number(b.store_id);
+    // Credit-card report must reconcile to "אשראי מגירה" before the Z can be added.
+    const { amounts: ccAmounts, total: ccTotal } = parseCc(b);
+    const drawerCredit = toAgorot(b.drawer_credit);
+    if (ccTotal !== drawerCredit) throw new RuleError('VALIDATION', 'אין התאמה בהכנסות מאשראי');
     const created = await createZReport(
       {
         storeId,
@@ -366,26 +378,16 @@ router.post('/zreports', async (req, res, next) => {
         dailyTotal: toAgorot(b.daily_total),
         drawerCash: toAgorot(b.drawer_cash),
         drawerCheck: toAgorot(b.drawer_check),
-        drawerCredit: toAgorot(b.drawer_credit),
+        drawerCredit,
         drawerHakafa: toAgorot(b.drawer_hakafa),
         drawerVouchers: toAgorot(b.drawer_vouchers),
       },
       req.user,
     );
+    await setCreditCards(created.id, { amounts: ccAmounts }, req.user);
     // Optional cash-expense lines entered on the same form (itemized "הוצאות במזומן").
     {
-      const dates = [].concat(b.expense_date || []);
-      const names = [].concat(b.payer_name || []);
-      const purposes = [].concat(b.purpose || []);
-      const amounts = [].concat(b.amount || []);
-      const invoiceIds = [].concat(b.expense_invoice_id || []);
-      const rows = amounts.map((a, i) => ({
-        expenseDate: dates[i] || null,
-        payerName: names[i],
-        purpose: purposes[i],
-        amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
-        invoiceId: invoiceIds[i] || null,
-      }));
+      const rows = parseExpenseRows(b);
       if (rows.some((r) => (r.payerName || '').trim() || (r.purpose || '').trim() || r.amount || r.invoiceId)) {
         await replaceExpenses(created.id, rows, req.user);
       }
@@ -424,6 +426,60 @@ router.post('/zreports', async (req, res, next) => {
     await renderZReports(req, res, { notice: 'דוח Z נוסף.' });
   } catch (err) {
     if (err instanceof RuleError) return renderZReports(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// Save edits to a Z (edit page). Same field set as the add form; credit-card total must equal
+// "אשראי מגירה". Sends a push notification and stamps updated_at.
+router.post('/zreports/:id', async (req, res, next) => {
+  const id = Number(req.params.id);
+  const b = req.body;
+  try {
+    const storeId = Number(b.store_id);
+    const { amounts: ccAmounts, total: ccTotal } = parseCc(b);
+    const drawerCredit = toAgorot(b.drawer_credit);
+    if (ccTotal !== drawerCredit) throw new RuleError('VALIDATION', 'אין התאמה בהכנסות מאשראי');
+    await updateZReport(
+      id,
+      {
+        storeId,
+        zNumber: b.z_number,
+        zDate: b.z_date,
+        dailyTotal: toAgorot(b.daily_total),
+        drawerCash: toAgorot(b.drawer_cash),
+        drawerCheck: toAgorot(b.drawer_check),
+        drawerCredit,
+        drawerHakafa: toAgorot(b.drawer_hakafa),
+        drawerVouchers: toAgorot(b.drawer_vouchers),
+      },
+      req.user,
+    );
+    await setCreditCards(id, { amounts: ccAmounts }, req.user);
+    await replaceExpenses(id, parseExpenseRows(b), req.user);
+    await upsertDepositForZ(
+      id,
+      {
+        storeId,
+        depositDate: b.z_date,
+        bagNumber: b.dep_bag,
+        amount: toAgorot(b.dep_amount || '0'),
+        deposited: b.dep_deposited === '1' || b.dep_deposited === 'on',
+      },
+      req.user,
+    );
+    // Push on edit (§ owner request), plus the cash-gap alert if one opened up.
+    notify(`✏️ <b>עודכן דוח Z ${b.z_number}</b>\n${zUrl(req, id)}`);
+    try {
+      const cr = await cashReconciliation(id);
+      if (cr.diff !== 0) {
+        const label = cr.diff < 0 ? 'חוסר' : 'יתרה';
+        notify(`⚠️ <b>פער מזומן ב-Z ${b.z_number}</b>\n${label} ע"ס ${ils(Math.abs(cr.diff))}\n${zUrl(req, id)}`);
+      }
+    } catch { /* best-effort */ }
+    await renderZReport(req, res, id, { notice: 'הדוח עודכן.' });
+  } catch (err) {
+    if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
     next(err);
   }
 });

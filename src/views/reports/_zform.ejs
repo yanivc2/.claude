@@ -1,0 +1,174 @@
+<%
+  // Shared Z form — used by the "add" page (zreports.ejs) and the "edit" page (zreport.ejs).
+  // Locals: action, submitLabel, storeOptions, invoiceOptions, ccBrands, and optionally
+  // zr (existing z_reports row), dep (linked deposit row), expenses (existing lines).
+  function sh(a){ return a ? (a/100).toFixed(2) : ''; }
+  var z  = (typeof zr !== 'undefined' && zr) ? zr : {};
+  var dp = (typeof dep !== 'undefined' && dep) ? dep : null;
+  var exRows = (typeof expenses !== 'undefined' && expenses) ? expenses : [];
+  function cxEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function cxInvOptsFor(sel){
+    var h = '<option value="">— ללא חשבונית —</option>';
+    (typeof invoiceOptions !== 'undefined' ? invoiceOptions : []).forEach(function(iv){
+      h += '<option value="' + iv.id + '"' + (Number(sel) === iv.id ? ' selected' : '') + '>#' + iv.id + ' · ' + cxEsc(iv.supplier_name) + ' · ' + cxEsc(iv.invoice_number) + ' · ' + formatIls(iv.total_amount) + '</option>';
+    });
+    return h;
+  }
+%>
+<form method="post" action="<%= action %>" class="stack" data-zform>
+  <label>חנות</label>
+  <select name="store_id" required>
+    <% storeOptions.forEach(function(st){ %>
+      <option value="<%= st.id %>" <%= z.store_id === st.id ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option>
+    <% }); %>
+  </select>
+  <div class="row">
+    <div><label>מספר Z</label><input name="z_number" required value="<%= z.z_number || '' %>" /></div>
+    <div><label>תאריך</label><input type="date" name="z_date" required value="<%= z.z_date || '' %>" /></div>
+  </div>
+  <label>סה"כ (יומי Z) ₪</label>
+  <input name="daily_total" inputmode="decimal" required placeholder="0.00" value="<%= sh(z.daily_total) %>" />
+
+  <h3 style="margin:1rem 0 .2rem">דוח מגירה</h3>
+  <div class="row">
+    <div><label>מזומן</label><input name="drawer_cash" class="dr" inputmode="decimal" value="<%= sh(z.drawer_cash) %>" /></div>
+    <div><label>צ'ק</label><input name="drawer_check" class="dr" inputmode="decimal" value="<%= sh(z.drawer_check) %>" /><small class="muted">תשלום חוב באמצעות צ'ק</small></div>
+  </div>
+  <div class="row">
+    <div><label>אשראי מגירה</label><input name="drawer_credit" id="drawer_credit" class="dr" inputmode="decimal" value="<%= sh(z.drawer_credit) %>" /></div>
+    <div><label>הקפה</label><input name="drawer_hakafa" class="dr" inputmode="decimal" value="<%= sh(z.drawer_hakafa) %>" /></div>
+  </div>
+  <div class="row">
+    <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" value="<%= sh(z.drawer_vouchers) %>" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
+    <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
+  </div>
+
+  <div class="toolbar" style="margin:1.1rem 0 .2rem">
+    <div style="display:flex;align-items:center;gap:.6rem">
+      <h3 style="margin:0">הוצאות במזומן (לא חובה)</h3>
+      <button type="button" class="round-btn" title="פירוט הוצאות" onclick="var p=document.getElementById('cx-panel');p.hidden=!p.hidden;">🧾</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:.7rem">
+      <strong>סה"כ הוצאות: <span id="cx-total">₪0.00</span></strong>
+      <button type="button" class="round-btn" title="דוח כרטיסי אשראי" onclick="var p=document.getElementById('cc-panel');p.hidden=!p.hidden;">💳</button>
+    </div>
+  </div>
+
+  <div id="cx-panel" <%= exRows.length ? '' : 'hidden' %>>
+    <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. שורה חדשה נוספת אוטומטית. ניתן לשייך הוצאה לחשבונית.</p>
+    <table>
+      <thead><tr><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום (₪)</th><th>חשבונית</th><th></th></tr></thead>
+      <tbody id="cx-body">
+        <% exRows.forEach(function(e){ %>
+          <tr>
+            <td><input type="date" name="expense_date" value="<%= e.expense_date || '' %>" /></td>
+            <td><input name="payer_name" value="<%= e.payer_name || '' %>" /></td>
+            <td><input name="purpose" value="<%= e.purpose || '' %>" /></td>
+            <td><input name="amount" class="cx-amt" inputmode="decimal" value="<%= e.amount ? (e.amount/100).toFixed(2) : '' %>" /></td>
+            <td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px"><%- cxInvOptsFor(e.invoice_id) %></select></td>
+            <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
+          </tr>
+        <% }); %>
+        <tr>
+          <td><input type="date" name="expense_date" /></td>
+          <td><input name="payer_name" /></td>
+          <td><input name="purpose" /></td>
+          <td><input name="amount" class="cx-amt" inputmode="decimal" /></td>
+          <td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px"><%- cxInvOptsFor(null) %></select></td>
+          <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div id="cc-panel" hidden>
+    <p class="muted" style="margin:0 0 .4rem">דוח כרטיסי אשראי — הסה"כ חייב להיות שווה ל"אשראי מגירה" כדי לשמור.</p>
+    <table style="max-width:420px">
+      <thead><tr><th>חברה</th><th class="right">סה"כ (₪)</th></tr></thead>
+      <tbody>
+        <% ccBrands.forEach(function(b){ %>
+          <tr><td><%= b.label %></td><td><input name="cc_<%= b.key %>" class="cc" inputmode="decimal" value="<%= sh(z['cc_' + b.key]) %>" /></td></tr>
+        <% }); %>
+      </tbody>
+      <tfoot><tr><th>סה"כ</th><th class="right" id="cc_total_disp">₪0.00</th></tr></tfoot>
+    </table>
+    <p class="muted" id="cc_match_msg" style="margin:.3rem 0 0"></p>
+  </div>
+
+  <h3 style="margin:1.1rem 0 .2rem">הצהרה על הפקדה (לא חובה)</h3>
+  <p class="muted" style="margin:0 0 .4rem">אם הפקדת מזומן לבנק — הזן פרטי הפקדה. החנות והתאריך נלקחים מדוח ה-Z שלמעלה.</p>
+  <div class="row">
+    <div><label>מספר שקית הפקדה</label><input name="dep_bag" value="<%= dp ? (dp.bag_number || '') : '' %>" /></div>
+    <div><label>סכום הפקדה (₪)</label><input name="dep_amount" inputmode="decimal" placeholder="0.00" value="<%= dp ? sh(dp.amount) : '' %>" /></div>
+  </div>
+  <label style="display:flex;align-items:center;gap:8px;margin-top:.6rem">
+    <input type="checkbox" name="dep_deposited" value="1" style="width:auto;min-height:0" <%= dp && dp.deposited ? 'checked' : '' %> /> הופקד לבנק
+  </label>
+
+  <div style="margin-top:.8rem"><button type="submit"><%= submitLabel %></button></div>
+</form>
+
+<script>
+(function(){
+  var form = document.querySelector('form[data-zform]');
+  if (!form) return;
+  function num(el){ if(!el) return 0; var v = parseFloat(el.value); return isNaN(v) ? 0 : v; }
+  function fmt(n){ return '₪' + n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function drawerSum(){ var s=0; form.querySelectorAll('input.dr').forEach(function(i){ s+=num(i); }); return s; }
+  function ccSum(){ var s=0; form.querySelectorAll('input.cc').forEach(function(i){ s+=num(i); }); return s; }
+  var creditEl = form.querySelector('#drawer_credit');
+  function recalcDrawer(){ form.querySelector('#drawer_total').value = fmt(drawerSum()); }
+  function ccMatches(){ return Math.round(ccSum()*100) === Math.round(num(creditEl)*100); }
+  function recalcCc(){
+    form.querySelector('#cc_total_disp').textContent = fmt(ccSum());
+    var msg = form.querySelector('#cc_match_msg');
+    if (ccMatches()) { msg.textContent = 'תואם לאשראי מגירה ✓'; msg.style.color = 'var(--ok)'; }
+    else { msg.textContent = 'אין התאמה בהכנסות מאשראי — אשראי מגירה ' + fmt(num(creditEl)); msg.style.color = 'var(--bad)'; }
+  }
+  form.querySelectorAll('input.dr').forEach(function(i){ i.addEventListener('input', function(){ recalcDrawer(); recalcCc(); }); });
+  form.querySelectorAll('input.cc').forEach(function(i){ i.addEventListener('input', recalcCc); });
+  recalcDrawer(); recalcCc();
+  // Show the credit-card panel up-front when there's credit to reconcile (or a mismatch).
+  if (num(creditEl) > 0 || ccSum() > 0) document.getElementById('cc-panel').hidden = false;
+
+  // Cash-expenses table: live total + auto-add a fresh row when the last one is filled.
+  var body = document.getElementById('cx-body');
+  function recalcCx(){ var t=0; body.querySelectorAll('.cx-amt').forEach(function(i){ t+=num(i); }); document.getElementById('cx-total').textContent = fmt(t); }
+  window.cxDel = function(btn){
+    var rows = body.querySelectorAll('tr');
+    if (rows.length > 1) btn.closest('tr').remove();
+    else btn.closest('tr').querySelectorAll('input,select').forEach(function(i){ i.value=''; });
+    recalcCx();
+  };
+  var CX_INV_OPTS = <%- JSON.stringify(cxInvOptsFor(null)) %>;
+  function addRow(){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="date" name="expense_date"></td>'
+      + '<td><input name="payer_name"></td>'
+      + '<td><input name="purpose"></td>'
+      + '<td><input name="amount" class="cx-amt" inputmode="decimal"></td>'
+      + '<td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px">' + CX_INV_OPTS + '</select></td>'
+      + '<td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>';
+    body.appendChild(tr);
+  }
+  body.addEventListener('input', function(e){
+    recalcCx();
+    var rows = body.querySelectorAll('tr');
+    var last = rows[rows.length - 1];
+    if (last.contains(e.target)) {
+      var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
+      if (filled) addRow();
+    }
+  });
+
+  form.addEventListener('submit', function(e){
+    if (drawerSum() <= 0){ e.preventDefault(); alert('סה"כ מגירה חובה — הזן לפחות רכיב מגירה אחד.'); return; }
+    if (!ccMatches()){
+      e.preventDefault();
+      document.getElementById('cc-panel').hidden = false;
+      recalcCc();
+      alert('אין התאמה בהכנסות מאשראי');
+    }
+  });
+})();
+</script>

@@ -291,3 +291,6 @@ ALTER TABLE z_expenses ADD COLUMN IF NOT EXISTS invoice_id     INTEGER REFERENCE
 ALTER TABLE deposits   ADD COLUMN IF NOT EXISTS z_report_id    INTEGER REFERENCES z_reports(id);
 ALTER TABLE deposits   ADD COLUMN IF NOT EXISTS matched_txn_id INTEGER REFERENCES bank_transactions(id);
 ALTER TABLE deposits   ADD COLUMN IF NOT EXISTS recon_diff     BIGINT;
+
+-- Z edit timestamp (last edited date+time).
+ALTER TABLE z_reports  ADD COLUMN IF NOT EXISTS updated_at TEXT;
