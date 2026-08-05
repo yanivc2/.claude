@@ -598,23 +598,27 @@ details.paymenu .paymenu-items .btn { text-align: center; }
    Owner action "dials" — compact round-icon buttons. They live in the sidebar
    (below התנתק) on the settings page; kept small so they read as secondary.
    ============================================================ */
-.nav-actions { display: flex; flex-direction: column; gap: 6px; }
-.dial {
-  display: inline-flex; align-items: center; gap: .5rem; cursor: pointer; width: 100%;
+/* Scoped under .nav-actions so these win over the base `.menu-panel button` rule
+   (higher specificity) — otherwise width/padding/border get clobbered and the
+   non-danger pills render inconsistently. Full-width => flush to the right edge. */
+.nav-actions { display: flex; flex-direction: column; gap: 5px; align-items: stretch; }
+.nav-actions .dial {
+  display: flex; align-items: center; justify-content: flex-start; gap: .4rem;
+  width: 100%; box-sizing: border-box; cursor: pointer; white-space: nowrap;
   background: var(--color-surface); color: var(--color-text); font: inherit;
-  border: 1px solid var(--color-line); border-radius: 999px; padding: .2rem .7rem .2rem .2rem;
-  transition: border-color .15s ease;
+  border: 1px solid var(--color-line); border-radius: 999px;
+  padding: .14rem .5rem .14rem .14rem; transition: border-color .15s ease;
 }
-.dial:hover { border-color: var(--color-accent); }
-.dial .dial-ic {
-  width: 30px; height: 30px; flex: 0 0 auto; border-radius: 50%;
+.nav-actions .dial:hover { border-color: var(--color-accent); background: var(--color-surface); color: var(--color-text); }
+.nav-actions .dial .dial-ic {
+  width: 25px; height: 25px; flex: 0 0 auto; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent-grad); color: #fff; font-size: 14px;
+  background: var(--accent-grad); color: #fff; font-size: 12px;
 }
-.dial .dial-lbl { font-weight: 600; font-size: 12.5px; }
-.dial.danger { border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line)); }
-.dial.danger .dial-ic { background: var(--color-bad); }
-.dial.danger:hover { border-color: var(--color-bad); }
+.nav-actions .dial .dial-lbl { font-weight: 600; font-size: 11px; }
+.nav-actions .dial.danger { border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line)); }
+.nav-actions .dial.danger .dial-ic { background: var(--color-bad); }
+.nav-actions .dial.danger:hover { border-color: var(--color-bad); }
 
 /* Native <dialog> modals used by the owner dials */
 dialog.ndialog {
