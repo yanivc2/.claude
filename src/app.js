@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { currentUser } from './middleware/currentUser.js';
+import { requirePageAccess } from './middleware/requireOwner.js';
 import { config } from './config.js';
 import { formatIls, fromAgorot } from './lib/money.js';
 import authRoutes from './routes/auth.js';
@@ -108,11 +109,11 @@ export function createApp() {
   app.use('/', legalRoutes);
   app.use('/account', accountRoutes);
   app.use('/', indexRoutes);
-  app.use('/suppliers', supplierRoutes);
-  app.use('/invoices', invoiceRoutes);
-  app.use('/payments', paymentRoutes);
-  app.use('/reports', reportRoutes);
-  app.use('/reconciliation', reconciliationRoutes);
+  app.use('/suppliers', requirePageAccess('nav_suppliers'), supplierRoutes);
+  app.use('/invoices', requirePageAccess('nav_invoices'), invoiceRoutes);
+  app.use('/payments', requirePageAccess('nav_payments'), paymentRoutes);
+  app.use('/reports', reportRoutes); // per-sub-page access guarded inside reportRoutes
+  app.use('/reconciliation', requirePageAccess('nav_reconciliation'), reconciliationRoutes);
   app.use('/settings', settingsRoutes);
 
   // Unmatched route -> friendly page (instead of Express's raw "Cannot GET/POST ...").

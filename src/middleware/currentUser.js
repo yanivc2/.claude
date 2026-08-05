@@ -1,6 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { readSession } from '../lib/auth.js';
-import { userCan } from '../lib/permissions.js';
+import { userCan, canViewPage } from '../lib/permissions.js';
 import { authorizedCompanyIds } from '../lib/scope.js';
 import { countPending } from '../services/changeRequests.js';
 
@@ -41,6 +41,7 @@ export async function currentUser(req, res, next) {
     req.user = user;
     res.locals.currentUser = user;
     res.locals.can = (perm) => userCan(user, perm);
+    res.locals.canView = (navKey) => canViewPage(user, navKey);
     res.locals.pendingApprovals = user.role === 'owner' ? await countPending() : 0;
 
     // Per-user company scope (הפרדת חברות): null = all (owner), else the granted company ids.

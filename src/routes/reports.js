@@ -20,6 +20,7 @@ import { toCsv } from '../lib/csvExport.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
+import { requirePageAccess } from '../middleware/requireOwner.js';
 import { RuleError } from '../lib/errors.js';
 import { scopeParam } from '../lib/scopeGuard.js';
 
@@ -155,7 +156,7 @@ async function renderZReports(req, res, extra = {}) {
   });
 }
 
-router.get('/zreports', async (req, res, next) => {
+router.get('/zreports', requirePageAccess('nav_zreports'), async (req, res, next) => {
   try {
     await renderZReports(req, res);
   } catch (err) {
@@ -183,7 +184,7 @@ router.post('/deposits/:id/delete', async (req, res, next) => {
 });
 
 // §7 "צ׳קים בחוץ"
-router.get('/outstanding', async (req, res, next) => {
+router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res, next) => {
   try {
     const { accounts, totalOutstanding } = await outstandingChecks(req.scope.companyIds);
     const detailAccountId = req.query.account ? Number(req.query.account) : null;
@@ -280,7 +281,7 @@ router.get('/lookup.csv', async (req, res, next) => {
 });
 
 // §7 "רווחיות"
-router.get('/profitability', async (req, res, next) => {
+router.get('/profitability', requirePageAccess('nav_profitability'), async (req, res, next) => {
   try {
     await renderProfitability(req, res);
   } catch (err) {

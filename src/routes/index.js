@@ -14,6 +14,7 @@ import { listRequests, approveRequest, rejectRequest, actionLabel } from '../ser
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
 import { config } from '../config.js';
+import { requirePageAccess } from '../middleware/requireOwner.js';
 import { AuthError } from '../lib/errors.js';
 
 function ymd(d) {
@@ -27,7 +28,7 @@ function parseAnchor(s) {
 
 const router = Router();
 
-router.get('/', async (req, res, next) => {
+router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
   try {
     const q = (req.query.q || '').trim();
     let companyId = req.query.company ? Number(req.query.company) : null;
@@ -137,7 +138,7 @@ router.post('/approvals/:id/reject', ownerOnly, async (req, res, next) => {
   }
 });
 
-router.get('/audit', async (req, res, next) => {
+router.get('/audit', requirePageAccess('nav_audit'), async (req, res, next) => {
   try {
     const view = req.query.view === 'week' ? 'week' : 'month';
     const anchor = parseAnchor(req.query.anchor);
