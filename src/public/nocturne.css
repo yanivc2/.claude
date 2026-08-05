@@ -560,3 +560,53 @@ details.paymenu .paymenu-items .btn { text-align: center; }
   border-radius: var(--radius-sm); color: var(--color-text);
 }
 .filter-row input::placeholder { color: var(--color-muted); font-size: 11px; }
+
+/* ============================================================
+   Desktop nav bar under the logo (>=860px). Mobile keeps the ☰ dropdown.
+   The <details> is forced open by JS on desktop so its panel always renders.
+   ============================================================ */
+@media (min-width: 860px) {
+  .nav { flex-wrap: wrap; }
+  .nav .spacer { display: none; }
+  .navmenu { width: 100%; order: 3; position: static; }
+  .navmenu > summary { display: none; }              /* hide the ☰ toggle on desktop */
+  .navmenu > .menu-panel {
+    position: static; inset: auto; display: flex; flex-direction: row; flex-wrap: wrap;
+    align-items: center; gap: 2px; width: 100%; min-width: 0;
+    margin: .5rem 0 0; padding: .35rem 0 0; border: none; border-top: 1px solid var(--color-line);
+    background: transparent; box-shadow: none; animation: none;
+  }
+  .navmenu > .menu-panel a { padding: 7px 11px; border-radius: var(--radius-sm); font-size: 14px; }
+  .navmenu > .menu-panel .menu-sep { display: none; }
+  .navmenu > .menu-panel form { width: auto; margin-inline-start: auto; }  /* push התנתק to the far side */
+}
+
+/* ============================================================
+   Owner action "dials" — round icon buttons stacked vertically (settings page)
+   ============================================================ */
+.owner-dials { display: flex; flex-direction: column; gap: .6rem; align-items: flex-start; margin: 0 0 1.2rem; }
+.dial {
+  display: inline-flex; align-items: center; gap: .75rem; cursor: pointer;
+  background: var(--color-surface); color: var(--color-text); font: inherit;
+  border: 1px solid var(--color-line); border-radius: 999px; padding: .35rem 1.1rem .35rem .35rem;
+  transition: border-color .15s ease, transform .15s ease;
+}
+.dial:hover { border-color: var(--color-accent); transform: translateX(-2px); }
+.dial .dial-ic {
+  width: 46px; height: 46px; flex: 0 0 auto; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--accent-grad); color: #fff; font-size: 20px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 40%, transparent);
+}
+.dial .dial-lbl { font-weight: 600; font-size: 15px; }
+.dial.danger { border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line)); }
+.dial.danger .dial-ic { background: var(--color-bad); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-bad) 40%, transparent); }
+.dial.danger:hover { border-color: var(--color-bad); }
+
+/* Native <dialog> modals used by the owner dials */
+dialog.ndialog {
+  border: 1px solid var(--color-line); border-radius: var(--radius-lg);
+  background: var(--color-surface); color: var(--color-text);
+  width: min(520px, 92vw); padding: var(--space-5); box-shadow: var(--shadow-lg);
+}
+dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2px); }

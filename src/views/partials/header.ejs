@@ -22,7 +22,7 @@
   <header class="nav">
     <a href="/" class="nav-brand"><span class="mark">AP</span>Control</a>
     <span class="spacer"></span>
-    <details class="menu navmenu">
+    <details class="menu navmenu" id="navmenu">
       <summary class="btn btn-secondary btn-sm">☰ ניווט דפים <span class="caret">▾</span></summary>
       <div class="menu-panel">
         <a href="/" class="<%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
@@ -47,6 +47,17 @@
       </div>
     </details>
   </header>
+  <script>
+    /* Desktop only: show the nav as a static bar under the logo (force <details> open);
+       mobile keeps the ☰ dropdown untouched. */
+    (function(){
+      var d = document.getElementById('navmenu'); if (!d) return;
+      var mq = window.matchMedia('(min-width: 860px)');
+      function sync(){ if (mq.matches) d.setAttribute('open',''); else d.removeAttribute('open'); }
+      (mq.addEventListener ? mq.addEventListener('change', sync) : mq.addListener(sync));
+      sync();
+    })();
+  </script>
 
   <main class="page fade-up">
     <% if (typeof scopeCompanies !== 'undefined' && scopeCompanies) { %>

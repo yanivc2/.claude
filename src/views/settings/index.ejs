@@ -22,100 +22,95 @@
 <% } %>
 
 <% if (currentUser.role === 'owner') { %>
-<div class="card">
-  <div class="toolbar">
-    <div>
-      <strong>עדכון מסד נתונים</strong>
-      <p class="muted" style="margin:.2rem 0 0">מוסיף עמודות/טבלאות חדשות שנדרשות אחרי עדכון גרסה (בטוח, לא מוחק נתונים). הרץ פעם אחת אחרי כל פריסה חדשה.</p>
-    </div>
-    <form method="post" action="/settings/db-upgrade" onsubmit="return confirm('להריץ עדכון מסד נתונים?')">
+<!-- כפתורי פעולה עגולים (בעלים) -->
+<div class="owner-dials">
+  <button type="button" class="dial" onclick="document.getElementById('dlg-db').showModal()">
+    <span class="dial-ic">🗄️</span><span class="dial-lbl">עדכון מסד נתונים</span>
+  </button>
+  <button type="button" class="dial" onclick="document.getElementById('dlg-backup').showModal()">
+    <span class="dial-ic">⬇</span><span class="dial-lbl">גיבוי מלא</span>
+  </button>
+  <button type="button" class="dial danger" onclick="document.getElementById('dlg-reset').showModal()">
+    <span class="dial-ic">⚠</span><span class="dial-lbl">איפוס התוכנה — התחל מחדש</span>
+  </button>
+  <button type="button" class="dial danger" onclick="document.getElementById('dlg-restore').showModal()">
+    <span class="dial-ic">♻</span><span class="dial-lbl">שחזור מגיבוי</span>
+  </button>
+</div>
+
+<dialog id="dlg-db" class="ndialog">
+  <form method="post" action="/settings/db-upgrade" class="stack">
+    <h3 style="margin:0">עדכון מסד נתונים</h3>
+    <p class="muted" style="margin:.2rem 0">מוסיף עמודות/טבלאות חדשות שנדרשות אחרי עדכון גרסה (בטוח, לא מוחק נתונים). הרץ פעם אחת אחרי כל פריסה חדשה.</p>
+    <div class="actions" style="justify-content:flex-end">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
       <button type="submit">עדכן מסד נתונים</button>
-    </form>
-  </div>
-</div>
-
-<div class="card">
-  <div class="toolbar">
-    <div>
-      <strong>גיבוי מלא</strong>
-      <p class="muted" style="margin:.2rem 0 0">הורדת עותק מלא של כל הנתונים (JSON) — שמור אותו במקום שבשליטתך (Google Drive / דיסק). מומלץ אחת לשבוע. גיבוי אוטומטי שבועי רץ בנפרד (pg_dump) ושומר עותק מלא כארכיון.</p>
     </div>
-    <a href="/settings/backup" class="btn btn-primary">⬇ הורד גיבוי (JSON)</a>
-  </div>
-</div>
+  </form>
+</dialog>
 
-<div class="card" style="border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line))">
-  <strong style="color:var(--color-bad)">אזור מסוכן — התחל מחדש</strong>
-  <p class="muted" style="margin:.3rem 0 .6rem">
-    מוחק את כל <strong>נתוני העבודה</strong> — חשבוניות, תשלומים, תנועות בנק, דוחות Z, הפקדות, הוצאות, יומן ובקשות — <strong>כולל הסריקות</strong>.
-    <br><strong>נשמרים:</strong> חברות, חנויות, חשבונות בנק, משתמשים והרשאות.
-    פעולה בלתי הפיכה — <a href="/settings/backup">הורד גיבוי קודם</a>.
-  </p>
-  <form method="post" action="/settings/reset-data" onsubmit="return confirm('לאפס את כל נתוני העבודה? פעולה בלתי הפיכה. ודא שהורדת גיבוי.')">
-    <label style="display:flex;align-items:center;gap:8px;margin-bottom:.5rem">
+<dialog id="dlg-backup" class="ndialog">
+  <div class="stack">
+    <h3 style="margin:0">גיבוי מלא</h3>
+    <p class="muted" style="margin:.2rem 0">הורדת עותק מלא של כל הנתונים (JSON) — שמור אותו במקום שבשליטתך (Google Drive / דיסק). מומלץ אחת לשבוע. גיבוי אוטומטי שבועי רץ בנפרד (pg_dump) ושומר עותק מלא כארכיון.</p>
+    <div class="actions" style="justify-content:flex-end">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">סגור</button>
+      <a href="/settings/backup" class="btn btn-primary">⬇ הורד גיבוי (JSON)</a>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-reset" class="ndialog">
+  <form method="post" action="/settings/reset-data" class="stack" onsubmit="return apReset(event)">
+    <h3 style="margin:0;color:var(--color-bad)">אזור מסוכן — התחל מחדש</h3>
+    <p class="muted" style="margin:.2rem 0">
+      מוחק את כל <strong>נתוני העבודה</strong> — חשבוניות, תשלומים, תנועות בנק, דוחות Z, הפקדות, הוצאות, יומן ובקשות (כולל הסריקות).
+      <br><strong>נשמרים:</strong> חברות, חנויות, חשבונות בנק, משתמשים והרשאות. פעולה בלתי הפיכה.
+    </p>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin:0">
       <input type="checkbox" name="also_suppliers" value="1" style="width:auto;min-height:0" /> לנקות גם את רשימת הספקים
     </label>
-    <label class="lbl">לאישור, הקלד את המילה <span class="mono">אפס</span></label>
-    <input name="confirm" placeholder="אפס" autocomplete="off" required style="max-width:200px" />
-    <div style="margin-top:.6rem"><button class="danger" type="submit">אפס נתונים והתחל מחדש</button></div>
+    <label class="lbl" style="margin-top:.4rem">סיסמת הבעלים</label>
+    <input type="password" name="password" required autocomplete="current-password" placeholder="הסיסמה שלך" style="max-width:260px" />
+    <div class="actions" style="justify-content:flex-end;margin-top:.4rem">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
+      <button class="danger" type="submit">אפס נתונים והתחל מחדש</button>
+    </div>
   </form>
-</div>
+</dialog>
 
-<div class="card" style="border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line))">
-  <strong style="color:var(--color-bad)">שחזור מגיבוי</strong>
-  <p class="muted" style="margin:.3rem 0 .6rem">
-    טוען קובץ גיבוי (JSON שהורדת מהכפתור למעלה) ו<strong>מחליף בו את כל הנתונים הקיימים</strong> — לשחזור מאסון או למעבר למערכת חדשה.
-    <br>⚠️ בלתי הפיך: כל הנתונים הנוכחיים יימחקו ויוחלפו בתוכן הקובץ. ודא שאתה טוען את הגיבוי הנכון והעדכני.
-  </p>
-  <form method="post" action="/settings/restore" enctype="multipart/form-data" onsubmit="return confirm('לשחזר מהגיבוי? כל הנתונים הנוכחיים יוחלפו בתוכן הקובץ. פעולה בלתי הפיכה.')">
+<dialog id="dlg-restore" class="ndialog">
+  <form method="post" action="/settings/restore" enctype="multipart/form-data" class="stack" onsubmit="return confirm('לשחזר מהגיבוי? כל הנתונים הנוכחיים יוחלפו בתוכן הקובץ. פעולה בלתי הפיכה.')">
+    <h3 style="margin:0;color:var(--color-bad)">שחזור מגיבוי</h3>
+    <p class="muted" style="margin:.2rem 0">טוען קובץ גיבוי (JSON) ו<strong>מחליף בו את כל הנתונים הקיימים</strong>. ⚠️ בלתי הפיך — כל הנתונים הנוכחיים יימחקו ויוחלפו.</p>
+    <label class="lbl">קובץ גיבוי</label>
     <input type="file" name="backup" accept=".json,application/json" required />
-    <label class="lbl" style="margin-top:.5rem">לאישור, הקלד את המילה <span class="mono">שחזר</span></label>
-    <input name="confirm" placeholder="שחזר" autocomplete="off" required style="max-width:200px" />
-    <div style="margin-top:.6rem"><button class="danger" type="submit">שחזר מגיבוי</button></div>
+    <label class="lbl" style="margin-top:.4rem">סיסמת הבעלים</label>
+    <input type="password" name="password" required autocomplete="current-password" placeholder="הסיסמה שלך" style="max-width:260px" />
+    <div class="actions" style="justify-content:flex-end;margin-top:.4rem">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
+      <button class="danger" type="submit">שחזר מגיבוי</button>
+    </div>
   </form>
-</div>
-<% } %>
+</dialog>
 
-<!-- ===== מבנה קיים (מצומצם) ===== -->
-<details class="section">
-  <summary>פרטי חברות בע"מ</summary>
-  <div class="section-body">
-    <% companies.forEach(function(c){ %>
-      <div style="border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
-        <div class="toolbar" style="margin-bottom:.4rem">
-          <strong><%= c.name %></strong>
-          <form method="post" action="/settings/companies/<%= c.id %>" class="actions">
-            <input name="name" value="<%= c.name %>" style="width:200px" />
-            <input name="tax_id" value="<%= c.tax_id || '' %>" placeholder="ח.פ. (9 ספרות)" style="width:150px" />
-            <button class="secondary small" type="submit">עדכן חברה</button>
-          </form>
-        </div>
-        <table>
-          <thead><tr><th>חנות</th><th>בנק</th><th>סניף</th><th>חשבון</th><th>שם תצוגה</th></tr></thead>
-          <tbody>
-            <% if (c.stores.length === 0) { %><tr><td colspan="5" class="muted">אין חנויות.</td></tr><% } %>
-            <% c.stores.forEach(function(s){ %>
-              <tr>
-                <td><%= s.name %></td>
-                <td><%= s.bank_name || '—' %></td>
-                <td class="mono"><%= s.branch || '—' %></td>
-                <td class="mono"><%= s.account_number || '—' %></td>
-                <td>
-                  <% if (s.account_id) { %>
-                    <form method="post" action="/settings/accounts/<%= s.account_id %>" class="actions">
-                      <input name="display_name" value="<%= s.display_name %>" style="width:240px" />
-                      <button class="secondary small" type="submit">שמור</button>
-                    </form>
-                  <% } else { %>—<% } %>
-                </td>
-              </tr>
-            <% }); %>
-          </tbody>
-        </table>
-      </div>
-    <% }); %>
-  </div>
-</details>
+<script>
+function apReset(e){
+  var form = e.target;
+  if (form.dataset.go === '1') return true;          // second pass — really submit
+  e.preventDefault();
+  if (!form.password.value) { form.password.focus(); return false; }
+  var wantBackup = confirm('האם תרצה לגבות לפני האיפוס?\n\n"אישור" — יורד קובץ גיבוי ואז מאפס.\n"ביטול" — מאפס בלי גיבוי.');
+  if (wantBackup) {
+    var a = document.createElement('a'); a.href = '/settings/backup'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ form.dataset.go = '1'; form.submit(); }, 1800);
+  } else {
+    form.dataset.go = '1'; form.submit();
+  }
+  return false;
+}
+</script>
+<% } %>
 
 <!-- ===== שלב 1: חברה חדשה ===== -->
 <details class="section">
@@ -154,6 +149,47 @@
       <input name="display_name" />
       <div style="margin-top:.6rem"><button type="submit">הוסף חנות + חשבון</button></div>
     </form>
+  </div>
+</details>
+
+<!-- ===== פרטי חברות בע"מ (מתחת להקמת חנות + חשבון בנק) ===== -->
+<details class="section">
+  <summary>פרטי חברות בע"מ</summary>
+  <div class="section-body">
+    <% companies.forEach(function(c){ %>
+      <div style="border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
+        <div class="toolbar" style="margin-bottom:.4rem">
+          <strong><%= c.name %></strong>
+          <form method="post" action="/settings/companies/<%= c.id %>" class="actions">
+            <input name="name" value="<%= c.name %>" style="width:200px" />
+            <input name="tax_id" value="<%= c.tax_id || '' %>" placeholder="ח.פ. (9 ספרות)" style="width:150px" />
+            <button class="secondary small" type="submit">עדכן חברה</button>
+          </form>
+        </div>
+        <table>
+          <thead><tr><th>חנות</th><th>בנק</th><th>סניף</th><th>חשבון</th><th>שם תצוגה</th></tr></thead>
+          <tbody>
+            <% if (c.stores.length === 0) { %><tr><td colspan="5" class="muted">אין חנויות.</td></tr><% } %>
+            <% c.stores.forEach(function(s){ %>
+              <tr>
+                <td><%= s.name %></td>
+                <td><%= s.bank_name || '—' %></td>
+                <td class="mono"><%= s.branch || '—' %></td>
+                <td class="mono"><%= s.account_number || '—' %></td>
+                <td>
+                  <% if (s.account_id) { %>
+                    <form method="post" action="/settings/accounts/<%= s.account_id %>" class="actions">
+                      <input name="display_name" value="<%= s.display_name %>" style="width:240px" />
+                      <button class="secondary small" type="submit">שמור</button>
+                    </form>
+                  <% } else { %>—<% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% }); %>
   </div>
 </details>
 

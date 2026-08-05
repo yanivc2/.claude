@@ -21,7 +21,7 @@ import { requireOwner, requirePermission } from '../middleware/requireOwner.js';
 import { PERMISSIONS } from '../lib/permissions.js';
 import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { createInviteLink } from '../services/passwordReset.js';
-import { PASSWORD_POLICY_TEXT } from '../lib/auth.js';
+import { PASSWORD_POLICY_TEXT, verifyPassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll } from '../services/backup.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
@@ -259,12 +259,18 @@ router.get('/backup', requireOwner, async (req, res, next) => {
   }
 });
 
+// Verify the acting owner's own account password — the gate for the destructive actions below.
+async function ownerPasswordOk(req) {
+  const row = await getExecutor().one('SELECT password_hash FROM users WHERE id = ?', [req.user.id]);
+  return !!row && verifyPassword(req.body.password || '', row.password_hash);
+}
+
 // "Start fresh" (owner-only): wipe transactional data + its Blob images, keep the setup. Guarded
-// by a typed confirmation word so it can't be triggered by accident.
+// by the owner's own password so it can't be triggered by accident.
 router.post('/reset-data', requireOwner, async (req, res, next) => {
   try {
-    if ((req.body.confirm || '').trim() !== 'אפס') {
-      return render(req, res, { error: 'האיפוס לא בוצע — יש להקליד "אפס" בשדה האישור.' });
+    if (!(await ownerPasswordOk(req))) {
+      return render(req, res, { error: 'האיפוס לא בוצע — סיסמת הבעלים שגויה.' });
     }
     const { deletedImages } = await resetTransactionalData(
       { alsoSuppliers: req.body.also_suppliers === '1' },
@@ -286,8 +292,8 @@ router.post('/restore', requireOwner, (req, res, next) => {
   backupUpload(req, res, async (uploadErr) => {
     try {
       if (uploadErr) throw new RuleError('RESTORE', 'העלאת הקובץ נכשלה (מוגבל ל-50MB).');
-      if ((req.body.confirm || '').trim() !== 'שחזר') {
-        return render(req, res, { error: 'השחזור לא בוצע — יש להקליד "שחזר" בשדה האישור.' });
+      if (!(await ownerPasswordOk(req))) {
+        return render(req, res, { error: 'השחזור לא בוצע — סיסמת הבעלים שגויה.' });
       }
       if (!req.file) throw new RuleError('RESTORE', 'לא נבחר קובץ גיבוי.');
       let dump;
