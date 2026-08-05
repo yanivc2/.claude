@@ -396,6 +396,15 @@ router.post('/zreports', async (req, res, next) => {
         notify(`🔢 <b>מספר Z חסר ברצף</b>\nחסרים: ${missing.join(', ')}\n${req.protocol}://${req.get('host')}/reports/zreports?zstore=${storeId}`);
       }
     } catch { /* best-effort */ }
+    // Cash-gap alert on the create path: מזומן מגירה vs הפקדה + הוצאות. The individual-view edit
+    // routes already alert via alertIfUnmatched; this covers the "created in one go" path.
+    try {
+      const cr = await cashReconciliation(created.id);
+      if (cr.diff !== 0) {
+        const label = cr.diff < 0 ? 'חוסר' : 'יתרה';
+        notify(`⚠️ <b>פער מזומן ב-Z ${b.z_number}</b>\n${label} ע"ס ${ils(Math.abs(cr.diff))}\nמזומן מגירה ${ils(cr.cash)} = הפקדה ${ils(cr.deposit)} + הוצאות ${ils(cr.expenses)}\n${zUrl(req, created.id)}`);
+      }
+    } catch { /* best-effort */ }
     await renderZReports(req, res, { notice: 'דוח Z נוסף.' });
   } catch (err) {
     if (err instanceof RuleError) return renderZReports(req, res, { error: err.message });

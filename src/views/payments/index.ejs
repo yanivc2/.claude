@@ -58,7 +58,9 @@
     <% } %>
   </div>
 <% } %>
-<p class="muted no-print" style="margin:.2rem 0">לחיצה על כותרת עמודה ממיינת · שורת הסינון מתחת לכותרות מסננת לפי עמודה.</p>
+<details class="card collapse" style="margin-top:1rem">
+  <summary><span class="caret">▸</span> צ׳קים <span class="muted">(<%= payments.length %>)</span></summary>
+<p class="muted no-print" style="margin:.6rem 0 .2rem">לחיצה על כותרת עמודה ממיינת · שורת הסינון מתחת לכותרות מסננת לפי עמודה.</p>
 <table class="sortable" id="paymentsTable">
   <thead>
     <tr><th>אמצעי / מזהה</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th data-nosort>סטטוס/פעולות</th></tr>
@@ -114,10 +116,11 @@
   <span style="display:inline-flex;gap:6px;align-items:center"><span class="badge b-cleared">נפרע</span> = סימון ידני</span>
   <span style="display:inline-flex;gap:6px;align-items:center"><span class="badge b-cleared-auto">נפרע</span> = אוטומטי (שיוך בהתאמת בנק)</span>
 </p>
+</details>
 
-<div class="card">
-  <div class="toolbar"><h2 style="margin:0">הצהרות הפקדה</h2></div>
-  <p class="muted no-print" style="margin:.2rem 0">הפקדות שהוצהרו בדוחות Z. "יתרה / חוסר" מתמלא בהתאמה אוטומטית לבנק לפי מספר שקית = מספר אסמכתה.</p>
+<details class="card collapse">
+  <summary><span class="caret">▸</span> הצהרות הפקדה <span class="muted">(<%= (deposits || []).length %>)</span></summary>
+  <p class="muted no-print" style="margin:.6rem 0 .2rem">הפקדות שהוצהרו בדוחות Z. "יתרה / חוסר" מתמלא בהתאמה אוטומטית לבנק לפי מספר שקית = מספר אסמכתה.</p>
   <table class="sortable">
     <thead><tr><th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>שיוך ל-Z</th><th class="right">יתרה / חוסר</th><th>סטטוס</th></tr></thead>
     <tbody>
@@ -143,7 +146,7 @@
       <% }); %>
     </tbody>
   </table>
-</div>
+</details>
 
 <script>
   // סינון פר-עמודה בטבלת המרקורים: שדות טקסט לכל עמודה + בורר סטטוס נפרע/לא נפרע.
