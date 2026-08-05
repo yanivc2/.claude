@@ -100,7 +100,7 @@
   <div class="row">
     <div><label>מספר שקית הפקדה</label><input name="dep_bag" value="<%= dp ? (dp.bag_number || '') : '' %>" /></div>
     <div><label>סכום הפקדה (₪)</label><input name="dep_amount" inputmode="decimal" placeholder="0.00" value="<%= dp ? sh(dp.amount) : '' %>" /></div>
-    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">מגירה + הוצאות − הפקדה</small></div>
+    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">הפקדה − (מגירה + הוצאות)</small></div>
   </div>
   <label style="display:flex;align-items:center;gap:8px;margin-top:.6rem">
     <input type="checkbox" name="dep_deposited" value="1" style="width:auto;min-height:0" <%= dp && dp.deposited ? 'checked' : '' %> /> הופקד לבנק
