@@ -27,26 +27,79 @@
 </div>
 <p class="muted no-print" style="margin:.2rem 0">לחיצה על שורה פותחת את פרטי החשבונית. חשבונית מוחזקת (חסרה הקצאה) מסומנת באדום.</p>
 
+<form method="get" action="/invoices" class="card no-print" style="margin-bottom:1rem">
+  <input type="hidden" name="status" value="<%= filter %>" />
+  <div class="row">
+    <div><label>חיפוש לפי מספר חשבונית</label><input name="q" value="<%= q %>" inputmode="text" placeholder="מספר חשבונית" /></div>
+  </div>
+  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin:.7rem 0 .2rem">
+    <span class="muted">סינון לפי:</span>
+    <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" class="filt-toggle" data-t="sup" style="width:auto;min-height:0" <%= supplierId ? 'checked' : '' %> /> ספק</label>
+    <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" class="filt-toggle" data-t="store" style="width:auto;min-height:0" <%= storeId ? 'checked' : '' %> /> חנות</label>
+    <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" class="filt-toggle" data-t="date" style="width:auto;min-height:0" <%= (from || to) ? 'checked' : '' %> /> תאריך</label>
+  </div>
+  <div class="row">
+    <div class="filt-field" data-t="sup" style="<%= supplierId ? '' : 'display:none' %>">
+      <label>ספק</label>
+      <select name="supplier">
+        <option value="">כל הספקים</option>
+        <% suppliers.forEach(function(s){ %><option value="<%= s.id %>" <%= supplierId === s.id ? 'selected' : '' %>><%= s.name %></option><% }); %>
+      </select>
+    </div>
+    <div class="filt-field" data-t="store" style="<%= storeId ? '' : 'display:none' %>">
+      <label>חנות</label>
+      <select name="store">
+        <option value="">כל החנויות</option>
+        <% stores.forEach(function(st){ %><option value="<%= st.id %>" <%= storeId === st.id ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option><% }); %>
+      </select>
+    </div>
+  </div>
+  <div class="row filt-field" data-t="date" style="<%= (from || to) ? '' : 'display:none' %>">
+    <div><label>מתאריך</label><input type="date" name="from" value="<%= from || '' %>" /></div>
+    <div><label>עד תאריך</label><input type="date" name="to" value="<%= to || '' %>" /></div>
+  </div>
+  <div style="margin-top:.7rem;display:flex;gap:.5rem">
+    <button type="submit">סנן</button>
+    <a href="/invoices<%= filter ? '?status=' + filter : '' %>" class="btn btn-secondary">נקה</a>
+  </div>
+</form>
+
 <table class="sortable">
   <thead>
-    <tr><th>ספק</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th></tr>
+    <tr><th>מספר חשבונית</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th></tr>
   </thead>
   <tbody>
     <% if (invoices.length === 0) { %>
-      <tr><td colspan="4" class="muted">אין חשבוניות להצגה.</td></tr>
+      <tr><td colspan="5" class="muted">אין חשבוניות להצגה.</td></tr>
     <% } %>
     <% invoices.forEach(function(i){ %>
       <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= i.status === 'on_hold' ? 'row-hold' : '' %>">
+        <td class="mono"><%= i.invoice_number %></td>
+        <td><%= i.store_name %></td>
+        <td><%= formatDate(i.invoice_date) %></td>
+        <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
         <td><%= i.supplier_name %>
           <% if (i.supplier_status !== 'approved') { %>
             <span class="badge b-<%= i.supplier_status %>">ספק <%= i.supplier_status === 'pending' ? 'ממתין' : 'חסום' %></span>
           <% } %>
         </td>
-        <td><%= i.store_name %></td>
-        <td><%= formatDate(i.invoice_date) %></td>
-        <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
       </tr>
     <% }); %>
   </tbody>
 </table>
+
+<script>
+  // Filter panel: checkboxes reveal the supplier / store / date-range controls (choose one up to all).
+  (function(){
+    document.querySelectorAll('.filt-toggle').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        var t = cb.getAttribute('data-t');
+        document.querySelectorAll('.filt-field[data-t="' + t + '"]').forEach(function(el){
+          el.style.display = cb.checked ? '' : 'none';
+          if (!cb.checked) el.querySelectorAll('input,select').forEach(function(i){ i.value=''; });
+        });
+      });
+    });
+  })();
+</script>
 <%- include('../partials/footer') %>

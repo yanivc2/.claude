@@ -45,3 +45,19 @@ test('updateInvoice rejects a duplicate allocation number and locks paid invoice
   await db.run("UPDATE invoices SET status = 'paid' WHERE id = ?", [a.id]);
   await assert.rejects(updateInvoice(a.id, { invoiceNumber: 'nope' }, sec, db), /ששולמה/);
 });
+
+test('listInvoices filters by invoice number, supplier, store and date range', async () => {
+  const { db, st, sec, sup } = await setup();
+  const other = await approveSupplier((await createSupplier({ name: 'ספק ב' }, sec, db)).id, await owner(db), db);
+  await createInvoice({ supplierId: sup.id, storeId: st.id, invoiceNumber: 'INV-100', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('100'), vatAmount: 0, docType: 'tax_invoice' }, sec, db);
+  await createInvoice({ supplierId: other.id, storeId: st.id, invoiceNumber: 'INV-200', invoiceDate: '2026-08-15', amountBeforeVat: toAgorot('200'), vatAmount: 0, docType: 'tax_invoice' }, sec, db);
+
+  const { listInvoices } = await import('../src/services/invoices.js');
+  assert.equal((await listInvoices({ q: '100' }, db)).length, 1);
+  assert.equal((await listInvoices({ q: 'INV' }, db)).length, 2);
+  assert.equal((await listInvoices({ supplierId: other.id }, db)).length, 1);
+  assert.equal((await listInvoices({ from: '2026-08-01', to: '2026-08-31' }, db)).length, 1);
+  assert.equal((await listInvoices({ from: '2026-08-01' }, db))[0].invoice_number, 'INV-200');
+  // combined: supplier + date that excludes the match → empty
+  assert.equal((await listInvoices({ supplierId: sup.id, from: '2026-08-01' }, db)).length, 0);
+});

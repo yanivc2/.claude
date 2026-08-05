@@ -411,7 +411,10 @@ export async function getInvoiceDetail(id, x = getExecutor()) {
 }
 
 /** List invoices with joined names, optional status filter. */
-export async function listInvoices({ status = null, scope = null } = {}, x = getExecutor()) {
+export async function listInvoices(
+  { status = null, scope = null, supplierId = null, storeId = null, q = null, from = null, to = null } = {},
+  x = getExecutor(),
+) {
   const base = `SELECT i.*, s.name AS supplier_name, s.status AS supplier_status,
                        st.name AS store_name
                   FROM invoices i
@@ -421,6 +424,11 @@ export async function listInvoices({ status = null, scope = null } = {}, x = get
   let sql = `${base} WHERE 1 = 1`;
   const params = [];
   if (status) { sql += ' AND i.status = ?'; params.push(status); }
+  if (supplierId) { sql += ' AND i.supplier_id = ?'; params.push(supplierId); }
+  if (storeId) { sql += ' AND i.store_id = ?'; params.push(storeId); }
+  if (q) { sql += ' AND i.invoice_number LIKE ?'; params.push(`%${q}%`); }
+  if (from) { sql += ' AND i.invoice_date >= ?'; params.push(from); }
+  if (to) { sql += ' AND i.invoice_date <= ?'; params.push(to); }
   sql += sc.sql; params.push(...sc.params);
   sql += ' ORDER BY i.id DESC';
   return x.many(sql, params);

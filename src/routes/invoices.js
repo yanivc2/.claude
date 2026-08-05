@@ -65,10 +65,23 @@ async function batchContext(supplierId, storeId) {
 
 router.get('/', async (req, res, next) => {
   try {
+    const q = (req.query.q || '').trim();
+    const supplierId = req.query.supplier ? Number(req.query.supplier) : null;
+    const storeId = req.query.store ? Number(req.query.store) : null;
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : null;
+    const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : null;
+    const { suppliers, stores } = await formData(req.scope.companyIds);
     res.render('invoices/index', {
       title: 'חשבוניות',
-      invoices: await listInvoices({ status: req.query.status || null, scope: req.scope.companyIds }),
+      invoices: await listInvoices({ status: req.query.status || null, scope: req.scope.companyIds, supplierId, storeId, q, from, to }),
       filter: req.query.status || '',
+      q,
+      supplierId,
+      storeId,
+      from,
+      to,
+      suppliers,
+      stores,
     });
   } catch (err) {
     next(err);
