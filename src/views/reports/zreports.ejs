@@ -82,8 +82,8 @@
           <td class="right">
             <% if (!z.hasDeposit) { %><span class="muted">—</span>
             <% } else if (z.depDiff === 0) { %><span style="color:var(--ok)">תואם</span>
-            <% } else if (z.depDiff > 0) { %><strong style="color:var(--ok)">+<%= formatIls(z.depDiff) %></strong>
-            <% } else { %><strong style="color:var(--bad)">-<%= formatIls(-z.depDiff) %></strong><% } %>
+            <% } else if (z.depDiff > 0) { %><strong style="color:var(--ok)">יתרה <%= formatIls(z.depDiff) %></strong>
+            <% } else { %><strong style="color:var(--bad)">חוסר <%= formatIls(-z.depDiff) %></strong><% } %>
           </td>
           <td class="no-print">
             <a class="btn btn-secondary small" style="display:inline-flex;align-items:center;gap:4px"

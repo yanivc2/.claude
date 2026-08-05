@@ -127,8 +127,8 @@
     if (!depAmtEl || depAmtEl.value.trim() === '') { depReconEl.value = '—'; depReconEl.style.color = ''; return; }
     var diff = num(depAmtEl) - (drawerSum() + cxSum());
     if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--ok)'; }
-    else if (diff > 0) { depReconEl.value = '+' + fmt(diff); depReconEl.style.color = 'var(--ok)'; }
-    else { depReconEl.value = '-' + fmt(-diff); depReconEl.style.color = 'var(--bad)'; }
+    else if (diff > 0) { depReconEl.value = 'יתרה ' + fmt(diff); depReconEl.style.color = 'var(--ok)'; }
+    else { depReconEl.value = 'חוסר ' + fmt(-diff); depReconEl.style.color = 'var(--bad)'; }
   }
   function recalcDrawer(){ form.querySelector('#drawer_total').value = fmt(drawerSum()); }
   function ccMatches(){ return Math.round(ccSum()*100) === Math.round(num(creditEl)*100); }
