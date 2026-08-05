@@ -9,7 +9,7 @@ import { logAction } from './audit.js';
 
 // Every table, setup first. Used for the export.
 const ALL_TABLES = [
-  'companies', 'stores', 'bank_accounts', 'users', 'user_companies',
+  'companies', 'stores', 'bank_accounts', 'users', 'user_companies', 'role_templates',
   'suppliers', 'invoices', 'payments', 'payment_lines', 'bank_transactions',
   'invoice_ocr', 'z_reports', 'z_expenses', 'deposits', 'sales_entries',
   'calendar_events', 'change_requests', 'password_resets', 'audit_log',
@@ -24,12 +24,12 @@ const RESET_ORDER = [
 ];
 
 // Tables that are preserved by a reset (the business setup) — surfaced to the UI.
-export const RESET_KEEPS = ['companies', 'stores', 'bank_accounts', 'users', 'user_companies'];
+export const RESET_KEEPS = ['companies', 'stores', 'bank_accounts', 'users', 'user_companies', 'role_templates'];
 
 // Insert order for a restore: parents before children (satisfies every FK). The wipe runs in
 // the reverse order (children first).
 const RESTORE_ORDER = [
-  'companies', 'stores', 'bank_accounts', 'users', 'user_companies', 'suppliers',
+  'companies', 'stores', 'bank_accounts', 'users', 'user_companies', 'role_templates', 'suppliers',
   'invoices', 'payments', 'payment_lines', 'bank_transactions', 'invoice_ocr',
   'z_reports', 'z_expenses', 'deposits', 'sales_entries', 'calendar_events',
   'change_requests', 'password_resets', 'audit_log',

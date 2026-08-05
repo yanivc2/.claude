@@ -1,6 +1,22 @@
 <%- include('../partials/header') %>
 <h1>הגדרות</h1>
 <p class="muted">ניהול מבנה החברות, החנויות, חשבונות הבנק והמשתמשים. פעולות בעלים בלבד.</p>
+<% function permLabel(key){ var f = permissionCatalog.find(function(p){return p.key===key;}); return f ? f.label : key; } %>
+<script>
+  window.AP_ROLE_TEMPLATES = <%- JSON.stringify(typeof roleTemplates !== 'undefined' && roleTemplates ? roleTemplates : []) %>;
+  // Apply a saved role template to a user form: tick its permission checkboxes and set the label.
+  function apApplyTemplate(sel){
+    var t = (window.AP_ROLE_TEMPLATES||[]).filter(function(x){ return String(x.id) === String(sel.value); })[0];
+    if (!t) return;
+    var form = sel.closest('form'); if (!form) return;
+    var roleSel = form.querySelector('select[name=role]');
+    if (roleSel && roleSel.value === 'owner') { roleSel.value = 'secretary'; roleSel.dispatchEvent(new Event('change')); }
+    var box = form.querySelector('.perm-box');
+    if (box) { box.querySelectorAll('input[name=permissions]').forEach(function(cb){ cb.checked = (t.permissions||[]).indexOf(cb.value) !== -1; }); }
+    var lbl = form.querySelector('input[name=label]');
+    if (lbl && !lbl.value) lbl.value = t.name;
+  }
+</script>
 
 <% if (typeof notice !== 'undefined' && notice) { %>
   <div class="alert alert-info"><%= notice %></div>
@@ -248,11 +264,49 @@ function apReset(e){
 </details>
 <% } %>
 
+<!-- ===== תבניות תפקיד (בעלים בלבד) ===== -->
+<% if (currentUser.role === 'owner') { %>
+<details class="section">
+  <summary>תבניות תפקיד</summary>
+  <div class="section-body">
+    <p class="muted">בנה תפקיד בעל שם עם סט הרשאות קבוע (למשל "מנהל חשבונות"), ואז החל אותו על משתמש <strong>בקליק אחד</strong> בטופס המשתמש למטה — בלי לסמן כל הרשאה ידנית. מחיקת תבנית אינה משפיעה על משתמשים קיימים.</p>
+    <table>
+      <thead><tr><th>שם התבנית</th><th>הרשאות</th><th class="no-print"></th></tr></thead>
+      <tbody>
+        <% (typeof roleTemplates !== 'undefined' ? roleTemplates : []).forEach(function(t){ %>
+          <tr>
+            <td><strong><%= t.name %></strong></td>
+            <td class="muted" style="font-size:.85rem"><%= t.permissions.length ? t.permissions.map(permLabel).join(' · ') : 'בסיס בלבד (ללא הרשאות נוספות)' %></td>
+            <td class="no-print">
+              <form method="post" action="/settings/role-templates/<%= t.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את התבנית <%= t.name %>? לא משפיע על משתמשים קיימים.')">
+                <button class="danger small" type="submit">מחק</button>
+              </form>
+            </td>
+          </tr>
+        <% }); %>
+        <% if (!(typeof roleTemplates !== 'undefined' ? roleTemplates : []).length) { %><tr><td colspan="3" class="muted">אין תבניות עדיין.</td></tr><% } %>
+      </tbody>
+    </table>
+    <h3 style="margin:1rem 0 .3rem">תבנית חדשה</h3>
+    <form method="post" action="/settings/role-templates" class="stack" style="max-width:640px">
+      <label style="margin:0">שם התבנית *</label>
+      <input name="name" placeholder="למשל: מנהל חשבונות" required style="max-width:320px" />
+      <label style="margin:.4rem 0 .2rem">הרשאות בתבנית</label>
+      <div class="actions" style="flex-wrap:wrap;gap:.8rem">
+        <% permissionCatalog.forEach(function(p){ %>
+          <label style="display:flex;align-items:center;gap:.3rem;margin:0;font-weight:400">
+            <input type="checkbox" name="permissions" value="<%= p.key %>" style="width:auto" /> <%= p.label %>
+          </label>
+        <% }); %>
+      </div>
+      <div style="margin-top:.5rem"><button type="submit">הוסף תבנית</button></div>
+    </form>
+  </div>
+</details>
+<% } %>
+
 <!-- ===== ניהול משתמשים והרשאות (בעלים בלבד) ===== -->
 <% if (currentUser.role === 'owner') { %>
-<%
-function permLabel(key){ var f = permissionCatalog.find(function(p){return p.key===key;}); return f ? f.label : key; }
-%>
 <details class="section">
   <summary>ניהול משתמשים והרשאות</summary>
   <div class="section-body">
@@ -299,6 +353,13 @@ function permLabel(key){ var f = permissionCatalog.find(function(p){return p.key
                   <div><label style="margin:0">שם תפקיד (תצוגה)</label><input name="label" value="<%= u.label || '' %>" placeholder="למשל: מנהל" /></div>
                 </div>
                 <div class="perm-box" style="<%= u.role === 'owner' ? 'display:none' : '' %>">
+                  <% if ((typeof roleTemplates !== 'undefined' ? roleTemplates : []).length) { %>
+                    <label style="margin:.4rem 0 .2rem">החל תבנית תפקיד</label>
+                    <select onchange="apApplyTemplate(this)" style="max-width:320px">
+                      <option value="">— בחר תבנית —</option>
+                      <% roleTemplates.forEach(function(t){ %><option value="<%= t.id %>"><%= t.name %></option><% }); %>
+                    </select>
+                  <% } %>
                   <label style="margin:.4rem 0 .2rem">הרשאות</label>
                   <div class="actions" style="flex-wrap:wrap;gap:.8rem">
                     <% permissionCatalog.forEach(function(p){ %>
@@ -340,6 +401,13 @@ function permLabel(key){ var f = permissionCatalog.find(function(p){return p.key
         <div><label style="margin:0">שם תפקיד (תצוגה)</label><input name="label" placeholder="למשל: מנהל" /></div>
       </div>
       <div class="perm-box">
+        <% if ((typeof roleTemplates !== 'undefined' ? roleTemplates : []).length) { %>
+          <label style="margin:.4rem 0 .2rem">החל תבנית תפקיד</label>
+          <select onchange="apApplyTemplate(this)" style="max-width:320px">
+            <option value="">— בחר תבנית —</option>
+            <% roleTemplates.forEach(function(t){ %><option value="<%= t.id %>"><%= t.name %></option><% }); %>
+          </select>
+        <% } %>
         <label style="margin:.4rem 0 .2rem">הרשאות</label>
         <div class="actions" style="flex-wrap:wrap;gap:.8rem">
           <% permissionCatalog.forEach(function(p){ %>

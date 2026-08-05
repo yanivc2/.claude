@@ -23,6 +23,7 @@ import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { createInviteLink } from '../services/passwordReset.js';
 import { PASSWORD_POLICY_TEXT, verifyPassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll } from '../services/backup.js';
+import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '../services/roleTemplates.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -53,6 +54,7 @@ async function render(req, res, extra = {}) {
   let users = [];
   let companyList = [];
   let grants = {}; // { userId: [companyId, ...] } for the company×user matrix
+  let roleTemplates = []; // saved permission presets the owner can apply to a user
   let schemaWarning = null;
   try {
     companies = await listStructure();
@@ -71,12 +73,20 @@ async function render(req, res, extra = {}) {
   } catch (e) {
     schemaWarning = 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
   }
+  try {
+    roleTemplates = await listRoleTemplates();
+  } catch (e) {
+    // role_templates table may predate this feature on the live DB — the owner can create it
+    // with "עדכן מסד נתונים". Render the rest of the page regardless.
+    schemaWarning = schemaWarning || 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
+  }
   res.render('settings/index', {
     title: 'הגדרות',
     companies,
     users,
     companyList,
     grants,
+    roleTemplates,
     permissionCatalog: PERMISSIONS,
     error: null,
     notice: null,
@@ -229,6 +239,37 @@ router.post('/users/:id/delete', async (req, res, next) => {
   try {
     await deleteUser(Number(req.params.id), req.user);
     await render(req, res, { notice: 'המשתמש נמחק.' });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// --- Role templates (owner-only): named permission presets applied to a user in one click. ---
+router.post('/role-templates', requireOwner, async (req, res, next) => {
+  try {
+    await createRoleTemplate({ name: req.body.name, permissions: req.body.permissions }, req.user);
+    await render(req, res, { notice: 'תבנית תפקיד נוספה.' });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/role-templates/:id', requireOwner, async (req, res, next) => {
+  try {
+    await updateRoleTemplate(Number(req.params.id), { name: req.body.name, permissions: req.body.permissions }, req.user);
+    await render(req, res, { notice: 'תבנית התפקיד עודכנה.' });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/role-templates/:id/delete', requireOwner, async (req, res, next) => {
+  try {
+    await deleteRoleTemplate(Number(req.params.id), req.user);
+    await render(req, res, { notice: 'תבנית התפקיד נמחקה.' });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);

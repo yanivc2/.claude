@@ -284,3 +284,12 @@ CREATE TABLE IF NOT EXISTS audit_log (
   timestamp   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
   details     TEXT
 );
+
+-- Saved role templates: a named permission preset the owner can apply to a user in one click.
+CREATE TABLE IF NOT EXISTS role_templates (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  name        TEXT NOT NULL,
+  permissions TEXT,            -- JSON array of permission keys
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_role_templates_name ON role_templates(name);

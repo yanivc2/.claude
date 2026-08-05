@@ -25,24 +25,24 @@
     <details class="menu navmenu" id="navmenu">
       <summary class="btn btn-secondary btn-sm">☰ ניווט דפים <span class="caret">▾</span></summary>
       <div class="menu-panel">
-        <a href="/" class="<%= path === '/' ? 'active' : '' %>">לוח בקרה</a>
-        <a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>">חשבוניות</a>
-        <a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>">מרקורים</a>
-        <a href="/reports/zreports" class="<%= path.startsWith('/reports/zreports') ? 'active' : '' %>">דוחות Z</a>
-        <a href="/reports/outstanding" class="<%= path === '/reports/outstanding' ? 'active' : '' %>">צ׳קים בחוץ</a>
-        <a href="/reconciliation" class="<%= path.startsWith('/reconciliation') ? 'active' : '' %>">התאמת בנק</a>
-        <a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>">ספקים</a>
-        <a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>">רווחיות</a>
+        <a href="/" class="<%= path === '/' ? 'active' : '' %>"><span class="mi-ic">🏠</span>לוח בקרה</a>
+        <a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>"><span class="mi-ic">🧾</span>חשבוניות</a>
+        <a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>"><span class="mi-ic">💳</span>מרקורים</a>
+        <a href="/reports/zreports" class="<%= path.startsWith('/reports/zreports') ? 'active' : '' %>"><span class="mi-ic">📊</span>דוחות Z</a>
+        <a href="/reports/outstanding" class="<%= path === '/reports/outstanding' ? 'active' : '' %>"><span class="mi-ic">📤</span>צ׳קים בחוץ</a>
+        <a href="/reconciliation" class="<%= path.startsWith('/reconciliation') ? 'active' : '' %>"><span class="mi-ic">🏦</span>התאמת בנק</a>
+        <a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>"><span class="mi-ic">🏢</span>ספקים</a>
+        <a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>"><span class="mi-ic">💰</span>רווחיות</a>
         <% if (currentUser.role === 'owner') { %>
-          <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>">אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="tag tag-accent"><%= pendingApprovals %></span><% } %></a>
+          <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>"><span class="mi-ic">✅</span>אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="tag tag-accent"><%= pendingApprovals %></span><% } %></a>
         <% } %>
-        <a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>">יומן</a>
+        <a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>"><span class="mi-ic">📅</span>יומן</a>
         <% if (typeof can === 'function' && can('settings')) { %>
-          <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>">הגדרות</a>
+          <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>
         <% } %>
         <div class="menu-sep"></div>
         <form method="post" action="/logout" style="margin:0">
-          <button type="submit">התנתק</button>
+          <button type="submit"><span class="mi-ic">🚪</span>התנתק</button>
         </form>
       </div>
     </details>
@@ -52,7 +52,7 @@
        mobile keeps the ☰ dropdown untouched. */
     (function(){
       var d = document.getElementById('navmenu'); if (!d) return;
-      var mq = window.matchMedia('(min-width: 860px)');
+      var mq = window.matchMedia('(min-width: 1000px)');
       function sync(){ if (mq.matches) d.setAttribute('open',''); else d.removeAttribute('open'); }
       (mq.addEventListener ? mq.addEventListener('change', sync) : mq.addListener(sync));
       sync();
