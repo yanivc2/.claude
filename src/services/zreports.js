@@ -1,5 +1,6 @@
 import { getExecutor, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
+import { scopeClause } from '../lib/scope.js';
 import { logAction } from './audit.js';
 
 // Daily register (Z) close (priority 2). daily_total ("יומי Z") feeds the profitability report;
@@ -196,7 +197,32 @@ export async function addExpense(zReportId, input, actor, x = getExecutor()) {
 }
 
 export async function listExpenses(zReportId, x = getExecutor()) {
-  return x.many('SELECT * FROM z_expenses WHERE z_report_id = ? ORDER BY id', [zReportId]);
+  return x.many(
+    `SELECT e.*, i.invoice_number, i.total_amount AS invoice_total, s.name AS invoice_supplier
+       FROM z_expenses e
+       LEFT JOIN invoices i ON i.id = e.invoice_id
+       LEFT JOIN suppliers s ON s.id = i.supplier_id
+      WHERE e.z_report_id = ? ORDER BY e.id`,
+    [zReportId],
+  );
+}
+
+/**
+ * Cash expenses not yet matched to an invoice ("תשלום במזומן ללא התאמה") — for the dashboard.
+ * Only real lines (a positive amount) are surfaced. Scoped to the caller's companies.
+ */
+export async function unmatchedCashExpenses(scope = null, limit = 30, x = getExecutor()) {
+  const sc = scopeClause(scope, 'st.company_id');
+  return x.many(
+    `SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount,
+            z.id AS z_report_id, z.z_number, z.z_date, st.name AS store_name
+       FROM z_expenses e
+       JOIN z_reports z ON z.id = e.z_report_id
+       JOIN stores st ON st.id = z.store_id
+      WHERE e.invoice_id IS NULL AND e.amount > 0${sc.sql}
+      ORDER BY e.expense_date DESC, e.id DESC LIMIT ?`,
+    [...sc.params, limit],
+  );
 }
 
 export async function expensesTotal(zReportId, x = getExecutor()) {
@@ -231,8 +257,9 @@ export async function replaceExpenses(zReportId, rows, actor, x = getExecutor())
       payerName: (r.payerName || '').trim() || null,
       purpose: (r.purpose || '').trim() || null,
       amount: Number.isFinite(r.amount) ? r.amount : 0,
+      invoiceId: r.invoiceId ? Number(r.invoiceId) : null,
     }))
-    .filter((r) => r.amount > 0 || r.payerName || r.purpose);
+    .filter((r) => r.amount > 0 || r.payerName || r.purpose || r.invoiceId);
   for (const r of clean) {
     if (r.amount < 0) throw new RuleError('VALIDATION', 'סכום הוצאה חייב להיות מספר לא-שלילי');
   }
@@ -240,8 +267,8 @@ export async function replaceExpenses(zReportId, rows, actor, x = getExecutor())
     await t.run('DELETE FROM z_expenses WHERE z_report_id = ?', [zReportId]);
     for (const r of clean) {
       await t.run(
-        'INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, amount) VALUES (?, ?, ?, ?, ?)',
-        [zReportId, r.expenseDate, r.payerName, r.purpose, r.amount],
+        'INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, amount, invoice_id) VALUES (?, ?, ?, ?, ?, ?)',
+        [zReportId, r.expenseDate, r.payerName, r.purpose, r.amount, r.invoiceId],
       );
     }
   });
@@ -283,4 +310,44 @@ export async function missingZNumbers(storeId, x = getExecutor()) {
     if (!present.has(n)) missing.push(n);
   }
   return missing;
+}
+
+/**
+ * Z-sequence health across the caller's stores, for the dashboard "דוחות Z" cube.
+ * For every gap in a store's numeric Z sequence, returns the Z immediately before and after it
+ * (number, date, amount, id → link). ok=true when no store has a gap.
+ * @returns {Promise<{ok:boolean, gaps:Array<{storeName:string, missing:number,
+ *   before:object|null, after:object|null}>}>}
+ */
+export async function zSequenceStatus(scope = null, x = getExecutor()) {
+  const sc = scopeClause(scope, 'st.company_id');
+  const rows = await x.many(
+    `SELECT z.id, z.z_number, z.z_date, z.daily_total, z.store_id, st.name AS store_name
+       FROM z_reports z JOIN stores st ON st.id = z.store_id
+      WHERE 1 = 1${sc.sql}`,
+    [...sc.params],
+  );
+  const byStore = new Map();
+  for (const r of rows) {
+    if (!byStore.has(r.store_id)) byStore.set(r.store_id, []);
+    const n = Number(String(r.z_number).trim());
+    byStore.get(r.store_id).push({ ...r, n: Number.isInteger(n) ? n : null });
+  }
+  const gaps = [];
+  for (const list of byStore.values()) {
+    const nums = list.filter((r) => r.n != null).sort((a, b) => a.n - b.n);
+    if (nums.length < 2) continue;
+    const present = new Set(nums.map((r) => r.n));
+    for (let n = nums[0].n + 1; n < nums[nums.length - 1].n; n += 1) {
+      if (present.has(n)) continue;
+      let before = null;
+      let after = null;
+      for (const r of nums) {
+        if (r.n < n) before = r;
+        if (r.n > n && !after) after = r;
+      }
+      gaps.push({ storeName: nums[0].store_name, missing: n, before, after });
+    }
+  }
+  return { ok: gaps.length === 0, gaps };
 }

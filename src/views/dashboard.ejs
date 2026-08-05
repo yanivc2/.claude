@@ -165,6 +165,80 @@
 </div>
 
 <div class="card">
+  <h2 style="margin:0 0 .5rem">תשלום במזומן ללא התאמה</h2>
+  <table>
+    <thead><tr><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th><th>Z</th></tr></thead>
+    <tbody>
+      <% if (!unmatchedCash || unmatchedCash.length === 0) { %><tr><td colspan="5" class="muted">אין הוצאות מזומן ללא התאמה.</td></tr><% } %>
+      <% (unmatchedCash || []).forEach(function(e){ %>
+        <tr>
+          <td><%= formatDate(e.expense_date) %></td>
+          <td><%= e.payer_name || '—' %></td>
+          <td><%= e.purpose || '—' %></td>
+          <td class="right"><%= formatIls(e.amount) %></td>
+          <td><a href="/reports/zreports/<%= e.z_report_id %>">Z <%= e.z_number %></a></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 .5rem">הסטורית הפקדות</h2>
+  <table class="sortable">
+    <thead><tr><th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>הופקד</th><th class="right">יתרה / זכות</th></tr></thead>
+    <tbody>
+      <% if (!depositsHistory || depositsHistory.length === 0) { %><tr><td colspan="5" class="muted">אין הפקדות.</td></tr><% } %>
+      <% (depositsHistory || []).forEach(function(d){ %>
+        <tr>
+          <td class="mono"><%= d.bag_number || '—' %></td>
+          <td class="right"><%= formatIls(d.amount) %></td>
+          <td><%= formatDate(d.deposit_date) %></td>
+          <td><% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %></td>
+          <td class="right">
+            <% if (d.recon_diff == null) { %><span class="muted">—</span>
+            <% } else if (d.recon_diff === 0) { %><span class="badge b-approved">מאוזן</span>
+            <% } else if (d.recon_diff > 0) { %><span class="badge b-cleared">יתרה <%= formatIls(d.recon_diff) %></span>
+            <% } else { %><span class="badge b-blocked">חוסר <%= formatIls(-d.recon_diff) %></span><% } %>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <p class="muted" style="margin:.4rem 0 0">"יתרה / זכות" מתמלא רק לאחר התאמת בנקים.</p>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 .5rem">דוחות Z</h2>
+  <% if (zStatus && zStatus.ok) { %>
+    <p><span class="badge b-approved">תקין</span> — אין פערים ברצף מספרי ה-Z.</p>
+  <% } else { %>
+    <% (zStatus ? zStatus.gaps : []).forEach(function(g){ %>
+      <div style="margin:0 0 .8rem">
+        <p style="margin:0 0 .3rem"><span class="badge b-blocked">חסר זד מספר <%= g.missing %></span> <span class="muted"><%= g.storeName %></span></p>
+        <table>
+          <thead><tr><th>מיקום</th><th>מספר Z</th><th>תאריך</th><th class="right">סכום</th></tr></thead>
+          <tbody>
+            <% [['לפני', g.before], ['אחרי', g.after]].forEach(function(pair){ var pos = pair[0], z = pair[1]; %>
+              <tr>
+                <td><%= pos %></td>
+                <% if (z) { %>
+                  <td class="mono"><a href="/reports/zreports/<%= z.id %>"><%= z.z_number %></a></td>
+                  <td><%= formatDate(z.z_date) %></td>
+                  <td class="right"><%= formatIls(z.daily_total) %></td>
+                <% } else { %>
+                  <td colspan="3" class="muted">—</td>
+                <% } %>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% }); %>
+  <% } %>
+</div>
+
+<div class="card">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
     <h2 style="margin:0">פעולות מהירות</h2>
     <details class="menu up open-in">

@@ -40,16 +40,25 @@
       </div>
       <strong>סה"כ הוצאות: <span id="cx-total">₪0.00</span></strong>
     </div>
+    <%
+      // Options for the per-row invoice picker, built once and reused by the auto-add JS.
+      function cxEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+      var cxInvOpts = '<option value="">— ללא חשבונית —</option>';
+      (typeof invoiceOptions !== 'undefined' ? invoiceOptions : []).forEach(function(iv){
+        cxInvOpts += '<option value="' + iv.id + '">#' + iv.id + ' · ' + cxEsc(iv.supplier_name) + ' · ' + cxEsc(iv.invoice_number) + ' · ' + formatIls(iv.total_amount) + '</option>';
+      });
+    %>
     <div id="cx-panel" hidden>
-      <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. שורה חדשה נוספת אוטומטית.</p>
+      <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. שורה חדשה נוספת אוטומטית. ניתן לשייך הוצאה לחשבונית.</p>
       <table>
-        <thead><tr><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום (₪)</th><th></th></tr></thead>
+        <thead><tr><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום (₪)</th><th>חשבונית</th><th></th></tr></thead>
         <tbody id="cx-body">
           <tr>
             <td><input type="date" name="expense_date" /></td>
             <td><input name="payer_name" /></td>
             <td><input name="purpose" /></td>
             <td><input name="amount" class="cx-amt" inputmode="decimal" /></td>
+            <td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px"><%- cxInvOpts %></select></td>
             <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
           </tr>
         </tbody>
@@ -180,12 +189,14 @@
     else btn.closest('tr').querySelectorAll('input').forEach(function(i){ i.value=''; });
     recalc();
   };
+  var CX_INV_OPTS = <%- JSON.stringify(cxInvOpts) %>;
   function addRow(){
     var tr = document.createElement('tr');
     tr.innerHTML = '<td><input type="date" name="expense_date"></td>'
       + '<td><input name="payer_name"></td>'
       + '<td><input name="purpose"></td>'
       + '<td><input name="amount" class="cx-amt" inputmode="decimal"></td>'
+      + '<td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px">' + CX_INV_OPTS + '</select></td>'
       + '<td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>';
     body.appendChild(tr);
   }

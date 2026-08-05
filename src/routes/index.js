@@ -7,6 +7,8 @@ import {
   outstandingChecksInRange,
 } from '../services/reports.js';
 import { lookupChecks } from '../services/payments.js';
+import { unmatchedCashExpenses, zSequenceStatus } from '../services/zreports.js';
+import { listDeposits } from '../services/deposits.js';
 import { searchSuppliers } from '../services/suppliers.js';
 import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
@@ -78,6 +80,9 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope }) : null,
       checkResults: q ? await lookupChecks(q, scope) : null,
       supplierResults: q ? await searchSuppliers(q) : null,
+      unmatchedCash: await unmatchedCashExpenses(scope, 20),
+      depositsHistory: await listDeposits({ scope, limit: 20 }),
+      zStatus: await zSequenceStatus(scope),
     });
   } catch (err) {
     next(err);

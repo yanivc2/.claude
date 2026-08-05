@@ -15,6 +15,7 @@ import {
   zReconciliationStatus,
 } from '../services/zreports.js';
 import { createDeposit, listDeposits, setDeposited, deleteDeposit } from '../services/deposits.js';
+import { listInvoices } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
@@ -43,6 +44,17 @@ function zUrl(req, id) {
 
 function ils(agorot) {
   return `₪${fromAgorot(agorot)}`;
+}
+
+// Recent invoices offered as match targets for a cash expense (מס' · ספק · סכום). Scoped, capped.
+async function invoicePickOptions(scope) {
+  const rows = await listInvoices({ scope });
+  return rows.slice(0, 300).map((r) => ({
+    id: r.id,
+    invoice_number: r.invoice_number,
+    supplier_name: r.supplier_name,
+    total_amount: r.total_amount,
+  }));
 }
 
 // Fire a Telegram alert if a Z report is unmatched after a save. Best-effort — never throws.
@@ -85,6 +97,7 @@ async function renderZReport(req, res, id, extra = {}) {
     expenses: await listExpenses(id),
     expensesTotal: await expensesTotal(id),
     expenseTypes: EXPENSE_TYPES,
+    invoiceOptions: await invoicePickOptions(req.scope.companyIds),
     denoms: DENOMS,
     depositCounts: zr.deposit_breakdown ? JSON.parse(zr.deposit_breakdown) : {},
     cashRecon,
@@ -166,7 +179,8 @@ async function renderZReports(req, res, extra = {}) {
     unmatchedCount: zReports.filter((z) => !z.matched).length,
     zStoreId,
     missingZ: zStoreId ? await missingZNumbers(zStoreId) : [],
-    deposits: await listDeposits({ storeId: zStoreId }),
+    deposits: await listDeposits({ storeId: zStoreId, scope: req.scope.companyIds }),
+    invoiceOptions: await invoicePickOptions(req.scope.companyIds),
     error: null,
     notice: null,
     ...extra,
@@ -348,21 +362,25 @@ router.post('/zreports', async (req, res, next) => {
       const names = [].concat(b.payer_name || []);
       const purposes = [].concat(b.purpose || []);
       const amounts = [].concat(b.amount || []);
+      const invoiceIds = [].concat(b.expense_invoice_id || []);
       const rows = amounts.map((a, i) => ({
         expenseDate: dates[i] || null,
         payerName: names[i],
         purpose: purposes[i],
         amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
+        invoiceId: invoiceIds[i] || null,
       }));
-      if (rows.some((r) => (r.payerName || '').trim() || (r.purpose || '').trim() || r.amount)) {
+      if (rows.some((r) => (r.payerName || '').trim() || (r.purpose || '').trim() || r.amount || r.invoiceId)) {
         await replaceExpenses(created.id, rows, req.user);
       }
     }
-    // Optional deposit declaration entered on the same form — reuses the Z's store + date.
+    // Optional deposit declaration entered on the same form — reuses the Z's store + date,
+    // and links back to the Z it was declared on.
     if ((b.dep_bag || '').trim() || (b.dep_amount || '').trim()) {
       await createDeposit(
         {
           storeId,
+          zReportId: created.id,
           depositDate: b.z_date,
           bagNumber: b.dep_bag,
           amount: toAgorot(b.dep_amount || '0'),
@@ -440,11 +458,13 @@ router.post('/zreports/:id/expenses-bulk', async (req, res, next) => {
     const names = [].concat(req.body.payer_name || []);
     const purposes = [].concat(req.body.purpose || []);
     const amounts = [].concat(req.body.amount || []);
+    const invoiceIds = [].concat(req.body.expense_invoice_id || []);
     const rows = amounts.map((a, i) => ({
       expenseDate: dates[i] || null,
       payerName: names[i],
       purpose: purposes[i],
       amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
+      invoiceId: invoiceIds[i] || null,
     }));
     await replaceExpenses(id, rows, req.user);
     await alertIfUnmatched(req, id);

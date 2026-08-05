@@ -246,6 +246,7 @@ CREATE TABLE IF NOT EXISTS z_expenses (
   description_type TEXT,
   employee_name    TEXT,
   amount           INTEGER NOT NULL DEFAULT 0,
+  invoice_id       INTEGER REFERENCES invoices(id),  -- optional: cash expense matched to an invoice
   image_path       TEXT,
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
@@ -255,10 +256,13 @@ CREATE TABLE IF NOT EXISTS z_expenses (
 CREATE TABLE IF NOT EXISTS deposits (
   id           INTEGER PRIMARY KEY AUTOINCREMENT,
   store_id     INTEGER NOT NULL REFERENCES stores(id),
+  z_report_id  INTEGER REFERENCES z_reports(id),  -- optional link to the Z this deposit was declared on
   deposit_date TEXT NOT NULL,
   bag_number   TEXT,
   amount       INTEGER NOT NULL DEFAULT 0,   -- agorot
   deposited    INTEGER NOT NULL DEFAULT 0,   -- 0/1 — הופקד לבנק
+  matched_txn_id INTEGER REFERENCES bank_transactions(id),  -- bank line matched by bag=reference (recon)
+  recon_diff   INTEGER,                       -- agorot: bank amount − declared (יתרה>0 / חוסר<0); NULL until reconciled
   created_by   INTEGER NOT NULL REFERENCES users(id),
   created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );

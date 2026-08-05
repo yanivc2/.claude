@@ -115,6 +115,36 @@
   <span style="display:inline-flex;gap:6px;align-items:center"><span class="badge b-cleared-auto">נפרע</span> = אוטומטי (שיוך בהתאמת בנק)</span>
 </p>
 
+<div class="card">
+  <div class="toolbar"><h2 style="margin:0">הצהרות הפקדה</h2></div>
+  <p class="muted no-print" style="margin:.2rem 0">הפקדות שהוצהרו בדוחות Z. "יתרה / חוסר" מתמלא בהתאמה אוטומטית לבנק לפי מספר שקית = מספר אסמכתה.</p>
+  <table class="sortable">
+    <thead><tr><th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>שיוך ל-Z</th><th class="right">יתרה / חוסר</th><th>סטטוס</th></tr></thead>
+    <tbody>
+      <% if (!deposits || deposits.length === 0) { %><tr><td colspan="6" class="muted">אין הצהרות הפקדה.</td></tr><% } %>
+      <% (deposits || []).forEach(function(d){ %>
+        <tr>
+          <td class="mono"><%= d.bag_number || '—' %></td>
+          <td class="right"><%= formatIls(d.amount) %></td>
+          <td><%= formatDate(d.deposit_date) %></td>
+          <td>
+            <% if (d.z_report_id) { %><a href="/reports/zreports/<%= d.z_report_id %>">Z <%= d.z_number || d.z_report_id %></a><% } else { %>—<% } %>
+          </td>
+          <td class="right">
+            <% if (d.recon_diff == null) { %><span class="muted">—</span>
+            <% } else if (d.recon_diff === 0) { %><span class="badge b-approved">מאוזן</span>
+            <% } else if (d.recon_diff > 0) { %><span class="badge b-cleared">יתרה <%= formatIls(d.recon_diff) %></span>
+            <% } else { %><span class="badge b-blocked">חוסר <%= formatIls(-d.recon_diff) %></span><% } %>
+          </td>
+          <td>
+            <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>
+
 <script>
   // סינון פר-עמודה בטבלת המרקורים: שדות טקסט לכל עמודה + בורר סטטוס נפרע/לא נפרע.
   // סינון בצד לקוח בלבד — מסתיר שורות שאינן תואמות, בלי לפנות לשרת.

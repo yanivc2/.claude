@@ -27,6 +27,17 @@ function migrateZExtras(db) {
     const cols = db.prepare('PRAGMA table_info(z_reports)').all().map((c) => c.name);
     if (!cols.includes('image_path')) db.exec('ALTER TABLE z_reports ADD COLUMN image_path TEXT;');
   }
+  // Cash expense → invoice link; deposit → Z link + bank reconciliation (bag=reference).
+  if (has('z_expenses')) {
+    const cols = db.prepare('PRAGMA table_info(z_expenses)').all().map((c) => c.name);
+    if (!cols.includes('invoice_id')) db.exec('ALTER TABLE z_expenses ADD COLUMN invoice_id INTEGER REFERENCES invoices(id);');
+  }
+  if (has('deposits')) {
+    const cols = db.prepare('PRAGMA table_info(deposits)').all().map((c) => c.name);
+    if (!cols.includes('z_report_id')) db.exec('ALTER TABLE deposits ADD COLUMN z_report_id INTEGER REFERENCES z_reports(id);');
+    if (!cols.includes('matched_txn_id')) db.exec('ALTER TABLE deposits ADD COLUMN matched_txn_id INTEGER REFERENCES bank_transactions(id);');
+    if (!cols.includes('recon_diff')) db.exec('ALTER TABLE deposits ADD COLUMN recon_diff INTEGER;');
+  }
 }
 
 // Adds the deposits table (bank deposit declarations) to older databases.

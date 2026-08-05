@@ -9,7 +9,8 @@ import {
   listPayments,
 } from '../services/payments.js';
 import { listPayable } from '../services/invoices.js';
-import { autoReconcile } from '../services/reconciliation.js';
+import { listDeposits } from '../services/deposits.js';
+import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
 import { scopeParam } from '../lib/scopeGuard.js';
@@ -35,11 +36,13 @@ router.get('/', async (req, res, next) => {
       const m = Number(req.query.m) || 0;
       const a = Number(req.query.a) || 0;
       const u = Number(req.query.u) || 0;
-      notice = `הותאמו אוטומטית ${m} צ׳קים · ${a} דורשים הכרעה · ${u} ללא התאמה.`;
+      const dep = Number(req.query.dep) || 0;
+      notice = `הותאמו אוטומטית ${m} צ׳קים · ${a} דורשים הכרעה · ${u} ללא התאמה` + (dep ? ` · ${dep} הפקדות הותאמו לפי מספר שקית.` : '.');
     }
     res.render('payments/index', {
       title: 'מרקורים',
       payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope }),
+      deposits: await listDeposits({ storeId, scope, limit: 50 }),
       filter: req.query.status || '',
       companyId,
       storeId,
@@ -74,14 +77,17 @@ router.post('/auto-reconcile', async (req, res, next) => {
     let m = 0;
     let a = 0;
     let u = 0;
+    let dep = 0;
     for (const acc of accounts) {
       const r = await autoReconcile(acc.id, req.user);
       m += r.matched;
       a += r.ambiguous;
       u += r.unmatched;
+      const rd = await reconcileDeposits(acc.id, req.user);
+      dep += rd.matched;
     }
 
-    const q = new URLSearchParams({ rc: '1', m: String(m), a: String(a), u: String(u) });
+    const q = new URLSearchParams({ rc: '1', m: String(m), a: String(a), u: String(u), dep: String(dep) });
     if (req.body.status) q.set('status', req.body.status);
     if (companyId) q.set('company', String(companyId));
     if (storeId) q.set('store', String(storeId));

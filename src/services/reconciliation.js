@@ -130,3 +130,48 @@ export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
   );
   return { matched, ambiguous, unmatched };
 }
+
+/**
+ * Reconcile bank credit lines against deposit declarations (הפקדות) of the account's store.
+ * A deposit's bag number is the bank reference (מספר שקית = מספר אסמכתה); the amounts may differ,
+ * so we record recon_diff = bank amount − declared amount (יתרה>0 / חוסר<0) rather than requiring
+ * an exact match. Each credit line and each deposit is used at most once.
+ * @returns {{matched:number}}
+ */
+export async function reconcileDeposits(bankAccountId, actor, x = getExecutor()) {
+  const acc = await x.one('SELECT id, store_id FROM bank_accounts WHERE id = ?', [bankAccountId]);
+  if (!acc) return { matched: 0 };
+  const txns = await x.many(
+    `SELECT * FROM bank_transactions WHERE bank_account_id = ? AND amount > 0 ORDER BY txn_date`,
+    [bankAccountId],
+  );
+  // Credit lines already used for a deposit match (filtered in JS — pg-mem can't run the
+  // correlated NOT EXISTS this would otherwise need).
+  const usedRows = await x.many('SELECT matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', []);
+  const used = new Set(usedRows.map((r) => Number(r.matched_txn_id)));
+  let matched = 0;
+  for (const txn of txns) {
+    if (used.has(Number(txn.id))) continue;
+    const ref = (txn.raw_reference ?? '').trim();
+    if (!ref) continue;
+    const dep = await x.one(
+      `SELECT * FROM deposits
+         WHERE store_id = ? AND matched_txn_id IS NULL AND bag_number = ?
+         ORDER BY deposit_date LIMIT 1`,
+      [acc.store_id, ref],
+    );
+    if (!dep) continue;
+    const diff = txn.amount - dep.amount;
+    await x.run(
+      'UPDATE deposits SET matched_txn_id = ?, recon_diff = ?, deposited = 1 WHERE id = ?',
+      [txn.id, diff, dep.id],
+    );
+    await logAction(
+      { userId: actor?.id ?? null, action: 'reconcile.deposit', entityType: 'deposit', entityId: dep.id, details: { txnId: txn.id, diff } },
+      x,
+    );
+    used.add(Number(txn.id));
+    matched += 1;
+  }
+  return { matched };
+}
