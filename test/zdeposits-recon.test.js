@@ -134,8 +134,24 @@ test('zSequenceStatus reports a gap with the Z before and after it', async () =>
 
   const status = await zSequenceStatus(null, db);
   assert.equal(status.ok, false);
-  const gap = status.gaps.find((g) => g.missing === 11);
+  const gap = status.gaps.find((g) => g.from === 11);
   assert.ok(gap);
+  assert.equal(gap.to, 11); // single missing number → from == to
   assert.equal(gap.before.z_number, '10');
   assert.equal(gap.after.z_number, '12');
+});
+
+test('zSequenceStatus joins consecutive missing numbers into one range', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  await createZReport({ storeId: store.id, zNumber: '15', zDate: '2026-08-01', drawerCash: 100 }, ow, db);
+  // 16..424 missing
+  await createZReport({ storeId: store.id, zNumber: '425', zDate: '2026-08-05', drawerCash: 100 }, ow, db);
+  const status = await zSequenceStatus(null, db);
+  assert.equal(status.gaps.length, 1);
+  assert.equal(status.gaps[0].from, 16);
+  assert.equal(status.gaps[0].to, 424);
+  assert.equal(status.gaps[0].before.z_number, '15');
+  assert.equal(status.gaps[0].after.z_number, '425');
 });

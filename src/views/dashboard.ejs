@@ -215,7 +215,7 @@
   <% } else { %>
     <% (zStatus ? zStatus.gaps : []).forEach(function(g){ %>
       <div style="margin:0 0 .8rem">
-        <p style="margin:0 0 .3rem"><span class="badge b-blocked">חסר זד מספר <%= g.missing %></span> <span class="muted"><%= g.storeName %></span></p>
+        <p style="margin:0 0 .3rem"><span class="badge b-blocked">חסר זד מספר <%= g.from === g.to ? g.from : (g.from + '-' + g.to) %></span> <span class="muted"><%= g.storeName %></span></p>
         <table>
           <thead><tr><th>מיקום</th><th>מספר Z</th><th>תאריך</th><th class="right">סכום</th></tr></thead>
           <tbody>

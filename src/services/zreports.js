@@ -363,20 +363,17 @@ export async function zSequenceStatus(scope = null, x = getExecutor()) {
     const n = Number(String(r.z_number).trim());
     byStore.get(r.store_id).push({ ...r, n: Number.isInteger(n) ? n : null });
   }
+  // Each gap between two consecutive present Z numbers is ONE range [from..to] (consecutive
+  // missing numbers are joined, e.g. 16-424), with the Z immediately before and after it.
   const gaps = [];
   for (const list of byStore.values()) {
     const nums = list.filter((r) => r.n != null).sort((a, b) => a.n - b.n);
-    if (nums.length < 2) continue;
-    const present = new Set(nums.map((r) => r.n));
-    for (let n = nums[0].n + 1; n < nums[nums.length - 1].n; n += 1) {
-      if (present.has(n)) continue;
-      let before = null;
-      let after = null;
-      for (const r of nums) {
-        if (r.n < n) before = r;
-        if (r.n > n && !after) after = r;
+    for (let i = 0; i < nums.length - 1; i += 1) {
+      const a = nums[i];
+      const b = nums[i + 1];
+      if (b.n > a.n + 1) {
+        gaps.push({ storeName: a.store_name, from: a.n + 1, to: b.n - 1, before: a, after: b });
       }
-      gaps.push({ storeName: nums[0].store_name, missing: n, before, after });
     }
   }
   return { ok: gaps.length === 0, gaps };

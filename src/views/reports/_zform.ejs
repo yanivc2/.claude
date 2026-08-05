@@ -42,16 +42,21 @@
     <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" value="<%= sh(z.drawer_vouchers) %>" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
     <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
   </div>
+  <div class="row">
+    <div></div>
+    <div><label>סה"כ הוצאות במזומן</label><input id="drawer_expenses_total" readonly value="₪0.00" /><small class="muted">מתוך פירוט "הוצאות במזומן" למטה</small></div>
+  </div>
 
   <div class="toolbar" style="margin:1.1rem 0 .2rem">
     <div style="display:flex;align-items:center;gap:.6rem">
       <h3 style="margin:0">הוצאות במזומן (לא חובה)</h3>
       <button type="button" class="round-btn" title="פירוט הוצאות" onclick="var p=document.getElementById('cx-panel');p.hidden=!p.hidden;">🧾</button>
     </div>
-    <div style="display:flex;align-items:center;gap:.7rem">
-      <strong>סה"כ הוצאות: <span id="cx-total">₪0.00</span></strong>
-      <button type="button" class="round-btn" title="דוח כרטיסי אשראי" onclick="var p=document.getElementById('cc-panel');p.hidden=!p.hidden;">💳</button>
-    </div>
+    <strong>סה"כ הוצאות: <span id="cx-total">₪0.00</span></strong>
+  </div>
+  <div style="display:flex;align-items:center;gap:.6rem;margin:.2rem 0 .4rem">
+    <span style="font-weight:600">הכנסות מאשראי</span>
+    <button type="button" class="round-btn" title="דוח כרטיסי אשראי" onclick="var p=document.getElementById('cc-panel');p.hidden=!p.hidden;">💳</button>
   </div>
 
   <div id="cx-panel" <%= exRows.length ? '' : 'hidden' %>>
@@ -100,6 +105,7 @@
   <div class="row">
     <div><label>מספר שקית הפקדה</label><input name="dep_bag" value="<%= dp ? (dp.bag_number || '') : '' %>" /></div>
     <div><label>סכום הפקדה (₪)</label><input name="dep_amount" inputmode="decimal" placeholder="0.00" value="<%= dp ? sh(dp.amount) : '' %>" /></div>
+    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">מגירה + הוצאות − הפקדה</small></div>
   </div>
   <label style="display:flex;align-items:center;gap:8px;margin-top:.6rem">
     <input type="checkbox" name="dep_deposited" value="1" style="width:auto;min-height:0" <%= dp && dp.deposited ? 'checked' : '' %> /> הופקד לבנק
@@ -116,7 +122,21 @@
   function fmt(n){ return '₪' + n.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
   function drawerSum(){ var s=0; form.querySelectorAll('input.dr').forEach(function(i){ s+=num(i); }); return s; }
   function ccSum(){ var s=0; form.querySelectorAll('input.cc').forEach(function(i){ s+=num(i); }); return s; }
+  function cxSum(){ var s=0; form.querySelectorAll('.cx-amt').forEach(function(i){ s+=num(i); }); return s; }
   var creditEl = form.querySelector('#drawer_credit');
+  var depAmtEl = form.querySelector('input[name="dep_amount"]');
+  var depReconEl = form.querySelector('#dep_recon');
+  var drawerExpEl = form.querySelector('#drawer_expenses_total');
+  // חוסר/יתרה = (סה"כ מגירה + סה"כ הוצאות במזומן) − סכום הפקדה. +ירוק / −אדום / תואם.
+  function recalcDepRecon(){
+    if (drawerExpEl) drawerExpEl.value = fmt(cxSum());
+    if (!depReconEl) return;
+    if (!depAmtEl || depAmtEl.value.trim() === '') { depReconEl.value = '—'; depReconEl.style.color = ''; return; }
+    var diff = (drawerSum() + cxSum()) - num(depAmtEl);
+    if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--ok)'; }
+    else if (diff > 0) { depReconEl.value = '+' + fmt(diff); depReconEl.style.color = 'var(--ok)'; }
+    else { depReconEl.value = '-' + fmt(-diff); depReconEl.style.color = 'var(--bad)'; }
+  }
   function recalcDrawer(){ form.querySelector('#drawer_total').value = fmt(drawerSum()); }
   function ccMatches(){ return Math.round(ccSum()*100) === Math.round(num(creditEl)*100); }
   function recalcCc(){
@@ -125,15 +145,21 @@
     if (ccMatches()) { msg.textContent = 'תואם לאשראי מגירה ✓'; msg.style.color = 'var(--ok)'; }
     else { msg.textContent = 'אין התאמה בהכנסות מאשראי — אשראי מגירה ' + fmt(num(creditEl)); msg.style.color = 'var(--bad)'; }
   }
-  form.querySelectorAll('input.dr').forEach(function(i){ i.addEventListener('input', function(){ recalcDrawer(); recalcCc(); }); });
+  form.querySelectorAll('input.dr').forEach(function(i){ i.addEventListener('input', function(){ recalcDrawer(); recalcCc(); recalcDepRecon(); }); });
   form.querySelectorAll('input.cc').forEach(function(i){ i.addEventListener('input', recalcCc); });
+  if (depAmtEl) depAmtEl.addEventListener('input', recalcDepRecon);
   recalcDrawer(); recalcCc();
   // Show the credit-card panel up-front when there's credit to reconcile (or a mismatch).
   if (num(creditEl) > 0 || ccSum() > 0) document.getElementById('cc-panel').hidden = false;
 
   // Cash-expenses table: live total + auto-add a fresh row when the last one is filled.
   var body = document.getElementById('cx-body');
-  function recalcCx(){ var t=0; body.querySelectorAll('.cx-amt').forEach(function(i){ t+=num(i); }); document.getElementById('cx-total').textContent = fmt(t); }
+  function recalcCx(){
+    var t=0; body.querySelectorAll('.cx-amt').forEach(function(i){ t+=num(i); });
+    document.getElementById('cx-total').textContent = fmt(t);
+    recalcDepRecon();
+  }
+  recalcCx();
   window.cxDel = function(btn){
     var rows = body.querySelectorAll('tr');
     if (rows.length > 1) btn.closest('tr').remove();

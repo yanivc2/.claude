@@ -10,7 +10,7 @@
 </div>
 
 <div class="card">
-  <h2>הפקדות אחרונות</h2>
+  <h2>הצהרות הפקדה</h2>
   <table class="sortable">
     <thead><tr><th>תאריך</th><th>חנות</th><th>מס' שקית</th><th class="right">סכום</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
     <tbody>
@@ -56,10 +56,11 @@
   <% if (unmatchedCount > 0) { %>
     <div class="alert alert-warn">⚠ <strong><%= unmatchedCount %></strong> דוחות Z לא תואמים — ראה סימון בטבלה.</div>
   <% } %>
+  <div style="overflow-x:auto">
   <table class="sortable">
-    <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מגירה</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
+    <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מגירה</th><th class="right">סכום הפקדה</th><th>שקית הפקדה</th><th>סטטוס</th><th class="right">חוסר / יתרה</th><th class="no-print" data-nosort></th></tr></thead>
     <tbody>
-      <% if (zReports.length === 0) { %><tr><td colspan="7" class="muted">אין דוחות Z.</td></tr><% } %>
+      <% if (zReports.length === 0) { %><tr><td colspan="10" class="muted">אין דוחות Z.</td></tr><% } %>
       <% zReports.forEach(function(z){ %>
         <tr>
           <td class="mono"><a href="/reports/zreports/<%= z.id %>"><%= z.z_number %></a></td>
@@ -67,12 +68,22 @@
           <td><%= z.store_name %></td>
           <td class="right"><%= formatIls(z.daily_total) %></td>
           <td class="right"><%= formatIls(z.drawer_total) %></td>
+          <td class="right"><%= z.hasDeposit ? formatIls(z.depositTotal) : '—' %></td>
+          <td class="mono"><%= z.depositBag || '—' %></td>
           <td>
-            <% if (z.matched) { %>
+            <% if (!z.hasDeposit) { %>
+              <span class="badge b-on_hold">אין הפקדה</span>
+            <% } else if (z.depMatched) { %>
               <span class="badge b-approved">תואם</span>
             <% } else { %>
-              <span class="badge b-blocked" title="<%= z.issues.map(function(i){return i.label;}).join(', ') %>">לא תואם</span>
+              <span class="badge b-blocked">לא תואם</span>
             <% } %>
+          </td>
+          <td class="right">
+            <% if (!z.hasDeposit) { %><span class="muted">—</span>
+            <% } else if (z.depDiff === 0) { %><span style="color:var(--ok)">תואם</span>
+            <% } else if (z.depDiff > 0) { %><strong style="color:var(--ok)">+<%= formatIls(z.depDiff) %></strong>
+            <% } else { %><strong style="color:var(--bad)">-<%= formatIls(-z.depDiff) %></strong><% } %>
           </td>
           <td class="no-print">
             <a class="btn btn-secondary small" style="display:inline-flex;align-items:center;gap:4px"
@@ -86,5 +97,6 @@
       <% }); %>
     </tbody>
   </table>
+  </div>
 </div>
 <%- include('../partials/footer') %>

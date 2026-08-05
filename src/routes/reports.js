@@ -185,14 +185,25 @@ async function renderZReports(req, res, extra = {}) {
   const zRows = await listZReports({ storeId: zStoreId, limit: 30 });
   const zReports = await Promise.all(
     zRows.map(async (z) => {
-      const status = await zReconciliationStatus(z.id);
-      // WhatsApp status (per the owner's rule): (סה"כ מגירה + הוצאות במזומן) מול סכום ההפקדה.
+      // Reconciliation per the owner's rule: (סה"כ מגירה + הוצאות במזומן) מול סכום ההפקדה.
       const expenses = await expensesTotal(z.id);
-      const deposit = await depositTotalForZ(z.id);
+      const dep = await depositForZ(z.id);
+      const deposit = dep ? Number(dep.amount) || 0 : 0;
       const base = (z.drawer_total || 0) + expenses;
-      const depDiff = base - deposit;
+      const depDiff = base - deposit; // >0 יתרה · <0 חוסר · 0 תואם
+      const hasDeposit = !!dep;
+      const depMatched = hasDeposit && depDiff === 0;
       const waText = zDepositWhatsappText(z, depDiff);
-      return { ...z, matched: status.matched, issues: status.issues, expensesTotal: expenses, depositTotal: deposit, depDiff, waText };
+      return {
+        ...z,
+        expensesTotal: expenses,
+        depositTotal: deposit,
+        depositBag: dep ? dep.bag_number : null,
+        hasDeposit,
+        depDiff,
+        depMatched,
+        waText,
+      };
     }),
   );
   res.render('reports/zreports', {
@@ -200,7 +211,7 @@ async function renderZReports(req, res, extra = {}) {
     storeOptions: await storeList(),
     ccBrands: CC_BRANDS,
     zReports,
-    unmatchedCount: zReports.filter((z) => !z.matched).length,
+    unmatchedCount: zReports.filter((z) => z.hasDeposit && !z.depMatched).length,
     zStoreId,
     missingZ: zStoreId ? await missingZNumbers(zStoreId) : [],
     deposits: await listDeposits({ storeId: zStoreId, scope: req.scope.companyIds }),
