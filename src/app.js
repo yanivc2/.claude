@@ -1,5 +1,5 @@
-// Build marker: 2026-08-04 — force a fresh production deploy so the security-headers,
-// company-scope (IDOR) fix, and backup/restore/reset changes go live.
+// Build marker: 2026-08-05 — force a fresh production deploy of the latest main
+// (page-access permissions) so it becomes the live Production build.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
