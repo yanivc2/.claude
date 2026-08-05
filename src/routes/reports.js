@@ -14,7 +14,7 @@ import {
   setCreditCards, ccReconciliation, CC_BRANDS,
   zReconciliationStatus,
 } from '../services/zreports.js';
-import { createDeposit, listDeposits, setDeposited, deleteDeposit } from '../services/deposits.js';
+import { createDeposit, listDeposits, setDeposited, deleteDeposit, depositTotalForZ } from '../services/deposits.js';
 import { listInvoices } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
@@ -80,6 +80,16 @@ function zWhatsappText(zr, cashRecon, prevZ) {
     ? `\nמתאריך Z קודם: ${prevZ.z_date}${prevZ.created_at ? ' ' + String(prevZ.created_at).slice(11, 16) : ''} (Z מס ${prevZ.z_number})`
     : '';
   return `${head}\n${body}${prev}`;
+}
+
+// WhatsApp status for a Z in the "רשומות Z אחרונות" list, per the owner's rule:
+// base = סה"כ מגירה + הוצאות במזומן, compared to סכום ההפקדה (הצהרה על הפקדה).
+// equal → תואם; base < deposit → חוסר <diff>; base > deposit → יתרה <diff>.
+function zDepositWhatsappText(zr, depDiff) {
+  const head = `זד מס ${zr.z_number} מתאריך : ${zr.z_date}`;
+  const status =
+    depDiff === 0 ? 'סטטוס: תואם' : depDiff > 0 ? `סטטוס: יתרה ${ils(depDiff)}` : `סטטוס: חוסר ${ils(-depDiff)}`;
+  return `${head}\n${status}`;
 }
 
 async function renderZReport(req, res, id, extra = {}) {
@@ -169,7 +179,13 @@ async function renderZReports(req, res, extra = {}) {
   const zReports = await Promise.all(
     zRows.map(async (z) => {
       const status = await zReconciliationStatus(z.id);
-      return { ...z, matched: status.matched, issues: status.issues };
+      // WhatsApp status (per the owner's rule): (סה"כ מגירה + הוצאות במזומן) מול סכום ההפקדה.
+      const expenses = await expensesTotal(z.id);
+      const deposit = await depositTotalForZ(z.id);
+      const base = (z.drawer_total || 0) + expenses;
+      const depDiff = base - deposit;
+      const waText = zDepositWhatsappText(z, depDiff);
+      return { ...z, matched: status.matched, issues: status.issues, expensesTotal: expenses, depositTotal: deposit, depDiff, waText };
     }),
   );
   res.render('reports/zreports', {

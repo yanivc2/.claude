@@ -42,6 +42,12 @@ export async function listDeposits({ storeId = null, scope = null, limit = 30 } 
   return x.many(sql, params);
 }
 
+/** Total declared deposit (agorot) linked to a given Z report. */
+export async function depositTotalForZ(zReportId, x = getExecutor()) {
+  const row = await x.one('SELECT COALESCE(SUM(amount),0) AS s FROM deposits WHERE z_report_id = ?', [zReportId]);
+  return Number(row.s) || 0;
+}
+
 export async function setDeposited(id, deposited, actor, x = getExecutor()) {
   const row = await x.one('SELECT id FROM deposits WHERE id = ?', [id]);
   if (!row) throw new NotFoundError(`הפקדה ${id} לא נמצאה`);
