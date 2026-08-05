@@ -42,17 +42,12 @@
     <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" value="<%= sh(z.drawer_vouchers) %>" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
     <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
   </div>
-  <div class="row">
-    <div></div>
-    <div><label>סה"כ הוצאות במזומן</label><input id="drawer_expenses_total" readonly value="₪0.00" /><small class="muted">מתוך פירוט "הוצאות במזומן" למטה</small></div>
-  </div>
-
   <div class="toolbar" style="margin:1.1rem 0 .2rem">
     <div style="display:flex;align-items:center;gap:.6rem">
       <h3 style="margin:0">הוצאות במזומן (לא חובה)</h3>
       <button type="button" class="round-btn" title="פירוט הוצאות" onclick="var p=document.getElementById('cx-panel');p.hidden=!p.hidden;">🧾</button>
     </div>
-    <strong>סה"כ הוצאות: <span id="cx-total">₪0.00</span></strong>
+    <strong>סה"כ הוצאות במזומן: <span id="cx-total">₪0.00</span></strong>
   </div>
   <div style="display:flex;align-items:center;gap:.6rem;margin:.2rem 0 .4rem">
     <span style="font-weight:600">הכנסות מאשראי</span>
@@ -126,13 +121,11 @@
   var creditEl = form.querySelector('#drawer_credit');
   var depAmtEl = form.querySelector('input[name="dep_amount"]');
   var depReconEl = form.querySelector('#dep_recon');
-  var drawerExpEl = form.querySelector('#drawer_expenses_total');
-  // חוסר/יתרה = (סה"כ מגירה + סה"כ הוצאות במזומן) − סכום הפקדה. +ירוק / −אדום / תואם.
+  // חוסר/יתרה = סכום הפקדה − (סה"כ מגירה + סה"כ הוצאות במזומן). הפקדה קטנה → חוסר (− אדום).
   function recalcDepRecon(){
-    if (drawerExpEl) drawerExpEl.value = fmt(cxSum());
     if (!depReconEl) return;
     if (!depAmtEl || depAmtEl.value.trim() === '') { depReconEl.value = '—'; depReconEl.style.color = ''; return; }
-    var diff = (drawerSum() + cxSum()) - num(depAmtEl);
+    var diff = num(depAmtEl) - (drawerSum() + cxSum());
     if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--ok)'; }
     else if (diff > 0) { depReconEl.value = '+' + fmt(diff); depReconEl.style.color = 'var(--ok)'; }
     else { depReconEl.value = '-' + fmt(-diff); depReconEl.style.color = 'var(--bad)'; }
