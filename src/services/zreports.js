@@ -1,4 +1,4 @@
-import { getExecutor } from '../db/adapter.js';
+import { getExecutor, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { logAction } from './audit.js';
 
@@ -215,6 +215,55 @@ export async function deleteExpense(id, actor, x = getExecutor()) {
   await x.run('DELETE FROM z_expenses WHERE id = ?', [id]);
   await logAction({ userId: actor.id, action: 'zexpense.delete', entityType: 'z_expense', entityId: id }, x);
   return row;
+}
+
+/**
+ * Replace ALL cash-expense lines of a Z report with the given rows (the "סכם" bulk save).
+ * Each row: { expenseDate, payerName, purpose, amount(agorot) }. Empty rows are dropped.
+ * Atomic: a bad row rolls the whole save back, leaving the previous lines intact.
+ * @returns {Promise<number>} how many lines were saved
+ */
+export async function replaceExpenses(zReportId, rows, actor, x = getExecutor()) {
+  await getZReport(zReportId, x);
+  const clean = (rows || [])
+    .map((r) => ({
+      expenseDate: r.expenseDate || null,
+      payerName: (r.payerName || '').trim() || null,
+      purpose: (r.purpose || '').trim() || null,
+      amount: Number.isFinite(r.amount) ? r.amount : 0,
+    }))
+    .filter((r) => r.amount > 0 || r.payerName || r.purpose);
+  for (const r of clean) {
+    if (r.amount < 0) throw new RuleError('VALIDATION', 'סכום הוצאה חייב להיות מספר לא-שלילי');
+  }
+  await tx(async (t) => {
+    await t.run('DELETE FROM z_expenses WHERE z_report_id = ?', [zReportId]);
+    for (const r of clean) {
+      await t.run(
+        'INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, amount) VALUES (?, ?, ?, ?, ?)',
+        [zReportId, r.expenseDate, r.payerName, r.purpose, r.amount],
+      );
+    }
+  });
+  await logAction({ userId: actor.id, action: 'zexpense.replace', entityType: 'z_report', entityId: zReportId, details: { count: clean.length } }, x);
+  return clean.length;
+}
+
+/** Attach (or clear) the scan of the printed Z slip. */
+export async function setZReportImage(zReportId, imagePath, actor, x = getExecutor()) {
+  await getZReport(zReportId, x);
+  await x.run('UPDATE z_reports SET image_path = ? WHERE id = ?', [imagePath || null, zReportId]);
+  await logAction({ userId: actor.id, action: 'zreport.image', entityType: 'z_report', entityId: zReportId }, x);
+}
+
+/** The Z report immediately before this one for the same store (for the WhatsApp summary). */
+export async function previousZReport(zr, x = getExecutor()) {
+  return x.one(
+    `SELECT * FROM z_reports
+       WHERE store_id = ? AND (z_date < ? OR (z_date = ? AND id < ?))
+       ORDER BY z_date DESC, id DESC LIMIT 1`,
+    [zr.store_id, zr.z_date, zr.z_date, zr.id],
+  );
 }
 
 /**

@@ -13,6 +13,20 @@ export function migrate(db) {
   migrateBankBalance(db);
   migrateUserCompanies(db);
   migrateDeposits(db);
+  migrateZExtras(db);
+}
+
+// Adds z_expenses.purpose ("עבור") and z_reports.image_path (Z-slip scan) to older databases.
+function migrateZExtras(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  if (has('z_expenses')) {
+    const cols = db.prepare('PRAGMA table_info(z_expenses)').all().map((c) => c.name);
+    if (!cols.includes('purpose')) db.exec('ALTER TABLE z_expenses ADD COLUMN purpose TEXT;');
+  }
+  if (has('z_reports')) {
+    const cols = db.prepare('PRAGMA table_info(z_reports)').all().map((c) => c.name);
+    if (!cols.includes('image_path')) db.exec('ALTER TABLE z_reports ADD COLUMN image_path TEXT;');
+  }
 }
 
 // Adds the deposits table (bank deposit declarations) to older databases.

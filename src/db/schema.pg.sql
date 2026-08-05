@@ -281,3 +281,7 @@ CREATE TABLE IF NOT EXISTS role_templates (
   created_at  TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_role_templates_name ON role_templates(name);
+
+-- Cash-expense "purpose" (עבור) + a scan of the Z slip itself.
+ALTER TABLE z_expenses ADD COLUMN IF NOT EXISTS purpose TEXT;
+ALTER TABLE z_reports  ADD COLUMN IF NOT EXISTS image_path TEXT;

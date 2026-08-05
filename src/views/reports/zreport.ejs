@@ -49,50 +49,13 @@
   <div style="flex:2; min-width:360px">
     <div class="card">
       <div class="toolbar">
-        <h2 style="margin:0">דוח הוצאות</h2>
-        <strong>סה"כ הוצאות: <%= formatIls(expensesTotal) %></strong>
+        <h2 style="margin:0">תמונת הדוח</h2>
+        <% if (zr.image_path) { %><a href="/reports/zreports/<%= zr.id %>/image" target="_blank" class="btn btn-secondary btn-sm">צפה בתמונה</a><% } %>
       </div>
-      <table>
-        <thead><tr><th>תאריך</th><th>משלם</th><th>תיאור</th><th>עובד</th><th class="right">סכום</th><th>פתק</th><th></th></tr></thead>
-        <tbody>
-          <% if (expenses.length === 0) { %><tr><td colspan="7" class="muted">אין הוצאות.</td></tr><% } %>
-          <% expenses.forEach(function(e){ var t = expenseTypes.find(function(x){return x.value===e.description_type;}); %>
-            <tr>
-              <td><%= e.expense_date ? formatDate(e.expense_date) : '—' %></td>
-              <td><%= e.payer_name || '—' %></td>
-              <td><%= t ? t.label : (e.description_type || '—') %></td>
-              <td><%= e.employee_name || '—' %></td>
-              <td class="right"><%= formatIls(e.amount) %></td>
-              <td><% if (e.image_path) { %><a href="/reports/zexpenses/<%= e.id %>/image" target="_blank">צפה</a><% } else { %>—<% } %></td>
-              <td>
-                <form method="post" action="/reports/zexpenses/<%= e.id %>/delete" onsubmit="return confirm('למחוק הוצאה?')" style="display:inline">
-                  <button class="danger small" type="submit">מחק</button>
-                </form>
-              </td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-
-      <h3 style="margin-top:1rem">הוספת הוצאה</h3>
-      <form method="post" action="/reports/zreports/<%= zr.id %>/expenses" enctype="multipart/form-data" class="stack">
-        <div class="row">
-          <div><label>תאריך הוצאה</label><input type="date" name="expense_date" /></div>
-          <div><label>שם משלם</label><input name="payer_name" /></div>
-        </div>
-        <div class="row">
-          <div>
-            <label>תיאור הוצאה</label>
-            <select name="description_type" id="exp_type" onchange="toggleEmp()">
-              <% expenseTypes.forEach(function(t){ %><option value="<%= t.value %>" data-emp="<%= t.needsEmployee %>"><%= t.label %></option><% }); %>
-            </select>
-          </div>
-          <div id="emp_wrap"><label>שם העובד</label><input name="employee_name" /></div>
-          <div><label>סכום (₪)</label><input name="amount" inputmode="decimal" required /></div>
-        </div>
-        <label>תמונת פתק (לא חובה)</label>
-        <input type="file" name="image" accept="image/*,application/pdf" />
-        <div style="margin-top:.6rem"><button type="submit">הוסף הוצאה</button></div>
+      <p class="muted">סריקה/צילום של פתק ה-Z המודפס.</p>
+      <form method="post" action="/reports/zreports/<%= zr.id %>/image" enctype="multipart/form-data" class="stack">
+        <input type="file" name="image" accept="image/*,application/pdf" required />
+        <div style="margin-top:.6rem"><button type="submit">📷 העלה תמונת דוח</button></div>
       </form>
     </div>
   </div>
@@ -124,6 +87,42 @@
     <% } else { %>
       <strong style="color:var(--bad)">סכום המותגים גבוה מאשראי מגירה ב-<%= formatIls(-ccRecon.debtOnCredit) %></strong>
     <% } %>
+  </div>
+</div>
+
+<div class="card" id="cash-expenses">
+  <div class="toolbar">
+    <div style="display:flex;align-items:center;gap:.6rem">
+      <h2 style="margin:0">הוצאות במזומן</h2>
+      <button type="button" class="round-btn" title="פירוט הוצאות" onclick="var p=document.getElementById('cx-panel');p.hidden=!p.hidden;">🧾</button>
+    </div>
+    <strong>סה"כ הוצאות: <span id="cx-total"><%= formatIls(expensesTotal) %></span></strong>
+  </div>
+  <div id="cx-panel" <%= expenses.length ? '' : 'hidden' %>>
+    <form method="post" action="/reports/zreports/<%= zr.id %>/expenses-bulk">
+      <table>
+        <thead><tr><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום (₪)</th><th></th></tr></thead>
+        <tbody id="cx-body">
+          <% expenses.forEach(function(e){ %>
+            <tr>
+              <td><input type="date" name="expense_date" value="<%= e.expense_date || '' %>" /></td>
+              <td><input name="payer_name" value="<%= e.payer_name || '' %>" /></td>
+              <td><input name="purpose" value="<%= e.purpose || '' %>" /></td>
+              <td><input name="amount" class="cx-amt" inputmode="decimal" value="<%= e.amount ? (e.amount/100).toFixed(2) : '' %>" /></td>
+              <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
+            </tr>
+          <% }); %>
+          <tr>
+            <td><input type="date" name="expense_date" /></td>
+            <td><input name="payer_name" /></td>
+            <td><input name="purpose" /></td>
+            <td><input name="amount" class="cx-amt" inputmode="decimal" /></td>
+            <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:.6rem"><button type="submit">סכם</button></div>
+    </form>
   </div>
 </div>
 
@@ -172,8 +171,9 @@
         </tfoot>
       </table>
       <% if (cashRecon.diff !== 0) { %>
-        <p class="muted">פער בין מזומן המגירה לסכום ההפקדה + ההוצאות. (התאמות מגירה/אשראי מלאות + התראות — בשלב הבא.)</p>
+        <p class="muted">פער בין מזומן המגירה לסכום ההפקדה + ההוצאות — נשלחה התראת טלגרם.</p>
       <% } %>
+      <a class="btn btn-secondary" style="margin-top:.4rem" href="https://wa.me/?text=<%- encodeURIComponent(waText) %>" target="_blank" rel="noopener">📲 שלח סיכום בוואטסאפ</a>
     </div>
   </div>
 </div>
@@ -207,11 +207,39 @@
   }
   ccForm.querySelectorAll('input.cc').forEach(function(i){ i.addEventListener('input', recalc); });
 })();
-function toggleEmp(){
-  var sel = document.getElementById('exp_type');
-  var needs = sel.options[sel.selectedIndex].getAttribute('data-emp') === 'true';
-  document.getElementById('emp_wrap').style.display = needs ? '' : 'none';
-}
-toggleEmp();
+// Cash-expenses table: live total + auto-add a fresh row when the last row is filled.
+(function(){
+  var body = document.getElementById('cx-body');
+  if (!body) return;
+  function recalc(){
+    var t = 0;
+    body.querySelectorAll('.cx-amt').forEach(function(i){ var v = parseFloat(i.value); if(!isNaN(v)) t += v; });
+    var el = document.getElementById('cx-total'); if (el) el.textContent = '₪' + t.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  window.cxDel = function(btn){
+    var rows = body.querySelectorAll('tr');
+    if (rows.length > 1) btn.closest('tr').remove();
+    else btn.closest('tr').querySelectorAll('input').forEach(function(i){ i.value=''; });
+    recalc();
+  };
+  function addRow(){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="date" name="expense_date"></td>'
+      + '<td><input name="payer_name"></td>'
+      + '<td><input name="purpose"></td>'
+      + '<td><input name="amount" class="cx-amt" inputmode="decimal"></td>'
+      + '<td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>';
+    body.appendChild(tr);
+  }
+  body.addEventListener('input', function(e){
+    recalc();
+    var rows = body.querySelectorAll('tr');
+    var last = rows[rows.length - 1];
+    if (last.contains(e.target)) {
+      var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
+      if (filled) addRow();
+    }
+  });
+})();
 </script>
 <%- include('../partials/footer') %>

@@ -9,6 +9,7 @@ import {
 import {
   createZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
   addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
+  replaceExpenses, setZReportImage, previousZReport,
   setDeposit, cashReconciliation, DENOMS,
   setCreditCards, ccReconciliation, CC_BRANDS,
   zReconciliationStatus,
@@ -57,12 +58,26 @@ async function alertIfUnmatched(req, id) {
   }
 }
 
+// WhatsApp summary text for the cash discrepancy (the diff between drawer cash and
+// deposit+expenses), referencing the previous Z's date+time as the period start.
+function zWhatsappText(zr, cashRecon, prevZ) {
+  const diff = cashRecon.diff;
+  const head = `Z מס ${zr.z_number} מתאריך ${zr.z_date}`;
+  const body = diff === 0 ? 'מאוזן ✓' : `${diff < 0 ? 'חוסר' : 'פלוס'} ע"ס ₪${fromAgorot(Math.abs(diff))}`;
+  const prev = prevZ
+    ? `\nמתאריך Z קודם: ${prevZ.z_date}${prevZ.created_at ? ' ' + String(prevZ.created_at).slice(11, 16) : ''} (Z מס ${prevZ.z_number})`
+    : '';
+  return `${head}\n${body}${prev}`;
+}
+
 async function renderZReport(req, res, id, extra = {}) {
   const zr = await getZReport(id);
   const store = await getExecutor().one(
     'SELECT st.name AS store_name, c.name AS company_name FROM stores st JOIN companies c ON c.id = st.company_id WHERE st.id = ?',
     [zr.store_id],
   );
+  const cashRecon = await cashReconciliation(id);
+  const prevZ = await previousZReport(zr);
   res.render('reports/zreport', {
     title: `דוח Z ${zr.z_number}`,
     zr,
@@ -72,7 +87,9 @@ async function renderZReport(req, res, id, extra = {}) {
     expenseTypes: EXPENSE_TYPES,
     denoms: DENOMS,
     depositCounts: zr.deposit_breakdown ? JSON.parse(zr.deposit_breakdown) : {},
-    cashRecon: await cashReconciliation(id),
+    cashRecon,
+    prevZ,
+    waText: zWhatsappText(zr, cashRecon, prevZ),
     ccBrands: CC_BRANDS,
     ccRecon: await ccReconciliation(id),
     zStatus: await zReconciliationStatus(id),
@@ -395,6 +412,60 @@ router.post('/zreports/:id/expenses', handleInvoiceImage, async (req, res, next)
   } catch (err) {
     if (req.file) removeUpload(req.file.filename);
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
+    next(err);
+  }
+});
+
+// "סכם" — replace ALL cash-expense lines at once from the collapsible table.
+router.post('/zreports/:id/expenses-bulk', async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    const dates = [].concat(req.body.expense_date || []);
+    const names = [].concat(req.body.payer_name || []);
+    const purposes = [].concat(req.body.purpose || []);
+    const amounts = [].concat(req.body.amount || []);
+    const rows = amounts.map((a, i) => ({
+      expenseDate: dates[i] || null,
+      payerName: names[i],
+      purpose: purposes[i],
+      amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
+    }));
+    await replaceExpenses(id, rows, req.user);
+    await alertIfUnmatched(req, id);
+    await renderZReport(req, res, id, { notice: 'ההוצאות נשמרו.' });
+  } catch (err) {
+    if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
+    next(err);
+  }
+});
+
+// Upload a scan of the printed Z slip (one image per Z report).
+router.post('/zreports/:id/image', handleInvoiceImage, async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    if (req.uploadError) {
+      if (req.file) removeUpload(req.file.filename);
+      return renderZReport(req, res, id, { error: req.uploadError });
+    }
+    if (!req.file) return renderZReport(req, res, id, { error: 'לא נבחר קובץ.' });
+    const prev = await getZReport(id);
+    await setZReportImage(id, req.file.filename, req.user);
+    if (prev.image_path) removeUpload(prev.image_path);
+    await renderZReport(req, res, id, { notice: 'תמונת הדוח נשמרה.' });
+  } catch (err) {
+    if (req.file) removeUpload(req.file.filename);
+    next(err);
+  }
+});
+
+// Serve the Z-slip scan.
+router.get('/zreports/:id/image', async (req, res, next) => {
+  try {
+    const zr = await getZReport(Number(req.params.id));
+    if (!zr.image_path) return res.status(404).send('אין תמונה');
+    const { buffer, contentType } = await getObject(zr.image_path);
+    return res.type(contentType).send(buffer);
+  } catch (err) {
     next(err);
   }
 });

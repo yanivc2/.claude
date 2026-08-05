@@ -230,6 +230,7 @@ CREATE TABLE IF NOT EXISTS z_reports (
   cc_general INTEGER, cc_tourist INTEGER, cc_total INTEGER,
   status           TEXT NOT NULL DEFAULT 'ok' CHECK (status IN ('ok','unmatched')),
   reconcile_notes  TEXT,
+  image_path       TEXT,                         -- scan of the printed Z slip
   created_by       INTEGER NOT NULL REFERENCES users(id),
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
@@ -241,6 +242,7 @@ CREATE TABLE IF NOT EXISTS z_expenses (
   z_report_id      INTEGER NOT NULL REFERENCES z_reports(id) ON DELETE CASCADE,
   expense_date     TEXT,
   payer_name       TEXT,
+  purpose          TEXT,             -- "עבור" (free text)
   description_type TEXT,
   employee_name    TEXT,
   amount           INTEGER NOT NULL DEFAULT 0,
