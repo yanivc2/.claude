@@ -33,6 +33,29 @@
       <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
       <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
     </div>
+    <div class="toolbar" style="margin:1.1rem 0 .2rem">
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <h3 style="margin:0">הוצאות במזומן (לא חובה)</h3>
+        <button type="button" class="round-btn" title="פירוט הוצאות" onclick="var p=document.getElementById('cx-panel');p.hidden=!p.hidden;">🧾</button>
+      </div>
+      <strong>סה"כ הוצאות: <span id="cx-total">₪0.00</span></strong>
+    </div>
+    <div id="cx-panel" hidden>
+      <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. שורה חדשה נוספת אוטומטית.</p>
+      <table>
+        <thead><tr><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום (₪)</th><th></th></tr></thead>
+        <tbody id="cx-body">
+          <tr>
+            <td><input type="date" name="expense_date" /></td>
+            <td><input name="payer_name" /></td>
+            <td><input name="purpose" /></td>
+            <td><input name="amount" class="cx-amt" inputmode="decimal" /></td>
+            <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
     <h3 style="margin:1.1rem 0 .2rem">הצהרה על הפקדה (לא חובה)</h3>
     <p class="muted" style="margin:0 0 .4rem">אם הפקדת מזומן לבנק — הזן פרטי הפקדה. החנות והתאריך נלקחים מדוח ה-Z שלמעלה.</p>
     <div class="row">
@@ -139,6 +162,40 @@
     if (drawerSum() <= 0){
       e.preventDefault();
       alert('סה"כ מגירה חובה — הזן לפחות רכיב מגירה אחד.');
+    }
+  });
+})();
+// Cash-expenses table on the create form: live total + auto-add a fresh row when the last is filled.
+(function(){
+  var body = document.getElementById('cx-body');
+  if (!body) return;
+  function recalc(){
+    var t = 0;
+    body.querySelectorAll('.cx-amt').forEach(function(i){ var v = parseFloat(i.value); if(!isNaN(v)) t += v; });
+    var el = document.getElementById('cx-total'); if (el) el.textContent = '₪' + t.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  }
+  window.cxDel = function(btn){
+    var rows = body.querySelectorAll('tr');
+    if (rows.length > 1) btn.closest('tr').remove();
+    else btn.closest('tr').querySelectorAll('input').forEach(function(i){ i.value=''; });
+    recalc();
+  };
+  function addRow(){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input type="date" name="expense_date"></td>'
+      + '<td><input name="payer_name"></td>'
+      + '<td><input name="purpose"></td>'
+      + '<td><input name="amount" class="cx-amt" inputmode="decimal"></td>'
+      + '<td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>';
+    body.appendChild(tr);
+  }
+  body.addEventListener('input', function(e){
+    recalc();
+    var rows = body.querySelectorAll('tr');
+    var last = rows[rows.length - 1];
+    if (last.contains(e.target)) {
+      var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
+      if (filled) addRow();
     }
   });
 })();

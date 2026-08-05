@@ -328,7 +328,7 @@ router.post('/zreports', async (req, res, next) => {
   const b = req.body;
   try {
     const storeId = Number(b.store_id);
-    await createZReport(
+    const created = await createZReport(
       {
         storeId,
         zNumber: b.z_number,
@@ -342,6 +342,22 @@ router.post('/zreports', async (req, res, next) => {
       },
       req.user,
     );
+    // Optional cash-expense lines entered on the same form (itemized "הוצאות במזומן").
+    {
+      const dates = [].concat(b.expense_date || []);
+      const names = [].concat(b.payer_name || []);
+      const purposes = [].concat(b.purpose || []);
+      const amounts = [].concat(b.amount || []);
+      const rows = amounts.map((a, i) => ({
+        expenseDate: dates[i] || null,
+        payerName: names[i],
+        purpose: purposes[i],
+        amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
+      }));
+      if (rows.some((r) => (r.payerName || '').trim() || (r.purpose || '').trim() || r.amount)) {
+        await replaceExpenses(created.id, rows, req.user);
+      }
+    }
     // Optional deposit declaration entered on the same form — reuses the Z's store + date.
     if ((b.dep_bag || '').trim() || (b.dep_amount || '').trim()) {
       await createDeposit(
