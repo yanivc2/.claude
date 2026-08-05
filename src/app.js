@@ -20,6 +20,9 @@ import settingsRoutes from './routes/settings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
+const BUILD_VERSION = '2026-08-05·8';
+
 export function createApp() {
   const app = express();
 
@@ -108,6 +111,7 @@ export function createApp() {
       }
     };
     res.locals.path = req.path;
+    res.locals.buildVersion = BUILD_VERSION;
     next();
   });
 

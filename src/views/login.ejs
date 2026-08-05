@@ -38,6 +38,7 @@
     </div>
     <p class="text-muted" style="text-align:center; font-size:12px; margin-top:var(--space-4)">
       <a href="/privacy">הודעת פרטיות</a> · <a href="/accessibility">הצהרת נגישות</a>
+      <% if (typeof buildVersion !== 'undefined' && buildVersion) { %> · <span title="גרסת בנייה">v<%= buildVersion %></span><% } %>
     </p>
   </main>
 </body>
