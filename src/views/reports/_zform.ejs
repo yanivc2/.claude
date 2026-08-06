@@ -42,12 +42,15 @@
     <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" value="<%= sh(z.drawer_vouchers) %>" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
     <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
   </div>
+  <div class="row">
+    <div></div>
+    <div><label>סה"כ הוצאות במזומן</label><input id="drawer_expenses_total" readonly value="₪0.00" /><small class="muted">מתוך פירוט "הוצאות במזומן" למטה</small></div>
+  </div>
   <div class="toolbar" style="margin:1.1rem 0 .2rem">
     <div style="display:flex;align-items:center;gap:.6rem">
       <h3 style="margin:0">הוצאות במזומן (לא חובה)</h3>
       <button type="button" class="round-btn" title="פירוט הוצאות" onclick="var p=document.getElementById('cx-panel');p.hidden=!p.hidden;">🧾</button>
     </div>
-    <strong>סה"כ הוצאות במזומן: <span id="cx-total">₪0.00</span></strong>
   </div>
   <div style="display:flex;align-items:center;gap:.6rem;margin:.2rem 0 .4rem">
     <span style="font-weight:600">הכנסות מאשראי</span>
@@ -149,7 +152,7 @@
   var body = document.getElementById('cx-body');
   function recalcCx(){
     var t=0; body.querySelectorAll('.cx-amt').forEach(function(i){ t+=num(i); });
-    document.getElementById('cx-total').textContent = fmt(t);
+    var el = document.getElementById('drawer_expenses_total'); if (el) el.value = fmt(t);
     recalcDepRecon();
   }
   recalcCx();
