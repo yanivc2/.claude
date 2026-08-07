@@ -100,11 +100,9 @@
 
   <h3 style="margin:1.1rem 0 .2rem">הצהרה על הפקדה (לא חובה)</h3>
   <p class="muted" style="margin:0 0 .4rem">אם הפקדת מזומן לבנק — הזן פרטי הפקדה. החנות והתאריך נלקחים מדוח ה-Z שלמעלה.</p>
-  <div class="row">
-    <div style="flex:1;min-width:0;display:flex;gap:var(--space-4)">
-      <div style="flex:1;min-width:0"><label>מספר שקית הפקדה</label><input name="dep_bag" value="<%= dp ? (dp.bag_number || '') : '' %>" /></div>
-      <div style="flex:1;min-width:0"><label>סכום הפקדה (₪)</label><input name="dep_amount" inputmode="decimal" placeholder="0.00" value="<%= dp ? sh(dp.amount) : '' %>" /></div>
-    </div>
+  <div class="zdep-grid">
+    <div><label>מספר שקית הפקדה</label><input name="dep_bag" value="<%= dp ? (dp.bag_number || '') : '' %>" /></div>
+    <div><label>סכום הפקדה (₪)</label><input name="dep_amount" inputmode="decimal" placeholder="0.00" value="<%= dp ? sh(dp.amount) : '' %>" /></div>
     <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">הפקדה − (מגירה + הוצאות)</small></div>
   </div>
   <label style="display:flex;align-items:center;gap:8px;margin-top:.6rem">

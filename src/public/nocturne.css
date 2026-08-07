@@ -466,6 +466,11 @@ button:disabled, .btn:disabled { opacity: .45; cursor: not-allowed; }
 .actions { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; }
 .row { display: flex; gap: var(--space-4); flex-wrap: wrap; }
 .row > div { flex: 1; min-width: 160px; }
+/* Deposit-declaration row: מספר שקית + סכום הפקדה share the right half, חוסר/יתרה takes the
+   left half (aligns under 'סה"כ הוצאות במזומן'). Grid never overflows the page; stacks on phones. */
+.zdep-grid { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: var(--space-4); }
+.zdep-grid > div { min-width: 0; }
+@media (max-width: 640px) { .zdep-grid { grid-template-columns: 1fr; } }
 .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-2); }
 /* On phones the title + action buttons cannot reliably share one line, and the wrap point
    shifted with the filter label's width — so the buttons jumped around. Stack them: title on
