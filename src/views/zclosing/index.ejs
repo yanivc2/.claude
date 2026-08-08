@@ -12,6 +12,20 @@
       <div><label>שם פרטי</label><input name="employee_first" required autocomplete="off" /></div>
       <div><label>שם משפחה</label><input name="employee_last" required autocomplete="off" /></div>
     </div>
+    <div class="row">
+      <div>
+        <label>חנות</label>
+        <select name="store_id" required>
+          <option value="">בחר חנות…</option>
+          <% (storeOptions || []).forEach(function(st){ %>
+            <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
+          <% }); %>
+        </select>
+        <% if (!storeOptions || storeOptions.length === 0) { %><small class="muted">לא שויכה חנות — פנה לבעלים.</small><% } %>
+      </div>
+      <div><label>מספר Z</label><input name="z_number" required autocomplete="off" /></div>
+      <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" inputmode="decimal" placeholder="0.00" required /></div>
+    </div>
 
     <h3 style="margin:1.1rem 0 .2rem">ספירת מזומן</h3>
     <div class="table-scroll">
@@ -58,14 +72,16 @@
   <h2>סגירות אחרונות</h2>
   <div class="table-scroll">
     <table class="sortable">
-      <thead><tr><th>עובד</th><th>התחלה</th><th>סיום</th><th class="right">מזומן</th><th class="right">הוצאות</th><th class="right">סה"כ</th></tr></thead>
+      <thead><tr><th>עובד</th><th>חנות</th><th>Z</th><th>סיום</th><th class="right">מגירה</th><th class="right">נספר</th><th class="right">הוצאות</th><th class="right">סה"כ</th></tr></thead>
       <tbody>
-        <% if (!closings || closings.length === 0) { %><tr><td colspan="6" class="muted">אין סגירות עדיין.</td></tr><% } %>
+        <% if (!closings || closings.length === 0) { %><tr><td colspan="8" class="muted">אין סגירות עדיין.</td></tr><% } %>
         <% (closings || []).forEach(function(c){ %>
           <tr>
             <td><%= c.employee_first %> <%= c.employee_last %></td>
-            <td class="mono"><%= c.started_at || '—' %></td>
+            <td><%= c.store_name || '—' %></td>
+            <td class="mono"><%= c.z_number || '—' %></td>
             <td class="mono"><%= c.ended_at || '—' %></td>
+            <td class="right"><%= formatIls(c.drawer_cash) %></td>
             <td class="right"><%= formatIls(c.total_cash) %></td>
             <td class="right"><%= formatIls(c.total_expenses) %></td>
             <td class="right"><strong><%= formatIls(c.grand_total) %></strong></td>

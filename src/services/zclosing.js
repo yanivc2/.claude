@@ -44,6 +44,11 @@ export async function createZClosing(input, actor, x = getExecutor()) {
   const first = (input.employeeFirst || '').trim();
   const last = (input.employeeLast || '').trim();
   if (!first || !last) throw new RuleError('VALIDATION', 'יש להזין שם פרטי ושם משפחה');
+  const zNumber = (input.zNumber || '').trim();
+  if (!zNumber) throw new RuleError('VALIDATION', 'יש להזין מספר Z');
+  const drawerCash = Number.isFinite(input.drawerCash) ? input.drawerCash : 0;
+  if (drawerCash < 0) throw new RuleError('VALIDATION', 'סה"כ מזומן מגירה חייב להיות מספר לא-שלילי');
+  const storeId = input.storeId ? Number(input.storeId) : null;
 
   const breakdown = {};
   let totalCash = 0;
@@ -64,9 +69,9 @@ export async function createZClosing(input, actor, x = getExecutor()) {
 
   const info = await x.run(
     `INSERT INTO z_closings
-       (employee_first, employee_last, started_at, ended_at, breakdown, total_cash, expenses, total_expenses, grand_total, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [first, last, input.startedAt || null, israelNow(), JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, actor?.id ?? null],
+       (employee_first, employee_last, store_id, z_number, drawer_cash, started_at, ended_at, breakdown, total_cash, expenses, total_expenses, grand_total, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [first, last, storeId, zNumber, drawerCash, input.startedAt || null, israelNow(), JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, actor?.id ?? null],
   );
   await logAction(
     { userId: actor?.id ?? null, action: 'zclosing.create', entityType: 'z_closing', entityId: info.lastInsertRowid, details: { employee: `${first} ${last}`, grandTotal } },
@@ -75,7 +80,13 @@ export async function createZClosing(input, actor, x = getExecutor()) {
   return info.lastInsertRowid;
 }
 
-/** Recent closings, newest first. */
+/** Recent closings, newest first, with the store name for display. */
 export async function listZClosings({ limit = 30 } = {}, x = getExecutor()) {
-  return x.many('SELECT * FROM z_closings ORDER BY id DESC LIMIT ?', [limit]);
+  return x.many(
+    `SELECT zc.*, st.name AS store_name
+       FROM z_closings zc
+       LEFT JOIN stores st ON st.id = zc.store_id
+      ORDER BY zc.id DESC LIMIT ?`,
+    [limit],
+  );
 }

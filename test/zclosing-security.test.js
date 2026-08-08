@@ -51,9 +51,11 @@ test('createZClosing computes totals server-side and stores Israel-time end', as
   const db = await freshDb();
   const ow = await ownerRow(db);
   await firstStore(db);
+  const store = await firstStore(db);
   const id = await createZClosing(
     {
       employeeFirst: 'דנה', employeeLast: 'כהן', startedAt: '2026-08-06 18:00',
+      storeId: store.id, zNumber: '425', drawerCash: toAgorot('500'),
       counts: { '200': 2, '100': 1, '0_5': 4 }, // 400 + 100 + 2.00 = 502.00
       expenses: [{ desc: 'קפה', amount: toAgorot('15') }, { desc: '', amount: 0 }],
     },
@@ -64,13 +66,17 @@ test('createZClosing computes totals server-side and stores Israel-time end', as
   assert.equal(c.total_cash, toAgorot('502'));
   assert.equal(c.total_expenses, toAgorot('15'));
   assert.equal(c.grand_total, toAgorot('517'));
+  assert.equal(c.z_number, '425');
+  assert.equal(c.drawer_cash, toAgorot('500'));
+  assert.equal(c.store_id, store.id);
   assert.equal(c.employee_first, 'דנה');
   assert.ok(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(c.ended_at)); // Israel-time stamp
   assert.ok(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(israelNow()));
 });
 
-test('createZClosing requires a first and last name', async () => {
+test('createZClosing requires name and Z number', async () => {
   const db = await freshDb();
   const ow = await ownerRow(db);
   await assert.rejects(() => createZClosing({ employeeFirst: 'רק', employeeLast: '', counts: {}, expenses: [] }, ow, db), /שם/);
+  await assert.rejects(() => createZClosing({ employeeFirst: 'א', employeeLast: 'ב', zNumber: '', counts: {}, expenses: [] }, ow, db), /Z/);
 });

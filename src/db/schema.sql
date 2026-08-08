@@ -275,6 +275,9 @@ CREATE TABLE IF NOT EXISTS z_closings (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   employee_first TEXT NOT NULL,
   employee_last  TEXT NOT NULL,
+  store_id       INTEGER REFERENCES stores(id),  -- which store this closing is for
+  z_number       TEXT,                            -- מספר Z (required at entry)
+  drawer_cash    INTEGER NOT NULL DEFAULT 0,      -- סה"כ מזומן מגירה (agorot, entered)
   started_at     TEXT,
   ended_at       TEXT,
   breakdown      TEXT,                          -- JSON { denom: count }
