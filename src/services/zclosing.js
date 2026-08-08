@@ -1,6 +1,11 @@
 import { getExecutor } from '../db/adapter.js';
 import { RuleError } from '../lib/errors.js';
+import { fromAgorot } from '../lib/money.js';
+import { notify } from '../lib/notify.js';
 import { logAction } from './audit.js';
+
+// A shortage bigger than this (agorot) triggers a Telegram push to the owner.
+const SHORTAGE_ALERT_AGOROT = 2000; // ₪20
 
 // "סגירת Z" — a register-closer's end-of-shift count. Denomination counts → cash total, plus
 // itemized expenses → expenses total, and a grand total (cash + expenses). Times are recorded in
@@ -77,6 +82,21 @@ export async function createZClosing(input, actor, x = getExecutor()) {
     { userId: actor?.id ?? null, action: 'zclosing.create', entityType: 'z_closing', entityId: info.lastInsertRowid, details: { employee: `${first} ${last}`, grandTotal } },
     x,
   );
+
+  // חוסר/יתרה vs the declared drawer cash. A shortage over ₪20 pushes an alert to the owner.
+  const diff = grandTotal - drawerCash; // >0 יתרה · <0 חוסר
+  if (diff < 0 && Math.abs(diff) > SHORTAGE_ALERT_AGOROT) {
+    let storeName = '';
+    if (storeId) {
+      const s = await x.one('SELECT name FROM stores WHERE id = ?', [storeId]);
+      storeName = s ? s.name : '';
+    }
+    notify(
+      `⚠️ <b>חוסר בסגירת קופה</b>\nעובד: ${first} ${last}` +
+        (storeName ? `\nחנות: ${storeName}` : '') +
+        `\nZ ${zNumber}\nחוסר ע"ס ₪${fromAgorot(Math.abs(diff))}\n(נספר ₪${fromAgorot(grandTotal)} מול מגירה ₪${fromAgorot(drawerCash)})`,
+    );
+  }
   return info.lastInsertRowid;
 }
 

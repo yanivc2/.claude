@@ -24,7 +24,7 @@
         <% if (!storeOptions || storeOptions.length === 0) { %><small class="muted">לא שויכה חנות — פנה לבעלים.</small><% } %>
       </div>
       <div><label>מספר Z</label><input name="z_number" required autocomplete="off" /></div>
-      <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" inputmode="decimal" placeholder="0.00" required /></div>
+      <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required /></div>
     </div>
 
     <h3 style="margin:1.1rem 0 .2rem">ספירת מזומן</h3>
@@ -59,9 +59,19 @@
       </table>
     </div>
 
-    <div class="card" style="background:var(--color-surface-2);margin-top:1rem;display:flex;justify-content:space-between;align-items:center">
-      <strong>סה"כ כסף + הוצאות</strong>
-      <strong id="grand-total" style="font-size:1.15rem">₪0.00</strong>
+    <div class="card" style="background:var(--color-surface-2);margin-top:1rem">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong>סה"כ כסף + הוצאות</strong>
+        <strong id="grand-total" style="font-size:1.15rem">₪0.00</strong>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.5rem">
+        <span>סה"כ מזומן מגירה (שהוזן)</span>
+        <span id="drawer-disp">₪0.00</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.5rem;border-top:1px solid var(--color-line);padding-top:.5rem">
+        <strong>חוסר / יתרה</strong>
+        <strong id="closing-diff">—</strong>
+      </div>
     </div>
 
     <div style="margin-top:.8rem"><button type="submit">💾 שמור סגירה</button></div>
@@ -108,12 +118,22 @@
   }
   function expSum(){ var s = 0; form.querySelectorAll('.exp-amt').forEach(function(i){ var v = parseFloat(i.value); if (!isNaN(v)) s += v; }); return s; }
   function recalc(){
-    var cash = cashSum(); var exp = expSum();
+    var cash = cashSum(); var exp = expSum(); var grand = cash + exp;
     document.getElementById('cc-cash').textContent = fmt(cash);
     document.getElementById('exp-total').textContent = fmt(exp);
-    document.getElementById('grand-total').textContent = fmt(cash + exp);
+    document.getElementById('grand-total').textContent = fmt(grand);
+    var drawerEl = document.getElementById('drawer-cash-in');
+    var drawer = drawerEl ? (parseFloat(drawerEl.value) || 0) : 0;
+    document.getElementById('drawer-disp').textContent = fmt(drawer);
+    var diff = grand - drawer; // >0 יתרה · <0 חוסר
+    var el = document.getElementById('closing-diff');
+    if (drawerEl && drawerEl.value.trim() === '') { el.textContent = '—'; el.style.color = ''; }
+    else if (Math.round(diff*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--ok)'; }
+    else if (diff > 0) { el.textContent = 'יתרה ' + fmt(diff); el.style.color = 'var(--ok)'; }
+    else { el.textContent = 'חוסר ' + fmt(-diff); el.style.color = 'var(--bad)'; }
   }
   form.querySelectorAll('.cc-cnt').forEach(function(i){ i.addEventListener('input', recalc); });
+  var drawerIn = document.getElementById('drawer-cash-in'); if (drawerIn) drawerIn.addEventListener('input', recalc);
   var body = document.getElementById('exp-body');
   window.expDel = function(btn){
     var rows = body.querySelectorAll('tr');
