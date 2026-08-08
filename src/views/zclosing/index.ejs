@@ -1,0 +1,127 @@
+<%- include('../partials/header') %>
+<div class="toolbar"><h1>סגירת Z</h1></div>
+
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="card no-print">
+  <form method="post" action="/zclosing" class="stack" id="zclose-form">
+    <input type="hidden" name="started_at" value="<%= startedAt %>" />
+    <p class="muted" style="margin:0 0 .6rem">תחילת ספירה: <strong><%= startedAt %></strong> · שעון ישראל</p>
+    <div class="row">
+      <div><label>שם פרטי</label><input name="employee_first" required autocomplete="off" /></div>
+      <div><label>שם משפחה</label><input name="employee_last" required autocomplete="off" /></div>
+    </div>
+
+    <h3 style="margin:1.1rem 0 .2rem">ספירת מזומן</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>
+        <tbody>
+          <% denoms.forEach(function(d){ %>
+            <tr>
+              <td>₪<%= d.value %> <span class="muted" style="font-size:12px"><%= d.kind %></span></td>
+              <td><input name="count_<%= d.key %>" class="cc-cnt" data-val="<%= d.value %>" inputmode="numeric" placeholder="0" style="max-width:130px" /></td>
+              <td class="right cc-line">₪0.00</td>
+            </tr>
+          <% }); %>
+        </tbody>
+        <tfoot><tr><th>סה"כ מזומן</th><th></th><th class="right" id="cc-cash">₪0.00</th></tr></tfoot>
+      </table>
+    </div>
+
+    <h3 style="margin:1.1rem 0 .2rem">הוצאות</h3>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>פירוט</th><th class="right">סכום (₪)</th><th></th></tr></thead>
+        <tbody id="exp-body">
+          <tr>
+            <td><input name="exp_desc" autocomplete="off" /></td>
+            <td><input name="exp_amount" class="exp-amt" inputmode="decimal" /></td>
+            <td><button type="button" class="danger small" onclick="expDel(this)">✕</button></td>
+          </tr>
+        </tbody>
+        <tfoot><tr><th>סה"כ הוצאות</th><th class="right" id="exp-total">₪0.00</th><th></th></tr></tfoot>
+      </table>
+    </div>
+
+    <div class="card" style="background:var(--color-surface-2);margin-top:1rem;display:flex;justify-content:space-between;align-items:center">
+      <strong>סה"כ כסף + הוצאות</strong>
+      <strong id="grand-total" style="font-size:1.15rem">₪0.00</strong>
+    </div>
+
+    <div style="margin-top:.8rem"><button type="submit">💾 שמור סגירה</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2>סגירות אחרונות</h2>
+  <div class="table-scroll">
+    <table class="sortable">
+      <thead><tr><th>עובד</th><th>התחלה</th><th>סיום</th><th class="right">מזומן</th><th class="right">הוצאות</th><th class="right">סה"כ</th></tr></thead>
+      <tbody>
+        <% if (!closings || closings.length === 0) { %><tr><td colspan="6" class="muted">אין סגירות עדיין.</td></tr><% } %>
+        <% (closings || []).forEach(function(c){ %>
+          <tr>
+            <td><%= c.employee_first %> <%= c.employee_last %></td>
+            <td class="mono"><%= c.started_at || '—' %></td>
+            <td class="mono"><%= c.ended_at || '—' %></td>
+            <td class="right"><%= formatIls(c.total_cash) %></td>
+            <td class="right"><%= formatIls(c.total_expenses) %></td>
+            <td class="right"><strong><%= formatIls(c.grand_total) %></strong></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function(){
+  var form = document.getElementById('zclose-form');
+  if (!form) return;
+  function fmt(a){ return '₪' + a.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function cashSum(){
+    var total = 0;
+    form.querySelectorAll('.cc-cnt').forEach(function(inp){
+      var val = parseFloat(inp.dataset.val); var c = parseInt(inp.value, 10) || 0;
+      var line = val * c; total += line;
+      var cell = inp.closest('tr').querySelector('.cc-line'); if (cell) cell.textContent = fmt(line);
+    });
+    return total;
+  }
+  function expSum(){ var s = 0; form.querySelectorAll('.exp-amt').forEach(function(i){ var v = parseFloat(i.value); if (!isNaN(v)) s += v; }); return s; }
+  function recalc(){
+    var cash = cashSum(); var exp = expSum();
+    document.getElementById('cc-cash').textContent = fmt(cash);
+    document.getElementById('exp-total').textContent = fmt(exp);
+    document.getElementById('grand-total').textContent = fmt(cash + exp);
+  }
+  form.querySelectorAll('.cc-cnt').forEach(function(i){ i.addEventListener('input', recalc); });
+  var body = document.getElementById('exp-body');
+  window.expDel = function(btn){
+    var rows = body.querySelectorAll('tr');
+    if (rows.length > 1) btn.closest('tr').remove();
+    else btn.closest('tr').querySelectorAll('input').forEach(function(i){ i.value = ''; });
+    recalc();
+  };
+  function addExp(){
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><input name="exp_desc" autocomplete="off"></td>'
+      + '<td><input name="exp_amount" class="exp-amt" inputmode="decimal"></td>'
+      + '<td><button type="button" class="danger small" onclick="expDel(this)">✕</button></td>';
+    body.appendChild(tr);
+  }
+  body.addEventListener('input', function(e){
+    recalc();
+    var rows = body.querySelectorAll('tr');
+    var last = rows[rows.length - 1];
+    if (last.contains(e.target)) {
+      var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
+      if (filled) addExp();
+    }
+  });
+  recalc();
+})();
+</script>
+<%- include('../partials/footer') %>

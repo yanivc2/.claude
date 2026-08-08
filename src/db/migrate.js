@@ -14,6 +14,7 @@ export function migrate(db) {
   migrateUserCompanies(db);
   migrateDeposits(db);
   migrateZExtras(db);
+  migrateZClosings(db);
 }
 
 // Adds z_expenses.purpose ("עבור") and z_reports.image_path (Z-slip scan) to older databases.
@@ -39,6 +40,24 @@ function migrateZExtras(db) {
     if (!cols.includes('matched_txn_id')) db.exec('ALTER TABLE deposits ADD COLUMN matched_txn_id INTEGER REFERENCES bank_transactions(id);');
     if (!cols.includes('recon_diff')) db.exec('ALTER TABLE deposits ADD COLUMN recon_diff INTEGER;');
   }
+}
+
+// Adds the z_closings table (register-closer cash counts) to older databases.
+function migrateZClosings(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS z_closings (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_first TEXT NOT NULL,
+    employee_last  TEXT NOT NULL,
+    started_at     TEXT,
+    ended_at       TEXT,
+    breakdown      TEXT,
+    total_cash     INTEGER NOT NULL DEFAULT 0,
+    expenses       TEXT,
+    total_expenses INTEGER NOT NULL DEFAULT 0,
+    grand_total    INTEGER NOT NULL DEFAULT 0,
+    created_by     INTEGER REFERENCES users(id),
+    created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+  );`);
 }
 
 // Adds the deposits table (bank deposit declarations) to older databases.

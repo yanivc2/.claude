@@ -268,6 +268,24 @@ CREATE TABLE IF NOT EXISTS deposits (
   created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
 
+-- z_closings — "סגירת Z": a register-closer's end-of-shift cash count. Denomination breakdown
+-- (JSON), cash total, itemized expenses (JSON) + their total, and grand total (cash + expenses).
+-- started_at/ended_at are Israel local time captured by the interface.
+CREATE TABLE IF NOT EXISTS z_closings (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_first TEXT NOT NULL,
+  employee_last  TEXT NOT NULL,
+  started_at     TEXT,
+  ended_at       TEXT,
+  breakdown      TEXT,                          -- JSON { denom: count }
+  total_cash     INTEGER NOT NULL DEFAULT 0,    -- agorot
+  expenses       TEXT,                          -- JSON [{ desc, amount }]
+  total_expenses INTEGER NOT NULL DEFAULT 0,    -- agorot
+  grand_total    INTEGER NOT NULL DEFAULT 0,    -- agorot (cash + expenses)
+  created_by     INTEGER REFERENCES users(id),
+  created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+
 -- sales_entries — manual register (Z) totals per store, for the profitability report (§7).
 -- Purchases come automatically from invoices; sales are entered by hand here.
 CREATE TABLE IF NOT EXISTS sales_entries (

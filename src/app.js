@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { currentUser } from './middleware/currentUser.js';
-import { requirePageAccess } from './middleware/requireOwner.js';
+import { requirePageAccess, enforcePageScope } from './middleware/requireOwner.js';
 import { config } from './config.js';
 import { formatIls, fromAgorot } from './lib/money.js';
 import authRoutes from './routes/auth.js';
@@ -17,11 +17,12 @@ import paymentRoutes from './routes/payments.js';
 import reportRoutes from './routes/reports.js';
 import reconciliationRoutes from './routes/reconciliation.js';
 import settingsRoutes from './routes/settings.js';
+import zclosingRoutes from './routes/zclosing.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-06·15';
+const BUILD_VERSION = '2026-08-06·16';
 
 export function createApp() {
   const app = express();
@@ -115,6 +116,10 @@ export function createApp() {
     next();
   });
 
+  // Default-deny firewall for restricted roles (e.g. the register-closer). Runs before every
+  // route so no detail/CSV/settings path can be reached outside a role's granted pages.
+  app.use(enforcePageScope);
+
   app.use('/', authRoutes);
   app.use('/', legalRoutes);
   app.use('/account', accountRoutes);
@@ -124,6 +129,7 @@ export function createApp() {
   app.use('/payments', requirePageAccess('nav_payments'), paymentRoutes);
   app.use('/reports', reportRoutes); // per-sub-page access guarded inside reportRoutes
   app.use('/reconciliation', requirePageAccess('nav_reconciliation'), reconciliationRoutes);
+  app.use('/zclosing', requirePageAccess('nav_zclosing'), zclosingRoutes);
   app.use('/settings', settingsRoutes);
 
   // Unmatched route -> friendly page (instead of Express's raw "Cannot GET/POST ...").

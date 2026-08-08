@@ -4,6 +4,7 @@ import { verifyPassword, createSession, PASSWORD_POLICY_TEXT } from '../lib/auth
 import { requestReset, verifyResetToken, completeReset } from '../services/passwordReset.js';
 import { mailEnabled } from '../lib/mailer.js';
 import { logAction } from '../services/audit.js';
+import { firstAllowedPath } from '../lib/permissions.js';
 
 const router = Router();
 
@@ -35,7 +36,9 @@ router.post('/login', async (req, res, next) => {
       maxAge: 12 * 3600 * 1000,
     });
     await logAction({ userId: user.id, action: 'auth.login', entityType: 'user', entityId: user.id });
-    res.redirect(303, '/');
+    // Land on the first page this (possibly restricted) user may open — e.g. a register-closer
+    // goes straight to /zclosing instead of bouncing off the dashboard guard.
+    res.redirect(303, firstAllowedPath(user));
   } catch (err) {
     next(err);
   }
