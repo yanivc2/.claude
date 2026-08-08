@@ -23,7 +23,7 @@ import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
 import { requirePageAccess } from '../middleware/requireOwner.js';
-import { RuleError } from '../lib/errors.js';
+import { RuleError, AuthError } from '../lib/errors.js';
 import { scopeParam } from '../lib/scopeGuard.js';
 
 const router = Router();
@@ -233,7 +233,12 @@ router.get('/zreports', requirePageAccess('nav_zreports'), async (req, res, next
 // Deposit declarations (הצהרה על הפקדה) — created together with a Z report (POST /zreports).
 router.post('/deposits/:id/deposited', async (req, res, next) => {
   try {
-    await setDeposited(Number(req.params.id), req.body.value === '1', req.user);
+    const markDeposited = req.body.value === '1';
+    // Cancelling a deposit mark (un-marking) is owner-only — per the owner's request.
+    if (!markDeposited && req.user.role !== 'owner') {
+      throw new AuthError('ביטול סימון הפקדה — בעלים בלבד');
+    }
+    await setDeposited(Number(req.params.id), markDeposited, req.user);
     res.redirect(303, req.get('referer') || '/reports/zreports');
   } catch (err) {
     next(err);

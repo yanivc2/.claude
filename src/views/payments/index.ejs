@@ -3,52 +3,6 @@
 <% var cq = companyId || ''; var sq = storeId || ''; %>
 <div class="toolbar">
   <h1>מרקורים</h1>
-  <div class="actions no-print">
-    <form method="post" action="/payments/auto-reconcile" style="display:inline"
-          title="התאמת צ׳קים פתוחים לתנועות בנק שיובאו (R7)">
-      <input type="hidden" name="status" value="<%= filter %>" />
-      <input type="hidden" name="company" value="<%= cq %>" />
-      <input type="hidden" name="store" value="<%= sq %>" />
-      <button class="btn btn-secondary" type="submit">⟳ התאמה אוטומטית</button>
-    </form>
-    <details class="menu">
-      <summary class="btn btn-primary">+ תשלום חדש <span class="caret">▾</span></summary>
-      <div class="menu-panel">
-        <a href="/payments/new">+ תשלום חדש</a>
-        <div class="menu-sep"></div>
-        <a href="/payments/new?method=transfer">+ תשלום בהעברה</a>
-        <a href="/payments/new?method=cash">+ תשלום במזומן</a>
-        <a href="/payments/new?method=check">+ צ׳ק</a>
-      </div>
-    </details>
-    <details class="menu">
-      <summary class="btn btn-secondary">סינון · <%= statusLabel %> <span class="caret">▾</span></summary>
-      <div class="menu-panel" style="min-width:250px; padding:12px">
-        <form method="get" action="/payments">
-          <label class="lbl">חברה</label>
-          <select name="company" onchange="this.form.submit()">
-            <option value="">כל החברות</option>
-            <% companies.forEach(function(c){ %>
-              <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
-            <% }); %>
-          </select>
-          <label class="lbl" style="margin-top:10px">חנות / חשבון בנק</label>
-          <select name="store" onchange="this.form.submit()">
-            <option value="">כל החנויות (הכל יחד)</option>
-            <% stores.forEach(function(s){ %>
-              <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %><%= s.bank_account_name ? ' · ' + s.bank_account_name : '' %></option>
-            <% }); %>
-          </select>
-          <input type="hidden" name="status" value="<%= filter %>" />
-        </form>
-        <div class="menu-sep"></div>
-        <a href="/payments?status=&company=<%= cq %>&store=<%= sq %>" class="<%= !filter ? 'active' : '' %>">הכל</a>
-        <a href="/payments?status=issued&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'issued' ? 'active' : '' %>">בחוץ</a>
-        <a href="/payments?status=cleared&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'cleared' ? 'active' : '' %>">נפרעו</a>
-        <a href="/payments?status=voided&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'voided' ? 'active' : '' %>">מבוטלים</a>
-      </div>
-    </details>
-  </div>
 </div>
 
 <% if (typeof notice !== 'undefined' && notice) { %>
@@ -58,9 +12,52 @@
     <% } %>
   </div>
 <% } %>
+
+<details class="card collapse" open style="margin-top:1rem">
+  <summary><span class="caret">▸</span> הצהרות הפקדה <span class="muted">(<%= (deposits || []).length %>)</span></summary>
+  <p class="muted no-print" style="margin:.6rem 0 .2rem">הפקדות שהוצהרו בדוחות Z. "יתרה / חוסר" מתמלא בהתאמה אוטומטית לבנק לפי מספר שקית = מספר אסמכתה.</p>
+  <div class="table-scroll">
+  <table class="sortable">
+    <thead><tr><th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>שיוך ל-Z</th><th class="right">יתרה / חוסר</th><th>סטטוס</th><th class="no-print" data-nosort>פעולות</th></tr></thead>
+    <tbody>
+      <% if (!deposits || deposits.length === 0) { %><tr><td colspan="7" class="muted">אין הצהרות הפקדה.</td></tr><% } %>
+      <% (deposits || []).forEach(function(d){ %>
+        <tr>
+          <td class="mono"><%= d.bag_number || '—' %></td>
+          <td class="right"><%= formatIls(d.amount) %></td>
+          <td><%= formatDate(d.deposit_date) %></td>
+          <td>
+            <% if (d.z_report_id) { %><a href="/reports/zreports/<%= d.z_report_id %>">Z <%= d.z_number || d.z_report_id %></a><% } else { %>—<% } %>
+          </td>
+          <td class="right">
+            <% if (d.recon_diff == null) { %><span class="muted">—</span>
+            <% } else if (d.recon_diff === 0) { %><span class="badge b-approved">מאוזן</span>
+            <% } else if (d.recon_diff > 0) { %><span class="badge b-cleared">יתרה <%= formatIls(d.recon_diff) %></span>
+            <% } else { %><span class="badge b-blocked">חוסר <%= formatIls(-d.recon_diff) %></span><% } %>
+          </td>
+          <td>
+            <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
+          </td>
+          <td class="no-print">
+            <% if (!d.deposited) { %>
+              <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="1" /><button class="ok small" type="submit">סמן כהופקד</button></form>
+            <% } else if (currentUser.role === 'owner') { %>
+              <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline" onsubmit="return confirm('לבטל את סימון ההפקדה?')"><input type="hidden" name="value" value="0" /><button class="danger small" type="submit">בטל</button></form>
+            <% } else { %>
+              <span class="muted" style="font-size:12px">ביטול — בעלים בלבד</span>
+            <% } %>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  </div>
+</details>
+
 <details class="card collapse" style="margin-top:1rem">
   <summary><span class="caret">▸</span> צ׳קים <span class="muted">(<%= payments.length %>)</span></summary>
 <p class="muted no-print" style="margin:.6rem 0 .2rem">לחיצה על כותרת עמודה ממיינת · שורת הסינון מתחת לכותרות מסננת לפי עמודה.</p>
+<div class="table-scroll">
 <table class="sortable" id="paymentsTable">
   <thead>
     <tr><th>אמצעי / מזהה</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th data-nosort>סטטוס/פעולות</th></tr>
@@ -111,6 +108,7 @@
     <tr id="pmNoMatch" style="display:none"><td colspan="5" class="muted">אין תוצאות התואמות לסינון.</td></tr>
   </tbody>
 </table>
+</div>
 <p class="muted no-print" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
   <span>"סמן כנפרע" מסמן בתאריך היום. ביטול צ׳ק — בעלים בלבד.</span>
   <span style="display:inline-flex;gap:6px;align-items:center"><span class="badge b-cleared">נפרע</span> = סימון ידני</span>
@@ -118,35 +116,46 @@
 </p>
 </details>
 
-<details class="card collapse">
-  <summary><span class="caret">▸</span> הצהרות הפקדה <span class="muted">(<%= (deposits || []).length %>)</span></summary>
-  <p class="muted no-print" style="margin:.6rem 0 .2rem">הפקדות שהוצהרו בדוחות Z. "יתרה / חוסר" מתמלא בהתאמה אוטומטית לבנק לפי מספר שקית = מספר אסמכתה.</p>
-  <table class="sortable">
-    <thead><tr><th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>שיוך ל-Z</th><th class="right">יתרה / חוסר</th><th>סטטוס</th></tr></thead>
-    <tbody>
-      <% if (!deposits || deposits.length === 0) { %><tr><td colspan="6" class="muted">אין הצהרות הפקדה.</td></tr><% } %>
-      <% (deposits || []).forEach(function(d){ %>
-        <tr>
-          <td class="mono"><%= d.bag_number || '—' %></td>
-          <td class="right"><%= formatIls(d.amount) %></td>
-          <td><%= formatDate(d.deposit_date) %></td>
-          <td>
-            <% if (d.z_report_id) { %><a href="/reports/zreports/<%= d.z_report_id %>">Z <%= d.z_number || d.z_report_id %></a><% } else { %>—<% } %>
-          </td>
-          <td class="right">
-            <% if (d.recon_diff == null) { %><span class="muted">—</span>
-            <% } else if (d.recon_diff === 0) { %><span class="badge b-approved">מאוזן</span>
-            <% } else if (d.recon_diff > 0) { %><span class="badge b-cleared">יתרה <%= formatIls(d.recon_diff) %></span>
-            <% } else { %><span class="badge b-blocked">חוסר <%= formatIls(-d.recon_diff) %></span><% } %>
-          </td>
-          <td>
-            <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
-          </td>
-        </tr>
-      <% }); %>
-    </tbody>
-  </table>
-</details>
+<div class="no-print" style="display:flex;justify-content:center;gap:1.8rem;margin:1.6rem 0 .5rem;flex-wrap:wrap">
+  <form method="post" action="/payments/auto-reconcile" style="margin:0;display:flex;flex-direction:column;align-items:center;gap:5px"
+        title="התאמת צ׳קים פתוחים לתנועות בנק שיובאו (R7)">
+    <input type="hidden" name="status" value="<%= filter %>" />
+    <input type="hidden" name="company" value="<%= cq %>" />
+    <input type="hidden" name="store" value="<%= sq %>" />
+    <button class="round-btn" type="submit" aria-label="התאמה אוטומטית">⟳</button>
+    <span class="muted" style="font-size:12px">התאמה אוטומטית</span>
+  </form>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:5px">
+    <details class="menu up">
+      <summary class="round-btn" style="list-style:none" aria-label="סינון">🔎</summary>
+      <div class="menu-panel" style="min-width:250px; padding:12px">
+        <form method="get" action="/payments">
+          <label class="lbl">חברה</label>
+          <select name="company" onchange="this.form.submit()">
+            <option value="">כל החברות</option>
+            <% companies.forEach(function(c){ %>
+              <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
+            <% }); %>
+          </select>
+          <label class="lbl" style="margin-top:10px">חנות / חשבון בנק</label>
+          <select name="store" onchange="this.form.submit()">
+            <option value="">כל החנויות (הכל יחד)</option>
+            <% stores.forEach(function(s){ %>
+              <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %><%= s.bank_account_name ? ' · ' + s.bank_account_name : '' %></option>
+            <% }); %>
+          </select>
+          <input type="hidden" name="status" value="<%= filter %>" />
+        </form>
+        <div class="menu-sep"></div>
+        <a href="/payments?status=&company=<%= cq %>&store=<%= sq %>" class="<%= !filter ? 'active' : '' %>">הכל</a>
+        <a href="/payments?status=issued&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'issued' ? 'active' : '' %>">בחוץ</a>
+        <a href="/payments?status=cleared&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'cleared' ? 'active' : '' %>">נפרעו</a>
+        <a href="/payments?status=voided&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'voided' ? 'active' : '' %>">מבוטלים</a>
+      </div>
+    </details>
+    <span class="muted" style="font-size:12px">סינון · <%= statusLabel %></span>
+  </div>
+</div>
 
 <script>
   // סינון פר-עמודה בטבלת המרקורים: שדות טקסט לכל עמודה + בורר סטטוס נפרע/לא נפרע.
