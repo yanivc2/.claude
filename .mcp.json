@@ -5,6 +5,12 @@
       "type": "promptString",
       "description": "GitHub Personal Access Token",
       "password": true
+    },
+    {
+      "id": "st21_api_key",
+      "type": "promptString",
+      "description": "21st.dev API key",
+      "password": true
     }
   ],
   "servers": {
@@ -14,6 +20,13 @@
       "args": ["-y", "@modelcontextprotocol/server-github"],
       "env": {
         "GITHUB_PERSONAL_ACCESS_TOKEN": "${input:github_pat}"
+      }
+    },
+    "21st": {
+      "type": "http",
+      "url": "https://21st.dev/api/mcp",
+      "headers": {
+        "x-api-key": "${input:st21_api_key}"
       }
     }
   }
