@@ -4,26 +4,52 @@
 // owner-only (enforced in services/users.js) so permissions can't be used to self-escalate.
 
 export const PERMISSIONS = [
-  // Action permissions (grant an ability).
-  { key: 'settings', label: 'גישה להגדרות (חנויות / חשבונות)', group: 'פעולות' },
-  { key: 'manage_suppliers', label: 'אישור / חסימה / מחיקת ספקים', group: 'פעולות' },
-  { key: 'hold_invoice', label: 'החזקה / שחרור חשבונית', group: 'פעולות' },
-  { key: 'approve_payment', label: 'אישור תשלום (מנהל חנות)', group: 'פעולות' },
-  { key: 'void_payment', label: 'ביטול תשלום / צ׳ק', group: 'פעולות' },
+  // Action permissions (grant an ability). `desc` explains what the toggle does, `icon` is a
+  // small visual cue for the permission picker.
+  { key: 'settings', label: 'גישה להגדרות', group: 'פעולות', icon: '⚙️', desc: 'כניסה לדף ההגדרות — חברות, חנויות ומשתמשים.' },
+  { key: 'manage_suppliers', label: 'ניהול ספקים', group: 'פעולות', icon: '🏢', desc: 'אישור, חסימה ומחיקה של ספקים.' },
+  { key: 'hold_invoice', label: 'החזקת חשבונית', group: 'פעולות', icon: '⏸️', desc: 'החזקה ושחרור של חשבוניות.' },
+  { key: 'approve_payment', label: 'אישור תשלום', group: 'פעולות', icon: '✅', desc: 'אישור חשבונית לתשלום וביצוע תשלום (מנהל חנות).' },
+  { key: 'void_payment', label: 'ביטול תשלום', group: 'פעולות', icon: '🚫', desc: 'ביטול צ׳ק או תשלום.' },
   // Page-access permissions (which screens the role may open). See canViewPage below.
-  { key: 'nav_dashboard', label: 'צפייה: לוח בקרה', group: 'עמודים' },
-  { key: 'nav_invoices', label: 'צפייה: חשבוניות', group: 'עמודים' },
-  { key: 'nav_payments', label: 'צפייה: מרקורים', group: 'עמודים' },
-  { key: 'nav_zreports', label: 'צפייה: דוחות Z', group: 'עמודים' },
-  { key: 'nav_outstanding', label: 'צפייה: צ׳קים בחוץ', group: 'עמודים' },
-  { key: 'nav_reconciliation', label: 'צפייה: התאמת בנק', group: 'עמודים' },
-  { key: 'nav_suppliers', label: 'צפייה: ספקים', group: 'עמודים' },
-  { key: 'nav_profitability', label: 'צפייה: רווחיות', group: 'עמודים' },
-  { key: 'nav_audit', label: 'צפייה: יומן', group: 'עמודים' },
-  { key: 'nav_zclosing', label: 'צפייה: סגירת Z', group: 'עמודים' },
+  { key: 'nav_dashboard', label: 'לוח בקרה', group: 'עמודים', icon: '🏠', desc: 'מסך הבית עם קיצורים וקוביות מצב.' },
+  { key: 'nav_invoices', label: 'חשבוניות', group: 'עמודים', icon: '🧾', desc: 'רשימת החשבוניות והזנתן.' },
+  { key: 'nav_payments', label: 'מרקורים', group: 'עמודים', icon: '💳', desc: 'תשלומים והצהרות הפקדה.' },
+  { key: 'nav_zreports', label: 'דוחות Z', group: 'עמודים', icon: '📊', desc: 'הזנה ועריכה של דוחות Z.' },
+  { key: 'nav_outstanding', label: 'צ׳קים בחוץ', group: 'עמודים', icon: '📤', desc: 'צ׳קים שטרם נפרעו.' },
+  { key: 'nav_reconciliation', label: 'התאמת בנק', group: 'עמודים', icon: '🏦', desc: 'ייבוא והתאמת תנועות בנק.' },
+  { key: 'nav_suppliers', label: 'ספקים', group: 'עמודים', icon: '🏢', desc: 'רשימת הספקים ואנשי הקשר.' },
+  { key: 'nav_profitability', label: 'רווחיות', group: 'עמודים', icon: '💰', desc: 'דוח רווח גולמי ומרווח.' },
+  { key: 'nav_audit', label: 'יומן', group: 'עמודים', icon: '📅', desc: 'לוח שנה, תזכורות ולוג פעולות.' },
+  { key: 'nav_zclosing', label: 'סגירת Z', group: 'עמודים', icon: '🔒', desc: 'ספירת קופה. לעובד קופה — סמן רק את זה כדי לנעול אותו לדף זה בלבד.' },
 ];
 
 const VALID = new Set(PERMISSIONS.map((p) => p.key));
+
+// One-click role presets for the permission picker — a starting point the owner can then tweak.
+// Each ticks a sensible set of the real permissions above (owner is a separate base role).
+export const ROLE_PRESETS = [
+  {
+    key: 'secretary', label: 'מזכירה', icon: '🧑‍💼',
+    desc: 'הזנת חשבוניות, מרקורים ודוחות Z.',
+    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'hold_invoice'],
+  },
+  {
+    key: 'store_manager', label: 'מנהל חנות', icon: '👔',
+    desc: 'כמו מזכירה + אישור תשלומים, ניהול ספקים ורווחיות.',
+    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'nav_outstanding', 'nav_profitability', 'hold_invoice', 'approve_payment', 'manage_suppliers'],
+  },
+  {
+    key: 'cashier', label: 'עובד קופה', icon: '🔒',
+    desc: 'גישה אך ורק לדף "סגירת Z".',
+    perms: ['nav_zclosing'],
+  },
+  {
+    key: 'viewer', label: 'צפייה בלבד', icon: '👁️',
+    desc: 'רואה את כל הדפים, ללא הרשאות פעולה.',
+    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_outstanding', 'nav_reconciliation', 'nav_suppliers', 'nav_profitability', 'nav_audit'],
+  },
+];
 
 // Page-access keys and the route each maps to. The order is the nav order — used to pick a
 // landing page for a restricted role.

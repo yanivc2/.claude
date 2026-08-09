@@ -18,7 +18,7 @@ import {
 import { upgradeSchema } from '../db/index.js';
 import { getExecutor } from '../db/adapter.js';
 import { requireOwner, requirePermission } from '../middleware/requireOwner.js';
-import { PERMISSIONS } from '../lib/permissions.js';
+import { PERMISSIONS, ROLE_PRESETS } from '../lib/permissions.js';
 import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { createInviteLink } from '../services/passwordReset.js';
 import { PASSWORD_POLICY_TEXT, verifyPassword } from '../lib/auth.js';
@@ -88,6 +88,7 @@ async function render(req, res, extra = {}) {
     grants,
     roleTemplates,
     permissionCatalog: PERMISSIONS,
+    rolePresets: ROLE_PRESETS,
     error: null,
     notice: null,
     schemaWarning,

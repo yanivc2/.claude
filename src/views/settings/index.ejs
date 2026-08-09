@@ -19,6 +19,13 @@
     var lbl = form.querySelector('input[name=label]');
     if (lbl && !lbl.value) lbl.value = t.name;
   }
+  // One-click role preset: tick exactly the preset's permissions within this picker.
+  window.AP_PRESETS = <%- JSON.stringify(typeof rolePresets !== 'undefined' && rolePresets ? rolePresets : []) %>;
+  function apPreset(btn, key){
+    var box = btn.closest('.perm-picker'); if (!box) return;
+    var perms = key === '__clear' ? [] : (((window.AP_PRESETS||[]).filter(function(p){ return p.key === key; })[0]) || {}).perms || [];
+    box.querySelectorAll('input[name=permissions]').forEach(function(cb){ cb.checked = perms.indexOf(cb.value) !== -1; });
+  }
 </script>
 
 <% if (typeof notice !== 'undefined' && notice) { %>
@@ -282,13 +289,7 @@ function apReset(e){
       <label style="margin:0">שם התבנית *</label>
       <input name="name" placeholder="למשל: מנהל חשבונות" required style="max-width:320px" />
       <label style="margin:.4rem 0 .2rem">הרשאות בתבנית</label>
-      <div class="actions" style="flex-wrap:wrap;gap:.8rem">
-        <% permissionCatalog.forEach(function(p){ %>
-          <label style="display:flex;align-items:center;gap:.3rem;margin:0;font-weight:400">
-            <input type="checkbox" name="permissions" value="<%= p.key %>" style="width:auto" /> <%= p.label %>
-          </label>
-        <% }); %>
-      </div>
+      <%- include('_permpicker', { selected: [] }) %>
       <div style="margin-top:.5rem"><button type="submit">הוסף תבנית</button></div>
     </form>
   </div>
@@ -351,13 +352,7 @@ function apReset(e){
                     </select>
                   <% } %>
                   <label style="margin:.4rem 0 .2rem">הרשאות</label>
-                  <div class="actions" style="flex-wrap:wrap;gap:.8rem">
-                    <% permissionCatalog.forEach(function(p){ %>
-                      <label style="display:flex;align-items:center;gap:.3rem;margin:0;font-weight:400">
-                        <input type="checkbox" name="permissions" value="<%= p.key %>" style="width:auto" <%= (u.permissions||[]).includes(p.key) ? 'checked' : '' %> /> <%= p.label %>
-                      </label>
-                    <% }); %>
-                  </div>
+                  <%- include('_permpicker', { selected: (u.permissions || []) }) %>
                 </div>
                 <div style="margin-top:.5rem"><button class="small" type="submit">שמור</button></div>
               </form>
@@ -399,13 +394,7 @@ function apReset(e){
           </select>
         <% } %>
         <label style="margin:.4rem 0 .2rem">הרשאות</label>
-        <div class="actions" style="flex-wrap:wrap;gap:.8rem">
-          <% permissionCatalog.forEach(function(p){ %>
-            <label style="display:flex;align-items:center;gap:.3rem;margin:0;font-weight:400">
-              <input type="checkbox" name="permissions" value="<%= p.key %>" style="width:auto" /> <%= p.label %>
-            </label>
-          <% }); %>
-        </div>
+        <%- include('_permpicker', { selected: [] }) %>
       </div>
       <div style="margin-top:.5rem"><button type="submit">הוסף משתמש</button></div>
     </form>

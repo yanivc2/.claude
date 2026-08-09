@@ -476,6 +476,19 @@ button:disabled, .btn:disabled { opacity: .45; cursor: not-allowed; }
 /* Wide tables scroll horizontally INSIDE their card (the page itself never scrolls sideways). */
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 .table-scroll > table { margin: 0; }
+
+/* Visual permission picker — grouped toggle cards + quick role presets. */
+.perm-presets { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .2rem 0 .9rem; }
+.perm-group-title { font-weight: 700; margin: .2rem 0 .3rem; }
+.perm-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .5rem; }
+.perm-card { display: block; cursor: pointer; margin: 0; position: relative; }
+.perm-card > input { position: absolute; opacity: 0; width: 0; height: 0; }
+.perm-card-b { display: flex; align-items: flex-start; gap: .5rem; border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: .55rem .7rem; background: var(--color-surface-2); transition: border-color .15s, background .15s; height: 100%; }
+.perm-card:has(input:checked) .perm-card-b { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 14%, var(--color-surface-2)); }
+.perm-card:focus-within .perm-card-b { border-color: var(--color-accent); }
+.perm-ic { font-size: 1.15rem; line-height: 1.2; }
+.perm-t { display: flex; flex-direction: column; gap: 2px; }
+.perm-t small { color: var(--color-muted); font-size: 11.5px; line-height: 1.3; }
 .toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-2); }
 /* On phones the title + action buttons cannot reliably share one line, and the wrap point
    shifted with the filter label's width — so the buttons jumped around. Stack them: title on

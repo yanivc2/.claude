@@ -1,0 +1,39 @@
+<%
+  // Visual permission picker — shared by the role-template form and the user forms.
+  // Locals: selected (array of permission keys already granted). Uses the global permissionCatalog
+  // + rolePresets. Wrapped in .perm-picker so apPreset() can scope to the right form.
+  var _sel = (typeof selected !== 'undefined' && selected) ? selected : [];
+  function _has(k){ return _sel.indexOf(k) !== -1; }
+  var _pages = permissionCatalog.filter(function(p){ return p.group === 'עמודים'; });
+  var _actions = permissionCatalog.filter(function(p){ return p.group === 'פעולות'; });
+%>
+<div class="perm-picker">
+  <div class="perm-presets no-print">
+    <span class="muted">תבנית מהירה:</span>
+    <% (typeof rolePresets !== 'undefined' ? rolePresets : []).forEach(function(r){ %>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="apPreset(this,'<%= r.key %>')" title="<%= r.desc %>"><%= r.icon %> <%= r.label %></button>
+    <% }); %>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="apPreset(this,'__clear')">נקה הכול</button>
+  </div>
+
+  <div class="perm-group-title">📄 דפים שהמשתמש רואה</div>
+  <p class="muted" style="margin:.1rem 0 .5rem;font-size:12px">אם לא מסומן אף דף — המשתמש רואה הכול (ברירת מחדל). ברגע שמסומן דף אחד לפחות — הוא רואה רק את המסומן. לעובד קופה: סמן <strong>רק</strong> "סגירת Z".</p>
+  <div class="perm-cards">
+    <% _pages.forEach(function(p){ %>
+      <label class="perm-card">
+        <input type="checkbox" name="permissions" value="<%= p.key %>" <%= _has(p.key) ? 'checked' : '' %> />
+        <span class="perm-card-b"><span class="perm-ic"><%= p.icon %></span><span class="perm-t"><strong><%= p.label %></strong><small><%= p.desc %></small></span></span>
+      </label>
+    <% }); %>
+  </div>
+
+  <div class="perm-group-title" style="margin-top:1rem">⚡ פעולות מותרות</div>
+  <div class="perm-cards">
+    <% _actions.forEach(function(p){ %>
+      <label class="perm-card">
+        <input type="checkbox" name="permissions" value="<%= p.key %>" <%= _has(p.key) ? 'checked' : '' %> />
+        <span class="perm-card-b"><span class="perm-ic"><%= p.icon %></span><span class="perm-t"><strong><%= p.label %></strong><small><%= p.desc %></small></span></span>
+      </label>
+    <% }); %>
+  </div>
+</div>
