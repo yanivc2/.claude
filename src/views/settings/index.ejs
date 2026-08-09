@@ -1,5 +1,8 @@
 <%- include('../partials/header') %>
-<h1>הגדרות</h1>
+<div class="toolbar">
+  <h1>הגדרות</h1>
+  <a href="/settings/guide" class="btn btn-secondary">📖 מדריך למשתמש</a>
+</div>
 <p class="muted">ניהול מבנה החברות, החנויות, חשבונות הבנק והמשתמשים. פעולות בעלים בלבד.</p>
 <% function permLabel(key){ var f = permissionCatalog.find(function(p){return p.key===key;}); return f ? f.label : key; } %>
 <script>

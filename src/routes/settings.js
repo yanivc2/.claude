@@ -104,6 +104,11 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Team user guide — page-by-page reference. Gated by the settings router (requirePermission).
+router.get('/guide', (req, res) => {
+  res.render('settings/guide', { title: 'מדריך למשתמש' });
+});
+
 router.post('/companies', async (req, res, next) => {
   try {
     await createCompany({ name: req.body.name, companyType: req.body.company_type, taxId: req.body.tax_id }, req.user);
