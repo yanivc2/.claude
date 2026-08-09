@@ -28,6 +28,7 @@ function migrateZExtras(db) {
     const cols = db.prepare('PRAGMA table_info(z_reports)').all().map((c) => c.name);
     if (!cols.includes('image_path')) db.exec('ALTER TABLE z_reports ADD COLUMN image_path TEXT;');
     if (!cols.includes('updated_at')) db.exec('ALTER TABLE z_reports ADD COLUMN updated_at TEXT;');
+    if (!cols.includes('manager_breakdown')) db.exec('ALTER TABLE z_reports ADD COLUMN manager_breakdown TEXT;');
   }
   // Cash expense → invoice link; deposit → Z link + bank reconciliation (bag=reference).
   if (has('z_expenses')) {

@@ -313,6 +313,8 @@ ALTER TABLE deposits   ADD COLUMN IF NOT EXISTS recon_diff     BIGINT;
 
 -- Z edit timestamp (last edited date+time).
 ALTER TABLE z_reports  ADD COLUMN IF NOT EXISTS updated_at TEXT;
+-- Manager's bill recount vs the Z closing (JSON {denom:{count,ok}}).
+ALTER TABLE z_reports  ADD COLUMN IF NOT EXISTS manager_breakdown TEXT;
 
 -- Register-closing: which store + Z number + declared drawer cash.
 ALTER TABLE z_closings ADD COLUMN IF NOT EXISTS store_id    INTEGER REFERENCES stores(id);

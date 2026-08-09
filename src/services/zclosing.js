@@ -100,6 +100,15 @@ export async function createZClosing(input, actor, x = getExecutor()) {
   return info.lastInsertRowid;
 }
 
+/** The most recent Z closing matching a store + Z number (for bill reconciliation on the Z report). */
+export async function matchingClosing(storeId, zNumber, x = getExecutor()) {
+  if (!storeId || !zNumber) return null;
+  return x.one(
+    'SELECT * FROM z_closings WHERE store_id = ? AND z_number = ? ORDER BY id DESC LIMIT 1',
+    [Number(storeId), String(zNumber).trim()],
+  );
+}
+
 /** Recent closings, newest first, with the store name for display. */
 export async function listZClosings({ limit = 30 } = {}, x = getExecutor()) {
   return x.many(

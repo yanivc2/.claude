@@ -233,7 +233,8 @@ CREATE TABLE IF NOT EXISTS z_reports (
   image_path       TEXT,                         -- scan of the printed Z slip
   created_by       INTEGER NOT NULL REFERENCES users(id),
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
-  updated_at       TEXT                            -- last edit (date+time); NULL until first edited
+  updated_at       TEXT,                           -- last edit (date+time); NULL until first edited
+  manager_breakdown TEXT                           -- JSON {denom:{count,ok}} — manager's bill recount vs the Z closing
 );
 CREATE INDEX IF NOT EXISTS ix_zreports_store_date ON z_reports(store_id, z_date);
 

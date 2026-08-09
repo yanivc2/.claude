@@ -306,6 +306,13 @@ export async function replaceExpenses(zReportId, rows, actor, x = getExecutor())
   return clean.length;
 }
 
+/** Save the manager's bill recount (JSON {denom:{count,ok}}) for a Z report. */
+export async function setManagerBreakdown(zReportId, breakdown, actor, x = getExecutor()) {
+  await getZReport(zReportId, x);
+  await x.run('UPDATE z_reports SET manager_breakdown = ? WHERE id = ?', [JSON.stringify(breakdown || {}), zReportId]);
+  await logAction({ userId: actor.id, action: 'zreport.verify_bills', entityType: 'z_report', entityId: zReportId }, x);
+}
+
 /** Attach (or clear) the scan of the printed Z slip. */
 export async function setZReportImage(zReportId, imagePath, actor, x = getExecutor()) {
   await getZReport(zReportId, x);

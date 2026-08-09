@@ -20,6 +20,66 @@
 </div>
 
 <div class="card no-print">
+  <div class="toolbar"><h2 style="margin:0">בדיקת שטרות מול סגירת Z</h2></div>
+  <% if (!closing) { %>
+    <p class="muted">לא נמצאה סגירת Z תואמת (אותה חנות + אותו מספר Z). כשתיווצר סגירה מתאימה — הספירה תופיע כאן להשוואה.</p>
+  <% } else { %>
+    <p class="muted">ספירת סוגר הקופה: <strong><%= closing.employee_first %> <%= closing.employee_last %></strong><%= closing.ended_at ? ' · ' + closing.ended_at : '' %>. הזן את ספירתך וסמן ✓ לכל שטר שנבדק.</p>
+    <form method="post" action="/reports/zreports/<%= zr.id %>/verify-bills" id="mb-form">
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>שטר / מטבע</th><th class="right">ספירת סוגר</th><th>ספירת מנהל</th><th>✓</th><th class="right">חוסר / עודף</th></tr></thead>
+          <tbody>
+            <% closingDenoms.forEach(function(d){
+                 var closer = (closerBreakdown && closerBreakdown[d.key]) ? Number(closerBreakdown[d.key]) : 0;
+                 var mb = (managerBreakdown && managerBreakdown[d.key]) || {};
+            %>
+              <tr>
+                <td>₪<%= d.value %> <span class="muted" style="font-size:12px"><%= d.kind %></span></td>
+                <td class="right"><%= closer %></td>
+                <td><input name="mgr_count_<%= d.key %>" class="mb-cnt" data-val="<%= d.value %>" data-closer="<%= closer %>" inputmode="numeric" value="<%= mb.count || '' %>" style="max-width:110px" /></td>
+                <td><input type="checkbox" name="mgr_ok_<%= d.key %>" value="1" style="width:auto;min-height:0" <%= mb.ok ? 'checked' : '' %> /></td>
+                <td class="right mb-diff">—</td>
+              </tr>
+            <% }); %>
+          </tbody>
+          <tfoot>
+            <tr><th>סה"כ</th><th class="right" id="mb-closer-total">₪0.00</th><th class="right" colspan="2" id="mb-mgr-total">₪0.00</th><th class="right" id="mb-diff-total">—</th></tr>
+          </tfoot>
+        </table>
+      </div>
+      <div style="margin-top:.6rem"><button type="submit">שמור בדיקת שטרות</button></div>
+    </form>
+    <script>
+    (function(){
+      var form = document.getElementById('mb-form'); if (!form) return;
+      function fmt(a){ return '₪' + a.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+      function recalc(){
+        var closerTotal = 0, mgrTotal = 0;
+        form.querySelectorAll('.mb-cnt').forEach(function(inp){
+          var val = parseFloat(inp.dataset.val); var closer = parseInt(inp.dataset.closer,10) || 0; var mgr = parseInt(inp.value,10) || 0;
+          closerTotal += val*closer; mgrTotal += val*mgr;
+          var cell = inp.closest('tr').querySelector('.mb-diff'); var d = (mgr-closer)*val;
+          if (closer === 0 && mgr === 0) { cell.textContent = '—'; cell.style.color = ''; }
+          else if (mgr === closer) { cell.textContent = '✓'; cell.style.color = 'var(--ok)'; }
+          else if (d > 0) { cell.textContent = 'עודף ' + fmt(d); cell.style.color = 'var(--ok)'; }
+          else { cell.textContent = 'חוסר ' + fmt(-d); cell.style.color = 'var(--bad)'; }
+        });
+        document.getElementById('mb-closer-total').textContent = fmt(closerTotal);
+        document.getElementById('mb-mgr-total').textContent = fmt(mgrTotal);
+        var dt = mgrTotal - closerTotal; var el = document.getElementById('mb-diff-total');
+        if (Math.round(dt*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--ok)'; }
+        else if (dt > 0) { el.textContent = 'עודף ' + fmt(dt); el.style.color = 'var(--ok)'; }
+        else { el.textContent = 'חוסר ' + fmt(-dt); el.style.color = 'var(--bad)'; }
+      }
+      form.querySelectorAll('.mb-cnt').forEach(function(i){ i.addEventListener('input', recalc); });
+      recalc();
+    })();
+    </script>
+  <% } %>
+</div>
+
+<div class="card no-print">
   <div class="toolbar">
     <h2 style="margin:0">תמונת הדוח</h2>
     <% if (zr.image_path) { %><a href="/reports/zreports/<%= zr.id %>/image" target="_blank" class="btn btn-secondary btn-sm">צפה בתמונה</a><% } %>

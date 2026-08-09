@@ -155,3 +155,25 @@ test('zSequenceStatus joins consecutive missing numbers into one range', async (
   assert.equal(status.gaps[0].before.z_number, '15');
   assert.equal(status.gaps[0].after.z_number, '425');
 });
+
+test('matchingClosing links a Z report to its closing by store + Z number; manager breakdown saves', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  const { createZClosing, matchingClosing } = await import('../src/services/zclosing.js');
+  const { updateZReport, setManagerBreakdown, getZReport } = await import('../src/services/zreports.js');
+
+  const z = await createZReport({ storeId: store.id, zNumber: '900', zDate: '2026-08-06', drawerCash: 100000 }, ow, db);
+  await createZClosing({ employeeFirst: 'א', employeeLast: 'ב', storeId: store.id, zNumber: '900', drawerCash: 100000, counts: { '200': 3 }, expenses: [] }, ow, db);
+
+  const match = await matchingClosing(store.id, '900', db);
+  assert.ok(match, 'a closing with the same store + Z number is found');
+  assert.equal(JSON.parse(match.breakdown)['200'], 3);
+  // no match for a different Z number
+  assert.ok(!(await matchingClosing(store.id, '901', db)));
+
+  await setManagerBreakdown(z.id, { '200': { count: 2, ok: true } }, ow, db);
+  const saved = JSON.parse((await getZReport(z.id, db)).manager_breakdown);
+  assert.equal(saved['200'].count, 2);
+  assert.equal(saved['200'].ok, true);
+});

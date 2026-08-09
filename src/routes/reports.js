@@ -9,12 +9,13 @@ import {
 import {
   createZReport, updateZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
   addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
-  replaceExpenses, setZReportImage,
+  replaceExpenses, setZReportImage, setManagerBreakdown,
   setDeposit, cashReconciliation, DENOMS,
   setCreditCards, ccReconciliation, CC_BRANDS,
   zReconciliationStatus,
 } from '../services/zreports.js';
 import { createDeposit, listDeposits, setDeposited, deleteDeposit, depositTotalForZ, upsertDepositForZ, depositForZ } from '../services/deposits.js';
+import { matchingClosing, CLOSING_DENOMS } from '../services/zclosing.js';
 import { listInvoices } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
@@ -114,6 +115,12 @@ async function renderZReport(req, res, id, extra = {}) {
     'SELECT st.name AS store_name, c.name AS company_name FROM stores st JOIN companies c ON c.id = st.company_id WHERE st.id = ?',
     [zr.store_id],
   );
+  // Bill reconciliation against the matching Z closing (same store + Z number).
+  const closing = await matchingClosing(zr.store_id, zr.z_number);
+  let closerBreakdown = null;
+  if (closing) { try { closerBreakdown = JSON.parse(closing.breakdown || '{}'); } catch { closerBreakdown = {}; } }
+  let managerBreakdown = {};
+  if (zr.manager_breakdown) { try { managerBreakdown = JSON.parse(zr.manager_breakdown); } catch { managerBreakdown = {}; } }
   res.render('reports/zreport', {
     title: `עריכת דוח Z ${zr.z_number}`,
     zr,
@@ -123,6 +130,10 @@ async function renderZReport(req, res, id, extra = {}) {
     ccBrands: CC_BRANDS,
     dep: await depositForZ(id),
     expenses: await listExpenses(id),
+    closingDenoms: CLOSING_DENOMS,
+    closing,
+    closerBreakdown,
+    managerBreakdown,
     error: null,
     notice: null,
     ...extra,
@@ -494,6 +505,25 @@ router.post('/zreports/:id', async (req, res, next) => {
       }
     } catch { /* best-effort */ }
     await renderZReport(req, res, id, { notice: 'הדוח עודכן.' });
+  } catch (err) {
+    if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
+    next(err);
+  }
+});
+
+// Save the manager's bill recount vs the Z closing.
+router.post('/zreports/:id/verify-bills', async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    const b = req.body;
+    const data = {};
+    for (const d of CLOSING_DENOMS) {
+      const count = Math.max(0, Math.floor(Number(b[`mgr_count_${d.key}`]) || 0));
+      const ok = b[`mgr_ok_${d.key}`] === '1' || b[`mgr_ok_${d.key}`] === 'on';
+      if (count > 0 || ok) data[d.key] = { count, ok };
+    }
+    await setManagerBreakdown(id, data, req.user);
+    await renderZReport(req, res, id, { notice: 'ספירת השטרות נשמרה.' });
   } catch (err) {
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
     next(err);
