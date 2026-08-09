@@ -3,8 +3,19 @@
 
 <div class="card no-print">
   <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
-    <h2 style="margin:0">קיצורי תשלום</h2>
-    <a href="/payments/new" class="btn btn-primary">תשלום מהיר</a>
+    <h2 style="margin:0">פעולות מהירות</h2>
+    <details class="menu open-in">
+      <summary class="btn btn-primary">אפשרויות <span class="caret">▾</span></summary>
+      <div class="menu-panel">
+        <a href="/invoices/new">+ חשבונית חדשה</a>
+        <a href="/payments/new">+ תשלום חדש</a>
+        <a href="/reports/zreports">+ דוח Z חדש</a>
+        <a href="/suppliers/new">+ ספק חדש</a>
+        <div class="menu-sep"></div>
+        <a href="/payments">מרקורים</a>
+        <a href="/reports/profitability">רווחיות</a>
+      </div>
+    </details>
   </div>
 </div>
 
@@ -236,23 +247,5 @@
       </div>
     <% }); %>
   <% } %>
-</div>
-
-<div class="card">
-  <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
-    <h2 style="margin:0">פעולות מהירות</h2>
-    <details class="menu up open-in">
-      <summary class="btn btn-primary">אפשרויות <span class="caret">▾</span></summary>
-      <div class="menu-panel">
-        <a href="/invoices/new">+ חשבונית חדשה</a>
-        <a href="/payments/new">+ תשלום חדש</a>
-        <a href="/reports/zreports">+ דוח Z חדש</a>
-        <a href="/suppliers/new">+ ספק חדש</a>
-        <div class="menu-sep"></div>
-        <a href="/payments">מרקורים</a>
-        <a href="/reports/profitability">רווחיות</a>
-      </div>
-    </details>
-  </div>
 </div>
 <%- include('partials/footer') %>
