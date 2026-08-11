@@ -24,8 +24,9 @@ test('createSession / readSession round-trip; tamper + expiry rejected', () => {
   assert.equal(readSession(token, now + 1000), 42);
   // expired
   assert.equal(readSession(token, now + 999 * 3600 * 1000), null);
-  // tampered signature
-  assert.equal(readSession(token.slice(0, -2) + 'ff', now + 1000), null);
+  // tampered signature (flip the last char to a value guaranteed to differ)
+  const flipped = token.slice(0, -1) + (token.slice(-1) === 'f' ? '0' : 'f');
+  assert.equal(readSession(flipped, now + 1000), null);
   // tampered user id (signature no longer matches)
   const [, exp, sig] = token.split('.');
   assert.equal(readSession(`99.${exp}.${sig}`, now + 1000), null);
