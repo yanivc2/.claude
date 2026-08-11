@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "Write-Output '{\"systemMessage\": \"🗂️ Vault — כספת ידע:\\n1. תוכן בעברית, שמות קבצים באנגלית\\n2. כל דבר חדש נכנס דרך Inbox\\n3. תיקיות קוד לא זזות — Junction בלבד\\n4. אין מחיקות — רק העברה ל-_organize/trash\"}'",
+            "shell": "powershell"
+          }
+        ]
+      }
+    ]
+  }
+}
