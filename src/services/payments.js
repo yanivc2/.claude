@@ -4,9 +4,46 @@ import { NotFoundError, RuleError, AuthError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
 import { scopeClause } from '../lib/scope.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
+import { notify } from '../lib/notify.js';
 import { logAction } from './audit.js';
 
 const METHODS = ['check', 'cash', 'credit', 'transfer', 'batch'];
+
+/** Parse supplier payment-terms text → number of days (מיידי = 0, "שוטף 30" = 30). null if unknown. */
+export function parsePaymentTermsDays(terms) {
+  const t = String(terms || '').trim();
+  if (!t) return null;
+  if (/מיידי/.test(t)) return 0;
+  const m = t.match(/\d+/);
+  return m ? Number(m[0]) : null;
+}
+
+function daysBetween(fromIso, toIso) {
+  const a = Date.parse(`${String(fromIso).slice(0, 10)}T00:00:00`);
+  const b = Date.parse(`${String(toIso).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return Math.round((b - a) / 86400000);
+}
+
+/**
+ * Which paid invoices were paid EARLIER than the supplier's payment terms (§7 — Telegram push).
+ * @param {Array<{supplierName,invoiceNumber,invoiceDate,terms}>} rows
+ * @param {string} paymentDate ISO date
+ * @returns {Array<{supplierName,invoiceNumber,termsDays,actualDays,earlyDays}>}
+ */
+export function earlyPaymentAlerts(rows, paymentDate) {
+  const out = [];
+  for (const r of rows || []) {
+    const termsDays = parsePaymentTermsDays(r.terms);
+    if (termsDays == null) continue;
+    const actual = daysBetween(r.invoiceDate, paymentDate);
+    if (actual == null) continue;
+    if (actual < termsDays) {
+      out.push({ supplierName: r.supplierName, invoiceNumber: r.invoiceNumber, termsDays, actualDays: actual, earlyDays: termsDays - actual });
+    }
+  }
+  return out;
+}
 
 /**
  * Issue a payment against a set of invoices/credit notes (check/cash/credit/transfer/batch).
@@ -58,13 +95,16 @@ export async function createPayment(input, actor, x = getExecutor()) {
   const account = await x.one('SELECT * FROM bank_accounts WHERE id = ?', [bankAccountId]);
   if (!account) throw new NotFoundError(`חשבון בנק ${bankAccountId} לא נמצא`);
 
+  // Collected for the "paid earlier than terms" Telegram alert, evaluated after commit.
+  const termsRows = [];
+
   const paymentId = await tx(async (t) => {
     let net = 0;
     const lines = [];
 
     for (const invId of invoiceIds) {
       const inv = await t.one(
-        `SELECT i.*, s.status AS supplier_status, s.name AS supplier_name,
+        `SELECT i.*, s.status AS supplier_status, s.name AS supplier_name, s.payment_terms AS supplier_terms,
                 ba.id AS store_bank_account_id
            FROM invoices i
            JOIN suppliers s ON s.id = i.supplier_id
@@ -73,6 +113,7 @@ export async function createPayment(input, actor, x = getExecutor()) {
         [invId],
       );
       if (!inv) throw new NotFoundError(`חשבונית ${invId} לא נמצאה`);
+      termsRows.push({ supplierName: inv.supplier_name, invoiceNumber: inv.invoice_number, invoiceDate: inv.invoice_date, terms: inv.supplier_terms });
 
       // Paying an invoice implicitly approves it: accept "recorded" and "approved_for_payment".
       // R3-blocked (on_hold) and already-paid invoices are still refused.
@@ -143,6 +184,17 @@ export async function createPayment(input, actor, x = getExecutor()) {
     );
     return pid;
   });
+
+  // Best-effort Telegram push if any invoice was paid earlier than its supplier's terms (§7).
+  try {
+    const alerts = earlyPaymentAlerts(termsRows, paymentDate);
+    if (alerts.length) {
+      const lines = alerts.map(
+        (a) => `• ${a.supplierName} · חשבונית ${a.invoiceNumber}: שולם ${a.actualDays} ימים מהחשבונית (תנאי ${a.termsDays} ימים) — מוקדם ב-${a.earlyDays} ימים`,
+      );
+      notify(`⏱️ <b>תשלום מוקדם מתנאי התשלום</b>\n${lines.join('\n')}`);
+    }
+  } catch { /* alerts are best-effort */ }
 
   return getPaymentDetail(paymentId, x);
 }
