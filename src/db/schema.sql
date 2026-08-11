@@ -322,3 +322,76 @@ CREATE TABLE IF NOT EXISTS role_templates (
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_role_templates_name ON role_templates(name);
+
+-- products — קטלוג מוצרים מצטבר לפי ספק (נבנה מאישור חשבוניות סרוקות). last_cost הוא מחיר
+-- היחידה האחרון שנקלט (אגורות, לפני מע"מ) יחד עם תאריך החשבונית שקבע אותו.
+CREATE TABLE IF NOT EXISTS products (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier_id    INTEGER NOT NULL REFERENCES suppliers(id),
+  name           TEXT NOT NULL,
+  barcode        TEXT,                 -- 12-13 ספרות; ייחודי בתוך הספק כשקיים
+  sku            TEXT,                 -- מק"ט הספק
+  last_cost      INTEGER,              -- agorot per unit, before VAT
+  last_cost_date TEXT,                 -- 'YYYY-MM-DD' of the invoice that set last_cost
+  created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  updated_at     TEXT                  -- last edit; NULL until first updated
+);
+-- ברקוד הוא מפתח חזק בתוך ספק — ייחודי כשקיים.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_products_supplier_barcode
+  ON products(supplier_id, barcode) WHERE barcode IS NOT NULL;
+CREATE INDEX IF NOT EXISTS ix_products_supplier_name ON products(supplier_id, name);
+
+-- product_prices — היסטוריית מחירי קנייה למוצר (שורה לכל חשבונית שבה הופיע), לגרף מגמת מחיר.
+CREATE TABLE IF NOT EXISTS product_prices (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  product_id INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  invoice_id INTEGER REFERENCES invoices(id),   -- מאיזו חשבונית נלקח המחיר (nullable)
+  price      INTEGER NOT NULL,                  -- agorot per unit, before VAT
+  quantity   REAL,                              -- כמות בשורה שממנה נגזר המחיר
+  price_date TEXT NOT NULL,                     -- 'YYYY-MM-DD' (תאריך החשבונית)
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_product_prices_product_date
+  ON product_prices(product_id, price_date);
+
+-- invoice_lines — שורות הפריטים של חשבונית (מה שחולץ מהצילום ואושר על ידי המשתמש).
+-- כל הסכומים באגורות לפני מע"מ; בחשבונית זיכוי line_total שלילי.
+CREATE TABLE IF NOT EXISTS invoice_lines (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  invoice_id       INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  product_id       INTEGER REFERENCES products(id),   -- שיוך לקטלוג (nullable)
+  line_no          INTEGER NOT NULL,
+  name             TEXT NOT NULL,
+  barcode          TEXT,
+  sku              TEXT,
+  quantity         REAL NOT NULL DEFAULT 1,
+  unit_cost        INTEGER,                           -- agorot before VAT; NULL אם לא ידוע
+  unit_cost_source TEXT
+                   CHECK (unit_cost_source IN ('extracted','computed','manual')),
+  line_total       INTEGER NOT NULL                   -- agorot before VAT (negative for credit)
+);
+CREATE INDEX IF NOT EXISTS ix_invoice_lines_invoice ON invoice_lines(invoice_id);
+
+-- invoice_drafts — טיוטת חשבונית סרוקה: התמונות שהועלו, תוצאת החילוץ של המודל והנתונים
+-- המנורמלים, עד לאישור העובד. באישור נוצרת חשבונית (invoice_id) והסטטוס עובר ל-committed.
+CREATE TABLE IF NOT EXISTS invoice_drafts (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id              INTEGER NOT NULL REFERENCES stores(id),
+  company_id            INTEGER NOT NULL REFERENCES companies(id),
+  status                TEXT NOT NULL DEFAULT 'uploaded'
+                        CHECK (status IN ('uploaded','processing','needs_review','committed','failed')),
+  images                TEXT NOT NULL,   -- JSON array of storage refs, בסדר העמודים
+  extraction            TEXT,            -- raw model JSON
+  normalized            TEXT,            -- validated + edited JSON (incl. flags)
+  error                 TEXT,            -- הודעת כשל ידידותית (status='failed')
+  model                 TEXT,
+  input_tokens          INTEGER,
+  output_tokens         INTEGER,
+  duration_ms           INTEGER,
+  invoice_id            INTEGER REFERENCES invoices(id),  -- נקבע באישור
+  processing_started_at TEXT,            -- לזיהוי עיבוד תקוע (stale guard)
+  created_by            INTEGER NOT NULL REFERENCES users(id),
+  created_at            TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  updated_at            TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_invoice_drafts_status ON invoice_drafts(status);

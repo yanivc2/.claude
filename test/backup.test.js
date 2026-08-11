@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
 import { freshDb, owner } from './helpers.js';
+import { config } from '../src/config.js';
 import { exportAll, resetTransactionalData, restoreAll } from '../src/services/backup.js';
 
 async function seedTransactional(db, ow) {
@@ -23,7 +27,45 @@ async function seedTransactional(db, ow) {
   ]);
 }
 
+// Scan/catalog rows (צילום חשבוניות): a product + its price history, an invoice line and a
+// draft whose `images` is a JSON array of storage refs. Call after seedTransactional().
+async function seedScanData(db, ow, imageRefs = ['page-1.jpg']) {
+  const store = await db.one('SELECT id, company_id FROM stores LIMIT 1', []);
+  const sup = await db.one('SELECT id FROM suppliers ORDER BY id LIMIT 1', []);
+  const inv = await db.one('SELECT id FROM invoices ORDER BY id LIMIT 1', []);
+  const prod = await db.run(
+    `INSERT INTO products (supplier_id, name, barcode, sku, last_cost, last_cost_date)
+     VALUES (?, 'קמח 1 ק"ג', '7290000000017', 'MK-1', 550, '2026-07-01')`,
+    [sup.id],
+  );
+  await db.run(
+    'INSERT INTO product_prices (product_id, invoice_id, price, quantity, price_date) VALUES (?,?,?,?,?)',
+    [prod.lastInsertRowid, inv.id, 550, 2, '2026-07-01'],
+  );
+  await db.run(
+    `INSERT INTO invoice_lines (invoice_id, product_id, line_no, name, barcode, sku, quantity,
+       unit_cost, unit_cost_source, line_total)
+     VALUES (?,?, 1, 'קמח 1 ק"ג', '7290000000017', 'MK-1', 2, 550, 'extracted', 1100)`,
+    [inv.id, prod.lastInsertRowid],
+  );
+  const draft = await db.run(
+    `INSERT INTO invoice_drafts (store_id, company_id, status, images, invoice_id, created_by)
+     VALUES (?,?, 'committed', ?, ?, ?)`,
+    [store.id, store.company_id, JSON.stringify(imageRefs), inv.id, ow.id],
+  );
+  return { productId: prod.lastInsertRowid, draftId: draft.lastInsertRowid };
+}
+
 const countOf = async (db, table) => (await db.many(`SELECT 1 FROM ${table}`, [])).length;
+
+// A local-disk stored file (bare filename = a local storage ref, like putBuffer produces when
+// no Blob token is configured). Written directly so the test never touches the network.
+function tempStoredFile() {
+  fs.mkdirSync(config.uploadsDir, { recursive: true });
+  const ref = `test-${crypto.randomUUID()}.jpg`;
+  fs.writeFileSync(path.join(config.uploadsDir, ref), Buffer.from([1, 2, 3]));
+  return ref;
+}
 
 test('exportAll snapshots every table with its rows', async () => {
   const db = await freshDb();
@@ -35,6 +77,20 @@ test('exportAll snapshots every table with its rows', async () => {
   assert.ok(dump.tables.companies.length >= 1);
   assert.ok(dump.tables.users.length >= 1);
   assert.equal(dump.meta.counts.invoices, 1);
+});
+
+test('exportAll includes the scan tables (products / prices / lines / drafts)', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  await seedTransactional(db, ow);
+  await seedScanData(db, ow, ['page-1.jpg', 'page-2.jpg']);
+  const dump = await exportAll(db);
+  for (const t of ['products', 'product_prices', 'invoice_lines', 'invoice_drafts']) {
+    assert.ok(Array.isArray(dump.tables[t]), `${t} חסר בגיבוי`);
+    assert.equal(dump.meta.counts[t], 1, `${t} לא יוצא לגיבוי`);
+  }
+  assert.equal(dump.tables.invoice_lines[0].line_total, 1100);
+  assert.deepEqual(JSON.parse(dump.tables.invoice_drafts[0].images), ['page-1.jpg', 'page-2.jpg']);
 });
 
 test('resetTransactionalData clears transactional data but keeps the setup', async () => {
@@ -79,10 +135,39 @@ test('resetTransactionalData with alsoSuppliers clears the supplier list too', a
   assert.equal(await countOf(db, 'companies') >= 1, true); // setup still there
 });
 
+test('resetTransactionalData clears the scan tables and deletes the draft page images', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  await seedTransactional(db, ow);
+  // real files on disk, referenced by the draft's images JSON array
+  const refs = [tempStoredFile(), tempStoredFile()];
+  await seedScanData(db, ow, refs);
+  // a draft whose images JSON is broken must not break the reset
+  const store = await db.one('SELECT id, company_id FROM stores LIMIT 1', []);
+  await db.run(
+    `INSERT INTO invoice_drafts (store_id, company_id, status, images, created_by)
+     VALUES (?,?, 'failed', 'not-json', ?)`,
+    [store.id, store.company_id, ow.id],
+  );
+  const paths = refs.map((r) => path.join(config.uploadsDir, r));
+  assert.ok(paths.every((p) => fs.existsSync(p)));
+
+  const { deletedImages } = await resetTransactionalData({ alsoSuppliers: false }, ow, db);
+
+  assert.equal(await countOf(db, 'products'), 0);
+  assert.equal(await countOf(db, 'product_prices'), 0);
+  assert.equal(await countOf(db, 'invoice_lines'), 0);
+  assert.equal(await countOf(db, 'invoice_drafts'), 0);
+  // both draft pages were collected and their files removed
+  assert.equal(deletedImages, refs.length);
+  assert.ok(paths.every((p) => !fs.existsSync(p)));
+});
+
 test('restoreAll round-trips a backup (wipe + reinsert everything)', async () => {
   const db = await freshDb();
   const ow = await owner(db);
   await seedTransactional(db, ow);
+  await seedScanData(db, ow);
   const before = {
     invoices: await countOf(db, 'invoices'),
     payments: await countOf(db, 'payments'),
@@ -103,6 +188,11 @@ test('restoreAll round-trips a backup (wipe + reinsert everything)', async () =>
   assert.equal(await countOf(db, 'suppliers'), 1);
   assert.equal(await countOf(db, 'companies'), before.companies);
   assert.equal(await countOf(db, 'users'), before.users);
+  // scan tables come back too (FK-safe order: products after suppliers, lines after invoices)
+  assert.equal(await countOf(db, 'products'), 1);
+  assert.equal(await countOf(db, 'product_prices'), 1);
+  assert.equal(await countOf(db, 'invoice_lines'), 1);
+  assert.equal(await countOf(db, 'invoice_drafts'), 1);
 });
 
 test('restoreAll rejects a file that is not an AP Control backup', async () => {

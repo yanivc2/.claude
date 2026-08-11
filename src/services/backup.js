@@ -10,16 +10,20 @@ import { logAction } from './audit.js';
 // Every table, setup first. Used for the export.
 const ALL_TABLES = [
   'companies', 'stores', 'bank_accounts', 'users', 'user_companies', 'role_templates',
-  'suppliers', 'invoices', 'payments', 'payment_lines', 'bank_transactions',
+  'suppliers', 'products', 'invoices', 'invoice_lines', 'product_prices', 'invoice_drafts',
+  'payments', 'payment_lines', 'bank_transactions',
   'invoice_ocr', 'z_reports', 'z_expenses', 'deposits', 'sales_entries',
   'calendar_events', 'change_requests', 'password_resets', 'audit_log',
 ];
 
 // Transactional tables to wipe on reset, in FK-safe (child-before-parent) order. `suppliers`
 // is appended only when the caller opts in (it is referenced by invoices, so it must come after).
+// `products` is referenced by invoice_lines/product_prices and references suppliers — so it goes
+// after invoices and (when opted in) before suppliers.
 const RESET_ORDER = [
   'payment_lines', 'bank_transactions', 'invoice_ocr', 'z_expenses',
-  'payments', 'invoices', 'z_reports', 'deposits', 'sales_entries',
+  'product_prices', 'invoice_lines', 'invoice_drafts',
+  'payments', 'invoices', 'products', 'z_reports', 'deposits', 'sales_entries',
   'calendar_events', 'change_requests', 'password_resets', 'audit_log',
 ];
 
@@ -30,7 +34,8 @@ export const RESET_KEEPS = ['companies', 'stores', 'bank_accounts', 'users', 'us
 // the reverse order (children first).
 const RESTORE_ORDER = [
   'companies', 'stores', 'bank_accounts', 'users', 'user_companies', 'role_templates', 'suppliers',
-  'invoices', 'payments', 'payment_lines', 'bank_transactions', 'invoice_ocr',
+  'products', 'invoices', 'invoice_lines', 'product_prices', 'invoice_drafts',
+  'payments', 'payment_lines', 'bank_transactions', 'invoice_ocr',
   'z_reports', 'z_expenses', 'deposits', 'sales_entries', 'calendar_events',
   'change_requests', 'password_resets', 'audit_log',
 ];
@@ -62,6 +67,16 @@ export async function resetTransactionalData({ alsoSuppliers = false } = {}, act
     ...(await x.many("SELECT image_path FROM invoices WHERE image_path IS NOT NULL", [])),
     ...(await x.many("SELECT image_path FROM z_expenses WHERE image_path IS NOT NULL", [])),
   ].map((r) => r.image_path).filter(Boolean);
+  // טיוטות סריקה: invoice_drafts.images הוא מערך JSON של refs (עמוד לכל ref) — אוספים את כולם.
+  // JSON פגום לא יפיל את האיפוס (לכל היותר יישאר קובץ יתום ב-Blob).
+  for (const row of await x.many("SELECT images FROM invoice_drafts WHERE images IS NOT NULL", [])) {
+    try {
+      const refs = JSON.parse(row.images);
+      if (Array.isArray(refs)) imgs.push(...refs.filter(Boolean));
+    } catch {
+      /* טיוטה עם images לא תקין — מדלגים */
+    }
+  }
 
   const order = alsoSuppliers ? [...RESET_ORDER, 'suppliers'] : RESET_ORDER;
   await tx(async (t) => {
