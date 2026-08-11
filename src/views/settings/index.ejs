@@ -180,9 +180,9 @@ function apReset(e){
           </form>
         </div>
         <table>
-          <thead><tr><th>חנות</th><th>בנק</th><th>סניף</th><th>חשבון</th><th>שם תצוגה</th></tr></thead>
+          <thead><tr><th>חנות</th><th>בנק</th><th>סניף</th><th>חשבון</th><th>שם תצוגה</th><th class="no-print" data-nosort></th></tr></thead>
           <tbody>
-            <% if (c.stores.length === 0) { %><tr><td colspan="5" class="muted">אין חנויות.</td></tr><% } %>
+            <% if (c.stores.length === 0) { %><tr><td colspan="6" class="muted">אין חנויות.</td></tr><% } %>
             <% c.stores.forEach(function(s){ %>
               <tr>
                 <td><%= s.name %></td>
@@ -196,6 +196,12 @@ function apReset(e){
                       <button class="secondary small" type="submit">שמור</button>
                     </form>
                   <% } else { %>—<% } %>
+                </td>
+                <td class="no-print">
+                  <form method="post" action="/settings/stores/<%= s.id %>/delete" style="display:inline"
+                        onsubmit="return confirm('למחוק את החנות <%= s.name %>? החנות וחשבון הבנק שלה יימחקו. פעולה זו חסומה אם קיימים לה נתונים (חשבוניות/דוחות Z/הפקדות/תשלומים).')">
+                    <button class="danger small" type="submit">מחק</button>
+                  </form>
                 </td>
               </tr>
             <% }); %>

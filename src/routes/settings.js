@@ -6,6 +6,7 @@ import {
   updateCompany,
   createStoreWithAccount,
   updateAccountDisplayName,
+  deleteStore,
 } from '../services/orgs.js';
 import {
   listUsers,
@@ -145,6 +146,17 @@ router.post('/stores', async (req, res, next) => {
       req.user,
     );
     await render(req, res, { notice: 'חנות וחשבון בנק נוספו.' });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// Delete a store (+ its bank account) — owner only, refused if it has any transactional history.
+router.post('/stores/:id/delete', async (req, res, next) => {
+  try {
+    await deleteStore(Number(req.params.id), req.user);
+    await render(req, res, { notice: 'החנות נמחקה.' });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);

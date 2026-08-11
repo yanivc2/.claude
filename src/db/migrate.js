@@ -30,6 +30,7 @@ function migrateInvoiceLineUnits(db) {
   const cols = db.prepare('PRAGMA table_info(invoice_lines)').all().map((c) => c.name);
   if (!cols.includes('unit_quantity')) db.exec('ALTER TABLE invoice_lines ADD COLUMN unit_quantity REAL;');
   if (!cols.includes('pack_cost')) db.exec('ALTER TABLE invoice_lines ADD COLUMN pack_cost INTEGER;');
+}
 
 // Adds the supplier_stores join table (supplier ↔ store, many-to-many) to older databases.
 function migrateSupplierStores(db) {

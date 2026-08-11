@@ -95,6 +95,44 @@ export async function createStoreWithAccount(input, actor, x = getExecutor()) {
   return x.one('SELECT * FROM stores WHERE id = ?', [storeId]);
 }
 
+/**
+ * Delete a store together with its 1:1 bank account (owner only). Refused if any transactional
+ * data references the store or its account (invoices / Z reports / deposits / register closings /
+ * sales / payments / bank transactions) — history is never silently destroyed. Intended for
+ * cleaning up a store created by mistake. Supplier→store assignments are just cleaned up.
+ */
+export async function deleteStore(storeId, actor, x = getExecutor()) {
+  requireOwner(actor);
+  const store = await x.one('SELECT * FROM stores WHERE id = ?', [storeId]);
+  if (!store) throw new NotFoundError(`חנות ${storeId} לא נמצאה`);
+
+  const guards = [
+    ['invoices', 'חשבוניות'],
+    ['z_reports', 'דוחות Z'],
+    ['deposits', 'הצהרות הפקדה'],
+    ['z_closings', 'סגירות Z'],
+    ['sales_entries', 'רשומות מכירה'],
+  ];
+  for (const [table, label] of guards) {
+    const row = await x.one(`SELECT COUNT(*) AS n FROM ${table} WHERE store_id = ?`, [storeId]);
+    if (row && row.n > 0) throw new RuleError('IN_USE', `לחנות "${store.name}" יש ${row.n} ${label} — לא ניתן למחוק.`);
+  }
+  const acct = await x.one('SELECT id FROM bank_accounts WHERE store_id = ?', [storeId]);
+  if (acct) {
+    const p = await x.one('SELECT COUNT(*) AS n FROM payments WHERE bank_account_id = ?', [acct.id]);
+    if (p && p.n > 0) throw new RuleError('IN_USE', `לחנות "${store.name}" יש ${p.n} תשלומים — לא ניתן למחוק.`);
+    const t = await x.one('SELECT COUNT(*) AS n FROM bank_transactions WHERE bank_account_id = ?', [acct.id]);
+    if (t && t.n > 0) throw new RuleError('IN_USE', `לחנות "${store.name}" יש ${t.n} תנועות בנק — לא ניתן למחוק.`);
+  }
+
+  await tx(async (t) => {
+    await t.run('DELETE FROM supplier_stores WHERE store_id = ?', [storeId]);
+    if (acct) await t.run('DELETE FROM bank_accounts WHERE store_id = ?', [storeId]);
+    await t.run('DELETE FROM stores WHERE id = ?', [storeId]);
+    await logAction({ userId: actor.id, action: 'store.delete', entityType: 'store', entityId: storeId, details: { name: store.name } }, t);
+  });
+}
+
 export async function updateAccountDisplayName(accountId, displayName, actor, x = getExecutor()) {
   requireOwner(actor);
   const acct = await x.one('SELECT * FROM bank_accounts WHERE id = ?', [accountId]);
