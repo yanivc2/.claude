@@ -4,14 +4,31 @@
 </div>
 <p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7). לחץ על שורה לפירוט.</p>
 
+<%
+// Preserve the selected account when switching month, and vice-versa.
+function ocLink(m){ var p = []; if (detailAccountId) p.push('account=' + detailAccountId); if (m) p.push('month=' + m); return '/reports/outstanding' + (p.length ? '?' + p.join('&') : ''); }
+%>
+<% if (months && months.length) { %>
+<div class="card no-print">
+  <label class="lbl" style="margin:0 0 .4rem">חתך חודשי (לפי תאריך פירעון)</label>
+  <div class="actions" style="flex-wrap:wrap;gap:.4rem">
+    <a class="chip <%= !month ? 'active' : '' %>" href="<%= ocLink(null) %>">הכל</a>
+    <% months.forEach(function(mo){ %>
+      <a class="chip <%= month === mo.value ? 'active' : '' %>" href="<%= ocLink(mo.value) %>"><%= mo.label %></a>
+    <% }); %>
+  </div>
+</div>
+<% } %>
+
 <div class="card">
+  <% if (month) { %><p class="muted" style="margin:0 0 .6rem">מציג צ׳קים שתאריך פירעונם ב־<strong><%= (months.find(function(x){return x.value===month;})||{}).label || month %></strong>.</p><% } %>
   <table>
     <thead>
       <tr><th>חברה</th><th>חנות / חשבון</th><th class="right">צ׳קים פתוחים</th><th class="right">סכום בחוץ</th><th class="no-print">ייצוא</th></tr>
     </thead>
     <tbody>
       <% accounts.forEach(function(a){ %>
-        <tr onclick="location='/reports/outstanding?account=<%= a.id %>'" style="cursor:pointer"
+        <tr onclick="location='/reports/outstanding?account=<%= a.id %><%= month ? '&month=' + month : '' %>'" style="cursor:pointer"
             class="<%= detailAccountId === a.id ? 'b-approved' : '' %>">
           <td><%= a.company_name %></td>
           <td><%= a.display_name %></td>
@@ -21,8 +38,8 @@
             <details class="menu open-in">
               <summary class="btn btn-secondary btn-sm">ייצוא <span class="caret">▾</span></summary>
               <div class="menu-panel" style="min-width:150px">
-                <a href="/reports/outstanding-detail.csv?account=<%= a.id %>">📄 ייצוא CSV</a>
-                <a href="/reports/outstanding?account=<%= a.id %>&print=1">🖨️ הדפסה</a>
+                <a href="/reports/outstanding-detail.csv?account=<%= a.id %><%= month ? '&month=' + month : '' %>">📄 ייצוא CSV</a>
+                <a href="/reports/outstanding?account=<%= a.id %><%= month ? '&month=' + month : '' %>&print=1">🖨️ הדפסה</a>
               </div>
             </details>
           </td>
@@ -44,7 +61,7 @@
   <div class="card">
     <div class="toolbar">
       <h2 style="margin:0">פירוט צ׳קים שלא נפרעו — החשבון הנבחר</h2>
-      <a class="btn secondary no-print" href="/reports/outstanding-detail.csv?account=<%= detailAccountId %>">ייצוא CSV מפורט</a>
+      <a class="btn secondary no-print" href="/reports/outstanding-detail.csv?account=<%= detailAccountId %><%= month ? '&month=' + month : '' %>">ייצוא CSV מפורט</a>
     </div>
     <table class="sortable">
       <thead>

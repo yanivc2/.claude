@@ -15,6 +15,36 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
   <div class="alert alert-info"><%= notice %></div>
 <% } %>
 
+<!-- בחירת טווח גלויה: חודשי / שבועי / טווח תאריכים (עם כפתור "הצג" מפורש — עובד תמיד) -->
+<div class="card no-print">
+  <div class="actions" style="gap:.4rem;flex-wrap:wrap">
+    <a class="chip <%= preset==='month' ? 'active' : '' %>" href="/reports/profitability?preset=month&from=<%= from %>">חודשי</a>
+    <a class="chip <%= preset==='week' ? 'active' : '' %>" href="/reports/profitability?preset=week&from=<%= from %>">שבועי</a>
+    <a class="chip <%= !preset ? 'active' : '' %>" href="/reports/profitability?from=<%= from %>&to=<%= to %>">טווח תאריכים</a>
+  </div>
+  <div style="margin-top:.7rem">
+    <% if (preset === 'month') { %>
+      <form method="get" action="/reports/profitability" class="actions" style="gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="preset" value="month" />
+        <div><label class="lbl">חודש</label><input type="month" name="from" value="<%= from.slice(0,7) %>" onchange="this.form.submit()" /></div>
+        <div><button type="submit">הצג</button></div>
+      </form>
+    <% } else if (preset === 'week') { %>
+      <form method="get" action="/reports/profitability" class="actions" style="gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+        <input type="hidden" name="preset" value="week" />
+        <div><label class="lbl">בחר יום בשבוע</label><input type="date" name="from" value="<%= from %>" /></div>
+        <div><button type="submit">הצג שבוע</button></div>
+      </form>
+    <% } else { %>
+      <form method="get" action="/reports/profitability" class="actions" style="gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+        <div><label class="lbl">מתאריך</label><input type="date" name="from" value="<%= from %>" /></div>
+        <div><label class="lbl">עד תאריך</label><input type="date" name="to" value="<%= to %>" /></div>
+        <div><button type="submit">הצג טווח</button></div>
+      </form>
+    <% } %>
+  </div>
+</div>
+
 <div>
     <div class="card">
       <p class="muted">תקופה: <%= from %> — <%= to %>. מכירות מחושבות מ<strong>יומי Z</strong>.</p>
@@ -49,14 +79,8 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
     </div>
   </div>
 
-<!-- כפתורים עגולים למטה: בחירת טווח (ימין) · הדפסה · ייצוא (שמאל) -->
+<!-- כפתורים עגולים למטה: הדפסה · ייצוא (בחירת הטווח גלויה למעלה) -->
 <div class="card no-print" style="display:flex; gap:var(--space-8); justify-content:flex-start; align-items:flex-start">
-  <div class="icon-tile">
-    <button type="button" class="icon-circle accent" onclick="document.getElementById('rangeDlg').showModal()" aria-label="בחירת טווח" title="בחירת טווח">
-      <svg viewBox="0 0 24 24"><path d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M4 9h16M8 3v4M16 3v4"/></svg>
-    </button>
-    <span class="cap">בחירת טווח</span>
-  </div>
   <div class="icon-tile">
     <button type="button" class="icon-circle" onclick="window.print()" aria-label="הדפסה" title="הדפסה / PDF">
       <svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a1 1 0 01-1-1v-5a2 2 0 012-2h14a2 2 0 012 2v5a1 1 0 01-1 1h-2"/><path d="M7 14h10v7H7z"/></svg>
@@ -84,42 +108,4 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
   </div>
 </dialog>
 
-<!-- מודל בחירת טווח: יומי / שבועי / חודשי -->
-<dialog id="rangeDlg" class="dlg">
-  <div class="dlg-head">
-    <strong>בחירת טווח</strong>
-    <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
-  </div>
-  <p class="muted" style="font-size:13px;margin-top:0">תקופה נוכחית: <%= from %> — <%= to %></p>
-  <div class="actions" style="flex-wrap:wrap">
-    <a class="btn <%= !preset ? '' : 'secondary' %>" href="/reports/profitability?from=<%= from %>&to=<%= to %>&dlg=1">טווח ימים</a>
-    <a class="btn <%= preset==='week' ? '' : 'secondary' %>" href="/reports/profitability?preset=week&from=<%= from %>&dlg=1">שבועי (א׳–שבת)</a>
-    <a class="btn <%= preset==='month' ? '' : 'secondary' %>" href="/reports/profitability?preset=month&from=<%= from %>&dlg=1">חודשי</a>
-  </div>
-  <% if (preset === 'week') { %>
-    <form method="get" action="/reports/profitability" style="margin-top:.8rem">
-      <input type="hidden" name="preset" value="week" />
-      <label style="margin:0">בחר שבוע</label>
-      <input type="date" name="from" value="<%= from %>" data-dp-mode="week" data-dp-submit="1" />
-    </form>
-  <% } else if (preset === 'month') { %>
-    <form method="get" action="/reports/profitability" style="margin-top:.8rem">
-      <input type="hidden" name="preset" value="month" />
-      <label style="margin:0">בחר חודש</label>
-      <input type="date" name="from" value="<%= from %>" data-dp-mode="month" data-dp-submit="1" />
-    </form>
-  <% } else { %>
-    <form method="get" action="/reports/profitability" class="actions" style="margin-top:.8rem;flex-wrap:wrap">
-      <div><label style="margin:0">מתאריך</label><input type="date" name="from" value="<%= from %>" /></div>
-      <div><label style="margin:0">עד תאריך</label><input type="date" name="to" value="<%= to %>" /></div>
-      <div style="align-self:end"><button type="submit">הצג טווח</button></div>
-    </form>
-  <% } %>
-</dialog>
-<script>
-  // Keep the range window open while switching mode (mode links carry ?dlg=1).
-  if (new URLSearchParams(location.search).get('dlg') === '1') {
-    var d = document.getElementById('rangeDlg'); if (d) d.showModal();
-  }
-</script>
 <%- include('../partials/footer') %>

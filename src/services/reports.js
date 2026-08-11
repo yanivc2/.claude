@@ -7,12 +7,15 @@ import { scopeClause } from '../lib/scope.js';
  *
  * @returns {{ accounts: Array, totalOutstanding: number }}
  */
-export async function outstandingChecks(scope = null, x = getExecutor()) {
+export async function outstandingChecks(scope = null, { month = null } = {}, x = getExecutor()) {
   const sc = scopeClause(scope, 'ba.company_id');
+  // Optional monthly cut: only checks whose due date (payment_date) falls in the given YYYY-MM.
+  const mCond = month ? " AND p.payment_date LIKE ?" : '';
+  const mParam = month ? [`${month}%`] : [];
   const accounts = await x.many(
     `SELECT ba.id, ba.display_name, st.id AS store_id, c.name AS company_name, st.name AS store_name,
-            COALESCE(SUM(CASE WHEN p.status = 'issued' THEN p.amount ELSE 0 END), 0) AS outstanding,
-            COUNT(CASE WHEN p.status = 'issued' THEN 1 END) AS outstanding_count
+            COALESCE(SUM(CASE WHEN p.status = 'issued'${mCond} THEN p.amount ELSE 0 END), 0) AS outstanding,
+            COUNT(CASE WHEN p.status = 'issued'${mCond} THEN 1 END) AS outstanding_count
        FROM bank_accounts ba
        JOIN companies c ON c.id = ba.company_id
        JOIN stores st ON st.id = ba.store_id
@@ -20,11 +23,43 @@ export async function outstandingChecks(scope = null, x = getExecutor()) {
       WHERE 1 = 1${sc.sql}
       GROUP BY ba.id, ba.display_name, st.id, c.name, st.name
       ORDER BY c.name, st.name`,
-    [...sc.params],
+    [...mParam, ...mParam, ...sc.params],
   );
 
   const totalOutstanding = accounts.reduce((sum, a) => sum + a.outstanding, 0);
   return { accounts, totalOutstanding };
+}
+
+/**
+ * The contiguous list of months (YYYY-MM) that have any outstanding (issued) check, from the
+ * earliest such month up to the latest — gaps filled, so a single unpaid check from Dec 2025
+ * yields Dec 2025, Jan 2026, Feb 2026 … up to the last one (§9). For the month cut on the page.
+ * @returns {Promise<Array<{value:string,label:string}>>}
+ */
+export async function outstandingMonths(scope = null, x = getExecutor()) {
+  const sc = scopeClause(scope, 'ba.company_id');
+  const rows = await x.many(
+    `SELECT p.payment_date FROM payments p
+       JOIN bank_accounts ba ON ba.id = p.bank_account_id
+      WHERE p.status = 'issued'${sc.sql}`,
+    [...sc.params],
+  );
+  const months = rows.map((r) => String(r.payment_date).slice(0, 7)).filter((m) => /^\d{4}-\d{2}$/.test(m));
+  if (!months.length) return [];
+  months.sort();
+  const MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+  const [minY, minM] = months[0].split('-').map(Number);
+  const [maxY, maxM] = months[months.length - 1].split('-').map(Number);
+  const out = [];
+  let y = minY;
+  let m = minM;
+  // Guard against a runaway loop on bad data — 600 months (50y) is far beyond any real horizon.
+  for (let i = 0; i < 600 && (y < maxY || (y === maxY && m <= maxM)); i += 1) {
+    out.push({ value: `${y}-${String(m).padStart(2, '0')}`, label: `${MONTHS_HE[m - 1]} ${y}` });
+    m += 1;
+    if (m > 12) { m = 1; y += 1; }
+  }
+  return out;
 }
 
 /**
@@ -97,13 +132,15 @@ export async function outstandingChecksForAccount(bankAccountId, x = getExecutor
  * invoice line(s) and any credit note(s). Columns for the report:
  *   supplier, invoice number(s)+date+amount, credit number(s)+amount, due date, net amount.
  */
-export async function outstandingCheckDetail(bankAccountId, x = getExecutor()) {
+export async function outstandingCheckDetail(bankAccountId, { month = null } = {}, x = getExecutor()) {
+  const mCond = month ? " AND p.payment_date LIKE ?" : '';
+  const mParam = month ? [`${month}%`] : [];
   const payments = await x.many(
     `SELECT p.id, p.payment_date, p.amount, p.method, p.check_number, p.reference, p.batch_number
        FROM payments p
-      WHERE p.bank_account_id = ? AND p.status = 'issued'
+      WHERE p.bank_account_id = ? AND p.status = 'issued'${mCond}
       ORDER BY p.payment_date, p.id`,
-    [bankAccountId],
+    [bankAccountId, ...mParam],
   );
   if (payments.length === 0) return [];
 
@@ -242,7 +279,7 @@ export async function dashboardStats(scope = null, x = getExecutor()) {
   const pendingSuppliers = (await x.one("SELECT COUNT(*) AS n FROM suppliers WHERE status = 'pending'", [])).n;
   const onHoldInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'on_hold'${sc.sql}`, [...sc.params])).n;
   const approvedInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'approved_for_payment'${sc.sql}`, [...sc.params])).n;
-  const { totalOutstanding } = await outstandingChecks(scope, x);
+  const { totalOutstanding } = await outstandingChecks(scope, {}, x);
   const lastReconciledAt = await lastReconciliationAt(x);
   return { pendingSuppliers, onHoldInvoices, approvedInvoices, totalOutstanding, lastReconciledAt };
 }
