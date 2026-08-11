@@ -168,6 +168,34 @@ When you add a rule file, add its `@import` line to the template **and** list it
 - `mcp-needs-auth-cache.json` tracks MCP servers still awaiting authentication;
   it is ephemeral runtime state, not configuration to edit by hand.
 
+### The two `bf7c680d-…` entries in the allowlist
+
+`settings.json` allows exactly two tools on the Claude Code Remote MCP server:
+
+```
+mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__list_triggers
+mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__update_trigger
+```
+
+**Why:** the live text of a scheduled routine is stored service-side, not in any
+repo, so a session cannot fix a broken routine without these. That gap bit us
+once already — five routines needed the same one-line change after
+`micha-brain` split its pipeline dependencies out of `requirements.txt`, and the
+session that found the problem had no way to apply the fix.
+
+**Deliberately narrow.** The same server also exposes `create_trigger`,
+`delete_trigger`, `create_session` and `archive_session`. None of those are
+allowed: reading routines and editing their prompts is enough to repair one,
+and nothing here should be able to silently delete a schedule.
+
+**The server name is a UUID assigned by the platform**, not something declared
+in `.mcp.json`. If it ever changes, these entries stop matching and calls go
+back to `MCP error -32003: requires approval`. That error is the signal to
+re-check the name, not a sign the server broke.
+
+**Permissions are read when a session starts.** Adding an entry does not affect
+the session that added it.
+
 ---
 
 ## Plugin Blocklist (`plugins/blocklist.json`)

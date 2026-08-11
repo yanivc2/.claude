@@ -24,6 +24,8 @@
       "Skill(schedule:*)",
       "mcp__playwright__browser_snapshot",
       "mcp__claude_ai_Microsoft_Learn__microsoft_docs_search",
+      "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__list_triggers",
+      "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__update_trigger",
       "Write(C:\\Users\\yaniv\\.claude\\*)"
     ],
     "additionalDirectories": [
