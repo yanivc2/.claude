@@ -360,13 +360,19 @@ CREATE TABLE IF NOT EXISTS invoice_lines (
   name             TEXT NOT NULL,
   barcode          TEXT,
   sku              TEXT,
-  quantity         DOUBLE PRECISION NOT NULL DEFAULT 1,
-  unit_cost        BIGINT,
+  quantity         DOUBLE PRECISION NOT NULL DEFAULT 1,  -- כמות כפי שמודפסת (לעיתים ארגזים)
+  unit_quantity    DOUBLE PRECISION,                      -- כ.בודד: מספר היחידות הבודדות בשורה
+  unit_cost        BIGINT,                                -- agorot ליחידה בודדת
   unit_cost_source TEXT
                    CHECK (unit_cost_source IN ('extracted','computed','manual')),
+  pack_cost        BIGINT,                                -- agorot לארגז/מארז כשהמחיר המודפס אינו ליחידה
   line_total       BIGINT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_invoice_lines_invoice ON invoice_lines(invoice_id);
+-- migrations for existing databases (idempotent) — CREATE TABLE IF NOT EXISTS above is a
+-- no-op once the table exists, so every new column needs an explicit ALTER here.
+ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS unit_quantity DOUBLE PRECISION;
+ALTER TABLE invoice_lines ADD COLUMN IF NOT EXISTS pack_cost     BIGINT;
 
 -- invoice_drafts — טיוטת חשבונית סרוקה (תמונות + חילוץ המודל) עד לאישור העובד.
 CREATE TABLE IF NOT EXISTS invoice_drafts (

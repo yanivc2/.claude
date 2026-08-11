@@ -172,7 +172,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
     <div class="table-scroll">
       <table>
         <thead>
-          <tr><th>מוצר</th><th>ברקוד</th><th>מק"ט</th><th class="right">כמות</th><th class="right">מחיר ליחידה</th><th class="right">סה"כ שורה</th></tr>
+          <tr><th>מוצר</th><th>ברקוד</th><th>מק"ט</th><th class="right">כמות</th><th class="right">כ.בודד</th><th class="right">מחיר לארגז</th><th class="right">מחיר ליחידה</th><th class="right">סה"כ שורה</th></tr>
         </thead>
         <tbody>
           <% var linesTotal = 0; %>
@@ -184,17 +184,19 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
               <td class="mono"><%= l.barcode || '—' %></td>
               <td class="mono"><%= l.sku || '—' %></td>
               <td class="right"><%= l.quantity === null || l.quantity === undefined ? '—' : l.quantity %></td>
+              <td class="right"><%= l.unit_quantity === null || l.unit_quantity === undefined ? '—' : l.unit_quantity %></td>
+              <td class="right"><%= l.pack_cost === null || l.pack_cost === undefined ? '—' : formatIls(l.pack_cost) %></td>
               <td class="right"><%= l.unit_cost === null || l.unit_cost === undefined ? '—' : formatIls(l.unit_cost) %><%= l.unit_cost_source === 'computed' ? ' *' : '' %></td>
               <td class="right <%= l.line_total < 0 ? 'neg' : '' %>"><%= formatIls(l.line_total) %></td>
             </tr>
           <% }); %>
         </tbody>
         <tfoot>
-          <tr><td colspan="5" class="right"><strong>סה"כ שורות</strong></td><td class="right"><strong><%= formatIls(linesTotal) %></strong></td></tr>
+          <tr><td colspan="7" class="right"><strong>סה"כ שורות</strong></td><td class="right"><strong><%= formatIls(linesTotal) %></strong></td></tr>
         </tfoot>
       </table>
     </div>
-    <p class="text-muted" style="font-size:12px;margin:.5rem 0 0">* מחיר ליחידה שחושב מסה"כ השורה חלקי הכמות.</p>
+    <p class="text-muted" style="font-size:12px;margin:.5rem 0 0">* מחיר ליחידה שחושב מסה"כ נטו חלקי כ.בודד (או חלקי הכמות כשאין כ.בודד).</p>
   </div>
 <% } %>
 

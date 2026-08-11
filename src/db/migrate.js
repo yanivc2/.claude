@@ -15,6 +15,20 @@ export function migrate(db) {
   migrateDeposits(db);
   migrateZExtras(db);
   migrateZClosings(db);
+  migrateInvoiceLineUnits(db);
+}
+
+// Adds the single-unit columns to invoice_lines for databases created before the
+// כ.בודד change: unit_quantity (how many individual items the line covers) and
+// pack_cost (the printed price when it refers to a carton rather than a single).
+function migrateInvoiceLineUnits(db) {
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='invoice_lines'")
+    .get();
+  if (!hasTable) return;
+  const cols = db.prepare('PRAGMA table_info(invoice_lines)').all().map((c) => c.name);
+  if (!cols.includes('unit_quantity')) db.exec('ALTER TABLE invoice_lines ADD COLUMN unit_quantity REAL;');
+  if (!cols.includes('pack_cost')) db.exec('ALTER TABLE invoice_lines ADD COLUMN pack_cost INTEGER;');
 }
 
 // Adds z_expenses.purpose ("עבור") and z_reports.image_path (Z-slip scan) to older databases.

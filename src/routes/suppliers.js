@@ -70,8 +70,9 @@ router.post('/:id/contacts', async (req, res, next) => {
   }
 });
 
+// Query params prefill the form (e.g. /suppliers/new?name=…&tax_id=… from the scan screen).
 router.get('/new', (req, res) => {
-  res.render('suppliers/new', { title: 'ספק חדש', values: {}, error: null });
+  res.render('suppliers/new', { title: 'ספק חדש', values: req.query || {}, error: null });
 });
 
 // Payment fields from the form: method code + terms, where "other" swaps in the free-text value.

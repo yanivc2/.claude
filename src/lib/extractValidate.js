@@ -21,11 +21,12 @@ import { matchSupplier } from './supplierMatch.js';
  *   'lines_sum_mismatch'— Σ line totals ≠ amount before VAT
  * Line flags (per line, in `lines[].flags`):
  *   'computed'          — unit cost was derived from line total / quantity
+ *   'computed_per_unit' — unit cost was derived from line total / כ.בודד (single-item count)
  *   'missing_amounts'   — neither unit cost nor line total could be read
  *   'low_confidence'    — Claude reported low confidence for the line
  * @typedef {'no_supplier_match'|'fuzzy_match'|'missing'|'low_confidence'|'defaulted'
  *   |'invalid_format'|'vat_mismatch'|'vat_rate_off'|'lines_sum_mismatch'
- *   |'computed'|'missing_amounts'} FlagCode
+ *   |'computed'|'computed_per_unit'|'missing_amounts'} FlagCode
  */
 export const FLAG_CODES = Object.freeze([
   'no_supplier_match',
@@ -38,6 +39,7 @@ export const FLAG_CODES = Object.freeze([
   'vat_rate_off',
   'lines_sum_mismatch',
   'computed',
+  'computed_per_unit',
   'missing_amounts',
 ]);
 
@@ -174,22 +176,37 @@ function confidenceOf(value) {
   return s === 'high' || s === 'medium' || s === 'low' ? s : 'medium';
 }
 
-/** Normalize one extracted line; unit cost is computed from the total when not printed. */
+/**
+ * Normalize one extracted line. `unitCost` is always the price of ONE INDIVIDUAL item —
+ * that is what the product catalog compares over time. When the line carries a separate
+ * single-item count (כ.בודד) the price per item is line total / that count, not / quantity,
+ * because the printed quantity is cartons for many suppliers.
+ * An explicit unit_cost always wins, so a hand-typed correction is never overridden.
+ */
 function normalizeLine(raw, lineNo) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const flags = [];
   const quantity = num(src.quantity);
+  const unitQuantity = num(src.unit_quantity);
   const lineTotal = absAgorot(src.line_total);
+  const singles = unitQuantity !== null && unitQuantity > 0 ? unitQuantity : null;
+  const packs = quantity !== null && quantity > 0 ? quantity : null;
+  const basis = singles ?? packs;
   let unitCost = absAgorot(src.unit_cost);
+  let packCost = absAgorot(src.pack_cost);
   /** @type {'extracted'|'computed'|null} */
   let unitCostSource = null;
 
   if (unitCost !== null) {
     unitCostSource = 'extracted';
-  } else if (quantity !== null && quantity > 0 && lineTotal !== null) {
-    unitCost = Math.round(lineTotal / quantity);
+  } else if (basis !== null && lineTotal !== null) {
+    unitCost = Math.round(lineTotal / basis);
     unitCostSource = 'computed';
-    flags.push('computed');
+    flags.push(singles !== null ? 'computed_per_unit' : 'computed');
+  }
+  // The carton price is only meaningful when the line really has two different bases.
+  if (packCost === null && singles !== null && packs !== null && singles !== packs && lineTotal !== null) {
+    packCost = Math.round(lineTotal / packs);
   }
   if (absAgorot(src.unit_cost) === null && lineTotal === null) flags.push('missing_amounts');
 
@@ -202,8 +219,10 @@ function normalizeLine(raw, lineNo) {
     barcode: str(src.barcode),
     sku: str(src.sku),
     quantity,
+    unitQuantity,
     unitCost,
     unitCostSource,
+    packCost,
     lineTotal,
     confidence,
     flags,
@@ -237,6 +256,7 @@ export function validateExtraction(extraction, { suppliers = [], vatRate = 0.18 
   // --- ספק ---------------------------------------------------------------------
   const supplierName = str(src.supplier_name);
   const supplierTaxId = str(src.supplier_tax_id);
+  const supplierPhone = str(src.supplier_phone);
   const match = matchSupplier(supplierName, supplierTaxId, suppliers);
   if (!match) {
     addFlag('supplier', 'no_supplier_match');
@@ -284,6 +304,7 @@ export function validateExtraction(extraction, { suppliers = [], vatRate = 0.18 
     supplierScore: match ? match.score : null,
     supplierMethod: match ? match.method : null,
     supplierTaxId,
+    supplierPhone,
     invoiceNumber,
     allocationNumber: allocation.value,
     invoiceDate,

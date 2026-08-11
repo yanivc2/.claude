@@ -117,7 +117,9 @@ export async function upsertProductsFromLines(
 
     await x.run(
       'INSERT INTO product_prices (product_id, invoice_id, price, quantity, price_date) VALUES (?, ?, ?, ?, ?)',
-      [product.id, invoiceId, unitCost, line.quantity ?? null, invoiceDate],
+      // quantity records the count the per-single price refers to — the singles count (כ.בודד)
+      // when the line has one, otherwise the printed quantity.
+      [product.id, invoiceId, unitCost, line.unitQuantity ?? line.quantity ?? null, invoiceDate],
     );
     // last_cost tracks the most recent invoice date, not the most recent entry — a late-entered
     // old invoice must not overwrite a newer price. Equal dates: the later entry wins.

@@ -371,6 +371,79 @@ test('approveDraft creates the invoice, its lines and the supplier catalog', asy
   await assert.rejects(approveDraft(draft.id, {}, sec, db), /רק טיוטה שעברה עיבוד/);
 });
 
+test('כ.בודד flow: per-single price survives save→reload and lands in lines + catalog', async () => {
+  const db = await freshDb();
+  const { sec, store, supplier } = await setup(db);
+  const draft = await uploaded(db, sec, store);
+
+  // 5 cartons × 24 singles = 120; net 480 → 4.00 ₪ per single, 96.00 ₪ per carton.
+  await processDraft(
+    draft.id,
+    sec,
+    deps(
+      extraction({
+        amount_before_vat: 480,
+        vat_amount: 86.4,
+        total_amount: 566.4,
+        lines: [
+          { name: 'קולה 330 מ"ל', barcode: '7290000000011', sku: 'CC330', quantity: 5, unit_quantity: 120, unit_cost: null, pack_cost: null, line_total: 480, confidence: 'high' },
+        ],
+      }),
+    ),
+    db,
+  );
+
+  let d = await getDraft(draft.id, db);
+  assert.equal(d.normalized.lines[0].unitQuantity, 120);
+  assert.equal(d.normalized.lines[0].unitCost, toAgorot('4'));
+  assert.equal(d.normalized.lines[0].packCost, toAgorot('96'));
+  assert.deepEqual(d.normalized.lines[0].flags, ['computed_per_unit']);
+
+  // The toExtraction round trip must not drop unit_quantity: a plain save keeps everything.
+  await saveDraftEdits(draft.id, {}, sec, db);
+  d = await getDraft(draft.id, db);
+  assert.equal(d.normalized.lines[0].unitQuantity, 120);
+  assert.equal(d.normalized.lines[0].unitCost, toAgorot('4'));
+  assert.equal(d.normalized.lines[0].unitCostSource, 'computed');
+  assert.equal(d.normalized.lines[0].packCost, toAgorot('96'));
+
+  const { invoiceId } = await approveDraft(draft.id, {}, sec, db);
+  const line = await db.one('SELECT * FROM invoice_lines WHERE invoice_id = ?', [invoiceId]);
+  assert.equal(Number(line.quantity), 5);
+  assert.equal(Number(line.unit_quantity), 120);
+  assert.equal(line.unit_cost, toAgorot('4'));
+  assert.equal(line.pack_cost, toAgorot('96'));
+  assert.equal(line.line_total, toAgorot('480'));
+
+  // The catalog tracks the per-single price, and the price row records the singles count.
+  const product = await db.one('SELECT * FROM products WHERE supplier_id = ?', [supplier.id]);
+  assert.equal(product.last_cost, toAgorot('4'));
+  const price = await db.one('SELECT * FROM product_prices WHERE product_id = ?', [product.id]);
+  assert.equal(price.price, toAgorot('4'));
+  assert.equal(Number(price.quantity), 120);
+});
+
+test('resetForReprocess sends a reviewed draft back to the queue; a committed one is refused', async () => {
+  const db = await freshDb();
+  const { sec, store } = await setup(db);
+  const draft = await uploaded(db, sec, store);
+  await processDraft(draft.id, sec, deps(), db);
+  assert.equal((await getDraft(draft.id, db)).status, 'needs_review');
+
+  const { resetForReprocess } = await import('../src/services/scan.js');
+  await resetForReprocess(draft.id, sec, db);
+  const back = await getDraft(draft.id, db);
+  assert.equal(back.status, 'uploaded');
+  assert.ok(await db.one("SELECT id FROM audit_log WHERE action = 'scan.reprocess'", []));
+
+  // Processing again from that state works (same photos, fresh extraction).
+  await processDraft(draft.id, sec, deps(), db);
+  assert.equal((await getDraft(draft.id, db)).status, 'needs_review');
+
+  await approveDraft(draft.id, {}, sec, db);
+  await assert.rejects(resetForReprocess(draft.id, sec, db), /כבר אושרה/);
+});
+
 test('approveDraft on a credit note: invoice and lines go negative, catalog prices untouched', async () => {
   const db = await freshDb();
   const { sec, store, supplier } = await setup(db);

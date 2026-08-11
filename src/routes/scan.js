@@ -7,15 +7,18 @@ import {
   approveDraft,
   deleteDraft,
   listPending,
+  resetForReprocess,
 } from '../services/scan.js';
-import { listSuppliers } from '../services/suppliers.js';
+import { listSuppliers, createSupplier } from '../services/suppliers.js';
+import { matchSupplier } from '../lib/supplierMatch.js';
+import { canViewPage } from '../lib/permissions.js';
 import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
 import { scopeClause } from '../lib/scope.js';
 import { toAgorot } from '../lib/money.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
+import { RuleError, AuthError } from '../lib/errors.js';
 import { handleScanImages } from '../middleware/upload.js';
-import { RuleError } from '../lib/errors.js';
 import { scopeParam } from '../lib/scopeGuard.js';
 
 // צילום חשבוניות (stage 5) — the screens behind the mobile capture flow:
@@ -77,20 +80,26 @@ export function parseEdits(b) {
   const barcodes = [].concat(b.line_barcode || []);
   const skus = [].concat(b.line_sku || []);
   const qtys = [].concat(b.line_qty || []);
+  const unitQtys = [].concat(b.line_unit_qty || []);
   const unitCosts = [].concat(b.line_unit_cost || []);
   const totals = [].concat(b.line_total || []);
+  const numOrNull = (v) => {
+    if (v === undefined || String(v).trim() === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
 
   const lines = [];
   names.forEach((rawName, i) => {
     const name = text(rawName);
     if (!name) return; // שורה ריקה / שנמחקה
-    const qty = qtys[i] === undefined || String(qtys[i]).trim() === '' ? null : Number(qtys[i]);
     lines.push({
       lineNo: lines.length + 1,
       name,
       barcode: text(barcodes[i]),
       sku: text(skus[i]),
-      quantity: Number.isFinite(qty) ? qty : null,
+      quantity: numOrNull(qtys[i]),
+      unitQuantity: numOrNull(unitQtys[i]),
       unitCost: money(unitCosts[i]),
       // A hand-typed cost is authoritative; an empty cell lets the validator recompute it.
       unitCostSource: money(unitCosts[i]) === null ? null : 'extracted',
@@ -111,6 +120,10 @@ async function reviewContext(req, draft, extra = {}) {
     suppliers: await listSuppliers(),
     stores: await storesInScope(req.scope.companyIds),
     aiEnabled: config.ai.enabled,
+    // Creating a supplier from the review screen needs the suppliers-page permission —
+    // a scan-only employee sees the extracted details read-only instead.
+    canCreateSupplier: canViewPage(req.user, 'nav_suppliers'),
+    supValues: null, // re-fill values for the new-supplier panel after a refused create
     notice: null,
     error: null,
     confirmWarnings: null,
@@ -176,9 +189,12 @@ router.get('/:id', async (req, res, next) => {
     if (draft.status === 'committed' && draft.invoice_id) {
       return res.redirect(303, `/invoices/${draft.invoice_id}`);
     }
-    res.render('scan/show', await reviewContext(req, draft, {
-      notice: req.query.saved === '1' ? 'הטיוטה נשמרה.' : null,
-    }));
+    let notice = null;
+    if (req.query.saved === '1') notice = 'הטיוטה נשמרה.';
+    if (req.query.supplier_created) {
+      notice = `הספק "${req.query.supplier_created}" הוקם (ממתין לאישור בעלים) ושויך לחשבונית.`;
+    }
+    res.render('scan/show', await reviewContext(req, draft, { notice }));
   } catch (err) {
     next(err);
   }
@@ -266,6 +282,80 @@ router.post('/:id/approve', async (req, res, next) => {
   }
 });
 
+// Create a supplier straight from the review screen, prefilled with what the model read.
+// Reachable by every nav_scan user (the page firewall allows /scan/*), so the suppliers-page
+// permission is enforced explicitly here.
+router.post('/:id/supplier', async (req, res, next) => {
+  const id = Number(req.params.id);
+  const b = req.body;
+  let edits = null;
+  try {
+    if (!canViewPage(req.user, 'nav_suppliers')) {
+      throw new AuthError('הקמת ספק ממסך הסריקה — נדרשת הרשאת עמוד ספקים');
+    }
+    edits = parseEdits(b); // the whole review form posts along — the draft survives the round trip
+    const name = (b.sup_name || '').trim();
+    if (!name) {
+      return renderReview(req, res, id, 'שם ספק חובה להקמת ספק חדש', null, edits, {
+        supValues: b,
+      });
+    }
+    // Duplicate guard: the same matcher the extraction uses. A tick on the panel's
+    // "אשר יצירה בכל זאת" checkbox overrides.
+    if (b.supplier_confirm !== '1') {
+      const dup = matchSupplier(name, b.sup_tax_id, await listSuppliers());
+      if (dup) {
+        return renderReview(
+          req,
+          res,
+          id,
+          `השם דומה לספק קיים "${dup.supplier.name}" — אם זהו ספק אחר, סמנו "אשר יצירה בכל זאת" ושלחו שוב.`,
+          null,
+          edits,
+          { supValues: b },
+        );
+      }
+    }
+    const supplier = await createSupplier(
+      {
+        name,
+        taxId: b.sup_tax_id,
+        phone: b.sup_phone,
+        email: b.sup_email,
+        contactName: b.sup_contact_name,
+        contactPhone: b.sup_contact_phone,
+        notes: (b.sup_notes || '').trim() || 'נוצר מסריקת חשבונית',
+      },
+      req.user,
+    );
+    edits.header.supplierId = supplier.id;
+    await saveDraftEdits(id, edits, req.user);
+    return res.redirect(303, `/scan/${id}?supplier_created=${encodeURIComponent(supplier.name)}`);
+  } catch (err) {
+    if (err instanceof RuleError) {
+      return renderReview(req, res, id, err.message, null, edits, { supValues: b }).catch(next);
+    }
+    next(err);
+  }
+});
+
+// Re-run the extraction on the stored photos (after logic improvements / a bad first pass).
+// Resets the draft to `uploaded` and redirects to the processing screen, which fires
+// POST /:id/process and polls — the same flow as a fresh upload.
+router.post('/:id/reprocess', async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    if (!config.ai.enabled) {
+      return renderReview(req, res, id, 'חילוץ אוטומטי אינו מוגדר — חסר מפתח API').catch(next);
+    }
+    await resetForReprocess(id, req.user);
+    return res.redirect(303, `/scan/${id}`);
+  } catch (err) {
+    if (err instanceof RuleError) return renderReview(req, res, id, err.message).catch(next);
+    next(err);
+  }
+});
+
 router.post('/:id/delete', async (req, res, next) => {
   try {
     await deleteDraft(Number(req.params.id), req.user);
@@ -282,7 +372,7 @@ router.post('/:id/delete', async (req, res, next) => {
  * Re-render the review screen after a refused approve/save. `edits` (when given) are saved to
  * the draft first — best-effort — so the screen comes back with the human's own values.
  */
-async function renderReview(req, res, id, error, confirmWarnings = null, edits = null) {
+async function renderReview(req, res, id, error, confirmWarnings = null, edits = null, extra = {}) {
   if (edits) {
     try {
       await saveDraftEdits(id, edits, req.user);
@@ -297,6 +387,7 @@ async function renderReview(req, res, id, error, confirmWarnings = null, edits =
       title: confirmWarnings ? 'בדיקת חשבונית — אישור אזהרות' : 'בדיקת חשבונית שצולמה',
       error,
       confirmWarnings,
+      ...extra,
     }),
   );
 }

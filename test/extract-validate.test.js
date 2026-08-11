@@ -99,6 +99,96 @@ test('unit cost is computed from the line total when not printed (with rounding)
   assert.deepEqual(d.flags.linesSum, []);
 });
 
+test('unit_quantity (כ.בודד) becomes the division basis for the per-single price', () => {
+  // 5 cartons × 24 singles; net total 480 → per single 4.00 ₪, per carton 96.00 ₪.
+  const d = validateExtraction(
+    extraction({
+      amount_before_vat: 480,
+      vat_amount: 86.4,
+      total_amount: 566.4,
+      lines: [{ name: 'קולה 330 מ"ל', barcode: '7290000000011', sku: null, quantity: 5, unit_quantity: 120, unit_cost: null, pack_cost: null, line_total: 480, confidence: 'high' }],
+    }),
+    OPTS,
+  );
+  const line = d.lines[0];
+  assert.equal(line.quantity, 5);
+  assert.equal(line.unitQuantity, 120);
+  assert.equal(line.unitCost, 400); // 48000 / 120
+  assert.equal(line.unitCostSource, 'computed');
+  assert.equal(line.packCost, 9600); // 48000 / 5
+  assert.deepEqual(line.flags, ['computed_per_unit']);
+});
+
+test('without unit_quantity the behaviour is exactly the old one', () => {
+  const d = validateExtraction(
+    extraction({
+      amount_before_vat: 100,
+      vat_amount: 18,
+      total_amount: 118,
+      lines: [{ name: 'לחם', quantity: 4, unit_quantity: null, unit_cost: null, pack_cost: null, line_total: 100, confidence: 'high' }],
+    }),
+    OPTS,
+  );
+  assert.equal(d.lines[0].unitCost, 2500);
+  assert.equal(d.lines[0].unitCostSource, 'computed');
+  assert.equal(d.lines[0].packCost, null); // no second basis → no carton price
+  assert.deepEqual(d.lines[0].flags, ['computed']);
+});
+
+test('an explicit unit cost wins over any division; pack cost still derived', () => {
+  const d = validateExtraction(
+    extraction({
+      amount_before_vat: 480,
+      vat_amount: 86.4,
+      total_amount: 566.4,
+      lines: [{ name: 'קולה', quantity: 5, unit_quantity: 120, unit_cost: 4.1, pack_cost: null, line_total: 480, confidence: 'high' }],
+    }),
+    OPTS,
+  );
+  assert.equal(d.lines[0].unitCost, 410); // hand-typed/printed value untouched
+  assert.equal(d.lines[0].unitCostSource, 'extracted');
+  assert.equal(d.lines[0].packCost, 9600);
+  assert.deepEqual(d.lines[0].flags, []);
+});
+
+test('a printed pack_cost passes through; zero/equal unit_quantity guards hold', () => {
+  const printed = validateExtraction(
+    extraction({
+      lines: [{ name: 'א', quantity: 2, unit_quantity: 24, unit_cost: null, pack_cost: 50, line_total: 100, confidence: 'high' }],
+    }),
+    OPTS,
+  );
+  assert.equal(printed.lines[0].packCost, 5000);
+  assert.equal(printed.lines[0].unitCost, Math.round(10000 / 24));
+
+  // unit_quantity = 0 → treated as absent (division by quantity, no carton price)
+  const zero = validateExtraction(
+    extraction({
+      lines: [{ name: 'ב', quantity: 4, unit_quantity: 0, unit_cost: null, pack_cost: null, line_total: 100, confidence: 'high' }],
+    }),
+    OPTS,
+  );
+  assert.equal(zero.lines[0].unitCost, 2500);
+  assert.deepEqual(zero.lines[0].flags, ['computed']);
+
+  // unit_quantity equal to quantity → per-unit basis but no distinct carton price
+  const eq = validateExtraction(
+    extraction({
+      lines: [{ name: 'ג', quantity: 10, unit_quantity: 10, unit_cost: null, pack_cost: null, line_total: 100, confidence: 'high' }],
+    }),
+    OPTS,
+  );
+  assert.equal(eq.lines[0].unitCost, 1000);
+  assert.equal(eq.lines[0].packCost, null);
+});
+
+test('supplier_phone is carried into the header', () => {
+  const d = validateExtraction(extraction({ supplier_phone: '08-6339955' }), OPTS);
+  assert.equal(d.header.supplierPhone, '08-6339955');
+  const none = validateExtraction(extraction(), OPTS);
+  assert.equal(none.header.supplierPhone, null);
+});
+
 test('an extracted unit cost passes through untouched', () => {
   const d = validateExtraction(
     extraction({

@@ -15,6 +15,7 @@ var FLAG_LABELS = {
   vat_rate_off: 'שיעור המע"מ חורג מהמקובל',
   lines_sum_mismatch: 'סכום השורות אינו תואם לסכום לפני מע"מ',
   computed: 'מחיר ליחידה חושב מסה"כ השורה',
+  computed_per_unit: 'מחיר ליחידה חושב מסה"כ נטו חלקי כמות הבודדים (כ.בודד)',
   missing_amounts: 'לא נקראו סכומים לשורה',
   dup_allocation: 'מספר ההקצאה כבר קיים בחשבונית אחרת',
   dup_number: 'כבר קיימת חשבונית לספק זה עם מספר זה',
@@ -26,6 +27,9 @@ function ftitle(field){ return (flags[field] && flags[field].length) ? codes(fla
 function money(agorot){ return (agorot === null || agorot === undefined) ? '' : fromAgorot(agorot); }
 var supplierUncertain = (flags.supplier || []).some(function(c){ return c === 'fuzzy_match' || c === 'no_supplier_match'; });
 var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWarnings : null;
+var canSup = (typeof canCreateSupplier !== 'undefined') ? canCreateSupplier : false;
+var sv = (typeof supValues !== 'undefined' && supValues) ? supValues : null;
+function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || ''); }
 %>
 
 <div class="toolbar" style="align-items:center">
@@ -129,7 +133,16 @@ var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWa
               <option value="<%= s.id %>" <%= String(h.supplierId) === String(s.id) ? 'selected' : '' %>><%= s.name %></option>
             <% }); %>
           </select>
-          <% if (h.supplierName) { %><p class="muted" style="margin:.3rem 0 0">נקרא מהמסמך: <%= h.supplierName %></p><% } %>
+          <% if (h.supplierName || h.supplierTaxId || h.supplierPhone) { %>
+            <p class="muted" style="margin:.3rem 0 0">
+              נקרא מהמסמך: <%= h.supplierName || '—' %>
+              · ח.פ <%= h.supplierTaxId || '—' %>
+              · טל' <%= h.supplierPhone || '—' %>
+            </p>
+          <% } %>
+          <% if (!canSup && supplierUncertain) { %>
+            <p class="muted" style="margin:.3rem 0 0">ספק לא מזוהה — שמרו טיוטה ומנהל ישלים את הקמת הספק.</p>
+          <% } %>
         </div>
         <div>
           <label class="lbl">חנות</label>
@@ -199,6 +212,52 @@ var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWa
       </script>
     </div>
 
+    <% if (canSup) { %>
+      <details class="card" <%= (supplierUncertain || sv) ? 'open' : '' %>>
+        <summary style="cursor:pointer"><strong>לא נמצא ספק מתאים? הקם ספק חדש</strong>
+          <span class="muted">— הפרטים מולאו מתוך מה שנקרא מהצילום, ניתן לערוך הכל</span>
+        </summary>
+        <div class="row" style="margin-top:var(--space-3)">
+          <div>
+            <label class="lbl">שם ספק *</label>
+            <input name="sup_name" value="<%= supVal('sup_name', h.supplierName) %>" />
+          </div>
+          <div>
+            <label class="lbl">ח.פ. / מס' עוסק</label>
+            <input name="sup_tax_id" inputmode="numeric" value="<%= supVal('sup_tax_id', h.supplierTaxId) %>" />
+          </div>
+          <div>
+            <label class="lbl">טלפון</label>
+            <input name="sup_phone" inputmode="tel" value="<%= supVal('sup_phone', h.supplierPhone) %>" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label class="lbl">מייל</label>
+            <input name="sup_email" inputmode="email" value="<%= supVal('sup_email') %>" />
+          </div>
+          <div>
+            <label class="lbl">איש קשר הנהלת חשבונות</label>
+            <input name="sup_contact_name" value="<%= supVal('sup_contact_name') %>" />
+          </div>
+          <div>
+            <label class="lbl">טלפון איש קשר</label>
+            <input name="sup_contact_phone" inputmode="tel" value="<%= supVal('sup_contact_phone') %>" />
+          </div>
+        </div>
+        <label class="lbl" style="margin-top:var(--space-2)">הערות</label>
+        <input name="sup_notes" value="<%= supVal('sup_notes', h.invoiceNumber ? ('נוצר מסריקת חשבונית ' + h.invoiceNumber) : 'נוצר מסריקת חשבונית') %>" />
+        <label style="display:flex;align-items:center;gap:.5rem;margin-top:var(--space-2)">
+          <input type="checkbox" name="supplier_confirm" value="1" <%= sv && sv.supplier_confirm === '1' ? 'checked' : '' %> style="width:auto" />
+          אשר יצירה בכל זאת (גם אם השם דומה לספק קיים)
+        </label>
+        <div class="actions" style="margin-top:var(--space-3)">
+          <button type="submit" class="btn btn-secondary" formaction="/scan/<%= draft.id %>/supplier" formnovalidate>הקם ספק ושייך לחשבונית</button>
+        </div>
+        <p class="muted" style="margin:.4rem 0 0">הספק ייווצר בסטטוס <strong>ממתין</strong> — ניתן לקלוט חשבוניות מיד, אך תשלום חסום עד אישור בעלים (R1/R6). שאר הטופס נשמר כטיוטה אוטומטית.</p>
+      </details>
+    <% } %>
+
     <div class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
         <h2 style="margin:0">שורות החשבונית</h2>
@@ -208,7 +267,7 @@ var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWa
         <table class="line-grid">
           <thead>
             <tr>
-              <th>מוצר *</th><th>ברקוד</th><th>מק"ט</th><th>כמות</th><th>מחיר ליחידה (₪)</th><th>סה"כ שורה (₪)</th><th data-nosort></th>
+              <th>מוצר *</th><th>ברקוד</th><th>מק"ט</th><th>כמות</th><th>כ.בודד</th><th>מחיר לארגז (₪)</th><th>מחיר ליחידה (₪)</th><th>סה"כ שורה (₪)</th><th data-nosort></th>
             </tr>
           </thead>
           <tbody id="linesBody">
@@ -222,9 +281,11 @@ var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWa
                 <td data-label="מוצר"><input name="line_name[]" value="<%= l.name || '' %>" class="<%= lf.length ? 'flag-warn' : '' %>" title="<%= lTitle %>" /></td>
                 <td data-label="ברקוד"><input name="line_barcode[]" inputmode="numeric" value="<%= l.barcode || '' %>" /></td>
                 <td data-label='מק"ט'><input name="line_sku[]" value="<%= l.sku || '' %>" /></td>
-                <td data-label="כמות"><input name="line_qty[]" inputmode="decimal" value="<%= l.quantity === null || l.quantity === undefined ? '' : l.quantity %>" /></td>
+                <td data-label="כמות"><input name="line_qty[]" inputmode="decimal" class="line-qty" value="<%= l.quantity === null || l.quantity === undefined ? '' : l.quantity %>" /></td>
+                <td data-label="כ.בודד"><input name="line_unit_qty[]" inputmode="decimal" class="line-unit-qty" value="<%= l.unitQuantity === null || l.unitQuantity === undefined ? '' : l.unitQuantity %>" /></td>
+                <td data-label="מחיר לארגז" class="right muted"><span class="pack-cost"><%= l.packCost === null || l.packCost === undefined ? '—' : money(l.packCost) %></span></td>
                 <td data-label="מחיר ליחידה">
-                  <input name="line_unit_cost[]" inputmode="decimal" value="<%= money(l.unitCost) %>" class="line-unit <%= amountsBad ? 'flag-warn' : '' %>" title="<%= lTitle %>" />
+                  <input name="line_unit_cost[]" inputmode="decimal" value="<%= money(l.unitCost) %>" data-auto="<%= l.unitCostSource === 'computed' ? '1' : '' %>" class="line-unit <%= amountsBad ? 'flag-warn' : '' %>" title="<%= lTitle %>" />
                   <% if (l.unitCostSource === 'computed') { %><span class="tag tag-neutral">מחושב</span><% } %>
                 </td>
                 <td data-label='סה"כ שורה'><input name="line_total[]" inputmode="decimal" value="<%= money(l.lineTotal) %>" class="line-total <%= amountsBad ? 'flag-warn' : '' %>" title="<%= lTitle %>" /></td>
@@ -234,7 +295,7 @@ var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWa
           </tbody>
           <tfoot>
             <tr>
-              <td colspan="5" class="right"><strong>סכום השורות</strong></td>
+              <td colspan="7" class="right"><strong>סכום השורות</strong></td>
               <td class="right"><strong id="linesSum">0.00</strong></td>
               <td></td>
             </tr>
@@ -244,7 +305,7 @@ var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWa
       <div class="actions" style="margin-top:var(--space-3)">
         <button type="button" class="btn btn-secondary btn-sm" id="btnAddLine">הוסף שורה +</button>
       </div>
-      <p class="muted" style="margin:.4rem 0 0">שורה שהשם שלה נמחק לא תישמר. מחיר ליחידה ריק — יחושב מסה"כ השורה חלקי הכמות.</p>
+      <p class="muted" style="margin:.4rem 0 0">שורה שהשם שלה נמחק לא תישמר. מחיר ליחידה ריק — יחושב מסה"כ נטו חלקי כ.בודד (או חלקי הכמות כשאין כ.בודד). "כמות" היא כפי שמודפס — אצל חלק מהספקים ארגזים; "כ.בודד" = יחידות בודדות.</p>
     </div>
 
     <% if (draft.images && draft.images.length) { %>
@@ -280,9 +341,14 @@ var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWa
     </div>
   </form>
 
-  <form method="post" action="/scan/<%= draft.id %>/delete" onsubmit="return confirm('למחוק את הטיוטה ואת הצילומים?')" class="no-print">
-    <button type="submit" class="btn btn-danger btn-sm">מחק טיוטה</button>
-  </form>
+  <div class="no-print actions" style="flex-wrap:wrap">
+    <form method="post" action="/scan/<%= draft.id %>/reprocess" onsubmit="return confirm('לעבד מחדש את הצילומים? עריכות שנעשו כאן יוחלפו בחילוץ חדש.')">
+      <button type="submit" class="btn btn-secondary btn-sm">עבד מחדש 🔄</button>
+    </form>
+    <form method="post" action="/scan/<%= draft.id %>/delete" onsubmit="return confirm('למחוק את הטיוטה ואת הצילומים?')">
+      <button type="submit" class="btn btn-danger btn-sm">מחק טיוטה</button>
+    </form>
+  </div>
 
   <dialog id="imgDlg" class="dlg wide">
     <div class="dlg-head">
@@ -321,9 +387,27 @@ var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWa
         : ('הפרש מול לפני מע"מ: ' + fmt(sum - head) + ' ₪');
     }
 
+    // מחיר ליחידה שחושב על ידי השרת (data-auto="1") ממשיך להתעדכן חי כשמשנים
+    // כ.בודד / כמות / סה"כ שורה; הקלדה ידנית במחיר עצמו מקבעת אותו.
+    function autoUnit(row){
+      var unit = row.querySelector('.line-unit');
+      if (!unit || unit.dataset.auto !== '1') return;
+      var total = num(row.querySelector('.line-total') && row.querySelector('.line-total').value);
+      var uq = num(row.querySelector('.line-unit-qty') && row.querySelector('.line-unit-qty').value);
+      var q = num(row.querySelector('.line-qty') && row.querySelector('.line-qty').value);
+      var basis = uq > 0 ? uq : q;
+      if (total > 0 && basis > 0) unit.value = (Math.round((total / basis) * 100) / 100).toFixed(2);
+    }
+
     function wire(row){
       row.querySelector('.row-del').addEventListener('click', function(){ row.remove(); recalc(); });
-      row.querySelectorAll('input').forEach(function(i){ i.addEventListener('input', recalc); });
+      row.querySelectorAll('input').forEach(function(i){
+        i.addEventListener('input', function(){
+          if (i.classList.contains('line-unit')) i.dataset.auto = '';
+          else autoUnit(row);
+          recalc();
+        });
+      });
     }
     Array.prototype.forEach.call(body.rows, wire);
     before.addEventListener('input', recalc);
@@ -333,7 +417,9 @@ var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWa
       tr.innerHTML = '<td data-label="מוצר"><input name="line_name[]" /></td>'
         + '<td data-label="ברקוד"><input name="line_barcode[]" inputmode="numeric" /></td>'
         + '<td data-label="מק״ט"><input name="line_sku[]" /></td>'
-        + '<td data-label="כמות"><input name="line_qty[]" inputmode="decimal" value="1" /></td>'
+        + '<td data-label="כמות"><input name="line_qty[]" inputmode="decimal" class="line-qty" value="1" /></td>'
+        + '<td data-label="כ.בודד"><input name="line_unit_qty[]" inputmode="decimal" class="line-unit-qty" /></td>'
+        + '<td data-label="מחיר לארגז" class="right muted"><span class="pack-cost">—</span></td>'
         + '<td data-label="מחיר ליחידה"><input name="line_unit_cost[]" inputmode="decimal" class="line-unit" /></td>'
         + '<td data-label="סה״כ שורה"><input name="line_total[]" inputmode="decimal" class="line-total" /></td>'
         + '<td><button type="button" class="btn btn-danger btn-sm row-del" aria-label="מחק שורה">✕</button></td>';

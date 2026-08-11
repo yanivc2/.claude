@@ -364,10 +364,12 @@ CREATE TABLE IF NOT EXISTS invoice_lines (
   name             TEXT NOT NULL,
   barcode          TEXT,
   sku              TEXT,
-  quantity         REAL NOT NULL DEFAULT 1,
-  unit_cost        INTEGER,                           -- agorot before VAT; NULL אם לא ידוע
+  quantity         REAL NOT NULL DEFAULT 1,           -- כמות כפי שמודפסת (לעיתים ארגזים/מארזים)
+  unit_quantity    REAL,                              -- כ.בודד: מספר היחידות הבודדות בשורה
+  unit_cost        INTEGER,                           -- agorot ליחידה בודדת לפני מע"מ; NULL אם לא ידוע
   unit_cost_source TEXT
                    CHECK (unit_cost_source IN ('extracted','computed','manual')),
+  pack_cost        INTEGER,                           -- agorot לארגז/מארז כשהמחיר המודפס אינו ליחידה
   line_total       INTEGER NOT NULL                   -- agorot before VAT (negative for credit)
 );
 CREATE INDEX IF NOT EXISTS ix_invoice_lines_invoice ON invoice_lines(invoice_id);

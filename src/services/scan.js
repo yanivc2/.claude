@@ -325,6 +325,7 @@ async function probeDuplicates(id, normalized, x) {
 /** extraction key ↔ flag field ↔ header field, for carrying the model's confidence over an edit. */
 const CONFIDENCE_MAP = [
   ['supplier_name', 'supplier', 'supplierName'],
+  ['supplier_phone', 'supplier', 'supplierPhone'],
   ['invoice_number', 'invoiceNumber', 'invoiceNumber'],
   ['allocation_number', 'allocationNumber', 'allocationNumber'],
   ['invoice_date', 'invoiceDate', 'invoiceDate'],
@@ -340,7 +341,8 @@ function toShekels(agorot) {
 
 /** True when this line's unit cost was derived by the server and can be derived again. */
 function derivable(line) {
-  return line.unitCostSource === 'computed' && line.quantity > 0 && line.lineTotal !== null;
+  if (line.unitCostSource !== 'computed' || line.lineTotal === null) return false;
+  return line.unitQuantity > 0 || line.quantity > 0;
 }
 
 /**
@@ -360,6 +362,7 @@ function toExtraction(normalized, previous) {
   return {
     supplier_name: h.supplierName,
     supplier_tax_id: h.supplierTaxId,
+    supplier_phone: h.supplierPhone ?? null,
     invoice_number: h.invoiceNumber,
     allocation_number: h.allocationNumber,
     invoice_date: h.invoiceDate,
@@ -372,10 +375,12 @@ function toExtraction(normalized, previous) {
       barcode: l.barcode,
       sku: l.sku,
       quantity: l.quantity,
-      // A cost the server derived (line total / quantity) is handed back as null so the
-      // validator derives it again and the line keeps its 'computed' badge; a printed or
+      unit_quantity: l.unitQuantity ?? null,
+      // A cost the server derived (line total / singles-or-quantity) is handed back as null so
+      // the validator derives it again and the line keeps its computed badge; a printed or
       // hand-typed cost is passed through and stays 'extracted'.
       unit_cost: derivable(l) ? null : toShekels(l.unitCost),
+      pack_cost: toShekels(l.packCost),
       line_total: toShekels(l.lineTotal),
       confidence: l.confidence || 'medium',
     })),
@@ -447,6 +452,27 @@ export async function saveDraftEdits(id, edits, actor, x = getExecutor()) {
         lines: normalized.lines.length,
       },
     },
+    x,
+  );
+  return getDraft(id, x);
+}
+
+/**
+ * Send a draft back to the extraction queue (the "עבד מחדש" button) — e.g. after the
+ * extraction logic improved. The stored photos are reused; edits made so far are discarded
+ * because processDraft overwrites `normalized` with a fresh extraction.
+ */
+export async function resetForReprocess(id, actor, x = getExecutor()) {
+  const draft = await getDraft(id, x);
+  if (draft.status === 'committed') {
+    throw new RuleError('STATE', 'הטיוטה כבר אושרה והפכה לחשבונית — לא ניתן לעבד מחדש');
+  }
+  await x.run(
+    "UPDATE invoice_drafts SET status = 'uploaded', error = NULL, updated_at = ? WHERE id = ?",
+    [nowTs(), id],
+  );
+  await logAction(
+    { userId: actor?.id ?? null, action: 'scan.reprocess', entityType: 'invoice_draft', entityId: id },
     x,
   );
   return getDraft(id, x);
@@ -536,8 +562,9 @@ export async function approveDraft(
     for (const line of normalized.lines) {
       await t.run(
         `INSERT INTO invoice_lines
-           (invoice_id, product_id, line_no, name, barcode, sku, quantity, unit_cost, unit_cost_source, line_total)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (invoice_id, product_id, line_no, name, barcode, sku, quantity, unit_quantity,
+            unit_cost, unit_cost_source, pack_cost, line_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           invoice.id,
           byLine.get(line.lineNo) ?? null,
@@ -546,8 +573,12 @@ export async function approveDraft(
           line.barcode ?? null,
           line.sku ?? null,
           line.quantity ?? 1,
+          line.unitQuantity ?? null,
           line.unitCost === null || line.unitCost === undefined ? null : Math.abs(line.unitCost),
           line.unitCostSource,
+          // A price (per single or per carton) is never negative — only line_total carries the
+          // credit-note sign.
+          line.packCost === null || line.packCost === undefined ? null : Math.abs(line.packCost),
           lineSign * Math.abs(line.lineTotal ?? 0),
         ],
       );

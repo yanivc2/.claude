@@ -48,6 +48,11 @@ export const EXTRACTION_SCHEMA = {
       type: ['string', 'null'],
       description: 'ח.פ. / ע.מ. של הספק — ספרות בלבד, בדרך כלל 9 ספרות. null אם לא מופיע',
     },
+    supplier_phone: {
+      type: ['string', 'null'],
+      description:
+        'טלפון הספק כפי שמודפס בראש המסמך (לא טלפון הלקוח/הסניף). null אם לא מופיע או לא קריא',
+    },
     invoice_number: {
       type: ['string', 'null'],
       description: 'מספר החשבונית כפי שמודפס (כולל אותיות/מקפים אם יש). null אם לא ניתן לקרוא',
@@ -101,13 +106,27 @@ export const EXTRACTION_SCHEMA = {
           },
           quantity: {
             type: ['number', 'null'],
-            description: 'כמות (יכולה להיות עשרונית, למשל 2.5 ק"ג)',
+            description:
+              'הכמות בעמודת הכמות הראשית כפי שמודפסת (יכולה להיות עשרונית, למשל 2.5 ק"ג). ' +
+              'אצל חלק מהספקים זו כמות ארגזים/מארזים ולא יחידות בודדות',
+          },
+          unit_quantity: {
+            type: ['number', 'null'],
+            description:
+              'מספר היחידות הבודדות בשורה, מעמודה נפרדת כגון "כ.בודד" / "כמות בודד" / "יח\'" / ' +
+              '"בודדים" / "סה"כ יחידות". null כשאין בטבלה עמודה כזו',
           },
           unit_cost: {
             type: ['number', 'null'],
             description:
-              'מחיר ליחידה לפני מע"מ — decimal shekels, absolute value. ' +
-              'null when the price per unit is not printed (the server computes it)',
+              'מחיר ליחידה בודדת אחת לפני מע"מ — decimal shekels, absolute value. ' +
+              'null when no per-single price is printed (the server computes it)',
+          },
+          pack_cost: {
+            type: ['number', 'null'],
+            description:
+              'המחיר המודפס כשהוא מתייחס לארגז/מארז ולא ליחידה בודדת — decimal shekels. ' +
+              'null when the printed price is already per single unit',
           },
           line_total: {
             type: ['number', 'null'],
@@ -115,7 +134,17 @@ export const EXTRACTION_SCHEMA = {
           },
           confidence: CONFIDENCE,
         },
-        required: ['name', 'barcode', 'sku', 'quantity', 'unit_cost', 'line_total', 'confidence'],
+        required: [
+          'name',
+          'barcode',
+          'sku',
+          'quantity',
+          'unit_quantity',
+          'unit_cost',
+          'pack_cost',
+          'line_total',
+          'confidence',
+        ],
       },
     },
     field_confidence: {
@@ -124,6 +153,7 @@ export const EXTRACTION_SCHEMA = {
       description: 'רמת הוודאות שבה נקרא כל שדה כותרת',
       properties: {
         supplier_name: CONFIDENCE,
+        supplier_phone: CONFIDENCE,
         invoice_number: CONFIDENCE,
         allocation_number: CONFIDENCE,
         invoice_date: CONFIDENCE,
@@ -133,6 +163,7 @@ export const EXTRACTION_SCHEMA = {
       },
       required: [
         'supplier_name',
+        'supplier_phone',
         'invoice_number',
         'allocation_number',
         'invoice_date',
@@ -150,6 +181,7 @@ export const EXTRACTION_SCHEMA = {
   required: [
     'supplier_name',
     'supplier_tax_id',
+    'supplier_phone',
     'invoice_number',
     'allocation_number',
     'invoice_date',
@@ -182,13 +214,19 @@ export const SYSTEM_PROMPT = [
   '   "אישור הקצאה". Anything else → null. Never reuse the invoice number as an allocation number.',
   '5. ברקוד ומק"ט are different fields: a barcode is a 12-13 digit EAN, a מק"ט is the supplier\'s',
   '   own catalog number (often short, may contain letters). Never copy one into the other.',
-  '6. When the unit cost is not printed on the line, leave unit_cost null — the server computes it',
-  '   from line_total / quantity. Do not divide yourself.',
-  '7. Never guess an unreadable value: return null and mark that field confidence "low".',
+  '6. עמודות כמות: quantity = הכמות בעמודה הראשית כפי שמודפסת (אצל חלק מהספקים זו כמות',
+  '   ארגזים/מארזים או ק"ג, ולא יחידות). אם יש בטבלה עמודה נפרדת הסופרת יחידות בודדות —',
+  '   "כ.בודד", "כמות בודד", "יח\'", "בודדים", "סה"כ יחידות" — החזר אותה ב-unit_quantity.',
+  '   אין עמודה כזו → unit_quantity = null.',
+  '7. מחירים: unit_cost הוא המחיר ליחידה בודדת אחת בלבד. כאשר המחיר המודפס מתייחס לארגז/מארז',
+  '   (כלומר קיים unit_quantity השונה מ-quantity) — החזר את המחיר המודפס ב-pack_cost והשאר',
+  '   unit_cost = null; השרת יחשב סה"כ נטו חלקי unit_quantity. אל תחלק בעצמך.',
+  '   גם כשאין עמודת יחידות ואין מחיר מודפס — השאר unit_cost null והשרת יחשב.',
+  '8. Never guess an unreadable value: return null and mark that field confidence "low".',
   '   A wrong number is far worse than a missing one — a human reviews every draft.',
-  '8. Read every item row you can, in order. Skip subtotal/discount/deposit summary rows that are',
+  '9. Read every item row you can, in order. Skip subtotal/discount/deposit summary rows that are',
   '   not products, and mention them in notes.',
-  '9. notes: Hebrew, one short sentence, for anything unusual — otherwise null.',
+  '10. notes: Hebrew, one short sentence, for anything unusual — otherwise null.',
 ].join('\n');
 
 /** Image media types the API accepts; anything else is sent as an image/jpeg guess. */
