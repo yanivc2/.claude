@@ -14,6 +14,18 @@
     });
     return h;
   }
+  function cxEmpOptsFor(sel){
+    var h = '<option value="">— בחר עובד —</option>';
+    (typeof employeeOptions !== 'undefined' ? employeeOptions : []).forEach(function(emp){
+      h += '<option value="' + emp.id + '"' + (Number(sel) === emp.id ? ' selected' : '') + '>' + cxEsc(emp.first_name + ' ' + emp.last_name) + '</option>';
+    });
+    return h;
+  }
+  function cxKindOptsFor(sel){
+    var opts = [['manual','ידני'],['salary','שכר'],['advance','מפרעה'],['invoice','תשלום חשבונית']];
+    var s = sel || 'manual';
+    return opts.map(function(o){ return '<option value="'+o[0]+'"'+(s===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('');
+  }
 %>
 <form method="post" action="<%= action %>" class="stack" data-zform>
   <label>חנות</label>
@@ -58,30 +70,40 @@
   </div>
 
   <div id="cx-panel" <%= exRows.length ? '' : 'hidden' %>>
-    <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. שורה חדשה נוספת אוטומטית. ניתן לשייך הוצאה לחשבונית.</p>
+    <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · תשלום חשבונית. שכר/מפרעה משויכים לעובד; תשלום חשבונית משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
+    <div class="table-scroll">
     <table>
-      <thead><tr><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום (₪)</th><th>חשבונית</th><th></th></tr></thead>
+      <thead><tr><th>סוג</th><th>תאריך</th><th>שם</th><th>פרטים</th><th class="right">סכום (₪)</th><th></th></tr></thead>
       <tbody id="cx-body">
         <% exRows.forEach(function(e){ %>
           <tr>
+            <td><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(e.description_type) %></select></td>
             <td><input type="date" name="expense_date" value="<%= e.expense_date || '' %>" /></td>
             <td><input name="payer_name" value="<%= e.payer_name || '' %>" /></td>
-            <td><input name="purpose" value="<%= e.purpose || '' %>" /></td>
+            <td>
+              <input name="purpose" class="cx-purpose" value="<%= e.purpose || '' %>" placeholder="עבור" />
+              <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(e.employee_id) %></select>
+              <select name="expense_invoice_id" class="cx-inv" style="max-width:240px"><%- cxInvOptsFor(e.invoice_id) %></select>
+            </td>
             <td><input name="amount" class="cx-amt" inputmode="decimal" value="<%= e.amount ? (e.amount/100).toFixed(2) : '' %>" /></td>
-            <td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px"><%- cxInvOptsFor(e.invoice_id) %></select></td>
             <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
           </tr>
         <% }); %>
         <tr>
+          <td><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></td>
           <td><input type="date" name="expense_date" /></td>
           <td><input name="payer_name" /></td>
-          <td><input name="purpose" /></td>
+          <td>
+            <input name="purpose" class="cx-purpose" placeholder="עבור" />
+            <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(null) %></select>
+            <select name="expense_invoice_id" class="cx-inv" style="max-width:240px"><%- cxInvOptsFor(null) %></select>
+          </td>
           <td><input name="amount" class="cx-amt" inputmode="decimal" /></td>
-          <td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px"><%- cxInvOptsFor(null) %></select></td>
           <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
         </tr>
       </tbody>
     </table>
+    </div>
   </div>
 
   <div id="cc-panel" hidden>
@@ -163,16 +185,34 @@
     recalcCx();
   };
   var CX_INV_OPTS = <%- JSON.stringify(cxInvOptsFor(null)) %>;
+  var CX_EMP_OPTS = <%- JSON.stringify(cxEmpOptsFor(null)) %>;
+  var CX_KIND_OPTS = <%- JSON.stringify(cxKindOptsFor(null)) %>;
+  // Show only the detail control that matches the row's kind (purpose / employee / invoice).
+  function applyKind(row){
+    var kind = (row.querySelector('.cx-kind') || {}).value || 'manual';
+    var p = row.querySelector('.cx-purpose'), emp = row.querySelector('.cx-emp'), inv = row.querySelector('.cx-inv');
+    if (p) p.hidden = (kind !== 'manual');
+    if (emp) emp.hidden = !(kind === 'salary' || kind === 'advance');
+    if (inv) inv.hidden = (kind !== 'invoice');
+  }
   function addRow(){
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td><input type="date" name="expense_date"></td>'
+    tr.innerHTML = '<td><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></td>'
+      + '<td><input type="date" name="expense_date"></td>'
       + '<td><input name="payer_name"></td>'
-      + '<td><input name="purpose"></td>'
+      + '<td><input name="purpose" class="cx-purpose" placeholder="עבור">'
+      +   '<select name="expense_employee_id" class="cx-emp">' + CX_EMP_OPTS + '</select>'
+      +   '<select name="expense_invoice_id" class="cx-inv" style="max-width:240px">' + CX_INV_OPTS + '</select></td>'
       + '<td><input name="amount" class="cx-amt" inputmode="decimal"></td>'
-      + '<td><select name="expense_invoice_id" class="cx-inv" style="max-width:220px">' + CX_INV_OPTS + '</select></td>'
       + '<td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>';
     body.appendChild(tr);
+    applyKind(tr);
   }
+  // Initialize kind-toggle for the server-rendered rows, and react to kind changes.
+  body.querySelectorAll('tr').forEach(applyKind);
+  body.addEventListener('change', function(e){
+    if (e.target && e.target.classList.contains('cx-kind')) applyKind(e.target.closest('tr'));
+  });
   body.addEventListener('input', function(e){
     recalcCx();
     var rows = body.querySelectorAll('tr');

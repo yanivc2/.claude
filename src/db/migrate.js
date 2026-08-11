@@ -17,6 +17,24 @@ export function migrate(db) {
   migrateZClosings(db);
   migrateInvoiceLineUnits(db);
   migrateSupplierStores(db);
+  migrateEmployees(db);
+}
+
+// Adds the employees table + z_expenses.employee_id (advances/salary per employee) to older DBs.
+function migrateEmployees(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS employees (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name  TEXT NOT NULL,
+    last_name   TEXT NOT NULL,
+    active      INTEGER NOT NULL DEFAULT 1,
+    created_by  INTEGER REFERENCES users(id),
+    created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+  );`);
+  const has = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='z_expenses'").get();
+  if (has) {
+    const cols = db.prepare('PRAGMA table_info(z_expenses)').all().map((c) => c.name);
+    if (!cols.includes('employee_id')) db.exec('ALTER TABLE z_expenses ADD COLUMN employee_id INTEGER REFERENCES employees(id);');
+  }
 }
 
 // Adds the single-unit columns to invoice_lines for databases created before the

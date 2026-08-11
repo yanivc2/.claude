@@ -16,6 +16,7 @@ import {
   zReconciliationStatus,
 } from '../services/zreports.js';
 import { createDeposit, listDeposits, setDeposited, deleteDeposit, depositTotalForZ, upsertDepositForZ, depositForZ } from '../services/deposits.js';
+import { listEmployees } from '../services/employees.js';
 import { matchingClosing, CLOSING_DENOMS } from '../services/zclosing.js';
 import { listInvoices } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
@@ -61,16 +62,22 @@ function parseCc(b) {
 }
 
 // Parse the itemized cash-expense rows (arrays) from the Z form into replaceExpenses() shape.
+// Each row carries a kind (manual/salary/advance/invoice); the server normalizes the target
+// field (employee for salary/advance, invoice for invoice) inside replaceExpenses.
 function parseExpenseRows(b) {
   const dates = [].concat(b.expense_date || []);
   const names = [].concat(b.payer_name || []);
   const purposes = [].concat(b.purpose || []);
   const amounts = [].concat(b.amount || []);
   const invoiceIds = [].concat(b.expense_invoice_id || []);
+  const kinds = [].concat(b.expense_kind || []);
+  const employeeIds = [].concat(b.expense_employee_id || []);
   return amounts.map((a, i) => ({
     expenseDate: dates[i] || null,
     payerName: names[i],
     purpose: purposes[i],
+    kind: kinds[i] || 'manual',
+    employeeId: employeeIds[i] || null,
     amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
     invoiceId: invoiceIds[i] || null,
   }));
@@ -128,6 +135,7 @@ async function renderZReport(req, res, id, extra = {}) {
     store,
     storeOptions: await storeList(),
     invoiceOptions: await invoicePickOptions(req.scope.companyIds),
+    employeeOptions: await listEmployees(),
     ccBrands: CC_BRANDS,
     dep: await depositForZ(id),
     expenses: await listExpenses(id),
@@ -232,6 +240,7 @@ async function renderZReports(req, res, extra = {}) {
     missingZ: zStoreId ? await missingZNumbers(zStoreId) : [],
     deposits: await listDeposits({ storeId: zStoreId, scope: req.scope.companyIds }),
     invoiceOptions: await invoicePickOptions(req.scope.companyIds),
+    employeeOptions: await listEmployees(),
     error: null,
     notice: null,
     ...extra,
@@ -590,19 +599,7 @@ router.post('/zreports/:id/expenses', handleInvoiceImage, async (req, res, next)
 router.post('/zreports/:id/expenses-bulk', async (req, res, next) => {
   const id = Number(req.params.id);
   try {
-    const dates = [].concat(req.body.expense_date || []);
-    const names = [].concat(req.body.payer_name || []);
-    const purposes = [].concat(req.body.purpose || []);
-    const amounts = [].concat(req.body.amount || []);
-    const invoiceIds = [].concat(req.body.expense_invoice_id || []);
-    const rows = amounts.map((a, i) => ({
-      expenseDate: dates[i] || null,
-      payerName: names[i],
-      purpose: purposes[i],
-      amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
-      invoiceId: invoiceIds[i] || null,
-    }));
-    await replaceExpenses(id, rows, req.user);
+    await replaceExpenses(id, parseExpenseRows(req.body), req.user);
     await alertIfUnmatched(req, id);
     await renderZReport(req, res, id, { notice: 'ההוצאות נשמרו.' });
   } catch (err) {

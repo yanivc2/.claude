@@ -228,10 +228,12 @@ export async function addExpense(zReportId, input, actor, x = getExecutor()) {
 
 export async function listExpenses(zReportId, x = getExecutor()) {
   return x.many(
-    `SELECT e.*, i.invoice_number, i.total_amount AS invoice_total, s.name AS invoice_supplier
+    `SELECT e.*, i.invoice_number, i.total_amount AS invoice_total, s.name AS invoice_supplier,
+            emp.first_name AS emp_first, emp.last_name AS emp_last
        FROM z_expenses e
        LEFT JOIN invoices i ON i.id = e.invoice_id
        LEFT JOIN suppliers s ON s.id = i.supplier_id
+       LEFT JOIN employees emp ON emp.id = e.employee_id
       WHERE e.z_report_id = ? ORDER BY e.id`,
     [zReportId],
   );
@@ -243,15 +245,33 @@ export async function listExpenses(zReportId, x = getExecutor()) {
  */
 export async function unmatchedCashExpenses(scope = null, limit = 30, x = getExecutor()) {
   const sc = scopeClause(scope, 'st.company_id');
+  // Salary/advance lines are tracked on the employees page, not here — this cube is for cash
+  // payments that may still need matching to an invoice.
   return x.many(
     `SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount,
             z.id AS z_report_id, z.z_number, z.z_date, st.name AS store_name
        FROM z_expenses e
        JOIN z_reports z ON z.id = e.z_report_id
        JOIN stores st ON st.id = z.store_id
-      WHERE e.invoice_id IS NULL AND e.amount > 0${sc.sql}
+      WHERE e.invoice_id IS NULL AND e.amount > 0
+        AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${sc.sql}
       ORDER BY e.expense_date DESC, e.id DESC LIMIT ?`,
     [...sc.params, limit],
+  );
+}
+
+/**
+ * Cash payments (z_expenses) linked to a given invoice — so the invoice page can show
+ * "שולם במזומן בדוח Z …" (§6). Newest first.
+ */
+export async function cashPaymentsForInvoice(invoiceId, x = getExecutor()) {
+  return x.many(
+    `SELECT e.id, e.amount, e.expense_date, z.id AS z_report_id, z.z_number, z.z_date, st.name AS store_name
+       FROM z_expenses e
+       JOIN z_reports z ON z.id = e.z_report_id
+       JOIN stores st ON st.id = z.store_id
+      WHERE e.invoice_id = ? ORDER BY e.expense_date DESC, e.id DESC`,
+    [invoiceId],
   );
 }
 
@@ -279,17 +299,32 @@ export async function deleteExpense(id, actor, x = getExecutor()) {
  * Atomic: a bad row rolls the whole save back, leaving the previous lines intact.
  * @returns {Promise<number>} how many lines were saved
  */
+// Cash-expense kinds: manual (ידני, free text) / salary (שכר) / advance (מפרעה) / invoice
+// (תשלום בגין חשבונית). salary+advance link an employee; invoice links an invoice.
+export const EXPENSE_KINDS = new Set(['manual', 'salary', 'advance', 'invoice']);
+
 export async function replaceExpenses(zReportId, rows, actor, x = getExecutor()) {
   await getZReport(zReportId, x);
   const clean = (rows || [])
-    .map((r) => ({
-      expenseDate: r.expenseDate || null,
-      payerName: (r.payerName || '').trim() || null,
-      purpose: (r.purpose || '').trim() || null,
-      amount: Number.isFinite(r.amount) ? r.amount : 0,
-      invoiceId: r.invoiceId ? Number(r.invoiceId) : null,
-    }))
-    .filter((r) => r.amount > 0 || r.payerName || r.purpose || r.invoiceId);
+    .map((r) => {
+      // Kind: explicit if valid; else inferred for backward compatibility (an invoiceId with no
+      // kind means an invoice payment — the pre-kind contract), otherwise a plain manual line.
+      let kind = EXPENSE_KINDS.has(r.kind) ? r.kind : null;
+      if (!kind) kind = r.invoiceId ? 'invoice' : 'manual';
+      // Normalize the target field to the kind — only one of employee/invoice is kept.
+      const invoiceId = kind === 'invoice' && r.invoiceId ? Number(r.invoiceId) : null;
+      const employeeId = (kind === 'salary' || kind === 'advance') && r.employeeId ? Number(r.employeeId) : null;
+      return {
+        expenseDate: r.expenseDate || null,
+        payerName: (r.payerName || '').trim() || null,
+        purpose: (r.purpose || '').trim() || null,
+        kind,
+        employeeId,
+        amount: Number.isFinite(r.amount) ? r.amount : 0,
+        invoiceId,
+      };
+    })
+    .filter((r) => r.amount > 0 || r.payerName || r.purpose || r.invoiceId || r.employeeId);
   for (const r of clean) {
     if (r.amount < 0) throw new RuleError('VALIDATION', 'סכום הוצאה חייב להיות מספר לא-שלילי');
   }
@@ -297,8 +332,9 @@ export async function replaceExpenses(zReportId, rows, actor, x = getExecutor())
     await t.run('DELETE FROM z_expenses WHERE z_report_id = ?', [zReportId]);
     for (const r of clean) {
       await t.run(
-        'INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, amount, invoice_id) VALUES (?, ?, ?, ?, ?, ?)',
-        [zReportId, r.expenseDate, r.payerName, r.purpose, r.amount, r.invoiceId],
+        `INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, description_type, employee_id, amount, invoice_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [zReportId, r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.amount, r.invoiceId],
       );
     }
   });

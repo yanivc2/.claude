@@ -248,15 +248,28 @@ CREATE TABLE IF NOT EXISTS z_reports (
 );
 CREATE INDEX IF NOT EXISTS ix_zreports_store_date ON z_reports(store_id, z_date);
 
--- z_expenses — drawer expense lines for a Z report (phase 2b).
+-- employees — staff for the "עובדים ומשכורות" page. Advances (מפרעה) / salary lines entered on
+-- a Z report reference an employee so the tracking table can total them per person.
+CREATE TABLE IF NOT EXISTS employees (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  first_name  TEXT NOT NULL,
+  last_name   TEXT NOT NULL,
+  active      INTEGER NOT NULL DEFAULT 1,
+  created_by  INTEGER REFERENCES users(id),
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+
+-- z_expenses — drawer expense lines for a Z report (phase 2b). description_type is the "kind":
+-- manual (ידני) / salary (שכר) / advance (מפרעה) / invoice (תשלום חשבונית).
 CREATE TABLE IF NOT EXISTS z_expenses (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   z_report_id      INTEGER NOT NULL REFERENCES z_reports(id) ON DELETE CASCADE,
   expense_date     TEXT,
   payer_name       TEXT,
   purpose          TEXT,             -- "עבור" (free text)
-  description_type TEXT,
+  description_type TEXT,             -- kind: manual / salary / advance / invoice
   employee_name    TEXT,
+  employee_id      INTEGER REFERENCES employees(id),  -- salary/advance → which employee
   amount           INTEGER NOT NULL DEFAULT 0,
   invoice_id       INTEGER REFERENCES invoices(id),  -- optional: cash expense matched to an invoice
   image_path       TEXT,

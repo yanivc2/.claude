@@ -40,6 +40,7 @@
         <% if (currentUser.role === 'owner') { %>
           <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>"><span class="mi-ic">✅</span>אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="tag tag-accent"><%= pendingApprovals %></span><% } %></a>
         <% } %>
+        <% if (nav('nav_employees')) { %><a href="/employees" class="<%= path.startsWith('/employees') ? 'active' : '' %>"><span class="mi-ic">👥</span>עובדים ומשכורות</a><% } %>
         <% if (nav('nav_audit')) { %><a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>"><span class="mi-ic">📅</span>יומן</a><% } %>
         <% if (typeof can === 'function' && can('settings')) { %>
           <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>

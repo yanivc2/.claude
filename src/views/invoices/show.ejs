@@ -64,6 +64,13 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <% if (payReq) { %><div class="alert alert-info">בקשת אישור תשלום ממתינה<% if (isManager) { %> — אפשר לאשר בכפתור למטה<% } else { %> לאישור מנהל/בעלים<% } %>.</div><% } %>
 <% if (requiresAllocation) { %><div class="alert alert-error"><strong>נדרש מספר הקצאה</strong> — חשבונית מס מעל <%= formatIls(allocationThresholdAgorot) %> ללא מספר הקצאה. הזן מספר הקצאה בכפתור למטה.</div><% } %>
 
+<% if (typeof cashPayments !== 'undefined' && cashPayments && cashPayments.length) { %>
+  <div class="alert alert-ok">
+    <strong>שולם במזומן</strong> —
+    <% cashPayments.forEach(function(cp, i){ %><%= i ? ' · ' : '' %><%= formatIls(cp.amount) %> בדוח <a href="/reports/zreports/<%= cp.z_report_id %>">Z <%= cp.z_number %></a> (<%= formatDate(cp.z_date) %>)<% }); %>
+  </div>
+<% } %>
+
 <!-- פרטי החשבונית (ללא מספר חשבונית; רק החנות) -->
 <div class="card" style="<%= requiresAllocation ? 'border-color:var(--color-bad)' : '' %>">
   <div class="row">

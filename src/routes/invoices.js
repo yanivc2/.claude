@@ -15,6 +15,7 @@ import {
   listPayable,
 } from '../services/invoices.js';
 import { listSuppliers } from '../services/suppliers.js';
+import { cashPaymentsForInvoice } from '../services/zreports.js';
 import { runOcrForInvoice, compareToInvoice, getOcr, deleteOcr } from '../services/ocr.js';
 import { createEvent } from '../services/calendar.js';
 import { getExecutor } from '../db/adapter.js';
@@ -391,6 +392,7 @@ router.get('/:id', async (req, res, next) => {
       invoice: await getInvoiceDetail(id),
       ocr: await getOcr(id),
       comparison: await compareToInvoice(id),
+      cashPayments: await cashPaymentsForInvoice(id),
       pendingPayReq: await pendingRequestFor('invoice', id, 'invoice.approve_payment'),
       pendingReleaseReq: await pendingRequestFor('invoice', id, 'invoice.release_hold'),
       ...(await scanContext(id)),
@@ -584,6 +586,7 @@ async function renderShow(res, id, error, notice = null) {
     invoice: await getInvoiceDetail(id),
     ocr: await getOcr(id),
     comparison: await compareToInvoice(id),
+    cashPayments: await cashPaymentsForInvoice(id),
     pendingPayReq: await pendingRequestFor('invoice', id, 'invoice.approve_payment'),
     pendingReleaseReq: await pendingRequestFor('invoice', id, 'invoice.release_hold'),
     ...(await scanContext(id)),

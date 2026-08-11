@@ -18,13 +18,14 @@ import reportRoutes from './routes/reports.js';
 import reconciliationRoutes from './routes/reconciliation.js';
 import settingsRoutes from './routes/settings.js';
 import zclosingRoutes from './routes/zclosing.js';
+import employeeRoutes from './routes/employees.js';
 import scanRoutes from './routes/scan.js';
 import productRoutes from './routes/products.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-11·24';
+const BUILD_VERSION = '2026-08-11·25';
 
 export function createApp() {
   const app = express();
@@ -134,6 +135,7 @@ export function createApp() {
   app.use('/zclosing', requirePageAccess('nav_zclosing'), zclosingRoutes);
   app.use('/scan', requirePageAccess('nav_scan'), scanRoutes);
   app.use('/products', requirePageAccess('nav_products'), productRoutes);
+  app.use('/employees', requirePageAccess('nav_employees'), employeeRoutes);
   app.use('/settings', settingsRoutes);
 
   // Unmatched route -> friendly page (instead of Express's raw "Cannot GET/POST ...").

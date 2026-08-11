@@ -1,0 +1,65 @@
+<%- include('../partials/header') %>
+<div class="toolbar"><h1>עובדים ומשכורות</h1></div>
+
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<div class="card no-print">
+  <h2 style="margin:0 0 .5rem">הוספת עובד</h2>
+  <form method="post" action="/employees" class="actions" style="gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+    <div><label class="lbl">שם פרטי *</label><input name="first_name" required /></div>
+    <div><label class="lbl">שם משפחה *</label><input name="last_name" required /></div>
+    <div><button type="submit">הוסף עובד</button></div>
+  </form>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 .5rem">עובדים — סיכום</h2>
+  <div class="table-scroll">
+  <table class="sortable">
+    <thead><tr><th>שם</th><th class="right">מפרעות</th><th class="right">שכר</th><th class="right">רישומים</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
+    <tbody>
+      <% if (!totals || totals.length === 0) { %><tr><td colspan="6" class="muted">אין עובדים. הוסף עובד למעלה.</td></tr><% } %>
+      <% (totals || []).forEach(function(e){ %>
+        <tr>
+          <td><%= e.first_name %> <%= e.last_name %></td>
+          <td class="right"><%= e.advances ? formatIls(e.advances) : '—' %></td>
+          <td class="right"><%= e.salary ? formatIls(e.salary) : '—' %></td>
+          <td class="right"><%= e.lines || 0 %></td>
+          <td><% if (e.active) { %><span class="badge b-approved">פעיל</span><% } else { %><span class="badge b-neutral">לא פעיל</span><% } %></td>
+          <td class="no-print">
+            <form method="post" action="/employees/<%= e.id %>/delete" style="display:inline"
+                  onsubmit="return confirm('למחוק את <%= e.first_name %> <%= e.last_name %>? אם יש לו רישומים הוא יועבר ללא-פעיל.')">
+              <button class="danger small" type="submit">מחק</button>
+            </form>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 .5rem">מעקב מפרעות ושכר</h2>
+  <p class="muted" style="margin:0 0 .5rem">כל מפרעה או תשלום שכר שהוזן בדוח Z עבור עובד — מוצג כאן לפי תאריך.</p>
+  <div class="table-scroll">
+  <table class="sortable">
+    <thead><tr><th>תאריך</th><th>עובד</th><th>סוג</th><th>חנות</th><th>Z</th><th class="right">סכום</th></tr></thead>
+    <tbody>
+      <% if (!ledger || ledger.length === 0) { %><tr><td colspan="6" class="muted">אין רישומים.</td></tr><% } %>
+      <% (ledger || []).forEach(function(r){ %>
+        <tr>
+          <td><%= formatDate(r.expense_date) %></td>
+          <td><%= r.first_name %> <%= r.last_name %></td>
+          <td><% if (r.kind === 'advance') { %><span class="badge b-on_hold">מפרעה</span><% } else { %><span class="badge b-neutral">שכר</span><% } %></td>
+          <td><%= r.store_name %></td>
+          <td class="mono"><a href="/reports/zreports/<%= r.z_report_id %>">Z <%= r.z_number %></a></td>
+          <td class="right"><strong><%= formatIls(r.amount) %></strong></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>
