@@ -167,9 +167,13 @@ export async function listProducts({ supplierId = null, q = null } = {}, x = get
  */
 export async function getProductWithHistory(id, x = getExecutor()) {
   const product = await x.one(
-    `SELECT p.*, s.name AS supplier_name
+    `SELECT p.*, s.name AS supplier_name,
+            mc.name AS catalog_name, mc.manufacturer_name AS catalog_manufacturer,
+            mc.quantity AS catalog_quantity, mc.unit_qty AS catalog_unit_qty,
+            mc.qty_in_package AS catalog_qty_in_package
        FROM products p
        JOIN suppliers s ON s.id = p.supplier_id
+       LEFT JOIN master_catalog mc ON mc.barcode = p.barcode
       WHERE p.id = ?`,
     [id],
   );

@@ -83,14 +83,14 @@ test('unit cost is computed from the line total when not printed (with rounding)
       amount_before_vat: 100,
       vat_amount: 18,
       total_amount: 118,
-      lines: [{ name: 'לחם אחיד', barcode: '7290001234567', sku: 'A-1', quantity: 3, unit_cost: null, line_total: 100, confidence: 'high' }],
+      lines: [{ name: 'לחם אחיד', barcode: '7290001234563', sku: 'A-1', quantity: 3, unit_cost: null, line_total: 100, confidence: 'high' }],
     }),
     OPTS,
   );
   const line = d.lines[0];
   assert.equal(line.lineNo, 1);
   assert.equal(line.name, 'לחם אחיד');
-  assert.equal(line.barcode, '7290001234567');
+  assert.equal(line.barcode, '7290001234563');
   assert.equal(line.sku, 'A-1');
   assert.equal(line.lineTotal, 10000);
   assert.equal(line.unitCost, 3333); // 10000 / 3 rounded
@@ -106,7 +106,7 @@ test('unit_quantity (כ.בודד) becomes the division basis for the per-single 
       amount_before_vat: 480,
       vat_amount: 86.4,
       total_amount: 566.4,
-      lines: [{ name: 'קולה 330 מ"ל', barcode: '7290000000011', sku: null, quantity: 5, unit_quantity: 120, unit_cost: null, pack_cost: null, line_total: 480, confidence: 'high' }],
+      lines: [{ name: 'קולה 330 מ"ל', barcode: '7290000000015', sku: null, quantity: 5, unit_quantity: 120, unit_cost: null, pack_cost: null, line_total: 480, confidence: 'high' }],
     }),
     OPTS,
   );
@@ -180,6 +180,64 @@ test('a printed pack_cost passes through; zero/equal unit_quantity guards hold',
   );
   assert.equal(eq.lines[0].unitCost, 1000);
   assert.equal(eq.lines[0].packCost, null);
+});
+
+test('master catalog: hit attaches catalog info; miss+bad checksum flags; miss+valid stays clean', () => {
+  const masterCatalog = new Map([
+    ['7290000000015', { name: 'חלב תנובה 3% 1 ליטר', manufacturer_name: 'תנובה', quantity: 1, unit_qty: 'ליטר', qty_in_package: 12 }],
+  ]);
+  const d = validateExtraction(
+    extraction({
+      lines: [
+        { name: 'חלב תנובה 3% 1 ליטר', barcode: '7290000000015', quantity: 2, unit_cost: 5, line_total: 10, confidence: 'high' },
+        { name: 'ברקוד שגוי', barcode: '7290000000011', quantity: 1, unit_cost: 3, line_total: 3, confidence: 'high' },
+        { name: 'לא בקטלוג', barcode: '4006381333931', quantity: 1, unit_cost: 2, line_total: 2, confidence: 'high' },
+        { name: 'קוד פנימי', barcode: '12345', quantity: 1, unit_cost: 1, line_total: 1, confidence: 'high' },
+      ],
+    }),
+    { ...OPTS, masterCatalog },
+  );
+
+  const [hit, bad, unknown, internal] = d.lines;
+  assert.ok(hit.flags.includes('catalog_match'));
+  assert.equal(hit.catalog.name, 'חלב תנובה 3% 1 ליטר');
+  assert.equal(hit.catalog.manufacturer, 'תנובה');
+  assert.equal(hit.catalog.nameDiffers, false);
+
+  assert.ok(bad.flags.includes('barcode_invalid')); // checksum fails, no catalog hit
+  assert.equal(bad.catalog, null);
+
+  assert.deepEqual(unknown.flags, []); // valid checksum, absent from catalog → NOT an error
+  assert.deepEqual(internal.flags, []); // non-GTIN shape → no verdict
+
+  const barcodeWarnings = d.warnings.filter((w) => w.code === 'barcode_invalid');
+  assert.equal(barcodeWarnings.length, 1); // one aggregated warning
+  assert.match(barcodeWarnings[0].message, /בשורות 2/);
+});
+
+test('master catalog: nameDiffers true when the extracted name strays from the canonical one', () => {
+  const masterCatalog = new Map([
+    ['7290000000015', { name: 'חלב תנובה 3% 1 ליטר', manufacturer_name: 'תנובה' }],
+  ]);
+  const d = validateExtraction(
+    extraction({
+      lines: [{ name: 'חלב 3', barcode: '7290000000015', quantity: 1, unit_cost: 5, line_total: 5, confidence: 'high' }],
+    }),
+    { ...OPTS, masterCatalog },
+  );
+  assert.equal(d.lines[0].catalog.nameDiffers, true);
+});
+
+test('without masterCatalog the validator behaves exactly as before (no catalog flags)', () => {
+  const d = validateExtraction(
+    extraction({
+      lines: [{ name: 'א', barcode: '7290000000011', quantity: 1, unit_cost: 5, line_total: 5, confidence: 'high' }],
+    }),
+    OPTS,
+  );
+  // No catalog map → checksum still runs (it needs no data), but nothing else changes.
+  assert.ok(d.lines[0].flags.includes('barcode_invalid'));
+  assert.equal(d.lines[0].catalog, null);
 });
 
 test('supplier_phone is carried into the header', () => {

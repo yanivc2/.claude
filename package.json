@@ -15,6 +15,7 @@
     "set-password": "node --env-file-if-exists=.env src/db/set-password.js",
     "reset-db": "node --env-file-if-exists=.env src/db/reset.js",
     "scrape": "node --env-file-if-exists=.env src/scraper/run.js",
+    "catalog:import": "node --env-file-if-exists=.env src/catalog/importMasterCatalog.js",
     "test": "node --test"
   },
   "dependencies": {

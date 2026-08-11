@@ -33,7 +33,7 @@ function extraction(over = {}) {
     vat_amount: 180,
     total_amount: 1180,
     lines: [
-      { name: 'לחם אחיד', barcode: '7290000000011', sku: 'LX1', quantity: 10, unit_cost: 50, line_total: 500, confidence: 'high' },
+      { name: 'לחם אחיד', barcode: '7290000000015', sku: 'LX1', quantity: 10, unit_cost: 50, line_total: 500, confidence: 'high' },
       { name: 'חלה', barcode: null, sku: 'CH2', quantity: 5, unit_cost: null, line_total: 500, confidence: 'medium' },
     ],
     field_confidence: {
@@ -293,7 +293,7 @@ test('saveDraftEdits merges edits, re-validates, and honours an explicit supplie
     draft.id,
     {
       header: { supplierId: other.id, invoiceNumber: '10026', amountBeforeVat: toAgorot('900') },
-      lines: [{ name: 'לחם אחיד', barcode: '7290000000011', sku: 'LX1', quantity: 9, unitCost: toAgorot('100'), lineTotal: toAgorot('900') }],
+      lines: [{ name: 'לחם אחיד', barcode: '7290000000015', sku: 'LX1', quantity: 9, unitCost: toAgorot('100'), lineTotal: toAgorot('900') }],
     },
     sec,
     db,
@@ -346,7 +346,7 @@ test('approveDraft creates the invoice, its lines and the supplier catalog', asy
   assert.equal(lines[0].unit_cost, toAgorot('50'));
   assert.equal(lines[0].unit_cost_source, 'extracted');
   assert.equal(lines[1].unit_cost_source, 'computed');
-  assert.equal(lines[0].barcode, '7290000000011');
+  assert.equal(lines[0].barcode, '7290000000015');
   assert.equal(Number(lines[0].quantity), 10);
 
   const products = await db.many('SELECT * FROM products WHERE supplier_id = ? ORDER BY id', [supplier.id]);
@@ -386,7 +386,7 @@ test('כ.בודד flow: per-single price survives save→reload and lands in lin
         vat_amount: 86.4,
         total_amount: 566.4,
         lines: [
-          { name: 'קולה 330 מ"ל', barcode: '7290000000011', sku: 'CC330', quantity: 5, unit_quantity: 120, unit_cost: null, pack_cost: null, line_total: 480, confidence: 'high' },
+          { name: 'קולה 330 מ"ל', barcode: '7290000000015', sku: 'CC330', quantity: 5, unit_quantity: 120, unit_cost: null, pack_cost: null, line_total: 480, confidence: 'high' },
         ],
       }),
     ),
@@ -421,6 +421,34 @@ test('כ.בודד flow: per-single price survives save→reload and lands in lin
   const price = await db.one('SELECT * FROM product_prices WHERE product_id = ?', [product.id]);
   assert.equal(price.price, toAgorot('4'));
   assert.equal(Number(price.quantity), 120);
+});
+
+test('processDraft attaches master-catalog info and re-derives it on every save', async () => {
+  const db = await freshDb();
+  const { sec, store } = await setup(db);
+  const { importCatalogItems } = await import('../src/services/masterCatalog.js');
+  await importCatalogItems(
+    [{ barcode: '7290000000015', name: 'לחם אחיד פרוס 750 גרם', manufacturerName: 'מאפיות מאוחדות', unitQty: 'גרם', quantity: 750, qtyInPackage: null, retailPrice: 890 }],
+    {},
+    db,
+  );
+
+  const draft = await uploaded(db, sec, store);
+  await processDraft(draft.id, sec, deps(), db);
+
+  let d = await getDraft(draft.id, db);
+  const line = d.normalized.lines[0];
+  assert.ok(line.flags.includes('catalog_match'));
+  assert.equal(line.catalog.name, 'לחם אחיד פרוס 750 גרם');
+  assert.equal(line.catalog.manufacturer, 'מאפיות מאוחדות');
+  assert.equal(line.catalog.nameDiffers, true); // 'לחם אחיד' vs the canonical name
+  assert.equal(d.normalized.lines[1].catalog, null); // no barcode → no catalog
+
+  // The catalog info survives (is re-derived on) a plain save.
+  await saveDraftEdits(draft.id, {}, sec, db);
+  d = await getDraft(draft.id, db);
+  assert.ok(d.normalized.lines[0].flags.includes('catalog_match'));
+  assert.equal(d.normalized.lines[0].catalog.name, 'לחם אחיד פרוס 750 גרם');
 });
 
 test('resetForReprocess sends a reviewed draft back to the queue; a committed one is refused', async () => {

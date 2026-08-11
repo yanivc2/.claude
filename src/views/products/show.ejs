@@ -15,6 +15,14 @@
     <div><span class="text-muted">תאריך העלות</span><br><%= product.last_cost_date ? formatDate(product.last_cost_date) : '—' %></div>
     <div><span class="text-muted">רשומות מחיר</span><br><%= prices.length %></div>
   </div>
+  <% if (product.catalog_name) { %>
+    <p class="muted" style="margin:.8rem 0 0">
+      קטלוג-על: <%= product.catalog_name %>
+      · יצרן: <%= product.catalog_manufacturer || '—' %>
+      <% if (product.catalog_quantity) { %> · תכולה: <%= Number(product.catalog_quantity) %> <%= product.catalog_unit_qty || '' %><% } %>
+      <% if (product.catalog_qty_in_package) { %> · יח' באריזה: <%= Number(product.catalog_qty_in_package) %><% } %>
+    </p>
+  <% } %>
 </div>
 
 <div class="card">

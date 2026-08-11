@@ -1,0 +1,73 @@
+<%- include('../partials/header') %>
+<div class="toolbar" style="align-items:center">
+  <h1 style="margin:0">קטלוג-על</h1>
+  <div class="actions no-print">
+    <a href="/products" class="btn btn-secondary">קטלוג הקניות</a>
+    <a href="/products/master/export.json" class="btn btn-secondary">הורד JSON לפי יצרן ⬇</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <div><span class="lbl">סה"כ פריטים</span><div class="fixed-value"><%= stats.items.toLocaleString('en-US') %></div></div>
+    <div><span class="lbl">יצרנים</span><div class="fixed-value"><%= stats.manufacturers.toLocaleString('en-US') %></div></div>
+    <div><span class="lbl">עדכון אחרון</span><div class="fixed-value"><%= stats.lastImport || '—' %></div></div>
+  </div>
+  <p class="muted" style="margin:.5rem 0 0">
+    מיובא מקבצי שקיפות המחירים (שופרסל). משמש לאימות ברקודים והשלמת שמות בסריקת חשבוניות.
+    מחיר המדף הוא לתצוגה בלבד — אינו מחיר קנייה.
+  </p>
+</div>
+
+<div class="card no-print">
+  <form method="get" action="/products/master" class="actions" style="flex-wrap:wrap; gap:.6rem; align-items:flex-end">
+    <div>
+      <label class="lbl">יצרן</label>
+      <select name="manufacturer">
+        <option value="">כל היצרנים</option>
+        <% manufacturers.forEach(function(m){ %>
+          <option value="<%= m.manufacturer_norm %>" <%= manufacturer === m.manufacturer_norm ? 'selected' : '' %>><%= m.manufacturer_name %> (<%= m.count %>)</option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label class="lbl">חיפוש</label>
+      <input name="q" value="<%= q %>" placeholder="שם מוצר או ברקוד" style="max-width:320px" />
+    </div>
+    <div><button type="submit" class="btn btn-primary">חפש</button></div>
+    <% if (q || manufacturer) { %><div><a href="/products/master" class="btn btn-secondary">נקה</a></div><% } %>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-scroll">
+    <table class="sortable">
+      <thead>
+        <tr><th>ברקוד</th><th>שם מוצר</th><th>יצרן</th><th class="right">תכולה</th><th class="right">יח' באריזה</th><th class="right">מחיר מדף *</th></tr>
+      </thead>
+      <tbody>
+        <% if (!items.length) { %>
+          <tr><td colspan="6" class="muted">
+            <% if (stats.items === 0) { %>
+              קטלוג-העל ריק — הריצו <code>npm run catalog:import</code> (מקומית או מול מסד הענן).
+            <% } else { %>
+              אין פריטים תואמים לחיפוש.
+            <% } %>
+          </td></tr>
+        <% } %>
+        <% items.forEach(function(it){ %>
+          <tr>
+            <td class="mono"><%= it.barcode %></td>
+            <td><%= it.name %></td>
+            <td><%= it.manufacturer_name || '—' %></td>
+            <td class="right"><%= it.quantity === null || it.quantity === undefined ? '—' : (Number(it.quantity) + (it.unit_qty ? ' ' + it.unit_qty : '')) %></td>
+            <td class="right"><%= it.qty_in_package === null || it.qty_in_package === undefined ? '—' : Number(it.qty_in_package) %></td>
+            <td class="right"><%= it.retail_price === null || it.retail_price === undefined ? '—' : formatIls(it.retail_price) %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-muted" style="font-size:12px;margin:.5rem 0 0">* מחיר מדף בשופרסל — לתצוגה בלבד, אינו מחיר קנייה. מוצגות עד 500 שורות — צמצמו עם חיפוש/סינון.</p>
+</div>
+<%- include('../partials/footer') %>

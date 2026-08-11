@@ -8,6 +8,7 @@ import { validateExtraction } from '../lib/extractValidate.js';
 import { buildExtractionRequest, getClaudeClient } from '../ai/claude.js';
 import { createInvoice } from './invoices.js';
 import { upsertProductsFromLines } from './products.js';
+import { lookupByBarcodes } from './masterCatalog.js';
 import { logAction } from './audit.js';
 
 // צילום חשבוניות (stage 5) — the draft pipeline behind the mobile capture screen:
@@ -22,6 +23,14 @@ const STALE_PROCESSING_MS = 6 * 60 * 1000;
 const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
 /** Statuses shown in the "ממתינות לאישור" list. */
 const PENDING_STATUSES = ['uploaded', 'processing', 'needs_review', 'failed'];
+
+/**
+ * Master-catalog rows for the barcodes present in a set of lines — a small Map handed to the
+ * pure validator (which never queries the DB itself).
+ */
+function masterCatalogFor(barcodes, x) {
+  return lookupByBarcodes(barcodes, x);
+}
 
 /**
  * Extra flag codes this service adds to the pure validator's flags (duplicate probes need the
@@ -218,7 +227,8 @@ export async function processDraft(
 
   // ---- normalize + duplicate probes -------------------------------------------
   const suppliers = await x.many('SELECT * FROM suppliers', []);
-  const normalized = validateExtraction(parsed, { suppliers, vatRate: config.vatRate });
+  const masterCatalog = await masterCatalogFor((parsed.lines || []).map((l) => l?.barcode), x);
+  const normalized = validateExtraction(parsed, { suppliers, vatRate: config.vatRate, masterCatalog });
   await probeDuplicates(id, normalized, x);
 
   await x.run(
@@ -404,9 +414,13 @@ async function applyEdits(previous, edits = {}, x = getExecutor()) {
     lines: Array.isArray(edits.lines) ? edits.lines : previous.lines,
   };
   const suppliers = await x.many('SELECT * FROM suppliers', []);
+  // Catalog info is re-derived on every pass (never round-tripped through toExtraction),
+  // so an edited barcode gets a fresh verdict.
+  const masterCatalog = await masterCatalogFor((merged.lines || []).map((l) => l?.barcode), x);
   const next = validateExtraction(toExtraction(merged, previous), {
     suppliers,
     vatRate: config.vatRate,
+    masterCatalog,
   });
 
   const chosen = edits.header?.supplierId;

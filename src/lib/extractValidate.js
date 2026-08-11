@@ -6,6 +6,7 @@
 
 import { fromAgorot, formatIls } from './money.js';
 import { matchSupplier } from './supplierMatch.js';
+import { eanChecksumOk } from './ean.js';
 
 /**
  * Every flag code this module can emit.
@@ -24,9 +25,11 @@ import { matchSupplier } from './supplierMatch.js';
  *   'computed_per_unit' — unit cost was derived from line total / כ.בודד (single-item count)
  *   'missing_amounts'   — neither unit cost nor line total could be read
  *   'low_confidence'    — Claude reported low confidence for the line
+ *   'catalog_match'     — the barcode was found in the master catalog (identity confirmed)
+ *   'barcode_invalid'   — GTIN checksum failed and no catalog hit — likely misread digits
  * @typedef {'no_supplier_match'|'fuzzy_match'|'missing'|'low_confidence'|'defaulted'
  *   |'invalid_format'|'vat_mismatch'|'vat_rate_off'|'lines_sum_mismatch'
- *   |'computed'|'computed_per_unit'|'missing_amounts'} FlagCode
+ *   |'computed'|'computed_per_unit'|'missing_amounts'|'catalog_match'|'barcode_invalid'} FlagCode
  */
 export const FLAG_CODES = Object.freeze([
   'no_supplier_match',
@@ -41,6 +44,8 @@ export const FLAG_CODES = Object.freeze([
   'computed',
   'computed_per_unit',
   'missing_amounts',
+  'catalog_match',
+  'barcode_invalid',
 ]);
 
 /** Header fields that always appear as keys in the returned `flags` object. */
@@ -176,14 +181,27 @@ function confidenceOf(value) {
   return s === 'high' || s === 'medium' || s === 'low' ? s : 'medium';
 }
 
+/** Light name normalization for comparing an extracted name to the catalog's canonical one. */
+function looseName(s) {
+  return String(s ?? '')
+    .toLowerCase()
+    .replace(/["'`´׳״]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+}
+
 /**
  * Normalize one extracted line. `unitCost` is always the price of ONE INDIVIDUAL item —
  * that is what the product catalog compares over time. When the line carries a separate
  * single-item count (כ.בודד) the price per item is line total / that count, not / quantity,
  * because the printed quantity is cartons for many suppliers.
  * An explicit unit_cost always wins, so a hand-typed correction is never overridden.
+ * `masterCatalog` (Map barcode→row, only this draft's codes) confirms product identity:
+ * a hit attaches `line.catalog` and suppresses any checksum verdict; a checksum failure
+ * without a hit flags a likely misread. Absence from the catalog alone is never an error —
+ * it holds one chain's range, not the world.
  */
-function normalizeLine(raw, lineNo) {
+function normalizeLine(raw, lineNo, masterCatalog = null) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const flags = [];
   const quantity = num(src.quantity);
@@ -213,10 +231,31 @@ function normalizeLine(raw, lineNo) {
   const confidence = confidenceOf(src.confidence);
   if (confidence === 'low') flags.push('low_confidence');
 
+  const name = str(src.name);
+  const barcode = str(src.barcode);
+  let catalog = null;
+  if (barcode) {
+    const hit = masterCatalog?.get?.(barcode) ?? null;
+    if (hit) {
+      flags.push('catalog_match');
+      catalog = {
+        name: hit.name,
+        manufacturer: hit.manufacturer_name ?? null,
+        quantity: hit.quantity === null || hit.quantity === undefined ? null : Number(hit.quantity),
+        unitQty: hit.unit_qty ?? null,
+        qtyInPackage:
+          hit.qty_in_package === null || hit.qty_in_package === undefined ? null : Number(hit.qty_in_package),
+        nameDiffers: looseName(name) !== looseName(hit.name),
+      };
+    } else if (eanChecksumOk(barcode) === false) {
+      flags.push('barcode_invalid');
+    }
+  }
+
   return {
     lineNo,
-    name: str(src.name),
-    barcode: str(src.barcode),
+    name,
+    barcode,
     sku: str(src.sku),
     quantity,
     unitQuantity,
@@ -226,6 +265,7 @@ function normalizeLine(raw, lineNo) {
     lineTotal,
     confidence,
     flags,
+    catalog,
   };
 }
 
@@ -238,11 +278,13 @@ function normalizeLine(raw, lineNo) {
  * canonical name) — `supplierId` / `supplierScore` / `supplierMethod` describe the match.
  *
  * @param {object|null} extraction parsed model JSON (see EXTRACTION_SCHEMA)
- * @param {{suppliers?: Array<object>, vatRate?: number}} [opts]
+ * @param {{suppliers?: Array<object>, vatRate?: number,
+ *   masterCatalog?: Map<string, object>|null}} [opts] masterCatalog holds ONLY the barcodes
+ *   of this draft (the caller queries them) — the validator stays pure and offline-testable.
  * @returns {{header: object, lines: object[], flags: Record<string, string[]>,
  *   warnings: Array<{code: string, message: string}>, notes: string|null}}
  */
-export function validateExtraction(extraction, { suppliers = [], vatRate = 0.18 } = {}) {
+export function validateExtraction(extraction, { suppliers = [], vatRate = 0.18, masterCatalog = null } = {}) {
   const src = extraction && typeof extraction === 'object' ? extraction : {};
   const flags = {};
   for (const f of FLAG_FIELDS) flags[f] = [];
@@ -338,7 +380,18 @@ export function validateExtraction(extraction, { suppliers = [], vatRate = 0.18 
 
   // --- שורות -------------------------------------------------------------------
   const rawLines = Array.isArray(src.lines) ? src.lines : [];
-  const lines = rawLines.map((line, i) => normalizeLine(line, i + 1));
+  const lines = rawLines.map((line, i) => normalizeLine(line, i + 1, masterCatalog));
+
+  // ברקוד עם ספרת ביקורת שגויה וללא התאמת קטלוג — כנראה קריאה שגויה מהצילום.
+  // אזהרה מרוכזת אחת; catalog_match לא מייצר אזהרה — האישור מוצג ברמת השורה בלבד.
+  const badBarcodes = lines.filter((l) => l.flags.includes('barcode_invalid')).map((l) => l.lineNo);
+  if (badBarcodes.length) {
+    warn(
+      'barcode_invalid',
+      `ברקוד עם ספרת ביקורת שגויה בשורות ${badBarcodes.join(', ')} — ` +
+        'ככל הנראה נקרא שגוי מהצילום; השוו לצילום ותקנו.',
+    );
+  }
 
   // --- בדיקת מע"מ --------------------------------------------------------------
   if (amountBeforeVat !== null && vatAmount !== null && totalAmount !== null) {

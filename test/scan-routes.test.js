@@ -208,7 +208,7 @@ test('approving the review form creates the invoice and its lines screen renders
   form.set('vat_amount', '21.60');
   form.set('total_incl', '141.60');
   form.append('line_name[]', 'לחם');
-  form.append('line_barcode[]', '7290000000011');
+  form.append('line_barcode[]', '7290000000015');
   form.append('line_sku[]', '');
   form.append('line_qty[]', '2');
   form.append('line_unit_cost[]', '60.00');

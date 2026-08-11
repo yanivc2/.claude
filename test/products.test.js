@@ -30,12 +30,12 @@ test('findProduct: barcode beats sku beats normalized name', async () => {
   const { a } = await twoSuppliers(db);
 
   await upsertProductsFromLines(a.id, null, '2026-07-01', [
-    line({ lineNo: 1, name: 'מוצר א', barcode: '7290000000011', sku: 'SKU-A' }),
+    line({ lineNo: 1, name: 'מוצר א', barcode: '7290000000015', sku: 'SKU-A' }),
     line({ lineNo: 2, name: 'מוצר ב', sku: 'SKU-B' }),
     line({ lineNo: 3, name: 'מוצר ג' }),
   ], {}, db);
 
-  const byBarcode = await findProduct(a.id, { barcode: '7290000000011', sku: 'SKU-B', name: 'מוצר ג' }, db);
+  const byBarcode = await findProduct(a.id, { barcode: '7290000000015', sku: 'SKU-B', name: 'מוצר ג' }, db);
   assert.equal(byBarcode.name, 'מוצר א'); // barcode wins over both
 
   const bySku = await findProduct(a.id, { barcode: null, sku: 'SKU-B', name: 'מוצר ג' }, db);
@@ -50,9 +50,9 @@ test('findProduct: barcode beats sku beats normalized name', async () => {
 test('findProduct never crosses suppliers', async () => {
   const db = await freshDb();
   const { a, b } = await twoSuppliers(db);
-  await upsertProductsFromLines(a.id, null, '2026-07-01', [line({ barcode: '7290000000011' })], {}, db);
-  assert.ok(await findProduct(a.id, { barcode: '7290000000011' }, db));
-  assert.equal(await findProduct(b.id, { barcode: '7290000000011' }, db), null);
+  await upsertProductsFromLines(a.id, null, '2026-07-01', [line({ barcode: '7290000000015' })], {}, db);
+  assert.ok(await findProduct(a.id, { barcode: '7290000000015' }, db));
+  assert.equal(await findProduct(b.id, { barcode: '7290000000015' }, db), null);
 });
 
 test('upsert backfills a missing barcode / מק"ט onto the existing row', async () => {
@@ -69,13 +69,13 @@ test('upsert backfills a missing barcode / מק"ט onto the existing row', async
     a.id,
     null,
     '2026-07-02',
-    [line({ barcode: '7290000000011', sku: 'LX1' })],
+    [line({ barcode: '7290000000015', sku: 'LX1' })],
     {},
     db,
   );
   assert.equal(second.get(1), productId); // matched by name, not duplicated
   row = await db.one('SELECT * FROM products WHERE id = ?', [productId]);
-  assert.equal(row.barcode, '7290000000011');
+  assert.equal(row.barcode, '7290000000015');
   assert.equal(row.sku, 'LX1');
   assert.ok(row.updated_at);
 
@@ -145,7 +145,7 @@ test('listProducts searches name / barcode / מק"ט and filters by supplier', a
   const db = await freshDb();
   const { a, b } = await twoSuppliers(db);
   await upsertProductsFromLines(a.id, null, '2026-07-01', [
-    line({ lineNo: 1, name: 'לחם אחיד פרוס', barcode: '7290000000011', sku: 'LX1' }),
+    line({ lineNo: 1, name: 'לחם אחיד פרוס', barcode: '7290000000015', sku: 'LX1' }),
     line({ lineNo: 2, name: 'חלב 3%', barcode: '7290000000028', sku: 'ML9' }),
   ], {}, db);
   await upsertProductsFromLines(b.id, null, '2026-07-01', [line({ name: 'לחם כפרי' })], {}, db);

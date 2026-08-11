@@ -17,6 +17,8 @@ var FLAG_LABELS = {
   computed: 'מחיר ליחידה חושב מסה"כ השורה',
   computed_per_unit: 'מחיר ליחידה חושב מסה"כ נטו חלקי כמות הבודדים (כ.בודד)',
   missing_amounts: 'לא נקראו סכומים לשורה',
+  catalog_match: 'אומת מול קטלוג-העל',
+  barcode_invalid: 'ספרת ביקורת שגויה בברקוד — ככל הנראה נקרא שגוי',
   dup_allocation: 'מספר ההקצאה כבר קיים בחשבונית אחרת',
   dup_number: 'כבר קיימת חשבונית לספק זה עם מספר זה',
   dup_draft: 'ייתכן שהחשבונית כבר צולמה — קיימת טיוטה פתוחה'
@@ -278,8 +280,16 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
                 var amountsBad = lf.indexOf('missing_amounts') >= 0 || lf.indexOf('low_confidence') >= 0;
               %>
               <tr>
-                <td data-label="מוצר"><input name="line_name[]" value="<%= l.name || '' %>" class="<%= lf.length ? 'flag-warn' : '' %>" title="<%= lTitle %>" /></td>
-                <td data-label="ברקוד"><input name="line_barcode[]" inputmode="numeric" value="<%= l.barcode || '' %>" /></td>
+                <td data-label="מוצר">
+                  <input name="line_name[]" value="<%= l.name || '' %>" class="<%= lf.filter(function(c){ return c !== 'catalog_match'; }).length ? 'flag-warn' : '' %>" title="<%= lTitle %>" />
+                  <% if (l.catalog) { %>
+                    <span class="tag tag-neutral" title="קטלוג-על: <%= l.catalog.name %> · יצרן: <%= l.catalog.manufacturer || '—' %>">קטלוג ✓</span>
+                    <% if (l.catalog.nameDiffers) { %>
+                      <button type="button" class="tag tag-outline cat-adopt" data-name="<%= l.catalog.name %>" title="החלף לשם הרשמי מהקטלוג: <%= l.catalog.name %>">אמץ שם קטלוגי</button>
+                    <% } %>
+                  <% } %>
+                </td>
+                <td data-label="ברקוד"><input name="line_barcode[]" inputmode="numeric" value="<%= l.barcode || '' %>" class="<%= lf.indexOf('barcode_invalid') >= 0 ? 'flag-warn' : '' %>" title="<%= lf.indexOf('barcode_invalid') >= 0 ? FLAG_LABELS.barcode_invalid : '' %>" /></td>
                 <td data-label='מק"ט'><input name="line_sku[]" value="<%= l.sku || '' %>" /></td>
                 <td data-label="כמות"><input name="line_qty[]" inputmode="decimal" class="line-qty" value="<%= l.quantity === null || l.quantity === undefined ? '' : l.quantity %>" /></td>
                 <td data-label="כ.בודד"><input name="line_unit_qty[]" inputmode="decimal" class="line-unit-qty" value="<%= l.unitQuantity === null || l.unitQuantity === undefined ? '' : l.unitQuantity %>" /></td>
@@ -306,6 +316,10 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
         <button type="button" class="btn btn-secondary btn-sm" id="btnAddLine">הוסף שורה +</button>
       </div>
       <p class="muted" style="margin:.4rem 0 0">שורה שהשם שלה נמחק לא תישמר. מחיר ליחידה ריק — יחושב מסה"כ נטו חלקי כ.בודד (או חלקי הכמות כשאין כ.בודד). "כמות" היא כפי שמודפס — אצל חלק מהספקים ארגזים; "כ.בודד" = יחידות בודדות.</p>
+      <% var catMatched = (n.lines || []).filter(function(l){ return l.catalog; }).length; %>
+      <% if (catMatched > 0) { %>
+        <p class="muted" style="margin:.3rem 0 0"><%= catMatched %> מתוך <%= (n.lines || []).length %> שורות אומתו מול קטלוג-העל ✓</p>
+      <% } %>
     </div>
 
     <% if (draft.images && draft.images.length) { %>
@@ -411,6 +425,14 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
     }
     Array.prototype.forEach.call(body.rows, wire);
     before.addEventListener('input', recalc);
+
+    // "אמץ שם קטלוגי" — מעתיק את השם הרשמי מקטלוג-העל לשדה שם המוצר של אותה שורה.
+    body.addEventListener('click', function(e){
+      var btn = e.target.closest('.cat-adopt');
+      if (!btn) return;
+      var input = btn.closest('tr').querySelector('input[name="line_name[]"]');
+      if (input) { input.value = btn.dataset.name; btn.remove(); }
+    });
 
     document.getElementById('btnAddLine').addEventListener('click', function(){
       var tr = document.createElement('tr');

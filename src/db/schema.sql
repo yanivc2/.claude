@@ -397,3 +397,23 @@ CREATE TABLE IF NOT EXISTS invoice_drafts (
   updated_at            TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_invoice_drafts_status ON invoice_drafts(status);
+
+-- master_catalog — קטלוג-על: כל מוצרי הסופר לפי יצרן, מיובא מקבצי המחירים הפומביים
+-- (חוק שקיפות המחירים — שופרסל). מקור אמת לזהות מוצר (ברקוד → שם, יצרן, אריזה) בלבד;
+-- retail_price הוא מחיר מדף לתצוגה — לעולם לא משמש לאימות מחירי קנייה.
+CREATE TABLE IF NOT EXISTS master_catalog (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  barcode           TEXT NOT NULL UNIQUE,      -- ItemCode (EAN אוניברסלי בלבד)
+  name              TEXT NOT NULL,             -- ItemName
+  manufacturer_name TEXT,                      -- ManufacturerName ("תנובה", "טרה"...)
+  manufacturer_norm TEXT,                      -- normalizeSupplierName(manufacturer_name)
+  unit_qty          TEXT,                      -- UnitQty ("ליטר", "גרם"...)
+  quantity          REAL,                      -- Quantity (תכולה)
+  qty_in_package    REAL,                      -- QtyInPackage
+  retail_price      INTEGER,                   -- agorot — מחיר מדף, תצוגה בלבד
+  source_chain      TEXT NOT NULL DEFAULT 'shufersal',
+  source_store      TEXT,
+  imported_at       TEXT NOT NULL,             -- מועד ריצת הייבוא שעדכנה את השורה
+  created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_master_catalog_manufacturer ON master_catalog(manufacturer_norm);
