@@ -1,0 +1,12 @@
+# Claude Code hook backups (pruned automatically after 14 days)
+deletions/
+
+# Staged "deletes" — emptied manually only, after verification
+_organize/trash/
+
+# Obsidian per-device workspace state
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# Obsidian's own trash folder
+.trash/
