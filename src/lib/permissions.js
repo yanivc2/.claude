@@ -26,6 +26,8 @@ export const PERMISSIONS = [
   { key: 'nav_profitability', label: 'רווחיות', group: 'עמודים', icon: '💰', desc: 'דוח רווח גולמי ומרווח.' },
   { key: 'nav_audit', label: 'יומן', group: 'עמודים', icon: '📅', desc: 'לוח שנה, תזכורות ולוג פעולות.' },
   { key: 'nav_zclosing', label: 'סגירת Z', group: 'עמודים', icon: '🔒', desc: 'ספירת קופה. לעובד קופה — סמן רק את זה כדי לנעול אותו לדף זה בלבד.' },
+  { key: 'nav_scan', label: 'צילום חשבוניות', group: 'עמודים', icon: '📷', desc: 'צילום חשבוניות בנייד, עיבוד אוטומטי ואישור קליטה.' },
+  { key: 'nav_products', label: 'מוצרים', group: 'עמודים', icon: '🏷️', desc: 'קטלוג מוצרים ומחירי קנייה לפי ספק.' },
 ];
 
 const VALID = new Set(PERMISSIONS.map((p) => p.key));
@@ -36,17 +38,22 @@ export const ROLE_PRESETS = [
   {
     key: 'secretary', label: 'מזכירה', icon: '🧑‍💼',
     desc: 'הזנת חשבוניות, מרקורים ודוחות Z.',
-    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'hold_invoice'],
+    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'nav_scan', 'hold_invoice'],
   },
   {
     key: 'store_manager', label: 'מנהל חנות', icon: '👔',
     desc: 'כמו מזכירה + אישור תשלומים, ניהול ספקים ורווחיות.',
-    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'nav_outstanding', 'nav_profitability', 'nav_reconciliation', 'hold_invoice', 'approve_payment', 'manage_suppliers', 'edit_invoice', 'manage_deposits', 'import_bank'],
+    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'nav_outstanding', 'nav_profitability', 'nav_reconciliation', 'nav_scan', 'nav_products', 'hold_invoice', 'approve_payment', 'manage_suppliers', 'edit_invoice', 'manage_deposits', 'import_bank'],
   },
   {
     key: 'cashier', label: 'עובד קופה', icon: '🔒',
     desc: 'גישה אך ורק לדף "סגירת Z".',
     perms: ['nav_zclosing'],
+  },
+  {
+    key: 'invoice_scanner', label: 'צלם חשבוניות', icon: '📷',
+    desc: 'גישה אך ורק לצילום וקליטת חשבוניות.',
+    perms: ['nav_scan'],
   },
   {
     key: 'viewer', label: 'צפייה בלבד', icon: '👁️',
@@ -68,6 +75,8 @@ export const NAV_PAGES = [
   { key: 'nav_profitability', path: '/reports/profitability' },
   { key: 'nav_audit', path: '/audit' },
   { key: 'nav_zclosing', path: '/zclosing' },
+  { key: 'nav_scan', path: '/scan' },
+  { key: 'nav_products', path: '/products' },
 ];
 const NAV_KEYS = new Set(NAV_PAGES.map((p) => p.key));
 
@@ -85,6 +94,8 @@ export const NAV_ALLOW = {
   nav_profitability: ['/reports/profitability'],
   nav_audit: ['/audit'],
   nav_zclosing: ['/zclosing'],
+  nav_scan: ['/scan'],
+  nav_products: ['/products'],
 };
 
 // Paths any authenticated user may always reach (own account, logout, legal, cron runner).

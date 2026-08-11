@@ -18,6 +18,8 @@ import reportRoutes from './routes/reports.js';
 import reconciliationRoutes from './routes/reconciliation.js';
 import settingsRoutes from './routes/settings.js';
 import zclosingRoutes from './routes/zclosing.js';
+import scanRoutes from './routes/scan.js';
+import productRoutes from './routes/products.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -130,6 +132,8 @@ export function createApp() {
   app.use('/reports', reportRoutes); // per-sub-page access guarded inside reportRoutes
   app.use('/reconciliation', requirePageAccess('nav_reconciliation'), reconciliationRoutes);
   app.use('/zclosing', requirePageAccess('nav_zclosing'), zclosingRoutes);
+  app.use('/scan', requirePageAccess('nav_scan'), scanRoutes);
+  app.use('/products', requirePageAccess('nav_products'), productRoutes);
   app.use('/settings', settingsRoutes);
 
   // Unmatched route -> friendly page (instead of Express's raw "Cannot GET/POST ...").

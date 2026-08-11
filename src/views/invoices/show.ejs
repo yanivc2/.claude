@@ -164,6 +164,76 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
   </div>
 <% } %>
 
+<!-- פירוט שורות — קיים רק לחשבונית שנקלטה מצילום (קריאה בלבד) -->
+<% var invLines = (typeof lines !== 'undefined' && lines) ? lines : []; %>
+<% if (invLines.length) { %>
+  <div class="card">
+    <h2 style="margin:0 0 .6rem">פירוט שורות</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>מוצר</th><th>ברקוד</th><th>מק"ט</th><th class="right">כמות</th><th class="right">מחיר ליחידה</th><th class="right">סה"כ שורה</th></tr>
+        </thead>
+        <tbody>
+          <% var linesTotal = 0; %>
+          <% invLines.forEach(function(l){ linesTotal += l.line_total || 0; %>
+            <tr>
+              <td>
+                <% if (l.product_id) { %><a href="/products/<%= l.product_id %>"><%= l.name %></a><% } else { %><%= l.name %><% } %>
+              </td>
+              <td class="mono"><%= l.barcode || '—' %></td>
+              <td class="mono"><%= l.sku || '—' %></td>
+              <td class="right"><%= l.quantity === null || l.quantity === undefined ? '—' : l.quantity %></td>
+              <td class="right"><%= l.unit_cost === null || l.unit_cost === undefined ? '—' : formatIls(l.unit_cost) %><%= l.unit_cost_source === 'computed' ? ' *' : '' %></td>
+              <td class="right <%= l.line_total < 0 ? 'neg' : '' %>"><%= formatIls(l.line_total) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="5" class="right"><strong>סה"כ שורות</strong></td><td class="right"><strong><%= formatIls(linesTotal) %></strong></td></tr>
+        </tfoot>
+      </table>
+    </div>
+    <p class="text-muted" style="font-size:12px;margin:.5rem 0 0">* מחיר ליחידה שחושב מסה"כ השורה חלקי הכמות.</p>
+  </div>
+<% } %>
+
+<!-- עמודי הסריקה שממנה נקלטה החשבונית -->
+<% var invScanPages = (typeof scanPages !== 'undefined' && scanPages) ? scanPages : []; %>
+<% if (invScanPages.length) { %>
+  <div class="card no-print">
+    <h2 style="margin:0 0 .6rem">עמודי הסריקה</h2>
+    <div class="scan-thumbs">
+      <% invScanPages.forEach(function(ref, i){ %>
+        <% if (/\.pdf$/i.test(ref)) { %>
+          <a class="scan-thumb" href="/invoices/<%= invoice.id %>/scan-image/<%= i %>" target="_blank" rel="noopener">
+            <div class="scan-thumb-pdf">📄</div><span class="scan-thumb-no"><%= i+1 %></span>
+          </a>
+        <% } else { %>
+          <button type="button" class="scan-thumb" data-scanimg="/invoices/<%= invoice.id %>/scan-image/<%= i %>">
+            <img src="/invoices/<%= invoice.id %>/scan-image/<%= i %>" alt="עמוד <%= i+1 %>" /><span class="scan-thumb-no"><%= i+1 %></span>
+          </button>
+        <% } %>
+      <% }); %>
+    </div>
+  </div>
+  <dialog id="scanDlg" class="dlg wide">
+    <div class="dlg-head">
+      <strong>עמוד סריקה</strong>
+      <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
+    </div>
+    <img id="scanDlgSrc" src="" alt="עמוד סריקה" style="max-width:100%;max-height:74vh;border:1px solid var(--color-line);border-radius:var(--radius-md)" />
+  </dialog>
+  <script>
+  (function(){
+    var dlg = document.getElementById('scanDlg'), img = document.getElementById('scanDlgSrc');
+    document.querySelectorAll('.scan-thumb[data-scanimg]').forEach(function(b){
+      b.addEventListener('click', function(){ img.src = b.dataset.scanimg; dlg.showModal(); });
+    });
+  })();
+  </script>
+<% } %>
+
 <!-- שורת פעולות: אפשרויות (עריכה) + חזרה לרשימה משמאלו -->
 <div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">
   <% if (invoice.status !== 'paid' && typeof can === 'function' && can('edit_invoice')) { %>

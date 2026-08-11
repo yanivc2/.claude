@@ -1,0 +1,46 @@
+<%- include('../partials/header') %>
+<%
+function chip(status){
+  return status === 'failed' ? { cls: 'scan-chip bad', text: 'נכשל' }
+    : status === 'needs_review' ? { cls: 'scan-chip warn', text: 'ממתין לבדיקה' }
+    : { cls: 'scan-chip busy', text: 'מעבד' };
+}
+%>
+<div class="toolbar" style="align-items:center">
+  <h1 style="margin:0">סריקות ממתינות</h1>
+  <div class="actions no-print">
+    <a href="/scan" class="btn btn-primary">+ צילום חדש</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-scroll">
+    <table class="sortable">
+      <thead>
+        <tr><th>נוצר</th><th>חנות</th><th>מי צילם</th><th>ספק</th><th class="right">סה"כ</th><th>מצב</th><th data-nosort></th></tr>
+      </thead>
+      <tbody>
+        <% if (!drafts.length) { %>
+          <tr><td colspan="7" class="muted">אין סריקות שממתינות לאישור. כל מה שצולם כבר נקלט 👍</td></tr>
+        <% } %>
+        <% drafts.forEach(function(d){ %>
+          <%
+            var nz = d.normalized || {};
+            var hd = nz.header || {};
+            var c = chip(d.status);
+          %>
+          <tr>
+            <td><%= formatDateTime(d.created_at) %></td>
+            <td><%= d.store_name %></td>
+            <td><%= d.created_by_name || '—' %></td>
+            <td><%= hd.supplierName || '—' %></td>
+            <td class="right"><%= hd.totalAmount === null || hd.totalAmount === undefined ? '—' : formatIls(hd.totalAmount) %></td>
+            <td><span class="<%= c.cls %>"><%= c.text %></span></td>
+            <td><a class="btn btn-secondary btn-sm" href="/scan/<%= d.id %>">המשך ←</a></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>

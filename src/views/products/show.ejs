@@ -1,0 +1,58 @@
+<%- include('../partials/header') %>
+<div class="toolbar" style="align-items:center">
+  <h1 style="margin:0"><%= product.name %></h1>
+  <div class="actions no-print"><a href="/products" class="btn btn-secondary">חזרה לקטלוג</a></div>
+</div>
+
+<div class="card">
+  <div class="row">
+    <div><span class="text-muted">ספק</span><br><%= product.supplier_name %></div>
+    <div><span class="text-muted">ברקוד</span><br><span class="mono"><%= product.barcode || '—' %></span></div>
+    <div><span class="text-muted">מק"ט</span><br><span class="mono"><%= product.sku || '—' %></span></div>
+  </div>
+  <div class="row" style="margin-top:.8rem">
+    <div><span class="text-muted">עלות אחרונה</span><br><strong><%= product.last_cost === null || product.last_cost === undefined ? '—' : formatIls(product.last_cost) %></strong></div>
+    <div><span class="text-muted">תאריך העלות</span><br><%= product.last_cost_date ? formatDate(product.last_cost_date) : '—' %></div>
+    <div><span class="text-muted">רשומות מחיר</span><br><%= prices.length %></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2 style="margin:0 0 .6rem">היסטוריית מחירי קנייה</h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>תאריך</th><th>חשבונית</th><th class="right">כמות</th><th class="right">מחיר ליחידה</th><th>מגמה</th></tr>
+      </thead>
+      <tbody>
+        <% if (!prices.length) { %>
+          <tr><td colspan="5" class="muted">אין עדיין היסטוריית מחירים למוצר זה.</td></tr>
+        <% } %>
+        <% prices.forEach(function(p, i){ %>
+          <%
+            // הרשימה מסודרת מהחדש לישן — הרשומה הבאה במערך היא המחיר הקודם.
+            var prev = prices[i+1] ? prices[i+1].price : null;
+            var diff = prev === null ? null : p.price - prev;
+          %>
+          <tr>
+            <td><%= formatDate(p.price_date) %></td>
+            <td>
+              <% if (p.invoice_id) { %>
+                <a href="/invoices/<%= p.invoice_id %>" class="mono"><%= p.invoice_number || ('#' + p.invoice_id) %></a>
+              <% } else { %>—<% } %>
+            </td>
+            <td class="right"><%= p.quantity === null || p.quantity === undefined ? '—' : p.quantity %></td>
+            <td class="right"><%= formatIls(p.price) %></td>
+            <td>
+              <% if (diff === null) { %><span class="muted">—</span>
+              <% } else if (diff > 0) { %><span class="trend up">↑ <%= formatIls(diff) %></span>
+              <% } else if (diff < 0) { %><span class="trend down">↓ <%= formatIls(-diff) %></span>
+              <% } else { %><span class="muted">ללא שינוי</span><% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>

@@ -54,6 +54,30 @@ async function formData(scope = null) {
   };
 }
 
+// Everything the invoice screen shows that came from a scan (stage 5): the stored line items
+// and, when the invoice was created by approving a scanned draft, that draft's page images.
+// Both are absent for a hand-entered invoice — the view simply skips those cards.
+async function scanContext(invoiceId) {
+  const x = getExecutor();
+  const lines = await x.many(
+    'SELECT * FROM invoice_lines WHERE invoice_id = ? ORDER BY line_no, id',
+    [invoiceId],
+  );
+  const draft = await x.one(
+    "SELECT id, images FROM invoice_drafts WHERE invoice_id = ? AND status = 'committed'",
+    [invoiceId],
+  );
+  let scanPages = [];
+  if (draft?.images) {
+    try {
+      scanPages = JSON.parse(draft.images) || [];
+    } catch {
+      scanPages = [];
+    }
+  }
+  return { lines, scanPages };
+}
+
 // For the "save & add another" batch flow: the still-payable invoices already recorded
 // for one supplier at one store, so they can be paid together from the new-invoice screen.
 async function batchContext(supplierId, storeId) {
@@ -326,6 +350,21 @@ router.get('/:id/image', async (req, res, next) => {
   }
 });
 
+// Serve one page of the scan this invoice was created from. Lives under /invoices (not /scan)
+// on purpose: reading an invoice you may already see must not require the nav_scan page
+// permission. Scoped by the same router.param('id') company guard as every other invoice route.
+router.get('/:id/scan-image/:idx', async (req, res, next) => {
+  try {
+    const { scanPages } = await scanContext(Number(req.params.id));
+    const ref = scanPages[Number(req.params.idx)];
+    if (!ref) return res.status(404).send('אין תמונה');
+    const { buffer, contentType } = await getObject(ref);
+    return res.type(contentType).send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Attach or replace an invoice's image.
 router.post('/:id/image', handleInvoiceImage, async (req, res, next) => {
   try {
@@ -354,9 +393,11 @@ router.get('/:id', async (req, res, next) => {
       comparison: await compareToInvoice(id),
       pendingPayReq: await pendingRequestFor('invoice', id, 'invoice.approve_payment'),
       pendingReleaseReq: await pendingRequestFor('invoice', id, 'invoice.release_hold'),
+      ...(await scanContext(id)),
       notice: req.query.sent === 'pay' ? 'בקשת אישור התשלום נשלחה למנהל/בעלים.'
         : req.query.sent === 'release' ? 'בקשת שחרור ההחזקה נשלחה למנהל/בעלים.'
-        : req.query.paid === '1' ? 'החשבונית נוצרה והתשלום נוצר ושויך אליה.' : null,
+        : req.query.paid === '1' ? 'החשבונית נוצרה והתשלום נוצר ושויך אליה.'
+        : req.query.scanned === '1' ? 'החשבונית נקלטה מהצילום, כולל שורות הפריטים וקטלוג המוצרים.' : null,
       error: req.query.payfail ? `החשבונית נשמרה, אך יצירת הצ׳ק נכשלה: ${req.query.payfail}` : null,
       ocrOpen: req.query.ocr === '1',
     });
@@ -545,6 +586,7 @@ async function renderShow(res, id, error, notice = null) {
     comparison: await compareToInvoice(id),
     pendingPayReq: await pendingRequestFor('invoice', id, 'invoice.approve_payment'),
     pendingReleaseReq: await pendingRequestFor('invoice', id, 'invoice.release_hold'),
+    ...(await scanContext(id)),
     error,
     notice,
     ocrOpen: false,

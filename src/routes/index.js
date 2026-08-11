@@ -64,6 +64,14 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
     if (req.query.store) ocBase.set('store', String(req.query.store));
     const ocLinkBase = ocBase.toString();
 
+    // "סריקות ממתינות" tile (stage 5) — drafts photographed but not yet approved, company-scoped.
+    const dScope = scopeClause(scope, 'company_id');
+    const pendingScansRow = await x.one(
+      `SELECT COUNT(*) AS c FROM invoice_drafts
+        WHERE status IN ('uploaded', 'processing', 'needs_review', 'failed')${dScope.sql}`,
+      [...dScope.params],
+    );
+
     res.render('dashboard', {
       title: 'לוח בקרה',
       stats: await dashboardStats(scope),
@@ -83,6 +91,7 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       unmatchedCash: await unmatchedCashExpenses(scope, 20),
       depositsHistory: await listDeposits({ scope, limit: 20 }),
       zStatus: await zSequenceStatus(scope),
+      pendingScans: Number(pendingScansRow?.c ?? 0),
     });
   } catch (err) {
     next(err);

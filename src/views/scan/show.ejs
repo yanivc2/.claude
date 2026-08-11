@@ -1,0 +1,348 @@
+<%- include('../partials/header') %>
+<%
+var n = draft.normalized || { header: {}, lines: [], flags: {}, warnings: [], notes: null };
+var h = n.header || {};
+var flags = n.flags || {};
+var store = (stores || []).find(function(s){ return String(s.id) === String(draft.store_id); });
+var FLAG_LABELS = {
+  no_supplier_match: 'לא נמצא ספק מתאים לשם שנקרא',
+  fuzzy_match: 'התאמת ספק לא ודאית — יש לוודא',
+  missing: 'שדה חובה חסר',
+  low_confidence: 'נקרא בוודאות נמוכה',
+  defaulted: 'לא זוהה — הוגדרה ברירת מחדל',
+  invalid_format: 'הפורמט אינו תקין — הערך הושמט',
+  vat_mismatch: 'לפני מע"מ + מע"מ אינו שווה לסה"כ',
+  vat_rate_off: 'שיעור המע"מ חורג מהמקובל',
+  lines_sum_mismatch: 'סכום השורות אינו תואם לסכום לפני מע"מ',
+  computed: 'מחיר ליחידה חושב מסה"כ השורה',
+  missing_amounts: 'לא נקראו סכומים לשורה',
+  dup_allocation: 'מספר ההקצאה כבר קיים בחשבונית אחרת',
+  dup_number: 'כבר קיימת חשבונית לספק זה עם מספר זה',
+  dup_draft: 'ייתכן שהחשבונית כבר צולמה — קיימת טיוטה פתוחה'
+};
+function codes(list){ return (list || []).map(function(c){ return FLAG_LABELS[c] || c; }).join(' · '); }
+function fcls(field){ return (flags[field] && flags[field].length) ? 'flag-warn' : ''; }
+function ftitle(field){ return (flags[field] && flags[field].length) ? codes(flags[field]) : ''; }
+function money(agorot){ return (agorot === null || agorot === undefined) ? '' : fromAgorot(agorot); }
+var supplierUncertain = (flags.supplier || []).some(function(c){ return c === 'fuzzy_match' || c === 'no_supplier_match'; });
+var cw = (typeof confirmWarnings !== 'undefined' && confirmWarnings) ? confirmWarnings : null;
+%>
+
+<div class="toolbar" style="align-items:center">
+  <h1 style="margin:0">חשבונית שצולמה #<%= draft.id %></h1>
+  <div class="actions no-print">
+    <a href="/scan" class="btn btn-secondary">צילום נוסף</a>
+    <a href="/scan/pending" class="btn btn-secondary">ממתינות</a>
+  </div>
+</div>
+
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+
+<% if (draft.status === 'uploaded' || draft.status === 'processing') { %>
+  <!-- ===== מצב 1: עיבוד ===== -->
+  <div class="card" style="text-align:center">
+    <% if (!aiEnabled) { %>
+      <div class="alert alert-warn" style="text-align:right">
+        <strong>החילוץ האוטומטי אינו פעיל</strong> — לא הוגדר מפתח API. הצילומים נשמרו; ניתן למחוק את הטיוטה או לחזור מאוחר יותר.
+      </div>
+    <% } else { %>
+      <div class="scan-spinner" aria-hidden="true"></div>
+      <p style="margin:var(--space-3) 0 0"><strong>מעבד את החשבונית… זה לוקח 10–30 שניות</strong></p>
+      <p class="muted" style="margin:.3rem 0 0">אפשר להשאיר את המסך פתוח — הוא יתעדכן לבד.</p>
+    <% } %>
+  </div>
+  <form method="post" action="/scan/<%= draft.id %>/delete" onsubmit="return confirm('למחוק את הטיוטה ואת הצילומים?')" class="no-print">
+    <button type="submit" class="btn btn-danger btn-sm">מחק טיוטה</button>
+  </form>
+  <% if (aiEnabled) { %>
+  <script>
+  (function(){
+    var ID = <%= draft.id %>;
+    // בקשה אחת להתחלת העיבוד (409 = כבר בעיבוד ע"י בקשה אחרת — מתעלמים), ואז סקר סטטוס.
+    fetch('/scan/' + ID + '/process', { method: 'POST' }).catch(function(){});
+    setInterval(function(){
+      fetch('/scan/' + ID + '/status.json', { headers: { 'Accept': 'application/json' } })
+        .then(function(r){ return r.json(); })
+        .then(function(j){
+          if (j.status === 'needs_review' || j.status === 'failed' || j.status === 'committed') location.reload();
+        })
+        .catch(function(){});
+    }, 2500);
+  })();
+  </script>
+  <% } %>
+
+<% } else if (draft.status === 'failed') { %>
+  <!-- ===== מצב 2: כישלון ===== -->
+  <div class="alert alert-error"><strong>העיבוד נכשל:</strong> <%= draft.error || 'שגיאה לא ידועה' %></div>
+  <div class="card no-print actions">
+    <button type="button" class="btn btn-primary" id="btnRetry">נסה שוב</button>
+    <a href="/scan" class="btn btn-secondary">צלם מחדש</a>
+  </div>
+  <form method="post" action="/scan/<%= draft.id %>/delete" onsubmit="return confirm('למחוק את הטיוטה ואת הצילומים?')" class="no-print">
+    <button type="submit" class="btn btn-danger btn-sm">מחק טיוטה</button>
+  </form>
+  <script>
+  (function(){
+    var btn = document.getElementById('btnRetry');
+    btn.addEventListener('click', function(){
+      btn.disabled = true; btn.textContent = 'מעבד…';
+      fetch('/scan/<%= draft.id %>/process', { method: 'POST' })
+        .then(function(){ location.reload(); })
+        .catch(function(){ location.reload(); });
+    });
+  })();
+  </script>
+
+<% } else { %>
+  <!-- ===== מצב 3: בדיקה ואישור ===== (שגיאה מוצגת ע"י partials/header) -->
+  <% if (cw && cw.length) { %>
+    <div class="alert alert-warn">
+      <strong>אזהרות — יש לאשר לפני קליטה:</strong>
+      <ul style="margin:.4rem 0 0">
+        <% cw.forEach(function(w){ %><li>[<%= w.code %>] <%= w.message %></li><% }); %>
+      </ul>
+    </div>
+  <% } %>
+
+  <% if ((n.warnings || []).length) { %>
+    <div class="alert alert-warn">
+      <strong>נקודות לבדיקה:</strong>
+      <ul style="margin:.4rem 0 0">
+        <% n.warnings.forEach(function(w){ %><li><%= w.message %></li><% }); %>
+      </ul>
+    </div>
+  <% } %>
+  <% if (n.notes) { %><div class="alert alert-info">הערת המערכת: <%= n.notes %></div><% } %>
+
+  <form method="post" action="/scan/<%= draft.id %>/approve" class="stack" id="reviewForm">
+    <div class="card">
+      <h2 style="margin:0 0 .6rem">פרטי החשבונית</h2>
+      <div class="row">
+        <div>
+          <label class="lbl">ספק *
+            <% if (supplierUncertain) { %><span class="tag tag-outline">זוהה אוטומטית — בדקו</span><% } %>
+          </label>
+          <select name="supplier_id" required class="<%= fcls('supplier') %>" title="<%= ftitle('supplier') %>">
+            <option value="">— בחר ספק —</option>
+            <% suppliers.forEach(function(s){ %>
+              <option value="<%= s.id %>" <%= String(h.supplierId) === String(s.id) ? 'selected' : '' %>><%= s.name %></option>
+            <% }); %>
+          </select>
+          <% if (h.supplierName) { %><p class="muted" style="margin:.3rem 0 0">נקרא מהמסמך: <%= h.supplierName %></p><% } %>
+        </div>
+        <div>
+          <label class="lbl">חנות</label>
+          <div class="fixed-value"><%= store ? (store.name + ' · ' + store.company_name) : ('חנות #' + draft.store_id) %></div>
+        </div>
+        <div>
+          <label class="lbl">סוג מסמך *</label>
+          <select name="doc_type" required class="<%= fcls('docType') %>" title="<%= ftitle('docType') %>">
+            <option value="tax_invoice" <%= h.docType === 'tax_invoice' ? 'selected' : '' %>>חשבונית מס</option>
+            <option value="tax_invoice_receipt" <%= h.docType === 'tax_invoice_receipt' ? 'selected' : '' %>>חשבונית מס/קבלה</option>
+            <option value="credit_note" <%= h.docType === 'credit_note' ? 'selected' : '' %>>חשבונית זיכוי</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label class="lbl">מספר חשבונית *</label>
+          <input name="invoice_number" required value="<%= h.invoiceNumber || '' %>" class="<%= fcls('invoiceNumber') %>" title="<%= ftitle('invoiceNumber') %>" />
+        </div>
+        <div>
+          <label class="lbl">מספר הקצאה (9 ספרות)</label>
+          <input name="allocation_number" maxlength="9" pattern="\d{9}" value="<%= h.allocationNumber || '' %>" class="<%= fcls('allocationNumber') %>" title="<%= ftitle('allocationNumber') %>" />
+        </div>
+        <div>
+          <label class="lbl">תאריך חשבונית *</label>
+          <input type="date" name="invoice_date" required value="<%= h.invoiceDate || '' %>" class="<%= fcls('invoiceDate') %>" title="<%= ftitle('invoiceDate') %>" />
+        </div>
+      </div>
+
+      <div class="row">
+        <div>
+          <label class="lbl">סכום לפני מע"מ (₪) *</label>
+          <input id="before_vat" name="amount_before_vat" inputmode="decimal" required value="<%= money(h.amountBeforeVat) %>" class="<%= fcls('amountBeforeVat') %>" title="<%= ftitle('amountBeforeVat') %>" />
+        </div>
+        <div>
+          <label class="lbl">מע"מ (₪)</label>
+          <input id="vat_amount" name="vat_amount" inputmode="decimal" value="<%= money(h.vatAmount) %>" class="<%= fcls('vatAmount') %>" title="<%= ftitle('vatAmount') %>" />
+        </div>
+        <div>
+          <label class="lbl">סה"כ כולל מע"מ (₪) *</label>
+          <input id="total_incl" name="total_incl" inputmode="decimal" required value="<%= money(h.totalAmount) %>" class="<%= fcls('totalAmount') %>" title="<%= ftitle('totalAmount') %>" />
+        </div>
+      </div>
+      <p class="muted" style="margin:.3rem 0 0">מע"מ <%= (vatRate*100).toFixed(0) %>% — שינוי של אחד השדות מעדכן את השאר. זיכוי נשמר כסכום שלילי אוטומטית.</p>
+      <script>
+        (function(){
+          var RATE = <%= vatRate %>;
+          var total = document.getElementById('total_incl');
+          var before = document.getElementById('before_vat');
+          var vat = document.getElementById('vat_amount');
+          var round2 = function(n){ return Math.round(n*100)/100; };
+          function num(el){ return parseFloat(String(el.value).replace(/,/g, '')); }
+          total.addEventListener('input', function(){
+            var t = num(total); if (isNaN(t)) return;
+            var b = round2(t/(1+RATE)); before.value = b.toFixed(2); vat.value = round2(t-b).toFixed(2);
+          });
+          before.addEventListener('input', function(){
+            var b = num(before); if (isNaN(b)) return;
+            var v = round2(b*RATE); vat.value = v.toFixed(2); total.value = round2(b+v).toFixed(2);
+          });
+          vat.addEventListener('input', function(){
+            var b = num(before), v = num(vat);
+            if (!isNaN(b) && !isNaN(v)) total.value = round2(b+v).toFixed(2);
+          });
+        })();
+      </script>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <h2 style="margin:0">שורות החשבונית</h2>
+        <span id="linesBadge" class="badge b-recorded">—</span>
+      </div>
+      <div class="table-scroll">
+        <table class="line-grid">
+          <thead>
+            <tr>
+              <th>מוצר *</th><th>ברקוד</th><th>מק"ט</th><th>כמות</th><th>מחיר ליחידה (₪)</th><th>סה"כ שורה (₪)</th><th data-nosort></th>
+            </tr>
+          </thead>
+          <tbody id="linesBody">
+            <% (n.lines || []).forEach(function(l){ %>
+              <%
+                var lf = l.flags || [];
+                var lTitle = codes(lf);
+                var amountsBad = lf.indexOf('missing_amounts') >= 0 || lf.indexOf('low_confidence') >= 0;
+              %>
+              <tr>
+                <td data-label="מוצר"><input name="line_name[]" value="<%= l.name || '' %>" class="<%= lf.length ? 'flag-warn' : '' %>" title="<%= lTitle %>" /></td>
+                <td data-label="ברקוד"><input name="line_barcode[]" inputmode="numeric" value="<%= l.barcode || '' %>" /></td>
+                <td data-label='מק"ט'><input name="line_sku[]" value="<%= l.sku || '' %>" /></td>
+                <td data-label="כמות"><input name="line_qty[]" inputmode="decimal" value="<%= l.quantity === null || l.quantity === undefined ? '' : l.quantity %>" /></td>
+                <td data-label="מחיר ליחידה">
+                  <input name="line_unit_cost[]" inputmode="decimal" value="<%= money(l.unitCost) %>" class="line-unit <%= amountsBad ? 'flag-warn' : '' %>" title="<%= lTitle %>" />
+                  <% if (l.unitCostSource === 'computed') { %><span class="tag tag-neutral">מחושב</span><% } %>
+                </td>
+                <td data-label='סה"כ שורה'><input name="line_total[]" inputmode="decimal" value="<%= money(l.lineTotal) %>" class="line-total <%= amountsBad ? 'flag-warn' : '' %>" title="<%= lTitle %>" /></td>
+                <td><button type="button" class="btn btn-danger btn-sm row-del" aria-label="מחק שורה">✕</button></td>
+              </tr>
+            <% }); %>
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="5" class="right"><strong>סכום השורות</strong></td>
+              <td class="right"><strong id="linesSum">0.00</strong></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div class="actions" style="margin-top:var(--space-3)">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnAddLine">הוסף שורה +</button>
+      </div>
+      <p class="muted" style="margin:.4rem 0 0">שורה שהשם שלה נמחק לא תישמר. מחיר ליחידה ריק — יחושב מסה"כ השורה חלקי הכמות.</p>
+    </div>
+
+    <% if (draft.images && draft.images.length) { %>
+      <div class="card no-print">
+        <h2 style="margin:0 0 .6rem">עמודי הסריקה</h2>
+        <div class="scan-thumbs">
+          <% draft.images.forEach(function(ref, i){ %>
+            <% if (/\.pdf$/i.test(ref)) { %>
+              <a class="scan-thumb" href="/scan/<%= draft.id %>/image/<%= i %>" target="_blank" rel="noopener">
+                <div class="scan-thumb-pdf">📄</div><span class="scan-thumb-no"><%= i+1 %></span>
+              </a>
+            <% } else { %>
+              <button type="button" class="scan-thumb" data-img="/scan/<%= draft.id %>/image/<%= i %>">
+                <img src="/scan/<%= draft.id %>/image/<%= i %>" alt="עמוד <%= i+1 %>" /><span class="scan-thumb-no"><%= i+1 %></span>
+              </button>
+            <% } %>
+          <% }); %>
+        </div>
+      </div>
+    <% } %>
+
+    <% if (cw && cw.length) { %>
+      <div class="card">
+        <input type="hidden" name="confirm" value="1" />
+        <label class="lbl">סיבת אישור למרות האזהרה *</label>
+        <input name="confirm_reason" required value="<%= typeof values !== 'undefined' && values && values.confirm_reason ? values.confirm_reason : '' %>" placeholder="למשל: חשבונית חוזרת חודשית, לא כפילות" />
+      </div>
+    <% } %>
+
+    <div class="card no-print actions" style="flex-wrap:wrap">
+      <button type="submit" class="btn btn-primary"><%= cw && cw.length ? 'אשר בכל זאת וקלוט ✓' : 'אשר וקלוט חשבונית ✓' %></button>
+      <button type="submit" class="btn btn-secondary" formaction="/scan/<%= draft.id %>/save" formnovalidate>שמור טיוטה</button>
+    </div>
+  </form>
+
+  <form method="post" action="/scan/<%= draft.id %>/delete" onsubmit="return confirm('למחוק את הטיוטה ואת הצילומים?')" class="no-print">
+    <button type="submit" class="btn btn-danger btn-sm">מחק טיוטה</button>
+  </form>
+
+  <dialog id="imgDlg" class="dlg wide">
+    <div class="dlg-head">
+      <strong>עמוד סריקה</strong>
+      <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
+    </div>
+    <img id="imgDlgSrc" src="" alt="עמוד סריקה" style="max-width:100%;max-height:74vh;border:1px solid var(--color-line);border-radius:var(--radius-md)" />
+  </dialog>
+
+  <script>
+  (function(){
+    // --- הגדלת עמוד סריקה ---
+    var dlg = document.getElementById('imgDlg'), dlgImg = document.getElementById('imgDlgSrc');
+    document.querySelectorAll('.scan-thumb[data-img]').forEach(function(b){
+      b.addEventListener('click', function(){ dlgImg.src = b.dataset.img; dlg.showModal(); });
+    });
+
+    // --- שורות: הוספה, מחיקה, סכום חי מול הכותרת ---
+    var body = document.getElementById('linesBody');
+    var sumEl = document.getElementById('linesSum');
+    var badge = document.getElementById('linesBadge');
+    var before = document.getElementById('before_vat');
+
+    function num(v){ var n = parseFloat(String(v == null ? '' : v).replace(/,/g, '')); return isNaN(n) ? 0 : n; }
+    function fmt(n){ return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+
+    function recalc(){
+      var sum = 0;
+      body.querySelectorAll('.line-total').forEach(function(i){ sum += num(i.value); });
+      sumEl.textContent = fmt(sum);
+      var head = num(before.value);
+      var tol = Math.max(1, head * 0.005);
+      var ok = head > 0 && Math.abs(sum - head) <= tol;
+      badge.className = 'badge ' + (ok ? 'b-paid' : 'b-recorded');
+      badge.textContent = ok ? 'תואם לסכום לפני מע"מ ✓'
+        : ('הפרש מול לפני מע"מ: ' + fmt(sum - head) + ' ₪');
+    }
+
+    function wire(row){
+      row.querySelector('.row-del').addEventListener('click', function(){ row.remove(); recalc(); });
+      row.querySelectorAll('input').forEach(function(i){ i.addEventListener('input', recalc); });
+    }
+    Array.prototype.forEach.call(body.rows, wire);
+    before.addEventListener('input', recalc);
+
+    document.getElementById('btnAddLine').addEventListener('click', function(){
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td data-label="מוצר"><input name="line_name[]" /></td>'
+        + '<td data-label="ברקוד"><input name="line_barcode[]" inputmode="numeric" /></td>'
+        + '<td data-label="מק״ט"><input name="line_sku[]" /></td>'
+        + '<td data-label="כמות"><input name="line_qty[]" inputmode="decimal" value="1" /></td>'
+        + '<td data-label="מחיר ליחידה"><input name="line_unit_cost[]" inputmode="decimal" class="line-unit" /></td>'
+        + '<td data-label="סה״כ שורה"><input name="line_total[]" inputmode="decimal" class="line-total" /></td>'
+        + '<td><button type="button" class="btn btn-danger btn-sm row-del" aria-label="מחק שורה">✕</button></td>';
+      body.appendChild(tr); wire(tr); recalc();
+      tr.querySelector('input').focus();
+    });
+
+    recalc();
+  })();
+  </script>
+<% } %>
+<%- include('../partials/footer') %>

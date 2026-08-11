@@ -668,3 +668,93 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
   transition: border-color .15s ease;
 }
 .round-btn:hover { border-color: var(--color-accent); }
+
+/* ============================================================
+   צילום חשבוניות (stage 5) — capture, review grid, page thumbnails.
+   ============================================================ */
+
+/* A field the extraction is unsure about: amber outline + a hint of amber ground, so the
+   eye lands on exactly the cells that need a human. Works on inputs and selects alike. */
+.flag-warn, input.flag-warn, select.flag-warn {
+  border-color: color-mix(in srgb, var(--color-warn) 65%, var(--color-line));
+  background: color-mix(in srgb, var(--color-warn) 10%, var(--color-surface-2));
+}
+.flag-warn:focus-visible { border-color: var(--color-warn); }
+
+/* Read-only value shown where a form field would be (e.g. the draft's fixed store). */
+.fixed-value {
+  min-height: 44px; display: flex; align-items: center; padding: 10px 12px;
+  border: 1px dashed var(--color-line); border-radius: var(--radius-md);
+  background: var(--color-surface-2); color: var(--color-body); font-size: 15px;
+}
+
+/* Capture screen: two big thumb-reachable buttons stacked on a phone. */
+.scan-actions { display: flex; flex-direction: column; gap: var(--space-3); }
+.scan-actions .btn { min-height: 54px; font-size: 15px; }
+@media (min-width: 700px) { .scan-actions { flex-direction: row; } .scan-actions .btn { flex: 1; } }
+
+/* Page-thumbnail strip (capture preview, review screen, invoice screen). */
+.scan-thumbs { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-3); }
+.scan-thumb {
+  position: relative; width: 104px; height: 132px; padding: 0; overflow: hidden;
+  border: 1px solid var(--color-line); border-radius: var(--radius-md);
+  background: var(--color-surface-2); cursor: pointer; display: block;
+}
+.scan-thumb:hover { border-color: var(--color-accent); background: var(--color-surface-2); }
+.scan-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-thumb-pdf { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 34px; }
+.scan-thumb-no {
+  position: absolute; inset-block-start: 4px; inset-inline-start: 4px;
+  background: rgba(0,0,0,.6); color: #fff; border-radius: 999px;
+  font-size: 11px; line-height: 1; padding: 3px 7px;
+}
+.scan-thumb-x {
+  position: absolute; inset-block-start: 4px; inset-inline-end: 4px;
+  width: 24px; height: 24px; padding: 0; border-radius: 50%; font-size: 12px;
+  background: var(--color-bad-bg); border-color: color-mix(in srgb, var(--color-bad) 55%, transparent); color: var(--color-bad);
+}
+
+/* Processing screen spinner. */
+.scan-spinner {
+  width: 46px; height: 46px; margin: var(--space-4) auto 0; border-radius: 50%;
+  border: 3px solid var(--color-line); border-top-color: var(--color-accent);
+  animation: scan-spin 1s linear infinite;
+}
+@keyframes scan-spin { to { transform: rotate(360deg); } }
+
+/* Draft status chips (ממתינות לאישור list). */
+.scan-chip {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  font-size: 11.5px; padding: 2px 9px; border-radius: 999px;
+  background: var(--color-neutral-800); color: var(--color-neutral-200);
+}
+.scan-chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .9; }
+.scan-chip.busy { color: var(--color-pending); background: var(--color-pending-bg); }
+.scan-chip.warn { color: var(--color-warn); background: var(--color-warn-bg); }
+.scan-chip.bad { color: var(--color-bad); background: var(--color-bad-bg); }
+
+/* Editable line grid: usable on a phone. Wide desktop table inside .table-scroll; on a
+   narrow screen every row becomes a labelled card so nothing has to be scrolled sideways. */
+.line-grid input { min-height: 40px; padding: 8px 10px; font-size: 15px; }
+.line-grid td { vertical-align: middle; }
+.line-grid th:first-child, .line-grid td:first-child { min-width: 190px; }
+@media (max-width: 760px) {
+  .line-grid thead { display: none; }
+  .line-grid, .line-grid tbody, .line-grid tfoot, .line-grid tr, .line-grid td { display: block; width: 100%; }
+  .line-grid tr {
+    border: 1px solid var(--color-line); border-radius: var(--radius-md);
+    padding: var(--space-2); margin-bottom: var(--space-3); background: var(--color-surface-2);
+  }
+  .line-grid td { border-bottom: none; padding: 4px 6px; }
+  .line-grid td::before {
+    content: attr(data-label); display: block; font-size: 11.5px; color: var(--color-muted); margin-bottom: 3px;
+  }
+  .line-grid td:last-child { text-align: start; }
+  .line-grid tfoot td { display: flex; justify-content: space-between; }
+  .line-grid tfoot td::before { content: none; }
+}
+
+/* Product price trend (מוצרים → היסטוריית מחירים). */
+.trend { font-size: 12.5px; }
+.trend.up { color: var(--color-bad); }      /* מחיר עלה = רע לנו */
+.trend.down { color: var(--color-ok); }

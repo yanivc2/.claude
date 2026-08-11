@@ -1,0 +1,50 @@
+<%- include('../partials/header') %>
+<div class="toolbar" style="align-items:center">
+  <h1 style="margin:0">מוצרים</h1>
+</div>
+
+<div class="card no-print">
+  <form method="get" action="/products" class="actions" style="flex-wrap:wrap; gap:.6rem; align-items:flex-end">
+    <div>
+      <label class="lbl">ספק</label>
+      <select name="supplier">
+        <option value="">כל הספקים</option>
+        <% suppliers.forEach(function(s){ %>
+          <option value="<%= s.id %>" <%= String(supplierId) === String(s.id) ? 'selected' : '' %>><%= s.name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div>
+      <label class="lbl">חיפוש</label>
+      <input name="q" value="<%= q %>" placeholder='שם מוצר, ברקוד או מק"ט' style="max-width:320px" />
+    </div>
+    <div><button type="submit" class="btn btn-primary">חפש</button></div>
+    <% if (q || supplierId) { %><div><a href="/products" class="btn btn-secondary">נקה</a></div><% } %>
+  </form>
+</div>
+
+<div class="card">
+  <div class="table-scroll">
+    <table class="sortable">
+      <thead>
+        <tr><th>מוצר</th><th>ברקוד</th><th>מק"ט</th><th>ספק</th><th class="right">עלות אחרונה</th><th>עדכון אחרון</th></tr>
+      </thead>
+      <tbody>
+        <% if (!products.length) { %>
+          <tr><td colspan="6" class="muted">אין מוצרים להצגה. הקטלוג נבנה מאישור חשבוניות שצולמו.</td></tr>
+        <% } %>
+        <% products.forEach(function(p){ %>
+          <tr>
+            <td><a href="/products/<%= p.id %>"><%= p.name %></a></td>
+            <td class="mono"><%= p.barcode || '—' %></td>
+            <td class="mono"><%= p.sku || '—' %></td>
+            <td><%= p.supplier_name %></td>
+            <td class="right"><%= p.last_cost === null || p.last_cost === undefined ? '—' : formatIls(p.last_cost) %></td>
+            <td><%= p.last_cost_date ? formatDate(p.last_cost_date) : '—' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>
