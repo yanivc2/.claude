@@ -9,12 +9,29 @@ import {
   approveSupplier,
   blockSupplier,
   deleteSupplier,
+  getSupplierStoreIds,
 } from '../services/suppliers.js';
 import { submitRequest } from '../services/changeRequests.js';
 import { describeSupplier } from '../lib/changeSummary.js';
+import { getExecutor } from '../db/adapter.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
+
+// Stores available to assign to a supplier (all stores, grouped visually by company in the view).
+async function storeOptions() {
+  return getExecutor().many(
+    `SELECT st.id, st.name, c.name AS company_name
+       FROM stores st JOIN companies c ON c.id = st.company_id
+      ORDER BY c.name, st.name`,
+    [],
+  );
+}
+
+// Selected store ids from the supplier form (checkbox group `store_ids`).
+function storeIdsFrom(body) {
+  return [].concat(body.store_ids || []).map(Number).filter(Boolean);
+}
 
 async function renderList(res, extra = {}) {
   res.render('suppliers/index', {
@@ -71,8 +88,12 @@ router.post('/:id/contacts', async (req, res, next) => {
 });
 
 // Query params prefill the form (e.g. /suppliers/new?name=…&tax_id=… from the scan screen).
-router.get('/new', (req, res) => {
-  res.render('suppliers/new', { title: 'ספק חדש', values: req.query || {}, error: null });
+router.get('/new', async (req, res, next) => {
+  try {
+    res.render('suppliers/new', { title: 'ספק חדש', values: req.query || {}, error: null, stores: await storeOptions(), selectedStores: [] });
+  } catch (err) {
+    next(err);
+  }
 });
 
 // Payment fields from the form: method code + terms, where "other" swaps in the free-text value.
@@ -88,6 +109,7 @@ router.post('/', async (req, res, next) => {
         name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
         phone: req.body.phone, email: req.body.email,
         contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
+        storeIds: storeIdsFrom(req.body),
         ...paymentFields(req.body),
       },
       req.user,
@@ -95,7 +117,7 @@ router.post('/', async (req, res, next) => {
     res.redirect(303, `/suppliers?created=${supplier.id}`);
   } catch (err) {
     if (err instanceof RuleError) {
-      return res.status(400).render('suppliers/new', { title: 'ספק חדש', values: req.body, error: err.message });
+      return res.status(400).render('suppliers/new', { title: 'ספק חדש', values: req.body, error: err.message, stores: await storeOptions(), selectedStores: storeIdsFrom(req.body) });
     }
     next(err);
   }
@@ -135,7 +157,13 @@ router.post('/bulk', async (req, res, next) => {
 router.get('/:id/edit', async (req, res, next) => {
   try {
     const supplier = await getSupplier(Number(req.params.id));
-    res.render('suppliers/edit', { title: `עריכת ספק — ${supplier.name}`, supplier, error: null });
+    res.render('suppliers/edit', {
+      title: `עריכת ספק — ${supplier.name}`,
+      supplier,
+      error: null,
+      stores: await storeOptions(),
+      selectedStores: await getSupplierStoreIds(supplier.id),
+    });
   } catch (err) {
     next(err);
   }
@@ -148,9 +176,11 @@ router.post('/:id/edit', async (req, res, next) => {
       name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
       phone: req.body.phone, email: req.body.email,
       contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
+      storeIds: storeIdsFrom(req.body),
       ...paymentFields(req.body),
     };
-    // Non-owners: queue the edit for approval.
+    // Non-owners: queue the field edit for approval (store assignment is not part of the queued
+    // payload — it's low-risk metadata handled by the owner/manager directly).
     if (req.user.role !== 'owner') {
       const current = await getSupplier(id);
       await submitRequest(
@@ -162,6 +192,8 @@ router.post('/:id/edit', async (req, res, next) => {
         supplier: current,
         error: null,
         notice: 'בקשת העריכה נשלחה לאישור הבעלים. השינוי יבוצע לאחר אישור.',
+        stores: await storeOptions(),
+        selectedStores: await getSupplierStoreIds(id),
       });
     }
     await updateSupplier(id, fields, req.user);
@@ -169,7 +201,7 @@ router.post('/:id/edit', async (req, res, next) => {
   } catch (err) {
     if (err instanceof RuleError) {
       const supplier = { ...req.body, id: Number(req.params.id), tax_id: req.body.tax_id, contact_name: req.body.contact_name, contact_phone: req.body.contact_phone };
-      return res.status(400).render('suppliers/edit', { title: 'עריכת ספק', supplier, error: err.message });
+      return res.status(400).render('suppliers/edit', { title: 'עריכת ספק', supplier, error: err.message, stores: await storeOptions(), selectedStores: storeIdsFrom(req.body) });
     }
     next(err);
   }

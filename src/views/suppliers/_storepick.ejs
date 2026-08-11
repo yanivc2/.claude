@@ -1,0 +1,25 @@
+<%
+// Store assignment checkboxes, grouped by company. `stores` = [{id,name,company_name}],
+// `selected` = array of store ids already assigned. Field name: store_ids (multi).
+var _sel = (selected || []).map(Number);
+var _byCo = {};
+(stores || []).forEach(function (s) { (_byCo[s.company_name] = _byCo[s.company_name] || []).push(s); });
+var _companies = Object.keys(_byCo);
+%>
+<% if (!stores || stores.length === 0) { %>
+  <p class="muted">אין חנויות. הוסף חנות ב<a href="/settings">הגדרות</a>.</p>
+<% } else { %>
+  <div class="store-pick">
+    <% _companies.forEach(function (co) { %>
+      <% if (_companies.length > 1) { %><div class="store-pick-co muted"><%= co %></div><% } %>
+      <div class="store-pick-row">
+        <% _byCo[co].forEach(function (s) { %>
+          <label class="chip-check">
+            <input type="checkbox" name="store_ids" value="<%= s.id %>" <%= _sel.indexOf(s.id) !== -1 ? 'checked' : '' %> />
+            <span><%= s.name %></span>
+          </label>
+        <% }); %>
+      </div>
+    <% }); %>
+  </div>
+<% } %>

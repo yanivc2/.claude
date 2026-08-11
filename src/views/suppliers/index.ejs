@@ -41,18 +41,23 @@
       <tr>
         <th style="width:2rem"><input type="checkbox" onclick="document.querySelectorAll('input.rowchk').forEach(c=>c.checked=this.checked)" title="בחר הכל" /></th>
         <th data-nosort></th>
-        <th>שם</th><th class="hide-sm">ח.פ.</th><th>סטטוס</th><th>טלפון</th><th class="hide-sm">הערות</th>
+        <th>שם</th><th>חנויות</th><th class="hide-sm">ח.פ.</th><th>סטטוס</th><th>טלפון</th><th class="hide-sm">הערות</th>
       </tr>
     </thead>
     <tbody>
       <% if (suppliers.length === 0) { %>
-        <tr><td colspan="7" class="muted">אין ספקים להצגה.</td></tr>
+        <tr><td colspan="8" class="muted">אין ספקים להצגה.</td></tr>
       <% } %>
       <% suppliers.forEach(function(s){ %>
         <tr>
           <td><input type="checkbox" class="rowchk" name="ids" value="<%= s.id %>" /></td>
           <td><a class="btn btn-secondary btn-sm" href="/suppliers/<%= s.id %>/edit">ערוך</a></td>
           <td><%= s.name %></td>
+          <td>
+            <% if (s.stores && s.stores.length) { %>
+              <% s.stores.forEach(function(st){ %><span class="badge b-neutral" style="margin:1px"><%= st.name %></span><% }); %>
+            <% } else { %><span class="muted">—</span><% } %>
+          </td>
           <td class="mono hide-sm"><%= s.tax_id || '—' %></td>
           <td><span class="badge b-<%= s.status %>"><%= s.status === 'pending' ? 'ממתין' : s.status === 'approved' ? 'מאושר' : 'חסום' %></span></td>
           <td onclick="event.stopPropagation()">

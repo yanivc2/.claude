@@ -3,18 +3,62 @@ import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
 import { logAction } from './audit.js';
 
-/** List suppliers, optionally filtered by status, ordered by name. */
+/** List suppliers, optionally filtered by status, ordered by name. Each row gets a `stores`
+ *  array ([{id,name}]) of the stores it's assigned to. */
 export async function listSuppliers(status = null, x = getExecutor()) {
-  if (status) {
-    return x.many('SELECT * FROM suppliers WHERE status = ? ORDER BY name', [status]);
+  const rows = status
+    ? await x.many('SELECT * FROM suppliers WHERE status = ? ORDER BY name', [status])
+    : await x.many('SELECT * FROM suppliers ORDER BY name', []);
+  return attachStores(rows, x);
+}
+
+// Attach each supplier's assigned stores (fetched in one query, grouped in JS — portable across
+// SQLite/Postgres). Tolerates a pre-upgrade DB without the supplier_stores table.
+async function attachStores(rows, x = getExecutor()) {
+  if (!rows || rows.length === 0) return rows;
+  let links = [];
+  try {
+    links = await x.many(
+      `SELECT ss.supplier_id, ss.store_id, st.name AS store_name
+         FROM supplier_stores ss JOIN stores st ON st.id = ss.store_id
+        ORDER BY st.name`,
+      [],
+    );
+  } catch {
+    return rows.map((r) => ({ ...r, stores: [] }));
   }
-  return x.many('SELECT * FROM suppliers ORDER BY name', []);
+  const byS = new Map();
+  for (const l of links) {
+    if (!byS.has(l.supplier_id)) byS.set(l.supplier_id, []);
+    byS.get(l.supplier_id).push({ id: l.store_id, name: l.store_name });
+  }
+  return rows.map((r) => ({ ...r, stores: byS.get(r.id) || [] }));
 }
 
 export async function getSupplier(id, x = getExecutor()) {
   const row = await x.one('SELECT * FROM suppliers WHERE id = ?', [id]);
   if (!row) throw new NotFoundError(`ספק ${id} לא נמצא`);
-  return row;
+  const [withStores] = await attachStores([row], x);
+  return withStores;
+}
+
+/** The store ids a supplier is assigned to. */
+export async function getSupplierStoreIds(supplierId, x = getExecutor()) {
+  try {
+    const rows = await x.many('SELECT store_id FROM supplier_stores WHERE supplier_id = ?', [supplierId]);
+    return rows.map((r) => r.store_id);
+  } catch {
+    return [];
+  }
+}
+
+/** Replace a supplier's store assignments with the given store ids (owner/manage_suppliers). */
+export async function setSupplierStores(supplierId, storeIds = [], x = getExecutor()) {
+  const ids = [...new Set((storeIds || []).map(Number).filter(Boolean))];
+  await x.run('DELETE FROM supplier_stores WHERE supplier_id = ?', [supplierId]);
+  for (const sid of ids) {
+    await x.run('INSERT INTO supplier_stores (supplier_id, store_id) VALUES (?, ?)', [supplierId, sid]);
+  }
 }
 
 /**
@@ -22,7 +66,7 @@ export async function getSupplier(id, x = getExecutor()) {
  * recording invoices against it, but payment is blocked until an owner approves (R1/R6).
  */
 export async function createSupplier(
-  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null },
+  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null, storeIds = null },
   actor,
   x = getExecutor(),
 ) {
@@ -44,6 +88,8 @@ export async function createSupplier(
       paymentTerms?.trim() || null,
     ],
   );
+
+  if (Array.isArray(storeIds)) await setSupplierStores(info.lastInsertRowid, storeIds, x);
 
   await logAction(
     { userId: actor.id, action: 'supplier.create', entityType: 'supplier', entityId: info.lastInsertRowid, details: { name: trimmed } },
@@ -77,7 +123,7 @@ export async function updateSupplierContacts(
 /** Update a supplier's full details (name / tax id / notes / contacts). */
 export async function updateSupplier(
   id,
-  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null },
+  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null, storeIds = null },
   actor,
   x = getExecutor(),
 ) {
@@ -101,6 +147,7 @@ export async function updateSupplier(
       id,
     ],
   );
+  if (Array.isArray(storeIds)) await setSupplierStores(id, storeIds, x);
   await logAction({ userId: actor.id, action: 'supplier.update', entityType: 'supplier', entityId: id }, x);
   return getSupplier(id, x);
 }
@@ -158,6 +205,7 @@ export async function deleteSupplier(id, actor, x = getExecutor()) {
   if (used.n > 0) {
     throw new RuleError('IN_USE', `לספק זה יש ${used.n} חשבוניות — לא ניתן למחוק. חסום אותו במקום.`);
   }
+  await x.run('DELETE FROM supplier_stores WHERE supplier_id = ?', [id]);
   await x.run('DELETE FROM suppliers WHERE id = ?', [id]);
   await logAction({ userId: actor.id, action: 'supplier.delete', entityType: 'supplier', entityId: id }, x);
 }

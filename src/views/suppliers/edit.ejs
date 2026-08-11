@@ -5,6 +5,7 @@ var pmVal = supplier.payment_method || '';
 var ptStored = supplier.payment_terms || '';
 var ptSel = ptStored && PT_PRESETS.indexOf(ptStored) === -1 ? 'other' : ptStored;
 var ptCustom = ptSel === 'other' ? ptStored : '';
+var sel = (selectedStores || []).map(Number);
 %>
 <h1>עריכת ספק</h1>
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
@@ -13,17 +14,20 @@ var ptCustom = ptSel === 'other' ? ptStored : '';
   <form class="stack" method="post" action="/suppliers/<%= supplier.id %>/edit">
     <label>שם ספק *</label>
     <input name="name" required value="<%= supplier.name || '' %>" />
-    <label>ח.פ. / מס' עוסק</label>
-    <input name="tax_id" value="<%= supplier.tax_id || '' %>" />
+
+    <div class="row">
+      <div><label>ח.פ / עוסק מורשה</label><input name="tax_id" value="<%= supplier.tax_id || '' %>" /></div>
+      <div><label>מייל</label><input name="email" inputmode="email" value="<%= supplier.email || '' %>" /></div>
+    </div>
 
     <h3 style="margin:1rem 0 .2rem">פרטי קשר</h3>
     <div class="row">
       <div><label>טלפון</label><input name="phone" inputmode="tel" value="<%= supplier.phone || '' %>" /></div>
-      <div><label>מייל</label><input name="email" inputmode="email" value="<%= supplier.email || '' %>" /></div>
+      <div><label>שם סוכן</label><input name="contact_name" value="<%= supplier.contact_name || '' %>" /></div>
     </div>
     <div class="row">
-      <div><label>איש קשר הנה"ח</label><input name="contact_name" value="<%= supplier.contact_name || '' %>" /></div>
-      <div><label>טלפון איש קשר</label><input name="contact_phone" inputmode="tel" value="<%= supplier.contact_phone || '' %>" /></div>
+      <div><label>טלפון סוכן</label><input name="contact_phone" inputmode="tel" value="<%= supplier.contact_phone || '' %>" /></div>
+      <div></div>
     </div>
 
     <h3 style="margin:1rem 0 .2rem">תשלום</h3>
@@ -35,6 +39,8 @@ var ptCustom = ptSel === 'other' ? ptStored : '';
           <option value="transfer" <%= pmVal === 'transfer' ? 'selected' : '' %>>העברה</option>
           <option value="check" <%= pmVal === 'check' ? 'selected' : '' %>>צק</option>
           <option value="cash" <%= pmVal === 'cash' ? 'selected' : '' %>>מזומן</option>
+          <option value="credit" <%= pmVal === 'credit' ? 'selected' : '' %>>אשראי</option>
+          <option value="standing_order" <%= pmVal === 'standing_order' ? 'selected' : '' %>>הו"ק</option>
         </select>
       </div>
       <div>
@@ -54,7 +60,10 @@ var ptCustom = ptSel === 'other' ? ptStored : '';
       <input name="payment_terms_other" value="<%= ptCustom || '' %>" placeholder="לדוגמה: שוטף 60, 50% מקדמה" />
     </div>
 
-    <label>הערות</label>
+    <h3 style="margin:1rem 0 .2rem">חנויות משויכות</h3>
+    <%- include('_storepick', { stores: stores, selected: sel }) %>
+
+    <label style="margin-top:1rem">הערות</label>
     <textarea name="notes" rows="2"><%= supplier.notes || '' %></textarea>
     <div style="margin-top:1rem" class="actions">
       <button type="submit">שמור שינויים</button>

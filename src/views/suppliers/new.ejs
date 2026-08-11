@@ -6,24 +6,29 @@ var ptRaw = values.payment_terms || '';
 var ptIsOther = ptRaw === 'other' || (ptRaw && PT_PRESETS.indexOf(ptRaw) === -1);
 var ptSel = ptIsOther ? 'other' : ptRaw;
 var ptCustom = ptRaw === 'other' ? (values.payment_terms_other || '') : (ptIsOther ? ptRaw : '');
+var sel = (selectedStores || []).map(Number);
 %>
 <h1>ספק חדש</h1>
 <div class="card">
   <p class="muted">הספק ייווצר בסטטוס <strong>ממתין</strong>. ניתן להזין חשבוניות מיד, אך תשלום חסום עד אישור בעלים (R1/R6).</p>
+  <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
   <form class="stack" method="post" action="/suppliers">
     <label>שם ספק *</label>
     <input name="name" required value="<%= values.name || '' %>" />
-    <label>ח.פ. / מס' עוסק (לא חובה)</label>
-    <input name="tax_id" value="<%= values.tax_id || '' %>" />
+
+    <div class="row">
+      <div><label>ח.פ / עוסק מורשה (לא חובה)</label><input name="tax_id" value="<%= values.tax_id || '' %>" /></div>
+      <div><label>מייל</label><input name="email" inputmode="email" value="<%= values.email || '' %>" /></div>
+    </div>
 
     <h3 style="margin:1rem 0 .2rem">פרטי קשר</h3>
     <div class="row">
       <div><label>טלפון</label><input name="phone" inputmode="tel" value="<%= values.phone || '' %>" /></div>
-      <div><label>מייל</label><input name="email" inputmode="email" value="<%= values.email || '' %>" /></div>
+      <div><label>שם סוכן</label><input name="contact_name" value="<%= values.contact_name || '' %>" /></div>
     </div>
     <div class="row">
-      <div><label>איש קשר הנהלת חשבונות</label><input name="contact_name" value="<%= values.contact_name || '' %>" /></div>
-      <div><label>טלפון איש קשר</label><input name="contact_phone" inputmode="tel" value="<%= values.contact_phone || '' %>" /></div>
+      <div><label>טלפון סוכן</label><input name="contact_phone" inputmode="tel" value="<%= values.contact_phone || '' %>" /></div>
+      <div></div>
     </div>
 
     <h3 style="margin:1rem 0 .2rem">תשלום</h3>
@@ -35,6 +40,8 @@ var ptCustom = ptRaw === 'other' ? (values.payment_terms_other || '') : (ptIsOth
           <option value="transfer" <%= pmVal === 'transfer' ? 'selected' : '' %>>העברה</option>
           <option value="check" <%= pmVal === 'check' ? 'selected' : '' %>>צק</option>
           <option value="cash" <%= pmVal === 'cash' ? 'selected' : '' %>>מזומן</option>
+          <option value="credit" <%= pmVal === 'credit' ? 'selected' : '' %>>אשראי</option>
+          <option value="standing_order" <%= pmVal === 'standing_order' ? 'selected' : '' %>>הו"ק</option>
         </select>
       </div>
       <div>
@@ -54,7 +61,10 @@ var ptCustom = ptRaw === 'other' ? (values.payment_terms_other || '') : (ptIsOth
       <input name="payment_terms_other" value="<%= ptCustom || '' %>" placeholder="לדוגמה: שוטף 60, 50% מקדמה" />
     </div>
 
-    <label>הערות</label>
+    <h3 style="margin:1rem 0 .2rem">חנויות משויכות</h3>
+    <%- include('_storepick', { stores: stores, selected: sel }) %>
+
+    <label style="margin-top:1rem">הערות</label>
     <textarea name="notes" rows="2"><%= values.notes || '' %></textarea>
     <div style="margin-top:1rem" class="actions">
       <button type="submit">שמור ספק</button>

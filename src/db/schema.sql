@@ -47,9 +47,19 @@ CREATE TABLE IF NOT EXISTS suppliers (
   email          TEXT,
   contact_name   TEXT,   -- accounting/bookkeeping contact person
   contact_phone  TEXT,
-  payment_method TEXT,   -- העברה / צק / מזומן (transfer/check/cash)
+  payment_method TEXT,   -- העברה / צק / מזומן / אשראי / הו"ק (transfer/check/cash/credit/standing_order)
   payment_terms  TEXT    -- מיידי / דחוי 14 / 30 / 45 / טקסט חופשי
 );
+
+-- Which stores a supplier serves (many-to-many). Shown on the suppliers page; a supplier may
+-- be assigned to one or more stores.
+CREATE TABLE IF NOT EXISTS supplier_stores (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  store_id    INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  UNIQUE (supplier_id, store_id)
+);
+CREATE INDEX IF NOT EXISTS ix_supplier_stores_supplier ON supplier_stores(supplier_id);
 
 -- §4 users ----------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (

@@ -16,6 +16,7 @@ export function migrate(db) {
   migrateZExtras(db);
   migrateZClosings(db);
   migrateInvoiceLineUnits(db);
+  migrateSupplierStores(db);
 }
 
 // Adds the single-unit columns to invoice_lines for databases created before the
@@ -29,6 +30,16 @@ function migrateInvoiceLineUnits(db) {
   const cols = db.prepare('PRAGMA table_info(invoice_lines)').all().map((c) => c.name);
   if (!cols.includes('unit_quantity')) db.exec('ALTER TABLE invoice_lines ADD COLUMN unit_quantity REAL;');
   if (!cols.includes('pack_cost')) db.exec('ALTER TABLE invoice_lines ADD COLUMN pack_cost INTEGER;');
+
+// Adds the supplier_stores join table (supplier ↔ store, many-to-many) to older databases.
+function migrateSupplierStores(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS supplier_stores (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    supplier_id INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+    store_id    INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    UNIQUE (supplier_id, store_id)
+  );`);
+  db.exec('CREATE INDEX IF NOT EXISTS ix_supplier_stores_supplier ON supplier_stores(supplier_id);');
 }
 
 // Adds z_expenses.purpose ("עבור") and z_reports.image_path (Z-slip scan) to older databases.
