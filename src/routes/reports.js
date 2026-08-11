@@ -23,7 +23,7 @@ import { toCsv } from '../lib/csvExport.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
-import { requirePageAccess } from '../middleware/requireOwner.js';
+import { requirePageAccess, requirePermission } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { scopeParam } from '../lib/scopeGuard.js';
 
@@ -242,7 +242,7 @@ router.get('/zreports', requirePageAccess('nav_zreports'), async (req, res, next
 });
 
 // Deposit declarations (הצהרה על הפקדה) — created together with a Z report (POST /zreports).
-router.post('/deposits/:id/deposited', async (req, res, next) => {
+router.post('/deposits/:id/deposited', requirePermission('manage_deposits'), async (req, res, next) => {
   try {
     const markDeposited = req.body.value === '1';
     // Cancelling a deposit mark (un-marking) is owner-only — per the owner's request.
@@ -256,7 +256,7 @@ router.post('/deposits/:id/deposited', async (req, res, next) => {
   }
 });
 
-router.post('/deposits/:id/delete', async (req, res, next) => {
+router.post('/deposits/:id/delete', requirePermission('manage_deposits'), async (req, res, next) => {
   try {
     await deleteDeposit(Number(req.params.id), req.user);
     res.redirect(303, req.get('referer') || '/reports/zreports');
@@ -530,7 +530,7 @@ router.post('/zreports/:id/verify-bills', async (req, res, next) => {
   }
 });
 
-router.post('/zreports/:id/delete', async (req, res, next) => {
+router.post('/zreports/:id/delete', requirePermission('delete_zreport'), async (req, res, next) => {
   try {
     await deleteZReport(Number(req.params.id), req.user);
     await renderZReports(req, res, { notice: 'דוח Z נמחק.' });

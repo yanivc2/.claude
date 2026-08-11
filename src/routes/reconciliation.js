@@ -8,6 +8,7 @@ import { parseXlsx } from '../lib/xlsx.js';
 import { normalizeBankRows } from '../lib/bankCsv.js';
 import { decodeBuffer } from '../lib/decodeText.js';
 import { RuleError } from '../lib/errors.js';
+import { requirePermission } from '../middleware/requireOwner.js';
 import {
   importTransactions,
   listUnmatched,
@@ -83,7 +84,7 @@ router.get('/', async (req, res, next) => {
 
 // Statement import — CSV or Excel (.xlsx). Recognised bank columns:
 // תאריך / חובה / זכות (or תאריך / סכום), plus אסמכתא and a description column.
-router.post('/import-csv', (req, res, next) => {
+router.post('/import-csv', requirePermission('import_bank'), (req, res, next) => {
   csvUpload(req, res, async (uploadErr) => {
     const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
     try {
@@ -111,7 +112,7 @@ router.post('/import-csv', (req, res, next) => {
 });
 
 // Manual single transaction (signed shekels, debit negative).
-router.post('/add', async (req, res, next) => {
+router.post('/add', requirePermission('import_bank'), async (req, res, next) => {
   const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
   try {
     await importTransactions(

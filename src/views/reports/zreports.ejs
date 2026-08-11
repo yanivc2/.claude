@@ -26,12 +26,14 @@
             <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
           </td>
           <td class="no-print">
-            <% if (!d.deposited) { %>
-              <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="1" /><button class="ok small" type="submit">סמן כהופקד</button></form>
-            <% } else { %>
-              <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="0" /><button class="secondary small" type="submit">בטל</button></form>
+            <% if (typeof can === 'function' && can('manage_deposits')) { %>
+              <% if (!d.deposited) { %>
+                <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="1" /><button class="ok small" type="submit">סמן כהופקד</button></form>
+              <% } else { %>
+                <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="0" /><button class="secondary small" type="submit">בטל</button></form>
+              <% } %>
+              <form method="post" action="/reports/deposits/<%= d.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק הפקדה?')"><button class="danger small" type="submit">מחק</button></form>
             <% } %>
-            <form method="post" action="/reports/deposits/<%= d.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק הפקדה?')"><button class="danger small" type="submit">מחק</button></form>
           </td>
         </tr>
       <% }); %>
@@ -91,9 +93,11 @@
             <a class="btn btn-secondary small" style="display:inline-flex;align-items:center;gap:4px"
                href="https://wa.me/?text=<%- encodeURIComponent(z.waText) %>" target="_blank" rel="noopener"
                title="<% if (z.depDiff === 0) { %>תואם<% } else if (z.depDiff > 0) { %>יתרה <%= formatIls(z.depDiff) %><% } else { %>חוסר <%= formatIls(-z.depDiff) %><% } %>">📲 וואטסאפ</a>
+            <% if (typeof can === 'function' && can('delete_zreport')) { %>
             <form method="post" action="/reports/zreports/<%= z.id %>/delete" onsubmit="return confirm('למחוק דוח Z זה?')" style="display:inline">
               <button class="danger small" type="submit">מחק</button>
             </form>
+            <% } %>
           </td>
         </tr>
       <% }); %>

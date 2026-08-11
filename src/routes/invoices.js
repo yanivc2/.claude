@@ -27,6 +27,7 @@ import { submitRequest, pendingRequestFor } from '../services/changeRequests.js'
 import { userCan } from '../lib/permissions.js';
 import { describeInvoice } from '../lib/changeSummary.js';
 import { RuleError, AuthError } from '../lib/errors.js';
+import { requirePermission } from '../middleware/requireOwner.js';
 import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
 
 const router = Router();
@@ -262,7 +263,7 @@ function invoiceToValues(inv) {
   };
 }
 
-router.get('/:id/edit', async (req, res, next) => {
+router.get('/:id/edit', requirePermission('edit_invoice'), async (req, res, next) => {
   try {
     const invoice = await getInvoiceDetail(Number(req.params.id));
     if (invoice.status === 'paid') return res.redirect(303, `/invoices/${invoice.id}`);
@@ -272,7 +273,7 @@ router.get('/:id/edit', async (req, res, next) => {
   }
 });
 
-router.post('/:id/edit', async (req, res, next) => {
+router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, next) => {
   const id = Number(req.params.id);
   const b = req.body;
   try {

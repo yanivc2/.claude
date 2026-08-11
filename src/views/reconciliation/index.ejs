@@ -135,6 +135,7 @@
 </div>
 
 <!-- כפתורים עגולים למטה-מימין: ייבוא CSV + הוספת תנועה (נפתחים בחלון) -->
+<% if (typeof can === 'function' && can('import_bank')) { %>
 <div class="card no-print" style="display:flex; gap:var(--space-8); justify-content:flex-start; align-items:flex-start">
   <div class="icon-tile">
     <button type="button" class="icon-circle accent" onclick="document.getElementById('csvDlg').showModal()" aria-label="ייבוא CSV / Excel" title="ייבוא CSV / Excel">
@@ -149,6 +150,7 @@
     <span class="cap">הוספת תנועה</span>
   </div>
 </div>
+<% } %>
 
 <!-- מודל ייבוא CSV / Excel -->
 <dialog id="csvDlg" class="dlg wide">

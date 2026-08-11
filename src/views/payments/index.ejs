@@ -39,12 +39,14 @@
             <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
           </td>
           <td class="no-print">
-            <% if (!d.deposited) { %>
-              <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="1" /><button class="ok small" type="submit">סמן כהופקד</button></form>
-            <% } else if (currentUser.role === 'owner') { %>
-              <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline" onsubmit="return confirm('לבטל את סימון ההפקדה?')"><input type="hidden" name="value" value="0" /><button class="danger small" type="submit">בטל</button></form>
-            <% } else { %>
-              <span class="muted" style="font-size:12px">ביטול — בעלים בלבד</span>
+            <% if (typeof can === 'function' && can('manage_deposits')) { %>
+              <% if (!d.deposited) { %>
+                <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="1" /><button class="ok small" type="submit">סמן כהופקד</button></form>
+              <% } else if (currentUser.role === 'owner') { %>
+                <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline" onsubmit="return confirm('לבטל את סימון ההפקדה?')"><input type="hidden" name="value" value="0" /><button class="danger small" type="submit">בטל</button></form>
+              <% } else { %>
+                <span class="muted" style="font-size:12px">ביטול — בעלים בלבד</span>
+              <% } %>
             <% } %>
           </td>
         </tr>

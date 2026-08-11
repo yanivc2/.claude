@@ -166,7 +166,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 
 <!-- שורת פעולות: אפשרויות (עריכה) + חזרה לרשימה משמאלו -->
 <div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">
-  <% if (invoice.status !== 'paid') { %>
+  <% if (invoice.status !== 'paid' && typeof can === 'function' && can('edit_invoice')) { %>
     <details class="menu up">
       <summary class="btn btn-secondary">אפשרויות <span class="caret">▾</span></summary>
       <div class="menu-panel" style="min-width:180px">

@@ -11,6 +11,10 @@ export const PERMISSIONS = [
   { key: 'hold_invoice', label: 'החזקת חשבונית', group: 'פעולות', icon: '⏸️', desc: 'החזקה ושחרור של חשבוניות.' },
   { key: 'approve_payment', label: 'אישור תשלום', group: 'פעולות', icon: '✅', desc: 'אישור חשבונית לתשלום וביצוע תשלום (מנהל חנות).' },
   { key: 'void_payment', label: 'ביטול תשלום', group: 'פעולות', icon: '🚫', desc: 'ביטול צ׳ק או תשלום.' },
+  { key: 'edit_invoice', label: 'עריכת חשבונית', group: 'פעולות', icon: '✏️', desc: 'עריכת פרטי חשבונית קיימת.' },
+  { key: 'delete_zreport', label: 'מחיקת דוח Z', group: 'פעולות', icon: '🗑️', desc: 'מחיקת דוחות Z.' },
+  { key: 'manage_deposits', label: 'ניהול הפקדות', group: 'פעולות', icon: '🏷️', desc: 'סימון הפקדה כ"הופקד" ומחיקת הצהרות הפקדה.' },
+  { key: 'import_bank', label: 'ייבוא בנק', group: 'פעולות', icon: '🏦', desc: 'ייבוא תנועות בנק (קובץ/ידני) בהתאמת בנק.' },
   // Page-access permissions (which screens the role may open). See canViewPage below.
   { key: 'nav_dashboard', label: 'לוח בקרה', group: 'עמודים', icon: '🏠', desc: 'מסך הבית עם קיצורים וקוביות מצב.' },
   { key: 'nav_invoices', label: 'חשבוניות', group: 'עמודים', icon: '🧾', desc: 'רשימת החשבוניות והזנתן.' },
@@ -37,7 +41,7 @@ export const ROLE_PRESETS = [
   {
     key: 'store_manager', label: 'מנהל חנות', icon: '👔',
     desc: 'כמו מזכירה + אישור תשלומים, ניהול ספקים ורווחיות.',
-    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'nav_outstanding', 'nav_profitability', 'hold_invoice', 'approve_payment', 'manage_suppliers'],
+    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'nav_outstanding', 'nav_profitability', 'nav_reconciliation', 'hold_invoice', 'approve_payment', 'manage_suppliers', 'edit_invoice', 'manage_deposits', 'import_bank'],
   },
   {
     key: 'cashier', label: 'עובד קופה', icon: '🔒',
