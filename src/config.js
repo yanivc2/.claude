@@ -83,6 +83,18 @@ export const config = {
     appUrl: process.env.APP_URL || null,
     enabled: Boolean(process.env.RESEND_API_KEY),
   },
+  // Stage 5 — חילוץ חשבוניות מצילום באמצעות Claude API (vision + structured outputs).
+  // The key is a secret — env only, never committed. With no ANTHROPIC_API_KEY the scan
+  // pages report the feature as unavailable instead of failing mid-upload (enabled=false).
+  // extractEffort tunes thinking depth vs latency; maxScanImages caps pages per invoice.
+  ai: {
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY || null,
+    extractModel: process.env.EXTRACT_MODEL || 'claude-opus-5',
+    extractEffort: process.env.EXTRACT_EFFORT || 'medium',
+    extractMaxTokens: Number(process.env.EXTRACT_MAX_TOKENS ?? 16000),
+    maxScanImages: Number(process.env.MAX_SCAN_IMAGES ?? 8),
+    enabled: Boolean(process.env.ANTHROPIC_API_KEY),
+  },
   // Shared secret so an external scheduler (e.g. Vercel Cron) can trigger the reminders runner
   // without a login session: GET /audit/reminders/run?key=<CRON_SECRET>.
   cronSecret: process.env.CRON_SECRET || null,

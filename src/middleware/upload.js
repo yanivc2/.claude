@@ -1,7 +1,7 @@
 import path from 'node:path';
 import multer from 'multer';
 import { config } from '../config.js';
-import { putBuffer } from '../lib/storage.js';
+import { del, putBuffer } from '../lib/storage.js';
 
 // Attach a scan/photo of a physical invoice / expense note. The file is parsed into memory,
 // then handed to the storage layer (local disk or Vercel Blob). Only the returned opaque ref
@@ -44,6 +44,52 @@ export function handleInvoiceImage(req, res, next) {
       next();
     } catch (e) {
       req.uploadError = `שמירת הקובץ נכשלה: ${e.message}`;
+      next();
+    }
+  });
+}
+
+// Stage 5 — צילום חשבוניות: several photos (or one multi-page PDF) that together make up ONE
+// invoice. Same filter and per-file size limit as the single-image upload; the page order is the
+// order the client sent, so the refs array must preserve it.
+
+const uploadScanImages = multer({
+  storage: multer.memoryStorage(),
+  fileFilter,
+  limits: { fileSize: config.maxUploadBytes, files: config.ai.maxScanImages },
+}).array('images', config.ai.maxScanImages);
+
+/**
+ * Wrap multer for the multi-page scan upload: parse the files into memory, persist each one via
+ * the storage layer IN PAGE ORDER, and expose the stored refs as req.uploadedRefs (an array).
+ * If any file fails to store, the ones already stored are deleted (best-effort) so no orphan
+ * blobs are left behind, and req.uploadError carries a friendly Hebrew message — never a 500.
+ */
+export function handleScanImages(req, res, next) {
+  uploadScanImages(req, res, async (err) => {
+    if (err) {
+      req.uploadError =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? `קובץ גדול מדי — עד ${Math.round(config.maxUploadBytes / (1024 * 1024))} מ"ב לתמונה`
+          : err.code === 'LIMIT_FILE_COUNT'
+            ? `יותר מדי קבצים — עד ${config.ai.maxScanImages} עמודים לחשבונית`
+            : err.message;
+      return next();
+    }
+    const files = req.files || [];
+    if (files.length === 0) return next();
+
+    const refs = [];
+    try {
+      for (const file of files) {
+        const ext = ALLOWED.get(file.mimetype) || path.extname(file.originalname) || '';
+        refs.push(await putBuffer(file.buffer, ext, file.mimetype));
+      }
+      req.uploadedRefs = refs;
+      next();
+    } catch (e) {
+      for (const ref of refs) await del(ref); // best-effort cleanup — del never throws
+      req.uploadError = `שמירת הצילומים נכשלה: ${e.message}`;
       next();
     }
   });
