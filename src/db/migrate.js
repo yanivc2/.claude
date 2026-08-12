@@ -18,6 +18,47 @@ export function migrate(db) {
   migrateInvoiceLineUnits(db);
   migrateSupplierStores(db);
   migrateEmployees(db);
+  migrateStandingOrder(db);
+}
+
+// Expand the payments.method CHECK to allow 'standing_order' (הו"ק) on existing SQLite DBs.
+// SQLite can't alter a CHECK in place, so rebuild the table (only when it lacks the value).
+function migrateStandingOrder(db) {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='payments'").get();
+  if (!row || row.sql.includes("'standing_order'")) return;
+  db.pragma('foreign_keys = OFF');
+  const run = db.transaction(() => {
+    db.exec(`
+      CREATE TABLE payments_new (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
+        method          TEXT NOT NULL DEFAULT 'check'
+                        CHECK (method IN ('check','cash','credit','transfer','batch','standing_order')),
+        check_number    TEXT,
+        reference       TEXT,
+        payer_name      TEXT,
+        card_last4      TEXT,
+        batch_number    TEXT,
+        payment_date    TEXT NOT NULL,
+        amount          INTEGER NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'issued'
+                        CHECK (status IN ('issued','cleared','voided')),
+        cleared_date    TEXT,
+        created_by      INTEGER NOT NULL REFERENCES users(id),
+        created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+      );`);
+    db.exec(`INSERT INTO payments_new
+      (id, bank_account_id, method, check_number, reference, payer_name, card_last4, batch_number,
+       payment_date, amount, status, cleared_date, created_by, created_at)
+      SELECT id, bank_account_id, method, check_number, reference, payer_name, card_last4, batch_number,
+       payment_date, amount, status, cleared_date, created_by, created_at FROM payments;`);
+    db.exec('DROP TABLE payments;');
+    db.exec('ALTER TABLE payments_new RENAME TO payments;');
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
+               ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL;`);
+  });
+  run();
+  db.pragma('foreign_keys = ON');
 }
 
 // Adds the employees table + z_expenses.employee_id (advances/salary per employee) to older DBs.
@@ -195,7 +236,7 @@ function migratePaymentsMethods(db) {
         id              INTEGER PRIMARY KEY AUTOINCREMENT,
         bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
         method          TEXT NOT NULL DEFAULT 'check'
-                        CHECK (method IN ('check','cash','credit','transfer','batch')),
+                        CHECK (method IN ('check','cash','credit','transfer','batch','standing_order')),
         check_number    TEXT,
         reference       TEXT,
         payer_name      TEXT,

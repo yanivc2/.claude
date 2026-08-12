@@ -161,7 +161,7 @@ CREATE TABLE IF NOT EXISTS payments (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
   method          TEXT NOT NULL DEFAULT 'check'
-                  CHECK (method IN ('check','cash','credit','transfer','batch')),
+                  CHECK (method IN ('check','cash','credit','transfer','batch','standing_order')),
   check_number    TEXT,                                       -- method=check
   reference       TEXT,                                       -- transfer/batch אסמכתא (matches bank)
   payer_name      TEXT,                                       -- cash: שם המשלם

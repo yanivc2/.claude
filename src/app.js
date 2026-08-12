@@ -25,7 +25,7 @@ import productRoutes from './routes/products.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-11·27';
+const BUILD_VERSION = '2026-08-11·28';
 
 export function createApp() {
   const app = express();
@@ -104,12 +104,13 @@ export function createApp() {
     res.locals.cashCeilingAgorot = config.cashCeilingAgorot;
     res.locals.allocationThresholdAgorot = config.rules.allocationThresholdAgorot;
     res.locals.methodLabel = (m) =>
-      ({ check: 'צ׳ק', cash: 'מזומן', credit: 'אשראי', transfer: 'העברה', batch: 'מקבץ' }[m] || m || 'צ׳ק');
+      ({ check: 'צ׳ק', cash: 'מזומן', credit: 'אשראי', transfer: 'העברה', batch: 'מקבץ', standing_order: 'הו"ק' }[m] || m || 'צ׳ק');
     res.locals.paymentIdent = (p) => {
       switch (p.method) {
         case 'cash': return `מזומן · ${p.payer_name || ''}`;
         case 'credit': return `אשראי ****${p.card_last4 || ''}`;
         case 'transfer': return `העברה · ${p.reference || ''}`;
+        case 'standing_order': return `הו"ק · ${p.reference || ''}`;
         case 'batch': return `מקבץ ${p.batch_number || ''} · אסמכתא ${p.reference || ''}`;
         default: return `צ׳ק ${p.check_number || ''}`;
       }

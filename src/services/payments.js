@@ -7,7 +7,7 @@ import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { notify } from '../lib/notify.js';
 import { logAction } from './audit.js';
 
-const METHODS = ['check', 'cash', 'credit', 'transfer', 'batch'];
+const METHODS = ['check', 'cash', 'credit', 'transfer', 'batch', 'standing_order'];
 
 /** Parse supplier payment-terms text → number of days (מיידי = 0, "שוטף 30" = 30). null if unknown. */
 export function parsePaymentTermsDays(terms) {
@@ -84,6 +84,9 @@ export async function createPayment(input, actor, x = getExecutor()) {
     fields.card_last4 = last4;
   } else if (method === 'transfer') {
     if (!reference || !String(reference).trim()) throw new RuleError('VALIDATION', 'העברה — מספר אסמכתא חובה');
+    fields.reference = String(reference).trim();
+  } else if (method === 'standing_order') {
+    if (!reference || !String(reference).trim()) throw new RuleError('VALIDATION', 'הו"ק — מספר הרשאה / אסמכתא חובה');
     fields.reference = String(reference).trim();
   } else if (method === 'batch') {
     if (!batchNumber || !String(batchNumber).trim()) throw new RuleError('VALIDATION', 'מקבץ — מספר מקבץ חובה');

@@ -195,6 +195,9 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
         } else if (method === 'cash') {
           payInput.payerName = b.cash_payer;
           payInput.paymentDate = b.cash_date || invoice.invoice_date;
+        } else if (method === 'standing_order') {
+          payInput.reference = b.so_ref;
+          payInput.paymentDate = b.so_date || invoice.invoice_date;
         }
         await createPayment(payInput, req.user);
         return res.redirect(303, `/invoices/${invoice.id}?paid=1`);
@@ -254,6 +257,9 @@ router.post('/pay-batch', async (req, res, next) => {
     } else if (method === 'cash') {
       payInput.payerName = b.cash_payer;
       payInput.paymentDate = b.cash_date;
+    } else if (method === 'standing_order') {
+      payInput.reference = b.so_ref;
+      payInput.paymentDate = b.so_date;
     }
     if (!payInput.paymentDate) payInput.paymentDate = new Date().toISOString().slice(0, 10);
     const payment = await createPayment(payInput, req.user);
