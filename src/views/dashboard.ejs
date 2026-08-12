@@ -143,12 +143,10 @@
 </div>
 
 <div class="stat-grid">
-  <% if (typeof canView === 'function' && canView('nav_scan')) { %>
-    <a class="stat <%= pendingScans ? 'attn' : '' %>" href="/scan/pending">
-      <div class="num"><%= pendingScans %></div>
-      <div class="label">סריקות ממתינות</div>
-    </a>
-  <% } %>
+  <a class="stat" href="/reports/outstanding">
+    <div class="num"><%= typeof openChecksCount !== 'undefined' ? openChecksCount : 0 %></div>
+    <div class="label">צ׳קים פתוחים</div>
+  </a>
   <a class="stat <%= stats.pendingSuppliers ? 'attn' : '' %>" href="/suppliers?status=pending">
     <div class="num"><%= stats.pendingSuppliers %></div>
     <div class="label">ספקים ממתינים לאישור</div>
