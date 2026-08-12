@@ -18,9 +18,17 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
 
 ## Iron rules (every phase)
 
-- Writable scope is exactly: the real Downloads path, the real Documents path,
-  and `C:\Users\yaniv\Vault`. Everything else is read-only. **STOP** before any
-  operation that would write outside this scope.
+- **OneDrive is absolutely out of bounds.** Never read, move, rename, copy, or
+  delete anything under a OneDrive path, and never follow a link or redirected
+  folder into one. With Files On-Demand, files on disk are zero-byte
+  placeholders; moving one can sever it from its content and destroy the file.
+  A path is OneDrive if it starts with `$env:OneDrive` / `$env:OneDriveCommercial`
+  or contains a `OneDrive` segment. If any phase reaches such a path — **STOP**
+  and report it in Hebrew.
+- Writable scope is exactly: the real Downloads path, the real Documents path
+  (only if it is **not** OneDrive-redirected), and `C:\Users\yaniv\Vault`.
+  Everything else is read-only. **STOP** before any operation that would write
+  outside this scope.
 - A directory containing `.git`, `node_modules`, `package.json`, `.sln`, or
   `pyproject.toml` is a code directory: it is **never moved or renamed**.
   Propose a junction instead — `cmd /c mklink /J "<link>" "<target>"`
@@ -43,11 +51,17 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
 - Verify this is the Windows machine: `Test-Path 'C:\Users\yaniv'` must be
   true. If not — **STOP**: this command must not run remotely.
 - Resolve the real paths and echo them to the user:
-  - Documents: `[Environment]::GetFolderPath('MyDocuments')` (may be
-    OneDrive-redirected).
+  - Documents: `[Environment]::GetFolderPath('MyDocuments')`.
   - Downloads: registry `HKCU:\...\User Shell Folders`, value
     `{374DE290-123F-4565-9164-39C4925E467B}`; fallback
     `C:\Users\yaniv\Downloads`.
+- OneDrive gate — run this on **every** resolved path before anything else:
+  if the path starts with `$env:OneDrive`/`$env:OneDriveCommercial` or contains
+  a `OneDrive` segment, that root is **out of scope, permanently**. Report it
+  in Hebrew, drop it from the scope, and ask the user whether to continue with
+  the remaining root(s) only. Never offer to work on it "carefully".
+  Also verify `C:\Users\yaniv\Vault` itself is not OneDrive-redirected — if it
+  is, **STOP** and ask the user for a different vault location.
 - Backup gate: ask the user to confirm a current backup (File History / cloud
   / external drive) covering both roots. **STOP — no mutating phase without a
   confirmed backup.** Files outside git/backup are unrecoverable.
@@ -77,8 +91,13 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
   directory — item count, total size, newest `LastWriteTime`.
 - Mark code directories **OUT-OF-BOUNDS (junction candidate only)**; never
   descend into `.git` or `node_modules`.
+- Never descend into a OneDrive path. Also skip any junction/symlink whose
+  resolved target lands under OneDrive — list it as OUT-OF-BOUNDS and move on.
 - Flag: installers (`.exe`/`.msi` in Downloads), archives, files >100MB,
   obvious name-duplicates, empty directories.
+- Flag cloud placeholders separately: a file whose attributes include
+  `ReparsePoint` or `Offline` is not fully on disk. Never propose moving one —
+  list it under "לא נוגעים" in the report.
 - Write the report to `C:\Users\yaniv\Vault\_organize\scan-<YYYY-MM-DD>.md`.
   If the Vault does not exist — **STOP** and instruct running phase `vault`.
 - Summarize in Hebrew: counts, sizes, code dirs found, oddities.
@@ -102,6 +121,9 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
 - Code directories get JUNCTION only. TRASH requires stated evidence and is
   flagged "individual approval required". Anything uncertain is ASK, never
   TRASH.
+- No row may have a OneDrive path as its source **or** its target, and no
+  cloud placeholder may appear as a source. Re-check every row against the
+  OneDrive gate before writing the file.
 - **STOP.** End by asking in Hebrew for an explicit GO with item numbers (or
   "הכול"). No execution happens in this phase under any circumstances.
 
@@ -111,7 +133,9 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
   with item numbers was given in **this** session; the backup was reconfirmed
   this session; `git add -A` + `git commit` ran in the vault before the round;
   cwd is `C:\Users\yaniv\Vault`.
-- Work in batches of ≤10 items:
+- Work in batches of ≤10 items. Re-run the OneDrive gate on the source and the
+  target of every item immediately before touching it — a stale proposal is
+  not a licence:
   - MOVE: `Test-Path` the target first — on collision, skip the item and
     report; use `Move-Item` **without `-Force`**. Moves are not backed up by
     any hook — the collision check is the only safety net.

@@ -200,9 +200,16 @@ numbers; code directories are never moved (junction via `cmd /c mklink /J`
 only); there are no hard deletes (approved removals are staged into
 `_organize/trash/`); moves are collision-checked because no hook backs them up;
 and Hebrew files are written only with the Write/Edit tools, never with
-`Set-Content`/`Out-File` (PowerShell 5.1 BOM corruption). It also handles the
-Windows specifics: OneDrive-redirected Documents, registry-resolved Downloads,
-and robocopy exit codes 0–7 meaning success.
+`Set-Content`/`Out-File` (PowerShell 5.1 BOM corruption).
+
+**OneDrive is out of bounds** — every phase runs a gate that drops any
+OneDrive-resolved path from scope (including a OneDrive-redirected Documents
+folder) rather than working on it carefully. Files On-Demand placeholders are
+zero-byte reparse points; moving one severs it from its content, which is the
+same failure mode that destroyed 110 documents in the iCloud incident cited in
+the research this toolkit is built on. The command also handles the remaining
+Windows specifics: registry-resolved Downloads and robocopy exit codes 0–7
+meaning success.
 
 ---
 

@@ -15,6 +15,9 @@ round (that is the safety net).
   linked from `INDEX.md`. Never copy projects into the vault.
 - From a vault session, never move/rename/delete anything **outside** this
   folder.
+- OneDrive is out of bounds — never read, move, or delete anything under a
+  OneDrive path. Files On-Demand placeholders are zero-byte on disk, and
+  moving one severs it from its content.
 - Code directories are never moved anywhere — logical placement is done with a
   junction only: `cmd /c mklink /J "<link>" "<target>"`.
 - Write files UTF-8 without BOM: use the Write/Edit tools, never
