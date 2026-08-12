@@ -59,12 +59,25 @@ The active model is **`opus`** at **`effortLevel: xhigh`** (`settings.json`).
 │   └── settings.json            — nested hooks/permissions for working *in* this repo
 │
 ├── commands/
-│   └── install-review.md        — custom /install-review slash command (implements rule #1)
+│   ├── install-review.md        — custom /install-review slash command (implements rule #1)
+│   └── organize-folders.md      — /organize-folders: staged Downloads/Documents cleanup + vault seeding
 │
 ├── plugins/
 │   └── blocklist.json           — blocked plugins (name + reason)
 │
 ├── templates/
+│   ├── vault/                   — Obsidian-ready knowledge vault scaffold (see below)
+│   │   ├── CLAUDE.md            — lean vault memory (rules, key files)
+│   │   ├── INDEX.md             — the map document: what exists, where it sits
+│   │   ├── CONVENTIONS.md       — naming + filing conventions
+│   │   ├── .gitignore           — vault-local ignores (trash, Obsidian workspace)
+│   │   ├── .claude/settings.json— vault rules banner + anti-seeding guard
+│   │   ├── Inbox/               — single landing point for anything new
+│   │   ├── About/               — me / businesses / partners / goals fill-in templates
+│   │   ├── Projects/            — one note per project (files stay where they are)
+│   │   ├── Archive/             — closed / dormant notes
+│   │   └── _organize/           — scan + proposal + apply-log artifacts, trash staging
+│   │
 │   └── project/                 — scaffold copied into NEW projects (see below)
 │       ├── CLAUDE.md            — placeholder-driven project memory template
 │       ├── SETUP.md            — placeholder-driven onboarding / setup guide
@@ -158,6 +171,38 @@ substituted downstream — e.g. `{{STYLING_SOLUTION}}`, `{{TEST_RUNNER}}`,
 directory, so `@./rules/` works both in `templates/project/` and once the file is
 copied to a project root (rules land at `<project>/rules/`).
 When you add a rule file, add its `@import` line to the template **and** list it here.
+
+---
+
+## The Vault Template (`templates/vault/`)
+
+An Obsidian-ready personal knowledge vault, seeded to `C:\Users\yaniv\Vault` by
+`/organize-folders vault`. Unlike the project template, **nothing here is ever
+force-copied** — seeding uses `robocopy /E /XC /XN /XO`, which writes only files
+that are missing at the destination, so an existing vault is never clobbered.
+The vault becomes a local git repo (`git init`, no remote) so every
+organization round is preceded by a commit and is fully recoverable.
+
+The heart of it is `INDEX.md` — the written map of what exists on this machine
+and where it sits. Content is Hebrew; file and folder names are English.
+
+**Why `templates/vault/.claude/settings.json` exists:** the global `SessionStart`
+project-seeder fires in any git repo lacking `.claude/settings.json` — it would
+overwrite the vault's `.mcp.json` and install TypeScript typecheck hooks in a
+folder that holds no code. Shipping a minimal `.claude/settings.json` inside the
+vault makes that guard fail. It carries one thing: a Hebrew banner restating the
+vault rules at session start. **Do not delete it.**
+
+`/organize-folders` drives the whole flow in gated phases —
+`preflight → vault → scan → index → propose → apply` — and encodes the iron
+rules the work is built on: nothing executes without an explicit GO naming item
+numbers; code directories are never moved (junction via `cmd /c mklink /J`
+only); there are no hard deletes (approved removals are staged into
+`_organize/trash/`); moves are collision-checked because no hook backs them up;
+and Hebrew files are written only with the Write/Edit tools, never with
+`Set-Content`/`Out-File` (PowerShell 5.1 BOM corruption). It also handles the
+Windows specifics: OneDrive-redirected Documents, registry-resolved Downloads,
+and robocopy exit codes 0–7 meaning success.
 
 ---
 
