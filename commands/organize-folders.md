@@ -1,6 +1,6 @@
 ---
 description: Staged, approval-gated reorganization of Downloads + Documents into an indexed structure with an Obsidian-ready vault
-argument-hint: <phase: preflight | vault | scan | index | propose | apply — empty = status>
+argument-hint: <preflight | vault | scan | index | propose | apply — empty for status>
 ---
 
 # Safe folder organization — staged

@@ -1,5 +1,5 @@
 ---
-updated: {{LAST_UPDATED}}
+updated: "{{LAST_UPDATED}}"
 tags: [map, index]
 ---
 
