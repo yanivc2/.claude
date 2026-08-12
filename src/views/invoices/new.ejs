@@ -131,6 +131,11 @@
         <option value="credit" <%= values.pay_method === 'credit' ? 'selected' : '' %>>אשראי</option>
         <option value="standing_order" <%= values.pay_method === 'standing_order' ? 'selected' : '' %>>הו"ק</option>
       </select>
+      <div id="pay_amount_wrap" style="margin-top:.5rem;max-width:280px" hidden>
+        <label>סכום התשלום (₪)</label>
+        <input id="pay_amount_disp" readonly value="" />
+        <small class="muted">מחושב אוטומטית מסכום החשבונית (תשלום = סכום החשבונית).</small>
+      </div>
       <div class="pay-row" data-m="check">
         <div class="row">
           <div><label>מספר צ׳ק</label><input name="check_number" value="<%= values.check_number || '' %>" /></div>
@@ -165,8 +170,26 @@
       <script>
         (function(){
           var sel = document.getElementById('pay_method');
-          function upd(){ document.querySelectorAll('.pay-row').forEach(function(r){ r.style.display = (r.dataset.m === sel.value) ? 'block' : 'none'; }); }
-          sel.addEventListener('change', upd); upd();
+          var amtWrap = document.getElementById('pay_amount_wrap');
+          var amtDisp = document.getElementById('pay_amount_disp');
+          var before = document.getElementById('before_vat');
+          var vat = document.getElementById('vat_amount');
+          var total = document.getElementById('total_incl');
+          function invoiceTotal(){
+            var t = parseFloat(total && total.value);
+            if (!isNaN(t)) return t;
+            var b = parseFloat(before && before.value) || 0, v = parseFloat(vat && vat.value) || 0;
+            return b + v;
+          }
+          function syncAmount(){ if (amtDisp){ var t = invoiceTotal(); amtDisp.value = t ? t.toFixed(2) : ''; } }
+          function upd(){
+            document.querySelectorAll('.pay-row').forEach(function(r){ r.style.display = (r.dataset.m === sel.value) ? 'block' : 'none'; });
+            if (amtWrap) amtWrap.hidden = !sel.value; // הצג את סכום התשלום רק כשנבחר אמצעי
+            syncAmount();
+          }
+          sel.addEventListener('change', upd);
+          [before, vat, total].forEach(function(el){ if (el) el.addEventListener('input', syncAmount); });
+          upd();
         })();
       </script>
     </div>
