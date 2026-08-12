@@ -33,12 +33,12 @@ test('seeded team has the right company grants; owner = all', async () => {
   const ron = await db.one("SELECT * FROM users WHERE username = 'ron'", []);
   const vicky = await db.one("SELECT * FROM users WHERE username = 'vicky'", []);
 
-  const alHaderech = await companyIdByName(db, 'על הדרך 24 שעות בע"מ');
+  const alHaderech = await companyIdByName(db, 'על הדרך סופר');
   const pink = await companyIdByName(db, 'פינק מרקט י.ר. בע"מ');
 
   assert.deepEqual(await authorizedCompanyIds(adam, db), [alHaderech]);
   assert.deepEqual(await authorizedCompanyIds(ron, db), [pink]);
-  assert.equal((await authorizedCompanyIds(vicky, db)).length, 3);
+  assert.equal((await authorizedCompanyIds(vicky, db)).length, 4);
 
   // new members have no password yet (set via WhatsApp invite)
   assert.equal(adam.password_hash, null);
@@ -52,7 +52,7 @@ test('listInvoices + dashboardStats are scoped per user', async () => {
   const supRes = await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק', 'approved')", []);
   const supplierId = supRes.lastInsertRowid;
 
-  const alHaderech = await companyIdByName(db, 'על הדרך 24 שעות בע"מ');
+  const alHaderech = await companyIdByName(db, 'על הדרך סופר');
   const yaniv = await companyIdByName(db, 'יניב רום יזמות בע"מ');
   const alStore = await db.one('SELECT id FROM stores WHERE company_id = ? LIMIT 1', [alHaderech]);
   const yStore = await db.one('SELECT id FROM stores WHERE company_id = ? LIMIT 1', [yaniv]);
@@ -75,7 +75,7 @@ test('listInvoices + dashboardStats are scoped per user', async () => {
 test('assertInScope blocks cross-company direct-by-id access (IDOR guard)', async () => {
   const db = await freshDb();
   const ow = await owner(db);
-  const alHaderech = await companyIdByName(db, 'על הדרך 24 שעות בע"מ');
+  const alHaderech = await companyIdByName(db, 'על הדרך סופר');
   const yaniv = await companyIdByName(db, 'יניב רום יזמות בע"מ');
   const alStore = await db.one('SELECT id FROM stores WHERE company_id = ? LIMIT 1', [alHaderech]);
   const sup = await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק','approved')", []);

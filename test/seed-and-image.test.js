@@ -6,25 +6,25 @@ import { createSupplier } from '../src/services/suppliers.js';
 import { createInvoice, setImage, getInvoice } from '../src/services/invoices.js';
 import { toAgorot } from '../src/lib/money.js';
 
-test('seed sets the three company tax_ids', async () => {
+test('seed sets the company tax_ids', async () => {
   const db = await freshDb();
   const byName = async (n) => (await db.one('SELECT tax_id FROM companies WHERE name = ?', [n])).tax_id;
   assert.equal(await byName('יניב רום יזמות בע"מ'), '515325405');
-  assert.equal(await byName('על הדרך 24 שעות בע"מ'), '514737832');
+  assert.equal(await byName('על הדרך סופר'), '514737832');
   assert.equal(await byName('פינק מרקט י.ר. בע"מ'), '516632627');
 });
 
 test('seed backfills a null tax_id but does not overwrite an existing one', async () => {
   const db = await freshDb();
   await db.run("UPDATE companies SET tax_id = NULL WHERE name = 'יניב רום יזמות בע\"מ'", []);
-  await db.run("UPDATE companies SET tax_id = '999999999' WHERE name = 'על הדרך 24 שעות בע\"מ'", []);
+  await db.run("UPDATE companies SET tax_id = '999999999' WHERE name = 'על הדרך סופר'", []);
   await seed(db); // idempotent re-run
   assert.equal(
     (await db.one('SELECT tax_id FROM companies WHERE name = ?', ['יניב רום יזמות בע"מ'])).tax_id,
     '515325405', // backfilled
   );
   assert.equal(
-    (await db.one('SELECT tax_id FROM companies WHERE name = ?', ['על הדרך 24 שעות בע"מ'])).tax_id,
+    (await db.one('SELECT tax_id FROM companies WHERE name = ?', ['על הדרך סופר'])).tax_id,
     '999999999', // preserved, not clobbered
   );
 });

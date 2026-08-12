@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { freshDb, owner, secretary, firstStore } from './helpers.js';
+import { freshDb, owner, secretary } from './helpers.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice, approveInvoiceForPayment } from '../src/services/invoices.js';
 import { createPayment, getCheckPrintData } from '../src/services/payments.js';
@@ -28,7 +28,8 @@ test('amountToHebrewWords appends the shekels/agorot suffix', () => {
 
 test('getCheckPrintData assembles payee, drawer, words and defaults to unapproved (DRAFT)', async () => {
   const db = await freshDb();
-  const st = await firstStore(db);
+  // Use the store under "על הדרך סופר" (it carries a ח.פ, so the printed drawer shows a tax id).
+  const st = await db.one("SELECT id FROM stores WHERE name = 'סופר על הדרך'", []);
   const sec = await secretary(db);
   const acct = (await db.one('SELECT id FROM bank_accounts WHERE store_id=?', [st.id])).id;
   const sup = await approveSupplier((await createSupplier({ name: 'מאפיית הבוקר' }, sec, db)).id, await owner(db), db);
@@ -47,7 +48,7 @@ test('getCheckPrintData assembles payee, drawer, words and defaults to unapprove
   const data = await getCheckPrintData(payment.id, db);
   assert.deepEqual(data.payees, ['מאפיית הבוקר']);
   assert.equal(data.amountWords, 'אלף מאה ושבעים שקלים חדשים בלבד');
-  assert.equal(data.account.company_name, 'על הדרך 24 שעות בע"מ');
+  assert.equal(data.account.company_name, 'על הדרך סופר');
   assert.equal(data.account.company_tax_id, '514737832');
   assert.equal(data.approved, false); // gated by default — DRAFT until bank approval (§11.5)
 });

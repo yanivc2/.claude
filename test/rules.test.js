@@ -24,9 +24,9 @@ function baseInvoice(db, supplierId, storeId, over) {
   };
 }
 
-test('seed creates 3 companies, 4 stores, 4 accounts (1:1)', async () => {
+test('seed creates 4 companies, 4 stores, 4 accounts (1:1)', async () => {
   const db = await freshDb();
-  assert.equal((await db.one('SELECT COUNT(*) n FROM companies', [])).n, 3);
+  assert.equal((await db.one('SELECT COUNT(*) n FROM companies', [])).n, 4);
   assert.equal((await db.one('SELECT COUNT(*) n FROM stores', [])).n, 4);
   assert.equal((await db.one('SELECT COUNT(*) n FROM bank_accounts', [])).n, 4);
 });

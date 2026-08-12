@@ -7,14 +7,15 @@ import { hashPassword } from '../lib/auth.js';
 // is created as `pending` and passes the owner approval gate (R6).
 
 const COMPANIES = [
-  { key: 'al_haderech', name: 'על הדרך 24 שעות בע"מ', company_type: 'ltd', tax_id: '514737832' },
+  { key: 'al_haderech', name: 'על הדרך סופר', company_type: 'ltd', tax_id: '514737832' },
+  { key: 'al_haderech_junior', name: 'על הדרך גוניור', company_type: 'ltd', tax_id: null },
   { key: 'yaniv_rom', name: 'יניב רום יזמות בע"מ', company_type: 'ltd', tax_id: '515325405' },
   { key: 'pink_market', name: 'פינק מרקט י.ר. בע"מ', company_type: 'ltd', tax_id: '516632627' },
 ];
 
 // store -> company key, plus its 1:1 bank account (all Bank Hapoalim, branch 428).
 const STORES = [
-  { company: 'al_haderech', name: "ג'וניור", branch: '428', account: '45550' },
+  { company: 'al_haderech_junior', name: "ג'וניור", branch: '428', account: '45550' },
   { company: 'al_haderech', name: 'סופר על הדרך', branch: '428', account: '420244' },
   { company: 'yaniv_rom', name: 'מידנייט', branch: '428', account: '432110' },
   { company: 'pink_market', name: 'פינק רשל"צ', branch: '428', account: '88772' },
@@ -92,7 +93,7 @@ export async function seed(x = getExecutor()) {
     // Named team members with per-company access (הפרדת חברות). No password yet — each sets
     // their own via a WhatsApp invite link. Company access is granted in user_companies.
     const TEAM = [
-      { name: 'ויקי', username: 'vicky', companies: ['al_haderech', 'yaniv_rom', 'pink_market'] },
+      { name: 'ויקי', username: 'vicky', companies: ['al_haderech', 'al_haderech_junior', 'yaniv_rom', 'pink_market'] },
       { name: 'אדם', username: 'adam', companies: ['al_haderech'] },
       { name: 'רון', username: 'ron', companies: ['pink_market'] },
     ];
