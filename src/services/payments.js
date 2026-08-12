@@ -79,9 +79,10 @@ export async function createPayment(input, actor, x = getExecutor()) {
     if (!payerName || !String(payerName).trim()) throw new RuleError('VALIDATION', 'תשלום מזומן — שם המשלם חובה');
     fields.payer_name = String(payerName).trim();
   } else if (method === 'credit') {
+    // 4 ספרות אחרונות אינן חובה; אם הוזנו — הן חייבות להיות בדיוק 4 ספרות.
     const last4 = String(cardLast4 || '').trim();
-    if (!/^\d{4}$/.test(last4)) throw new RuleError('VALIDATION', 'תשלום אשראי — 4 ספרות אחרונות חובה');
-    fields.card_last4 = last4;
+    if (last4 && !/^\d{4}$/.test(last4)) throw new RuleError('VALIDATION', 'תשלום אשראי — 4 הספרות האחרונות חייבות להיות בדיוק 4 ספרות');
+    fields.card_last4 = last4 || null;
   } else if (method === 'transfer') {
     if (!reference || !String(reference).trim()) throw new RuleError('VALIDATION', 'העברה — מספר אסמכתא חובה');
     fields.reference = String(reference).trim();

@@ -39,3 +39,25 @@ test('standing_order requires a reference/mandate number', async () => {
     /הו"ק|אסמכתא|הרשאה/,
   );
 });
+
+test('credit payment no longer requires the last-4 digits', async () => {
+  const db = await freshDb();
+  const { acct, invoiceId, sec } = await approvedInvoice(db, 'CR-1');
+  // No cardLast4 — must succeed now.
+  const p = await createPayment(
+    { bankAccountId: acct, method: 'credit', paymentDate: '2026-07-05', invoiceIds: [invoiceId] },
+    sec, db,
+  );
+  const detail = await getPaymentDetail(p.id, db);
+  assert.equal(detail.method, 'credit');
+  assert.equal(detail.card_last4, null);
+});
+
+test('credit still rejects a malformed (non-4-digit) card number when one is given', async () => {
+  const db = await freshDb();
+  const { acct, invoiceId, sec } = await approvedInvoice(db, 'CR-2');
+  await assert.rejects(
+    () => createPayment({ bankAccountId: acct, method: 'credit', cardLast4: '12', paymentDate: '2026-07-05', invoiceIds: [invoiceId] }, sec, db),
+    /4 ספרות/,
+  );
+});
