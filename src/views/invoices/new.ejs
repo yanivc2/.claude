@@ -128,6 +128,7 @@
         <option value="check" <%= values.pay_method === 'check' ? 'selected' : '' %>>צ׳ק</option>
         <option value="transfer" <%= values.pay_method === 'transfer' ? 'selected' : '' %>>העברה</option>
         <option value="cash" <%= values.pay_method === 'cash' ? 'selected' : '' %>>מזומן</option>
+        <option value="credit" <%= values.pay_method === 'credit' ? 'selected' : '' %>>אשראי</option>
         <option value="standing_order" <%= values.pay_method === 'standing_order' ? 'selected' : '' %>>הו"ק</option>
       </select>
       <div class="pay-row" data-m="check">
@@ -147,6 +148,12 @@
           <div><label>שולם ע"י</label><input name="cash_payer" value="<%= values.cash_payer || '' %>" /></div>
           <div><label>תאריך תשלום</label><input type="date" name="cash_date" value="<%= values.cash_date || '' %>" /></div>
           <div><label>סכום ששולם (₪)</label><input name="cash_amount" inputmode="decimal" value="<%= values.cash_amount || '' %>" /><small class="muted">הסכום שיירשם = סכום החשבונית</small></div>
+        </div>
+      </div>
+      <div class="pay-row" data-m="credit">
+        <div class="row">
+          <div><label>4 ספרות אחרונות</label><input name="card_last4" inputmode="numeric" maxlength="4" pattern="\d{4}" value="<%= values.card_last4 || '' %>" /></div>
+          <div><label>תאריך חיוב</label><input type="date" name="credit_date" value="<%= values.credit_date || '' %>" /></div>
         </div>
       </div>
       <div class="pay-row" data-m="standing_order">
@@ -207,6 +214,7 @@
         <option value="check">צ׳ק</option>
         <option value="transfer">העברה</option>
         <option value="cash">מזומן</option>
+        <option value="credit">אשראי</option>
         <option value="standing_order">הו"ק</option>
       </select>
       <div class="bpay-row" data-m="check">
@@ -225,6 +233,12 @@
         <div class="row">
           <div><label>שולם ע"י</label><input name="cash_payer" /></div>
           <div><label>תאריך תשלום</label><input type="date" name="cash_date" /></div>
+        </div>
+      </div>
+      <div class="bpay-row" data-m="credit">
+        <div class="row">
+          <div><label>4 ספרות אחרונות</label><input name="card_last4" inputmode="numeric" maxlength="4" pattern="\d{4}" /></div>
+          <div><label>תאריך חיוב</label><input type="date" name="credit_date" /></div>
         </div>
       </div>
       <div class="bpay-row" data-m="standing_order">

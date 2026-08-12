@@ -195,6 +195,9 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
         } else if (method === 'cash') {
           payInput.payerName = b.cash_payer;
           payInput.paymentDate = b.cash_date || invoice.invoice_date;
+        } else if (method === 'credit') {
+          payInput.cardLast4 = b.card_last4;
+          payInput.paymentDate = b.credit_date || invoice.invoice_date;
         } else if (method === 'standing_order') {
           payInput.reference = b.so_ref;
           payInput.paymentDate = b.so_date || invoice.invoice_date;
@@ -257,6 +260,9 @@ router.post('/pay-batch', async (req, res, next) => {
     } else if (method === 'cash') {
       payInput.payerName = b.cash_payer;
       payInput.paymentDate = b.cash_date;
+    } else if (method === 'credit') {
+      payInput.cardLast4 = b.card_last4;
+      payInput.paymentDate = b.credit_date;
     } else if (method === 'standing_order') {
       payInput.reference = b.so_ref;
       payInput.paymentDate = b.so_date;
