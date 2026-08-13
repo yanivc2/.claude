@@ -41,27 +41,41 @@
     <strong>פרטי התחברות עבור <%= invite.name %></strong>
     <p class="card-body" style="margin:.3rem 0">נוצרה <strong>סיסמה זמנית</strong>. לחץ "פתח וואטסאפ" — ההודעה כבר מוכנה (קישור לאפליקציה + סיסמה + הסבר להתקנה). אם וואטסאפ לא מילא את הטקסט, לחץ "העתק הודעה" והדבק ידנית.</p>
 
-    <div class="row" style="gap:.6rem;align-items:end;flex-wrap:wrap;margin:.4rem 0">
-      <div><label style="margin:0">שם משתמש</label><input class="input mono" style="max-width:200px" value="<%= invite.username %>" readonly onclick="this.select()" /></div>
-      <div><label style="margin:0">סיסמה זמנית</label><input id="inv_pw" class="input mono" style="max-width:200px" value="<%= invite.password %>" readonly onclick="this.select()" /></div>
-      <div><button type="button" class="btn btn-secondary btn-sm" onclick="copyVal('inv_pw', this)">העתק סיסמה</button></div>
-    </div>
+    <form method="post" action="/settings/users/<%= invite.userId %>/invite" class="stack" style="margin:.4rem 0">
+      <div class="row" style="gap:.6rem;align-items:end;flex-wrap:wrap">
+        <div><label style="margin:0">שם משתמש (ניתן לשנות)</label><input name="username" class="mono" style="max-width:200px" value="<%= invite.username %>" /></div>
+        <div><label style="margin:0">סיסמה זמנית (ניתן לשנות)</label><input id="inv_pw" name="password" class="mono" style="max-width:200px" value="<%= invite.password %>" /></div>
+      </div>
+      <div class="actions" style="margin-top:.4rem;flex-wrap:wrap">
+        <button type="submit" class="btn btn-secondary btn-sm">עדכן והכן הודעה מחדש</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="copyVal('inv_pw', this)">העתק סיסמה</button>
+      </div>
+      <p class="muted" style="margin:.1rem 0 0;font-size:12px">שינית שם משתמש או סיסמה? לחץ "עדכן והכן הודעה מחדש" כדי לשמור ולעדכן את ההודעה.</p>
+    </form>
 
     <label style="margin:.2rem 0 0">ההודעה המלאה</label>
     <textarea id="inv_msg" class="input" style="width:100%;min-height:150px" readonly onclick="this.select()"><%= invite.message %></textarea>
 
     <div class="actions" style="margin-top:.6rem;flex-wrap:wrap">
-      <a class="btn btn-primary" href="<%= invite.waUrl %>" target="_blank" rel="noopener">פתח וואטסאפ</a>
+      <button type="button" class="btn btn-primary" onclick="shareInvite()">שלח / שתף בוואטסאפ</button>
+      <a class="btn btn-secondary" href="<%= invite.waUrl %>" target="_blank" rel="noopener">פתח וואטסאפ (בחירת איש קשר)</a>
       <button type="button" class="btn btn-secondary" onclick="copyVal('inv_msg', this)">העתק הודעה</button>
       <a class="btn btn-secondary" href="<%= invite.loginUrl %>" target="_blank" rel="noopener">פתח את דף ההתחברות</a>
     </div>
     <script>
       function copyVal(id, btn){
         var el = document.getElementById(id); if (!el) return;
-        el.select();
+        el.focus(); el.select();
         var done = function(){ var t = btn.textContent; btn.textContent = 'הועתק ✓'; setTimeout(function(){ btn.textContent = t; }, 1500); };
-        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(el.value).then(done, function(){ document.execCommand('copy'); done(); }); }
-        else { document.execCommand('copy'); done(); }
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(el.value).then(done, function(){ try{document.execCommand('copy');}catch(e){} done(); }); }
+        else { try{document.execCommand('copy');}catch(e){} done(); }
+      }
+      // On mobile, the native share sheet lets you pick WhatsApp AND a contact, with the message
+      // already attached (most reliable). Fall back to the wa.me link elsewhere.
+      function shareInvite(){
+        var msg = document.getElementById('inv_msg').value;
+        if (navigator.share) { navigator.share({ text: msg }).catch(function(){}); }
+        else { window.open('<%= invite.waUrl %>', '_blank', 'noopener'); }
       }
     </script>
   </div>

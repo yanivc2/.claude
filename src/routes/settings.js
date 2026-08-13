@@ -254,18 +254,32 @@ router.post('/users/:id/reset-password', async (req, res, next) => {
 router.post('/users/:id/invite', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const user = await getExecutor().one('SELECT * FROM users WHERE id = ?', [id]);
+    const x = getExecutor();
+    const user = await x.one('SELECT * FROM users WHERE id = ?', [id]);
     if (!user) return render(req, res, { error: 'משתמש לא נמצא' });
-    if (!user.username) return render(req, res, { error: 'למשתמש אין שם משתמש — הגדר שם משתמש לפני שליחת הזמנה.' });
-    const password = generatePassword();
-    await resetPasswordByOwner(id, password, req.user);
+
+    // Optional: set/change the login username right here (validated unique).
+    const newUsername = (req.body.username || '').trim();
+    if (newUsername && newUsername !== user.username) {
+      const dup = await x.one('SELECT id FROM users WHERE username = ? AND id <> ?', [newUsername, id]);
+      if (dup) return render(req, res, { error: `שם המשתמש "${newUsername}" כבר קיים.` });
+      await x.run('UPDATE users SET username = ? WHERE id = ?', [newUsername, id]);
+      user.username = newUsername;
+    }
+    if (!user.username) return render(req, res, { error: 'הזן שם משתמש (לוגין) עבור המשתמש.' });
+
+    // Optional: a custom temporary password typed by the owner, otherwise auto-generate one.
+    const custom = (req.body.password || '').trim();
+    const password = custom || generatePassword();
+    await resetPasswordByOwner(id, password, req.user); // validates the policy + sets must_change
+
     const appUrl = origin(req);
     const message = buildInviteMessage(user, appUrl, password);
     const invite = {
       userId: id, name: user.name, username: user.username, password,
       loginUrl: `${appUrl}/login`, message, waUrl: whatsappDeepLink(user, message),
     };
-    await render(req, res, { notice: `נוצרה סיסמה זמנית ל-${user.name}. שלח את ההודעה בוואטסאפ.`, invite });
+    await render(req, res, { notice: `מוכן לשליחה ל-${user.name}. ניתן לערוך שם משתמש/סיסמה ולהכין מחדש.`, invite });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
