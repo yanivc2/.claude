@@ -203,6 +203,7 @@ function migrateUserAuth(db) {
   if (!cols.includes('label')) db.exec('ALTER TABLE users ADD COLUMN label TEXT;');
   if (!cols.includes('permissions')) db.exec('ALTER TABLE users ADD COLUMN permissions TEXT;');
   if (!cols.includes('password_hash')) db.exec('ALTER TABLE users ADD COLUMN password_hash TEXT;');
+  if (!cols.includes('must_change_password')) db.exec('ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0;');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;');
 }
 

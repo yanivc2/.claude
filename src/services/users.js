@@ -97,7 +97,8 @@ export async function resetPasswordByOwner(id, newPassword, actor, x = getExecut
   await getUser(id, x);
   const pwErr = passwordPolicyError(newPassword);
   if (pwErr) throw new RuleError('VALIDATION', pwErr);
-  await x.run('UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword(newPassword), id]);
+  // An owner-assigned password is temporary — force the user to change it on next login.
+  await x.run('UPDATE users SET password_hash = ?, must_change_password = 1 WHERE id = ?', [hashPassword(newPassword), id]);
   await logAction({ userId: actor.id, action: 'user.password_reset', entityType: 'user', entityId: id }, x);
 }
 
@@ -109,7 +110,7 @@ export async function changeOwnPassword(userId, { current, next, confirm }, x = 
   const pwErr = passwordPolicyError(next);
   if (pwErr) throw new RuleError('VALIDATION', pwErr);
   if (next !== confirm) throw new RuleError('VALIDATION', 'אישור הסיסמה אינו תואם');
-  await x.run('UPDATE users SET password_hash = ? WHERE id = ?', [hashPassword(next), userId]);
+  await x.run('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?', [hashPassword(next), userId]);
   await logAction({ userId, action: 'auth.password_change', entityType: 'user', entityId: userId }, x);
 }
 

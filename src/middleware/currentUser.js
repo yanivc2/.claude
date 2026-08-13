@@ -44,6 +44,15 @@ export async function currentUser(req, res, next) {
     res.locals.canView = (navKey) => canViewPage(user, navKey);
     res.locals.pendingApprovals = user.role === 'owner' ? await countPending() : 0;
 
+    // Forced first-login password change: when the owner issued a temporary password
+    // (must_change_password=1), block every page except the change-password form + logout
+    // until the user picks a new password.
+    if (user.must_change_password) {
+      const p = req.path;
+      const allow = p === '/account/password' || p === '/logout' || p === '/privacy' || p === '/accessibility';
+      if (!allow) return res.redirect('/account/password');
+    }
+
     // Per-user company scope (הפרדת חברות): null = all (owner), else the granted company ids.
     const companyIds = await authorizedCompanyIds(user);
     req.scope = { companyIds, all: companyIds == null };
