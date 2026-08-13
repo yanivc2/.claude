@@ -38,12 +38,32 @@
 <% if (typeof invite !== 'undefined' && invite) { %>
   <div class="card" style="border-color:var(--color-accent)">
     <div class="card-kicker">הזמנה בוואטסאפ</div>
-    <strong>קישור הגדרת סיסמה עבור <%= invite.name %></strong>
-    <p class="card-body" style="margin:.3rem 0">לחץ "פתח וואטסאפ" — ההודעה מוכנה (שם משתמש + קישור), ותוכל לבחור למי לשלוח. הקישור תקף לשבוע.</p>
-    <div class="actions">
-      <a class="btn btn-primary" href="<%= invite.waUrl %>" target="_blank" rel="noopener">פתח וואטסאפ</a>
-      <input class="input" style="max-width:440px" value="<%= invite.link %>" readonly onclick="this.select()" />
+    <strong>פרטי התחברות עבור <%= invite.name %></strong>
+    <p class="card-body" style="margin:.3rem 0">נוצרה <strong>סיסמה זמנית</strong>. לחץ "פתח וואטסאפ" — ההודעה כבר מוכנה (קישור לאפליקציה + סיסמה + הסבר להתקנה). אם וואטסאפ לא מילא את הטקסט, לחץ "העתק הודעה" והדבק ידנית.</p>
+
+    <div class="row" style="gap:.6rem;align-items:end;flex-wrap:wrap;margin:.4rem 0">
+      <div><label style="margin:0">שם משתמש</label><input class="input mono" style="max-width:200px" value="<%= invite.username %>" readonly onclick="this.select()" /></div>
+      <div><label style="margin:0">סיסמה זמנית</label><input id="inv_pw" class="input mono" style="max-width:200px" value="<%= invite.password %>" readonly onclick="this.select()" /></div>
+      <div><button type="button" class="btn btn-secondary btn-sm" onclick="copyVal('inv_pw', this)">העתק סיסמה</button></div>
     </div>
+
+    <label style="margin:.2rem 0 0">ההודעה המלאה</label>
+    <textarea id="inv_msg" class="input" style="width:100%;min-height:150px" readonly onclick="this.select()"><%= invite.message %></textarea>
+
+    <div class="actions" style="margin-top:.6rem;flex-wrap:wrap">
+      <a class="btn btn-primary" href="<%= invite.waUrl %>" target="_blank" rel="noopener">פתח וואטסאפ</a>
+      <button type="button" class="btn btn-secondary" onclick="copyVal('inv_msg', this)">העתק הודעה</button>
+      <a class="btn btn-secondary" href="<%= invite.loginUrl %>" target="_blank" rel="noopener">פתח את דף ההתחברות</a>
+    </div>
+    <script>
+      function copyVal(id, btn){
+        var el = document.getElementById(id); if (!el) return;
+        el.select();
+        var done = function(){ var t = btn.textContent; btn.textContent = 'הועתק ✓'; setTimeout(function(){ btn.textContent = t; }, 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(el.value).then(done, function(){ document.execCommand('copy'); done(); }); }
+        else { document.execCommand('copy'); done(); }
+      }
+    </script>
   </div>
 <% } %>
 

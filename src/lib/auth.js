@@ -35,6 +35,23 @@ export function passwordPolicyError(pw) {
   return null;
 }
 
+/**
+ * Generate a policy-compliant temporary password that's easy to read/type (no ambiguous
+ * characters like 0/O, 1/l/I). Always contains an uppercase, a lowercase and a digit.
+ */
+export function generatePassword(len = 10) {
+  const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+  const lower = 'abcdefghijkmnpqrstuvwxyz';
+  const digit = '23456789';
+  const all = upper + lower + digit;
+  const n = Math.max(8, len);
+  const bytes = crypto.randomBytes(n);
+  const pick = (set, i) => set[bytes[i] % set.length];
+  let out = pick(upper, 0) + pick(lower, 1) + pick(digit, 2);
+  for (let i = 3; i < n; i += 1) out += all[bytes[i] % all.length];
+  return out;
+}
+
 function sign(payload, secret) {
   return crypto.createHmac('sha256', secret).update(payload).digest('hex');
 }

@@ -21,8 +21,7 @@ import { getExecutor } from '../db/adapter.js';
 import { requireOwner, requirePermission } from '../middleware/requireOwner.js';
 import { PERMISSIONS, ROLE_PRESETS } from '../lib/permissions.js';
 import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
-import { createInviteLink } from '../services/passwordReset.js';
-import { PASSWORD_POLICY_TEXT, verifyPassword } from '../lib/auth.js';
+import { verifyPassword, generatePassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll } from '../services/backup.js';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '../services/roleTemplates.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -32,16 +31,34 @@ const router = Router();
 function isHttps(req) { return req.secure || req.headers['x-forwarded-proto'] === 'https'; }
 function origin(req) { return `${isHttps(req) ? 'https' : req.protocol}://${req.get('host')}`; }
 
-// Build the wa.me deep link for an invite. No phone → WhatsApp lets the sender pick a contact.
-function whatsappUrl(user, link) {
-  const msg =
-    `שלום ${user.name || ''}, נפתח עבורך חשבון ב-AP Control.\n` +
-    `שם המשתמש שלך: ${user.username}\n` +
-    `להגדרת סיסמה: ${link}\n` +
-    `${PASSWORD_POLICY_TEXT}.`;
-  const phone = (user.phone || '').replace(/[^0-9]/g, '');
+// The WhatsApp onboarding message: notice + clickable app link + password (in a monospace block
+// so it copies on its own) + how to add the app to the phone's home screen.
+function buildInviteMessage(user, appUrl, password) {
+  return [
+    `שלום ${user.name || ''} 👋`,
+    `נפתח עבורך חשבון ב-AP Control, ושלחתי לך קישור להתחברות לאפליקציה.`,
+    '',
+    '🔗 כניסה לאפליקציה (לחיצה על הקישור):',
+    `${appUrl}/login`,
+    '',
+    `👤 שם משתמש: ${user.username || ''}`,
+    '🔑 הסיסמה שלך (לחיצה ארוכה כדי להעתיק):',
+    '```' + password + '```',
+    '',
+    'מומלץ להחליף סיסמה אחרי הכניסה הראשונה: הגדרות ‹ הסיסמה שלי.',
+    '',
+    '📲 הוספה למסך הבית של הנייד:',
+    '• אייפון (Safari): כפתור השיתוף ⬆️ ← "הוסף למסך הבית".',
+    '• אנדרואיד (Chrome): תפריט ⋮ ← "הוספה למסך הבית".',
+  ].join('\n');
+}
+
+// Build the wa.me deep link (international phone, or no number so WhatsApp lets you pick a contact).
+function whatsappDeepLink(user, message) {
+  let phone = String(user.phone || '').replace(/\D/g, '');
+  if (phone && !phone.startsWith('972')) phone = phone.startsWith('0') ? `972${phone.slice(1)}` : `972${phone}`;
   const base = phone ? `https://wa.me/${phone}` : 'https://wa.me/';
-  return `${base}?text=${encodeURIComponent(msg)}`;
+  return `${base}?text=${encodeURIComponent(message)}`;
 }
 
 // Settings requires the "settings" permission (owner always passes). User-management and
@@ -228,13 +245,23 @@ router.post('/users/:id/reset-password', async (req, res, next) => {
   }
 });
 
-// Generate a set-password link and show a "פתח וואטסאפ" button (owner picks the contact).
+// Set a fresh temporary password for the user and prepare a ready-to-send WhatsApp message
+// (app link + password + home-screen instructions). Owner picks the contact in WhatsApp.
 router.post('/users/:id/invite', async (req, res, next) => {
   try {
-    const result = await createInviteLink(Number(req.params.id), { origin: origin(req) }, getExecutor());
-    if (!result) return render(req, res, { error: 'משתמש לא נמצא' });
-    const invite = { userId: result.user.id, name: result.user.name, link: result.link, waUrl: whatsappUrl(result.user, result.link) };
-    await render(req, res, { notice: `נוצר קישור הזמנה ל-${result.user.name}. לחץ "פתח וואטסאפ" לשליחה.`, invite });
+    const id = Number(req.params.id);
+    const user = await getExecutor().one('SELECT * FROM users WHERE id = ?', [id]);
+    if (!user) return render(req, res, { error: 'משתמש לא נמצא' });
+    if (!user.username) return render(req, res, { error: 'למשתמש אין שם משתמש — הגדר שם משתמש לפני שליחת הזמנה.' });
+    const password = generatePassword();
+    await resetPasswordByOwner(id, password, req.user);
+    const appUrl = origin(req);
+    const message = buildInviteMessage(user, appUrl, password);
+    const invite = {
+      userId: id, name: user.name, username: user.username, password,
+      loginUrl: `${appUrl}/login`, message, waUrl: whatsappDeepLink(user, message),
+    };
+    await render(req, res, { notice: `נוצרה סיסמה זמנית ל-${user.name}. שלח את ההודעה בוואטסאפ.`, invite });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
