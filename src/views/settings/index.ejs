@@ -463,4 +463,17 @@ function apReset(e){
   </div>
 </details>
 <% } %>
+
+<script>
+  // Accordion for the settings panels: opening one section closes the others.
+  (function(){
+    var sections = Array.prototype.slice.call(document.querySelectorAll('details.section'));
+    sections.forEach(function(d){
+      d.addEventListener('toggle', function(){
+        if (!d.open) return;
+        sections.forEach(function(o){ if (o !== d && o.open) o.removeAttribute('open'); });
+      });
+    });
+  })();
+</script>
 <%- include('../partials/footer') %>
