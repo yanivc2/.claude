@@ -234,6 +234,15 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
 .chip-check:has(input:checked) { color: var(--color-accent-200); border-color: var(--color-accent);
   background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
 
+/* collapsed permissions cell in the users table — a chip that expands the full list */
+.permcell > summary { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; list-style: none;
+  font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--color-line);
+  color: var(--color-muted); white-space: nowrap; }
+.permcell > summary::-webkit-details-marker { display: none; }
+.permcell > summary::after { content: '▾'; font-size: 9px; }
+.permcell[open] > summary::after { content: '▴'; }
+.permcell-body { margin-top: 6px; font-size: 12px; line-height: 1.5; max-width: 280px; }
+
 /* ---- cards ---- */
 .card {
   position: relative; background: var(--color-surface); border: 1px solid var(--color-line);

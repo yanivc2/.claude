@@ -146,6 +146,39 @@ export async function execScript(sql) {
   }
 }
 
+// Split a schema script into individual statements. Our schema files use no dollar-quoted
+// bodies and no ';' inside string literals, so stripping line comments + splitting on ';' is safe.
+function splitStatements(sql) {
+  return sql
+    .replace(/--[^\n]*/g, '')
+    .split(';')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * Run a schema script statement-by-statement. With { tolerant: true } (the on-demand upgrade of an
+ * existing DB) a statement that fails is logged and skipped so the remaining idempotent migrations
+ * still apply — crucially, on Postgres `pgPool.query(multiStatement)` runs as ONE implicit
+ * transaction, so a single bad statement would otherwise roll back every ADD COLUMN in the file.
+ * @returns {Promise<Array<{statement:string, message:string}>>} the failures (empty if all applied)
+ */
+export async function execScriptEach(sql, { tolerant = false } = {}) {
+  const failures = [];
+  for (const stmt of splitStatements(sql)) {
+    try {
+      if (backend === 'pg') await pgPool.query(stmt);
+      else sqliteDb.exec(stmt);
+    } catch (err) {
+      if (!tolerant) throw err;
+      failures.push({ statement: stmt.replace(/\s+/g, ' ').slice(0, 120), message: err.message });
+      // eslint-disable-next-line no-console
+      console.error(`[upgrade] skipped failing statement: ${err.message}`);
+    }
+  }
+  return failures;
+}
+
 /**
  * Run fn inside a transaction. fn receives a transaction-scoped Executor and must use it for
  * all its queries. Commits on success, rolls back on throw.

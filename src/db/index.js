@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
-import { initBackend, getExecutor, getBackend, getRawSqlite, execScript } from './adapter.js';
+import { initBackend, getExecutor, getBackend, getRawSqlite, execScript, execScriptEach } from './adapter.js';
 import { migrate } from './migrate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,11 +42,13 @@ export function isReady() {
  */
 export async function upgradeSchema() {
   if (getBackend() === 'pg') {
-    await execScript(fs.readFileSync(path.join(__dirname, 'schema.pg.sql'), 'utf8'));
-  } else {
-    await execScript(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
-    migrate(getRawSqlite());
+    // Resilient: run each statement on its own so one failing statement can't roll back the
+    // whole file (Postgres runs a multi-statement query as a single implicit transaction).
+    return execScriptEach(fs.readFileSync(path.join(__dirname, 'schema.pg.sql'), 'utf8'), { tolerant: true });
   }
+  await execScript(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
+  migrate(getRawSqlite());
+  return [];
 }
 
 /**

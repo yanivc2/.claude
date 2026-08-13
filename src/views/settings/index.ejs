@@ -328,6 +328,7 @@ function apReset(e){
   <summary>ניהול משתמשים והרשאות</summary>
   <div class="section-body">
     <p class="muted"><strong>בעלים</strong> — גישה מלאה. אחרת בחר תפקיד <strong>מזכירה</strong> (בסיס) ותן שם-תפקיד חופשי (למשל "מנהל") וסמן בצ׳ק-ליסט אילו הרשאות להוסיף.</p>
+    <div class="table-scroll">
     <table>
       <thead><tr><th>שם</th><th>שם משתמש</th><th>תפקיד</th><th>הרשאות</th><th class="no-print">פעולות</th></tr></thead>
       <tbody>
@@ -338,8 +339,17 @@ function apReset(e){
             <td>
               <span class="badge <%= u.role === 'owner' ? 'b-approved_for_payment' : 'b-recorded' %>"><%= u.role === 'owner' ? 'בעלים' : (u.label || 'מזכירה') %></span>
             </td>
-            <td class="muted" style="font-size:.85rem">
-              <% if (u.role === 'owner') { %>הכל<% } else if (u.permissions && u.permissions.length) { %><%= u.permissions.map(permLabel).join(' · ') %><% } else { %>בסיס בלבד<% } %>
+            <td>
+              <% if (u.role === 'owner') { %>
+                <span class="muted" style="font-size:.85rem">הכל</span>
+              <% } else if (u.permissions && u.permissions.length) { %>
+                <details class="permcell">
+                  <summary>הרשאות (<%= u.permissions.length %>)</summary>
+                  <div class="permcell-body muted"><%= u.permissions.map(permLabel).join(' · ') %></div>
+                </details>
+              <% } else { %>
+                <span class="muted" style="font-size:.85rem">בסיס בלבד</span>
+              <% } %>
             </td>
             <td class="no-print">
               <button type="button" class="secondary small" onclick="var e=document.getElementById('edit-user-<%= u.id %>'); e.hidden=!e.hidden">ערוך</button>
@@ -396,6 +406,7 @@ function apReset(e){
         <% }); %>
       </tbody>
     </table>
+    </div>
 
     <h3 style="margin:1rem 0 .3rem">הוספת משתמש</h3>
     <form method="post" action="/settings/users" class="stack" style="max-width:640px">

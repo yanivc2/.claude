@@ -328,8 +328,15 @@ router.post('/role-templates/:id/delete', requireOwner, async (req, res, next) =
 // One-click DB schema upgrade (idempotent) — adds any columns/tables a new deploy needs. Owner-only.
 router.post('/db-upgrade', requireOwner, async (req, res, next) => {
   try {
-    await upgradeSchema();
-    await render(req, res, { notice: 'מסד הנתונים עודכן בהצלחה — כל העמודות והטבלאות החדשות קיימות.' });
+    const failures = await upgradeSchema();
+    if (Array.isArray(failures) && failures.length) {
+      // Some (idempotent) statements couldn't apply, but the rest did. Surface which, so a single
+      // problematic migration doesn't silently mask that everything else succeeded.
+      const list = failures.slice(0, 5).map((f) => `• ${f.message}`).join('\n');
+      await render(req, res, { notice: `מסד הנתונים עודכן. ${failures.length} משפטים דולגו (השאר הוחלו): \n${list}` });
+    } else {
+      await render(req, res, { notice: 'מסד הנתונים עודכן בהצלחה — כל העמודות והטבלאות החדשות קיימות.' });
+    }
   } catch (err) {
     next(err);
   }
