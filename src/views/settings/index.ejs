@@ -369,6 +369,11 @@ function apReset(e){
                   </div>
                   <div><label style="margin:0">שם תפקיד (תצוגה)</label><input name="label" value="<%= u.label || '' %>" placeholder="למשל: מנהל" /></div>
                 </div>
+                <div class="row">
+                  <div><label style="margin:0">שעות התחברות — מ־ (שעון ישראל)</label><input type="time" name="login_start" value="<%= u.login_start || '' %>" /></div>
+                  <div><label style="margin:0">עד</label><input type="time" name="login_end" value="<%= u.login_end || '' %>" /></div>
+                </div>
+                <p class="muted" style="margin:.1rem 0 .3rem;font-size:12px">השאר ריק = ללא הגבלה. שני השדות מלאים = התחברות מותרת רק בין השעות הללו (בעלים אינו מוגבל).</p>
                 <div class="perm-box" style="<%= u.role === 'owner' ? 'display:none' : '' %>">
                   <% if ((typeof roleTemplates !== 'undefined' ? roleTemplates : []).length) { %>
                     <label style="margin:.4rem 0 .2rem">החל תבנית תפקיד</label>
@@ -411,6 +416,11 @@ function apReset(e){
         </div>
         <div><label style="margin:0">שם תפקיד (תצוגה)</label><input name="label" placeholder="למשל: מנהל" /></div>
       </div>
+      <div class="row">
+        <div><label style="margin:0">שעות התחברות — מ־ (שעון ישראל)</label><input type="time" name="login_start" /></div>
+        <div><label style="margin:0">עד</label><input type="time" name="login_end" /></div>
+      </div>
+      <p class="muted" style="margin:.1rem 0 .3rem;font-size:12px">השאר ריק = ללא הגבלה. שני השדות מלאים = התחברות מותרת רק בין השעות הללו (בעלים אינו מוגבל).</p>
       <div class="perm-box">
         <% if ((typeof roleTemplates !== 'undefined' ? roleTemplates : []).length) { %>
           <label style="margin:.4rem 0 .2rem">החל תבנית תפקיד</label>

@@ -5,6 +5,8 @@ import { requestReset, verifyResetToken, completeReset } from '../services/passw
 import { mailEnabled } from '../lib/mailer.js';
 import { logAction } from '../services/audit.js';
 import { firstAllowedPath } from '../lib/permissions.js';
+import { loginAllowedNow, israelClock } from '../lib/loginHours.js';
+import { notify } from '../lib/notify.js';
 
 const router = Router();
 
@@ -18,7 +20,10 @@ function origin(req) {
 
 router.get('/login', (req, res) => {
   if (req.user) return res.redirect(303, '/');
-  res.render('login', { title: 'התחברות', error: null });
+  const error = req.query.blocked === 'hours'
+    ? 'ההתחברות חסומה כעת מחוץ לשעות המותרות (שעון ישראל).'
+    : null;
+  res.render('login', { title: 'התחברות', error });
 });
 
 router.post('/login', async (req, res, next) => {
@@ -29,6 +34,15 @@ router.post('/login', async (req, res, next) => {
     if (!user || !verifyPassword(password, user.password_hash)) {
       return res.status(401).render('login', { title: 'התחברות', error: 'שם משתמש או סיסמה שגויים' });
     }
+    // Per-user login hours (Israel time): reject outside the allowed window.
+    const gate = loginAllowedNow(user);
+    if (!gate.allowed) {
+      await logAction({ userId: user.id, action: 'auth.login_blocked', entityType: 'user', entityId: user.id, details: { window: gate.window, at: gate.hhmm } });
+      return res.status(403).render('login', {
+        title: 'התחברות',
+        error: `ההתחברות מותרת רק בין ${gate.window} (שעון ישראל). השעה כעת: ${gate.hhmm}.`,
+      });
+    }
     res.cookie('session', createSession(user.id), {
       httpOnly: true,
       sameSite: 'lax',
@@ -36,6 +50,11 @@ router.post('/login', async (req, res, next) => {
       maxAge: 12 * 3600 * 1000,
     });
     await logAction({ userId: user.id, action: 'auth.login', entityType: 'user', entityId: user.id });
+    // Push (Telegram): notify the owner on every login.
+    try {
+      const roleLabel = user.role === 'owner' ? 'בעלים' : (user.label || 'משתמש');
+      notify(`🔓 <b>התחברות למערכת</b>\n${user.name || user.username} (${roleLabel})\nשעה: ${israelClock().hhmm} (שעון ישראל)`);
+    } catch { /* best-effort */ }
     // Land on the first page this (possibly restricted) user may open — e.g. a register-closer
     // goes straight to /zclosing instead of bouncing off the dashboard guard.
     res.redirect(303, firstAllowedPath(user));

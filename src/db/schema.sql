@@ -72,7 +72,9 @@ CREATE TABLE IF NOT EXISTS users (
   permissions   TEXT,           -- JSON array of granted permission keys (non-owner)
   phone         TEXT,           -- E.164-ish digits for WhatsApp invites (optional)
   password_hash TEXT,           -- scrypt hash; null until a password is set
-  must_change_password INTEGER NOT NULL DEFAULT 0  -- 1 = force a password change on next login
+  must_change_password INTEGER NOT NULL DEFAULT 0, -- 1 = force a password change on next login
+  login_start   TEXT,           -- 'HH:MM' Israel time; login allowed only from this time…
+  login_end     TEXT            -- …until this time (both set = restricted; null = always allowed)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;
 

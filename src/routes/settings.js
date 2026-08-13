@@ -211,6 +211,7 @@ router.post('/users', async (req, res, next) => {
         name: req.body.name, username: req.body.username, email: req.body.email,
         role: req.body.role, label: req.body.label, permissions: req.body.permissions,
         password: req.body.password,
+        loginStart: req.body.login_start, loginEnd: req.body.login_end,
       },
       req.user,
     );
@@ -225,7 +226,10 @@ router.post('/users/:id', async (req, res, next) => {
   try {
     await updateUser(
       Number(req.params.id),
-      { name: req.body.name, email: req.body.email, role: req.body.role, label: req.body.label, permissions: req.body.permissions },
+      {
+        name: req.body.name, email: req.body.email, role: req.body.role, label: req.body.label,
+        permissions: req.body.permissions, loginStart: req.body.login_start, loginEnd: req.body.login_end,
+      },
       req.user,
     );
     await render(req, res, { notice: 'פרטי המשתמש עודכנו.' });

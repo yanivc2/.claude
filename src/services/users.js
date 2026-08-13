@@ -29,17 +29,24 @@ function shape(u) {
 
 /** All users (no password hashes) for the settings screen. */
 export async function listUsers(x = getExecutor()) {
-  const rows = await x.many('SELECT id, name, role, username, email, label, permissions FROM users ORDER BY role, name', []);
+  const rows = await x.many('SELECT id, name, role, username, email, label, permissions, login_start, login_end FROM users ORDER BY role, name', []);
   return rows.map(shape);
 }
 
 export async function getUser(id, x = getExecutor()) {
-  const u = await x.one('SELECT id, name, role, username, email, label, permissions FROM users WHERE id = ?', [id]);
+  const u = await x.one('SELECT id, name, role, username, email, label, permissions, login_start, login_end FROM users WHERE id = ?', [id]);
   if (!u) throw new NotFoundError(`משתמש ${id} לא נמצא`);
   return shape(u);
 }
 
-export async function createUser({ name, username, email, role, label, permissions, password }, actor, x = getExecutor()) {
+// Normalize an 'HH:MM' input → a valid 'HH:MM' string or null (empty/invalid).
+function normTime(v) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || '').trim());
+  if (!m || Number(m[1]) > 23 || Number(m[2]) > 59) return null;
+  return `${String(Number(m[1])).padStart(2, '0')}:${m[2]}`;
+}
+
+export async function createUser({ name, username, email, role, label, permissions, password, loginStart = null, loginEnd = null }, actor, x = getExecutor()) {
   requireOwner(actor);
   const nm = (name ?? '').trim();
   const un = (username ?? '').trim();
@@ -58,15 +65,15 @@ export async function createUser({ name, username, email, role, label, permissio
   const lbl = (label ?? '').trim() || null;
 
   const info = await x.run(
-    'INSERT INTO users (name, role, username, email, label, permissions, password_hash) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [nm, role, un, em, lbl, perms, hashPassword(password)],
+    'INSERT INTO users (name, role, username, email, label, permissions, password_hash, login_start, login_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [nm, role, un, em, lbl, perms, hashPassword(password), normTime(loginStart), normTime(loginEnd)],
   );
   await logAction({ userId: actor.id, action: 'user.create', entityType: 'user', entityId: info.lastInsertRowid, details: { username: un, role } }, x);
   return getUser(info.lastInsertRowid, x);
 }
 
 /** Update a user's name / email / role / label / permissions (add or reduce access). */
-export async function updateUser(id, { name, email, role, label, permissions }, actor, x = getExecutor()) {
+export async function updateUser(id, { name, email, role, label, permissions, loginStart, loginEnd }, actor, x = getExecutor()) {
   requireOwner(actor);
   const user = await getUser(id, x);
   const nm = (name ?? '').trim() || user.name;
@@ -82,10 +89,13 @@ export async function updateUser(id, { name, email, role, label, permissions }, 
 
   const perms = rl === 'owner' ? null : serializePermissions(permissions);
   const lbl = (label ?? '').trim() || null;
+  // login hours: undefined = leave as-is; otherwise normalize (empty clears the restriction).
+  const ls = loginStart === undefined ? user.login_start : normTime(loginStart);
+  const le = loginEnd === undefined ? user.login_end : normTime(loginEnd);
 
   await x.run(
-    'UPDATE users SET name = ?, email = ?, role = ?, label = ?, permissions = ? WHERE id = ?',
-    [nm, em, rl, lbl, perms, id],
+    'UPDATE users SET name = ?, email = ?, role = ?, label = ?, permissions = ?, login_start = ?, login_end = ? WHERE id = ?',
+    [nm, em, rl, lbl, perms, ls, le, id],
   );
   await logAction({ userId: actor.id, action: 'user.update', entityType: 'user', entityId: id, details: { role: rl } }, x);
   return getUser(id, x);

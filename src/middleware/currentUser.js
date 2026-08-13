@@ -2,6 +2,7 @@ import { getExecutor } from '../db/adapter.js';
 import { readSession } from '../lib/auth.js';
 import { userCan, canViewPage } from '../lib/permissions.js';
 import { authorizedCompanyIds } from '../lib/scope.js';
+import { loginAllowedNow } from '../lib/loginHours.js';
 import { countPending } from '../services/changeRequests.js';
 
 // Authentication gate. Reads the signed `session` cookie, loads the acting user, and blocks
@@ -38,6 +39,18 @@ export async function currentUser(req, res, next) {
       ) return next();
       return res.redirect('/login');
     }
+
+    // Login-hours gate (Israel time): a user outside their allowed window is treated as logged
+    // out — their session is cleared and they're bounced to the login page.
+    if (!loginAllowedNow(user).allowed) {
+      res.clearCookie('session');
+      const pub =
+        req.path === '/login' || req.path === '/forgot' || req.path.startsWith('/reset/') ||
+        req.path === '/privacy' || req.path === '/accessibility';
+      if (pub) return next();
+      return res.redirect('/login?blocked=hours');
+    }
+
     req.user = user;
     res.locals.currentUser = user;
     res.locals.can = (perm) => userCan(user, perm);

@@ -28,6 +28,8 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS label TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS must_change_password INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS login_start TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS login_end   TEXT;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;
 
 -- Per-user company access (הפרדת חברות). Non-owner sees ONLY listed companies; owner sees all.
