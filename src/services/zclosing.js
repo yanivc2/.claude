@@ -1,5 +1,5 @@
 import { getExecutor } from '../db/adapter.js';
-import { RuleError } from '../lib/errors.js';
+import { RuleError, NotFoundError } from '../lib/errors.js';
 import { fromAgorot } from '../lib/money.js';
 import { notify } from '../lib/notify.js';
 import { logAction } from './audit.js';
@@ -39,13 +39,9 @@ export function israelNow() {
   return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
 }
 
-/**
- * Save a register closing. Totals are recomputed server-side from the counts/expenses (never
- * trusted from the client). ended_at is stamped in Israel time here; started_at is passed in.
- * @param {{employeeFirst, employeeLast, startedAt, counts:{[key]:number},
- *   expenses:Array<{desc:string, amount:number}>}} input  amounts in agorot
- */
-export async function createZClosing(input, actor, x = getExecutor()) {
+// Validate + recompute a closing's fields from raw input. Totals are always derived server-side
+// (never trusted from the client). Shared by create and update.
+function computeClosing(input) {
   const first = (input.employeeFirst || '').trim();
   const last = (input.employeeLast || '').trim();
   if (!first || !last) throw new RuleError('VALIDATION', 'יש להזין שם פרטי ושם משפחה');
@@ -70,7 +66,17 @@ export async function createZClosing(input, actor, x = getExecutor()) {
     if (e.amount < 0) throw new RuleError('VALIDATION', 'סכום הוצאה חייב להיות מספר לא-שלילי');
   }
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
-  const grandTotal = totalCash + totalExpenses;
+  return { first, last, zNumber, drawerCash, storeId, breakdown, totalCash, expenses, totalExpenses, grandTotal: totalCash + totalExpenses };
+}
+
+/**
+ * Save a register closing. Totals are recomputed server-side from the counts/expenses (never
+ * trusted from the client). ended_at is stamped in Israel time here; started_at is passed in.
+ * @param {{employeeFirst, employeeLast, startedAt, counts:{[key]:number},
+ *   expenses:Array<{desc:string, amount:number}>}} input  amounts in agorot
+ */
+export async function createZClosing(input, actor, x = getExecutor()) {
+  const { first, last, zNumber, drawerCash, storeId, breakdown, totalCash, expenses, totalExpenses, grandTotal } = computeClosing(input);
 
   const info = await x.run(
     `INSERT INTO z_closings
@@ -118,4 +124,33 @@ export async function listZClosings({ limit = 30 } = {}, x = getExecutor()) {
       ORDER BY zc.id DESC LIMIT ?`,
     [limit],
   );
+}
+
+/** A single closing (with store name). Throws NotFoundError if it doesn't exist. */
+export async function getZClosing(id, x = getExecutor()) {
+  const row = await x.one(
+    `SELECT zc.*, st.name AS store_name FROM z_closings zc LEFT JOIN stores st ON st.id = zc.store_id WHERE zc.id = ?`,
+    [id],
+  );
+  if (!row) throw new NotFoundError(`סגירת Z ${id} לא נמצאה`);
+  return row;
+}
+
+/** Edit an existing closing — recomputes all totals server-side, same validation as create. */
+export async function updateZClosing(id, input, actor, x = getExecutor()) {
+  await getZClosing(id, x);
+  const { first, last, zNumber, drawerCash, storeId, breakdown, totalCash, expenses, totalExpenses, grandTotal } = computeClosing(input);
+  await x.run(
+    `UPDATE z_closings SET employee_first = ?, employee_last = ?, store_id = ?, z_number = ?, drawer_cash = ?,
+       breakdown = ?, total_cash = ?, expenses = ?, total_expenses = ?, grand_total = ? WHERE id = ?`,
+    [first, last, storeId, zNumber, drawerCash, JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, id],
+  );
+  await logAction({ userId: actor?.id ?? null, action: 'zclosing.update', entityType: 'z_closing', entityId: id }, x);
+  return getZClosing(id, x);
+}
+
+export async function deleteZClosing(id, actor, x = getExecutor()) {
+  await getZClosing(id, x);
+  await x.run('DELETE FROM z_closings WHERE id = ?', [id]);
+  await logAction({ userId: actor?.id ?? null, action: 'zclosing.delete', entityType: 'z_closing', entityId: id }, x);
 }

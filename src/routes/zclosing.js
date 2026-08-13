@@ -1,8 +1,12 @@
 import { Router } from 'express';
-import { createZClosing, listZClosings, CLOSING_DENOMS, israelNow } from '../services/zclosing.js';
+import {
+  createZClosing, listZClosings, getZClosing, updateZClosing, deleteZClosing,
+  CLOSING_DENOMS, israelNow,
+} from '../services/zclosing.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
 import { toAgorot } from '../lib/money.js';
+import { requireOwner } from '../middleware/requireOwner.js';
 import { RuleError } from '../lib/errors.js';
 
 const router = Router();
@@ -16,6 +20,28 @@ async function storeOptionsFor(req) {
       WHERE 1 = 1${sc.sql} ORDER BY c.name, st.name`,
     [...sc.params],
   );
+}
+
+// Build the createZClosing/updateZClosing input from the posted form body.
+function closingInputFrom(b) {
+  const counts = {};
+  for (const d of CLOSING_DENOMS) counts[d.key] = Number(b[`count_${d.key}`] || 0);
+  const descs = [].concat(b.exp_desc || []);
+  const amounts = [].concat(b.exp_amount || []);
+  const expenses = descs.map((desc, i) => ({
+    desc,
+    amount: amounts[i] != null && String(amounts[i]).trim() !== '' ? toAgorot(amounts[i]) : 0,
+  }));
+  return {
+    employeeFirst: b.employee_first,
+    employeeLast: b.employee_last,
+    storeId: b.store_id || null,
+    zNumber: b.z_number,
+    drawerCash: toAgorot(b.drawer_cash || '0'),
+    startedAt: b.started_at,
+    counts,
+    expenses,
+  };
 }
 
 async function render(req, res, extra = {}) {
@@ -40,32 +66,59 @@ router.get('/', async (req, res, next) => {
 });
 
 router.post('/', async (req, res, next) => {
-  const b = req.body;
   try {
-    const counts = {};
-    for (const d of CLOSING_DENOMS) counts[d.key] = Number(b[`count_${d.key}`] || 0);
-    const descs = [].concat(b.exp_desc || []);
-    const amounts = [].concat(b.exp_amount || []);
-    const expenses = descs.map((desc, i) => ({
-      desc,
-      amount: amounts[i] != null && String(amounts[i]).trim() !== '' ? toAgorot(amounts[i]) : 0,
-    }));
-    await createZClosing(
-      {
-        employeeFirst: b.employee_first,
-        employeeLast: b.employee_last,
-        storeId: b.store_id || null,
-        zNumber: b.z_number,
-        drawerCash: toAgorot(b.drawer_cash || '0'),
-        startedAt: b.started_at,
-        counts,
-        expenses,
-      },
-      req.user,
-    );
+    await createZClosing(closingInputFrom(req.body), req.user);
     await render(req, res, { notice: 'הסגירה נשמרה. תודה!' });
   } catch (err) {
     if (err instanceof RuleError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// --- View / edit / delete a saved closing (owner only — a cashier only creates). ---
+async function renderEdit(req, res, id, extra = {}) {
+  const closing = await getZClosing(id);
+  let breakdown = {};
+  let expenses = [];
+  try { breakdown = JSON.parse(closing.breakdown || '{}'); } catch { breakdown = {}; }
+  try { expenses = JSON.parse(closing.expenses || '[]'); } catch { expenses = []; }
+  res.render('zclosing/edit', {
+    title: `עריכת סגירת Z`,
+    closing,
+    breakdown,
+    expenses,
+    denoms: CLOSING_DENOMS,
+    storeOptions: await storeOptionsFor(req),
+    error: null,
+    notice: null,
+    ...extra,
+  });
+}
+
+router.get('/:id', requireOwner, async (req, res, next) => {
+  try {
+    await renderEdit(req, res, Number(req.params.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id', requireOwner, async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    await updateZClosing(id, closingInputFrom(req.body), req.user);
+    await render(req, res, { notice: 'הסגירה עודכנה.' });
+  } catch (err) {
+    if (err instanceof RuleError) return renderEdit(req, res, id, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/:id/delete', requireOwner, async (req, res, next) => {
+  try {
+    await deleteZClosing(Number(req.params.id), req.user);
+    await render(req, res, { notice: 'הסגירה נמחקה.' });
+  } catch (err) {
     next(err);
   }
 });

@@ -1,17 +1,19 @@
 <%- include('../partials/header') %>
-<div class="toolbar"><h1>סגירת Z</h1></div>
+<% function sh(a){ return a ? (a/100).toFixed(2) : ''; } %>
+<div class="toolbar">
+  <h1>עריכת סגירת Z</h1>
+  <a href="/zclosing" class="btn btn-secondary no-print">חזרה</a>
+</div>
 
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
-<details class="card no-print collapse-card" open>
-  <summary>הזנת סגירת Z חדשה</summary>
-  <form method="post" action="/zclosing" class="stack" id="zclose-form" style="margin-top:.8rem">
-    <input type="hidden" name="started_at" value="<%= startedAt %>" />
-    <p class="muted" style="margin:0 0 .6rem">תחילת ספירה: <strong><%= startedAt %></strong> · שעון ישראל</p>
+<div class="card no-print">
+  <p class="muted" style="margin:0 0 .6rem">נשמר: <strong><%= closing.ended_at || '—' %></strong> · שעון ישראל</p>
+  <form method="post" action="/zclosing/<%= closing.id %>" class="stack" id="zclose-form">
     <div class="row">
-      <div><label>שם פרטי</label><input name="employee_first" required autocomplete="off" /></div>
-      <div><label>שם משפחה</label><input name="employee_last" required autocomplete="off" /></div>
+      <div><label>שם פרטי</label><input name="employee_first" required autocomplete="off" value="<%= closing.employee_first || '' %>" /></div>
+      <div><label>שם משפחה</label><input name="employee_last" required autocomplete="off" value="<%= closing.employee_last || '' %>" /></div>
     </div>
     <div class="row">
       <div>
@@ -19,13 +21,12 @@
         <select name="store_id" required>
           <option value="">בחר חנות…</option>
           <% (storeOptions || []).forEach(function(st){ %>
-            <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
+            <option value="<%= st.id %>" <%= closing.store_id === st.id ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option>
           <% }); %>
         </select>
-        <% if (!storeOptions || storeOptions.length === 0) { %><small class="muted">לא שויכה חנות — פנה לבעלים.</small><% } %>
       </div>
-      <div><label>מספר Z</label><input name="z_number" required autocomplete="off" /></div>
-      <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required /></div>
+      <div><label>מספר Z</label><input name="z_number" required autocomplete="off" value="<%= closing.z_number || '' %>" /></div>
+      <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required value="<%= sh(closing.drawer_cash) %>" /></div>
     </div>
 
     <h3 style="margin:1.1rem 0 .2rem">ספירת מזומן</h3>
@@ -36,7 +37,7 @@
           <% denoms.forEach(function(d){ %>
             <tr>
               <td>₪<%= d.value %> <span class="muted" style="font-size:12px"><%= d.kind %></span></td>
-              <td><input name="count_<%= d.key %>" class="cc-cnt" data-val="<%= d.value %>" inputmode="numeric" placeholder="0" style="max-width:130px" /></td>
+              <td><input name="count_<%= d.key %>" class="cc-cnt" data-val="<%= d.value %>" inputmode="numeric" placeholder="0" style="max-width:130px" value="<%= breakdown[d.key] || '' %>" /></td>
               <td class="right cc-line">₪0.00</td>
             </tr>
           <% }); %>
@@ -50,6 +51,13 @@
       <table>
         <thead><tr><th>פירוט</th><th class="right">סכום (₪)</th><th></th></tr></thead>
         <tbody id="exp-body">
+          <% (expenses || []).forEach(function(e){ %>
+            <tr>
+              <td><input name="exp_desc" autocomplete="off" value="<%= e.desc || '' %>" /></td>
+              <td><input name="exp_amount" class="exp-amt" inputmode="decimal" value="<%= sh(e.amount) %>" /></td>
+              <td><button type="button" class="danger small" onclick="expDel(this)">✕</button></td>
+            </tr>
+          <% }); %>
           <tr>
             <td><input name="exp_desc" autocomplete="off" /></td>
             <td><input name="exp_amount" class="exp-amt" inputmode="decimal" /></td>
@@ -75,41 +83,11 @@
       </div>
     </div>
 
-    <div style="margin-top:.8rem"><button type="submit">💾 שמור סגירה</button></div>
+    <div style="margin-top:.8rem;display:flex;gap:.6rem;flex-wrap:wrap">
+      <button type="submit">💾 שמור שינויים</button>
+      <button type="submit" class="danger" formaction="/zclosing/<%= closing.id %>/delete" formnovalidate onclick="return confirm('למחוק את הסגירה?')">מחק סגירה</button>
+    </div>
   </form>
-</details>
-
-<div class="card">
-  <h2>סגירות אחרונות</h2>
-  <div class="table-scroll">
-    <table class="sortable">
-      <% var isOwner = currentUser && currentUser.role === 'owner'; %>
-      <thead><tr><th>עובד</th><th>חנות</th><th>Z</th><th>סיום</th><th class="right">מגירה</th><th class="right">נספר</th><th class="right">הוצאות</th><th class="right">סה"כ</th><% if (isOwner) { %><th class="no-print" data-nosort></th><% } %></tr></thead>
-      <tbody>
-        <% if (!closings || closings.length === 0) { %><tr><td colspan="<%= isOwner ? 9 : 8 %>" class="muted">אין סגירות עדיין.</td></tr><% } %>
-        <% (closings || []).forEach(function(c){ %>
-          <tr>
-            <td><% if (isOwner) { %><a href="/zclosing/<%= c.id %>"><%= c.employee_first %> <%= c.employee_last %></a><% } else { %><%= c.employee_first %> <%= c.employee_last %><% } %></td>
-            <td><%= c.store_name || '—' %></td>
-            <td class="mono"><%= c.z_number || '—' %></td>
-            <td class="mono"><%= c.ended_at || '—' %></td>
-            <td class="right"><%= formatIls(c.drawer_cash) %></td>
-            <td class="right"><%= formatIls(c.total_cash) %></td>
-            <td class="right"><%= formatIls(c.total_expenses) %></td>
-            <td class="right"><strong><%= formatIls(c.grand_total) %></strong></td>
-            <% if (isOwner) { %>
-              <td class="no-print">
-                <a class="btn btn-secondary small" href="/zclosing/<%= c.id %>">ערוך</a>
-                <form method="post" action="/zclosing/<%= c.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את הסגירה?')">
-                  <button class="danger small" type="submit">מחק</button>
-                </form>
-              </td>
-            <% } %>
-          </tr>
-        <% }); %>
-      </tbody>
-    </table>
-  </div>
 </div>
 
 <script>
@@ -135,7 +113,7 @@
     var drawerEl = document.getElementById('drawer-cash-in');
     var drawer = drawerEl ? (parseFloat(drawerEl.value) || 0) : 0;
     document.getElementById('drawer-disp').textContent = fmt(drawer);
-    var diff = grand - drawer; // >0 יתרה · <0 חוסר
+    var diff = grand - drawer;
     var el = document.getElementById('closing-diff');
     if (drawerEl && drawerEl.value.trim() === '') { el.textContent = '—'; el.style.color = ''; }
     else if (Math.round(diff*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--ok)'; }
