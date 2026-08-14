@@ -44,7 +44,10 @@
   // Versioned on the OpenCV release, NOT on the app's build number: the service worker caches by
   // full URL, so tying this to a deploy would re-download 10MB on every deploy for nothing.
   var OPENCV_URL = '/vendor/opencv.js?v=4.9.0';
-  var OPENCV_TIMEOUT_MS = 90000;
+  // A first load pulls ~3MB (compressed) and then compiles it. 40s is generous on a slow stockroom
+  // connection and short enough that nobody stares at a frozen screen: on timeout the manual
+  // shutter is still there, and the hint says so instead of pretending to still be loading.
+  var OPENCV_TIMEOUT_MS = 40000;
 
   var cfg = {
     maxPages: 8,
@@ -60,6 +63,7 @@
   var stream = null;
   var track = null;
   var detectTimer = null;
+  var loadingTimer = null; // ticks the elapsed seconds into the hint while OpenCV downloads
   var cv = null; // the OpenCV module, once ready
   var cvPromise = null;
   var mats = null; // reusable Mats for the detection loop
@@ -658,6 +662,13 @@
     var full = el.full;
     full.width = el.video.videoWidth;
     full.height = el.video.videoHeight;
+    if (!full.width || !full.height) {
+      // The manual shutter is reachable before the first frame arrives; a 0×0 canvas would fail
+      // later and much less clearly.
+      busy = false;
+      setHint('המצלמה עוד לא מוכנה — רגע ונסו שוב', 'warn');
+      return;
+    }
     full.getContext('2d').drawImage(el.video, 0, 0, full.width, full.height);
 
     var out = document.createElement('canvas');
@@ -746,6 +757,11 @@
     }
     show(el.live, true);
     setHint('פותח מצלמה…', '');
+    // Start the download NOW, in parallel with the permission prompt and camera warm-up, instead
+    // of after play() resolves. loadOpenCv() memoises, so the await further down reuses this.
+    loadOpenCv().catch(function () {
+      /* handled where it is awaited */
+    });
     navigator.mediaDevices
       .getUserMedia({
         video: {
@@ -763,14 +779,23 @@
         return el.video.play();
       })
       .then(function () {
+        // Tick the elapsed seconds into the hint. A silent "loading" line on a 3MB download reads
+        // as a frozen app, and the manual shutter works the whole time — say both.
+        var since = Date.now();
+        loadingTimer = setInterval(function () {
+          var secs = Math.round((Date.now() - since) / 1000);
+          setHint('טוען זיהוי קצוות… ' + secs + 'ש׳ (הורדה חד־פעמית) — אפשר לצלם ידנית בינתיים', '');
+        }, 1000);
         setHint('טוען זיהוי קצוות…', '');
         return loadOpenCv();
       })
       .then(function () {
+        stopLoadingTicker();
         detectTimer = setInterval(detectTick, DETECT_INTERVAL_MS);
         setHint('כוונו את המצלמה כך שכל החשבונית תיראה במסך', 'bad');
       })
       .catch(function (err) {
+        stopLoadingTicker();
         var name = err && err.name;
         if (name === 'NotAllowedError' || name === 'SecurityError') {
           stopCamera();
@@ -778,10 +803,15 @@
           return;
         }
         if (stream) {
-          // The camera works, only the edge detection failed: keep the manual shutter.
+          // The camera works, only the edge detection failed: keep the manual shutter. This is a
+          // usable scanner, not a broken screen — say exactly that, and stop the auto-capture
+          // checkbox from promising something that cannot happen.
           autoOn = false;
-          if (el.autoToggle) el.autoToggle.disabled = true;
-          setHint('זיהוי הקצוות לא נטען — צלמו ידנית בכפתור', 'warn');
+          if (el.autoToggle) {
+            el.autoToggle.checked = false;
+            el.autoToggle.disabled = true;
+          }
+          setHint('זיהוי הקצוות לא נטען — צלמו בכפתור "צלם" (התמונה תישלח בלי חיתוך אוטומטי)', 'warn');
           return;
         }
         stopCamera();
@@ -823,7 +853,15 @@
     }
   }
 
+  function stopLoadingTicker() {
+    if (loadingTimer) {
+      clearInterval(loadingTimer);
+      loadingTimer = null;
+    }
+  }
+
   function stopCamera() {
+    stopLoadingTicker();
     if (detectTimer) {
       clearInterval(detectTimer);
       detectTimer = null;

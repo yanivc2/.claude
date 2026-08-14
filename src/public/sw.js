@@ -6,13 +6,16 @@
 const CACHE = 'apc-static-v3';
 const ASSETS = ['/style.css', '/icon-192.png', '/icon-512.png', '/manifest.webmanifest'];
 
-// Big assets for the invoice scanner. These are NOT pre-cached on install — /vendor/opencv.js
-// alone is ~10MB, and only employees who open the capture screen should ever download it. They
-// are filled in on first use and then served cache-first, so an employee pays the download once
-// per device. Each URL carries a ?v= version (OpenCV's own release for the vendor bundle, the
-// app's build number for the engine), which is what lets a new deploy replace a cached copy.
-const RUNTIME = 'apc-scanner-v1';
-const RUNTIME_PREFIXES = ['/vendor/', '/scan-capture.js'];
+// Small scanner assets, filled in on first use and then served cache-first. Each URL carries a
+// ?v= version, which is what lets a new deploy replace a cached copy.
+//
+// /vendor/opencv.js is deliberately NOT here. Routing a ~10MB response through the worker means
+// respondWith() has to hold the whole body while cache.put() writes a second copy, and on iOS
+// Safari that stalls — the script tag's onload never fires and the capture screen sits on
+// "טוען זיהוי קצוות…" forever. The server already sends it `immutable, max-age=30d`, so the
+// browser's own HTTP cache gives us the once-per-device download without the worker involved.
+const RUNTIME = 'apc-scanner-v2';
+const RUNTIME_PREFIXES = ['/scan-capture.js'];
 
 const isRuntimeAsset = (pathname) => RUNTIME_PREFIXES.some((p) => pathname.startsWith(p));
 
