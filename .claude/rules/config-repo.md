@@ -6,7 +6,6 @@ paths:
   - "templates/**"
   - "commands/**"
   - "plugins/**"
-  - "bin/**"
 ---
 
 # Working on the `~/.claude` config repo
@@ -28,13 +27,9 @@ paths:
 │   ├── settings.json            — nested hooks/permissions for working *in* this repo
 │   └── rules/config-repo.md     — this file
 │
-├── bin/
-│   └── qindex.mjs               — query the machine-index JSON without loading it
-│
 ├── commands/
 │   ├── install-review.md        — /install-review (implements operating rule #1)
 │   ├── organize-folders.md      — /organize-folders: staged cleanup + vault seeding
-│   ├── machine-index.md         — /machine-index: refresh or query the machine map
 │   └── skills-audit.md          — /skills-audit: propose a skillOverrides block
 │
 ├── plugins/

@@ -40,7 +40,9 @@ Active model: `opus` at `effortLevel: xhigh` (`settings.json`).
 
 ## Where things are
 
-- `C:\Users\yaniv\Vault\INDEX.md` — the map of this machine: what exists, where it sits.
-- To answer "what is on this machine", run `bin/qindex.mjs` — **never** Read the
-  machine-index JSON directly (5 MB ≈ 1.3M tokens).
+- `C:\Users\yaniv\Vault\INDEX.md` — the map of this machine: what exists, what each
+  thing does, where it sits. Answer "what is on this machine" from there. Its long
+  records live beside it in `Vault\_organize\`.
+- **Never Read a `machine-index*.json`** — 5 MB is roughly 1.3M tokens. It is denied
+  in `settings.json` on purpose. The map is the Markdown, not the JSON.
 - `.claude/rules/config-repo.md` — how this repo is laid out and how to change it safely.

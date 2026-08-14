@@ -112,13 +112,29 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
 
 ## 4. index — interview and fill the map
 
+`INDEX.md` **is** the map — there is no raw index file to consult or produce. It
+is built from the scan plus what the user tells you, and it is the artifact every
+later question is answered from. Keep it around 150 lines: a map you won't read
+is not a map.
+
 - Read the latest `scan-*.md`; walk through each project-like directory with
   the user in Hebrew: what is it, is it active, which business, where should
   it live?
 - Fill `C:\Users\yaniv\Vault\INDEX.md` with the Edit tool: replace the
   `{{DOWNLOADS_REAL_PATH}}` / `{{DOCUMENTS_REAL_PATH}}` / `{{LAST_UPDATED}}`
-  placeholders, fill the tables, refresh the folder map, and append a dated
-  entry to the changelog section.
+  placeholders, fill the summary, locations, projects and businesses tables,
+  refresh the folder map, and append a dated line to the changelog.
+- Maintain the two companion records in `_organize/`, and keep the summary lines
+  in `INDEX.md` pointing at them in sync:
+  - `security-register.md` — one row per finding with the **action it needs**.
+    Never write a credential value into it, only the path and the remedy. When a
+    finding is closed, record what was actually done, not just "handled".
+  - `deletions-log.md` — every removal round: what, how many, how much, how many
+    had no other copy, and the critical items **by name**. Write the entry
+    *before* deleting; afterwards the fact that a file existed lives only here.
+- Descriptions, business context and security findings are human knowledge — a
+  rescan cannot regenerate them. When refreshing, preserve what is already
+  written and update only what the scan actually measured.
 - Offer (don't force) filling the `About/*.md` stubs while context is fresh.
 
 ## 5. propose — plan only, zero execution

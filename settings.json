@@ -24,8 +24,7 @@
       "Skill(schedule:*)",
       "mcp__playwright__browser_snapshot",
       "mcp__claude_ai_Microsoft_Learn__microsoft_docs_search",
-      "Write(C:\\Users\\yaniv\\.claude\\*)",
-      "Bash(node C:\\Users\\yaniv\\.claude\\bin\\qindex.mjs *)"
+      "Write(C:\\Users\\yaniv\\.claude\\*)"
     ],
     "additionalDirectories": [
       "C:\\Users\\yaniv"
