@@ -3,9 +3,14 @@
 Third-party assets served **verbatim** to the browser. Nothing here is written by hand.
 
 Why a root-level `public/` and not `src/public/`: `vercel.json` rewrites `/(.*)` to the serverless
-function, but Vercel checks the filesystem *before* applying rewrites — so files here are served
-straight from the CDN instead of streaming 10MB through Node on every download. `src/app.js` also
-mounts this directory with `express.static`, so local development serves the exact same paths.
+function, but Vercel checks the filesystem *before* applying rewrites — so files here can be served
+straight from the CDN instead of streaming 10MB through Node on every download.
+
+That CDN path is an optimisation, not a guarantee, so it is belt-and-braces: `vercel.json` also
+lists `public/**` in the function's `includeFiles`, and `src/app.js` mounts this directory with
+`express.static`. Whichever layer answers, `/vendor/opencv.js` resolves — and local development
+serves the exact same paths. Leave both in place; dropping either one turns a missing file into a
+307 to the login page, which is what a static asset behind the auth gate looks like.
 
 ## opencv.js
 
