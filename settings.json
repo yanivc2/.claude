@@ -46,6 +46,14 @@
             "shell": "powershell"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Program Files/nodejs/node.exe\" \"C:/Users/yaniv/.claude/hooks/context-mode-cache-heal.mjs\""
+          }
+        ]
       }
     ],
     "Stop": [
@@ -144,7 +152,9 @@
     "code-simplifier@claude-plugins-official": true,
     "superpowers@claude-plugins-official": true,
     "design@knowledge-work-plugins": true,
-    "firecrawl@firecrawl": true
+    "firecrawl@firecrawl": true,
+    "context-mode@context-mode": true,
+    "commit-commands@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
@@ -163,6 +173,12 @@
       "source": {
         "source": "github",
         "repo": "firecrawl/firecrawl-claude-plugin"
+      }
+    },
+    "context-mode": {
+      "source": {
+        "source": "github",
+        "repo": "mksglu/context-mode"
       }
     }
   },
