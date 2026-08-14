@@ -1,3 +1,12 @@
+---
+paths:
+  - "**/package.json"
+  - "**/next.config.*"
+  - "**/vite.config.*"
+  - "**/webpack.config.*"
+  - "**/app/**/loading.tsx"
+---
+
 # Performance
 
 > **Applies to:** adding dependencies, bundle/build work, rendering hot paths, and image-heavy UI.

@@ -1,3 +1,15 @@
+---
+paths:
+  - "**/api/**"
+  - "**/auth/**"
+  - "**/middleware.*"
+  - "**/.env.example"
+  - "**/next.config.*"
+  - "**/package.json"
+  - "**/requirements.txt"
+  - "**/pyproject.toml"
+---
+
 # Security
 
 > **Applies to:** anything touching secrets, user input, auth, dependencies, or data leaving the process — API routes, forms, config, uploads, logging.

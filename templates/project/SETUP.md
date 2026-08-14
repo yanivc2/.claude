@@ -2,7 +2,7 @@
 
 Everything needed to go from a fresh clone to a running dev environment. Keep
 this file current: if a setup step changes, update it in the **same** PR
-(see `rules/documentation.md`).
+(see `.claude/rules/documentation.md`).
 
 ---
 
@@ -25,7 +25,7 @@ cd {{PROJECT_NAME}}
 
 ## 2. Environment variables
 
-`.env` is **never committed** (see `rules/security.md`). Copy the example and
+`.env` is **never committed** (see `.claude/rules/security.md`). Copy the example and
 fill in real values:
 
 ```
@@ -67,7 +67,7 @@ Before your first commit, confirm the toolchain is healthy:
 
 This project was scaffolded from the global template, so it already contains:
 
-- **`CLAUDE.md`** — project memory; imports the conventions in `rules/*.md`.
+- **`CLAUDE.md`** — project memory: always-on rules inline, plus an index of the path-scoped `.claude/rules/*.md`.
 - **`.claude/settings.json`** — per-project hooks (typecheck, lint, session log).
 - **`.mcp.json`** — the GitHub MCP server.
 
@@ -89,21 +89,23 @@ To finish wiring it up:
 
 ## Conventions
 
-The full, opinionated conventions for this project live in `rules/` and are
-imported by `CLAUDE.md`. Each file states when it applies:
+The conventions live in `.claude/rules/`. Each file carries a `paths:` block and
+loads **only when Claude reads a matching file**, so they cost nothing at session
+start. The always-on rules (secrets, git, verification) are inline in `CLAUDE.md`.
 
-| File | Applies to |
+| File | Loads when reading |
 |---|---|
-| `rules/code-style.md` | every file (always) |
-| `rules/frontend.md` | React / UI work |
-| `rules/backend.md` | server-side work |
-| `rules/testing.md` | writing tests |
-| `rules/git-workflow.md` | any git operation |
-| `rules/security.md` | secrets, input, auth, deps |
-| `rules/error-handling-and-observability.md` | errors, logging, monitoring |
-| `rules/performance.md` | deps, bundle, rendering, images |
-| `rules/documentation.md` | docs & comments |
-| `rules/prompt-engineering.md` | LLM / prompt work |
+| `.claude/rules/code-style.md` | any TypeScript / JavaScript file |
+| `.claude/rules/python.md` | any `.py`, `requirements.txt`, `pyproject.toml` |
+| `.claude/rules/frontend.md` | `.tsx` / `.jsx` / CSS, `components/` |
+| `.claude/rules/backend.md` | `api/`, `server/`, `services/`, `migrations/`, `*.sql` |
+| `.claude/rules/testing.md` | test files and test configs |
+| `.claude/rules/security.md` | `api/`, `auth/`, `middleware.*`, manifests |
+| `.claude/rules/error-handling-and-observability.md` | `api/`, `services/`, `workers/`, `.py` |
+| `.claude/rules/performance.md` | `package.json`, build configs |
+| `.claude/rules/documentation.md` | READMEs, `CLAUDE.md`, `docs/` |
+| `.claude/rules/prompt-engineering.md` | `prompts/`, `llm/`, `*prompt*` |
 
-**`main` is protected** — work on a `<type>/<desc>` feature branch and open a
-PR (see `rules/git-workflow.md`).
+**`main` is protected** — work on a `<type>/<desc>` feature branch and open a PR.
+Git conventions are inline in `CLAUDE.md` (a path-scoped rule would never fire on
+a git operation, since those don't read files).

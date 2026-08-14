@@ -1,3 +1,13 @@
+---
+paths:
+  - "**/*.ts"
+  - "**/*.tsx"
+  - "**/*.js"
+  - "**/*.jsx"
+  - "**/*.mjs"
+  - "**/*.cjs"
+---
+
 # Code Style
 
 > **Applies to:** every TypeScript/JavaScript file — always in effect.

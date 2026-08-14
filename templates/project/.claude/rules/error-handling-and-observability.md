@@ -1,3 +1,15 @@
+---
+paths:
+  - "**/api/**"
+  - "**/server/**"
+  - "**/services/**"
+  - "**/jobs/**"
+  - "**/workers/**"
+  - "**/middleware.*"
+  - "**/logger.*"
+  - "**/*.py"
+---
+
 # Error Handling & Observability
 
 > **Applies to:** error handling, logging, and monitoring — especially for long-running servers and background jobs.
