@@ -1,3 +1,17 @@
+---
+paths:
+  - "**/api/**"
+  - "**/app/api/**"
+  - "**/pages/api/**"
+  - "**/server/**"
+  - "**/services/**"
+  - "**/db/**"
+  - "**/migrations/**"
+  - "**/prisma/**"
+  - "**/drizzle/**"
+  - "**/*.sql"
+---
+
 # Backend
 
 > **Applies to:** server-side code — API routes/handlers, services, the data layer, background jobs. Fill in `{{BACKEND}}` stack specifics per project.

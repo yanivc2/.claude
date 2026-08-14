@@ -18,17 +18,19 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
 
 ## Iron rules (every phase)
 
-- **OneDrive is absolutely out of bounds.** Never read, move, rename, copy, or
-  delete anything under a OneDrive path, and never follow a link or redirected
-  folder into one. With Files On-Demand, files on disk are zero-byte
-  placeholders; moving one can sever it from its content and destroy the file.
-  A path is OneDrive if it starts with `$env:OneDrive` / `$env:OneDriveCommercial`
-  or contains a `OneDrive` segment. If any phase reaches such a path — **STOP**
-  and report it in Hebrew.
-- Writable scope is exactly: the real Downloads path, the real Documents path
-  (only if it is **not** OneDrive-redirected), and `C:\Users\yaniv\Vault`.
-  Everything else is read-only. **STOP** before any operation that would write
-  outside this scope.
+- **OneDrive: read allowed, writing forbidden.** Never move, rename, copy into,
+  delete, or edit anything under a OneDrive path — not even to "fix" it. With
+  Files On-Demand a file on disk is a zero-byte placeholder; moving one severs it
+  from its content and destroys it. A path is OneDrive if it starts with
+  `$env:OneDrive` / `$env:OneDriveCommercial` or contains a `OneDrive` segment.
+  Reading is permitted so the business material there can be mapped into the
+  INDEX — but each read downloads a placeholder, so read deliberately and never
+  in bulk. A global `PreToolUse` hook blocks OneDrive writes; do not attempt to
+  work around it.
+- Writable scope is exactly: the real Downloads path, a non-OneDrive Documents
+  path, and `C:\Users\yaniv\Vault`. Everything else — including all of OneDrive —
+  is **read-only**. **STOP** before any operation that would write outside this
+  scope.
 - A directory containing `.git`, `node_modules`, `package.json`, `.sln`, or
   `pyproject.toml` is a code directory: it is **never moved or renamed**.
   Propose a junction instead — `cmd /c mklink /J "<link>" "<target>"`
@@ -55,13 +57,14 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
   - Downloads: registry `HKCU:\...\User Shell Folders`, value
     `{374DE290-123F-4565-9164-39C4925E467B}`; fallback
     `C:\Users\yaniv\Downloads`.
-- OneDrive gate — run this on **every** resolved path before anything else:
-  if the path starts with `$env:OneDrive`/`$env:OneDriveCommercial` or contains
-  a `OneDrive` segment, that root is **out of scope, permanently**. Report it
-  in Hebrew, drop it from the scope, and ask the user whether to continue with
-  the remaining root(s) only. Never offer to work on it "carefully".
+- OneDrive gate — run this on **every** resolved path before anything else: if a
+  path starts with `$env:OneDrive`/`$env:OneDriveCommercial` or contains a
+  `OneDrive` segment, mark that root **read-only, permanently**. Report it in
+  Hebrew and state plainly that it can be mapped but never reorganized. Never
+  offer to move anything out of it.
   Also verify `C:\Users\yaniv\Vault` itself is not OneDrive-redirected — if it
-  is, **STOP** and ask the user for a different vault location.
+  is, **STOP** and ask the user for a different vault location, since the vault
+  must be writable.
 - Backup gate: ask the user to confirm a current backup (File History / cloud
   / external drive) covering both roots. **STOP — no mutating phase without a
   confirmed backup.** Files outside git/backup are unrecoverable.
@@ -81,8 +84,11 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
   (its presence defeats the global SessionStart project-seeder, which would
   otherwise overwrite `.mcp.json` and add typecheck hooks), every folder has
   its README.md, `INDEX.md` is present, git is initialized.
-- Mention (optional, don't run unasked): `cmd /c mklink /H AGENTS.md CLAUDE.md`
-  creates a hardlink so other AI tools read the same instructions.
+- Mention (optional, don't run unasked): a project can make `AGENTS.md` its single
+  source of truth by reducing `CLAUDE.md` to the one line `@./AGENTS.md`, so Codex
+  and Gemini read the same instructions. Do **not** suggest `mklink /H` for this —
+  editors save by write-and-rename, which breaks a hardlink silently and leaves two
+  divergent files.
 
 ## 3. scan — read-only inventory
 
@@ -91,8 +97,10 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
   directory — item count, total size, newest `LastWriteTime`.
 - Mark code directories **OUT-OF-BOUNDS (junction candidate only)**; never
   descend into `.git` or `node_modules`.
-- Never descend into a OneDrive path. Also skip any junction/symlink whose
-  resolved target lands under OneDrive — list it as OUT-OF-BOUNDS and move on.
+- OneDrive may be inventoried read-only, at directory level: counts, sizes and
+  dates, so the business material there reaches the INDEX. Do **not** open files
+  in bulk — each read downloads a placeholder. Mark the whole tree
+  **READ-ONLY (never reorganized)**.
 - Flag: installers (`.exe`/`.msi` in Downloads), archives, files >100MB,
   obvious name-duplicates, empty directories.
 - Flag cloud placeholders separately: a file whose attributes include

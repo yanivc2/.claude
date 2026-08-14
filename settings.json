@@ -24,10 +24,75 @@
       "Skill(schedule:*)",
       "mcp__playwright__browser_snapshot",
       "mcp__claude_ai_Microsoft_Learn__microsoft_docs_search",
-      "Write(C:\\Users\\yaniv\\.claude\\*)"
+      "Write(C:\\Users\\yaniv\\.claude\\*)",
+      "Bash(node C:\\Users\\yaniv\\.claude\\bin\\qindex.mjs *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\yaniv"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(**/.env)",
+      "Read(**/.env.local)",
+      "Read(**/.env.production)",
+      "Read(**/.env.development)",
+      "Read(**/.env.test)",
+      "Read(**/client_secret*.json)",
+      "Read(**/credentials.json)",
+      "Read(**/session.json)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/*.pfx)",
+      "Read(**/*.p12)",
+      "Read(**/id_rsa*)",
+      "Read(**/.npmrc)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Read(~/.claude/.credentials.json)",
+      "Read(~/.codex/auth.json)",
+      "Read(//c/Users/yaniv/Vault/_organize/*.json)",
+      "Read(**/node_modules/**)",
+      "Read(**/.next/**)",
+      "Read(**/dist/**)",
+      "Read(**/build/**)",
+      "Read(**/coverage/**)",
+      "Read(**/.venv/**)",
+      "Read(**/venv/**)",
+      "Read(**/__pycache__/**)",
+      "Read(**/*.pyc)",
+      "Read(**/package-lock.json)",
+      "Read(**/pnpm-lock.yaml)",
+      "Read(**/yarn.lock)",
+      "Read(**/poetry.lock)",
+      "Read(**/.git/objects/**)",
+      "Read(~/.codex/**)",
+      "Read(~/.gemini/**)",
+      "Read(~/.local/**)",
+      "Read(~/.agents/skills-archive/**)",
+      "Read(~/.claude/projects/**)",
+      "Read(~/.claude/shell-snapshots/**)",
+      "Read(~/.claude/file-history/**)",
+      "Read(~/.claude/backups/**)",
+      "Read(~/.claude/cache/**)",
+      "Read(~/.claude/deletions/**)",
+      "Read(//c/Users/yaniv/Documents/Codex/**)",
+      "Read(**/*.db)",
+      "Read(**/*.db3)",
+      "Read(**/*.bak)",
+      "Read(**/*.sqlite)",
+      "Read(**/*.zip)",
+      "Read(**/*.7z)",
+      "Read(**/*.iso)",
+      "Read(**/*.mp4)",
+      "Read(~/AppData/Local/Google/Chrome/User Data/**)",
+      "Read(~/AppData/Local/Microsoft/Edge/User Data/**)",
+      "Read(~/AppData/Roaming/Mozilla/Firefox/**)"
+    ],
+    "ask": [
+      "Read(//c/micha-agent/**/*.vtt)",
+      "Read(**/*.srt)",
+      "Read(//c/Users/yaniv/OneDrive/**)"
     ]
   },
   "hooks": {
@@ -36,7 +101,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if ((Test-Path '.git') -and -not (Test-Path '.claude\\settings.json')) { $base = \"$env:USERPROFILE\\.claude\\templates\\project\"; New-Item -ItemType Directory -Force '.claude' | Out-Null; Copy-Item \"$base\\.claude\\settings.json\" '.claude\\settings.json' -Force; if (Test-Path \"$base\\.mcp.json\") { Copy-Item \"$base\\.mcp.json\" '.mcp.json' -Force }; if (-not (Test-Path 'CLAUDE.md')) { Copy-Item \"$base\\CLAUDE.md\" 'CLAUDE.md' -Force }; if (-not (Test-Path 'SETUP.md')) { Copy-Item \"$base\\SETUP.md\" 'SETUP.md' -Force }; if (-not (Test-Path 'rules')) { Copy-Item \"$base\\rules\" 'rules' -Recurse -Force }; if (-not (Test-Path '.gitignore')) { Copy-Item \"$base\\.gitignore\" '.gitignore' -Force }; Write-Output '{\"systemMessage\": \"📋 הוגדר מה-template: CLAUDE.md + SETUP.md + rules/ + settings.json + .mcp.json — פרויקט חדש זוהה\"}' }",
+            "command": "if ((Test-Path '.git') -and -not (Test-Path '.claude\\settings.json')) { $origin = (git remote get-url origin 2>$null); if ($origin -and $origin -notmatch 'yanivc2') { exit 0 }; $base = \"$env:USERPROFILE\\.claude\\templates\\project\"; New-Item -ItemType Directory -Force '.claude' | Out-Null; Copy-Item \"$base\\.claude\\settings.json\" '.claude\\settings.json' -Force; if ((Test-Path \"$base\\.mcp.json\") -and -not (Test-Path '.mcp.json')) { Copy-Item \"$base\\.mcp.json\" '.mcp.json' }; if (-not (Test-Path 'CLAUDE.md')) { Copy-Item \"$base\\CLAUDE.md\" 'CLAUDE.md' }; if (-not (Test-Path 'SETUP.md')) { Copy-Item \"$base\\SETUP.md\" 'SETUP.md' }; if (-not (Test-Path '.claude\\rules')) { Copy-Item \"$base\\.claude\\rules\" '.claude\\rules' -Recurse }; if (-not (Test-Path '.gitignore')) { Copy-Item \"$base\\.gitignore\" '.gitignore' }; $msg = '📋 הוגדר מה-template: CLAUDE.md + SETUP.md + .claude/rules/ + settings.json'; if (Test-Path 'rules') { $msg = $msg + ' | ⚠️ קיימת תיקיית rules/ ישנה — הכללים עברו ל-.claude/rules/ ונטענים לפי הצורך. אפשר להסיר ידנית אחרי בדיקה.' }; Write-Output (@{systemMessage = $msg} | ConvertTo-Json -Compress) }; exit 0",
             "shell": "powershell"
           },
           {
@@ -73,7 +138,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "Write-Output '{\"systemMessage\": \"Before compacting: note any open TODOs, architectural decisions, and lessons learned that should be saved to CLAUDE.md or rules/ before context is lost.\"}'",
+            "command": "Write-Output '{\"systemMessage\": \"Before compacting: save open TODOs, decisions and lessons to CLAUDE.md or .claude/rules/. Note: path-scoped rules are DROPPED by /compact until a matching file is read again — prefer /clear and restarting in the subdirectory you are working in.\"}'",
             "shell": "powershell"
           }
         ]
@@ -81,11 +146,21 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $p = $j.tool_input.file_path; if ($p -match '(?i)[\\\\/]OneDrive') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: OneDrive is read-only (iron rule) — read is allowed, writing is not\"}'; exit 1 }; exit 0",
+            "shell": "powershell"
+          }
+        ]
+      },
+      {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "$json = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; if ($json.tool_input.command -match 'rm -rf|reset --hard|drop table') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: destructive command\"}'; exit 1 }",
+            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $c = $j.tool_input.command; if ($c -match 'rm -rf|reset --hard|drop table') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: destructive command\"}'; exit 1 }; if (($c -match '(?i)(Move-Item|Remove-Item|Copy-Item|Set-Content|Out-File|New-Item|Rename-Item|\\bmv\\b|\\bcp\\b|\\brm\\b|\\bdel\\b)') -and ($c -match '(?i)[\\\\/]OneDrive')) { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: OneDrive is read-only (iron rule)\"}'; exit 1 }; if ($c -match '(?i)(cat|type|Get-Content|notepad|more|head|tail|Select-String)') { if ($c -match '(?i)\\.env(?!\\.example)|session\\.json|client_secret') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: secrets file must not enter context\"}'; exit 1 } }; exit 0",
             "shell": "powershell"
           }
         ]

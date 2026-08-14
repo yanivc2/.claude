@@ -1,3 +1,20 @@
+---
+paths:
+  - "**/*.test.ts"
+  - "**/*.test.tsx"
+  - "**/*.spec.ts"
+  - "**/*.spec.tsx"
+  - "**/__tests__/**"
+  - "**/tests/**"
+  - "**/e2e/**"
+  - "**/test_*.py"
+  - "**/*_test.py"
+  - "**/conftest.py"
+  - "**/playwright.config.*"
+  - "**/vitest.config.*"
+  - "**/jest.config.*"
+---
+
 # Testing
 
 > **Applies to:** writing or changing tests — unit, component, or E2E. Consult before adding a test file or a new test dependency.

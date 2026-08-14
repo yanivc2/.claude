@@ -15,9 +15,9 @@ round (that is the safety net).
   linked from `INDEX.md`. Never copy projects into the vault.
 - From a vault session, never move/rename/delete anything **outside** this
   folder.
-- OneDrive is out of bounds — never read, move, or delete anything under a
-  OneDrive path. Files On-Demand placeholders are zero-byte on disk, and
-  moving one severs it from its content.
+- OneDrive: reading is allowed, **writing is forbidden** — never move, rename,
+  edit, or delete anything under a OneDrive path. Files On-Demand placeholders
+  are zero-byte on disk, and moving one severs it from its content.
 - Code directories are never moved anywhere — logical placement is done with a
   junction only: `cmd /c mklink /J "<link>" "<target>"`.
 - Write files UTF-8 without BOM: use the Write/Edit tools, never
@@ -32,5 +32,6 @@ round (that is the safety net).
 | `About/` | Personal/business context for Claude sessions. |
 | `_organize/` | Artifacts of `/organize-folders` runs + `trash/` staging. |
 
-Optional cross-tool compatibility: `cmd /c mklink /H AGENTS.md CLAUDE.md`
-(hardlink, no admin needed) lets other AI tools read these same instructions.
+Optional cross-tool compatibility: move these rules into `AGENTS.md` and reduce
+this file to the single line `@./AGENTS.md`, so Codex and Gemini read them too.
+Not `mklink /H` — editors save by write-and-rename, silently breaking a hardlink.
