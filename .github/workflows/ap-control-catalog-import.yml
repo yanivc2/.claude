@@ -1,0 +1,61 @@
+name: AP Control Catalog Import
+
+# ייבוא קטלוג-העל (master_catalog) מקבצי שקיפות המחירים הפומביים של שופרסל אל מסד הנתונים
+# בענן — בלחיצה אחת, בלי להתקין כלום במחשב.
+#
+# הרצה ידנית: repo -> Actions -> "AP Control Catalog Import" -> Run workflow.
+# ניתן לבחור סניפים (ברירת מחדל: 5,18). כל ריצה רק מוסיפה ברקודים חדשים ומעדכנת קיימים —
+# היא לעולם לא מוחקת. הקובץ המחולק לפי יצרנים נשמר כ-artifact להורדה.
+#
+# משתמש באותו secret של גיבוי מסד הנתונים: DATABASE_URL (מחרוזת החיבור של Neon).
+
+on:
+  schedule:
+    - cron: '0 4 * * 0' # every Sunday 04:00 UTC (an hour after the backup)
+  workflow_dispatch:
+    inputs:
+      stores:
+        description: 'מספרי סניפים של שופרסל, מופרדים בפסיק (ריק = שני הראשונים ברשימה)'
+        required: false
+        default: '5,18'
+
+permissions:
+  contents: read
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Import the master catalog into Neon
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          STORES: ${{ inputs.stores }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::DATABASE_URL secret is not set. Add it in repo Settings -> Secrets -> Actions."
+            exit 1
+          fi
+          if [ -n "${STORES:-}" ]; then
+            npm run catalog:import -- --stores "$STORES"
+          else
+            npm run catalog:import
+          fi
+
+      - name: Upload the grouped catalog file
+        uses: actions/upload-artifact@v4
+        with:
+          name: master-catalog-json
+          path: data/master-catalog.json
+          retention-days: 30
+          if-no-files-found: warn
