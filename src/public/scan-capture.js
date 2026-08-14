@@ -34,6 +34,7 @@
   var SHARPNESS_MIN = 45; // variance of the Laplacian — the anti-blur gate
   var DETECT_INTERVAL_MS = 125; // ~8fps, so a mid-range phone keeps a smooth preview
   var RECAPTURE_PAUSE_MS = 1400; // ignore detections right after a shot (same page twice)
+  var STUCK_EXPLAIN_MS = 2000; // how long a gate must block before the hint shows its numbers
   // Versioned on the OpenCV release, NOT on the app's build number: the service worker caches by
   // full URL, so tying this to a deploy would re-download 10MB on every deploy for nothing.
   var OPENCV_URL = '/vendor/opencv.js?v=4.9.0';
@@ -62,6 +63,10 @@
   var autoOn = true;
   var busy = false; // a capture is being processed — do not start another
   var torchBound = false;
+  var diagOn = false; // מצב אבחון — live gate numbers, for tuning the thresholds on a real phone
+  var lastMetrics = null; // the gate values from the most recent frame
+  var stuckReason = null; // which gate is currently holding the shutter
+  var stuckSince = 0;
 
   // ---- small helpers -----------------------------------------------------------
   function $(id) {
@@ -154,9 +159,10 @@
   function renderPages() {
     el.thumbs.innerHTML = '';
     pages.forEach(function (p, i) {
-      var card = document.createElement('div');
-      card.className = 'scan-thumb';
-      card.innerHTML =
+      var wrap = document.createElement('div');
+      wrap.className = 'scan-page';
+      wrap.innerHTML =
+        '<div class="scan-thumb">' +
         (p.isPdf
           ? '<div class="scan-thumb-pdf">📄</div>'
           : '<img src="' + p.url + '" alt="עמוד ' + (i + 1) + '" />') +
@@ -166,8 +172,11 @@
         '<button type="button" data-act="left" aria-label="הזז אחורה">›</button>' +
         (p.isPdf ? '' : '<button type="button" data-act="rot" aria-label="סובב 90 מעלות">↻</button>') +
         '<button type="button" data-act="right" aria-label="הזז קדימה">‹</button>' +
-        '</div>';
-      card.addEventListener('click', function (ev) {
+        '</div></div>' +
+        // In diagnostics mode, each auto-shot carries the gate values that let it fire — so a bad
+        // crop can be traced back to the numbers instead of re-shot blindly.
+        (diagOn && p.metrics ? '<div class="scan-page-meta">' + metricsLabel(p.metrics) + '</div>' : '');
+      wrap.addEventListener('click', function (ev) {
         var btn = ev.target.closest('button');
         if (!btn) return;
         ev.preventDefault();
@@ -177,7 +186,7 @@
         else if (act === 'left') movePage(i, -1);
         else if (act === 'right') movePage(i, 1);
       });
-      el.thumbs.appendChild(card);
+      el.thumbs.appendChild(wrap);
     });
     sync();
   }
@@ -213,14 +222,20 @@
       c.toBlob(function (blob) {
         if (!blob) return;
         URL.revokeObjectURL(p.url);
-        pages[i] = { blob: blob, url: URL.createObjectURL(blob), isPdf: false, name: p.name };
+        pages[i] = { blob: blob, url: URL.createObjectURL(blob), isPdf: false, name: p.name, metrics: p.metrics };
         renderPages();
       }, 'image/jpeg', cfg.jpegQuality);
     });
   }
 
-  function addPage(blob, isPdf, name, at) {
-    var page = { blob: blob, isPdf: isPdf, url: isPdf ? null : URL.createObjectURL(blob), name: name };
+  function addPage(blob, isPdf, name, at, metrics) {
+    var page = {
+      blob: blob,
+      isPdf: isPdf,
+      url: isPdf ? null : URL.createObjectURL(blob),
+      name: name,
+      metrics: metrics || null,
+    };
     if (typeof at === 'number') pages[at] = page;
     else pages.push(page);
     return page;
@@ -393,9 +408,12 @@
     var hierarchy = new cv.Mat();
     cv.findContours(m.edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
+    // Keep the largest convex quad even when it is too small to accept: it is the difference
+    // between "I see nothing" and "get closer, you are at 12% of 18%", which is the single most
+    // useful thing the hint line can say.
     var frameArea = src.cols * src.rows;
     var best = null;
-    var bestArea = frameArea * MIN_AREA_RATIO;
+    var bestArea = 0;
     for (var i = 0; i < contours.size(); i++) {
       var c = contours.get(i);
       var approx = new cv.Mat();
@@ -413,7 +431,13 @@
     }
     contours.delete();
     hierarchy.delete();
-    return { quad: best ? orderCorners(best) : null, sharpness: sharpness };
+
+    var areaRatio = frameArea > 0 ? bestArea / frameArea : 0;
+    return {
+      quad: best && areaRatio >= MIN_AREA_RATIO ? orderCorners(best) : null,
+      areaRatio: best ? areaRatio : 0,
+      sharpness: sharpness,
+    };
   }
 
   function drawOverlay(quad, ratio, scale) {
@@ -473,21 +497,116 @@
 
     var quad = result.quad;
     var diagonal = Math.hypot(work.width, work.height);
-    var steady = quad && drift(quad, lastQuad, diagonal) < MOVE_TOLERANCE;
+    var driftRatio = quad ? drift(quad, lastQuad, diagonal) : Infinity;
+    var steady = driftRatio < MOVE_TOLERANCE;
     var sharp = result.sharpness >= SHARPNESS_MIN;
 
     if (quad && steady && sharp) goodFrames += 1;
     else goodFrames = 0;
     lastQuad = quad;
 
-    drawOverlay(quad, goodFrames / STEADY_FRAMES, overlayScale);
+    // Everything the auto-shutter decided on, kept for the diagnostics readout and stamped onto
+    // the page when the shutter actually fires. Instrumentation only — nothing here feeds back
+    // into the detection maths.
+    lastMetrics = {
+      area: result.areaRatio,
+      sharpness: result.sharpness,
+      drift: driftRatio,
+      steady: goodFrames,
+    };
 
-    if (!quad) setHint('כוונו את המצלמה כך שכל החשבונית תיראה במסך', 'bad');
-    else if (!sharp) setHint('התמונה מטושטשת — החזיקו יציב ותנו למצלמה להתמקד', 'warn');
-    else if (!steady) setHint('כמעט — החזיקו את הטלפון יציב', 'warn');
-    else setHint('מצוין — מצלם…', 'ok');
+    drawOverlay(quad, goodFrames / STEADY_FRAMES, overlayScale);
+    reportGates(quad, result, driftRatio, sharp, steady);
 
     if (autoOn && goodFrames >= STEADY_FRAMES && Date.now() > suppressUntil) capture(quad, work.width);
+  }
+
+  var pct = function (v) {
+    return Math.round(v * 100) + '%';
+  };
+
+  /**
+   * Say which gate is holding the shutter — and, once a state has persisted, say it with the
+   * numbers. A transient "almost" stays clean; a genuinely stuck frame explains itself, which is
+   * what turns "it doesn't shoot" into something tunable.
+   */
+  function reportGates(quad, result, driftRatio, sharp, steady) {
+    var reason = !quad
+      ? result.areaRatio > 0.02
+        ? 'small'
+        : 'none'
+      : !sharp
+        ? 'blur'
+        : !steady
+          ? 'move'
+          : 'ok';
+    if (reason !== stuckReason) {
+      stuckReason = reason;
+      stuckSince = Date.now();
+    }
+    var verbose = reason !== 'ok' && Date.now() - stuckSince > STUCK_EXPLAIN_MS;
+
+    if (reason === 'none') setHint('כוונו את המצלמה כך שכל החשבונית תיראה במסך', 'bad');
+    else if (reason === 'small')
+      setHint(
+        verbose
+          ? 'התקרבו — המסמך תופס ' + pct(result.areaRatio) + ' מהמסך, נדרש ' + pct(MIN_AREA_RATIO)
+          : 'התקרבו — המסמך קטן מדי בפריים',
+        'bad',
+      );
+    else if (reason === 'blur')
+      setHint(
+        verbose
+          ? 'מטושטש — חדות ' + Math.round(result.sharpness) + ' מתוך ' + SHARPNESS_MIN + ' נדרש'
+          : 'התמונה מטושטשת — החזיקו יציב ותנו למצלמה להתמקד',
+        'warn',
+      );
+    else if (reason === 'move')
+      setHint(
+        verbose && isFinite(driftRatio)
+          ? 'תזוזה ' + pct(driftRatio) + ' — מותר עד ' + pct(MOVE_TOLERANCE)
+          : 'כמעט — החזיקו את הטלפון יציב',
+        'warn',
+      );
+    else setHint('מצוין — מצלם…', 'ok');
+
+    renderDiag();
+  }
+
+  // ---- diagnostics readout (מצב אבחון) -----------------------------------------
+  /** One row: label, measured value, the threshold it is judged against, pass/fail. */
+  function diagRow(label, value, limit, ok) {
+    return (
+      '<span class="' + (ok ? 'ok' : 'bad') + '">' + label + ' <b>' + value + '</b> / ' + limit + '</span>'
+    );
+  }
+
+  function renderDiag() {
+    if (!diagOn || !el.diag || !lastMetrics) return;
+    var m = lastMetrics;
+    el.diag.innerHTML =
+      diagRow('שטח', pct(m.area), pct(MIN_AREA_RATIO), m.area >= MIN_AREA_RATIO) +
+      diagRow('חדות', Math.round(m.sharpness), SHARPNESS_MIN, m.sharpness >= SHARPNESS_MIN) +
+      diagRow('תזוזה', isFinite(m.drift) ? pct(m.drift) : '—', pct(MOVE_TOLERANCE), m.drift < MOVE_TOLERANCE) +
+      diagRow('פריימים', m.steady, STEADY_FRAMES, m.steady >= STEADY_FRAMES);
+  }
+
+  function setDiag(on) {
+    diagOn = on;
+    show(el.diag, on);
+    if (!on && el.diag) el.diag.innerHTML = '';
+    try {
+      localStorage.setItem('scanDiag', on ? '1' : '');
+    } catch (e) {
+      /* private mode — the toggle just doesn't persist */
+    }
+    renderPages(); // the per-page metric line appears/disappears with the mode
+  }
+
+  /** Human-readable summary of the frame that actually fired — shown under its thumbnail. */
+  function metricsLabel(m) {
+    if (!m) return '';
+    return 'שטח ' + pct(m.area) + ' · חדות ' + Math.round(m.sharpness) + ' · תזוזה ' + (isFinite(m.drift) ? pct(m.drift) : '—');
   }
 
   // ---- capture -----------------------------------------------------------------
@@ -505,6 +624,8 @@
     busy = true;
     suppressUntil = Date.now() + RECAPTURE_PAUSE_MS;
     goodFrames = 0;
+    stuckReason = null;
+    var firedWith = lastMetrics; // the gate values of this exact frame, kept with the page
     buzz(35);
     flash();
 
@@ -530,7 +651,7 @@
           setError('לא הצלחנו לשמור את הצילום — נסו שוב');
           return;
         }
-        addPage(blob, false, 'page.jpg');
+        addPage(blob, false, 'page.jpg', undefined, firedWith);
         renderPages();
         setHint('עמוד ' + pages.length + ' נוסף ✓', 'ok');
       },
@@ -800,6 +921,8 @@
       work: document.createElement('canvas'),
       full: document.createElement('canvas'),
       hint: $('scanLiveHint'),
+      diag: $('scanDiag'),
+      diagToggle: $('chkDiag'),
       liveCount: $('scanLiveCount'),
       flash: $('scanFlash'),
       torch: $('btnTorch'),
@@ -837,6 +960,19 @@
       autoOn = el.autoToggle.checked;
       el.autoToggle.addEventListener('change', function () {
         autoOn = el.autoToggle.checked;
+      });
+    }
+    if (el.diagToggle) {
+      var savedDiag = false;
+      try {
+        savedDiag = localStorage.getItem('scanDiag') === '1';
+      } catch (e) {
+        /* private mode — starts off */
+      }
+      el.diagToggle.checked = savedDiag;
+      setDiag(savedDiag);
+      el.diagToggle.addEventListener('change', function () {
+        setDiag(el.diagToggle.checked);
       });
     }
     $('btnFiles').addEventListener('click', function () {

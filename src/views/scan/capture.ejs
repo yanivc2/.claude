@@ -39,12 +39,14 @@
       <span id="scanLiveCount" class="scan-live-count">0/<%= maxPages %></span>
     </div>
     <p id="scanLiveHint" class="scan-live-hint">פותח מצלמה…</p>
+    <div id="scanDiag" class="scan-diag" style="display:none"></div>
     <div class="scan-live-bar">
       <button type="button" class="btn btn-secondary" id="btnStop">סגור</button>
       <button type="button" class="btn btn-primary scan-shutter" id="btnShutter" aria-label="צלם עכשיו">צלם</button>
       <button type="button" class="btn btn-secondary" id="btnTorch" aria-pressed="false" style="display:none" aria-label="פנס">🔦</button>
     </div>
     <label class="scan-live-auto"><input type="checkbox" id="chkAuto" checked /> צילום אוטומטי — מצלם לבד כשהחשבונית ממורכזת, יציבה וחדה</label>
+    <label class="scan-live-auto"><input type="checkbox" id="chkDiag" /> מצב אבחון — מציג את המדדים החיים (לכיול הסורק)</label>
   </div>
 
   <!-- Fallback path: the OS camera app, exactly as before the live scanner existed. -->

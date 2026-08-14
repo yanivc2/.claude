@@ -530,3 +530,14 @@ test('POST /scan/upload rejects an iPhone HEIC with an actionable Hebrew message
   // browser renders it in the review screen), so the message must say what to do instead.
   assert.match((await res.json()).error, /HEIC/);
 });
+
+test('the capture screen exposes the calibration diagnostics toggle', async () => {
+  const res = await get('/scan', cookies.scanner);
+  const html = await res.text();
+  if (/החילוץ האוטומטי אינו פעיל/.test(html)) return; // no API key: nothing to calibrate
+  // The auto-shutter thresholds can only be tuned against real numbers from a real phone, so the
+  // readout has to be reachable in production — not a dev-only build flag.
+  assert.match(html, /id="chkDiag"/);
+  assert.match(html, /id="scanDiag"/);
+  assert.match(html, /מצב אבחון/);
+});

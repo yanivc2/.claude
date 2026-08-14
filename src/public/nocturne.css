@@ -791,6 +791,26 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
 }
 .scan-live-auto input { width: 18px; height: 18px; }
 
+/* מצב אבחון: the live gate values behind the auto-shutter, for tuning on a real phone. */
+.scan-diag {
+  display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
+  margin-top: var(--space-2); font-size: 11.5px; font-variant-numeric: tabular-nums;
+}
+.scan-diag span {
+  padding: 2px 8px; border-radius: 999px;
+  background: var(--color-neutral-800); color: var(--color-neutral-200);
+}
+.scan-diag span.ok { color: var(--color-ok); background: var(--color-ok-bg); }
+.scan-diag span.bad { color: var(--color-warn); background: var(--color-warn-bg); }
+.scan-diag b { font-weight: 600; }
+
+/* Captured page + its (diagnostics-only) measurement caption. */
+.scan-page { display: flex; flex-direction: column; gap: 4px; }
+.scan-page-meta {
+  max-width: 104px; font-size: 10px; line-height: 1.35; color: var(--color-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Upload progress (mobile networks are slow — silence reads as a hang). */
 .scan-progress {
   margin-top: var(--space-3); height: 6px; border-radius: 999px;
