@@ -41,30 +41,30 @@ export const EXTRACTION_SCHEMA = {
   additionalProperties: false,
   properties: {
     supplier_name: {
-      type: ['string', 'null'],
-      description: 'שם הספק כפי שמודפס בראש המסמך (כולל בע"מ אם מופיע). null אם לא ניתן לקרוא',
+      type: 'string',
+      description: 'שם הספק כפי שמודפס בראש המסמך (כולל בע"מ אם מופיע). "" אם לא ניתן לקרוא',
     },
     supplier_tax_id: {
-      type: ['string', 'null'],
-      description: 'ח.פ. / ע.מ. של הספק — ספרות בלבד, בדרך כלל 9 ספרות. null אם לא מופיע',
+      type: 'string',
+      description: 'ח.פ. / ע.מ. של הספק — ספרות בלבד, בדרך כלל 9 ספרות. "" אם לא מופיע',
     },
     supplier_phone: {
-      type: ['string', 'null'],
+      type: 'string',
       description:
-        'טלפון הספק כפי שמודפס בראש המסמך (לא טלפון הלקוח/הסניף). null אם לא מופיע או לא קריא',
+        'טלפון הספק כפי שמודפס בראש המסמך (לא טלפון הלקוח/הסניף). "" אם לא מופיע או לא קריא',
     },
     invoice_number: {
-      type: ['string', 'null'],
-      description: 'מספר החשבונית כפי שמודפס (כולל אותיות/מקפים אם יש). null אם לא ניתן לקרוא',
+      type: 'string',
+      description: 'מספר החשבונית כפי שמודפס (כולל אותיות/מקפים אם יש). "" אם לא ניתן לקרוא',
     },
     allocation_number: {
-      type: ['string', 'null'],
+      type: 'string',
       description:
-        'מספר הקצאה (רשות המסים) — exactly 9 digits, appears near the words "מספר הקצאה"; else null',
+        'מספר הקצאה (רשות המסים) — exactly 9 digits, appears near the words "מספר הקצאה"; else ""',
     },
     invoice_date: {
-      type: ['string', 'null'],
-      description: 'תאריך החשבונית בפורמט YYYY-MM-DD (המר DD/MM/YYYY או DD.MM.YY). null אם לא ברור',
+      type: 'string',
+      description: 'תאריך החשבונית בפורמט YYYY-MM-DD (המר DD/MM/YYYY או DD.MM.YY). "" אם לא ברור',
     },
     doc_type: {
       type: 'string',
@@ -93,16 +93,16 @@ export const EXTRACTION_SCHEMA = {
         additionalProperties: false,
         properties: {
           name: {
-            type: ['string', 'null'],
+            type: 'string',
             description: 'תיאור הפריט כפי שמודפס בשורה',
           },
           barcode: {
-            type: ['string', 'null'],
-            description: 'ברקוד — 12-13 digit EAN as printed; null when the line has none',
+            type: 'string',
+            description: 'ברקוד — 12-13 digit EAN as printed; "" when the line has none',
           },
           sku: {
-            type: ['string', 'null'],
-            description: 'מק"ט ספק — supplier catalog number, not the barcode; null when absent',
+            type: 'string',
+            description: 'מק"ט ספק — supplier catalog number, not the barcode; "" when absent',
           },
           quantity: {
             type: ['number', 'null'],
@@ -173,7 +173,7 @@ export const EXTRACTION_SCHEMA = {
       ],
     },
     notes: {
-      type: ['string', 'null'],
+      type: 'string',
       description:
         'הערה קצרה בעברית על כל דבר חריג (עמוד חסר, כתם, סכום מחוק, שורות שלא נקראו). null אם אין',
     },
@@ -211,7 +211,7 @@ export const SYSTEM_PROMPT = [
   '   carried by doc_type alone, and the server applies it.',
   '3. Dates: convert DD/MM/YYYY or DD.MM.YY to YYYY-MM-DD. In Israel the day comes first.',
   '4. מספר הקצאה: only accept a value of exactly 9 digits found near the words "מספר הקצאה" /',
-  '   "אישור הקצאה". Anything else → null. Never reuse the invoice number as an allocation number.',
+  '   "אישור הקצאה". Anything else → "". Never reuse the invoice number as an allocation number.',
   '5. ברקוד ומק"ט are different fields: a barcode is a 12-13 digit EAN, a מק"ט is the supplier\'s',
   '   own catalog number (often short, may contain letters). Never copy one into the other.',
   '6. עמודות כמות: quantity = הכמות בעמודה הראשית כפי שמודפסת (אצל חלק מהספקים זו כמות',
@@ -222,11 +222,12 @@ export const SYSTEM_PROMPT = [
   '   (כלומר קיים unit_quantity השונה מ-quantity) — החזר את המחיר המודפס ב-pack_cost והשאר',
   '   unit_cost = null; השרת יחשב סה"כ נטו חלקי unit_quantity. אל תחלק בעצמך.',
   '   גם כשאין עמודת יחידות ואין מחיר מודפס — השאר unit_cost null והשרת יחשב.',
-  '8. Never guess an unreadable value: return null and mark that field confidence "low".',
+  '8. Never guess an unreadable value: return "" for a text field, null for a number, and mark',
+  '   that field confidence "low". Text fields are never null — an unknown one is an empty string.',
   '   A wrong number is far worse than a missing one — a human reviews every draft.',
   '9. Read every item row you can, in order. Skip subtotal/discount/deposit summary rows that are',
   '   not products, and mention them in notes.',
-  '10. notes: Hebrew, one short sentence, for anything unusual — otherwise null.',
+  '10. notes: Hebrew, one short sentence, for anything unusual — otherwise "".',
 ].join('\n');
 
 /** Image media types the API accepts; anything else is sent as an image/jpeg guess. */

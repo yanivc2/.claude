@@ -128,7 +128,9 @@ test('buildExtractionRequest: pages in order, PDFs as documents, cached system p
     if (node.type === 'array') walk(node.items);
   };
   walk(EXTRACTION_SCHEMA);
-  assert.deepEqual(EXTRACTION_SCHEMA.properties.invoice_number.type, ['string', 'null']);
+  // Text fields are plain strings ("" = not present) to stay under the API's 16-union limit;
+  // numbers stay nullable, because 0 is a real value and a sentinel there would be dangerous.
+  assert.equal(EXTRACTION_SCHEMA.properties.invoice_number.type, 'string');
   assert.deepEqual(EXTRACTION_SCHEMA.properties.total_amount.type, ['number', 'null']);
 });
 
@@ -679,4 +681,47 @@ test('a bad API key names the key instead of blaming the weather', async () => {
   }
   assert.equal(failed.status, 'failed');
   assert.match(failed.error, /מפתח ה-API/);
+});
+
+test('the extraction schema stays under the API union-type limit', async () => {
+  const { EXTRACTION_SCHEMA } = await import('../src/ai/claude.js');
+
+  // The Messages API rejects a json_schema with more than 16 union-typed ("anyOf" or
+  // ["x","null"]) parameters — the compilation cost is exponential. Going over it produced a
+  // flat 400 in production: every scan failed, and adding one more nullable field was all it
+  // took. Count them here so the next field cannot silently reintroduce it.
+  let unions = 0;
+  const walk = (node) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node.type) || node.anyOf) unions += 1;
+    for (const child of Object.values(node.properties || {})) walk(child);
+    if (node.items) walk(node.items);
+  };
+  walk(EXTRACTION_SCHEMA);
+
+  assert.ok(unions <= 16, `schema has ${unions} union-typed parameters, the API allows 16`);
+});
+
+test('text fields are plain strings so an empty one reads as "not present"', async () => {
+  const { EXTRACTION_SCHEMA } = await import('../src/ai/claude.js');
+  const { validateExtraction } = await import('../src/lib/extractValidate.js');
+  const props = EXTRACTION_SCHEMA.properties;
+  for (const key of ['supplier_name', 'supplier_tax_id', 'supplier_phone', 'invoice_number', 'invoice_date', 'notes']) {
+    assert.equal(props[key].type, 'string', `${key} must not be nullable`);
+  }
+  // "" has to normalize exactly like null did, or dropping the union would change behaviour.
+  const out = validateExtraction(
+    {
+      supplier_name: '', supplier_tax_id: '', supplier_phone: '', invoice_number: '',
+      allocation_number: '', invoice_date: '', doc_type: 'tax_invoice',
+      amount_before_vat: 100, vat_amount: 18, total_amount: 118,
+      lines: [{ name: 'לחם', barcode: '', sku: '', quantity: 1, unit_quantity: null, unit_cost: null, pack_cost: null, line_total: 100, confidence: 'high' }],
+      field_confidence: {}, notes: '',
+    },
+    { suppliers: [], vatRate: 0.18 },
+  );
+  assert.equal(out.header.supplierName, null);
+  assert.equal(out.header.invoiceNumber, null);
+  assert.equal(out.lines[0].barcode, null);
+  assert.equal(out.lines[0].sku, null);
 });
