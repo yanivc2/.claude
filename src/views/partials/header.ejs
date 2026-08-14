@@ -52,15 +52,18 @@
         <% if (currentUser.role === 'owner' && typeof path === 'string' && path.startsWith('/settings')) { %>
           <div class="menu-sep"></div>
           <div class="nav-actions">
-            <button type="button" class="dial dial-sm" onclick="document.getElementById('dlg-db').showModal()"><span class="dial-ic">🗄️</span><span class="dial-lbl">עדכון מסד נתונים</span></button>
-            <button type="button" class="dial dial-sm" onclick="document.getElementById('dlg-backup').showModal()"><span class="dial-ic">⬇</span><span class="dial-lbl">גיבוי מלא</span></button>
-            <button type="button" class="dial dial-sm danger" onclick="document.getElementById('dlg-reset').showModal()"><span class="dial-ic">⚠</span><span class="dial-lbl">איפוס — התחל מחדש</span></button>
-            <button type="button" class="dial dial-sm danger" onclick="document.getElementById('dlg-restore').showModal()"><span class="dial-ic">♻</span><span class="dial-lbl">שחזור מגיבוי</span></button>
+            <button type="button" class="dial dial-sm" onclick="apOpen('dlg-db')"><span class="dial-ic">🗄️</span><span class="dial-lbl">עדכון מסד נתונים</span></button>
+            <button type="button" class="dial dial-sm" onclick="apOpen('dlg-backup')"><span class="dial-ic">⬇</span><span class="dial-lbl">גיבוי מלא</span></button>
+            <button type="button" class="dial dial-sm danger" onclick="apOpen('dlg-reset')"><span class="dial-ic">⚠</span><span class="dial-lbl">איפוס — התחל מחדש</span></button>
+            <button type="button" class="dial dial-sm danger" onclick="apOpen('dlg-restore')"><span class="dial-ic">♻</span><span class="dial-lbl">שחזור מגיבוי</span></button>
           </div>
         <% } %>
       </div>
     </details>
   </header>
+  <% if (currentUser.role === 'owner' && typeof path === 'string' && path.startsWith('/settings')) { %>
+    <%- include('_ownerDialogs') %>
+  <% } %>
   <script>
     /* Desktop only: show the nav as a static bar under the logo (force <details> open);
        mobile keeps the ☰ dropdown untouched. */

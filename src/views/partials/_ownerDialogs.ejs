@@ -1,0 +1,85 @@
+<%# Owner action dialogs (עדכון DB / גיבוי / איפוס / שחזור).
+    These live in the header partial, right next to the buttons that open them, on purpose: the
+    buttons render on EVERY /settings/* page, and when the markup lived only in settings/index.ejs
+    a click from /settings/guide called showModal() on null and did nothing at all — a dead button
+    with no error the owner could see. Buttons and dialogs must ship together. %>
+<dialog id="dlg-db" class="ndialog" onclick="event.stopPropagation()">
+  <form method="post" action="/settings/db-upgrade" class="stack">
+    <h3 style="margin:0">עדכון מסד נתונים</h3>
+    <p class="muted" style="margin:.2rem 0">מוסיף עמודות/טבלאות חדשות שנדרשות אחרי עדכון גרסה (בטוח, לא מוחק נתונים). הרץ פעם אחת אחרי כל פריסה חדשה.</p>
+    <div class="actions" style="justify-content:flex-end">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
+      <button type="submit">עדכן מסד נתונים</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-backup" class="ndialog" onclick="event.stopPropagation()">
+  <div class="stack">
+    <h3 style="margin:0">גיבוי מלא</h3>
+    <p class="muted" style="margin:.2rem 0">הורדת עותק מלא של כל הנתונים (JSON) — שמור אותו במקום שבשליטתך (Google Drive / דיסק). מומלץ אחת לשבוע. גיבוי אוטומטי שבועי רץ בנפרד (pg_dump) ושומר עותק מלא כארכיון.</p>
+    <div class="actions" style="justify-content:flex-end">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">סגור</button>
+      <a href="/settings/backup" class="btn btn-primary">⬇ הורד גיבוי (JSON)</a>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlg-reset" class="ndialog" onclick="event.stopPropagation()">
+  <form method="post" action="/settings/reset-data" class="stack" onsubmit="return apReset(event)">
+    <h3 style="margin:0;color:var(--color-bad)">אזור מסוכן — התחל מחדש</h3>
+    <p class="muted" style="margin:.2rem 0">
+      מוחק את כל <strong>נתוני העבודה</strong> — חשבוניות, תשלומים, תנועות בנק, דוחות Z, הפקדות, הוצאות, יומן ובקשות (כולל הסריקות).
+      <br><strong>נשמרים:</strong> חברות, חנויות, חשבונות בנק, משתמשים והרשאות. פעולה בלתי הפיכה.
+    </p>
+    <label style="display:flex;align-items:center;gap:8px;font-weight:400;margin:0">
+      <input type="checkbox" name="also_suppliers" value="1" style="width:auto;min-height:0" /> לנקות גם את רשימת הספקים
+    </label>
+    <label class="lbl" style="margin-top:.4rem">סיסמת הבעלים</label>
+    <input type="password" name="password" required autocomplete="current-password" placeholder="הסיסמה שלך" style="max-width:260px" />
+    <div class="actions" style="justify-content:flex-end;margin-top:.4rem">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
+      <button class="danger" type="submit">אפס נתונים והתחל מחדש</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-restore" class="ndialog" onclick="event.stopPropagation()">
+  <form method="post" action="/settings/restore" enctype="multipart/form-data" class="stack" onsubmit="return confirm('לשחזר מהגיבוי? כל הנתונים הנוכחיים יוחלפו בתוכן הקובץ. פעולה בלתי הפיכה.')">
+    <h3 style="margin:0;color:var(--color-bad)">שחזור מגיבוי</h3>
+    <p class="muted" style="margin:.2rem 0">טוען קובץ גיבוי (JSON) ו<strong>מחליף בו את כל הנתונים הקיימים</strong>. ⚠️ בלתי הפיך — כל הנתונים הנוכחיים יימחקו ויוחלפו.</p>
+    <label class="lbl">קובץ גיבוי</label>
+    <input type="file" name="backup" accept=".json,application/json" required />
+    <label class="lbl" style="margin-top:.4rem">סיסמת הבעלים</label>
+    <input type="password" name="password" required autocomplete="current-password" placeholder="הסיסמה שלך" style="max-width:260px" />
+    <div class="actions" style="justify-content:flex-end;margin-top:.4rem">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
+      <button class="danger" type="submit">שחזר מגיבוי</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+/* Open an owner dialog. Never fail silently: if the element is missing (or <dialog> is
+   unsupported), say so and fall back to the settings page rather than doing nothing. */
+function apOpen(id){
+  var d = document.getElementById(id);
+  if (d && typeof d.showModal === 'function') { d.showModal(); return; }
+  if (d) { d.setAttribute('open',''); return; }
+  location.href = '/settings';
+}
+function apReset(e){
+  var form = e.target;
+  if (form.dataset.go === '1') return true;          // second pass — really submit
+  e.preventDefault();
+  if (!form.password.value) { form.password.focus(); return false; }
+  var wantBackup = confirm('האם תרצה לגבות לפני האיפוס?\n\n"אישור" — יורד קובץ גיבוי ואז מאפס.\n"ביטול" — מאפס בלי גיבוי.');
+  if (wantBackup) {
+    var a = document.createElement('a'); a.href = '/settings/backup'; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ form.dataset.go = '1'; form.submit(); }, 1800);
+  } else {
+    form.dataset.go = '1'; form.submit();
+  }
+  return false;
+}
+</script>

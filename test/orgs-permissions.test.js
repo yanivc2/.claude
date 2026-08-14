@@ -79,3 +79,29 @@ test('toCsv quotes commas/quotes/newlines and prepends a BOM', () => {
   assert.ok(csv.includes('"he said ""hi"""'));
   assert.ok(csv.includes('"line1\nline2"'));
 });
+
+test('the owner action dialogs ship with the buttons on every settings page', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+  const db = await freshDb();
+  const ow = await owner(db);
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+
+  // The header renders these buttons on EVERY /settings/* path. When the dialog markup lived only
+  // in settings/index.ejs, a click from /settings/guide called showModal() on null and the button
+  // was simply dead — no error the owner could see, and no request in the server log.
+  for (const path of ['/settings', '/settings/guide']) {
+    const html = await (await fetch(`${base}${path}`, { headers: { cookie } })).text();
+    assert.match(html, /apOpen\('dlg-db'\)/, `${path} is missing the button`);
+    assert.match(html, /<dialog id="dlg-db"/, `${path} is missing the dialog`);
+    assert.match(html, /action="\/settings\/db-upgrade"/, `${path} is missing the upgrade form`);
+    for (const id of ['dlg-backup', 'dlg-reset', 'dlg-restore']) {
+      assert.match(html, new RegExp(`<dialog id="${id}"`), `${path} is missing ${id}`);
+    }
+  }
+  server.close();
+});
