@@ -14,10 +14,10 @@ export function migrate(db) {
   migrateUserCompanies(db);
   migrateDeposits(db);
   migrateZExtras(db);
+  migrateEmployees(db);
   migrateZClosings(db);
   migrateInvoiceLineUnits(db);
   migrateSupplierStores(db);
-  migrateEmployees(db);
   migrateStandingOrder(db);
 }
 
@@ -148,6 +148,22 @@ function migrateZClosings(db) {
   if (!cols.includes('store_id')) db.exec('ALTER TABLE z_closings ADD COLUMN store_id INTEGER REFERENCES stores(id);');
   if (!cols.includes('z_number')) db.exec('ALTER TABLE z_closings ADD COLUMN z_number TEXT;');
   if (!cols.includes('drawer_cash')) db.exec('ALTER TABLE z_closings ADD COLUMN drawer_cash INTEGER NOT NULL DEFAULT 0;');
+  if (!cols.includes('employee_id')) db.exec('ALTER TABLE z_closings ADD COLUMN employee_id INTEGER REFERENCES employees(id);');
+  // Itemized cash expenses of a register closing (kind/date/payer/purpose/employee/invoice).
+  db.exec(`CREATE TABLE IF NOT EXISTS z_closing_expenses (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    closing_id       INTEGER NOT NULL REFERENCES z_closings(id) ON DELETE CASCADE,
+    expense_date     TEXT,
+    payer_name       TEXT,
+    purpose          TEXT,
+    description_type TEXT,
+    employee_id      INTEGER REFERENCES employees(id),
+    invoice_id       INTEGER REFERENCES invoices(id),
+    amount           INTEGER NOT NULL DEFAULT 0,
+    created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+  );`);
+  db.exec('CREATE INDEX IF NOT EXISTS ix_z_closing_expenses_closing ON z_closing_expenses(closing_id);');
+  db.exec('CREATE INDEX IF NOT EXISTS ix_z_closing_expenses_invoice ON z_closing_expenses(invoice_id);');
 }
 
 // Adds the deposits table (bank deposit declarations) to older databases.

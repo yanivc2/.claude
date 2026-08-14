@@ -16,6 +16,7 @@ import {
 } from '../services/invoices.js';
 import { listSuppliers } from '../services/suppliers.js';
 import { cashPaymentsForInvoice } from '../services/zreports.js';
+import { recentClosingExpenses } from '../services/zclosing.js';
 import { runOcrForInvoice, compareToInvoice, getOcr, deleteOcr } from '../services/ocr.js';
 import { createEvent } from '../services/calendar.js';
 import { getExecutor } from '../db/adapter.js';
@@ -108,6 +109,7 @@ router.get('/', async (req, res, next) => {
       to,
       suppliers,
       stores,
+      closingExpenses: await recentClosingExpenses(req.scope.companyIds, 30),
     });
   } catch (err) {
     next(err);

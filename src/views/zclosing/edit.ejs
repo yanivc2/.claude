@@ -1,5 +1,30 @@
 <%- include('../partials/header') %>
-<% function sh(a){ return a ? (a/100).toFixed(2) : ''; } %>
+<%
+  function sh(a){ return a ? (a/100).toFixed(2) : ''; }
+  function cxEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function cxInvOptsFor(sel){
+    var h = '<option value="">— ללא חשבונית —</option>';
+    (typeof invoiceOptions !== 'undefined' ? invoiceOptions : []).forEach(function(iv){
+      h += '<option value="' + iv.id + '"' + (Number(sel) === iv.id ? ' selected' : '') + '>#' + iv.id + ' · ' + cxEsc(iv.supplier_name) + ' · ' + cxEsc(iv.invoice_number) + ' · ' + formatIls(iv.total_amount) + '</option>';
+    });
+    return h;
+  }
+  function cxEmpOptsFor(sel){
+    var h = '<option value="">— בחר עובד —</option>';
+    (typeof employeeOptions !== 'undefined' ? employeeOptions : []).forEach(function(emp){
+      h += '<option value="' + emp.id + '"' + (Number(sel) === emp.id ? ' selected' : '') + '>' + cxEsc(emp.first_name + ' ' + emp.last_name) + '</option>';
+    });
+    return h;
+  }
+  function cxKindOptsFor(sel){
+    var opts = [['manual','ידני'],['salary','שכר'],['advance','מפרעה'],['invoice','תשלום חשבונית']];
+    var s = sel || 'manual';
+    return opts.map(function(o){ return '<option value="'+o[0]+'"'+(s===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('');
+  }
+  var stOpts = storeOptions || [];
+  var empOpts = employeeOptions || [];
+  var exRows = expenses || [];
+%>
 <div class="toolbar">
   <h1>עריכת סגירת Z</h1>
   <a href="/zclosing" class="btn btn-secondary no-print">חזרה</a>
@@ -11,19 +36,37 @@
 <div class="card no-print">
   <p class="muted" style="margin:0 0 .6rem">נשמר: <strong><%= closing.ended_at || '—' %></strong> · שעון ישראל</p>
   <form method="post" action="/zclosing/<%= closing.id %>" class="stack" id="zclose-form">
-    <div class="row">
-      <div><label>שם פרטי</label><input name="employee_first" required autocomplete="off" value="<%= closing.employee_first || '' %>" /></div>
-      <div><label>שם משפחה</label><input name="employee_last" required autocomplete="off" value="<%= closing.employee_last || '' %>" /></div>
-    </div>
+    <% if (empOpts.length) { %>
+      <input type="hidden" name="employee_first" value="<%= closing.employee_first || '' %>" />
+      <input type="hidden" name="employee_last" value="<%= closing.employee_last || '' %>" />
+      <div>
+        <label>עובד (מבצע הספירה)</label>
+        <select name="employee_id" required>
+          <option value="">בחר עובד…</option>
+          <% empOpts.forEach(function(emp){ %><option value="<%= emp.id %>" <%= closing.employee_id === emp.id ? 'selected' : '' %>><%= emp.first_name %> <%= emp.last_name %></option><% }); %>
+        </select>
+        <% if (!closing.employee_id) { %><small class="muted">סגירה זו נשמרה עם שם חופשי (<%= closing.employee_first %> <%= closing.employee_last %>) — בחר עובד לעדכון.</small><% } %>
+      </div>
+    <% } else { %>
+      <div class="row">
+        <div><label>שם פרטי</label><input name="employee_first" required autocomplete="off" value="<%= closing.employee_first || '' %>" /></div>
+        <div><label>שם משפחה</label><input name="employee_last" required autocomplete="off" value="<%= closing.employee_last || '' %>" /></div>
+      </div>
+    <% } %>
     <div class="row">
       <div>
         <label>חנות</label>
-        <select name="store_id" required>
-          <option value="">בחר חנות…</option>
-          <% (storeOptions || []).forEach(function(st){ %>
-            <option value="<%= st.id %>" <%= closing.store_id === st.id ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option>
-          <% }); %>
-        </select>
+        <% if (stOpts.length === 1) { %>
+          <input type="hidden" name="store_id" value="<%= stOpts[0].id %>" />
+          <input value="<%= stOpts[0].name %> · <%= stOpts[0].company_name %>" readonly />
+        <% } else { %>
+          <select name="store_id" required>
+            <option value="">בחר חנות…</option>
+            <% stOpts.forEach(function(st){ %>
+              <option value="<%= st.id %>" <%= closing.store_id === st.id ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option>
+            <% }); %>
+          </select>
+        <% } %>
       </div>
       <div><label>מספר Z</label><input name="z_number" required autocomplete="off" value="<%= closing.z_number || '' %>" /></div>
       <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required value="<%= sh(closing.drawer_cash) %>" /></div>
@@ -46,25 +89,40 @@
       </table>
     </div>
 
-    <h3 style="margin:1.1rem 0 .2rem">הוצאות</h3>
+    <h3 style="margin:1.1rem 0 .2rem">הוצאות מזומן</h3>
+    <p class="muted" style="margin:0 0 .4rem">בחר <strong>סוג</strong>: ידני · שכר · מפרעה · תשלום חשבונית. שכר/מפרעה משויכים לעובד; תשלום חשבונית משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
     <div class="table-scroll">
       <table>
-        <thead><tr><th>פירוט</th><th class="right">סכום (₪)</th><th></th></tr></thead>
-        <tbody id="exp-body">
-          <% (expenses || []).forEach(function(e){ %>
+        <thead><tr><th>סוג</th><th>תאריך</th><th>שם</th><th>פרטים</th><th class="right">סכום (₪)</th><th></th></tr></thead>
+        <tbody id="cx-body">
+          <% exRows.forEach(function(e){ %>
             <tr>
-              <td><input name="exp_desc" autocomplete="off" value="<%= e.desc || '' %>" /></td>
-              <td><input name="exp_amount" class="exp-amt" inputmode="decimal" value="<%= sh(e.amount) %>" /></td>
-              <td><button type="button" class="danger small" onclick="expDel(this)">✕</button></td>
+              <td><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(e.description_type) %></select></td>
+              <td><input type="date" name="expense_date" value="<%= e.expense_date || '' %>" /></td>
+              <td><input name="payer_name" value="<%= e.payer_name || '' %>" /></td>
+              <td>
+                <input name="purpose" class="cx-purpose" value="<%= e.purpose || '' %>" placeholder="עבור" />
+                <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(e.employee_id) %></select>
+                <select name="expense_invoice_id" class="cx-inv" style="max-width:240px"><%- cxInvOptsFor(e.invoice_id) %></select>
+              </td>
+              <td><input name="amount" class="cx-amt" inputmode="decimal" value="<%= sh(e.amount) %>" /></td>
+              <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
             </tr>
           <% }); %>
           <tr>
-            <td><input name="exp_desc" autocomplete="off" /></td>
-            <td><input name="exp_amount" class="exp-amt" inputmode="decimal" /></td>
-            <td><button type="button" class="danger small" onclick="expDel(this)">✕</button></td>
+            <td><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></td>
+            <td><input type="date" name="expense_date" /></td>
+            <td><input name="payer_name" /></td>
+            <td>
+              <input name="purpose" class="cx-purpose" placeholder="עבור" />
+              <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(null) %></select>
+              <select name="expense_invoice_id" class="cx-inv" style="max-width:240px"><%- cxInvOptsFor(null) %></select>
+            </td>
+            <td><input name="amount" class="cx-amt" inputmode="decimal" /></td>
+            <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
           </tr>
         </tbody>
-        <tfoot><tr><th>סה"כ הוצאות</th><th class="right" id="exp-total">₪0.00</th><th></th></tr></tfoot>
+        <tfoot><tr><th colspan="4">סה"כ הוצאות</th><th class="right" id="exp-total">₪0.00</th><th></th></tr></tfoot>
       </table>
     </div>
 
@@ -104,7 +162,7 @@
     });
     return total;
   }
-  function expSum(){ var s = 0; form.querySelectorAll('.exp-amt').forEach(function(i){ var v = parseFloat(i.value); if (!isNaN(v)) s += v; }); return s; }
+  function expSum(){ var s = 0; form.querySelectorAll('.cx-amt').forEach(function(i){ var v = parseFloat(i.value); if (!isNaN(v)) s += v; }); return s; }
   function recalc(){
     var cash = cashSum(); var exp = expSum(); var grand = cash + exp;
     document.getElementById('cc-cash').textContent = fmt(cash);
@@ -122,27 +180,48 @@
   }
   form.querySelectorAll('.cc-cnt').forEach(function(i){ i.addEventListener('input', recalc); });
   var drawerIn = document.getElementById('drawer-cash-in'); if (drawerIn) drawerIn.addEventListener('input', recalc);
-  var body = document.getElementById('exp-body');
-  window.expDel = function(btn){
+
+  var body = document.getElementById('cx-body');
+  var CX_INV_OPTS = <%- JSON.stringify(cxInvOptsFor(null)) %>;
+  var CX_EMP_OPTS = <%- JSON.stringify(cxEmpOptsFor(null)) %>;
+  var CX_KIND_OPTS = <%- JSON.stringify(cxKindOptsFor(null)) %>;
+  function applyKind(row){
+    var kind = (row.querySelector('.cx-kind') || {}).value || 'manual';
+    var p = row.querySelector('.cx-purpose'), emp = row.querySelector('.cx-emp'), inv = row.querySelector('.cx-inv');
+    if (p) p.hidden = (kind !== 'manual');
+    if (emp) emp.hidden = !(kind === 'salary' || kind === 'advance');
+    if (inv) inv.hidden = (kind !== 'invoice');
+  }
+  window.cxDel = function(btn){
     var rows = body.querySelectorAll('tr');
     if (rows.length > 1) btn.closest('tr').remove();
-    else btn.closest('tr').querySelectorAll('input').forEach(function(i){ i.value = ''; });
+    else btn.closest('tr').querySelectorAll('input,select').forEach(function(i){ i.value=''; });
     recalc();
   };
-  function addExp(){
+  function addRow(){
     var tr = document.createElement('tr');
-    tr.innerHTML = '<td><input name="exp_desc" autocomplete="off"></td>'
-      + '<td><input name="exp_amount" class="exp-amt" inputmode="decimal"></td>'
-      + '<td><button type="button" class="danger small" onclick="expDel(this)">✕</button></td>';
+    tr.innerHTML = '<td><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></td>'
+      + '<td><input type="date" name="expense_date"></td>'
+      + '<td><input name="payer_name"></td>'
+      + '<td><input name="purpose" class="cx-purpose" placeholder="עבור">'
+      +   '<select name="expense_employee_id" class="cx-emp">' + CX_EMP_OPTS + '</select>'
+      +   '<select name="expense_invoice_id" class="cx-inv" style="max-width:240px">' + CX_INV_OPTS + '</select></td>'
+      + '<td><input name="amount" class="cx-amt" inputmode="decimal"></td>'
+      + '<td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>';
     body.appendChild(tr);
+    applyKind(tr);
   }
+  body.querySelectorAll('tr').forEach(applyKind);
+  body.addEventListener('change', function(e){
+    if (e.target && e.target.classList.contains('cx-kind')) applyKind(e.target.closest('tr'));
+  });
   body.addEventListener('input', function(e){
     recalc();
     var rows = body.querySelectorAll('tr');
     var last = rows[rows.length - 1];
     if (last.contains(e.target)) {
       var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
-      if (filled) addExp();
+      if (filled) addRow();
     }
   });
   recalc();

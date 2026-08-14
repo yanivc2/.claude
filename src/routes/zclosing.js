@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import {
   createZClosing, listZClosings, getZClosing, updateZClosing, deleteZClosing,
-  CLOSING_DENOMS, israelNow,
+  listClosingExpenses, recentClosingExpenses, CLOSING_DENOMS, israelNow,
 } from '../services/zclosing.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
 import { toAgorot } from '../lib/money.js';
+import { listInvoices } from '../services/invoices.js';
+import { listEmployees } from '../services/employees.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { RuleError } from '../lib/errors.js';
 
@@ -22,19 +24,42 @@ async function storeOptionsFor(req) {
   );
 }
 
-// Build the createZClosing/updateZClosing input from the posted form body.
+// Recent invoices offered as match targets for a cash expense (מס' · ספק · סכום). Scoped, capped.
+async function invoicePickOptions(scope) {
+  const rows = await listInvoices({ scope });
+  return rows.slice(0, 300).map((r) => ({
+    id: r.id,
+    invoice_number: r.invoice_number,
+    supplier_name: r.supplier_name,
+    total_amount: r.total_amount,
+  }));
+}
+
+// Build the createZClosing/updateZClosing input from the posted form body. Cash expenses now carry
+// a kind (manual/salary/advance/invoice) + date + employee/invoice link — same shape as the Z report.
 function closingInputFrom(b) {
   const counts = {};
   for (const d of CLOSING_DENOMS) counts[d.key] = Number(b[`count_${d.key}`] || 0);
-  const descs = [].concat(b.exp_desc || []);
-  const amounts = [].concat(b.exp_amount || []);
-  const expenses = descs.map((desc, i) => ({
-    desc,
-    amount: amounts[i] != null && String(amounts[i]).trim() !== '' ? toAgorot(amounts[i]) : 0,
+  const dates = [].concat(b.expense_date || []);
+  const names = [].concat(b.payer_name || []);
+  const purposes = [].concat(b.purpose || []);
+  const amounts = [].concat(b.amount || []);
+  const invoiceIds = [].concat(b.expense_invoice_id || []);
+  const kinds = [].concat(b.expense_kind || []);
+  const employeeIds = [].concat(b.expense_employee_id || []);
+  const expenses = amounts.map((a, i) => ({
+    expenseDate: dates[i] || null,
+    payerName: names[i],
+    purpose: purposes[i],
+    kind: kinds[i] || 'manual',
+    employeeId: employeeIds[i] || null,
+    amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
+    invoiceId: invoiceIds[i] || null,
   }));
   return {
     employeeFirst: b.employee_first,
     employeeLast: b.employee_last,
+    employeeId: b.employee_id || null,
     storeId: b.store_id || null,
     zNumber: b.z_number,
     drawerCash: toAgorot(b.drawer_cash || '0'),
@@ -49,8 +74,11 @@ async function render(req, res, extra = {}) {
     title: 'סגירת Z',
     denoms: CLOSING_DENOMS,
     storeOptions: await storeOptionsFor(req),
+    employeeOptions: await listEmployees(),
+    invoiceOptions: await invoicePickOptions(req.scope?.companyIds ?? null),
     startedAt: israelNow(),
     closings: await listZClosings({ limit: 30 }),
+    closingExpenses: await recentClosingExpenses(req.scope?.companyIds ?? null, 30),
     error: null,
     notice: null,
     ...extra,
@@ -79,9 +107,8 @@ router.post('/', async (req, res, next) => {
 async function renderEdit(req, res, id, extra = {}) {
   const closing = await getZClosing(id);
   let breakdown = {};
-  let expenses = [];
   try { breakdown = JSON.parse(closing.breakdown || '{}'); } catch { breakdown = {}; }
-  try { expenses = JSON.parse(closing.expenses || '[]'); } catch { expenses = []; }
+  const expenses = await listClosingExpenses(id);
   res.render('zclosing/edit', {
     title: `עריכת סגירת Z`,
     closing,
@@ -89,6 +116,8 @@ async function renderEdit(req, res, id, extra = {}) {
     expenses,
     denoms: CLOSING_DENOMS,
     storeOptions: await storeOptionsFor(req),
+    employeeOptions: await listEmployees(),
+    invoiceOptions: await invoicePickOptions(req.scope?.companyIds ?? null),
     error: null,
     notice: null,
     ...extra,

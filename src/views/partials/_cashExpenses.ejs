@@ -1,0 +1,35 @@
+<%
+  // Read-only "הוצאות מזומן" rubric — rows from recentClosingExpenses(). Columns match the entry
+  // table: סוג · תאריך · שם · פרטים · סכום. Required local: `rows`.
+  var _cxKindLabel = { manual: 'ידני', salary: 'שכר', advance: 'מפרעה', invoice: 'תשלום חשבונית' };
+%>
+<div class="table-scroll">
+  <table class="sortable">
+    <thead><tr><th>סוג</th><th>תאריך</th><th>שם</th><th>פרטים</th><th class="right">סכום</th></tr></thead>
+    <tbody>
+      <% if (!rows || rows.length === 0) { %>
+        <tr><td colspan="5" class="muted">אין הוצאות מזומן עדיין.</td></tr>
+      <% } %>
+      <% (rows || []).forEach(function(e){ %>
+        <tr>
+          <td><%= _cxKindLabel[e.description_type] || 'ידני' %></td>
+          <td class="mono"><%= formatDate(e.expense_date) %></td>
+          <td><%= e.payer_name || '—' %></td>
+          <td>
+            <% if (e.description_type === 'invoice' && e.invoice_id) { %>
+              <a href="/invoices/<%= e.invoice_id %>">חשבונית #<%= e.invoice_number %><%= e.invoice_supplier ? ' · ' + e.invoice_supplier : '' %></a>
+            <% } else if ((e.description_type === 'salary' || e.description_type === 'advance') && (e.emp_first || e.emp_last)) { %>
+              <%= ((e.emp_first || '') + ' ' + (e.emp_last || '')).trim() %>
+            <% } else { %>
+              <%= e.purpose || '—' %>
+            <% } %>
+            <% if (e.store_name || e.z_number) { %>
+              <span class="muted" style="font-size:12px"><%= e.store_name ? ' · ' + e.store_name : '' %><%= e.z_number ? ' · Z ' + e.z_number : '' %></span>
+            <% } %>
+          </td>
+          <td class="right"><%= formatIls(e.amount) %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>

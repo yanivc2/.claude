@@ -312,9 +312,27 @@ CREATE TABLE IF NOT EXISTS z_closings (
   expenses       TEXT,                          -- JSON [{ desc, amount }]
   total_expenses INTEGER NOT NULL DEFAULT 0,    -- agorot
   grand_total    INTEGER NOT NULL DEFAULT 0,    -- agorot (cash + expenses)
+  employee_id    INTEGER REFERENCES employees(id),  -- who performed the count (from employees list)
   created_by     INTEGER REFERENCES users(id),
   created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
+
+-- z_closing_expenses — itemized cash expenses of a register closing (סגירת Z), mirroring
+-- z_expenses: kind (manual/salary/advance/invoice), date, payer/purpose, employee/invoice link.
+CREATE TABLE IF NOT EXISTS z_closing_expenses (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  closing_id       INTEGER NOT NULL REFERENCES z_closings(id) ON DELETE CASCADE,
+  expense_date     TEXT,
+  payer_name       TEXT,
+  purpose          TEXT,             -- "עבור" (free text)
+  description_type TEXT,             -- kind: manual / salary / advance / invoice
+  employee_id      INTEGER REFERENCES employees(id),  -- salary/advance → which employee
+  invoice_id       INTEGER REFERENCES invoices(id),   -- invoice → cash expense matched to an invoice
+  amount           INTEGER NOT NULL DEFAULT 0,
+  created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_z_closing_expenses_closing ON z_closing_expenses(closing_id);
+CREATE INDEX IF NOT EXISTS ix_z_closing_expenses_invoice ON z_closing_expenses(invoice_id);
 
 -- sales_entries — manual register (Z) totals per store, for the profitability report (§7).
 -- Purchases come automatically from invoices; sales are entered by hand here.
