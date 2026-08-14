@@ -30,25 +30,6 @@
     <button type="button" class="btn btn-secondary btn-block" id="btnFiles">בחר קבצים 🗂️ (גלריה / Genius Scan)</button>
   </div>
 
-  <!-- Live scanner. Hidden until the camera opens; JS falls back to #scanFallback if it can't. -->
-  <div id="scanLive" class="scan-live" style="display:none">
-    <div class="scan-live-frame">
-      <video id="scanVideo" playsinline muted autoplay></video>
-      <canvas id="scanOverlay" class="scan-live-overlay"></canvas>
-      <div id="scanFlash" class="scan-live-flash"></div>
-      <span id="scanLiveCount" class="scan-live-count">0/<%= maxPages %></span>
-    </div>
-    <p id="scanLiveHint" class="scan-live-hint">פותח מצלמה…</p>
-    <div id="scanDiag" class="scan-diag" style="display:none"></div>
-    <div class="scan-live-bar">
-      <button type="button" class="btn btn-secondary" id="btnStop">סגור</button>
-      <button type="button" class="btn btn-primary scan-shutter" id="btnShutter" aria-label="צלם עכשיו">צלם</button>
-      <button type="button" class="btn btn-secondary" id="btnTorch" aria-pressed="false" style="display:none" aria-label="פנס">🔦</button>
-    </div>
-    <label class="scan-live-auto"><input type="checkbox" id="chkAuto" checked /> צילום אוטומטי — מצלם לבד כשהחשבונית ממורכזת, יציבה וחדה</label>
-    <label class="scan-live-auto"><input type="checkbox" id="chkDiag" /> מצב אבחון — מציג את המדדים החיים (לכיול הסורק)</label>
-  </div>
-
   <!-- Fallback path: the OS camera app, exactly as before the live scanner existed. -->
   <div id="scanFallback" style="display:none">
     <p id="scanFallbackNote" class="muted" style="margin:var(--space-3) 0 .5rem"></p>
@@ -78,6 +59,38 @@
     <li>הניחו את החשבונית על משטח בהיר ושטוח, בלי צל של היד, ותנו לטלפון רגע להתמקד — הסורק לא יצלם כל עוד התמונה מטושטשת.</li>
   </ul>
 </details>
+
+<%# The viewfinder is a native <dialog> on purpose: the top layer takes it out of .page's
+    max-width, puts it over the nav without a z-index war, and footer.ejs already exempts
+    dialog[open] from the PWA pull-to-refresh / swipe-back gestures. Choosing the store and
+    sending stay on the page behind it — this screen is only for capturing.
+    The captured pages (#scanThumbs) are moved in and out of #scanThumbDock by scan-capture.js. %>
+<dialog id="scanLive" class="scan-full" aria-label="סורק חשבוניות">
+  <div class="scan-stage">
+    <video id="scanVideo" playsinline muted autoplay></video>
+    <canvas id="scanOverlay" class="scan-live-overlay"></canvas>
+    <div id="scanFlash" class="scan-live-flash"></div>
+  </div>
+  <div class="scan-hud">
+    <div class="scan-hud-top">
+      <span id="scanLiveCount" class="scan-live-count">0/<%= maxPages %></span>
+    </div>
+    <div class="scan-hud-bottom">
+      <div id="scanThumbDock"></div>
+      <div class="scan-hud-opts">
+        <label class="scan-live-auto"><input type="checkbox" id="chkAuto" checked /> צילום אוטומטי — מצלם לבד כשהחשבונית ממורכזת, יציבה וחדה</label>
+        <label class="scan-live-auto"><input type="checkbox" id="chkDiag" /> מצב אבחון — מציג את המדדים החיים (לכיול הסורק)</label>
+      </div>
+      <div id="scanDiag" class="scan-diag" style="display:none"></div>
+      <p id="scanLiveHint" class="scan-live-hint">פותח מצלמה…</p>
+      <div class="scan-live-bar">
+        <button type="button" class="btn btn-secondary" id="btnStop">סגור</button>
+        <button type="button" class="btn btn-primary scan-shutter" id="btnShutter" autofocus aria-label="צלם עכשיו">צלם</button>
+        <button type="button" class="btn btn-secondary" id="btnTorch" aria-pressed="false" style="display:none" aria-label="פנס">🔦</button>
+      </div>
+    </div>
+  </div>
+</dialog>
 
 <script type="application/json" id="scanConfig"><%- JSON.stringify({
   maxPages: maxPages,

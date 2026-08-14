@@ -9,7 +9,7 @@ import { looksLikePdf, pdfPageCount } from '../lib/pdfPages.js';
 import { buildExtractionRequest, getClaudeClient } from '../ai/claude.js';
 import { createInvoice } from './invoices.js';
 import { upsertProductsFromLines } from './products.js';
-import { lookupByBarcodes } from './masterCatalog.js';
+import { lookupByBarcodes, lookupByCodes } from './masterCatalog.js';
 import { logAction } from './audit.js';
 
 // צילום חשבוניות (stage 5) — the draft pipeline behind the mobile capture screen:
@@ -26,11 +26,17 @@ const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
 const PENDING_STATUSES = ['uploaded', 'processing', 'needs_review', 'failed'];
 
 /**
- * Master-catalog rows for the barcodes present in a set of lines — a small Map handed to the
- * pure validator (which never queries the DB itself).
+ * Master-catalog rows for a draft's lines — handed to the pure validator, which never queries the
+ * DB itself. Two lookups, because suppliers print product identity two different ways:
+ *   exact   — the full EAN is printed (barcode → row)
+ *   suffix  — only a shortened code is printed, e.g. Tnuva's `42435` for `7290000042435`. The
+ *             מק"ט column carries it just as often as the barcode column does, so both are tried.
+ * @returns {Promise<{exact: Map<string,object>, byCode: Map<string,object[]>}>}
  */
-function masterCatalogFor(barcodes, x) {
-  return lookupByBarcodes(barcodes, x);
+async function masterCatalogFor(lines, x) {
+  const values = (lines || []).flatMap((l) => [l?.barcode, l?.sku]);
+  const [exact, byCode] = await Promise.all([lookupByBarcodes(values, x), lookupByCodes(values, x)]);
+  return { exact, byCode };
 }
 
 /**
@@ -270,7 +276,7 @@ export async function processDraft(
 
   // ---- normalize + duplicate probes -------------------------------------------
   const suppliers = await x.many('SELECT * FROM suppliers', []);
-  const masterCatalog = await masterCatalogFor((parsed.lines || []).map((l) => l?.barcode), x);
+  const masterCatalog = await masterCatalogFor(parsed.lines, x);
   const normalized = validateExtraction(parsed, { suppliers, vatRate: config.vatRate, masterCatalog });
   await probeDuplicates(id, normalized, x);
 
@@ -465,7 +471,7 @@ async function applyEdits(previous, edits = {}, x = getExecutor()) {
   const suppliers = await x.many('SELECT * FROM suppliers', []);
   // Catalog info is re-derived on every pass (never round-tripped through toExtraction),
   // so an edited barcode gets a fresh verdict.
-  const masterCatalog = await masterCatalogFor((merged.lines || []).map((l) => l?.barcode), x);
+  const masterCatalog = await masterCatalogFor(merged.lines, x);
   const next = validateExtraction(toExtraction(merged, previous), {
     suppliers,
     vatRate: config.vatRate,

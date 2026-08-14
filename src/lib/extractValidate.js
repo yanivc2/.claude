@@ -25,11 +25,17 @@ import { eanChecksumOk } from './ean.js';
  *   'computed_per_unit' — unit cost was derived from line total / כ.בודד (single-item count)
  *   'missing_amounts'   — neither unit cost nor line total could be read
  *   'low_confidence'    — Claude reported low confidence for the line
- *   'catalog_match'     — the barcode was found in the master catalog (identity confirmed)
+ *   'catalog_match'     — the full barcode was found in the master catalog (identity confirmed)
+ *   'catalog_suffix_match' — only a shortened code was printed and exactly one catalog barcode
+ *                         ends with it (Tnuva prints `42435` for `7290000042435`) — offered,
+ *                         never applied
+ *   'catalog_ambiguous' — the shortened code matches several catalog barcodes; `candidates`
+ *                         carries them for a human to pick from
  *   'barcode_invalid'   — GTIN checksum failed and no catalog hit — likely misread digits
  * @typedef {'no_supplier_match'|'fuzzy_match'|'missing'|'low_confidence'|'defaulted'
  *   |'invalid_format'|'vat_mismatch'|'vat_rate_off'|'lines_sum_mismatch'
- *   |'computed'|'computed_per_unit'|'missing_amounts'|'catalog_match'|'barcode_invalid'} FlagCode
+ *   |'computed'|'computed_per_unit'|'missing_amounts'|'catalog_match'|'catalog_suffix_match'
+ *   |'catalog_ambiguous'|'barcode_invalid'} FlagCode
  */
 export const FLAG_CODES = Object.freeze([
   'no_supplier_match',
@@ -45,6 +51,8 @@ export const FLAG_CODES = Object.freeze([
   'computed_per_unit',
   'missing_amounts',
   'catalog_match',
+  'catalog_suffix_match',
+  'catalog_ambiguous',
   'barcode_invalid',
 ]);
 
@@ -233,21 +241,42 @@ function normalizeLine(raw, lineNo, masterCatalog = null) {
 
   const name = str(src.name);
   const barcode = str(src.barcode);
+  const sku = str(src.sku);
+  const catalogInfo = (row, printedName) => ({
+    name: row.name,
+    manufacturer: row.manufacturer_name ?? null,
+    quantity: num(row.quantity),
+    unitQty: row.unit_qty ?? null,
+    qtyInPackage: num(row.qty_in_package),
+    nameDiffers: looseName(printedName) !== looseName(row.name),
+  });
+
+  // Identity, in order of certainty:
+  //   1. the full barcode is printed and is in the catalog          → catalog_match
+  //   2. only a SHORTENED code is printed (Tnuva prints `42435` for `7290000042435`), and exactly
+  //      one catalog barcode ends with it                            → catalog_suffix_match
+  //   3. same, but several barcodes end with it                      → catalog_ambiguous
+  // Nothing here overwrites what was extracted. A suffix hit is an offer the review screen makes
+  // to a human, because a shortened code is a weaker claim than a printed 13-digit barcode.
+  const exact = masterCatalog?.exact ?? masterCatalog; // plain Map: older callers pass one directly
+  const byCode = masterCatalog?.byCode ?? null;
   let catalog = null;
-  if (barcode) {
-    const hit = masterCatalog?.get?.(barcode) ?? null;
-    if (hit) {
-      flags.push('catalog_match');
-      catalog = {
-        name: hit.name,
-        manufacturer: hit.manufacturer_name ?? null,
-        quantity: hit.quantity === null || hit.quantity === undefined ? null : Number(hit.quantity),
-        unitQty: hit.unit_qty ?? null,
-        qtyInPackage:
-          hit.qty_in_package === null || hit.qty_in_package === undefined ? null : Number(hit.qty_in_package),
-        nameDiffers: looseName(name) !== looseName(hit.name),
-      };
-    } else if (eanChecksumOk(barcode) === false) {
+  let candidates = null;
+
+  const hit = barcode ? (exact?.get?.(barcode) ?? null) : null;
+  if (hit) {
+    flags.push('catalog_match');
+    catalog = catalogInfo(hit, name);
+  } else {
+    // The shortened code turns up in the barcode column as often as in the מק"ט column.
+    const found = [barcode, sku].reduce((acc, code) => acc || (code ? byCode?.get?.(code) : null), null);
+    if (found && found.length === 1) {
+      flags.push('catalog_suffix_match');
+      catalog = { ...catalogInfo(found[0], name), barcode: found[0].barcode };
+    } else if (found && found.length > 1) {
+      flags.push('catalog_ambiguous');
+      candidates = found.slice(0, 6).map((row) => ({ ...catalogInfo(row, name), barcode: row.barcode }));
+    } else if (barcode && eanChecksumOk(barcode) === false) {
       flags.push('barcode_invalid');
     }
   }
@@ -256,7 +285,7 @@ function normalizeLine(raw, lineNo, masterCatalog = null) {
     lineNo,
     name,
     barcode,
-    sku: str(src.sku),
+    sku,
     quantity,
     unitQuantity,
     unitCost,
@@ -266,6 +295,7 @@ function normalizeLine(raw, lineNo, masterCatalog = null) {
     confidence,
     flags,
     catalog,
+    candidates,
   };
 }
 

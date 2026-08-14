@@ -521,3 +521,68 @@ test('a garbage extraction degrades to an all-missing draft instead of throwing'
   assert.equal(empty.header.totalAmount, null);
   assert.deepEqual(empty.flags.supplier, ['no_supplier_match']);
 });
+
+test('a shortened code resolves to the full barcode — offered, never applied', () => {
+  // Exactly the Tnuva case: the invoice prints 42435, the real barcode is 7290000042435.
+  const row = (barcode, name) => ({ barcode, name, manufacturer_name: 'תנובה בע"מ', quantity: 1, unit_qty: 'ליטר', qty_in_package: 1 });
+  const masterCatalog = {
+    exact: new Map(),
+    byCode: new Map([['42435', [row('7290000042435', 'חלב מפוסטר 1% בקרטון 1ל')]]]),
+  };
+  const out = validateExtraction(
+    {
+      supplier_name: 'תנובה', supplier_tax_id: '', supplier_phone: '', invoice_number: '626093611',
+      allocation_number: '', invoice_date: '2026-08-06', doc_type: 'tax_invoice',
+      amount_before_vat: 81.28, vat_amount: 14.63, total_amount: 95.91,
+      lines: [{ name: 'הומוגני 1% דל', barcode: '42435', sku: '', quantity: 16, unit_quantity: null, unit_cost: 5.08, pack_cost: null, line_total: 81.28, confidence: 'high' }],
+      field_confidence: {}, notes: '',
+    },
+    { suppliers: [], vatRate: 0.18, masterCatalog },
+  );
+  const line = out.lines[0];
+  assert.ok(line.flags.includes('catalog_suffix_match'));
+  assert.equal(line.catalog.barcode, '7290000042435');
+  assert.equal(line.catalog.name, 'חלב מפוסטר 1% בקרטון 1ל');
+  // The extracted value is untouched — the review screen offers the swap, a human takes it.
+  assert.equal(line.barcode, '42435');
+});
+
+test('an ambiguous shortened code lists candidates instead of choosing', () => {
+  const row = (barcode, name) => ({ barcode, name, manufacturer_name: null, quantity: null, unit_qty: null, qty_in_package: null });
+  const masterCatalog = {
+    exact: new Map(),
+    byCode: new Map([['4136857', [row('7290004136857', 'גלי פטל 125 גרם'), row('7291114136857', 'מוצר אחר')]]]),
+  };
+  const out = validateExtraction(
+    {
+      supplier_name: 'תנובה', supplier_tax_id: '', supplier_phone: '', invoice_number: '1',
+      allocation_number: '', invoice_date: '2026-08-06', doc_type: 'tax_invoice',
+      amount_before_vat: 10, vat_amount: 1.8, total_amount: 11.8,
+      lines: [{ name: 'גלי פטל', barcode: '', sku: '4136857', quantity: 1, unit_quantity: null, unit_cost: 10, pack_cost: null, line_total: 10, confidence: 'high' }],
+      field_confidence: {}, notes: '',
+    },
+    { suppliers: [], vatRate: 0.18, masterCatalog },
+  );
+  const line = out.lines[0];
+  // The code lives in the מק"ט column here, not the barcode column — both are tried.
+  assert.ok(line.flags.includes('catalog_ambiguous'));
+  assert.equal(line.candidates.length, 2);
+  assert.equal(line.catalog, null);
+});
+
+test('a plain Map of exact barcodes still works (older callers)', () => {
+  const masterCatalog = new Map([
+    ['7290000042435', { barcode: '7290000042435', name: 'חלב', manufacturer_name: null, quantity: null, unit_qty: null, qty_in_package: null }],
+  ]);
+  const out = validateExtraction(
+    {
+      supplier_name: 'תנובה', supplier_tax_id: '', supplier_phone: '', invoice_number: '1',
+      allocation_number: '', invoice_date: '2026-08-06', doc_type: 'tax_invoice',
+      amount_before_vat: 10, vat_amount: 1.8, total_amount: 11.8,
+      lines: [{ name: 'חלב', barcode: '7290000042435', sku: '', quantity: 1, unit_quantity: null, unit_cost: 10, pack_cost: null, line_total: 10, confidence: 'high' }],
+      field_confidence: {}, notes: '',
+    },
+    { suppliers: [], vatRate: 0.18, masterCatalog },
+  );
+  assert.ok(out.lines[0].flags.includes('catalog_match'));
+});

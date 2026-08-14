@@ -464,7 +464,24 @@
     };
   }
 
-  function drawOverlay(quad, ratio, scale) {
+  /**
+   * Working-frame coordinates → overlay-canvas coordinates.
+   * The video is drawn with `object-fit: cover`: it is scaled by max(), and whatever overflows is
+   * cropped in equal halves off the other axis. Scaling by width alone therefore drew the quad
+   * shifted by half of that crop — tolerable in the old 3/4 box, obvious now that the viewfinder
+   * is whatever shape the phone is. Capture is untouched by this: it works in sensor coordinates.
+   */
+  function coverMap(boxW, boxH, vw, vh, work) {
+    var s = Math.max(boxW / vw, boxH / vh); // displayed pixels per sensor pixel
+    return {
+      sx: (vw / work.width) * s,
+      sy: (vh / work.height) * s,
+      dx: (boxW - vw * s) / 2, // ≤ 0 on the cropped axis, 0 on the other
+      dy: (boxH - vh * s) / 2,
+    };
+  }
+
+  function drawOverlay(quad, ratio, map) {
     var ctx = el.overlay.getContext('2d');
     ctx.clearRect(0, 0, el.overlay.width, el.overlay.height);
     if (!quad) return;
@@ -472,8 +489,8 @@
     var stroke = ready ? '#2ecc71' : ratio > 0 ? '#f0b429' : '#e05561';
     ctx.beginPath();
     quad.forEach(function (p, i) {
-      var x = p.x * scale;
-      var y = p.y * scale;
+      var x = map.dx + p.x * map.sx;
+      var y = map.dy + p.y * map.sy;
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
@@ -485,7 +502,7 @@
     ctx.fill();
     quad.forEach(function (p) {
       ctx.beginPath();
-      ctx.arc(p.x * scale, p.y * scale, 5, 0, Math.PI * 2);
+      ctx.arc(map.dx + p.x * map.sx, map.dy + p.y * map.sy, 5, 0, Math.PI * 2);
       ctx.fillStyle = stroke;
       ctx.fill();
     });
@@ -517,7 +534,7 @@
       el.overlay.width = Math.round(rect.width);
       el.overlay.height = Math.round(rect.height);
     }
-    var overlayScale = el.overlay.width / work.width;
+    var map = coverMap(el.overlay.width, el.overlay.height, vw, vh, work);
 
     var diagonal = Math.hypot(work.width, work.height);
     // Track the page with a smoothed quad; a frame with no detection drops the track entirely so
@@ -545,7 +562,7 @@
       steady: goodFrames,
     };
 
-    drawOverlay(quad, goodFrames / STEADY_FRAMES, overlayScale);
+    drawOverlay(quad, goodFrames / STEADY_FRAMES, map);
     reportGates(quad, result, driftRatio, sharp, steady);
 
     if (autoOn && goodFrames >= STEADY_FRAMES && Date.now() > suppressUntil) capture(quad, work.width);
@@ -748,6 +765,28 @@
     return Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext);
   }
 
+  /**
+   * The captured pages live under the send button, but while the viewfinder is up they belong
+   * over the video — the same nodes with the same handlers, re-parented into the HUD and laid out
+   * as one scrolling row instead of a wrapping grid.
+   */
+  function dockThumbs(overVideo) {
+    var host = overVideo ? el.thumbDock : el.thumbHome;
+    if (host && el.thumbs.parentNode !== host) {
+      // Back to the exact slot it came from — appended, it would land under the send button.
+      if (overVideo) host.appendChild(el.thumbs);
+      else host.insertBefore(el.thumbs, el.thumbAnchor);
+    }
+    el.thumbs.classList.toggle('scan-strip', Boolean(overVideo));
+  }
+
+  function openLive() {
+    dockThumbs(true); // before the dialog paints, so the strip never appears to jump in
+    if (el.live.open) return;
+    if (el.live.showModal) el.live.showModal();
+    else el.live.setAttribute('open', ''); // no <dialog> support: the CSS still covers the screen
+  }
+
   function startCamera() {
     setError('');
     if (stream) return; // already open — a second tap must not grab a second camera track
@@ -755,7 +794,7 @@
       fallbackToNativeCamera('הדפדפן לא מאפשר תצוגת מצלמה חיה — נשתמש במצלמת המכשיר.');
       return;
     }
-    show(el.live, true);
+    openLive();
     setHint('פותח מצלמה…', '');
     // Start the download NOW, in parallel with the permission prompt and camera warm-up, instead
     // of after play() resolves. loadOpenCv() memoises, so the await further down reuses this.
@@ -798,7 +837,6 @@
         stopLoadingTicker();
         var name = err && err.name;
         if (name === 'NotAllowedError' || name === 'SecurityError') {
-          stopCamera();
           fallbackToNativeCamera('אין הרשאת מצלמה לדפדפן — נשתמש במצלמת המכשיר.');
           return;
         }
@@ -814,7 +852,6 @@
           setHint('זיהוי הקצוות לא נטען — צלמו בכפתור "צלם" (התמונה תישלח בלי חיתוך אוטומטי)', 'warn');
           return;
         }
-        stopCamera();
         fallbackToNativeCamera('לא הצלחנו לפתוח את המצלמה — נשתמש במצלמת המכשיר.');
       });
   }
@@ -860,7 +897,21 @@
     }
   }
 
+  /**
+   * Close the viewfinder and release the camera.
+   * The dialog's `close` event is the funnel, because Esc and a backdrop dismissal never reach
+   * this function and must still stop the track. But close() only QUEUES that event, and a
+   * pagehide teardown may never get to run the task — so the release also happens synchronously
+   * right here. releaseCamera() is idempotent precisely so both paths can fire.
+   */
   function stopCamera() {
+    // close() first: releaseCamera() drops the `open` attribute, and yanking that off a dialog
+    // that is still modal would strand it in the top layer with close() refusing to run.
+    if (el.live.open && el.live.close) el.live.close();
+    releaseCamera();
+  }
+
+  function releaseCamera() {
     stopLoadingTicker();
     if (detectTimer) {
       clearInterval(detectTimer);
@@ -877,13 +928,14 @@
     lastQuad = null;
     goodFrames = 0;
     freeMats();
-    show(el.live, false);
+    el.live.removeAttribute('open'); // a no-op after close(); the exit for browsers without <dialog>
+    dockThumbs(false);
     show(el.torch, false);
   }
 
-  /** Hide the live scanner and expose the plain OS-camera button instead. */
+  /** Close the live scanner and expose the plain OS-camera button on the page instead. */
   function fallbackToNativeCamera(reason) {
-    show(el.live, false);
+    stopCamera();
     show(el.fallback, true);
     if (el.fallbackNote) el.fallbackNote.textContent = reason;
   }
@@ -977,7 +1029,8 @@
       count: $('scanCount'),
       err: $('scanErr'),
       send: $('btnSend'),
-      live: $('scanLive'),
+      live: $('scanLive'), // the fullscreen <dialog>
+      thumbDock: $('scanThumbDock'),
       video: $('scanVideo'),
       overlay: $('scanOverlay'),
       // Off-screen scratch canvases: `work` is the small copy the detector runs on, `full` is the
@@ -999,6 +1052,9 @@
       fileInput: $('fileInput'),
     };
     if (!el.store || !el.send) return; // the AI-disabled version of the page
+    // Where the captured pages sit when the scanner is closed — parent AND the node they precede.
+    el.thumbHome = el.thumbs.parentNode;
+    el.thumbAnchor = el.thumbs.nextSibling;
 
     try {
       var last = localStorage.getItem('scanStoreId');
@@ -1017,6 +1073,7 @@
 
     $('btnStart').addEventListener('click', startCamera);
     $('btnStop').addEventListener('click', stopCamera);
+    el.live.addEventListener('close', releaseCamera);
     $('btnShutter').addEventListener('click', function () {
       capture(lastQuad, el.work.width);
     });

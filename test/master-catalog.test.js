@@ -8,6 +8,7 @@ import {
   listCatalog,
   catalogStats,
   exportGrouped,
+  lookupByCodes,
 } from '../src/services/masterCatalog.js';
 
 function item(over = {}) {
@@ -118,4 +119,36 @@ test('exportGrouped: the "מאסטר קטלוג לפי ספקים" deliverable s
   const milk = out.manufacturers[0].items.find((i) => i.barcode === '7290000000015');
   assert.equal(milk.retailPrice, 690);
   assert.equal(milk.qtyInPackage, 12);
+});
+
+test('lookupByCodes resolves a shortened barcode to the full EAN', async () => {
+  const db = await freshDb();
+  // The three products the real Tnuva invoice prints as 42435 / 16930695 / 4136857, plus a
+  // decoy that shares a short tail so ambiguity is exercised on real-shaped data.
+  await importCatalogItems(
+    [
+      { barcode: '7290000042435', name: 'חלב מפוסטר 1% בקרטון 1ל', manufacturerName: 'תנובה בע"מ', retailPrice: 599 },
+      { barcode: '7290116930695', name: 'חלב נטול לקטוז 2% 1ל', manufacturerName: 'תנובה בע"מ', retailPrice: 899 },
+      { barcode: '7290004136857', name: 'גלי פטל 125 גרם', manufacturerName: 'סוי מגיק', retailPrice: 450 },
+      { barcode: '7291114136857', name: 'מוצר אחר עם אותה סיומת', manufacturerName: 'אחר', retailPrice: 100 },
+    ],
+    {},
+    db,
+  );
+
+  const map = await lookupByCodes(['42435', '16930695', '4136857'], db);
+  assert.equal(map.get('42435').length, 1);
+  assert.equal(map.get('42435')[0].name, 'חלב מפוסטר 1% בקרטון 1ל');
+  assert.equal(map.get('16930695')[0].barcode, '7290116930695');
+  // Two catalog barcodes end with 4136857 — both are returned; picking is a human's job.
+  assert.equal(map.get('4136857').length, 2);
+});
+
+test('lookupByCodes ignores codes too short to identify anything', async () => {
+  const db = await freshDb();
+  await importCatalogItems([{ barcode: '7290000042435', name: 'חלב', retailPrice: 599 }], {}, db);
+  // 5 digits is ambiguous for ~15% of a real catalog, so it is not looked up at all.
+  assert.equal((await lookupByCodes(['2435'], db)).size, 0);
+  assert.equal((await lookupByCodes(['42435'], db)).size, 1);
+  assert.equal((await lookupByCodes(['', null, 'ABC123'], db)).size, 0);
 });

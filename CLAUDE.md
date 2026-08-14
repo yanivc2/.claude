@@ -111,6 +111,18 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
     (`⌈w/28⌉ × ⌈h/28⌉` tokens). Greyscale saves **nothing**; JPEG quality saves nothing.
     `config.ai.scanMaxEdge` (1800) is the real lever, and a PDF page costs an extra
     1,500–3,000 text tokens on top of its image — so in-app capture beats uploading a PDF.
+  - **`EXTRACTION_SCHEMA` has a hard ceiling of 16 union-typed (nullable) params** — the API
+    400s above it and *every* scan fails. Text fields are plain strings, `""` = absent
+    (`str()` maps it to null); only numbers stay nullable. `test/scan-service.test.js` counts them.
+  - **Shortened barcodes:** many suppliers print only the tail of the EAN (Tnuva prints `42435`
+    for `7290000042435`). `lookupByCodes()` resolves a printed code of ≥5 digits by suffix, over
+    both the barcode and the מק"ט column → `catalog_suffix_match` (one candidate) or
+    `catalog_ambiguous` (several). Both are **offers** — the review screen adopts on a click,
+    nothing is ever written automatically.
+- **📁 `docs/צילום-וחילוץ/`** — the project dossier for capture + extraction: catalog sources and
+  the product-identity rules, how the scanner and the extraction are built, the cost model, and
+  the research log (including a "faults and their real causes" file worth reading before
+  debugging this area — every one of them looked like a different problem than it was).
 - **Calendar/audit:** `routes/index.js` (`/audit`), `services/calendar.js`, `services/audit.js`
   (`logAction`), `services/changeRequests.js` (non-owner edits queued for approval → `/approvals`).
 

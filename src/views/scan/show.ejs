@@ -18,6 +18,8 @@ var FLAG_LABELS = {
   computed_per_unit: 'מחיר ליחידה חושב מסה"כ נטו חלקי כמות הבודדים (כ.בודד)',
   missing_amounts: 'לא נקראו סכומים לשורה',
   catalog_match: 'אומת מול קטלוג-העל',
+  catalog_suffix_match: 'הקוד המודפס הוא ברקוד מקוצר — נמצא ברקוד מלא תואם בקטלוג',
+  catalog_ambiguous: 'הקוד המודפס מתאים למספר מוצרים בקטלוג — בחר את הנכון',
   barcode_invalid: 'ספרת ביקורת שגויה בברקוד — ככל הנראה נקרא שגוי',
   dup_allocation: 'מספר ההקצאה כבר קיים בחשבונית אחרת',
   dup_number: 'כבר קיימת חשבונית לספק זה עם מספר זה',
@@ -281,12 +283,27 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
               %>
               <tr>
                 <td data-label="מוצר">
-                  <input name="line_name[]" value="<%= l.name || '' %>" class="<%= lf.filter(function(c){ return c !== 'catalog_match'; }).length ? 'flag-warn' : '' %>" title="<%= lTitle %>" />
+                  <input name="line_name[]" value="<%= l.name || '' %>" class="<%= lf.filter(function(c){ return c !== 'catalog_match' && c !== 'catalog_suffix_match'; }).length ? 'flag-warn' : '' %>" title="<%= lTitle %>" />
                   <% if (l.catalog) { %>
-                    <span class="tag tag-neutral" title="קטלוג-על: <%= l.catalog.name %> · יצרן: <%= l.catalog.manufacturer || '—' %>">קטלוג ✓</span>
-                    <% if (l.catalog.nameDiffers) { %>
+                    <% var viaSuffix = lf.indexOf('catalog_suffix_match') >= 0; %>
+                    <span class="tag <%= viaSuffix ? 'tag-accent' : 'tag-neutral' %>" title="קטלוג-על: <%= l.catalog.name %> · יצרן: <%= l.catalog.manufacturer || '—' %>"><%= viaSuffix ? 'ברקוד מקוצר ✓' : 'קטלוג ✓' %></span>
+                    <% if (viaSuffix) { %>
+                      <%# The printed code is only the tail of the real EAN. Offer the full barcode
+                          AND the catalog name in one press — but never write either by ourselves. %>
+                      <button type="button" class="tag tag-outline cat-adopt" data-name="<%= l.catalog.name %>" data-barcode="<%= l.catalog.barcode %>" title="<%= l.catalog.barcode %> · <%= l.catalog.name %>">אמץ ברקוד ושם</button>
+                    <% } else if (l.catalog.nameDiffers) { %>
                       <button type="button" class="tag tag-outline cat-adopt" data-name="<%= l.catalog.name %>" title="החלף לשם הרשמי מהקטלוג: <%= l.catalog.name %>">אמץ שם קטלוגי</button>
                     <% } %>
+                  <% } else if (l.candidates && l.candidates.length) { %>
+                    <%# Several catalog barcodes end with the printed code — show them and let a
+                        human choose. Guessing here would silently attach the wrong product. %>
+                    <span class="tag tag-warn">מספר התאמות</span>
+                    <select class="cat-pick" aria-label="בחר מוצר מהקטלוג">
+                      <option value="">— בחר מהקטלוג —</option>
+                      <% l.candidates.forEach(function(c){ %>
+                        <option value="<%= c.barcode %>" data-name="<%= c.name %>"><%= c.barcode %> · <%= c.name %><%= c.manufacturer ? ' · ' + c.manufacturer : '' %></option>
+                      <% }); %>
+                    </select>
                   <% } %>
                 </td>
                 <td data-label="ברקוד"><input name="line_barcode[]" inputmode="numeric" value="<%= l.barcode || '' %>" class="<%= lf.indexOf('barcode_invalid') >= 0 ? 'flag-warn' : '' %>" title="<%= lf.indexOf('barcode_invalid') >= 0 ? FLAG_LABELS.barcode_invalid : '' %>" /></td>
@@ -426,12 +443,29 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
     Array.prototype.forEach.call(body.rows, wire);
     before.addEventListener('input', recalc);
 
-    // "אמץ שם קטלוגי" — מעתיק את השם הרשמי מקטלוג-העל לשדה שם המוצר של אותה שורה.
+    // "אמץ שם קטלוגי" / "אמץ ברקוד ושם" — מעתיק את הנתונים הרשמיים מקטלוג-העל לשורה.
+    // כשהקוד המודפס הוא ברקוד מקוצר, גם שדה הברקוד מתמלא בברקוד המלא.
     body.addEventListener('click', function(e){
       var btn = e.target.closest('.cat-adopt');
       if (!btn) return;
-      var input = btn.closest('tr').querySelector('input[name="line_name[]"]');
-      if (input) { input.value = btn.dataset.name; btn.remove(); }
+      var tr = btn.closest('tr');
+      var nameInput = tr.querySelector('input[name="line_name[]"]');
+      if (nameInput) nameInput.value = btn.dataset.name;
+      var barcodeInput = tr.querySelector('input[name="line_barcode[]"]');
+      if (barcodeInput && btn.dataset.barcode) barcodeInput.value = btn.dataset.barcode;
+      btn.remove();
+    });
+
+    // בחירה מרשימת מועמדים כשהקוד המקוצר התאים ליותר ממוצר אחד.
+    body.addEventListener('change', function(e){
+      var sel = e.target.closest('.cat-pick');
+      if (!sel || !sel.value) return;
+      var tr = sel.closest('tr');
+      var opt = sel.options[sel.selectedIndex];
+      var barcodeInput = tr.querySelector('input[name="line_barcode[]"]');
+      var nameInput = tr.querySelector('input[name="line_name[]"]');
+      if (barcodeInput) barcodeInput.value = sel.value;
+      if (nameInput && opt.dataset.name) nameInput.value = opt.dataset.name;
     });
 
     document.getElementById('btnAddLine').addEventListener('click', function(){

@@ -103,6 +103,56 @@ export async function lookupByBarcodes(barcodes, x = getExecutor()) {
   return map;
 }
 
+/** Shortest printed code we will try to resolve; see lookupByCodes for why 5. */
+export const MIN_SUFFIX_LEN = 5;
+
+/**
+ * Resolve SHORTENED barcodes — the codes many suppliers print instead of the full EAN.
+ *
+ * A Tnuva invoice prints `42435`, and the product's real barcode is `7290000042435`: the printed
+ * code is a suffix of the EAN-13. Measured against a 38,279-barcode catalog:
+ *
+ *   suffix len   unique   ambiguous   worst
+ *        4          897      8,849      17
+ *        5       25,898      5,772       5
+ *        6       36,793        738       4
+ *        8       38,263          8       2
+ *
+ * The floor is 5, not 6, because real invoices print 5-digit codes (`42435`, `43890`) and the
+ * ambiguity at that length is *handled* rather than guessed: every candidate comes back and a
+ * human picks. At 4 digits there is nothing to pick from — 90% of codes would be ambiguous.
+ *
+ * Returns every candidate per code — deciding between them is the caller's job, and a human's.
+ * One statement per draft (a few dozen codes) is a sequential scan of the catalog; at this size
+ * that is a few milliseconds, and it costs no index and no denormalized column.
+ *
+ * @param {string[]} codes printed codes, any length; short/blank/duplicate ones are dropped
+ * @returns {Promise<Map<string, object[]>>} printed code → candidate rows
+ */
+export async function lookupByCodes(codes, x = getExecutor()) {
+  const wanted = [
+    ...new Set(
+      (codes || [])
+        .map((c) => (c == null ? '' : String(c).trim()))
+        .filter((c) => c.length >= MIN_SUFFIX_LEN && /^\d+$/.test(c)),
+    ),
+  ];
+  const map = new Map();
+  if (wanted.length === 0) return map;
+
+  const rows = await x.many(
+    `SELECT * FROM master_catalog WHERE ${wanted.map(() => 'barcode LIKE ?').join(' OR ')}`,
+    wanted.map((c) => `%${c}`),
+  );
+  // One row can satisfy several codes (a short code is a suffix of a longer one), so fan out
+  // rather than assuming a row belongs to the code that fetched it.
+  for (const code of wanted) {
+    const hits = rows.filter((r) => String(r.barcode).endsWith(code));
+    if (hits.length) map.set(code, hits);
+  }
+  return map;
+}
+
 /** Manufacturers with item counts, biggest first — the browse page's filter dropdown. */
 export async function listManufacturers(x = getExecutor()) {
   return x.many(

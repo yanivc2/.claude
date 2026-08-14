@@ -137,13 +137,21 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
 }
 
 /* ---- layout ---- */
-.page { position: relative; z-index: 1; max-width: 1120px; margin: 0 auto; padding: var(--space-6) var(--space-6) var(--space-8); }
+/* The viewport meta carries viewport-fit=cover (the fullscreen scanner needs real safe-area
+   insets), so the document now runs edge to edge — the two elements that own the screen edges
+   put the inset back themselves. On a device without cutouts every env() below resolves to 0. */
+.page {
+  position: relative; z-index: 1; max-width: 1120px; margin: 0 auto;
+  padding: var(--space-6) calc(var(--space-6) + env(safe-area-inset-right, 0px))
+           calc(var(--space-8) + env(safe-area-inset-bottom, 0px)) calc(var(--space-6) + env(safe-area-inset-left, 0px));
+}
 
 /* ---- nav / header ---- */
 .nav {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: var(--space-3); row-gap: 6px; flex-wrap: wrap;
-  padding: var(--space-3) var(--space-4);
+  padding: calc(var(--space-3) + env(safe-area-inset-top, 0px)) calc(var(--space-4) + env(safe-area-inset-right, 0px))
+           var(--space-3) calc(var(--space-4) + env(safe-area-inset-left, 0px));
   background: color-mix(in srgb, var(--color-bg) 88%, transparent);
   backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--color-line);
@@ -758,42 +766,84 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
 }
 .scan-thumb-tools button:hover { background: rgba(255,255,255,.16); }
 
-/* Live scanner (getUserMedia + OpenCV edge detection). Portrait-friendly: the viewfinder keeps a
-   document-ish aspect ratio and the controls sit under it, within thumb reach. */
-.scan-live { margin-top: var(--space-3); }
-.scan-live-frame {
-  position: relative; width: 100%; max-width: 520px; margin-inline: auto;
-  aspect-ratio: 3 / 4; overflow: hidden; border-radius: var(--radius-md);
-  border: 1px solid var(--color-line); background: #000;
+/* While the viewfinder is open the very same thumbnails dock over the video as one scrolling
+   row — the wrapping grid would eat half the screen the camera is supposed to fill. */
+.scan-thumbs.scan-strip {
+  flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain;
+  margin: 0; gap: var(--space-2); scrollbar-width: none;
 }
-.scan-live-frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-thumbs.scan-strip::-webkit-scrollbar { height: 0; }
+.scan-thumbs.scan-strip .scan-page { flex: none; }
+.scan-thumbs.scan-strip .scan-thumb { width: 64px; height: 82px; }
+.scan-thumbs.scan-strip .scan-thumb-tools button { min-height: 22px; font-size: 13px; }
+.scan-thumbs.scan-strip .scan-page-meta { display: none; } /* no room at 64px — the page grid keeps them */
+
+/* Live scanner (getUserMedia + OpenCV edge detection).
+   The viewfinder is a native <dialog> so it can actually take over the screen: the top layer puts
+   it outside .page's max-width and above the nav without a z-index war, and footer.ejs already
+   exempts dialog[open] from the PWA pull-to-refresh / swipe-back gestures — which over a live
+   camera fight the hand that is holding the phone steady. */
+dialog.scan-full {
+  position: fixed; inset: 0; margin: 0; padding: 0;
+  width: 100vw; height: 100vh;
+  width: 100dvw; height: 100dvh; /* dvh/dvw where supported — the vh pair above is the fallback */
+  max-width: none; max-height: none;
+  border: 0; border-radius: 0; background: #000; color: #fff;
+  overflow: hidden; overscroll-behavior: contain;
+  z-index: 60; /* only ever consulted by a browser with no <dialog>: there this is a plain layer */
+}
+dialog.scan-full::backdrop { background: #000; }
+/* While the viewfinder is up the video IS the screen — nothing behind it may scroll. */
+html:has(dialog.scan-full[open]) { overflow: hidden; }
+
+.scan-stage { position: absolute; inset: 0; background: #000; }
+.scan-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .scan-live-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .scan-live-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
 .scan-live-flash.on { animation: scan-flash .28s ease-out; }
 @keyframes scan-flash { from { opacity: .85; } to { opacity: 0; } }
+
+/* The controls float on the video instead of pushing it up the page. env() keeps them off the
+   notch and the home indicator — the viewport meta carries viewport-fit=cover, so on an installed
+   PWA those insets are real. */
+.scan-hud {
+  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between;
+  padding: calc(env(safe-area-inset-top, 0px) + var(--space-3)) calc(env(safe-area-inset-right, 0px) + var(--space-3))
+           calc(env(safe-area-inset-bottom, 0px) + var(--space-3)) calc(env(safe-area-inset-left, 0px) + var(--space-3));
+  pointer-events: none; /* the viewfinder itself stays untouched; only the control panel takes taps */
+}
+.scan-hud-top { display: flex; align-items: flex-start; gap: var(--space-2); }
+.scan-hud-bottom {
+  pointer-events: auto;
+  display: flex; flex-direction: column; gap: var(--space-2);
+  max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--space-3); border-radius: var(--radius-lg);
+  background: rgba(8,9,16,.62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.scan-hud-opts { display: flex; flex-direction: column; gap: 5px; }
+/* Nothing captured yet → no strip, and no gap where the strip would have been. */
+#scanThumbDock:has(> .scan-thumbs:empty) { display: none; }
+.scan-hud .scan-diag { margin: 0; }
 .scan-live-count {
-  position: absolute; inset-block-start: 8px; inset-inline-start: 8px;
-  background: rgba(0,0,0,.6); color: #fff; border-radius: 999px; font-size: 12px; padding: 3px 9px;
+  align-self: flex-start; background: rgba(0,0,0,.6); color: #fff;
+  border-radius: 999px; font-size: 12px; line-height: 1.6; padding: 3px 9px;
 }
 .scan-live-hint {
-  margin: var(--space-2) 0 0; text-align: center; font-size: 13.5px; color: var(--color-muted);
-  min-height: 1.4em;
+  margin: 0; text-align: center; font-size: 13.5px; color: rgba(255,255,255,.82); min-height: 1.4em;
 }
 .scan-live-hint.ok { color: var(--color-ok); }
 .scan-live-hint.warn { color: var(--color-warn); }
-.scan-live-hint.bad { color: var(--color-muted); }
-.scan-live-bar {
-  display: flex; align-items: center; justify-content: center; gap: var(--space-3);
-  margin-top: var(--space-3);
-}
-.scan-live-bar .btn { min-height: 46px; }
+.scan-live-hint.bad { color: rgba(255,255,255,.82); }
+.scan-live-bar { display: flex; align-items: center; justify-content: center; gap: var(--space-3); }
+/* Over video the standard transparent .btn reads as a floating word — give it a body. */
+.scan-live-bar .btn { min-height: 46px; color: #fff; background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.24); }
+.scan-live-bar .btn:hover { background: rgba(255,255,255,.18); }
+.scan-live-bar .btn-primary { background: color-mix(in srgb, var(--color-accent) 45%, transparent); border-color: var(--color-accent-300); }
+.scan-live-bar .btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 58%, transparent); }
 .scan-shutter { min-width: 130px; min-height: 56px !important; border-radius: 999px; font-size: 16px; }
 #btnTorch[aria-pressed="true"] { background: var(--color-warn-bg); color: var(--color-warn); }
-.scan-live-auto {
-  display: flex; align-items: center; gap: 8px; justify-content: center;
-  margin-top: var(--space-3); font-size: 12.5px; color: var(--color-muted);
-}
-.scan-live-auto input { width: 18px; height: 18px; }
+.scan-live-auto { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(255,255,255,.72); }
+.scan-live-auto input { width: 18px; height: 18px; flex: none; }
 
 /* מצב אבחון: the live gate values behind the auto-shutter, for tuning on a real phone. */
 .scan-diag {
