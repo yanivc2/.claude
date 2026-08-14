@@ -130,14 +130,43 @@ async function markFailed(id, message, x) {
   return getDraft(id, x);
 }
 
-/** Friendly Hebrew text for a thrown Anthropic SDK error; rethrows anything that isn't one. */
+/**
+ * Friendly Hebrew text for a thrown Anthropic SDK error; returns null for anything that isn't one
+ * (the caller then treats it as a bug and rethrows).
+ *
+ * The generic branch carries the HTTP status, because without it "שירות החילוץ החזיר שגיאה" is
+ * undiagnosable from the outside: 401 (bad key), 400 (bad request, or an exhausted credit
+ * balance) and 529 (overloaded) all look identical to the owner and to the logs, and they need
+ * completely different responses.
+ */
 function apiErrorMessage(err) {
   if (err instanceof Anthropic.RateLimitError) return 'העומס גבוה — נסו שוב בעוד רגע';
   if (err instanceof Anthropic.APIConnectionError) {
     return 'אין תקשורת עם שירות החילוץ — בדקו את חיבור האינטרנט ונסו שוב';
   }
-  if (err instanceof Anthropic.APIError) return 'שירות החילוץ החזיר שגיאה — נסו שוב בעוד מספר דקות';
+  if (err instanceof Anthropic.AuthenticationError) {
+    return 'מפתח ה-API של שירות החילוץ אינו תקין או פג — יש לעדכן אותו בהגדרות הפרויקט';
+  }
+  if (err instanceof Anthropic.APIError) {
+    const status = err.status ? ` (${err.status})` : '';
+    return `שירות החילוץ החזיר שגיאה${status} — נסו שוב בעוד מספר דקות`;
+  }
   return null;
+}
+
+/**
+ * Put the real API failure in the server log. The draft only ever stores the friendly Hebrew text,
+ * so without this an extraction failure leaves no trace anywhere and can only be guessed at.
+ */
+function logApiError(id, err) {
+  const detail = {
+    draft: id,
+    name: err?.constructor?.name ?? typeof err,
+    status: err?.status ?? null,
+    type: err?.error?.type ?? err?.error?.error?.type ?? null,
+    message: err?.message ?? String(err),
+  };
+  console.error('[scan] extraction failed', JSON.stringify(detail));
 }
 
 /**
@@ -219,6 +248,7 @@ export async function processDraft(
   try {
     response = await api.messages.create(buildExtractionRequest(pages));
   } catch (err) {
+    logApiError(id, err);
     const message = apiErrorMessage(err);
     // Anthropic errors are expected weather — anything else is a bug: record it, then rethrow.
     if (message) return markFailed(id, message, x);

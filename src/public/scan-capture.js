@@ -29,8 +29,14 @@
   // real phone if the shutter feels sticky — and remember the manual button always works.
   var WORK_WIDTH = 480; // detection runs on a small copy; full res is only touched on capture
   var MIN_AREA_RATIO = 0.18; // the page must fill at least this much of the frame
-  var STEADY_FRAMES = 4; // consecutive good frames before the shutter fires (~0.5s at 8fps)
-  var MOVE_TOLERANCE = 0.025; // max corner drift between frames, as a fraction of the diagonal
+  var STEADY_FRAMES = 3; // consecutive good frames before the shutter fires (~0.4s at 8fps)
+  // Max corner drift between frames, as a fraction of the frame diagonal — measured against the
+  // SMOOTHED quad, not the raw one. approxPolyDP re-fits the corners every frame, so a raw corner
+  // hops several pixels even on a phone lying on a table; judging that raw jitter against a tight
+  // threshold meant "steady" almost never held for enough frames in a row and the shutter never
+  // fired. Smoothing removes the re-fit noise while still catching real hand movement.
+  var MOVE_TOLERANCE = 0.045;
+  var SMOOTHING = 0.45; // EMA weight for the newest frame (1 = no smoothing)
   var SHARPNESS_MIN = 45; // variance of the Laplacian — the anti-blur gate
   var DETECT_INTERVAL_MS = 125; // ~8fps, so a mid-range phone keeps a smooth preview
   var RECAPTURE_PAUSE_MS = 1400; // ignore detections right after a shot (same page twice)
@@ -359,6 +365,20 @@
     return worst / diagonal;
   }
 
+  /**
+   * Exponential moving average of the corner positions. This is what the gates judge and what the
+   * warp uses, so both see a quad that tracks the page instead of the contour re-fit noise.
+   */
+  function smoothQuad(previous, next) {
+    if (!previous) return next;
+    return next.map(function (p, i) {
+      return {
+        x: previous[i].x + (p.x - previous[i].x) * SMOOTHING,
+        y: previous[i].y + (p.y - previous[i].y) * SMOOTHING,
+      };
+    });
+  }
+
   // ---- detection ---------------------------------------------------------------
   function ensureMats() {
     if (mats) return mats;
@@ -495,14 +515,20 @@
     }
     var overlayScale = el.overlay.width / work.width;
 
-    var quad = result.quad;
     var diagonal = Math.hypot(work.width, work.height);
+    // Track the page with a smoothed quad; a frame with no detection drops the track entirely so
+    // the next sighting starts fresh instead of easing over from a stale position.
+    var quad = result.quad ? smoothQuad(lastQuad, result.quad) : null;
     var driftRatio = quad ? drift(quad, lastQuad, diagonal) : Infinity;
     var steady = driftRatio < MOVE_TOLERANCE;
     var sharp = result.sharpness >= SHARPNESS_MIN;
 
+    // Decay rather than reset: one noisy frame in an otherwise steady sequence should not send the
+    // count back to zero, or a long streak can be destroyed forever by intermittent noise. Losing
+    // the page entirely is different — that does reset.
     if (quad && steady && sharp) goodFrames += 1;
-    else goodFrames = 0;
+    else if (!quad) goodFrames = 0;
+    else goodFrames = Math.max(0, goodFrames - 1);
     lastQuad = quad;
 
     // Everything the auto-shutter decided on, kept for the diagnostics readout and stamped onto

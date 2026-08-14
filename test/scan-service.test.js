@@ -1,3 +1,4 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { freshDb, secretary, firstStore } from './helpers.js';
@@ -625,4 +626,57 @@ test('the extract audit entry records the prompt-cache usage', async () => {
   assert.equal(details.cacheWriteTokens, 1200);
   assert.equal(details.cacheReadTokens, 3400);
   assert.equal(details.pages, 1);
+});
+
+test('an API failure is logged with its status and surfaced with it, not swallowed', async () => {
+  const db = await freshDb();
+  const { sec, store } = await setup(db);
+  const draft = await uploaded(db, sec, store, ['a.jpg']);
+
+  const apiErr = new Anthropic.APIError(400, { type: 'error', error: { type: 'invalid_request_error' } }, 'bad request', new Headers());
+  const d = deps();
+  d.client = { messages: { create: async () => { throw apiErr; } } };
+
+  const logged = [];
+  const realError = console.error;
+  console.error = (...args) => logged.push(args.join(' '));
+  let failed;
+  try {
+    failed = await processDraft(draft.id, sec, d, db);
+  } finally {
+    console.error = realError;
+  }
+
+  assert.equal(failed.status, 'failed');
+  // The status code is the whole point: 400 / 401 / 529 need completely different responses, and
+  // without it the owner and the logs see one indistinguishable "extraction failed".
+  assert.match(failed.error, /\(400\)/);
+  assert.equal(logged.length, 1);
+  assert.match(logged[0], /\[scan\] extraction failed/);
+  assert.match(logged[0], /"status":400/);
+  assert.match(logged[0], /invalid_request_error/);
+});
+
+test('a bad API key names the key instead of blaming the weather', async () => {
+  const db = await freshDb();
+  const { sec, store } = await setup(db);
+  const draft = await uploaded(db, sec, store, ['a.jpg']);
+  const d = deps();
+  d.client = {
+    messages: {
+      create: async () => {
+        throw new Anthropic.AuthenticationError(401, { type: 'error', error: { type: 'authentication_error' } }, 'bad key', new Headers());
+      },
+    },
+  };
+  const realError = console.error;
+  console.error = () => {};
+  let failed;
+  try {
+    failed = await processDraft(draft.id, sec, d, db);
+  } finally {
+    console.error = realError;
+  }
+  assert.equal(failed.status, 'failed');
+  assert.match(failed.error, /מפתח ה-API/);
 });
