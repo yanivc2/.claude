@@ -7,6 +7,11 @@ import { del, putBuffer } from '../lib/storage.js';
 // then handed to the storage layer (local disk or Vercel Blob). Only the returned opaque ref
 // is persisted (invoices.image_path / z_expenses.image_path) — never a raw disk path.
 
+// Deliberately NOT including HEIC/HEIF, even though that is what an iPhone stores by default:
+// the extraction API accepts only JPEG/PNG/GIF/WebP, and no desktop browser renders HEIC in the
+// review screen either — so storing one would fail twice, later and less clearly. The capture
+// screen re-encodes every photo to JPEG before uploading, and Safari transcodes HEIC on a gallery
+// pick, so this only bites an unusual path; the message below tells the employee what to do.
 const ALLOWED = new Map([
   ['image/jpeg', '.jpg'],
   ['image/png', '.png'],
@@ -15,8 +20,15 @@ const ALLOWED = new Map([
   ['application/pdf', '.pdf'],
 ]);
 
+const HEIC_TYPES = new Set(['image/heic', 'image/heif', 'image/heic-sequence', 'image/heif-sequence']);
+
 function fileFilter(req, file, cb) {
   if (ALLOWED.has(file.mimetype)) return cb(null, true);
+  if (HEIC_TYPES.has(file.mimetype)) {
+    return cb(
+      new Error('קובץ HEIC של אייפון אינו נתמך — צלמו דרך כפתור "פתח סורק" באפליקציה, או שנו בהגדרות המצלמה של האייפון "פורמטים" ל-"הכי תואם"'),
+    );
+  }
   cb(new Error('סוג קובץ לא נתמך — רק תמונות (JPG/PNG/WEBP/GIF) או PDF'));
 }
 

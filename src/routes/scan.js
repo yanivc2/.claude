@@ -140,6 +140,11 @@ router.get('/', async (req, res, next) => {
       stores: await storesInScope(req.scope.companyIds),
       aiEnabled: config.ai.enabled,
       maxPages: config.ai.maxScanImages,
+      // The client encodes with exactly these values so the browser and the server can never
+      // disagree about what was sent to the model (see config.ai.scanMaxEdge for the cost math).
+      maxEdge: config.ai.scanMaxEdge,
+      jpegQuality: config.ai.scanJpegQuality,
+      maxUploadMb: Math.round(config.maxUploadBytes / (1024 * 1024)),
       error: null,
     });
   } catch (err) {

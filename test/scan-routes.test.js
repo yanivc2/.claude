@@ -486,3 +486,47 @@ test('POST /scan/:id/reprocess resets the draft and redirects to the processing 
     assert.match(await res.text(), /חילוץ אוטומטי אינו מוגדר/);
   }
 });
+
+test('the capture screen ships the live scanner, its config and the cost explainer', async () => {
+  const res = await get('/scan', cookies.scanner);
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  // Without an API key the page is deliberately just the "not configured" notice — nothing to
+  // capture with. The scanner assertions below only apply to the configured build.
+  if (/החילוץ האוטומטי אינו פעיל/.test(html)) {
+    assert.doesNotMatch(html, /id="scanVideo"/);
+    return;
+  }
+  // The engine is an external file so the service worker can cache it — not an inline blob — and
+  // it must carry a ?v= so a new deploy is not shadowed by that cache-first entry forever.
+  assert.match(html, /src="\/scan-capture\.js\?v=[^"]+"/);
+  assert.match(html, /id="scanVideo"/);
+  assert.match(html, /id="btnShutter"/);
+  // The client must encode with the server's numbers, never its own hardcoded ones.
+  const cfg = JSON.parse(html.match(/id="scanConfig">([^<]+)</)[1]);
+  assert.equal(cfg.maxEdge, 1800);
+  assert.equal(cfg.jpegQuality, 0.9);
+  assert.ok(cfg.maxPages >= 1);
+  assert.ok(cfg.maxUploadBytes > 0);
+  // The two cost facts the owner asked about, stated where the choice is actually made.
+  assert.match(html, /צבע לא מייקר כלום/);
+  assert.match(html, /PDF/);
+});
+
+test('POST /scan/upload rejects an iPhone HEIC with an actionable Hebrew message', async () => {
+  const store = await firstStore(db);
+  const fd = new FormData();
+  fd.append('store_id', String(store.id));
+  fd.append('images', new Blob([Buffer.from('ftypheic')], { type: 'image/heic' }), 'IMG_0042.HEIC');
+
+  const res = await fetch(`${base}/scan/upload`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { cookie: cookies.owner },
+    body: fd,
+  });
+  assert.equal(res.status, 400);
+  // HEIC is unusable downstream (the extraction API takes JPEG/PNG/GIF/WebP only, and no desktop
+  // browser renders it in the review screen), so the message must say what to do instead.
+  assert.match((await res.json()).error, /HEIC/);
+});

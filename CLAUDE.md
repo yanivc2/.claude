@@ -101,7 +101,16 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
   company×user matrix, guide.ejs). Backup/restore/reset in `services/backup.js`.
 - **Scan + catalog (from a parallel line of work):** `routes/scan.js`+`products.js`,
   `services/scan.js` (needs `@anthropic-ai/sdk`), `services/masterCatalog.js`/`products.js`,
-  `lib/priceXml.js`/`ean.js`/`extractValidate.js`/`supplierMatch.js`.
+  `lib/priceXml.js`/`ean.js`/`extractValidate.js`/`supplierMatch.js`/`pdfPages.js`.
+  - **Mobile capture:** `views/scan/capture.ejs` is just markup; the scanner lives in
+    `public/scan-capture.js` (getUserMedia viewfinder → OpenCV quad detection → stability +
+    sharpness gate → auto-shutter → `warpPerspective` → JPEG). OpenCV.js is vendored at
+    **root** `public/vendor/opencv.js` (10MB, lazy-loaded only when the camera opens, cached by
+    `public/sw.js` runtime cache; CSP needs `'wasm-unsafe-eval'` + `connect-src data:`).
+  - **Cost model — don't guess:** the API bills an image on **pixel dimensions only**
+    (`⌈w/28⌉ × ⌈h/28⌉` tokens). Greyscale saves **nothing**; JPEG quality saves nothing.
+    `config.ai.scanMaxEdge` (1800) is the real lever, and a PDF page costs an extra
+    1,500–3,000 text tokens on top of its image — so in-app capture beats uploading a PDF.
 - **Calendar/audit:** `routes/index.js` (`/audit`), `services/calendar.js`, `services/audit.js`
   (`logAction`), `services/changeRequests.js` (non-owner edits queued for approval → `/approvals`).
 

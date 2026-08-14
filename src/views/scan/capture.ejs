@@ -26,143 +26,65 @@
 
 <div class="card">
   <div class="scan-actions">
-    <button type="button" class="btn btn-primary btn-block" id="btnCamera">צלם עמוד 📷</button>
+    <button type="button" class="btn btn-primary btn-block" id="btnStart">פתח סורק 📷</button>
     <button type="button" class="btn btn-secondary btn-block" id="btnFiles">בחר קבצים 🗂️ (גלריה / Genius Scan)</button>
   </div>
+
+  <!-- Live scanner. Hidden until the camera opens; JS falls back to #scanFallback if it can't. -->
+  <div id="scanLive" class="scan-live" style="display:none">
+    <div class="scan-live-frame">
+      <video id="scanVideo" playsinline muted autoplay></video>
+      <canvas id="scanOverlay" class="scan-live-overlay"></canvas>
+      <div id="scanFlash" class="scan-live-flash"></div>
+      <span id="scanLiveCount" class="scan-live-count">0/<%= maxPages %></span>
+    </div>
+    <p id="scanLiveHint" class="scan-live-hint">פותח מצלמה…</p>
+    <div class="scan-live-bar">
+      <button type="button" class="btn btn-secondary" id="btnStop">סגור</button>
+      <button type="button" class="btn btn-primary scan-shutter" id="btnShutter" aria-label="צלם עכשיו">צלם</button>
+      <button type="button" class="btn btn-secondary" id="btnTorch" aria-pressed="false" style="display:none" aria-label="פנס">🔦</button>
+    </div>
+    <label class="scan-live-auto"><input type="checkbox" id="chkAuto" checked /> צילום אוטומטי — מצלם לבד כשהחשבונית ממורכזת, יציבה וחדה</label>
+  </div>
+
+  <!-- Fallback path: the OS camera app, exactly as before the live scanner existed. -->
+  <div id="scanFallback" style="display:none">
+    <p id="scanFallbackNote" class="muted" style="margin:var(--space-3) 0 .5rem"></p>
+    <button type="button" class="btn btn-primary btn-block" id="btnNativeCam">צלם עמוד 📷</button>
+  </div>
+
   <input type="file" id="camInput" accept="image/*" capture="environment" hidden />
-  <input type="file" id="fileInput" accept="image/*,application/pdf" multiple hidden />
+  <input type="file" id="fileInput" accept="image/*,image/heic,image/heif,application/pdf" multiple hidden />
 
   <div id="scanErr" class="alert alert-error" style="display:none;margin-top:var(--space-3)"></div>
   <div id="scanThumbs" class="scan-thumbs"></div>
-  <p class="muted" id="scanHint" style="margin:.6rem 0 0">עדיין לא נוספו עמודים.</p>
+  <p class="muted" id="scanCount" style="margin:.6rem 0 0">עדיין לא נוספו עמודים.</p>
+
+  <div id="scanProgress" class="scan-progress" style="display:none"><div id="scanProgressBar"></div></div>
 
   <div class="actions" style="margin-top:var(--space-3)">
     <button type="button" class="btn btn-primary" id="btnSend" disabled>שלח לעיבוד ←</button>
   </div>
 </div>
 
-<script>
-(function(){
-  var MAX_PAGES = <%= maxPages %>;
-  var MAX_EDGE = 2000;          // הצד הארוך אחרי הקטנה
-  var JPEG_Q = 0.85;            // איכות — צבע נשמר, אין המרה לשחור-לבן
-  var pages = [];               // [{file, url, isPdf}]
-  var store = document.getElementById('scanStore');
-  var thumbs = document.getElementById('scanThumbs');
-  var hint = document.getElementById('scanHint');
-  var errBox = document.getElementById('scanErr');
-  var btnSend = document.getElementById('btnSend');
-  var camInput = document.getElementById('camInput');
-  var fileInput = document.getElementById('fileInput');
+<details class="card scan-tips">
+  <summary>איך מקבלים את התוצאה הטובה ביותר (ובזול)</summary>
+  <ul>
+    <li><strong>עדיף לצלם מתוך האפליקציה מאשר להעלות PDF.</strong> כל עמוד PDF נקרא גם כטקסט ולא רק כתמונה, ולכן עולה יותר על כל סריקה. קובץ PDF עדיין נתמך במלואו — פשוט יקר יותר.</li>
+    <li><strong>צבע לא מייקר כלום.</strong> העלות נקבעת לפי מידות התמונה בלבד, לכן אנחנו שומרים על צבע — הוא עוזר לזהות חותמות, סכומים מודגשים וזיכויים.</li>
+    <li><strong>הסורק חותך את הרקע.</strong> אחרי היישור כל הפיקסלים הם החשבונית עצמה, ולכן תמונה קטנה יותר נקראת טוב יותר — גם מדויק יותר וגם זול יותר.</li>
+    <li>הניחו את החשבונית על משטח בהיר ושטוח, בלי צל של היד, ותנו לטלפון רגע להתמקד — הסורק לא יצלם כל עוד התמונה מטושטשת.</li>
+  </ul>
+</details>
 
-  // זכירת החנות האחרונה שנבחרה במכשיר הזה
-  try {
-    var last = localStorage.getItem('scanStoreId');
-    if (last) { store.value = last; }
-  } catch (e) {}
-  store.addEventListener('change', function(){
-    try { localStorage.setItem('scanStoreId', store.value); } catch (e) {}
-    sync();
-  });
-
-  function showError(msg){ errBox.textContent = msg; errBox.style.display = msg ? 'block' : 'none'; }
-
-  function sync(){
-    btnSend.disabled = !(pages.length > 0 && store.value);
-    hint.textContent = pages.length
-      ? ('נוספו ' + pages.length + ' עמודים' + (store.value ? '' : ' — יש לבחור חנות'))
-      : 'עדיין לא נוספו עמודים.';
-  }
-
-  function render(){
-    thumbs.innerHTML = '';
-    pages.forEach(function(p, i){
-      var card = document.createElement('div');
-      card.className = 'scan-thumb';
-      var inner = p.isPdf
-        ? '<div class="scan-thumb-pdf">📄</div>'
-        : '<img src="' + p.url + '" alt="עמוד ' + (i+1) + '" />';
-      card.innerHTML = inner + '<span class="scan-thumb-no">' + (i+1) + '</span>'
-        + '<button type="button" class="scan-thumb-x" aria-label="הסר עמוד">✕</button>';
-      card.querySelector('.scan-thumb-x').addEventListener('click', function(){
-        if (pages[i].url && !pages[i].isPdf) URL.revokeObjectURL(pages[i].url);
-        pages.splice(i, 1); render(); sync();
-      });
-      thumbs.appendChild(card);
-    });
-  }
-
-  /* הקטנה בצבע: מצמצמים את הצד הארוך ל-2000px ומקודדים מחדש ל-JPEG. אין גווני אפור —
-     חשבונית צבעונית נקראת טוב יותר ע"י המודל. PDF עובר כמו שהוא. */
-  function downscale(file, cb){
-    if (!/^image\//.test(file.type)) { cb(file); return; }
-    var url = URL.createObjectURL(file), img = new Image();
-    img.onload = function(){
-      var w = img.naturalWidth, h = img.naturalHeight;
-      var s = Math.min(1, MAX_EDGE / Math.max(w, h));
-      w = Math.round(w * s); h = Math.round(h * s);
-      var c = document.createElement('canvas'); c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      URL.revokeObjectURL(url);
-      c.toBlob(function(blob){
-        cb(blob ? new File([blob], 'page.jpg', { type: 'image/jpeg' }) : file);
-      }, 'image/jpeg', JPEG_Q);
-    };
-    img.onerror = function(){ URL.revokeObjectURL(url); cb(file); };
-    img.src = url;
-  }
-
-  function addFiles(list){
-    showError('');
-    var files = Array.prototype.slice.call(list || []);
-    if (!files.length) return;
-    if (pages.length + files.length > MAX_PAGES) {
-      showError('אפשר לצרף עד ' + MAX_PAGES + ' עמודים לחשבונית.');
-      files = files.slice(0, Math.max(0, MAX_PAGES - pages.length));
-    }
-    var left = files.length;
-    if (!left) return;
-    files.forEach(function(f){
-      downscale(f, function(out){
-        var isPdf = /pdf$/i.test(out.type);
-        pages.push({ file: out, isPdf: isPdf, url: isPdf ? null : URL.createObjectURL(out) });
-        left -= 1;
-        if (left === 0) { render(); sync(); }
-      });
-    });
-  }
-
-  document.getElementById('btnCamera').addEventListener('click', function(){ camInput.click(); });
-  document.getElementById('btnFiles').addEventListener('click', function(){ fileInput.click(); });
-  camInput.addEventListener('change', function(){ addFiles(camInput.files); camInput.value = ''; });
-  fileInput.addEventListener('change', function(){ addFiles(fileInput.files); fileInput.value = ''; });
-
-  btnSend.addEventListener('click', function(){
-    if (!pages.length || !store.value) return;
-    showError('');
-    btnSend.disabled = true;
-    var label = btnSend.textContent;
-    btnSend.textContent = 'מעלה…';
-    var fd = new FormData();
-    fd.append('store_id', store.value);
-    pages.forEach(function(p, i){
-      var ext = p.isPdf ? '.pdf' : '.jpg';
-      fd.append('images', p.file, 'page-' + (i+1) + ext);
-    });
-    fetch('/scan/upload', { method: 'POST', body: fd })
-      .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
-      .then(function(res){
-        if (!res.ok || !res.body.id) throw new Error((res.body && res.body.error) || 'ההעלאה נכשלה');
-        location.href = '/scan/' + res.body.id;
-      })
-      .catch(function(e){
-        showError(e.message || 'ההעלאה נכשלה — נסו שוב');
-        btnSend.textContent = label; btnSend.disabled = false;
-      });
-  });
-
-  sync();
-})();
-</script>
+<script type="application/json" id="scanConfig"><%- JSON.stringify({
+  maxPages: maxPages,
+  maxEdge: maxEdge,
+  jpegQuality: jpegQuality,
+  maxUploadBytes: maxUploadMb * 1024 * 1024,
+  maxTotalBytes: 18 * 1024 * 1024,
+}) %></script>
+<%# Versioned so a new deploy is picked up: the service worker caches this cache-first by full URL. %>
+<script src="/scan-capture.js?v=<%= encodeURIComponent(typeof buildVersion !== 'undefined' ? buildVersion : 'dev') %>" defer></script>
 <% } %>
 <%- include('../partials/footer') %>

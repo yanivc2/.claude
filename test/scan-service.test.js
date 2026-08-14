@@ -573,3 +573,56 @@ test('listPending shows drafts awaiting a human, newest first, company-scoped', 
   assert.deepEqual(await listPending([], db), []); // a user scoped to no company sees nothing
   assert.deepEqual((await listPending([store.company_id], db)).map((d) => d.id), [a.id]);
 });
+
+test('processDraft refuses a PDF with more pages than the per-invoice cap, before calling the API', async () => {
+  const db = await freshDb();
+  const { sec, store } = await setup(db);
+  const draft = await uploaded(db, sec, store, ['big.pdf']);
+
+  // A long PDF is cheap in bytes and expensive in tokens (each page also carries 1,500-3,000
+  // text tokens), so the cap has to be on pages — the byte cap never catches this one.
+  const pdf = Buffer.from(
+    `%PDF-1.4\n${Array.from({ length: 30 }, (_, i) => `${i + 1} 0 obj\n<< /Type /Page >>\nendobj\n`).join('')}%%EOF`,
+    'latin1',
+  );
+  const d = deps();
+  d.loadImage = async () => ({ buffer: pdf, contentType: 'application/pdf' });
+
+  const failed = await processDraft(draft.id, sec, d, db);
+  assert.equal(failed.status, 'failed');
+  assert.match(failed.error, /30 עמודים/);
+  assert.equal(d.client.calls.length, 0); // the whole point: no API call was paid for
+});
+
+test('processDraft lets a normal short PDF through', async () => {
+  const db = await freshDb();
+  const { sec, store } = await setup(db);
+  const draft = await uploaded(db, sec, store, ['two-pages.pdf']);
+  const pdf = Buffer.from(
+    '%PDF-1.4\n1 0 obj\n<< /Type /Page >>\nendobj\n2 0 obj\n<< /Type /Page >>\nendobj\n%%EOF',
+    'latin1',
+  );
+  const d = deps();
+  d.loadImage = async () => ({ buffer: pdf, contentType: 'application/pdf' });
+
+  const done = await processDraft(draft.id, sec, d, db);
+  assert.equal(done.status, 'needs_review');
+});
+
+test('the extract audit entry records the prompt-cache usage', async () => {
+  const db = await freshDb();
+  const { sec, store } = await setup(db);
+  const draft = await uploaded(db, sec, store, ['a.jpg']);
+  await processDraft(draft.id, sec, deps(extraction(), {
+    usage: { input_tokens: 5000, output_tokens: 900, cache_creation_input_tokens: 1200, cache_read_input_tokens: 3400 },
+  }), db);
+
+  const row = await db.one(
+    "SELECT details FROM audit_log WHERE action = 'scan.extract' AND entity_id = ? ORDER BY id DESC",
+    [draft.id],
+  );
+  const details = JSON.parse(row.details);
+  assert.equal(details.cacheWriteTokens, 1200);
+  assert.equal(details.cacheReadTokens, 3400);
+  assert.equal(details.pages, 1);
+});

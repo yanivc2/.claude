@@ -93,6 +93,13 @@ export const config = {
     extractEffort: process.env.EXTRACT_EFFORT || 'medium',
     extractMaxTokens: Number(process.env.EXTRACT_MAX_TOKENS ?? 16000),
     maxScanImages: Number(process.env.MAX_SCAN_IMAGES ?? 8),
+    // Capture geometry — the single biggest cost lever. Claude bills an image purely on its pixel
+    // dimensions (≈ ⌈w/28⌉ × ⌈h/28⌉ tokens), so the long edge IS the price: 2000px ≈ 3,888 tokens
+    // per page, 1800px ≈ 2,990. Because the scanner crops to the page itself, every remaining
+    // pixel is invoice, so 1800px cropped is more readable than 2000px with the counter in frame.
+    // Colour is deliberately preserved — greyscale costs exactly the same and loses information.
+    scanMaxEdge: Number(process.env.SCAN_MAX_EDGE ?? 1800),
+    scanJpegQuality: Number(process.env.SCAN_JPEG_QUALITY ?? 0.9),
     enabled: Boolean(process.env.ANTHROPIC_API_KEY),
   },
   // Shared secret so an external scheduler (e.g. Vercel Cron) can trigger the reminders runner

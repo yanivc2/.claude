@@ -743,6 +743,65 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
   width: 24px; height: 24px; padding: 0; border-radius: 50%; font-size: 12px;
   background: var(--color-bad-bg); border-color: color-mix(in srgb, var(--color-bad) 55%, transparent); color: var(--color-bad);
 }
+/* Per-page tools on the capture strip: reorder + rotate, big enough for a thumb. */
+.scan-thumb-tools {
+  position: absolute; inset-block-end: 0; inset-inline: 0; display: flex;
+  background: rgba(0,0,0,.55);
+}
+.scan-thumb-tools button {
+  flex: 1; min-height: 28px; padding: 0; border: none; border-radius: 0;
+  background: transparent; color: #fff; font-size: 15px; line-height: 1; cursor: pointer;
+}
+.scan-thumb-tools button:hover { background: rgba(255,255,255,.16); }
+
+/* Live scanner (getUserMedia + OpenCV edge detection). Portrait-friendly: the viewfinder keeps a
+   document-ish aspect ratio and the controls sit under it, within thumb reach. */
+.scan-live { margin-top: var(--space-3); }
+.scan-live-frame {
+  position: relative; width: 100%; max-width: 520px; margin-inline: auto;
+  aspect-ratio: 3 / 4; overflow: hidden; border-radius: var(--radius-md);
+  border: 1px solid var(--color-line); background: #000;
+}
+.scan-live-frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.scan-live-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.scan-live-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.scan-live-flash.on { animation: scan-flash .28s ease-out; }
+@keyframes scan-flash { from { opacity: .85; } to { opacity: 0; } }
+.scan-live-count {
+  position: absolute; inset-block-start: 8px; inset-inline-start: 8px;
+  background: rgba(0,0,0,.6); color: #fff; border-radius: 999px; font-size: 12px; padding: 3px 9px;
+}
+.scan-live-hint {
+  margin: var(--space-2) 0 0; text-align: center; font-size: 13.5px; color: var(--color-muted);
+  min-height: 1.4em;
+}
+.scan-live-hint.ok { color: var(--color-ok); }
+.scan-live-hint.warn { color: var(--color-warn); }
+.scan-live-hint.bad { color: var(--color-muted); }
+.scan-live-bar {
+  display: flex; align-items: center; justify-content: center; gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.scan-live-bar .btn { min-height: 46px; }
+.scan-shutter { min-width: 130px; min-height: 56px !important; border-radius: 999px; font-size: 16px; }
+#btnTorch[aria-pressed="true"] { background: var(--color-warn-bg); color: var(--color-warn); }
+.scan-live-auto {
+  display: flex; align-items: center; gap: 8px; justify-content: center;
+  margin-top: var(--space-3); font-size: 12.5px; color: var(--color-muted);
+}
+.scan-live-auto input { width: 18px; height: 18px; }
+
+/* Upload progress (mobile networks are slow — silence reads as a hang). */
+.scan-progress {
+  margin-top: var(--space-3); height: 6px; border-radius: 999px;
+  background: var(--color-surface-2); overflow: hidden;
+}
+.scan-progress > div { height: 100%; width: 0; background: var(--color-accent); transition: width .15s linear; }
+
+/* "How to get the best result" explainer under the capture card. */
+.scan-tips summary { cursor: pointer; font-size: 14px; }
+.scan-tips ul { margin: var(--space-3) 0 0; padding-inline-start: 1.1rem; color: var(--color-muted); font-size: 13px; }
+.scan-tips li + li { margin-top: 6px; }
 
 /* Processing screen spinner. */
 .scan-spinner {

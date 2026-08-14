@@ -5,6 +5,7 @@ import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeClause } from '../lib/scope.js';
 import { del, getObject } from '../lib/storage.js';
 import { validateExtraction } from '../lib/extractValidate.js';
+import { looksLikePdf, pdfPageCount } from '../lib/pdfPages.js';
 import { buildExtractionRequest, getClaudeClient } from '../ai/claude.js';
 import { createInvoice } from './invoices.js';
 import { upsertProductsFromLines } from './products.js';
@@ -199,6 +200,18 @@ export async function processDraft(
   if (bytes > MAX_TOTAL_BYTES) {
     return markFailed(id, 'הצילומים כבדים מדי (מעל 20 מ"ב) — צלמו שוב או העלו פחות עמודים', x);
   }
+  // A PDF costs image tokens PLUS 1,500–3,000 text tokens per page, so a long PDF is expensive
+  // long before it is heavy: 300 pages fit comfortably inside the byte cap. Refuse it here, before
+  // the API call, rather than paying for it. An unreadable page count (null) is let through — the
+  // byte cap and the model's own max_tokens guard remain.
+  const pdfPages = pages.reduce((sum, p) => sum + (looksLikePdf(p?.buffer) ? pdfPageCount(p.buffer) || 0 : 0), 0);
+  if (pdfPages > config.ai.maxScanImages) {
+    return markFailed(
+      id,
+      `הקובץ מכיל ${pdfPages} עמודים — עד ${config.ai.maxScanImages} עמודים לחשבונית. פצלו את הקובץ והעלו שוב`,
+      x,
+    );
+  }
 
   // ---- call the model ---------------------------------------------------------
   const api = client || getClaudeClient();
@@ -257,6 +270,12 @@ export async function processDraft(
         model: response.model ?? null,
         inputTokens: response.usage?.input_tokens ?? null,
         outputTokens: response.usage?.output_tokens ?? null,
+        // The system prompt is sent with cache_control: ephemeral. These two make the saving
+        // visible per draft without a schema change — a healthy run reads the prompt from cache
+        // (cacheReadTokens > 0) instead of paying to write it again.
+        cacheWriteTokens: response.usage?.cache_creation_input_tokens ?? null,
+        cacheReadTokens: response.usage?.cache_read_input_tokens ?? null,
+        pages: pages.length,
         durationMs,
         lines: normalized.lines.length,
       },
