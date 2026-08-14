@@ -322,6 +322,9 @@ details.collapse[open] > summary .caret { transform: rotate(90deg); }
   background: var(--color-surface); border: 1px solid var(--color-line);
   border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: 7px;
   display: flex; flex-direction: column; gap: 2px; transform-origin: top;
+  /* Never taller than the viewport — scroll inside instead of hiding the last items off-screen
+     (e.g. the long nav menu on a phone, where הגדרות/התנתק sat below the fold). */
+  max-height: calc(100dvh - 120px); overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 .menu[open] > .menu-panel { animation: menu-in .2s cubic-bezier(.22,1,.36,1); }
 @keyframes menu-in { from { opacity: 0; transform: translateY(-8px) scale(.97); } to { opacity: 1; transform: none; } }
@@ -649,6 +652,7 @@ details.paymenu .paymenu-items .btn { text-align: center; }
     position: static; inset: auto; display: flex; flex-direction: column; gap: 3px;
     width: 100%; min-width: 0; flex: 1 1 auto;
     background: transparent; border: none; box-shadow: none; padding: 0; margin: 0; animation: none;
+    max-height: none; overflow: visible;                   /* the .nav sidebar handles scrolling */
   }
   .navmenu > .menu-panel a { padding: 10px 12px; border-radius: var(--radius-md); font-size: 14px; }
   .navmenu > .menu-panel .menu-sep { margin: 8px 4px; }
