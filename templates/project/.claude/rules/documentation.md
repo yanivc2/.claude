@@ -1,3 +1,13 @@
+---
+paths:
+  - "**/README.md"
+  - "**/CLAUDE.md"
+  - "**/AGENTS.md"
+  - "**/SETUP.md"
+  - "**/CHANGELOG.md"
+  - "**/docs/**"
+---
+
 # Documentation
 
 > **Applies to:** README, code comments, API docs, and this project's `CLAUDE.md` — keep them true as the code changes.
@@ -34,7 +44,7 @@ Keep it current: if a setup step changes, the README changes in the **same** PR.
 
 ## Changelog & Commits
 
-- The commit history is documentation — write meaningful messages (see `git-workflow.md`).
+- The commit history is documentation — write meaningful messages (conventions are in `CLAUDE.md`).
 - For released/versioned projects, maintain a `CHANGELOG.md` (Keep a Changelog format) grouped by version.
 
 ## Non-Negotiables

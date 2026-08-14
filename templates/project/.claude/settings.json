@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "Write-Output '{\"systemMessage\": \"Before compacting: note any open TODOs, architectural decisions, and lessons learned that should be saved to CLAUDE.md or rules/ before context is lost.\"}'",
+            "command": "Write-Output '{\"systemMessage\": \"Before compacting: note any open TODOs, architectural decisions, and lessons learned that should be saved to CLAUDE.md or .claude/rules/ before context is lost. Path-scoped rules are dropped by /compact until a matching file is read again.\"}'",
             "shell": "powershell"
           }
         ]

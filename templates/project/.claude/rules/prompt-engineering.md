@@ -1,3 +1,13 @@
+---
+paths:
+  - "**/prompts/**"
+  - "**/*prompt*"
+  - "**/*.prompt.md"
+  - "**/llm/**"
+  - "**/ai/**"
+  - "**/agents/**"
+---
+
 # Prompt Engineering
 
 > **Applies to:** writing or tuning LLM prompts and AI features. Not relevant to non-AI code.

@@ -18,9 +18,19 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
 
 ## Iron rules (every phase)
 
-- Writable scope is exactly: the real Downloads path, the real Documents path,
-  and `C:\Users\yaniv\Vault`. Everything else is read-only. **STOP** before any
-  operation that would write outside this scope.
+- **OneDrive: read allowed, writing forbidden.** Never move, rename, copy into,
+  delete, or edit anything under a OneDrive path — not even to "fix" it. With
+  Files On-Demand a file on disk is a zero-byte placeholder; moving one severs it
+  from its content and destroys it. A path is OneDrive if it starts with
+  `$env:OneDrive` / `$env:OneDriveCommercial` or contains a `OneDrive` segment.
+  Reading is permitted so the business material there can be mapped into the
+  INDEX — but each read downloads a placeholder, so read deliberately and never
+  in bulk. A global `PreToolUse` hook blocks OneDrive writes; do not attempt to
+  work around it.
+- Writable scope is exactly: the real Downloads path, a non-OneDrive Documents
+  path, and `C:\Users\yaniv\Vault`. Everything else — including all of OneDrive —
+  is **read-only**. **STOP** before any operation that would write outside this
+  scope.
 - A directory containing `.git`, `node_modules`, `package.json`, `.sln`, or
   `pyproject.toml` is a code directory: it is **never moved or renamed**.
   Propose a junction instead — `cmd /c mklink /J "<link>" "<target>"`
@@ -43,11 +53,18 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
 - Verify this is the Windows machine: `Test-Path 'C:\Users\yaniv'` must be
   true. If not — **STOP**: this command must not run remotely.
 - Resolve the real paths and echo them to the user:
-  - Documents: `[Environment]::GetFolderPath('MyDocuments')` (may be
-    OneDrive-redirected).
+  - Documents: `[Environment]::GetFolderPath('MyDocuments')`.
   - Downloads: registry `HKCU:\...\User Shell Folders`, value
     `{374DE290-123F-4565-9164-39C4925E467B}`; fallback
     `C:\Users\yaniv\Downloads`.
+- OneDrive gate — run this on **every** resolved path before anything else: if a
+  path starts with `$env:OneDrive`/`$env:OneDriveCommercial` or contains a
+  `OneDrive` segment, mark that root **read-only, permanently**. Report it in
+  Hebrew and state plainly that it can be mapped but never reorganized. Never
+  offer to move anything out of it.
+  Also verify `C:\Users\yaniv\Vault` itself is not OneDrive-redirected — if it
+  is, **STOP** and ask the user for a different vault location, since the vault
+  must be writable.
 - Backup gate: ask the user to confirm a current backup (File History / cloud
   / external drive) covering both roots. **STOP — no mutating phase without a
   confirmed backup.** Files outside git/backup are unrecoverable.
@@ -67,8 +84,11 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
   (its presence defeats the global SessionStart project-seeder, which would
   otherwise overwrite `.mcp.json` and add typecheck hooks), every folder has
   its README.md, `INDEX.md` is present, git is initialized.
-- Mention (optional, don't run unasked): `cmd /c mklink /H AGENTS.md CLAUDE.md`
-  creates a hardlink so other AI tools read the same instructions.
+- Mention (optional, don't run unasked): a project can make `AGENTS.md` its single
+  source of truth by reducing `CLAUDE.md` to the one line `@./AGENTS.md`, so Codex
+  and Gemini read the same instructions. Do **not** suggest `mklink /H` for this —
+  editors save by write-and-rename, which breaks a hardlink silently and leaves two
+  divergent files.
 
 ## 3. scan — read-only inventory
 
@@ -77,21 +97,44 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
   directory — item count, total size, newest `LastWriteTime`.
 - Mark code directories **OUT-OF-BOUNDS (junction candidate only)**; never
   descend into `.git` or `node_modules`.
+- OneDrive may be inventoried read-only, at directory level: counts, sizes and
+  dates, so the business material there reaches the INDEX. Do **not** open files
+  in bulk — each read downloads a placeholder. Mark the whole tree
+  **READ-ONLY (never reorganized)**.
 - Flag: installers (`.exe`/`.msi` in Downloads), archives, files >100MB,
   obvious name-duplicates, empty directories.
+- Flag cloud placeholders separately: a file whose attributes include
+  `ReparsePoint` or `Offline` is not fully on disk. Never propose moving one —
+  list it under "לא נוגעים" in the report.
 - Write the report to `C:\Users\yaniv\Vault\_organize\scan-<YYYY-MM-DD>.md`.
   If the Vault does not exist — **STOP** and instruct running phase `vault`.
 - Summarize in Hebrew: counts, sizes, code dirs found, oddities.
 
 ## 4. index — interview and fill the map
 
+`INDEX.md` **is** the map — there is no raw index file to consult or produce. It
+is built from the scan plus what the user tells you, and it is the artifact every
+later question is answered from. Keep it around 150 lines: a map you won't read
+is not a map.
+
 - Read the latest `scan-*.md`; walk through each project-like directory with
   the user in Hebrew: what is it, is it active, which business, where should
   it live?
 - Fill `C:\Users\yaniv\Vault\INDEX.md` with the Edit tool: replace the
   `{{DOWNLOADS_REAL_PATH}}` / `{{DOCUMENTS_REAL_PATH}}` / `{{LAST_UPDATED}}`
-  placeholders, fill the tables, refresh the folder map, and append a dated
-  entry to the changelog section.
+  placeholders, fill the summary, locations, projects and businesses tables,
+  refresh the folder map, and append a dated line to the changelog.
+- Maintain the two companion records in `_organize/`, and keep the summary lines
+  in `INDEX.md` pointing at them in sync:
+  - `security-register.md` — one row per finding with the **action it needs**.
+    Never write a credential value into it, only the path and the remedy. When a
+    finding is closed, record what was actually done, not just "handled".
+  - `deletions-log.md` — every removal round: what, how many, how much, how many
+    had no other copy, and the critical items **by name**. Write the entry
+    *before* deleting; afterwards the fact that a file existed lives only here.
+- Descriptions, business context and security findings are human knowledge — a
+  rescan cannot regenerate them. When refreshing, preserve what is already
+  written and update only what the scan actually measured.
 - Offer (don't force) filling the `About/*.md` stubs while context is fresh.
 
 ## 5. propose — plan only, zero execution
@@ -102,6 +145,9 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
 - Code directories get JUNCTION only. TRASH requires stated evidence and is
   flagged "individual approval required". Anything uncertain is ASK, never
   TRASH.
+- No row may have a OneDrive path as its source **or** its target, and no
+  cloud placeholder may appear as a source. Re-check every row against the
+  OneDrive gate before writing the file.
 - **STOP.** End by asking in Hebrew for an explicit GO with item numbers (or
   "הכול"). No execution happens in this phase under any circumstances.
 
@@ -111,7 +157,9 @@ artifacts already exist (Vault? latest `scan-*.md`? INDEX filled? open
   with item numbers was given in **this** session; the backup was reconfirmed
   this session; `git add -A` + `git commit` ran in the vault before the round;
   cwd is `C:\Users\yaniv\Vault`.
-- Work in batches of ≤10 items:
+- Work in batches of ≤10 items. Re-run the OneDrive gate on the source and the
+  target of every item immediately before touching it — a stale proposal is
+  not a licence:
   - MOVE: `Test-Path` the target first — on collision, skip the item and
     report; use `Move-Item` **without `-Force`**. Moves are not backed up by
     any hook — the collision check is the only safety net.
