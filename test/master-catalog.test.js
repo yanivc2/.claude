@@ -50,6 +50,53 @@ test('importCatalogItems: insert, unchanged re-import, changed update', async ()
   assert.equal(milk.source_chain, 'shufersal');
 });
 
+test('importing in batches lands the same catalog as importing in one go', async () => {
+  // The browser streams a large workbook in as a series of batches, so this equivalence is the
+  // property that makes it safe. It also covers the retry story: a run that stops halfway can be
+  // repeated from the start, because every row is an upsert.
+  const rows = Array.from({ length: 50 }, (_, i) =>
+    item({ barcode: `729000000${String(i).padStart(4, '0')}`, name: `מוצר ${i}`, retailPrice: 100 + i }),
+  );
+
+  const whole = await freshDb();
+  await importCatalogItems(rows, { chain: 'קובץ', store: null }, whole);
+
+  const batched = await freshDb();
+  let inserted = 0;
+  for (let i = 0; i < rows.length; i += 10) {
+    const res = await importCatalogItems(rows.slice(i, i + 10), { chain: 'קובץ', store: null }, batched);
+    inserted += res.inserted;
+  }
+  assert.equal(inserted, 50);
+
+  const shape = (x) => x.many('SELECT barcode, name, retail_price, source_chain FROM master_catalog ORDER BY barcode', []);
+  assert.deepEqual(await shape(batched), await shape(whole));
+
+  // Re-running a batch that already landed touches nothing.
+  const repeat = await importCatalogItems(rows.slice(0, 10), { chain: 'קובץ', store: null }, batched);
+  assert.deepEqual(repeat, { inserted: 0, updated: 0, unchanged: 10 });
+});
+
+test('the existing-row lookup reads only the barcodes being imported', async () => {
+  // It used to SELECT the whole table on every call, which is fine once and pathological when a
+  // browser feeds the same table 40 batches in a row.
+  const db = await freshDb();
+  await importCatalogItems(
+    Array.from({ length: 200 }, (_, i) => item({ barcode: `729000000${String(i).padStart(4, '0')}` })),
+    {},
+    db,
+  );
+
+  const seen = [];
+  const spy = { ...db, many: async (sql, params) => { seen.push({ sql, params }); return db.many(sql, params); } };
+  await importCatalogItems([item({ barcode: '7290000000005', name: 'שם חדש' })], {}, spy);
+
+  const lookups = seen.filter((q) => /FROM master_catalog/.test(q.sql));
+  assert.equal(lookups.length, 1);
+  assert.match(lookups[0].sql, /WHERE barcode IN \(\?\)/);
+  assert.deepEqual(lookups[0].params, ['7290000000005']);
+});
+
 test('duplicate barcodes inside one import: first occurrence wins', async () => {
   const db = await freshDb();
   const res = await importCatalogItems([item({ name: 'ראשון' }), item({ name: 'שני' })], {}, db);

@@ -119,6 +119,14 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
     both the barcode and the מק"ט column → `catalog_suffix_match` (one candidate) or
     `catalog_ambiguous` (several). Both are **offers** — the review screen adopts on a click,
     nothing is ever written automatically.
+  - **Catalog upload (הגדרות ← 🏷️ טעינת קטלוג-על):** `lib/catalogFile.js` maps Hebrew headers,
+    repairs Excel-stripped leading zeros by GTIN check digit, and takes the median of a
+    per-chain price column set. `lib/xlsxRead.js` reads .xlsx with no dependency. Because of the
+    4.5MB body limit (see Gotchas) the browser reads the file itself —
+    **`public/catalog-upload.js`** streams the zip and posts rows to
+    `/settings/catalog-import/{prepare,batch}`; the single-shot `POST /settings/catalog-import`
+    remains as the fallback. The xlsx reader exists in both places on purpose and
+    `test/catalog-upload.test.js` asserts the two agree.
 - **📁 `docs/צילום-וחילוץ/`** — the project dossier for capture + extraction: catalog sources and
   the product-identity rules, how the scanner and the extraction are built, the cost model, and
   the research log (including a "faults and their real causes" file worth reading before
@@ -134,6 +142,11 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
 5. Tests (SQLite + PG) + `scripts/smoke.mjs`. Bump `BUILD_VERSION`. Remind owner to run "עדכן מסד נתונים".
 
 ## Gotchas
+- **Vercel rejects a request body over ~4.5MB** at the platform edge, before Express runs — the
+  response is a bare English `413 FUNCTION_PAYLOAD_TOO_LARGE` page and **nothing appears in the
+  logs**. `multer`'s own limit is irrelevant. A large upload must be split client-side; the
+  catalog import is the worked example (`src/public/catalog-upload.js` reads the file in the
+  browser and posts ~2,000 rows per request).
 - `x.one` returns **undefined** (not null) when no row — assert with `!row`, not `=== null`.
 - pg-mem names inline CHECK constraints differently than real PG (`t_constraint_1` vs
   `payments_method_check`); to add a CHECK value, update the inline CREATE **and** append an ALTER.

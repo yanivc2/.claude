@@ -161,26 +161,43 @@ function toRows(input) {
 }
 
 /**
- * Parse a catalog file into items plus a report of what was dropped and why.
+ * The field each column feeds, by header name: `barcode`, `name`, …, `'ignore'` for a column we
+ * recognise and deliberately skip, or `null` for one we do not know at all.
  *
- * @param {Buffer|string} input the raw file (xlsx) or its decoded text (csv/tsv; a BOM is fine)
+ * Exported because the browser-side reader (`public/catalog-upload.js`) asks the server which
+ * columns are worth sending before it streams a large file — the mapping stays here, in one place.
+ *
+ * @param {string[]} headerRow the file's first row
+ * @returns {Array<string|null>} one entry per column
+ */
+export function mapHeaders(headerRow) {
+  return (headerRow || []).map((h) => HEADERS[headerKey(h)] || null);
+}
+
+/**
+ * Parse data rows that have already been mapped to a header, into items plus a report of what was
+ * dropped and why. This is the shared core: a whole file goes through it once, and a streamed
+ * upload calls it per batch.
+ *
+ * Note for the batched caller: `duplicate` counts repeats **within this call**. A barcode that
+ * repeats across two batches is not lost — it lands as an update of the row the earlier batch
+ * inserted — so inserted/updated stay correct while `duplicate` only ever undercounts.
+ *
+ * @param {Array<string|null>} headers from mapHeaders
+ * @param {string[][]} rows data rows (no header row)
  * @returns {{items: Array<object>, stats: {rows:number, kept:number, repaired:number,
  *   noBarcode:number, badBarcode:number, duplicate:number, columns: string[]}}}
  */
-export function parseCatalogFile(input) {
-  const rows = toRows(input);
+export function parseCatalogRows(headers, rows) {
   const stats = { rows: 0, kept: 0, repaired: 0, noBarcode: 0, badBarcode: 0, duplicate: 0, columns: [] };
-  if (rows.length < 2) return { items: [], stats };
-
-  const headers = rows[0].map((h) => HEADERS[headerKey(h)] || null);
-  stats.columns = [...new Set(headers.filter((h) => h && h !== 'ignore'))];
-  if (!headers.includes('barcode') || !headers.includes('name')) {
+  stats.columns = [...new Set((headers || []).filter((h) => h && h !== 'ignore'))];
+  if (!stats.columns.includes('barcode') || !stats.columns.includes('name')) {
     return { items: [], stats };
   }
 
   const items = [];
   const seen = new Set();
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = 0; i < rows.length; i++) {
     const cells = rows[i];
     stats.rows++;
     const rec = { retailPrices: [] };
@@ -225,4 +242,18 @@ export function parseCatalogFile(input) {
     stats.kept++;
   }
   return { items, stats };
+}
+
+/**
+ * Parse a whole catalog file: header row + everything under it.
+ *
+ * @param {Buffer|string} input the raw file (xlsx) or its decoded text (csv/tsv; a BOM is fine)
+ * @returns {{items: Array<object>, stats: object}} see parseCatalogRows
+ */
+export function parseCatalogFile(input) {
+  const rows = toRows(input);
+  if (rows.length < 2) {
+    return { items: [], stats: { rows: 0, kept: 0, repaired: 0, noBarcode: 0, badBarcode: 0, duplicate: 0, columns: [] } };
+  }
+  return parseCatalogRows(mapHeaders(rows[0]), rows.slice(1));
 }

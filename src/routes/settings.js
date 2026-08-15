@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, json } from 'express';
 import multer from 'multer';
 import {
   listStructure,
@@ -24,7 +24,7 @@ import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { verifyPassword, generatePassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll } from '../services/backup.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
-import { parseCatalogFile } from '../lib/catalogFile.js';
+import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFile.js';
 import { looksLikeXlsx } from '../lib/xlsxRead.js';
 import { decodeBuffer } from '../lib/decodeText.js';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '../services/roleTemplates.js';
@@ -443,14 +443,83 @@ router.post('/restore', requireOwner, (req, res, next) => {
   });
 });
 
-// Master-catalog upload (owner-only). Additive: it inserts new barcodes and updates existing
-// ones, and never deletes — so re-uploading a newer file is always safe.
+// ── Master-catalog upload (owner-only) ──────────────────────────────────────────────────────
+// Additive: it inserts new barcodes and updates existing ones, and never deletes — so
+// re-uploading a newer file is always safe, and so is re-running one that stopped halfway.
+//
+// There are two ways in. The batched pair below is the normal one: the browser reads the file
+// itself (public/catalog-upload.js) and posts rows a few thousand at a time, because Vercel
+// rejects a request body over ~4.5MB at the platform edge and the owner's workbook is 5.8MB.
+// The single-shot form POST further down still works, and is what a browser without
+// DecompressionStream falls back to.
+
+/** Hebrew for "the file's first row isn't a header we understand". */
+const BAD_HEADER = 'לא נמצאו העמודות "ברקוד" ו"שם" בשורת הכותרות. הקובץ צריך להיות XLSX או CSV עם כותרות בעברית בשורה הראשונה.';
+
+const asRow = (r) => (Array.isArray(r) ? r.map((c) => (c === null || c === undefined ? '' : String(c))) : []);
+
+/** Answer a JSON route: a rule/auth problem is the client's to fix, anything else is ours. */
+function jsonFail(res, err) {
+  const known = err instanceof RuleError || err instanceof AuthError;
+  if (!known) console.error(err); // eslint-disable-line no-console
+  return res.status(known ? 400 : 500).json({ error: err.message });
+}
+
+// Step 1 of a batched import: validate the header once, and answer with the column indexes worth
+// sending. Everything that can be known before the owner waits through a large file is checked
+// here — including whether the live schema still predates master_catalog.sku, which would
+// otherwise surface as a raw Postgres error on the first batch.
+router.post('/catalog-import/prepare', requireOwner, json({ limit: '256kb' }), async (req, res) => {
+  try {
+    const fields = mapHeaders(asRow(req.body?.header));
+    if (!fields.includes('barcode') || !fields.includes('name')) {
+      throw new RuleError('CATALOG', BAD_HEADER);
+    }
+    try {
+      await getExecutor().one('SELECT sku FROM master_catalog LIMIT 1', []);
+    } catch {
+      throw new RuleError('CATALOG', 'מסד הנתונים עדיין לא עודכן לגרסה הזו. לחץ "עדכן מסד נתונים" כאן בהגדרות, ואז טען את הקטלוג שוב.');
+    }
+    const keep = [];
+    fields.forEach((f, i) => { if (f && f !== 'ignore') keep.push(i); });
+    return res.json({ keep });
+  } catch (err) {
+    return jsonFail(res, err);
+  }
+});
+
+// Step 2: one batch of rows. Stateless — the client echoes the (already narrowed) header with
+// every batch, so nothing is held between requests and the mapping still comes from mapHeaders.
+router.post('/catalog-import/batch', requireOwner, json({ limit: '4mb' }), async (req, res) => {
+  try {
+    const fields = mapHeaders(asRow(req.body?.header));
+    const rows = Array.isArray(req.body?.rows) ? req.body.rows.map(asRow) : [];
+    const { items, stats } = parseCatalogRows(fields, rows);
+    if (!stats.columns.includes('barcode') || !stats.columns.includes('name')) {
+      throw new RuleError('CATALOG', BAD_HEADER);
+    }
+    const source = String(req.body?.source || '').trim() || 'קובץ שהועלה';
+    const result = items.length
+      ? await importCatalogItems(items, { chain: source, store: null })
+      : { inserted: 0, updated: 0, unchanged: 0 };
+    return res.json({ ...stats, ...result });
+  } catch (err) {
+    return jsonFail(res, err);
+  }
+});
+
 const catalogUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024, files: 1 } }).single('catalog');
 router.post('/catalog-import', requireOwner, (req, res, next) => {
   catalogUpload(req, res, async (uploadErr) => {
     try {
       if (uploadErr) throw new RuleError('CATALOG', 'העלאת הקובץ נכשלה (מוגבל ל-40MB).');
       if (!req.file) throw new RuleError('CATALOG', 'לא נבחר קובץ.');
+      // Vercel refuses a body over ~4.5MB before Express is reached, so a large file never gets
+      // here at all — but say something useful in the sliver of cases that do (a bigger limit
+      // locally, a proxy that buffers) rather than letting it look like it worked.
+      if (req.file.size > 4 * 1024 * 1024) {
+        throw new RuleError('CATALOG', 'הקובץ גדול מ-4MB ולא ניתן להעלות אותו כך. פתח את המסך מדפדפן עדכני (Chrome/Safari) — הוא קורא את הקובץ במחשב ושולח אותו במנות.');
+      }
 
       // Sniff the bytes rather than trusting the extension: an .xlsx is a zip and must reach the
       // parser as a Buffer, while a text file goes through decodeBuffer so a Windows-1255 export
@@ -458,7 +527,7 @@ router.post('/catalog-import', requireOwner, (req, res, next) => {
       const raw = req.file.buffer;
       const { items, stats } = parseCatalogFile(looksLikeXlsx(raw) ? raw : decodeBuffer(raw));
       if (!stats.columns.includes('barcode') || !stats.columns.includes('name')) {
-        throw new RuleError('CATALOG', 'לא נמצאו העמודות "ברקוד" ו"שם" בשורת הכותרות. הקובץ צריך להיות XLSX או CSV עם כותרות בעברית בשורה הראשונה.');
+        throw new RuleError('CATALOG', BAD_HEADER);
       }
       if (items.length === 0) throw new RuleError('CATALOG', 'לא נמצאה אף שורה תקינה בקובץ.');
 

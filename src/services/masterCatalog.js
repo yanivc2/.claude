@@ -9,15 +9,23 @@ import { normalizeSupplierName } from '../lib/supplierMatch.js';
 /** Inserted-rows chunk: 200 rows × 12 columns stays far below pg's placeholder limit. */
 const INSERT_CHUNK = 200;
 
+/** Barcodes per existing-row probe. One placeholder each, so this can be far larger. */
+const LOOKUP_CHUNK = 500;
+
 const COLS = [
   'barcode', 'name', 'sku', 'manufacturer_name', 'manufacturer_norm', 'unit_qty', 'quantity',
   'qty_in_package', 'retail_price', 'source_chain', 'source_store', 'imported_at',
 ];
 
 /**
- * Upsert parsed PriceFull items into master_catalog. No ON CONFLICT — the whole table is
- * read once into memory (≤~30k skinny rows) and the input is partitioned into new/changed,
- * which keeps both SQL dialects and pg-mem happy.
+ * Upsert parsed catalog items into master_catalog. No ON CONFLICT — the rows that already exist
+ * are read up front and the input is partitioned into new/changed, which keeps both SQL dialects
+ * and pg-mem happy.
+ *
+ * The lookup is scoped to the barcodes actually being imported, chunked over the UNIQUE index.
+ * It used to read the entire table on every call, which was fine for one 38k-row import and
+ * pathological once a browser streams an 82k-row workbook in as ~40 successive batches: that
+ * would be millions of rows pulled from Neon to decide a few thousand.
  *
  * @param {Array<{barcode:string,name:string,manufacturerName:string|null,unitQty:string|null,
  *   quantity:number|null,qtyInPackage:number|null,retailPrice:number|null}>} items
@@ -25,9 +33,16 @@ const COLS = [
  * @returns {Promise<{inserted:number, updated:number, unchanged:number}>}
  */
 export async function importCatalogItems(items, { chain = 'shufersal', store = null } = {}, x = getExecutor()) {
+  const wanted = [...new Set((items || []).map((i) => i?.barcode).filter(Boolean))];
   const existing = new Map();
-  for (const row of await x.many('SELECT barcode, name, sku, manufacturer_name, retail_price FROM master_catalog', [])) {
-    existing.set(row.barcode, row);
+  for (let i = 0; i < wanted.length; i += LOOKUP_CHUNK) {
+    const chunk = wanted.slice(i, i + LOOKUP_CHUNK);
+    const rows = await x.many(
+      `SELECT barcode, name, sku, manufacturer_name, retail_price FROM master_catalog
+        WHERE barcode IN (${chunk.map(() => '?').join(',')})`,
+      chunk,
+    );
+    for (const row of rows) existing.set(row.barcode, row);
   }
 
   const ts = nowTs();
