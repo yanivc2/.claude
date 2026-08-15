@@ -142,27 +142,6 @@
     return Math.sqrt(Math.max(0, lapSq / n - lapMean * lapMean)) / contrast;
   }
 
-  /** Score a stored page blob. Resolves with null when the blob cannot be decoded. */
-  function scorePage(blob) {
-    return new Promise(function (resolve) {
-      if (typeof createImageBitmap !== 'function') return resolve(null);
-      createImageBitmap(blob)
-        .then(function (bmp) {
-          var score;
-          try {
-            score = sharpnessOf(bmp, bmp.width, bmp.height);
-          } catch (e) {
-            score = null; // a tainted or oversized canvas is not worth failing the capture over
-          }
-          if (bmp.close) bmp.close();
-          resolve(score);
-        })
-        .catch(function () {
-          resolve(null);
-        });
-    });
-  }
-
   // ---- pages -------------------------------------------------------------------
   function totalBytes() {
     return pages.reduce(function (sum, p) {
@@ -200,8 +179,12 @@
   function renderPages() {
     el.thumbs.innerHTML = '';
     pages.forEach(function (p, i) {
-      var blurry = p.sharp !== null && p.sharp !== undefined && p.sharp < SHARP_MIN;
-      var state = p.isPdf || p.sharp === null || p.sharp === undefined ? '' : blurry ? ' is-blurry' : ' is-sharp';
+      var scored = !p.isPdf && p.sharp !== null && p.sharp !== undefined;
+      var blurry = scored && p.sharp < SHARP_MIN;
+      // Three states, and every one of them SHOWS. The first version rendered nothing at all when
+      // a page could not be scored, so a browser where the measurement failed looked exactly like
+      // a browser where the feature was missing — which is what happened on the owner's phone.
+      var state = p.isPdf ? '' : blurry ? ' is-blurry' : scored ? ' is-sharp' : ' is-unknown';
       var wrap = document.createElement('div');
       wrap.className = 'scan-page' + state;
       wrap.innerHTML =
@@ -211,6 +194,9 @@
           : '<img src="' + p.url + '" alt="עמוד ' + (i + 1) + '" />') +
         '<span class="scan-thumb-no">' + (i + 1) + '</span>' +
         '<button type="button" class="scan-thumb-x" data-act="del" aria-label="הסר עמוד ' + (i + 1) + '">✕</button>' +
+        // A coloured pill ON the photo, not only a 2px border: at 104px on a phone a thin frame is
+        // easy to miss entirely, and "is it green?" has to be answerable at a glance.
+        (p.isPdf ? '' : '<span class="scan-verdict">' + (blurry ? 'מטושטש' : scored ? 'חד ✓' : 'לא נבדק') + '</span>') +
         '<div class="scan-thumb-tools">' +
         '<button type="button" data-act="left" aria-label="הזז אחורה">›</button>' +
         (p.isPdf ? '' : '<button type="button" data-act="rot" aria-label="סובב 90 מעלות">↻</button>') +
@@ -218,12 +204,13 @@
         '</div></div>' +
         (p.isPdf
           ? ''
-          : '<div class="scan-page-state">' +
+          : '<div class="scan-page-state" title="' + (p.sharpError ? 'בדיקת החדות נכשלה: ' + p.sharpError : '') + '">' +
             (blurry
-              ? '<span class="bad">מטושטש</span><button type="button" class="scan-reshoot" data-act="reshoot">צלם שוב</button>'
-              : p.sharp === null || p.sharp === undefined
-                ? '<span>נוסף</span>'
-                : '<span class="ok">חד ✓</span>') +
+              ? '<span class="bad">מטושטש ' + p.sharp.toFixed(2) + '</span>' +
+                '<button type="button" class="scan-reshoot" data-act="reshoot">צלם שוב</button>'
+              : scored
+                ? '<span class="ok">חד ✓ ' + p.sharp.toFixed(2) + '</span>'
+                : '<span class="warn">לא נבדק</span>') +
             '</div>');
       wrap.addEventListener('click', function (ev) {
         var hit = ev.target.closest('[data-act]');
@@ -299,19 +286,20 @@
         if (!blob) return;
         URL.revokeObjectURL(p.url);
         // Rotation does not change focus, so the score carries over rather than being recomputed.
-        pages[i] = { blob: blob, url: URL.createObjectURL(blob), isPdf: false, name: p.name, sharp: p.sharp };
+        pages[i] = { blob: blob, url: URL.createObjectURL(blob), isPdf: false, name: p.name, sharp: p.sharp, sharpError: p.sharpError };
         renderPages();
       }, 'image/jpeg', cfg.jpegQuality);
     });
   }
 
-  function addPage(blob, isPdf, name, at, sharp) {
+  function addPage(blob, isPdf, name, at, sharp, sharpError) {
     var page = {
       blob: blob,
       isPdf: isPdf,
       url: isPdf ? null : URL.createObjectURL(blob),
       name: name,
       sharp: sharp === undefined ? null : sharp,
+      sharpError: sharpError || null,
     };
     if (typeof at === 'number') pages[at] = page;
     else pages.push(page);
@@ -361,10 +349,13 @@
       var upright = false;
       var finish = function (source, w, h) {
         var sharp = null;
+        var sharpError = null;
         try {
           sharp = sharpnessOf(source, w, h);
         } catch (e) {
-          /* a decode we cannot measure still uploads — it just gets no verdict */
+          // A page we cannot measure still uploads — but the reason is kept and shown, because a
+          // verdict that silently fails to appear is indistinguishable from a broken feature.
+          sharpError = (e && e.name ? e.name + ': ' : '') + ((e && e.message) || 'שגיאה לא ידועה');
         }
         var s = Math.min(1, Math.sqrt(cfg.maxPixels / (w * h)), cfg.maxEdge / Math.max(w, h));
         // A camera photo is ALREADY a JPEG. Decoding and re-encoding it makes it a
@@ -374,7 +365,7 @@
         // rotation only ever applies if we bake it into the pixels.
         if (s >= 1 && upright && file.type === 'image/jpeg' && file.size <= cfg.maxUploadBytes) {
           if (source.close) source.close();
-          resolve({ blob: file, sharp: sharp });
+          resolve({ blob: file, sharp: sharp, sharpError: sharpError });
           return;
         }
         var c = document.createElement('canvas');
@@ -384,9 +375,21 @@
         if (source.close) source.close();
         // Generation 2 deserves more headroom than a first encode from raw sensor pixels.
         c.toBlob(function (blob) {
-          resolve({ blob: blob || file, sharp: sharp });
+          resolve({ blob: blob || file, sharp: sharp, sharpError: sharpError });
         }, 'image/jpeg', 0.95);
       };
+
+      /**
+       * Decode the photo, best method first.
+       *
+       * The middle rung is the one that matters and it is not decoration. iOS Safari rejects the
+       * `imageOrientation` option on several versions, which used to drop us straight to the
+       * `<img>` + `blob:` URL path — and on WebKit a blob: URL taints the canvas, so getImageData
+       * throws SecurityError and the sharpness verdict silently never appeared. An ImageBitmap
+       * never taints a canvas, so asking for one WITHOUT options keeps the score working; the
+       * EXIF rotation is handled either way, because `upright` is read from the file's own bytes
+       * and a photo that needs rotating goes through the re-encode branch regardless.
+       */
       var decode = function () {
         if (typeof createImageBitmap !== 'function') return legacyDecode(file, finish, resolve);
         createImageBitmap(file, { imageOrientation: 'from-image' })
@@ -394,7 +397,13 @@
             finish(bmp, bmp.width, bmp.height);
           })
           .catch(function () {
-            legacyDecode(file, finish, resolve);
+            createImageBitmap(file)
+              .then(function (bmp) {
+                finish(bmp, bmp.width, bmp.height);
+              })
+              .catch(function () {
+                legacyDecode(file, finish, resolve);
+              });
           });
       };
 
@@ -425,7 +434,7 @@
     };
     img.onerror = function () {
       URL.revokeObjectURL(url);
-      fail({ blob: null, sharp: null });
+      fail({ blob: null, sharp: null, sharpError: 'הדפדפן לא הצליח לפענח את הקובץ' });
     };
     img.src = url;
   }
@@ -469,7 +478,7 @@
         return;
       }
       normalizeImage(f).then(function (r) {
-        if (r && r.blob) addPage(r.blob, false, 'page.jpg', base + i, r.sharp);
+        if (r && r.blob) addPage(r.blob, false, 'page.jpg', base + i, r.sharp, r.sharpError);
         else rejected += 1;
         settle();
       });

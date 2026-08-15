@@ -779,14 +779,26 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
    Colour is never the only carrier — the caption underneath says it in words, and the card above
    the strip repeats it, because a red border means nothing to someone who has not been told. */
 .scan-page { display: flex; flex-direction: column; gap: 4px; }
-.scan-page.is-blurry .scan-thumb { border-color: var(--color-bad); border-width: 2px; }
-.scan-page.is-sharp .scan-thumb { border-color: var(--color-ok); border-width: 2px; }
+.scan-page.is-blurry .scan-thumb { border-color: var(--color-bad); border-width: 3px; }
+.scan-page.is-sharp .scan-thumb { border-color: var(--color-ok); border-width: 3px; }
+.scan-page.is-unknown .scan-thumb { border-color: var(--color-warn); border-width: 3px; }
+/* The verdict as a pill ON the photo. A 2-3px frame at 104px on a phone is genuinely easy to
+   miss, and the whole point is that it answers "did that come out readable?" at a glance. */
+.scan-verdict {
+  position: absolute; inset-block-end: 30px; inset-inline: 4px; text-align: center;
+  font-size: 11px; font-weight: 600; line-height: 1; padding: 3px 0; border-radius: 999px;
+  background: var(--color-neutral-800); color: var(--color-neutral-200);
+}
+.scan-page.is-sharp .scan-verdict { background: var(--color-ok); color: #06231a; }
+.scan-page.is-blurry .scan-verdict { background: var(--color-bad); color: #2a0b0b; }
+.scan-page.is-unknown .scan-verdict { background: var(--color-warn); color: #2a1e05; }
 .scan-page-state {
   display: flex; align-items: center; justify-content: space-between; gap: 6px;
-  max-width: 104px; font-size: 11px; line-height: 1.3;
+  max-width: 104px; font-size: 11px; line-height: 1.3; font-variant-numeric: tabular-nums;
 }
 .scan-page-state .ok { color: var(--color-ok); }
 .scan-page-state .bad { color: var(--color-bad); font-weight: 600; }
+.scan-page-state .warn { color: var(--color-warn); }
 .scan-reshoot {
   padding: 2px 7px; min-height: 0; font-size: 11px; border-radius: var(--radius-sm);
   background: var(--color-bad-bg); color: var(--color-bad);

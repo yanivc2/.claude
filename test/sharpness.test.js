@@ -67,3 +67,31 @@ test('the OpenCV scanner is gone, along with the CSP holes it needed', () => {
   assert.doesNotMatch(appJs, /connect-src 'self' data:/);
   assert.equal(fs.existsSync(new URL('../public/vendor/opencv.js', import.meta.url)), false);
 });
+
+test('a page that cannot be scored still shows a verdict', () => {
+  // The owner reported "no colour at all" after photographing. The cause was that renderPages
+  // emitted no state when the score was unavailable, so a browser where the measurement failed
+  // was indistinguishable from one where the feature was missing. All three states must render.
+  assert.match(APP, /is-blurry/);
+  assert.match(APP, /is-sharp/);
+  assert.match(APP, /is-unknown/);
+  assert.match(APP, /לא נבדק/);
+  assert.match(APP, /scan-verdict/); // the pill, not only a border a phone can hide
+  assert.match(APP, /sharpError/); // and the reason is carried, not swallowed
+  const css = fs.readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
+  for (const cls of ['is-blurry', 'is-sharp', 'is-unknown']) {
+    assert.ok(css.includes(`.scan-page.${cls} .scan-verdict`), `${cls} colours the pill`);
+  }
+});
+
+test('the decode ladder keeps an untainted path before the blob: URL fallback', () => {
+  // iOS Safari rejects createImageBitmap's options argument on several versions. Dropping
+  // straight to <img>+blob: taints the canvas on WebKit, getImageData throws SecurityError, and
+  // the verdict silently never appears — which is the bug the owner hit. The middle rung (an
+  // ImageBitmap with NO options) never taints a canvas and must stay between them.
+  const decode = APP.slice(APP.indexOf('var decode = function'), APP.indexOf('legacyDecode(file, finish, resolve);\n          });'));
+  const withOptions = decode.indexOf('imageOrientation');
+  const plain = decode.indexOf('createImageBitmap(file)');
+  assert.ok(withOptions !== -1 && plain !== -1, 'both createImageBitmap calls are present');
+  assert.ok(withOptions < plain, 'the oriented decode is tried first');
+});
