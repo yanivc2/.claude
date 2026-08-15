@@ -76,6 +76,11 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
   invoices, last reconcile, open-checks count, unmatched cash, deposits history, Z-sequence gaps.
 - **Suppliers:** `routes/suppliers.js`, `services/suppliers.js`, `views/suppliers/*`. Multi-store
   assignment via `supplier_stores` (`_storepick.ejs`); payment methods incl אשראי/הו"ק.
+- **Scan → existing invoice:** a scan whose supplier + invoice number match an invoice already on
+  file is **attached** to it (`attachToInvoice` in `services/scan.js`) instead of creating a
+  duplicate payable: its photo fills an empty `image_path`, its lines are inserted only when the
+  invoice has none, and **recorded amounts are never overwritten** — a difference comes back as
+  `attach_amount_differs`. `approveDraft` returns `{invoiceId, attached}`.
 - **Invoices:** `routes/invoices.js`, `services/invoices.js`, `views/invoices/*`. `_zform`? no — invoice
   `new.ejs` has an inline payment section (methods: check/transfer/cash/credit/standing_order) that
   auto-creates a payment on save (R1/R5 enforced). Cash-in-Z payments surface via
@@ -102,11 +107,14 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
 - **Scan + catalog (from a parallel line of work):** `routes/scan.js`+`products.js`,
   `services/scan.js` (needs `@anthropic-ai/sdk`), `services/masterCatalog.js`/`products.js`,
   `lib/priceXml.js`/`ean.js`/`extractValidate.js`/`supplierMatch.js`/`pdfPages.js`.
-  - **Mobile capture:** `views/scan/capture.ejs` is just markup; the scanner lives in
-    `public/scan-capture.js` (getUserMedia viewfinder → OpenCV quad detection → stability +
-    sharpness gate → auto-shutter → `warpPerspective` → JPEG). OpenCV.js is vendored at
-    **root** `public/vendor/opencv.js` (10MB, lazy-loaded only when the camera opens, cached by
-    `public/sw.js` runtime cache; CSP needs `'wasm-unsafe-eval'` + `connect-src data:`).
+  - **Mobile capture:** `views/scan/capture.ejs` is just markup; `public/scan-capture.js` is the
+    whole flow. The OS camera (`<input capture="environment">`) is the only camera path — the
+    OpenCV viewfinder/auto-crop scanner was **removed** in round 11 because the owner measured a
+    plain photo as better input, and its two CSP relaxations went with it. Each captured page is
+    scored for blur (`σ(∇²I)/σ(I)` at a fixed 640px working size, `SHARP_MIN = 0.25`) → red/green
+    frame + "צלם שוב"; a warning, never a block. The threshold is calibrated by
+    `scripts/sharpness-calibrate.mjs` and `test/sharpness.test.js` asserts the script and the
+    browser score identically.
   - **Cost model — don't guess:** the API bills an image on **pixel dimensions only**
     (`⌈w/28⌉ × ⌈h/28⌉` tokens). Greyscale saves **nothing**; JPEG quality saves nothing.
     `config.ai.scanMaxEdge` (1800) is the real lever, and a PDF page costs an extra
@@ -116,9 +124,15 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
     (`str()` maps it to null); only numbers stay nullable. `test/scan-service.test.js` counts them.
   - **Shortened barcodes:** many suppliers print only the tail of the EAN (Tnuva prints `42435`
     for `7290000042435`). `lookupByCodes()` resolves a printed code of ≥5 digits by suffix, over
-    both the barcode and the מק"ט column → `catalog_suffix_match` (one candidate) or
-    `catalog_ambiguous` (several). Both are **offers** — the review screen adopts on a click,
-    nothing is ever written automatically.
+    both the barcode and the מק"ט column. Several candidates are **ranked** by `rankCandidates()`
+    (`extractValidate.js`): name overlap with the printed description decides (measured: it
+    separates 97% of ambiguous groups; manufacturer only 26%, and that column is 56% filled with
+    9,274 junk `,` values), + a bonus when the manufacturer is the invoice's supplier. A clear
+    winner → `catalog_suffix_match`, otherwise `catalog_ambiguous` with the list ranked. Code
+    length drives the badge: 5 digits resolve uniquely 64.5% of the time, 7 digits 99.4%.
+    Everything is an **offer** — the review screen adopts on a click, nothing is ever written
+    automatically. `test/catalog-identify.test.js` is the known-answer test over the 30 codes on
+    a real Tnuva invoice; see `docs/צילום-וחילוץ/קטלוגים/זיהוי-מוצר.md`.
   - **Catalog upload (הגדרות ← 🏷️ טעינת קטלוג-על):** `lib/catalogFile.js` maps Hebrew headers,
     repairs Excel-stripped leading zeros by GTIN check digit, and takes the median of a
     per-chain price column set. `lib/xlsxRead.js` reads .xlsx with no dependency. Because of the

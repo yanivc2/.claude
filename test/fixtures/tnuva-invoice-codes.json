@@ -1,0 +1,334 @@
+{
+ "42435": [
+  {
+   "barcode": "3664944642435",
+   "name": "סט אוכל 12 חלקים קרמ",
+   "manufacturer_name": ",",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  },
+  {
+   "barcode": "7290000042435",
+   "name": "חלב דל שומן בקרטון+פקק 1 ליטר 1%",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  },
+  {
+   "barcode": "7290019642435",
+   "name": "קונפיטורה אפרסק פסיפלורה ללא סוכר 600 גר",
+   "manufacturer_name": null,
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "43890": [
+  {
+   "barcode": "7290000543890",
+   "name": "אצבעות אנטריקוט בקר",
+   "manufacturer_name": ",",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  },
+  {
+   "barcode": "7290013843890",
+   "name": "100כפפות נטרילXLשחור KGR",
+   "manufacturer_name": "שניב תעשיות נייר",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  },
+  {
+   "barcode": "7290000043890",
+   "name": "רויון 1.5% בקרטון 1ל",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "44248": [
+  {
+   "barcode": "7290000044248",
+   "name": "רויון בקרטון 1.5% 500 מל",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "55329": [
+  {
+   "barcode": "7290000055329",
+   "name": "משקה יוגורט יופלה בטעם תות-מלון 250 גר",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "55336": [
+  {
+   "barcode": "7290000055336",
+   "name": "משקה יוגורט יופלה בטעם בננה אפרסק 250 גר",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "4119973": [
+  {
+   "barcode": "7290004119973",
+   "name": "מעדן קרלו שוקולד1.5% 125",
+   "manufacturer_name": "מחלבת אלון תבור",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "4120061": [
+  {
+   "barcode": "7290004120061",
+   "name": "מעדן קרלו שוניל3% 125מ\"ל",
+   "manufacturer_name": "מחלבת אלון תבור",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "4125578": [
+  {
+   "barcode": "7290004125578",
+   "name": "משקה סויה אלטרנטיב 1ליטר",
+   "manufacturer_name": "סוי מגיק",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "4125585": [
+  {
+   "barcode": "7290004125585",
+   "name": "משקה סויה על הבוקר 1 ליטר",
+   "manufacturer_name": "סוי מגיק",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "4130794": [
+  {
+   "barcode": "7290004130794",
+   "name": "משקה סויה טבעי מתיקות מופחתת 1ל",
+   "manufacturer_name": "סוי מגיק",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "4132552": [
+  {
+   "barcode": "7290004132552",
+   "name": "דיאט סויה טבעי 1 ליטר",
+   "manufacturer_name": "סוי מגיק",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "4136857": [
+  {
+   "barcode": "7290004136857",
+   "name": "גלי פטל 125 גרם תנובה",
+   "manufacturer_name": "סוי מגיק",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "5431883": [
+  {
+   "barcode": "7290005431883",
+   "name": "קינוחי עדן מלבי חלבי",
+   "manufacturer_name": "עדן קינוחים",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "5431890": [
+  {
+   "barcode": "7290005431890",
+   "name": "קינוחי עדן בוואריה ח",
+   "manufacturer_name": "עדן קינוחים",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "5431913": [
+  {
+   "barcode": "7290005431913",
+   "name": "עוגת גבינה פירורים 92 גר",
+   "manufacturer_name": "עדן קינוחים",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "5431920": [
+  {
+   "barcode": "7290005431920",
+   "name": "עוגת גינה פירורים לייט 78 גר",
+   "manufacturer_name": "עדן קינוחים",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "5431937": [
+  {
+   "barcode": "7290005431937",
+   "name": "קינוחי עדן טירמיסו ח",
+   "manufacturer_name": "עדן קינוחים",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "5431968": [
+  {
+   "barcode": "7290005431968",
+   "name": "קינוחי עדן מלבי שמנת",
+   "manufacturer_name": "עדן קינוחים",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "10324926": [
+  {
+   "barcode": "7290110324926",
+   "name": "משקה סויה ללא תוספת סוכר 1 ליטר",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "10325626": [
+  {
+   "barcode": "7290110325626",
+   "name": "משקה שקדים ללא תוספת סוכר 1 ליטר",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "10329846": [
+  {
+   "barcode": "7290110329846",
+   "name": "סויה BIO טבעי גביע Alternative 150 גרם",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "14760141": [
+  {
+   "barcode": "7290014760141",
+   "name": "משקה שקדים טרי 1 ליטר",
+   "manufacturer_name": "סוי מגיק",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "14761070": [
+  {
+   "barcode": "7290014761070",
+   "name": "YOLO שוקולד לבן מעולה 123 ג",
+   "manufacturer_name": "תנובה",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "14762800": [
+  {
+   "barcode": "7290014762800",
+   "name": "מעדן סויה שוקולד 125 גר",
+   "manufacturer_name": "סוי מגיק",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "16930695": [
+  {
+   "barcode": "7290116930695",
+   "name": "חלב טרי נטול לקטוז 2% 1 ליטר",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "16934327": [
+  {
+   "barcode": "7290116934327",
+   "name": "אייס קפה שיבולת שועל 1 ליטר אלטרנטיב",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "16936116": [
+  {
+   "barcode": "7290116936116",
+   "name": "מש.סויה ללא סוכר1ל תנובה",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "16936307": [
+  {
+   "barcode": "7290116936307",
+   "name": "חלב תנובה 3% שומן 2 ליטר מהדרין",
+   "manufacturer_name": "תנובה בע\"מ",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "16936628": [
+  {
+   "barcode": "7290116936628",
+   "name": "מאצה שיבולת שועל אלטרנטיב 1 ליטר",
+   "manufacturer_name": "תנובה בע\\\"מ\\n",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ],
+ "72961544": [
+  {
+   "barcode": "72961544",
+   "name": "יוגורט באדי תות 3% 1",
+   "manufacturer_name": "מחלבת אלון תבור",
+   "quantity": null,
+   "unit_qty": null,
+   "qty_in_package": null
+  }
+ ]
+}

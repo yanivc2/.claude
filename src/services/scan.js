@@ -3,6 +3,7 @@ import { getExecutor, nowTs, tx } from '../db/adapter.js';
 import { config } from '../config.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeClause } from '../lib/scope.js';
+import { formatIls, fromAgorot } from '../lib/money.js';
 import { del, getObject } from '../lib/storage.js';
 import { validateExtraction } from '../lib/extractValidate.js';
 import { looksLikePdf, pdfPageCount } from '../lib/pdfPages.js';
@@ -350,11 +351,20 @@ async function probeDuplicates(id, normalized, x) {
       header.invoiceNumber,
     ]);
     if (clash) {
+      // Same supplier, same invoice number: this is the document that invoice was recorded from,
+      // not a second one. Keeping the id here is what lets approve ATTACH the photos and the line
+      // items to it instead of creating a duplicate payable — the id used to be found and thrown
+      // away, leaving a warning nobody could act on without leaving the screen.
+      header.matchedInvoiceId = clash.id;
       addFlag('invoiceNumber', 'dup_number');
       warnings.push({
         code: 'dup_number',
-        message: `כבר קיימת חשבונית #${clash.id} לספק זה עם מספר ${header.invoiceNumber} — ודאו שאינה כפילות.`,
+        message:
+          `כבר קיימת חשבונית #${clash.id} לספק זה עם מספר ${header.invoiceNumber} — ` +
+          'האישור יצרף אליה את הצילום והשורות במקום ליצור חשבונית חדשה.',
       });
+    } else {
+      header.matchedInvoiceId = null;
     }
   }
 
@@ -598,6 +608,30 @@ export async function approveDraft(
   const lineSign = isCredit ? -1 : 1;
 
   return tx(async (t) => {
+    // Same supplier + same invoice number as an invoice already on file? Then this photo IS that
+    // invoice's document, and the right move is to complete the existing record rather than to
+    // create a second payable for the same debt. Re-checked here, not trusted from the draft: the
+    // supplier or the number may have been edited on the review screen since the probe ran.
+    const attachTo = await matchingInvoice(header, t);
+    if (attachTo) {
+      const result = await attachToInvoice(attachTo, draft, normalized, lineSign, isCredit, actor, t);
+      await logAction(
+        {
+          userId: actor?.id ?? null,
+          action: 'scan.attach',
+          entityType: 'invoice_draft',
+          entityId: id,
+          details: { invoiceId: attachTo.id, lines: result.linesAdded, imageAttached: result.imageAttached },
+        },
+        t,
+      );
+      await t.run(
+        "UPDATE invoice_drafts SET status = 'committed', invoice_id = ?, normalized = ?, error = NULL, updated_at = ? WHERE id = ?",
+        [attachTo.id, JSON.stringify(normalized), nowTs(), id],
+      );
+      return { invoiceId: attachTo.id, attached: true, warnings: result.warnings };
+    }
+
     const { invoice, warnings } = await createInvoice(
       {
         supplierId: header.supplierId,
@@ -672,8 +706,98 @@ export async function approveDraft(
       },
       t,
     );
-    return { invoiceId: invoice.id, warnings };
+    return { invoiceId: invoice.id, attached: false, warnings };
   });
+}
+
+/** The invoice this scan is a document OF, or null. Supplier + number is the identity pair. */
+async function matchingInvoice(header, x) {
+  if (!header.supplierId || !header.invoiceNumber) return null;
+  return (
+    (await x.one('SELECT * FROM invoices WHERE supplier_id = ? AND invoice_number = ?', [
+      header.supplierId,
+      header.invoiceNumber,
+    ])) ?? null
+  );
+}
+
+/**
+ * Attach a scanned document to the invoice that was already recorded from it: its photo, its line
+ * items, and the products those lines feed.
+ *
+ * What this deliberately does NOT do is change the invoice's recorded amounts. If the scan reads a
+ * different total than what was keyed in, that is a discrepancy for a human to settle — silently
+ * rewriting a payable from a photo would be the worst possible behaviour here, so it comes back as
+ * a warning naming both numbers and the recorded figure stands.
+ *
+ * @returns {Promise<{linesAdded:number, imageAttached:boolean, warnings:Array<{code:string,message:string}>}>}
+ */
+async function attachToInvoice(invoice, draft, normalized, lineSign, isCredit, actor, t) {
+  const header = normalized.header;
+  const warnings = [];
+
+  // Only fill an empty image slot — an invoice that already has a document keeps it, and the
+  // scan's pages stay reachable through the draft either way.
+  const imageAttached = !invoice.image_path && Boolean(draft.images[0]);
+  if (imageAttached) {
+    await t.run('UPDATE invoices SET image_path = ? WHERE id = ?', [draft.images[0], invoice.id]);
+  }
+
+  // Lines are added only when the invoice has none. Appending to an invoice that already has line
+  // items would double every quantity and every price-history point it feeds.
+  const existing = await t.one('SELECT COUNT(*) AS n FROM invoice_lines WHERE invoice_id = ?', [invoice.id]);
+  let linesAdded = 0;
+  if (Number(existing?.n ?? 0) > 0) {
+    warnings.push({
+      code: 'attach_lines_exist',
+      message: `לחשבונית #${invoice.id} כבר יש שורות — הצילום צורף אליה, אך השורות מהסריקה לא נוספו כדי לא לכפול אותן.`,
+    });
+  } else {
+    const byLine = await upsertProductsFromLines(
+      header.supplierId,
+      invoice.id,
+      header.invoiceDate,
+      normalized.lines,
+      { recordPrices: !isCredit },
+      t,
+    );
+    for (const line of normalized.lines) {
+      await t.run(
+        `INSERT INTO invoice_lines
+           (invoice_id, product_id, line_no, name, barcode, sku, quantity, unit_quantity,
+            unit_cost, unit_cost_source, pack_cost, line_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          invoice.id,
+          byLine.get(line.lineNo) ?? null,
+          line.lineNo,
+          line.name ?? '',
+          line.barcode ?? null,
+          line.sku ?? null,
+          line.quantity ?? 1,
+          line.unitQuantity ?? null,
+          line.unitCost === null || line.unitCost === undefined ? null : Math.abs(line.unitCost),
+          line.unitCostSource,
+          line.packCost === null || line.packCost === undefined ? null : Math.abs(line.packCost),
+          lineSign * Math.abs(line.lineTotal ?? 0),
+        ],
+      );
+      linesAdded++;
+    }
+  }
+
+  // The amounts are compared, never overwritten.
+  const recorded = Math.abs(Number(invoice.total_amount ?? 0));
+  const scanned = Math.abs(Number(header.totalAmount ?? 0));
+  if (scanned && Math.abs(recorded - scanned) > 100) {
+    warnings.push({
+      code: 'attach_amount_differs',
+      message:
+        `הסכום בחשבונית #${invoice.id} הוא ${formatIls(fromAgorot(recorded))} ` +
+        `ובצילום נקרא ${formatIls(fromAgorot(scanned))} — הסכום הרשום לא שונה. בדקו מי מהם נכון.`,
+    });
+  }
+  return { linesAdded, imageAttached, warnings };
 }
 
 /**

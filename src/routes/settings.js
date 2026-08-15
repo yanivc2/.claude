@@ -23,6 +23,7 @@ import { PERMISSIONS, ROLE_PRESETS } from '../lib/permissions.js';
 import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { verifyPassword, generatePassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll } from '../services/backup.js';
+import { storageSelfTest } from '../lib/storage.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
 import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFile.js';
 import { looksLikeXlsx } from '../lib/xlsxRead.js';
@@ -554,10 +555,24 @@ router.post('/catalog-import', requireOwner, (req, res, next) => {
   });
 });
 
+// Storage self-test (owner-only). "The photos don't open" is not reproducible off the real store:
+// uploads clearly work, the read fails, and until now nothing was logged. This writes a tiny file,
+// reads it back and deletes it, reporting each step — one click instead of a deploy cycle.
+router.post('/storage-test', requireOwner, async (req, res, next) => {
+  try {
+    const result = await storageSelfTest();
+    const detail = result.steps.map((s) => `${s.ok ? '✓' : '✗'} ${s.step}: ${s.detail}`).join(' · ');
+    const where = result.access === 'n/a' ? result.backend : `${result.backend}, ${result.access}`;
+    return done(res, `${result.ok ? '✅ אחסון הקבצים תקין' : '❌ בדיקת האחסון נכשלה'} (${where}) — ${detail}`);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // A GET on any action path (a reload of an old POST URL, a bookmark) is not a 404 — it is
 // someone who is already where they meant to be.
 router.get(
-  ['/db-upgrade', '/catalog-import', '/restore', '/reset-data', '/password', '/users', '/companies', '/stores'],
+  ['/db-upgrade', '/catalog-import', '/storage-test', '/restore', '/reset-data', '/password', '/users', '/companies', '/stores'],
   (req, res) => res.redirect(303, '/settings'),
 );
 

@@ -240,13 +240,22 @@ router.get('/:id/status.json', async (req, res, next) => {
 
 // Serve one photographed page (auth-gated + company-scoped, same pattern as /invoices/:id/image).
 router.get('/:id/image/:idx', async (req, res, next) => {
+  const id = Number(req.params.id);
+  const idx = Number(req.params.idx);
   try {
-    const draft = await getDraft(Number(req.params.id));
-    const ref = draft.images[Number(req.params.idx)];
-    if (!ref) return res.status(404).send('אין תמונה');
+    const draft = await getDraft(id);
+    const ref = draft.images[idx];
+    if (!ref) {
+      // Name the miss: "no image" with 2 pages stored means a wrong index, not a lost file.
+      // eslint-disable-next-line no-console
+      console.error('[scan] page image missing', { draft: id, page: idx, pages: draft.images.length });
+      return res.status(404).send('אין תמונה');
+    }
     const { buffer, contentType } = await getObject(ref);
     return res.type(contentType).send(buffer);
   } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[scan] page image failed', { draft: id, page: idx, error: err.message });
     next(err);
   }
 });
@@ -270,12 +279,14 @@ router.post('/:id/approve', async (req, res, next) => {
   let edits = null; // stays null when the form itself could not be parsed
   try {
     edits = parseEdits(b);
-    const { invoiceId } = await approveDraft(
+    const { invoiceId, attached } = await approveDraft(
       id,
       { edits, confirm: b.confirm === '1', confirmReason: b.confirm_reason || null },
       req.user,
     );
-    return res.redirect(303, `/invoices/${invoiceId}?scanned=1`);
+    // `attached` means the scan completed an invoice that was already on file rather than
+    // creating one, and the invoice screen says so instead of "נקלטה חשבונית חדשה".
+    return res.redirect(303, `/invoices/${invoiceId}?scanned=${attached ? 'attached' : '1'}`);
   } catch (err) {
     // The approve transaction rolled back, so the draft is untouched — persist what the human
     // typed before re-rendering, or their corrections would be lost on the confirmation round.

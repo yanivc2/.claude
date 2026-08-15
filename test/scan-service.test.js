@@ -725,3 +725,76 @@ test('text fields are plain strings so an empty one reads as "not present"', asy
   assert.equal(out.lines[0].barcode, null);
   assert.equal(out.lines[0].sku, null);
 });
+
+test('a scan of an invoice already on file is attached to it, not duplicated', async () => {
+  // The employee photographs a delivery note for an invoice the office already keyed in. Creating
+  // a second invoice would double the payable; the photo belongs ON the record that exists.
+  const db = await freshDb();
+  const { sec, store, supplier } = await setup(db);
+  const { invoice } = await createInvoice(
+    {
+      supplierId: supplier.id, storeId: store.id, invoiceNumber: '10025', allocationNumber: null,
+      invoiceDate: '2026-07-05', amountBeforeVat: toAgorot(1000), vatAmount: toAgorot(180),
+      docType: 'tax_invoice',
+    },
+    sec,
+    db,
+  );
+
+  const draft = await uploaded(db, sec, store);
+  await processDraft(draft.id, sec, deps(), db);
+  const after = await getDraft(draft.id, db);
+  assert.equal(after.normalized.header.matchedInvoiceId, invoice.id);
+
+  const res = await approveDraft(draft.id, {}, sec, db);
+  assert.equal(res.attached, true);
+  assert.equal(res.invoiceId, invoice.id);
+
+  // One invoice, not two — and it now carries the photo and the line items it was missing.
+  const invoices = await db.many('SELECT * FROM invoices WHERE supplier_id = ?', [supplier.id]);
+  assert.equal(invoices.length, 1);
+  assert.equal(invoices[0].image_path, 'page-1.jpg');
+  const lines = await db.many('SELECT * FROM invoice_lines WHERE invoice_id = ?', [invoice.id]);
+  assert.equal(lines.length, 2);
+  const products = await db.many('SELECT * FROM products WHERE supplier_id = ?', [supplier.id]);
+  assert.equal(products.length, 2);
+
+  const committed = await getDraft(draft.id, db);
+  assert.equal(committed.status, 'committed');
+  assert.equal(committed.invoice_id, invoice.id);
+});
+
+test('attaching never rewrites the recorded amount, and never doubles existing lines', async () => {
+  const db = await freshDb();
+  const { sec, store, supplier } = await setup(db);
+  // Recorded at a different total than the scan reads, and already carrying its own line.
+  const { invoice } = await createInvoice(
+    {
+      supplierId: supplier.id, storeId: store.id, invoiceNumber: '10025', allocationNumber: null,
+      invoiceDate: '2026-07-05', amountBeforeVat: toAgorot(900), vatAmount: toAgorot(162),
+      docType: 'tax_invoice', imagePath: 'already-there.jpg',
+    },
+    sec,
+    db,
+  );
+  await db.run(
+    `INSERT INTO invoice_lines (invoice_id, line_no, name, quantity, unit_cost, unit_cost_source, line_total)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [invoice.id, 1, 'שורה שהוקלדה', 1, toAgorot(900), 'manual', toAgorot(900)],
+  );
+
+  const draft = await uploaded(db, sec, store);
+  await processDraft(draft.id, sec, deps(), db);
+  const res = await approveDraft(draft.id, {}, sec, db);
+
+  assert.equal(res.attached, true);
+  const codes = res.warnings.map((w) => w.code);
+  assert.ok(codes.includes('attach_amount_differs'), 'the discrepancy is reported');
+  assert.ok(codes.includes('attach_lines_exist'), 'and the existing lines are left alone');
+
+  const row = await db.one('SELECT * FROM invoices WHERE id = ?', [invoice.id]);
+  assert.equal(Number(row.total_amount), toAgorot(1062)); // the keyed-in figure stands
+  assert.equal(row.image_path, 'already-there.jpg'); // an existing document is not replaced
+  const lines = await db.many('SELECT * FROM invoice_lines WHERE invoice_id = ?', [invoice.id]);
+  assert.equal(lines.length, 1);
+});

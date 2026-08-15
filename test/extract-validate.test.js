@@ -547,27 +547,86 @@ test('a shortened code resolves to the full barcode — offered, never applied',
   assert.equal(line.barcode, '42435');
 });
 
-test('an ambiguous shortened code lists candidates instead of choosing', () => {
-  const row = (barcode, name) => ({ barcode, name, manufacturer_name: null, quantity: null, unit_qty: null, qty_in_package: null });
-  const masterCatalog = {
-    exact: new Map(),
-    byCode: new Map([['4136857', [row('7290004136857', 'גלי פטל 125 גרם'), row('7291114136857', 'מוצר אחר')]]]),
-  };
-  const out = validateExtraction(
+/** Build an extraction whose single line carries `printed` as its description and `code` as מק"ט. */
+function draftWithCode(printed, code, masterCatalog, supplierName = 'תנובה') {
+  return validateExtraction(
     {
-      supplier_name: 'תנובה', supplier_tax_id: '', supplier_phone: '', invoice_number: '1',
+      supplier_name: supplierName, supplier_tax_id: '', supplier_phone: '', invoice_number: '1',
       allocation_number: '', invoice_date: '2026-08-06', doc_type: 'tax_invoice',
       amount_before_vat: 10, vat_amount: 1.8, total_amount: 11.8,
-      lines: [{ name: 'גלי פטל', barcode: '', sku: '4136857', quantity: 1, unit_quantity: null, unit_cost: 10, pack_cost: null, line_total: 10, confidence: 'high' }],
+      lines: [{ name: printed, barcode: '', sku: code, quantity: 1, unit_quantity: null, unit_cost: 10, pack_cost: null, line_total: 10, confidence: 'high' }],
       field_confidence: {}, notes: '',
     },
     { suppliers: [], vatRate: 0.18, masterCatalog },
   );
-  const line = out.lines[0];
+}
+
+const catRow = (barcode, name, manufacturer = null) => ({
+  barcode, name, manufacturer_name: manufacturer, quantity: null, unit_qty: null, qty_in_package: null,
+});
+
+test('several candidates: the one the line actually describes wins', () => {
+  const masterCatalog = {
+    exact: new Map(),
+    byCode: new Map([['4136857', [catRow('7290004136857', 'גלי פטל 125 גרם'), catRow('7291114136857', 'מוצר אחר')]]]),
+  };
+  const line = draftWithCode('גלי פטל', '4136857', masterCatalog).lines[0];
   // The code lives in the מק"ט column here, not the barcode column — both are tried.
+  assert.ok(line.flags.includes('catalog_suffix_match'));
+  assert.equal(line.catalog.barcode, '7290004136857');
+  assert.equal(line.catalog.chosenBy, 'name');
+  // The alternatives stay on the line, best first, so a wrong pick is one click from corrected.
+  assert.deepEqual(line.candidates.map((c) => c.barcode), ['7290004136857', '7291114136857']);
+  assert.equal(line.barcode, null); // and nothing was written over the extraction
+});
+
+test('when nothing distinguishes the candidates it stays ambiguous', () => {
+  const masterCatalog = {
+    exact: new Map(),
+    byCode: new Map([['42435', [catRow('3664944642435', 'סט אוכל 12 חלקים'), catRow('7290019642435', 'קונפיטורה אפרסק')]]]),
+  };
+  // A description that matches neither candidate must not be forced onto one of them.
+  const line = draftWithCode('פריט כלשהו', '42435', masterCatalog).lines[0];
   assert.ok(line.flags.includes('catalog_ambiguous'));
-  assert.equal(line.candidates.length, 2);
   assert.equal(line.catalog, null);
+  assert.equal(line.candidates.length, 2);
+});
+
+test('the supplier who issued the invoice breaks a tie the name cannot', () => {
+  // The real case: `42435` returns a ceramic dinner set, Tnuva's milk, and peach jam. "הומוגני 1%
+  // דל" shares only "דל" and "1" with the milk — enough on its own, but the fact that Tnuva made
+  // it is what makes this unambiguous.
+  const masterCatalog = {
+    exact: new Map(),
+    byCode: new Map([['42435', [
+      catRow('3664944642435', 'סט אוכל 12 חלקים קרמ', ','), // the literal junk manufacturer in the real file
+      catRow('7290000042435', 'חלב דל שומן בקרטון+פקק 1 ליטר 1%', 'תנובה בע"מ'),
+      catRow('7290019642435', 'קונפיטורה אפרסק פסיפלורה ללא סוכר 600 גר'),
+    ]]]),
+  };
+  const line = draftWithCode('הומוגני 1% דל', '42435', masterCatalog, 'תנובה').lines[0];
+  assert.ok(line.flags.includes('catalog_suffix_match'));
+  assert.equal(line.catalog.barcode, '7290000042435');
+  assert.equal(line.catalog.chosenBy, 'supplier+name');
+  assert.equal(line.candidates[0].barcode, '7290000042435');
+  // `,` is not a manufacturer. Reporting it as one would be noise on screen and, worse, would
+  // make two candidates look distinguishable when they are not.
+  assert.equal(line.candidates.find((c) => c.barcode === '3664944642435').manufacturer, null);
+});
+
+test('a 5-digit code is a suggestion; a 7-digit one is near-certain', () => {
+  // Measured on the owner's 80,411-item catalog: 5 digits resolve uniquely 64.5% of the time,
+  // 7 digits 99.4%. The same mechanism, very different weight — so the line says which.
+  const short = {
+    exact: new Map(),
+    byCode: new Map([['42435', [catRow('7290000042435', 'חלב דל שומן 1%', 'תנובה')]]]),
+  };
+  const long = {
+    exact: new Map(),
+    byCode: new Map([['4136857', [catRow('7290004136857', 'גלי פטל 125 גרם', 'תנובה')]]]),
+  };
+  assert.equal(draftWithCode('חלב', '42435', short).lines[0].catalog.nearCertain, false);
+  assert.equal(draftWithCode('גלי פטל', '4136857', long).lines[0].catalog.nearCertain, true);
 });
 
 test('a plain Map of exact barcodes still works (older callers)', () => {

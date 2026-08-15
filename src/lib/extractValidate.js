@@ -5,7 +5,7 @@
 // Hebrew warning (for the human). A human always approves before anything is written.
 
 import { fromAgorot, formatIls } from './money.js';
-import { matchSupplier } from './supplierMatch.js';
+import { matchSupplier, normalizeSupplierName } from './supplierMatch.js';
 import { eanChecksumOk } from './ean.js';
 
 /**
@@ -198,6 +198,83 @@ function looseName(s) {
     .trim();
 }
 
+/** Word set of a name, for comparing a printed description against a catalog name. */
+function tokens(s) {
+  return new Set(
+    looseName(s)
+      .split(' ')
+      .filter((w) => w.length > 1),
+  );
+}
+
+/** Jaccard overlap of two token sets: 0 = nothing in common, 1 = identical. */
+function overlap(a, b) {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const w of a) if (b.has(w)) shared++;
+  return shared / (a.size + b.size - shared);
+}
+
+/**
+ * A manufacturer name, or null when the column holds junk. 9,274 rows of the owner's catalog
+ * carry the literal value `,` — treating that as a real manufacturer would let it "match" and,
+ * worse, would make two candidates look distinguishable when they are not.
+ */
+function manufacturerOf(row) {
+  const raw = row?.manufacturer_name ?? null;
+  return raw && normalizeSupplierName(raw) ? raw : null;
+}
+
+/**
+ * How confidently a printed short code identifies a product, measured on the owner's own
+ * 80,411-item catalog:
+ *
+ *     code length   resolves to exactly one product
+ *          5              64.5%
+ *          6              94.3%
+ *          7              99.4%
+ *          8              99.9%
+ *
+ * So the same mechanism carries very different weight at 5 digits than at 8, and the review
+ * screen should not present them identically. Below 7 it is a suggestion; at 7+ it is all but
+ * certain. (The real Tnuva invoice prints six 5-digit codes and twenty-five 7-8 digit ones.)
+ */
+export const CODE_NEAR_CERTAIN_LEN = 7;
+
+// Thresholds for picking between several catalog candidates for one shortened code. Set from the
+// two genuinely ambiguous codes on the real Tnuva invoice, not by feel:
+//
+//   `42435` → {סט אוכל 12 חלקים, חלב דל שומן 1% · תנובה, קונפיטורה אפרסק}, printed "הומוגני 1% דל"
+//   `43890` → {אצבעות אנטריקוט, כפפות ניטריל, רויון 1.5% · תנובה}, printed "רויון 1 ליטר"
+//
+// In both, the right answer scores 0.25-0.34 on name overlap and every wrong one scores exactly
+// 0.00 — which is not luck: across the whole catalog, 97% of ambiguous groups hold products whose
+// names have nothing in common (a wine, a six-pack, matzah and a food coupon share a code tail).
+// So a real winner separates itself by a wide margin, and anything close is genuinely unclear.
+const NAME_FLOOR = 0.15; // the winner must actually share words with what was printed
+const NAME_MARGIN = 0.12; // …and clearly beat the runner-up
+const SUPPLIER_BONUS = 0.35; // the candidate is made by the supplier who issued the invoice
+
+/**
+ * Rank catalog candidates for one printed code against what the line actually says.
+ * Pure and exported for testing; returns the candidates best-first with their scores.
+ *
+ * @param {object[]} rows catalog rows sharing the printed code
+ * @param {{printedName?: string|null, supplierName?: string|null}} context
+ */
+export function rankCandidates(rows, { printedName = null, supplierName = null } = {}) {
+  const printed = tokens(printedName);
+  const supplier = supplierName ? normalizeSupplierName(supplierName) : '';
+  return (rows || [])
+    .map((row) => {
+      const manufacturer = manufacturerOf(row);
+      const bySupplier = Boolean(supplier && manufacturer && normalizeSupplierName(manufacturer) === supplier);
+      const byName = overlap(printed, tokens(row.name));
+      return { row, score: byName + (bySupplier ? SUPPLIER_BONUS : 0), byName, bySupplier };
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
 /**
  * Normalize one extracted line. `unitCost` is always the price of ONE INDIVIDUAL item —
  * that is what the product catalog compares over time. When the line carries a separate
@@ -209,7 +286,7 @@ function looseName(s) {
  * without a hit flags a likely misread. Absence from the catalog alone is never an error —
  * it holds one chain's range, not the world.
  */
-function normalizeLine(raw, lineNo, masterCatalog = null) {
+function normalizeLine(raw, lineNo, masterCatalog = null, supplierName = null) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const flags = [];
   const quantity = num(src.quantity);
@@ -244,7 +321,7 @@ function normalizeLine(raw, lineNo, masterCatalog = null) {
   const sku = str(src.sku);
   const catalogInfo = (row, printedName) => ({
     name: row.name,
-    manufacturer: row.manufacturer_name ?? null,
+    manufacturer: manufacturerOf(row),
     quantity: num(row.quantity),
     unitQty: row.unit_qty ?? null,
     qtyInPackage: num(row.qty_in_package),
@@ -253,11 +330,12 @@ function normalizeLine(raw, lineNo, masterCatalog = null) {
 
   // Identity, in order of certainty:
   //   1. the full barcode is printed and is in the catalog          → catalog_match
-  //   2. only a SHORTENED code is printed (Tnuva prints `42435` for `7290000042435`), and exactly
-  //      one catalog barcode ends with it                            → catalog_suffix_match
-  //   3. same, but several barcodes end with it                      → catalog_ambiguous
-  // Nothing here overwrites what was extracted. A suffix hit is an offer the review screen makes
-  // to a human, because a shortened code is a weaker claim than a printed 13-digit barcode.
+  //   2. only a SHORTENED code is printed (Tnuva prints `42435` for `7290000042435`), and one
+  //      catalog barcode ends with it — or several do and one of them is clearly the product the
+  //      line describes                                              → catalog_suffix_match
+  //   3. several, with no clear winner                               → catalog_ambiguous, ranked
+  // Nothing here overwrites what was extracted. Every hit is an offer the review screen makes to
+  // a human, because a shortened code is a weaker claim than a printed 13-digit barcode.
   const exact = masterCatalog?.exact ?? masterCatalog; // plain Map: older callers pass one directly
   const byCode = masterCatalog?.byCode ?? null;
   let catalog = null;
@@ -269,13 +347,40 @@ function normalizeLine(raw, lineNo, masterCatalog = null) {
     catalog = catalogInfo(hit, name);
   } else {
     // The shortened code turns up in the barcode column as often as in the מק"ט column.
-    const found = [barcode, sku].reduce((acc, code) => acc || (code ? byCode?.get?.(code) : null), null);
+    let printedCode = null;
+    const found = [barcode, sku].reduce((acc, code) => {
+      if (acc || !code) return acc;
+      const rows = byCode?.get?.(code) ?? null;
+      if (rows) printedCode = code;
+      return rows;
+    }, null);
+    const adopt = (row, ranked) => ({
+      ...catalogInfo(row, name),
+      barcode: row.barcode,
+      codeLen: printedCode ? printedCode.length : null,
+      // Near-certain at 7+ digits (99.4% of codes that long resolve to one product), a suggestion
+      // below that. The review screen words the badge from this rather than guessing.
+      nearCertain: Boolean(printedCode && printedCode.length >= CODE_NEAR_CERTAIN_LEN),
+      ...(ranked ? { chosenBy: ranked.bySupplier ? 'supplier+name' : 'name' } : {}),
+    });
+
     if (found && found.length === 1) {
       flags.push('catalog_suffix_match');
-      catalog = { ...catalogInfo(found[0], name), barcode: found[0].barcode };
+      catalog = adopt(found[0], null);
     } else if (found && found.length > 1) {
-      flags.push('catalog_ambiguous');
-      candidates = found.slice(0, 6).map((row) => ({ ...catalogInfo(row, name), barcode: row.barcode }));
+      const ranked = rankCandidates(found, { printedName: name, supplierName });
+      const [best, next] = ranked;
+      if (best.score >= NAME_FLOOR && best.score - (next ? next.score : 0) >= NAME_MARGIN) {
+        // One candidate matches what the line actually describes; the rest are unrelated products
+        // that happen to end in the same digits. Still an offer, never an automatic write.
+        flags.push('catalog_suffix_match');
+        catalog = adopt(best.row, best);
+      } else {
+        flags.push('catalog_ambiguous');
+      }
+      // Ranked either way: even when one is adopted, the alternatives stay visible in order, so
+      // a human correcting a bad pick sees the runner-up first instead of an arbitrary list.
+      candidates = ranked.slice(0, 6).map((c) => ({ ...catalogInfo(c.row, name), barcode: c.row.barcode }));
     } else if (barcode && eanChecksumOk(barcode) === false) {
       flags.push('barcode_invalid');
     }
@@ -410,7 +515,10 @@ export function validateExtraction(extraction, { suppliers = [], vatRate = 0.18,
 
   // --- שורות -------------------------------------------------------------------
   const rawLines = Array.isArray(src.lines) ? src.lines : [];
-  const lines = rawLines.map((line, i) => normalizeLine(line, i + 1, masterCatalog));
+  // The supplier goes in so a shortened code can be resolved by who made the product:
+  // prefer the matched supplier's canonical name, falling back to what was printed.
+  const lineSupplier = (match && match.supplier && match.supplier.name) || supplierName;
+  const lines = rawLines.map((line, i) => normalizeLine(line, i + 1, masterCatalog, lineSupplier));
 
   // ברקוד עם ספרת ביקורת שגויה וללא התאמת קטלוג — כנראה קריאה שגויה מהצילום.
   // אזהרה מרוכזת אחת; catalog_match לא מייצר אזהרה — האישור מוצג ברמת השורה בלבד.

@@ -25,7 +25,7 @@ import productRoutes from './routes/products.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-15·52';
+const BUILD_VERSION = '2026-08-15·53';
 
 export function createApp() {
   const app = express();
@@ -37,10 +37,6 @@ export function createApp() {
 
   app.use(express.urlencoded({ extended: true }));
   app.use(express.static(path.join(__dirname, 'public')));
-  // Root-level public/ holds vendored third-party assets (public/vendor/opencv.js). In production
-  // Vercel checks the filesystem before applying the /(.*) rewrite, so these are served by the CDN
-  // and never stream through the function; this mount is what makes the same paths work locally.
-  app.use(express.static(path.join(config.projectRoot, 'public'), { maxAge: '30d', immutable: true }));
 
   // Never let the browser (or Safari's back-forward cache) serve a stale page. Runs BEFORE the
   // auth gate so it also covers the /login redirect and every other dynamic response — a fresh
@@ -65,14 +61,11 @@ export function createApp() {
         "img-src 'self' data: blob:",
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' https://fonts.gstatic.com",
-        // 'wasm-unsafe-eval' is required to instantiate the vendored OpenCV.js WebAssembly module
-        // used by the invoice scanner. It permits WASM compilation only — it does NOT re-enable
-        // eval() or inline-script injection for JavaScript.
-        "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
-        // data: is needed for the same reason: OpenCV.js is a SINGLE_FILE emscripten build whose
-        // WASM payload is a data: URI it fetches from itself. A data: URI carries no network
-        // egress, so this cannot be used to exfiltrate anything.
-        "connect-src 'self' data:",
+        // No 'wasm-unsafe-eval' and no `data:` in connect-src: both existed only for the vendored
+        // OpenCV.js build behind the old auto-scanner, which is gone. Capture is now the phone's
+        // own camera plus a sharpness check in plain canvas.
+        "script-src 'self' 'unsafe-inline'",
+        "connect-src 'self'",
         "object-src 'none'",
         "base-uri 'self'",
         "form-action 'self'",

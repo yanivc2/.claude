@@ -769,104 +769,25 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
 }
 .scan-thumb-tools button:hover { background: rgba(255,255,255,.16); }
 
-/* While the viewfinder is open the very same thumbnails dock over the video as one scrolling
-   row — the wrapping grid would eat half the screen the camera is supposed to fill. */
-.scan-thumbs.scan-strip {
-  flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-x: contain;
-  margin: 0; gap: var(--space-2); scrollbar-width: none;
-}
-.scan-thumbs.scan-strip::-webkit-scrollbar { height: 0; }
-.scan-thumbs.scan-strip .scan-page { flex: none; }
-.scan-thumbs.scan-strip .scan-thumb { width: 64px; height: 82px; }
-.scan-thumbs.scan-strip .scan-thumb-tools button { min-height: 22px; font-size: 13px; }
-.scan-thumbs.scan-strip .scan-page-meta { display: none; } /* no room at 64px — the page grid keeps them */
-
-/* Live scanner (getUserMedia + OpenCV edge detection).
-   The viewfinder is a native <dialog> so it can actually take over the screen: the top layer puts
-   it outside .page's max-width and above the nav without a z-index war, and footer.ejs already
-   exempts dialog[open] from the PWA pull-to-refresh / swipe-back gestures — which over a live
-   camera fight the hand that is holding the phone steady. */
-dialog.scan-full {
-  position: fixed; inset: 0; margin: 0; padding: 0;
-  width: 100vw; height: 100vh;
-  width: 100dvw; height: 100dvh; /* dvh/dvw where supported — the vh pair above is the fallback */
-  max-width: none; max-height: none;
-  border: 0; border-radius: 0; background: #000; color: #fff;
-  overflow: hidden; overscroll-behavior: contain;
-  z-index: 60; /* only ever consulted by a browser with no <dialog>: there this is a plain layer */
-}
-dialog.scan-full::backdrop { background: #000; }
-/* While the viewfinder is up the video IS the screen — nothing behind it may scroll. */
-html:has(dialog.scan-full[open]) { overflow: hidden; }
-
-.scan-stage { position: absolute; inset: 0; background: #000; }
-.scan-stage video { width: 100%; height: 100%; object-fit: cover; display: block; }
-.scan-live-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.scan-live-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
-.scan-live-flash.on { animation: scan-flash .28s ease-out; }
-@keyframes scan-flash { from { opacity: .85; } to { opacity: 0; } }
-
-/* The controls float on the video instead of pushing it up the page. env() keeps them off the
-   notch and the home indicator — the viewport meta carries viewport-fit=cover, so on an installed
-   PWA those insets are real. */
-.scan-hud {
-  position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: space-between;
-  padding: calc(env(safe-area-inset-top, 0px) + var(--space-3)) calc(env(safe-area-inset-right, 0px) + var(--space-3))
-           calc(env(safe-area-inset-bottom, 0px) + var(--space-3)) calc(env(safe-area-inset-left, 0px) + var(--space-3));
-  pointer-events: none; /* the viewfinder itself stays untouched; only the control panel takes taps */
-}
-.scan-hud-top { display: flex; align-items: flex-start; gap: var(--space-2); }
-.scan-hud-bottom {
-  pointer-events: auto;
-  display: flex; flex-direction: column; gap: var(--space-2);
-  max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
-  padding: var(--space-3); border-radius: var(--radius-lg);
-  background: rgba(8,9,16,.62); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-}
-.scan-hud-opts { display: flex; flex-direction: column; gap: 5px; }
-/* Nothing captured yet → no strip, and no gap where the strip would have been. */
-#scanThumbDock:has(> .scan-thumbs:empty) { display: none; }
-.scan-hud .scan-diag { margin: 0; }
-.scan-live-count {
-  align-self: flex-start; background: rgba(0,0,0,.6); color: #fff;
-  border-radius: 999px; font-size: 12px; line-height: 1.6; padding: 3px 9px;
-}
-.scan-live-hint {
-  margin: 0; text-align: center; font-size: 13.5px; color: rgba(255,255,255,.82); min-height: 1.4em;
-}
-.scan-live-hint.ok { color: var(--color-ok); }
-.scan-live-hint.warn { color: var(--color-warn); }
-.scan-live-hint.bad { color: rgba(255,255,255,.82); }
-.scan-live-bar { display: flex; align-items: center; justify-content: center; gap: var(--space-3); }
-/* Over video the standard transparent .btn reads as a floating word — give it a body. */
-.scan-live-bar .btn { min-height: 46px; color: #fff; background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.24); }
-.scan-live-bar .btn:hover { background: rgba(255,255,255,.18); }
-.scan-live-bar .btn-primary { background: color-mix(in srgb, var(--color-accent) 45%, transparent); border-color: var(--color-accent-300); }
-.scan-live-bar .btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 58%, transparent); }
-.scan-shutter { min-width: 130px; min-height: 56px !important; border-radius: 999px; font-size: 16px; }
-#btnTorch[aria-pressed="true"] { background: var(--color-warn-bg); color: var(--color-warn); }
-.scan-live-auto { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(255,255,255,.72); }
-.scan-live-auto input { width: 18px; height: 18px; flex: none; }
-
-/* מצב אבחון: the live gate values behind the auto-shutter, for tuning on a real phone. */
-.scan-diag {
-  display: flex; flex-wrap: wrap; gap: 6px; justify-content: center;
-  margin-top: var(--space-2); font-size: 11.5px; font-variant-numeric: tabular-nums;
-}
-.scan-diag span {
-  padding: 2px 8px; border-radius: 999px;
-  background: var(--color-neutral-800); color: var(--color-neutral-200);
-}
-.scan-diag span.ok { color: var(--color-ok); background: var(--color-ok-bg); }
-.scan-diag span.bad { color: var(--color-warn); background: var(--color-warn-bg); }
-.scan-diag b { font-weight: 600; }
-
 /* Captured page + its (diagnostics-only) measurement caption. */
+/* A captured page and its sharpness verdict. The frame is the verdict: red = blurry, green = sharp.
+   Colour is never the only carrier — the caption underneath says it in words, and the card above
+   the strip repeats it, because a red border means nothing to someone who has not been told. */
 .scan-page { display: flex; flex-direction: column; gap: 4px; }
-.scan-page-meta {
-  max-width: 104px; font-size: 10px; line-height: 1.35; color: var(--color-muted);
-  font-variant-numeric: tabular-nums;
+.scan-page.is-blurry .scan-thumb { border-color: var(--color-bad); border-width: 2px; }
+.scan-page.is-sharp .scan-thumb { border-color: var(--color-ok); border-width: 2px; }
+.scan-page-state {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  max-width: 104px; font-size: 11px; line-height: 1.3;
 }
+.scan-page-state .ok { color: var(--color-ok); }
+.scan-page-state .bad { color: var(--color-bad); font-weight: 600; }
+.scan-reshoot {
+  padding: 2px 7px; min-height: 0; font-size: 11px; border-radius: var(--radius-sm);
+  background: var(--color-bad-bg); color: var(--color-bad);
+  border: 1px solid color-mix(in srgb, var(--color-bad) 45%, transparent); cursor: pointer;
+}
+.scan-thumb[data-act="open"] { cursor: zoom-in; }
 
 /* Upload progress (mobile networks are slow — silence reads as a hang). */
 .scan-progress {

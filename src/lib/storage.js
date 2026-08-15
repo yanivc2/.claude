@@ -79,9 +79,17 @@ export async function putBuffer(buffer, ext, contentType) {
   }
 }
 
-/** Fetch a stored file as { buffer, contentType }. */
+/**
+ * Fetch a stored file as { buffer, contentType }.
+ *
+ * Every failure here is logged with its cause. It used to swallow the SDK error with a bare
+ * `catch {}` and fall through to a public fetch, so "the images don't open" arrived with nothing
+ * in the logs at all — the same shape as the extraction bug that took hours to find for exactly
+ * the same reason. A read that fails must say why.
+ */
 export async function getObject(ref) {
   if (isRemote(ref)) {
+    let sdkError = null;
     // Private blob: read server-side with the token via the SDK. Falls back to a plain fetch
     // for public/legacy blobs (or if the SDK read fails).
     if (process.env.BLOB_READ_WRITE_TOKEN) {
@@ -93,17 +101,87 @@ export async function getObject(ref) {
           const contentType = r.blob?.contentType || r.headers?.get?.('content-type') || contentTypeForRef(ref);
           return { buffer, contentType };
         }
-      } catch {
-        /* fall through to public fetch */
+        sdkError = `get() returned ${r ? `statusCode ${r.statusCode} with no stream` : 'null (blob not found)'}`;
+      } catch (err) {
+        sdkError = `${err.name}: ${err.message}`;
       }
+      // eslint-disable-next-line no-console
+      console.error('[storage] blob SDK read failed, trying a plain fetch', {
+        access: blobAccess(),
+        host: safeHost(ref),
+        error: sdkError,
+      });
     }
     const res = await fetch(ref);
-    if (!res.ok) throw new Error(`blob fetch failed: ${res.status}`);
+    if (!res.ok) {
+      // eslint-disable-next-line no-console
+      console.error('[storage] blob fetch failed', { status: res.status, host: safeHost(ref), sdkError });
+      throw new Error(
+        `לא ניתן לקרוא את הקובץ מהאחסון (${res.status})` +
+          (res.status === 401 || res.status === 403
+            ? ' — הקובץ פרטי והקריאה דרך ה-SDK נכשלה. הרץ "בדיקת אחסון קבצים" בהגדרות.'
+            : '') +
+          (sdkError ? ` [${sdkError}]` : ''),
+      );
+    }
     const buffer = Buffer.from(await res.arrayBuffer());
     return { buffer, contentType: res.headers.get('content-type') || contentTypeForRef(ref) };
   }
   const buffer = fs.readFileSync(path.join(config.uploadsDir, path.basename(ref)));
   return { buffer, contentType: contentTypeForRef(ref) };
+}
+
+/** A ref's host, for logs — never the full URL, which is itself the capability to read the blob. */
+function safeHost(ref) {
+  try {
+    return new URL(ref).host;
+  } catch {
+    return 'local';
+  }
+}
+
+/**
+ * Write a tiny file, read it back, delete it — and report every step.
+ *
+ * This exists because "the images don't open" is not reproducible from a development machine:
+ * uploads clearly work in production (drafts have refs), the read path fails, and nothing is
+ * logged. One click here answers which step breaks and with what error, on the real store.
+ *
+ * @returns {Promise<{ok: boolean, backend: string, access: string, steps: Array<{step: string, ok: boolean, detail: string}>}>}
+ */
+export async function storageSelfTest() {
+  const steps = [];
+  const backend = useBlob() ? 'vercel-blob' : 'local-disk';
+  const access = useBlob() ? blobAccess() : 'n/a';
+  const payload = Buffer.from('ap-control storage self test\n');
+  let ref = null;
+
+  try {
+    ref = await putBuffer(payload, '.txt', 'text/plain');
+    steps.push({ step: 'כתיבה', ok: true, detail: safeHost(ref) });
+  } catch (err) {
+    steps.push({ step: 'כתיבה', ok: false, detail: `${err.name}: ${err.message}` });
+    return { ok: false, backend, access, steps };
+  }
+
+  try {
+    const { buffer, contentType } = await getObject(ref);
+    const same = Buffer.isBuffer(buffer) && buffer.equals(payload);
+    steps.push({
+      step: 'קריאה',
+      ok: same,
+      detail: same ? `${buffer.length} בתים · ${contentType}` : `הוחזרו ${buffer?.length ?? 0} בתים במקום ${payload.length}`,
+    });
+    if (!same) return { ok: false, backend, access, steps };
+  } catch (err) {
+    steps.push({ step: 'קריאה', ok: false, detail: err.message });
+    await del(ref);
+    return { ok: false, backend, access, steps };
+  }
+
+  await del(ref); // del never throws — a leftover test file is not worth failing the check over
+  steps.push({ step: 'מחיקה', ok: true, detail: 'הקובץ הזמני נמחק' });
+  return { ok: true, backend, access, steps };
 }
 
 /** Delete a stored file. Never throws — orphan cleanup is best-effort. */

@@ -8,12 +8,6 @@ const ASSETS = ['/style.css', '/icon-192.png', '/icon-512.png', '/manifest.webma
 
 // Small scanner assets, filled in on first use and then served cache-first. Each URL carries a
 // ?v= version, which is what lets a new deploy replace a cached copy.
-//
-// /vendor/opencv.js is deliberately NOT here. Routing a ~10MB response through the worker means
-// respondWith() has to hold the whole body while cache.put() writes a second copy, and on iOS
-// Safari that stalls — the script tag's onload never fires and the capture screen sits on
-// "טוען זיהוי קצוות…" forever. The server already sends it `immutable, max-age=30d`, so the
-// browser's own HTTP cache gives us the once-per-device download without the worker involved.
 const RUNTIME = 'apc-scanner-v2';
 const RUNTIME_PREFIXES = ['/scan-capture.js'];
 

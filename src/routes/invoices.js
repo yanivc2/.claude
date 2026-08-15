@@ -361,6 +361,8 @@ router.get('/:id/image', async (req, res, next) => {
     const { buffer, contentType } = await getObject(invoice.image_path);
     return res.type(contentType).send(buffer);
   } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[invoices] image failed', { invoice: Number(req.params.id), error: err.message });
     next(err);
   }
 });
@@ -376,6 +378,10 @@ router.get('/:id/scan-image/:idx', async (req, res, next) => {
     const { buffer, contentType } = await getObject(ref);
     return res.type(contentType).send(buffer);
   } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[invoices] scan page failed', {
+      invoice: Number(req.params.id), page: Number(req.params.idx), error: err.message,
+    });
     next(err);
   }
 });
@@ -413,7 +419,9 @@ router.get('/:id', async (req, res, next) => {
       notice: req.query.sent === 'pay' ? 'בקשת אישור התשלום נשלחה למנהל/בעלים.'
         : req.query.sent === 'release' ? 'בקשת שחרור ההחזקה נשלחה למנהל/בעלים.'
         : req.query.paid === '1' ? 'החשבונית נוצרה והתשלום נוצר ושויך אליה.'
-        : req.query.scanned === '1' ? 'החשבונית נקלטה מהצילום, כולל שורות הפריטים וקטלוג המוצרים.' : null,
+        : req.query.scanned === '1' ? 'החשבונית נקלטה מהצילום, כולל שורות הפריטים וקטלוג המוצרים.'
+        : req.query.scanned === 'attached' ? 'הצילום צורף לחשבונית שכבר הייתה במערכת — לא נוצרה חשבונית כפולה.'
+        : null,
       error: req.query.payfail ? `החשבונית נשמרה, אך יצירת הצ׳ק נכשלה: ${req.query.payfail}` : null,
       ocrOpen: req.query.ocr === '1',
     });

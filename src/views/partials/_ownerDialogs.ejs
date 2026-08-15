@@ -47,6 +47,21 @@
 </dialog>
 <script type="module" src="/catalog-upload.js?v=1"></script>
 
+<dialog id="dlg-storage" class="ndialog" onclick="event.stopPropagation()">
+  <form method="post" action="/settings/storage-test" class="stack">
+    <h3 style="margin:0">בדיקת אחסון קבצים</h3>
+    <p class="muted" style="margin:.2rem 0">
+      כותב קובץ זעיר לאחסון, קורא אותו בחזרה, ומוחק אותו — ומדווח על כל שלב בנפרד.
+      הרץ את זה אם צילומים של חשבוניות לא נפתחים: הבדיקה אומרת אם הבעיה בכתיבה, בקריאה, או בהרשאות,
+      במקום להשאיר את זה לניחוש. הבדיקה לא נוגעת בשום קובץ קיים.
+    </p>
+    <div class="actions" style="justify-content:flex-end">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
+      <button type="submit">הרץ בדיקה</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg-backup" class="ndialog" onclick="event.stopPropagation()">
   <div class="stack">
     <h3 style="margin:0">גיבוי מלא</h3>

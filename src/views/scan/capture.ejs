@@ -25,21 +25,19 @@
 </div>
 
 <div class="card">
+  <%# The phone's own camera app, not a viewfinder in the page: it brings autofocus, HDR and
+      multi-frame denoise that a getUserMedia frame grab does not, and that difference was
+      measurable on real invoices. Each returned page is scored for sharpness in scan-capture.js. %>
   <div class="scan-actions">
-    <button type="button" class="btn btn-primary btn-block" id="btnStart">פתח סורק 📷</button>
+    <button type="button" class="btn btn-primary btn-block" id="btnCamera">צלם עמוד 📷</button>
     <button type="button" class="btn btn-secondary btn-block" id="btnFiles">בחר קבצים 🗂️ (גלריה / Genius Scan)</button>
-  </div>
-
-  <!-- Fallback path: the OS camera app, exactly as before the live scanner existed. -->
-  <div id="scanFallback" style="display:none">
-    <p id="scanFallbackNote" class="muted" style="margin:var(--space-3) 0 .5rem"></p>
-    <button type="button" class="btn btn-primary btn-block" id="btnNativeCam">צלם עמוד 📷</button>
   </div>
 
   <input type="file" id="camInput" accept="image/*" capture="environment" hidden />
   <input type="file" id="fileInput" accept="image/*,image/heic,image/heif,application/pdf" multiple hidden />
 
   <div id="scanErr" class="alert alert-error" style="display:none;margin-top:var(--space-3)"></div>
+  <div id="scanBlurWarn" class="alert alert-warn" style="display:none;margin-top:var(--space-3)"></div>
   <div id="scanThumbs" class="scan-thumbs"></div>
   <p class="muted" id="scanCount" style="margin:.6rem 0 0">עדיין לא נוספו עמודים.</p>
 
@@ -53,43 +51,23 @@
 <details class="card scan-tips">
   <summary>איך מקבלים את התוצאה הטובה ביותר (ובזול)</summary>
   <ul>
+    <li><strong>המערכת בודקת חדות אחרי כל צילום.</strong> מסגרת ירוקה = חד, מסגרת אדומה = מטושטש. אפשר לשלוח גם צילום מטושטש, אבל הקריאה תהיה פחות מדויקת — עדיף ללחוץ "צלם שוב".</li>
+    <li><strong>לחצו על עמוד כדי לראות אותו בגדול</strong> ולוודא שהמספרים קריאים לפני השליחה.</li>
     <li><strong>עדיף לצלם מתוך האפליקציה מאשר להעלות PDF.</strong> כל עמוד PDF נקרא גם כטקסט ולא רק כתמונה, ולכן עולה יותר על כל סריקה. קובץ PDF עדיין נתמך במלואו — פשוט יקר יותר.</li>
     <li><strong>צבע לא מייקר כלום.</strong> העלות נקבעת לפי מידות התמונה בלבד, לכן אנחנו שומרים על צבע — הוא עוזר לזהות חותמות, סכומים מודגשים וזיכויים.</li>
-    <li><strong>הסורק חותך את הרקע.</strong> אחרי היישור כל הפיקסלים הם החשבונית עצמה, ולכן תמונה קטנה יותר נקראת טוב יותר — גם מדויק יותר וגם זול יותר.</li>
-    <li>הניחו את החשבונית על משטח בהיר ושטוח, בלי צל של היד, ותנו לטלפון רגע להתמקד — הסורק לא יצלם כל עוד התמונה מטושטשת.</li>
+    <li>הניחו את החשבונית על משטח בהיר ושטוח, בלי צל של היד, ותנו לטלפון רגע להתמקד לפני הלחיצה.</li>
   </ul>
 </details>
 
-<%# The viewfinder is a native <dialog> on purpose: the top layer takes it out of .page's
-    max-width, puts it over the nav without a z-index war, and footer.ejs already exempts
-    dialog[open] from the PWA pull-to-refresh / swipe-back gestures. Choosing the store and
-    sending stay on the page behind it — this screen is only for capturing.
-    The captured pages (#scanThumbs) are moved in and out of #scanThumbDock by scan-capture.js. %>
-<dialog id="scanLive" class="scan-full" aria-label="סורק חשבוניות">
-  <div class="scan-stage">
-    <video id="scanVideo" playsinline muted autoplay></video>
-    <canvas id="scanOverlay" class="scan-live-overlay"></canvas>
-    <div id="scanFlash" class="scan-live-flash"></div>
+<%# Full-size look at a captured page before sending it. A 104px thumbnail cannot answer "did the
+    numbers come out readable?", which is exactly the question the sharpness verdict raises. %>
+<dialog id="pageDlg" class="dlg wide">
+  <div class="dlg-head">
+    <strong>עמוד שצולם</strong>
+    <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
   </div>
-  <div class="scan-hud">
-    <div class="scan-hud-top">
-      <span id="scanLiveCount" class="scan-live-count">0/<%= maxPages %></span>
-    </div>
-    <div class="scan-hud-bottom">
-      <div id="scanThumbDock"></div>
-      <div class="scan-hud-opts">
-        <label class="scan-live-auto"><input type="checkbox" id="chkAuto" checked /> צילום אוטומטי — מצלם לבד כשהחשבונית ממורכזת, יציבה וחדה</label>
-        <label class="scan-live-auto"><input type="checkbox" id="chkDiag" /> מצב אבחון — מציג את המדדים החיים (לכיול הסורק)</label>
-      </div>
-      <div id="scanDiag" class="scan-diag" style="display:none"></div>
-      <p id="scanLiveHint" class="scan-live-hint">פותח מצלמה…</p>
-      <div class="scan-live-bar">
-        <button type="button" class="btn btn-secondary" id="btnStop">סגור</button>
-        <button type="button" class="btn btn-primary scan-shutter" id="btnShutter" autofocus aria-label="צלם עכשיו">צלם</button>
-        <button type="button" class="btn btn-secondary" id="btnTorch" aria-pressed="false" style="display:none" aria-label="פנס">🔦</button>
-      </div>
-    </div>
-  </div>
+  <img id="pageDlgImg" src="" alt="עמוד שצולם" style="max-width:100%;max-height:74vh;border:1px solid var(--color-line);border-radius:var(--radius-md)" />
+  <p class="muted" id="pageDlgCap" style="margin:.5rem 0 0"></p>
 </dialog>
 
 <script type="application/json" id="scanConfig"><%- JSON.stringify({

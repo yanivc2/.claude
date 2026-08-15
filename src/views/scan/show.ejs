@@ -19,7 +19,7 @@ var FLAG_LABELS = {
   missing_amounts: 'לא נקראו סכומים לשורה',
   catalog_match: 'אומת מול קטלוג-העל',
   catalog_suffix_match: 'הקוד המודפס הוא ברקוד מקוצר — נמצא ברקוד מלא תואם בקטלוג',
-  catalog_ambiguous: 'הקוד המודפס מתאים למספר מוצרים בקטלוג — בחר את הנכון',
+  catalog_ambiguous: 'הקוד המודפס מתאים למספר מוצרים בקטלוג ואף אחד לא בלט — בחר את הנכון',
   barcode_invalid: 'ספרת ביקורת שגויה בברקוד — ככל הנראה נקרא שגוי',
   dup_allocation: 'מספר ההקצאה כבר קיים בחשבונית אחרת',
   dup_number: 'כבר קיימת חשבונית לספק זה עם מספר זה',
@@ -286,7 +286,13 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
                   <input name="line_name[]" value="<%= l.name || '' %>" class="<%= lf.filter(function(c){ return c !== 'catalog_match' && c !== 'catalog_suffix_match'; }).length ? 'flag-warn' : '' %>" title="<%= lTitle %>" />
                   <% if (l.catalog) { %>
                     <% var viaSuffix = lf.indexOf('catalog_suffix_match') >= 0; %>
-                    <span class="tag <%= viaSuffix ? 'tag-accent' : 'tag-neutral' %>" title="קטלוג-על: <%= l.catalog.name %> · יצרן: <%= l.catalog.manufacturer || '—' %>"><%= viaSuffix ? 'ברקוד מקוצר ✓' : 'קטלוג ✓' %></span>
+                    <%# A shortened code is a weaker claim than a printed 13-digit barcode, and how
+                        much weaker depends on its length: measured on this catalog, 5 digits
+                        identify one product 64.5% of the time and 7 digits 99.4%. The badge says
+                        which, so a reviewer knows where to actually look. %>
+                    <span class="tag <%= viaSuffix && !l.catalog.nearCertain ? 'tag-warn' : viaSuffix ? 'tag-accent' : 'tag-neutral' %>"
+                          title="קטלוג-על: <%= l.catalog.name %> · יצרן: <%= l.catalog.manufacturer || '—' %><%= l.catalog.chosenBy === 'supplier+name' ? ' · נבחר לפי התיאור והיצרן' : l.catalog.chosenBy === 'name' ? ' · נבחר לפי התיאור בשורה' : '' %>"
+                    ><%= viaSuffix ? (l.catalog.nearCertain ? 'ברקוד מקוצר ✓' : 'ברקוד מקוצר — לבדוק') : 'קטלוג ✓' %></span>
                     <% if (viaSuffix) { %>
                       <%# The printed code is only the tail of the real EAN. Offer the full barcode
                           AND the catalog name in one press — but never write either by ourselves. %>
@@ -294,12 +300,15 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
                     <% } else if (l.catalog.nameDiffers) { %>
                       <button type="button" class="tag tag-outline cat-adopt" data-name="<%= l.catalog.name %>" title="החלף לשם הרשמי מהקטלוג: <%= l.catalog.name %>">אמץ שם קטלוגי</button>
                     <% } %>
-                  <% } else if (l.candidates && l.candidates.length) { %>
-                    <%# Several catalog barcodes end with the printed code — show them and let a
-                        human choose. Guessing here would silently attach the wrong product. %>
-                    <span class="tag tag-warn">מספר התאמות</span>
+                  <% } %>
+                  <% if (l.candidates && l.candidates.length > 1) { %>
+                    <%# The other products whose barcode ends with the same printed code, best
+                        first. Shown even when one was adopted: that is what makes a wrong pick one
+                        click from corrected instead of invisible. Guessing silently would attach
+                        the wrong product to a purchase price. %>
+                    <% if (!l.catalog) { %><span class="tag tag-warn">מספר התאמות</span><% } %>
                     <select class="cat-pick" aria-label="בחר מוצר מהקטלוג">
-                      <option value="">— בחר מהקטלוג —</option>
+                      <option value=""><%= l.catalog ? '— מוצר אחר מהקטלוג —' : '— בחר מהקטלוג —' %></option>
                       <% l.candidates.forEach(function(c){ %>
                         <option value="<%= c.barcode %>" data-name="<%= c.name %>"><%= c.barcode %> · <%= c.name %><%= c.manufacturer ? ' · ' + c.manufacturer : '' %></option>
                       <% }); %>
@@ -367,7 +376,13 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
     <% } %>
 
     <div class="card no-print actions" style="flex-wrap:wrap">
-      <button type="submit" class="btn btn-primary"><%= cw && cw.length ? 'אשר בכל זאת וקלוט ✓' : 'אשר וקלוט חשבונית ✓' %></button>
+      <%# When this scan is the document of an invoice already on file, say so on the button
+          itself. "אשר וקלוט חשבונית" would promise a second payable for the same debt. %>
+      <% var attachId = h && h.matchedInvoiceId ? h.matchedInvoiceId : null; %>
+      <button type="submit" class="btn btn-primary"><%
+        if (attachId) { %>צרף לחשבונית #<%= attachId %> ✓<%
+        } else { %><%= cw && cw.length ? 'אשר בכל זאת וקלוט ✓' : 'אשר וקלוט חשבונית ✓' %><% }
+      %></button>
       <button type="submit" class="btn btn-secondary" formaction="/scan/<%= draft.id %>/save" formnovalidate>שמור טיוטה</button>
     </div>
   </form>

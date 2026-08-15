@@ -1,60 +1,53 @@
-/* צילום חשבוניות — סורק אוטומטי בדפדפן.
+/* צילום חשבוניות — מצלמת המכשיר + בדיקת חדות.
  *
- * What this file is: the whole capture experience for /scan. A live camera viewfinder finds the
- * page edges frame by frame, waits until the frame is steady AND sharp, fires the shutter by
- * itself, then flattens the page with a perspective transform — the same idea as Genius Scan,
- * running entirely in the browser.
+ * What this file is: the whole capture experience for /scan. Photos are taken with the phone's
+ * OWN camera app (`<input capture="environment">`), and every page that comes back is scored for
+ * sharpness here — a red frame and "צלם שוב" on a blurry page, a green frame on a good one.
  *
- * Why it matters beyond convenience: the model is billed on pixel DIMENSIONS
- * (≈ ⌈w/28⌉ × ⌈h/28⌉ tokens), not on file size or colour. Cropping the counter/desk out of the
- * frame means every pixel we pay for is invoice, so we can send a SMALLER image that is MORE
- * readable. Colour is kept on purpose — greyscale costs exactly the same and throws information
- * away.
+ * Why it no longer scans. This used to be a Genius-Scan-style pipeline: a live viewfinder,
+ * OpenCV.js edge detection, an auto-shutter, and a perspective warp that flattened the page. It
+ * was ~900 lines and a 10MB WASM download, and the owner measured the result against an ordinary
+ * photo: **the ordinary photo won.** That is not surprising in hindsight — the OS camera app has
+ * autofocus, HDR and multi-frame denoise that a getUserMedia frame grab simply does not, and the
+ * crop was throwing away that advantage to save pixels we were not short of. So the pipeline is
+ * gone, along with the CSP relaxations it required.
  *
- * Design rules this file sticks to:
- *  - OpenCV.js (~10MB) is loaded ONLY when the camera actually starts, never on page render.
- *  - Every failure degrades instead of blocking: no camera permission, no getUserMedia, or a
- *    failed OpenCV load all fall back to the plain `<input capture>` photo path.
+ * What is kept, because it is what actually protects the extraction:
+ *  - **The sharpness gate.** Blur is the one defect that silently ruins an extraction; a skewed
+ *    but sharp page reads fine. The score is the variance of the Laplacian over a fixed-size
+ *    greyscale copy, divided by that copy's own contrast — a ratio, so it does not move with
+ *    lighting or with how much white space the page has. The threshold is calibrated, not
+ *    guessed: see scripts/sharpness-calibrate.mjs and docs/צילום-וחילוץ/טכנולוגיה/סורק-מצלמה.md.
+ *  - **A warning, never a block.** A soft warning beats refusing the only photo of an invoice the
+ *    employee is standing in front of.
  *  - Page order is positional, never completion order — see addFiles().
  *  - Imported photos are EXIF-corrected via createImageBitmap({imageOrientation:'from-image'});
- *    without it, a lot of Android photos reach the model sideways.
- *  - OpenCV.js has manual memory management. Every Mat allocated here is deleted.
+ *    without it a lot of Android photos reach the model sideways, and the API reads no metadata.
  */
 (function () {
   'use strict';
 
   // ---- tuning ------------------------------------------------------------------
-  // These four are the behaviour of the auto-shutter. They were chosen conservatively: firing
-  // late is a small annoyance, firing on a blurry frame costs a full extraction. Re-tune on a
-  // real phone if the shutter feels sticky — and remember the manual button always works.
-  var WORK_WIDTH = 480; // detection runs on a small copy; full res is only touched on capture
-  // The page must fill at least this much of the frame. 0.18 let through documents that warped to
-  // ~800px across — unreadable for small print no matter what happens downstream.
-  var MIN_AREA_RATIO = 0.3;
-  var MAX_AREA_RATIO = 0.95; // above this it is the frame border or a table edge, not a document
-  var CROP_PAD_RATIO = 0.02; // grow the crop outward so corner error never clips a character
-  var STEADY_FRAMES = 3; // consecutive good frames before the shutter fires (~0.4s at 8fps)
-  // Max corner drift between frames, as a fraction of the frame diagonal — measured against the
-  // SMOOTHED quad, not the raw one. approxPolyDP re-fits the corners every frame, so a raw corner
-  // hops several pixels even on a phone lying on a table; judging that raw jitter against a tight
-  // threshold meant "steady" almost never held for enough frames in a row and the shutter never
-  // fired. Smoothing removes the re-fit noise while still catching real hand movement.
-  var MOVE_TOLERANCE = 0.045;
-  var SMOOTHING = 0.45; // EMA weight for the newest frame (1 = no smoothing)
-  // Laplacian variance divided by the page's own contrast variance — a ratio, so it does not move
-  // with lighting the way the old raw variance did. Re-tune with מצב אבחון on a real phone.
-  var SHARPNESS_MIN = 0.06;
-  var APPROX_EPS = [0.015, 0.02, 0.03, 0.04]; // approxPolyDP sweep — first one that yields a quad
-  var DETECT_INTERVAL_MS = 125; // ~8fps, so a mid-range phone keeps a smooth preview
-  var RECAPTURE_PAUSE_MS = 1400; // ignore detections right after a shot (same page twice)
-  var STUCK_EXPLAIN_MS = 2000; // how long a gate must block before the hint shows its numbers
-  // Versioned on the OpenCV release, NOT on the app's build number: the service worker caches by
-  // full URL, so tying this to a deploy would re-download 10MB on every deploy for nothing.
-  var OPENCV_URL = '/vendor/opencv.js?v=4.9.0';
-  // A first load pulls ~3MB (compressed) and then compiles it. 40s is generous on a slow stockroom
-  // connection and short enough that nobody stares at a frozen screen: on timeout the manual
-  // shutter is still there, and the hint says so instead of pretending to still be loading.
-  var OPENCV_TIMEOUT_MS = 40000;
+  /** Long edge of the greyscale copy the score is computed on. Fixing it is what makes one
+   *  threshold work across a 12MP phone and a 3MP one. */
+  var SHARP_WORK_EDGE = 640;
+  /**
+   * Below this a page is called blurry. Calibrated on the owner's own invoice photo with
+   * scripts/sharpness-calibrate.mjs (blur sweep, real Chromium, this exact scorer):
+   *
+   *     blur   score   legible?
+   *     none   0.667   yes  ← a real, in-focus invoice photo
+   *     1px    0.324   just
+   *     1.5px  0.232   no
+   *     2px    0.124   no
+   *
+   * 0.25 sits between "just legible" and "no", deliberately nearer the illegible end rather than
+   * in the middle. The costs are not symmetric and the history here is specific: the previous
+   * capture screen refused to take the shot until it was satisfied, and that is exactly why the
+   * owner asked for it to be removed. Crying wolf on a usable photo is the expensive mistake; a
+   * page has to be visibly bad to be flagged, and even then it can still be sent.
+   */
+  var SHARP_MIN = 0.25;
 
   var cfg = {
     maxPages: 8,
@@ -66,34 +59,16 @@
     // image server-side, which is an extra resample we neither control nor see.
     maxPixels: 3500000,
     // 4:2:0 chroma subsampling (what Chrome emits below quality 1.0) halves the resolution of
-    // COLOUR only; luminance stays full-res, and text is a luminance signal. Chasing 4:4:4 means
-    // quality 1.0, which would push an 8-page request from ~11MB to ~43MB of base64 — past the
-    // 32MB request limit — to sharpen colour edges on a document that has almost no coloured text.
+    // COLOUR only; luminance stays full-res, and text is a luminance signal.
     jpegQuality: 0.92,
     maxUploadBytes: 10 * 1024 * 1024,
     maxTotalBytes: 18 * 1024 * 1024,
   };
 
   // ---- state -------------------------------------------------------------------
-  var pages = []; // [{blob, url, isPdf, name}] — index IS the page number
+  var pages = []; // [{blob, url, isPdf, name, sharp}] — index IS the page number
   var el = {}; // cached DOM
-  var stream = null;
-  var track = null;
-  var detectTimer = null;
-  var loadingTimer = null; // ticks the elapsed seconds into the hint while OpenCV downloads
-  var cv = null; // the OpenCV module, once ready
-  var cvPromise = null;
-  var mats = null; // reusable Mats for the detection loop
-  var lastQuad = null;
-  var goodFrames = 0;
-  var suppressUntil = 0;
-  var autoOn = true;
-  var busy = false; // a capture is being processed — do not start another
-  var torchBound = false;
-  var diagOn = false; // מצב אבחון — live gate numbers, for tuning the thresholds on a real phone
-  var lastMetrics = null; // the gate values from the most recent frame
-  var stuckReason = null; // which gate is currently holding the shutter
-  var stuckSince = 0;
+  var busy = false; // an upload is in flight — do not start another
 
   // ---- small helpers -----------------------------------------------------------
   function $(id) {
@@ -107,89 +82,130 @@
     el.err.textContent = msg || '';
     show(el.err, Boolean(msg));
   }
-  function setHint(msg, tone) {
-    if (!el.hint) return;
-    el.hint.textContent = msg;
-    el.hint.className = 'scan-live-hint' + (tone ? ' ' + tone : '');
-  }
-  function buzz(ms) {
-    try {
-      if (navigator.vibrate) navigator.vibrate(ms);
-    } catch (e) {
-      /* vibration is a nicety, never a requirement */
-    }
-  }
 
-  // ---- OpenCV loading ----------------------------------------------------------
+  // ---- sharpness ---------------------------------------------------------------
   /**
-   * Inject opencv.js on demand and resolve once its WASM runtime is live.
-   * The module is seeded onto window.cv first: the UMD wrapper adopts an existing `cv` object as
-   * its Module, which is the documented way to be handed `onRuntimeInitialized`.
+   * Score how sharp an image is: |∇²I| energy relative to the image's own contrast.
+   *
+   * Raw Laplacian variance is the textbook blur metric and it is not usable on its own here — it
+   * rises with contrast and with how much print is on the page, so a dense invoice in good light
+   * and a sparse one in dim light score wildly differently at the same focus. Dividing by the
+   * grey standard deviation cancels both, leaving a number that tracks focus alone.
+   *
+   * @param {ImageBitmap|HTMLImageElement} source decoded image
+   * @param {number} w
+   * @param {number} h
+   * @returns {number} 0 = flat, higher = sharper
    */
-  function loadOpenCv() {
-    if (cv) return Promise.resolve(cv);
-    if (cvPromise) return cvPromise;
-    cvPromise = new Promise(function (resolve, reject) {
-      var settled = false;
-      var finish = function () {
-        if (settled) return;
-        if (!window.cv || typeof window.cv.Mat !== 'function') return;
-        settled = true;
-        clearInterval(poll);
-        clearTimeout(bail);
-        cv = window.cv;
-        resolve(cv);
-      };
-      window.cv = window.cv || {};
-      window.cv.onRuntimeInitialized = finish;
-      // Some builds are already initialised by the time onload fires, so poll as well.
-      var poll = setInterval(finish, 120);
-      var bail = setTimeout(function () {
-        if (settled) return;
-        settled = true;
-        clearInterval(poll);
-        reject(new Error('opencv timeout'));
-      }, OPENCV_TIMEOUT_MS);
+  function sharpnessOf(source, w, h) {
+    var s = Math.min(1, SHARP_WORK_EDGE / Math.max(w, h));
+    var cw = Math.max(8, Math.round(w * s));
+    var ch = Math.max(8, Math.round(h * s));
+    var c = document.createElement('canvas');
+    c.width = cw;
+    c.height = ch;
+    var ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(source, 0, 0, cw, ch);
+    var data = ctx.getImageData(0, 0, cw, ch).data;
 
-      var s = document.createElement('script');
-      s.src = OPENCV_URL;
-      s.async = true;
-      s.onload = finish;
-      s.onerror = function () {
-        if (settled) return;
-        settled = true;
-        clearInterval(poll);
-        clearTimeout(bail);
-        reject(new Error('opencv load failed'));
-      };
-      document.head.appendChild(s);
-    });
-    return cvPromise;
+    var grey = new Float32Array(cw * ch);
+    var sum = 0;
+    for (var i = 0, p = 0; i < grey.length; i++, p += 4) {
+      var g = 0.299 * data[p] + 0.587 * data[p + 1] + 0.114 * data[p + 2];
+      grey[i] = g;
+      sum += g;
+    }
+    var mean = sum / grey.length;
+    var varSum = 0;
+    for (var k = 0; k < grey.length; k++) {
+      var d = grey[k] - mean;
+      varSum += d * d;
+    }
+    var contrast = Math.sqrt(varSum / grey.length);
+    if (contrast < 1) return 0; // a blank frame: no signal to judge focus by
+
+    // 4-neighbour Laplacian over the interior. Its own standard deviation is the edge energy.
+    var lapSum = 0;
+    var lapSq = 0;
+    var n = 0;
+    for (var y = 1; y < ch - 1; y++) {
+      for (var x = 1; x < cw - 1; x++) {
+        var idx = y * cw + x;
+        var lap = 4 * grey[idx] - grey[idx - 1] - grey[idx + 1] - grey[idx - cw] - grey[idx + cw];
+        lapSum += lap;
+        lapSq += lap * lap;
+        n++;
+      }
+    }
+    if (!n) return 0;
+    var lapMean = lapSum / n;
+    return Math.sqrt(Math.max(0, lapSq / n - lapMean * lapMean)) / contrast;
   }
 
-  // ---- page list ---------------------------------------------------------------
+  /** Score a stored page blob. Resolves with null when the blob cannot be decoded. */
+  function scorePage(blob) {
+    return new Promise(function (resolve) {
+      if (typeof createImageBitmap !== 'function') return resolve(null);
+      createImageBitmap(blob)
+        .then(function (bmp) {
+          var score;
+          try {
+            score = sharpnessOf(bmp, bmp.width, bmp.height);
+          } catch (e) {
+            score = null; // a tainted or oversized canvas is not worth failing the capture over
+          }
+          if (bmp.close) bmp.close();
+          resolve(score);
+        })
+        .catch(function () {
+          resolve(null);
+        });
+    });
+  }
+
+  // ---- pages -------------------------------------------------------------------
   function totalBytes() {
     return pages.reduce(function (sum, p) {
       return sum + (p.blob ? p.blob.size : 0);
     }, 0);
   }
 
+  function blurryCount() {
+    return pages.filter(function (p) {
+      return p.sharp !== null && p.sharp !== undefined && p.sharp < SHARP_MIN;
+    }).length;
+  }
+
   function sync() {
     var storeChosen = Boolean(el.store && el.store.value);
     el.send.disabled = !(pages.length > 0 && storeChosen) || busy;
+    var blurry = blurryCount();
     el.count.textContent = pages.length
-      ? 'נוספו ' + pages.length + ' עמודים' + (storeChosen ? '' : ' — יש לבחור חנות')
+      ? 'נוספו ' + pages.length + ' עמודים' +
+        (storeChosen ? '' : ' — יש לבחור חנות') +
+        (blurry ? ' · ' + blurry + ' מטושטשים' : '')
       : 'עדיין לא נוספו עמודים.';
-    if (el.liveCount) el.liveCount.textContent = pages.length + '/' + cfg.maxPages;
+    // Say it once, above the strip, so it is not only a colour — a red border alone is invisible
+    // to anyone who does not know it means something.
+    if (el.warn) {
+      el.warn.textContent = blurry
+        ? blurry === 1
+          ? 'עמוד אחד יצא מטושטש. אפשר לשלוח בכל זאת, אבל צילום חד יקרא הרבה יותר טוב — לחצו “צלם שוב” על העמוד האדום.'
+          : blurry + ' עמודים יצאו מטושטשים. אפשר לשלוח בכל זאת, אבל צילום חד יקרא הרבה יותר טוב.'
+        : '';
+      show(el.warn, Boolean(blurry));
+    }
   }
 
   function renderPages() {
     el.thumbs.innerHTML = '';
     pages.forEach(function (p, i) {
+      var blurry = p.sharp !== null && p.sharp !== undefined && p.sharp < SHARP_MIN;
+      var state = p.isPdf || p.sharp === null || p.sharp === undefined ? '' : blurry ? ' is-blurry' : ' is-sharp';
       var wrap = document.createElement('div');
-      wrap.className = 'scan-page';
+      wrap.className = 'scan-page' + state;
       wrap.innerHTML =
-        '<div class="scan-thumb">' +
+        '<div class="scan-thumb"' + (p.isPdf ? '' : ' data-act="open" role="button" tabindex="0"') + '>' +
         (p.isPdf
           ? '<div class="scan-thumb-pdf">📄</div>'
           : '<img src="' + p.url + '" alt="עמוד ' + (i + 1) + '" />') +
@@ -200,22 +216,55 @@
         (p.isPdf ? '' : '<button type="button" data-act="rot" aria-label="סובב 90 מעלות">↻</button>') +
         '<button type="button" data-act="right" aria-label="הזז קדימה">‹</button>' +
         '</div></div>' +
-        // In diagnostics mode, each auto-shot carries the gate values that let it fire — so a bad
-        // crop can be traced back to the numbers instead of re-shot blindly.
-        (diagOn && p.metrics ? '<div class="scan-page-meta">' + metricsLabel(p.metrics) + '</div>' : '');
+        (p.isPdf
+          ? ''
+          : '<div class="scan-page-state">' +
+            (blurry
+              ? '<span class="bad">מטושטש</span><button type="button" class="scan-reshoot" data-act="reshoot">צלם שוב</button>'
+              : p.sharp === null || p.sharp === undefined
+                ? '<span>נוסף</span>'
+                : '<span class="ok">חד ✓</span>') +
+            '</div>');
       wrap.addEventListener('click', function (ev) {
-        var btn = ev.target.closest('button');
-        if (!btn) return;
+        var hit = ev.target.closest('[data-act]');
+        if (!hit) return;
         ev.preventDefault();
-        var act = btn.getAttribute('data-act');
+        var act = hit.getAttribute('data-act');
         if (act === 'del') removePage(i);
         else if (act === 'rot') rotatePage(i);
         else if (act === 'left') movePage(i, -1);
         else if (act === 'right') movePage(i, 1);
+        else if (act === 'open') openPage(i);
+        else if (act === 'reshoot') reshoot(i);
       });
       el.thumbs.appendChild(wrap);
     });
     sync();
+  }
+
+  /**
+   * Show a captured page full-size. Without this the only view of a photo is a 104px thumbnail,
+   * so "did that come out readable?" could not be answered before sending it — which is exactly
+   * the question the sharpness score raises.
+   */
+  function openPage(i) {
+    var p = pages[i];
+    if (!p || p.isPdf || !el.viewDlg) return;
+    el.viewImg.src = p.url;
+    el.viewCap.textContent =
+      'עמוד ' + (i + 1) + ' מתוך ' + pages.length +
+      (p.sharp === null || p.sharp === undefined
+        ? ''
+        : p.sharp < SHARP_MIN
+          ? ' · מטושטש — מומלץ לצלם שוב'
+          : ' · חד ✓');
+    if (el.viewDlg.showModal) el.viewDlg.showModal();
+  }
+
+  /** Drop this page and reopen the camera on the spot, so a bad shot is one tap from fixed. */
+  function reshoot(i) {
+    removePage(i);
+    el.camInput.click();
   }
 
   function removePage(i) {
@@ -249,19 +298,20 @@
       c.toBlob(function (blob) {
         if (!blob) return;
         URL.revokeObjectURL(p.url);
-        pages[i] = { blob: blob, url: URL.createObjectURL(blob), isPdf: false, name: p.name, metrics: p.metrics };
+        // Rotation does not change focus, so the score carries over rather than being recomputed.
+        pages[i] = { blob: blob, url: URL.createObjectURL(blob), isPdf: false, name: p.name, sharp: p.sharp };
         renderPages();
       }, 'image/jpeg', cfg.jpegQuality);
     });
   }
 
-  function addPage(blob, isPdf, name, at, metrics) {
+  function addPage(blob, isPdf, name, at, sharp) {
     var page = {
       blob: blob,
       isPdf: isPdf,
       url: isPdf ? null : URL.createObjectURL(blob),
       name: name,
-      metrics: metrics || null,
+      sharp: sharp === undefined ? null : sharp,
     };
     if (typeof at === 'number') pages[at] = page;
     else pages.push(page);
@@ -300,32 +350,31 @@
     return null;
   }
 
-  // ---- importing files (gallery / Genius Scan) ---------------------------------
+  // ---- importing files (camera / gallery / Genius Scan) ------------------------
   /**
-   * Decode an image with its EXIF orientation applied and re-encode it at cfg.maxEdge.
-   * The old implementation used `new Image()`, which ignores EXIF — that is why photos taken in
-   * landscape arrived at the model rotated. createImageBitmap with imageOrientation:'from-image'
-   * is the fix; the <img> path stays as a fallback for browsers without it.
+   * Decode an image with its EXIF orientation applied, re-encode it at cfg.maxEdge, and score it.
+   * Resolves {blob, sharp}; blob is null when the browser cannot decode the file at all (an
+   * iPhone HEIC picked on Android is the realistic case).
    */
   function normalizeImage(file) {
     return new Promise(function (resolve) {
       var upright = false;
-      // Resolves with null when the browser cannot decode the file at all (an iPhone HEIC picked
-      // on Android is the realistic case). Uploading it would only fail server-side, later and
-      // less clearly, so addFiles() drops it here with a message instead.
       var finish = function (source, w, h) {
+        var sharp = null;
+        try {
+          sharp = sharpnessOf(source, w, h);
+        } catch (e) {
+          /* a decode we cannot measure still uploads — it just gets no verdict */
+        }
         var s = Math.min(1, Math.sqrt(cfg.maxPixels / (w * h)), cfg.maxEdge / Math.max(w, h));
-        // A gallery photo is ALREADY a camera JPEG. Decoding and re-encoding it makes it a
+        // A camera photo is ALREADY a JPEG. Decoding and re-encoding it makes it a
         // second-generation JPEG, baking the first generation's artefacts in as signal and
-        // re-quantising them — the "multiple compression passes" the API guidance warns about.
-        // When it needs no resizing, the untouched original is strictly the better image.
-        //
-        // `upright` is not optional here: the API does NOT read image metadata, so an EXIF
-        // rotation is only ever applied if we bake it into the pixels. Passing through a photo
-        // that needs rotating would send it to the model sideways.
+        // re-quantising them. When it needs no resizing, the untouched original is the better
+        // image. `upright` is not optional: the API does NOT read image metadata, so an EXIF
+        // rotation only ever applies if we bake it into the pixels.
         if (s >= 1 && upright && file.type === 'image/jpeg' && file.size <= cfg.maxUploadBytes) {
           if (source.close) source.close();
-          resolve(file);
+          resolve({ blob: file, sharp: sharp });
           return;
         }
         var c = document.createElement('canvas');
@@ -335,7 +384,7 @@
         if (source.close) source.close();
         // Generation 2 deserves more headroom than a first encode from raw sensor pixels.
         c.toBlob(function (blob) {
-          resolve(blob || file);
+          resolve({ blob: blob || file, sharp: sharp });
         }, 'image/jpeg', 0.95);
       };
       var decode = function () {
@@ -376,15 +425,15 @@
     };
     img.onerror = function () {
       URL.revokeObjectURL(url);
-      fail(null);
+      fail({ blob: null, sharp: null });
     };
     img.src = url;
   }
 
   /**
    * Add picked files. Slots are reserved BEFORE the async decoding starts, so pages land in the
-   * order they were chosen — the previous version pushed inside the decode callback, which meant
-   * a two-page invoice could reach the model back-to-front whenever page 2 decoded first.
+   * order they were chosen — pushing inside the decode callback meant a two-page invoice could
+   * reach the model back-to-front whenever page 2 decoded first.
    */
   function addFiles(list) {
     setError('');
@@ -408,8 +457,7 @@
       pages = pages.filter(Boolean);
       if (rejected) {
         setError(
-          rejected +
-            ' קבצים לא נתמכים ולא נוספו — קובץ HEIC של אייפון לא ייקרא כאן. צלמו דרך "פתח סורק" או שמרו כ-JPG.',
+          rejected + ' קבצים לא נתמכים ולא נוספו — קובץ HEIC של אייפון לא ייקרא כאן. צלמו דרך "צלם עמוד" או שמרו כ-JPG.',
         );
       }
       renderPages();
@@ -420,733 +468,12 @@
         settle();
         return;
       }
-      normalizeImage(f).then(function (blob) {
-        if (blob) addPage(blob, false, 'page.jpg', base + i);
+      normalizeImage(f).then(function (r) {
+        if (r && r.blob) addPage(r.blob, false, 'page.jpg', base + i, r.sharp);
         else rejected += 1;
         settle();
       });
     });
-  }
-
-  // ---- geometry ----------------------------------------------------------------
-  /** Order 4 points as [top-left, top-right, bottom-right, bottom-left]. */
-  function orderCorners(pts) {
-    var bySum = pts.slice().sort(function (a, b) { return a.x + a.y - (b.x + b.y); });
-    var byDiff = pts.slice().sort(function (a, b) { return a.y - a.x - (b.y - b.x); });
-    return [bySum[0], byDiff[0], bySum[3], byDiff[3]];
-  }
-
-  function dist(a, b) {
-    return Math.hypot(a.x - b.x, a.y - b.y);
-  }
-
-  /** Largest corner movement between two quads, as a fraction of the frame diagonal. */
-  function drift(a, b, diagonal) {
-    if (!a || !b) return Infinity;
-    var worst = 0;
-    for (var i = 0; i < 4; i++) worst = Math.max(worst, dist(a[i], b[i]));
-    return worst / diagonal;
-  }
-
-  /**
-   * Exponential moving average of the corner positions. This is what the gates judge and what the
-   * warp uses, so both see a quad that tracks the page instead of the contour re-fit noise.
-   */
-  function smoothQuad(previous, next) {
-    if (!previous) return next;
-    return next.map(function (p, i) {
-      return {
-        x: previous[i].x + (p.x - previous[i].x) * SMOOTHING,
-        y: previous[i].y + (p.y - previous[i].y) * SMOOTHING,
-      };
-    });
-  }
-
-  // ---- detection ---------------------------------------------------------------
-  function ensureMats() {
-    if (mats) return mats;
-    mats = {
-      gray: new cv.Mat(),
-      blur: new cv.Mat(),
-      edges: new cv.Mat(),
-      scratch: new cv.Mat(),
-      hsv: new cv.Mat(),
-      hsvCh: new cv.MatVector(),
-      lap: new cv.Mat(),
-      mean: new cv.Mat(),
-      stddev: new cv.Mat(),
-      kernel: cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3, 3)),
-    };
-    return mats;
-  }
-
-  function freeMats() {
-    if (!mats) return;
-    Object.keys(mats).forEach(function (k) {
-      try {
-        mats[k].delete();
-      } catch (e) {
-        /* already gone */
-      }
-    });
-    mats = null;
-  }
-
-  /** Largest plausible quad in an edge map, or null. Caller owns `edges`. */
-  function quadFromEdges(edges, frameArea) {
-    var contours = new cv.MatVector();
-    var hierarchy = new cv.Mat();
-    cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-
-    var best = null;
-    var bestArea = 0;
-    for (var i = 0; i < contours.size(); i++) {
-      var c = contours.get(i);
-      // Take the convex hull FIRST. A single edge broken by glare or notched by a shadow makes
-      // the raw contour non-convex, and the old code then discarded the page entirely.
-      var hull = new cv.Mat();
-      cv.convexHull(c, hull, false, true);
-      var peri = cv.arcLength(hull, true);
-      // Sweep epsilon instead of trusting the tutorial's 0.02: too small keeps rounding noise as
-      // extra vertices, too large collapses a real corner, and which one bites depends on the
-      // page, the distance and the lighting.
-      for (var e = 0; e < APPROX_EPS.length; e++) {
-        var approx = new cv.Mat();
-        cv.approxPolyDP(hull, approx, APPROX_EPS[e] * peri, true);
-        if (approx.rows === 4 && cv.isContourConvex(approx)) {
-          var area = Math.abs(cv.contourArea(approx));
-          if (area > bestArea && area < frameArea * MAX_AREA_RATIO) {
-            bestArea = area;
-            best = [];
-            for (var j = 0; j < 4; j++) best.push({ x: approx.data32S[j * 2], y: approx.data32S[j * 2 + 1] });
-          }
-          approx.delete();
-          break; // first epsilon that yields a quad wins for this contour
-        }
-        approx.delete();
-      }
-      hull.delete();
-      c.delete();
-    }
-    contours.delete();
-    hierarchy.delete();
-    return { quad: best, area: bestArea };
-  }
-
-  /** Canny with thresholds derived from the image itself — see the comment in analyse(). */
-  function autoCanny(gray, edges, scratch) {
-    // Otsu returns the intensity that best separates the histogram's two modes; using it as the
-    // high threshold adapts to the actual lighting. A fixed 60/160 produced no edge at all on a
-    // bright frame and a wall of noise on a dim one, which is most of why detection felt random.
-    var t = cv.threshold(gray, scratch, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
-    cv.Canny(gray, edges, Math.max(10, t * 0.5), Math.max(30, t));
-  }
-
-  /**
-   * Find the page in one working-size frame.
-   * @returns {{quad: Array<{x,y}>|null, areaRatio: number, sharpness: number}}
-   */
-  function analyse(src) {
-    var m = ensureMats();
-    var frameArea = src.cols * src.rows;
-    cv.cvtColor(src, m.gray, cv.COLOR_RGBA2GRAY);
-
-    cv.GaussianBlur(m.gray, m.blur, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-    autoCanny(m.blur, m.edges, m.scratch);
-    // Close small gaps so an edge broken by a ceiling-light glare still forms a closed contour.
-    cv.morphologyEx(m.edges, m.edges, cv.MORPH_CLOSE, m.kernel);
-    var found = quadFromEdges(m.edges, frameArea);
-
-    // White paper on a light wooden table has almost the same LUMINANCE as the table but very
-    // different CHROMA — wood is warm and saturated, paper is neutral. When the grey pass finds
-    // nothing usable, the saturation channel often finds the page immediately.
-    if (!found.quad || found.area < frameArea * MIN_AREA_RATIO) {
-      cv.cvtColor(src, m.hsv, cv.COLOR_RGBA2RGB);
-      cv.cvtColor(m.hsv, m.hsv, cv.COLOR_RGB2HSV);
-      cv.split(m.hsv, m.hsvCh);
-      var sat = m.hsvCh.get(1);
-      cv.GaussianBlur(sat, m.blur, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-      autoCanny(m.blur, m.edges, m.scratch);
-      cv.morphologyEx(m.edges, m.edges, cv.MORPH_CLOSE, m.kernel);
-      var alt = quadFromEdges(m.edges, frameArea);
-      sat.delete();
-      if (alt.quad && alt.area > found.area) found = alt;
-    }
-
-    var best = found.quad;
-    var bestArea = found.area;
-
-    // Sharpness measured INSIDE the page, and normalised by the page's own contrast. Measuring
-    // the whole frame meant a textured desk could pass the gate while a blurry receipt on a plain
-    // table failed it; un-normalised variance also drifts with lighting, so the threshold only
-    // ever held for the room it was tuned in.
-    var sharpness = 0;
-    if (best) {
-      var xs = best.map(function (p) { return p.x; });
-      var ys = best.map(function (p) { return p.y; });
-      var x0 = Math.max(0, Math.min.apply(null, xs));
-      var y0 = Math.max(0, Math.min.apply(null, ys));
-      var x1 = Math.min(src.cols, Math.max.apply(null, xs));
-      var y1 = Math.min(src.rows, Math.max.apply(null, ys));
-      if (x1 - x0 > 8 && y1 - y0 > 8) {
-        var roi = m.gray.roi(new cv.Rect(x0, y0, x1 - x0, y1 - y0));
-        cv.Laplacian(roi, m.lap, cv.CV_64F);
-        cv.meanStdDev(m.lap, m.mean, m.stddev);
-        var lapSd = m.stddev.doubleAt(0, 0);
-        cv.meanStdDev(roi, m.mean, m.stddev);
-        var imgSd = m.stddev.doubleAt(0, 0);
-        sharpness = (lapSd * lapSd) / (imgSd * imgSd + 1e-6);
-        roi.delete();
-      }
-    }
-
-    var areaRatio = frameArea > 0 ? bestArea / frameArea : 0;
-    return {
-      quad: best && areaRatio >= MIN_AREA_RATIO ? orderCorners(best) : null,
-      areaRatio: best ? areaRatio : 0,
-      sharpness: sharpness,
-    };
-  }
-
-  /**
-   * Working-frame coordinates → overlay-canvas coordinates.
-   * The video is drawn with `object-fit: cover`: it is scaled by max(), and whatever overflows is
-   * cropped in equal halves off the other axis. Scaling by width alone therefore drew the quad
-   * shifted by half of that crop — tolerable in the old 3/4 box, obvious now that the viewfinder
-   * is whatever shape the phone is. Capture is untouched by this: it works in sensor coordinates.
-   */
-  function coverMap(boxW, boxH, vw, vh, work) {
-    var s = Math.max(boxW / vw, boxH / vh); // displayed pixels per sensor pixel
-    return {
-      sx: (vw / work.width) * s,
-      sy: (vh / work.height) * s,
-      dx: (boxW - vw * s) / 2, // ≤ 0 on the cropped axis, 0 on the other
-      dy: (boxH - vh * s) / 2,
-    };
-  }
-
-  function drawOverlay(quad, ratio, map) {
-    var ctx = el.overlay.getContext('2d');
-    ctx.clearRect(0, 0, el.overlay.width, el.overlay.height);
-    if (!quad) return;
-    var ready = ratio >= 1;
-    var stroke = ready ? '#2ecc71' : ratio > 0 ? '#f0b429' : '#e05561';
-    ctx.beginPath();
-    quad.forEach(function (p, i) {
-      var x = map.dx + p.x * map.sx;
-      var y = map.dy + p.y * map.sy;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.closePath();
-    ctx.lineWidth = 3;
-    ctx.strokeStyle = stroke;
-    ctx.stroke();
-    ctx.fillStyle = ready ? 'rgba(46,204,113,.22)' : 'rgba(46,204,113,' + (0.16 * ratio).toFixed(3) + ')';
-    ctx.fill();
-    quad.forEach(function (p) {
-      ctx.beginPath();
-      ctx.arc(map.dx + p.x * map.sx, map.dy + p.y * map.sy, 5, 0, Math.PI * 2);
-      ctx.fillStyle = stroke;
-      ctx.fill();
-    });
-  }
-
-  function detectTick() {
-    if (!cv || !stream || busy || el.video.readyState < 2) return;
-    var vw = el.video.videoWidth;
-    var vh = el.video.videoHeight;
-    if (!vw || !vh) return;
-
-    var work = el.work;
-    var scale = WORK_WIDTH / vw;
-    work.width = WORK_WIDTH;
-    work.height = Math.round(vh * scale);
-    work.getContext('2d').drawImage(el.video, 0, 0, work.width, work.height);
-
-    var src = cv.imread(work);
-    var result;
-    try {
-      result = analyse(src);
-    } finally {
-      src.delete();
-    }
-
-    // Keep the overlay the same size as the video is actually displayed at.
-    var rect = el.video.getBoundingClientRect();
-    if (el.overlay.width !== Math.round(rect.width) || el.overlay.height !== Math.round(rect.height)) {
-      el.overlay.width = Math.round(rect.width);
-      el.overlay.height = Math.round(rect.height);
-    }
-    var map = coverMap(el.overlay.width, el.overlay.height, vw, vh, work);
-
-    var diagonal = Math.hypot(work.width, work.height);
-    // Track the page with a smoothed quad; a frame with no detection drops the track entirely so
-    // the next sighting starts fresh instead of easing over from a stale position.
-    var quad = result.quad ? smoothQuad(lastQuad, result.quad) : null;
-    var driftRatio = quad ? drift(quad, lastQuad, diagonal) : Infinity;
-    var steady = driftRatio < MOVE_TOLERANCE;
-    var sharp = result.sharpness >= SHARPNESS_MIN;
-
-    // Decay rather than reset: one noisy frame in an otherwise steady sequence should not send the
-    // count back to zero, or a long streak can be destroyed forever by intermittent noise. Losing
-    // the page entirely is different — that does reset.
-    if (quad && steady && sharp) goodFrames += 1;
-    else if (!quad) goodFrames = 0;
-    else goodFrames = Math.max(0, goodFrames - 1);
-    lastQuad = quad;
-
-    // Everything the auto-shutter decided on, kept for the diagnostics readout and stamped onto
-    // the page when the shutter actually fires. Instrumentation only — nothing here feeds back
-    // into the detection maths.
-    lastMetrics = {
-      area: result.areaRatio,
-      sharpness: result.sharpness,
-      drift: driftRatio,
-      steady: goodFrames,
-    };
-
-    drawOverlay(quad, goodFrames / STEADY_FRAMES, map);
-    reportGates(quad, result, driftRatio, sharp, steady);
-
-    if (autoOn && goodFrames >= STEADY_FRAMES && Date.now() > suppressUntil) capture(quad, work.width);
-  }
-
-  var pct = function (v) {
-    return Math.round(v * 100) + '%';
-  };
-
-  /**
-   * Say which gate is holding the shutter — and, once a state has persisted, say it with the
-   * numbers. A transient "almost" stays clean; a genuinely stuck frame explains itself, which is
-   * what turns "it doesn't shoot" into something tunable.
-   */
-  function reportGates(quad, result, driftRatio, sharp, steady) {
-    var reason = !quad
-      ? result.areaRatio > 0.02
-        ? 'small'
-        : 'none'
-      : !sharp
-        ? 'blur'
-        : !steady
-          ? 'move'
-          : 'ok';
-    if (reason !== stuckReason) {
-      stuckReason = reason;
-      stuckSince = Date.now();
-    }
-    var verbose = reason !== 'ok' && Date.now() - stuckSince > STUCK_EXPLAIN_MS;
-
-    if (reason === 'none') setHint('כוונו את המצלמה כך שכל החשבונית תיראה במסך', 'bad');
-    else if (reason === 'small')
-      setHint(
-        verbose
-          ? 'התקרבו — המסמך תופס ' + pct(result.areaRatio) + ' מהמסך, נדרש ' + pct(MIN_AREA_RATIO)
-          : 'התקרבו — המסמך קטן מדי בפריים',
-        'bad',
-      );
-    else if (reason === 'blur')
-      setHint(
-        verbose
-          ? 'מטושטש — חדות ' + result.sharpness.toFixed(3) + ' מתוך ' + SHARPNESS_MIN + ' נדרש'
-          : 'התמונה מטושטשת — החזיקו יציב ותנו למצלמה להתמקד',
-        'warn',
-      );
-    else if (reason === 'move')
-      setHint(
-        verbose && isFinite(driftRatio)
-          ? 'תזוזה ' + pct(driftRatio) + ' — מותר עד ' + pct(MOVE_TOLERANCE)
-          : 'כמעט — החזיקו את הטלפון יציב',
-        'warn',
-      );
-    else setHint('מצוין — מצלם…', 'ok');
-
-    renderDiag();
-  }
-
-  // ---- diagnostics readout (מצב אבחון) -----------------------------------------
-  /** One row: label, measured value, the threshold it is judged against, pass/fail. */
-  function diagRow(label, value, limit, ok) {
-    return (
-      '<span class="' + (ok ? 'ok' : 'bad') + '">' + label + ' <b>' + value + '</b> / ' + limit + '</span>'
-    );
-  }
-
-  function renderDiag() {
-    if (!diagOn || !el.diag || !lastMetrics) return;
-    var m = lastMetrics;
-    el.diag.innerHTML =
-      diagRow('שטח', pct(m.area), pct(MIN_AREA_RATIO), m.area >= MIN_AREA_RATIO) +
-      diagRow('חדות', m.sharpness.toFixed(3), SHARPNESS_MIN, m.sharpness >= SHARPNESS_MIN) +
-      diagRow('תזוזה', isFinite(m.drift) ? pct(m.drift) : '—', pct(MOVE_TOLERANCE), m.drift < MOVE_TOLERANCE) +
-      diagRow('פריימים', m.steady, STEADY_FRAMES, m.steady >= STEADY_FRAMES);
-  }
-
-  function setDiag(on) {
-    diagOn = on;
-    show(el.diag, on);
-    if (!on && el.diag) el.diag.innerHTML = '';
-    try {
-      localStorage.setItem('scanDiag', on ? '1' : '');
-    } catch (e) {
-      /* private mode — the toggle just doesn't persist */
-    }
-    renderPages(); // the per-page metric line appears/disappears with the mode
-  }
-
-  /** Human-readable summary of the frame that actually fired — shown under its thumbnail. */
-  function metricsLabel(m) {
-    if (!m) return '';
-    return 'שטח ' + pct(m.area) + ' · חדות ' + m.sharpness.toFixed(3) + ' · תזוזה ' + (isFinite(m.drift) ? pct(m.drift) : '—');
-  }
-
-  // ---- capture -----------------------------------------------------------------
-  /**
-   * Grab the current frame at full sensor resolution and flatten the detected page onto it.
-   * @param {Array<{x,y}>|null} quad in working-frame coordinates, or null for an uncropped shot
-   * @param {number} workWidth the width those coordinates are relative to
-   */
-  function capture(quad, workWidth) {
-    if (busy) return;
-    if (pages.length >= cfg.maxPages) {
-      setHint('הגעתם ל-' + cfg.maxPages + ' עמודים — שלחו לעיבוד', 'warn');
-      return;
-    }
-    busy = true;
-    suppressUntil = Date.now() + RECAPTURE_PAUSE_MS;
-    goodFrames = 0;
-    stuckReason = null;
-    var firedWith = lastMetrics; // the gate values of this exact frame, kept with the page
-    buzz(35);
-    flash();
-
-    var full = el.full;
-    full.width = el.video.videoWidth;
-    full.height = el.video.videoHeight;
-    if (!full.width || !full.height) {
-      // The manual shutter is reachable before the first frame arrives; a 0×0 canvas would fail
-      // later and much less clearly.
-      busy = false;
-      setHint('המצלמה עוד לא מוכנה — רגע ונסו שוב', 'warn');
-      return;
-    }
-    full.getContext('2d').drawImage(el.video, 0, 0, full.width, full.height);
-
-    var out = document.createElement('canvas');
-    var ok = quad && cv ? warpTo(out, full, quad, full.width / workWidth) : false;
-    if (!ok) {
-      // No usable quad (or no OpenCV): keep the frame as-is, just size-capped.
-      var s = Math.min(1, cfg.maxEdge / Math.max(full.width, full.height));
-      out.width = Math.round(full.width * s);
-      out.height = Math.round(full.height * s);
-      out.getContext('2d').drawImage(full, 0, 0, out.width, out.height);
-    }
-
-    out.toBlob(
-      function (blob) {
-        busy = false;
-        if (!blob) {
-          setError('לא הצלחנו לשמור את הצילום — נסו שוב');
-          return;
-        }
-        addPage(blob, false, 'page.jpg', undefined, firedWith);
-        renderPages();
-        setHint('עמוד ' + pages.length + ' נוסף ✓', 'ok');
-      },
-      'image/jpeg',
-      cfg.jpegQuality,
-    );
-  }
-
-  /** Push a quad's corners outward from its centre by `pad` (a fraction of the short edge). */
-  function expandQuad(pts, pad) {
-    var cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
-    var cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
-    return pts.map(function (p) {
-      var dx = p.x - cx;
-      var dy = p.y - cy;
-      var len = Math.hypot(dx, dy) || 1;
-      return { x: p.x + (dx / len) * pad, y: p.y + (dy / len) * pad };
-    });
-  }
-
-  /**
-   * Is this quad plausibly a sheet of paper? A mis-detected quad warps text onto curved baselines
-   * and stretches glyphs — strictly worse than the original photo, and the model cannot tell it
-   * happened. Rejecting sends the uncropped frame instead, which is merely unhelpful.
-   */
-  function plausibleQuad(pts) {
-    var w = Math.max(dist(pts[0], pts[1]), dist(pts[3], pts[2]));
-    var h = Math.max(dist(pts[0], pts[3]), dist(pts[1], pts[2]));
-    if (!(w > 40 && h > 40)) return false;
-    var ratio = Math.max(w, h) / Math.min(w, h);
-    if (ratio > 8) return false; // a sliver, not a page
-    // Opposite edges of a rectangle photographed from any angle stay within ~35% of each other.
-    if (Math.abs(dist(pts[0], pts[1]) - dist(pts[3], pts[2])) / w > 0.35) return false;
-    if (Math.abs(dist(pts[0], pts[3]) - dist(pts[1], pts[2])) / h > 0.35) return false;
-    for (var i = 0; i < 4; i++) {
-      var a = pts[(i + 3) % 4];
-      var b = pts[i];
-      var c = pts[(i + 1) % 4];
-      var ang = Math.abs(
-        (Math.atan2(a.y - b.y, a.x - b.x) - Math.atan2(c.y - b.y, c.x - b.x)) * (180 / Math.PI),
-      );
-      if (ang > 180) ang = 360 - ang;
-      if (ang < 55 || ang > 125) return false; // 90° ± 35°
-    }
-    return true;
-  }
-
-  /**
-   * Perspective-correct `source` onto `target` using the detected quad.
-   *
-   * Two things here are deliberate and were previously wrong:
-   *
-   * 1. **Warp at the quad's own size, then downscale separately.** warpPerspective is a point
-   *    sampler — folding a reduction into it aliases small text instead of area-averaging it.
-   *    One clean INTER_AREA pass afterwards is better than one aliased pass, even though it is
-   *    technically two resamples.
-   * 2. **Pad the crop outward.** "Crop to the invoice" means remove the table, not shave the
-   *    paper margin. Corners detected on a 480px working frame carry a few pixels of error that
-   *    scale up with the sensor; cropping exactly to them clips the first or last character of
-   *    lines near the edge — and on an RTL invoice that is the item-description column. The model
-   *    cannot tell a character is missing, so it silently returns a truncated string.
-   */
-  function warpTo(target, source, quad, upscale) {
-    var pts = quad.map(function (p) {
-      return { x: p.x * upscale, y: p.y * upscale };
-    });
-    if (!plausibleQuad(pts)) return false;
-
-    var shortEdge = Math.min(
-      Math.max(dist(pts[0], pts[1]), dist(pts[3], pts[2])),
-      Math.max(dist(pts[0], pts[3]), dist(pts[1], pts[2])),
-    );
-    pts = expandQuad(pts, shortEdge * CROP_PAD_RATIO);
-
-    var w0 = Math.round(Math.max(dist(pts[0], pts[1]), dist(pts[3], pts[2])));
-    var h0 = Math.round(Math.max(dist(pts[0], pts[3]), dist(pts[1], pts[2])));
-
-    // The model's ceiling is an AREA ceiling (≈⌈w/28⌉×⌈h/28⌉ tokens), so size by megapixels and
-    // keep the long edge under the per-side cap as a second constraint.
-    var s = Math.min(1, Math.sqrt(cfg.maxPixels / (w0 * h0)), cfg.maxEdge / Math.max(w0, h0));
-    var w = Math.max(1, Math.round(w0 * s));
-    var h = Math.max(1, Math.round(h0 * s));
-
-    var src = cv.imread(source);
-    var dst = new cv.Mat();
-    var from = cv.matFromArray(4, 1, cv.CV_32FC2, [
-      pts[0].x, pts[0].y, pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y,
-    ]);
-    var to = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, w0, 0, w0, h0, 0, h0]);
-    var M = cv.getPerspectiveTransform(from, to);
-    try {
-      // BORDER_REPLICATE, not a black fill: the padding above can reach past the frame edge, and
-      // a black wedge in the corner is something the model will try to interpret.
-      cv.warpPerspective(src, dst, M, new cv.Size(w0, h0), cv.INTER_CUBIC, cv.BORDER_REPLICATE, new cv.Scalar());
-      if (s < 1) cv.resize(dst, dst, new cv.Size(w, h), 0, 0, cv.INTER_AREA);
-      target.width = w;
-      target.height = h;
-      cv.imshow(target, dst);
-      return true;
-    } finally {
-      src.delete();
-      dst.delete();
-      from.delete();
-      to.delete();
-      M.delete();
-    }
-  }
-
-  function flash() {
-    if (!el.flash) return;
-    el.flash.classList.remove('on');
-    void el.flash.offsetWidth; // restart the animation
-    el.flash.classList.add('on');
-  }
-
-  // ---- camera ------------------------------------------------------------------
-  function cameraSupported() {
-    return Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext);
-  }
-
-  /**
-   * The captured pages live under the send button, but while the viewfinder is up they belong
-   * over the video — the same nodes with the same handlers, re-parented into the HUD and laid out
-   * as one scrolling row instead of a wrapping grid.
-   */
-  function dockThumbs(overVideo) {
-    var host = overVideo ? el.thumbDock : el.thumbHome;
-    if (host && el.thumbs.parentNode !== host) {
-      // Back to the exact slot it came from — appended, it would land under the send button.
-      if (overVideo) host.appendChild(el.thumbs);
-      else host.insertBefore(el.thumbs, el.thumbAnchor);
-    }
-    el.thumbs.classList.toggle('scan-strip', Boolean(overVideo));
-  }
-
-  function openLive() {
-    dockThumbs(true); // before the dialog paints, so the strip never appears to jump in
-    if (el.live.open) return;
-    if (el.live.showModal) el.live.showModal();
-    else el.live.setAttribute('open', ''); // no <dialog> support: the CSS still covers the screen
-  }
-
-  function startCamera() {
-    setError('');
-    if (stream) return; // already open — a second tap must not grab a second camera track
-    if (!cameraSupported()) {
-      fallbackToNativeCamera('הדפדפן לא מאפשר תצוגת מצלמה חיה — נשתמש במצלמת המכשיר.');
-      return;
-    }
-    openLive();
-    setHint('פותח מצלמה…', '');
-    // Start the download NOW, in parallel with the permission prompt and camera warm-up, instead
-    // of after play() resolves. loadOpenCv() memoises, so the await further down reuses this.
-    loadOpenCv().catch(function () {
-      /* handled where it is awaited */
-    });
-    navigator.mediaDevices
-      .getUserMedia({
-        video: {
-          facingMode: { ideal: 'environment' },
-          // Ask for the sensor, not the screen. The frame we capture IS this stream, so a 1080p
-          // track caps a half-frame receipt at roughly 1300px across — below what the model will
-          // happily read, and low enough that the size cap below never even engages. Detection
-          // still runs on a 480px copy, so asking for more costs memory, not CPU.
-          width: { ideal: 3840 },
-          height: { ideal: 2160 },
-        },
-        audio: false,
-      })
-      .then(function (s) {
-        stream = s;
-        track = s.getVideoTracks()[0] || null;
-        el.video.srcObject = s;
-        applyCameraCapabilities();
-        return el.video.play();
-      })
-      .then(function () {
-        // Tick the elapsed seconds into the hint. A silent "loading" line on a 3MB download reads
-        // as a frozen app, and the manual shutter works the whole time — say both.
-        var since = Date.now();
-        loadingTimer = setInterval(function () {
-          var secs = Math.round((Date.now() - since) / 1000);
-          setHint('טוען זיהוי קצוות… ' + secs + 'ש׳ (הורדה חד־פעמית) — אפשר לצלם ידנית בינתיים', '');
-        }, 1000);
-        setHint('טוען זיהוי קצוות…', '');
-        return loadOpenCv();
-      })
-      .then(function () {
-        stopLoadingTicker();
-        detectTimer = setInterval(detectTick, DETECT_INTERVAL_MS);
-        setHint('כוונו את המצלמה כך שכל החשבונית תיראה במסך', 'bad');
-      })
-      .catch(function (err) {
-        stopLoadingTicker();
-        var name = err && err.name;
-        if (name === 'NotAllowedError' || name === 'SecurityError') {
-          fallbackToNativeCamera('אין הרשאת מצלמה לדפדפן — נשתמש במצלמת המכשיר.');
-          return;
-        }
-        if (stream) {
-          // The camera works, only the edge detection failed: keep the manual shutter. This is a
-          // usable scanner, not a broken screen — say exactly that, and stop the auto-capture
-          // checkbox from promising something that cannot happen.
-          autoOn = false;
-          if (el.autoToggle) {
-            el.autoToggle.checked = false;
-            el.autoToggle.disabled = true;
-          }
-          setHint('זיהוי הקצוות לא נטען — צלמו בכפתור "צלם" (התמונה תישלח בלי חיתוך אוטומטי)', 'warn');
-          return;
-        }
-        fallbackToNativeCamera('לא הצלחנו לפתוח את המצלמה — נשתמש במצלמת המכשיר.');
-      });
-  }
-
-  /**
-   * Continuous autofocus and the torch are Chrome-on-Android only; iOS Safari exposes neither.
-   * Everything here is capability-guarded, so an unsupported browser simply gets nothing extra —
-   * the sharpness gate in analyse() is what protects image quality on those devices.
-   */
-  function applyCameraCapabilities() {
-    if (!track || !track.getCapabilities) return;
-    var caps = {};
-    try {
-      caps = track.getCapabilities() || {};
-    } catch (e) {
-      return;
-    }
-    if (caps.focusMode && caps.focusMode.indexOf('continuous') !== -1) {
-      track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function () {});
-    }
-    if (caps.torch) {
-      show(el.torch, true);
-      if (!torchBound) {
-        torchBound = true; // startCamera may run again — bind the handler exactly once
-        el.torch.addEventListener('click', function () {
-          if (!track) return;
-          var on = el.torch.getAttribute('aria-pressed') === 'true';
-          track
-            .applyConstraints({ advanced: [{ torch: !on }] })
-            .then(function () {
-              el.torch.setAttribute('aria-pressed', String(!on));
-            })
-            .catch(function () {});
-        });
-      }
-    }
-  }
-
-  function stopLoadingTicker() {
-    if (loadingTimer) {
-      clearInterval(loadingTimer);
-      loadingTimer = null;
-    }
-  }
-
-  /**
-   * Close the viewfinder and release the camera.
-   * The dialog's `close` event is the funnel, because Esc and a backdrop dismissal never reach
-   * this function and must still stop the track. But close() only QUEUES that event, and a
-   * pagehide teardown may never get to run the task — so the release also happens synchronously
-   * right here. releaseCamera() is idempotent precisely so both paths can fire.
-   */
-  function stopCamera() {
-    // close() first: releaseCamera() drops the `open` attribute, and yanking that off a dialog
-    // that is still modal would strand it in the top layer with close() refusing to run.
-    if (el.live.open && el.live.close) el.live.close();
-    releaseCamera();
-  }
-
-  function releaseCamera() {
-    stopLoadingTicker();
-    if (detectTimer) {
-      clearInterval(detectTimer);
-      detectTimer = null;
-    }
-    if (stream) {
-      stream.getTracks().forEach(function (t) {
-        t.stop();
-      });
-      stream = null;
-      track = null;
-    }
-    el.video.srcObject = null;
-    lastQuad = null;
-    goodFrames = 0;
-    freeMats();
-    el.live.removeAttribute('open'); // a no-op after close(); the exit for browsers without <dialog>
-    dockThumbs(false);
-    show(el.torch, false);
-  }
-
-  /** Close the live scanner and expose the plain OS-camera button on the page instead. */
-  function fallbackToNativeCamera(reason) {
-    stopCamera();
-    show(el.fallback, true);
-    if (el.fallbackNote) el.fallbackNote.textContent = reason;
   }
 
   // ---- upload ------------------------------------------------------------------
@@ -1194,7 +521,6 @@
       }
       if (xhr.status >= 200 && xhr.status < 300 && body.id) {
         setProgress(1);
-        stopCamera();
         location.href = '/scan/' + body.id;
         return;
       }
@@ -1236,34 +562,18 @@
       store: $('scanStore'),
       thumbs: $('scanThumbs'),
       count: $('scanCount'),
+      warn: $('scanBlurWarn'),
       err: $('scanErr'),
       send: $('btnSend'),
-      live: $('scanLive'), // the fullscreen <dialog>
-      thumbDock: $('scanThumbDock'),
-      video: $('scanVideo'),
-      overlay: $('scanOverlay'),
-      // Off-screen scratch canvases: `work` is the small copy the detector runs on, `full` is the
-      // full-resolution frame grab. They never enter the document.
-      work: document.createElement('canvas'),
-      full: document.createElement('canvas'),
-      hint: $('scanLiveHint'),
-      diag: $('scanDiag'),
-      diagToggle: $('chkDiag'),
-      liveCount: $('scanLiveCount'),
-      flash: $('scanFlash'),
-      torch: $('btnTorch'),
-      autoToggle: $('chkAuto'),
-      fallback: $('scanFallback'),
-      fallbackNote: $('scanFallbackNote'),
       progressWrap: $('scanProgress'),
       progressBar: $('scanProgressBar'),
       camInput: $('camInput'),
       fileInput: $('fileInput'),
+      viewDlg: $('pageDlg'),
+      viewImg: $('pageDlgImg'),
+      viewCap: $('pageDlgCap'),
     };
     if (!el.store || !el.send) return; // the AI-disabled version of the page
-    // Where the captured pages sit when the scanner is closed — parent AND the node they precede.
-    el.thumbHome = el.thumbs.parentNode;
-    el.thumbAnchor = el.thumbs.nextSibling;
 
     try {
       var last = localStorage.getItem('scanStoreId');
@@ -1280,36 +590,11 @@
       sync();
     });
 
-    $('btnStart').addEventListener('click', startCamera);
-    $('btnStop').addEventListener('click', stopCamera);
-    el.live.addEventListener('close', releaseCamera);
-    $('btnShutter').addEventListener('click', function () {
-      capture(lastQuad, el.work.width);
+    $('btnCamera').addEventListener('click', function () {
+      el.camInput.click();
     });
-    if (el.autoToggle) {
-      autoOn = el.autoToggle.checked;
-      el.autoToggle.addEventListener('change', function () {
-        autoOn = el.autoToggle.checked;
-      });
-    }
-    if (el.diagToggle) {
-      var savedDiag = false;
-      try {
-        savedDiag = localStorage.getItem('scanDiag') === '1';
-      } catch (e) {
-        /* private mode — starts off */
-      }
-      el.diagToggle.checked = savedDiag;
-      setDiag(savedDiag);
-      el.diagToggle.addEventListener('change', function () {
-        setDiag(el.diagToggle.checked);
-      });
-    }
     $('btnFiles').addEventListener('click', function () {
       el.fileInput.click();
-    });
-    $('btnNativeCam').addEventListener('click', function () {
-      el.camInput.click();
     });
     el.camInput.addEventListener('change', function () {
       addFiles(el.camInput.files);
@@ -1320,14 +605,6 @@
       el.fileInput.value = '';
     });
     el.send.addEventListener('click', upload);
-
-    if (!cameraSupported()) fallbackToNativeCamera('הדפדפן לא תומך בתצוגת מצלמה חיה — צלמו במצלמת המכשיר.');
-
-    // Never hold the camera open in a backgrounded tab.
-    document.addEventListener('visibilitychange', function () {
-      if (document.hidden && stream) stopCamera();
-    });
-    window.addEventListener('pagehide', stopCamera);
 
     sync();
   }
