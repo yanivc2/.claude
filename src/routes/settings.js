@@ -23,6 +23,9 @@ import { PERMISSIONS, ROLE_PRESETS } from '../lib/permissions.js';
 import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { verifyPassword, generatePassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll } from '../services/backup.js';
+import { importCatalogItems } from '../services/masterCatalog.js';
+import { parseCatalogFile } from '../lib/catalogFile.js';
+import { decodeBuffer } from '../lib/decodeText.js';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '../services/roleTemplates.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
@@ -416,6 +419,44 @@ router.post('/restore', requireOwner, (req, res, next) => {
       const { restored } = await restoreAll(dump, req.user);
       const total = Object.values(restored).reduce((a, b) => a + b, 0);
       await render(req, res, { notice: `השחזור הושלם — ${total} רשומות שוחזרו מהגיבוי.` });
+    } catch (err) {
+      if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+      next(err);
+    }
+  });
+});
+
+// Master-catalog upload (owner-only). Additive: it inserts new barcodes and updates existing
+// ones, and never deletes — so re-uploading a newer file is always safe.
+const catalogUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024, files: 1 } }).single('catalog');
+router.post('/catalog-import', requireOwner, (req, res, next) => {
+  catalogUpload(req, res, async (uploadErr) => {
+    try {
+      if (uploadErr) throw new RuleError('CATALOG', 'העלאת הקובץ נכשלה (מוגבל ל-40MB).');
+      if (!req.file) throw new RuleError('CATALOG', 'לא נבחר קובץ.');
+
+      const { items, stats } = parseCatalogFile(decodeBuffer(req.file.buffer));
+      if (!stats.columns.includes('barcode') || !stats.columns.includes('name')) {
+        throw new RuleError('CATALOG', 'לא נמצאו העמודות "ברקוד" ו"שם" בשורת הכותרות. ודאו שהקובץ נשמר כ-CSV עם כותרות בעברית.');
+      }
+      if (items.length === 0) throw new RuleError('CATALOG', 'לא נמצאה אף שורה תקינה בקובץ.');
+
+      const source = (req.body.source_name || '').trim() || 'קובץ שהועלה';
+      const result = await importCatalogItems(items, { chain: source, store: null });
+
+      // The repair count is reported, never hidden: a spreadsheet round trip silently strips
+      // leading zeros from barcodes, and the owner should know it happened to their file.
+      const parts = [
+        `הקטלוג עודכן — נוספו ${result.inserted}, עודכנו ${result.updated}, ללא שינוי ${result.unchanged}.`,
+      ];
+      if (stats.repaired) {
+        parts.push(`⚠ ${stats.repaired} ברקודים הגיעו בלי אפסים מובילים (סימן שהקובץ נערך באקסל) ותוקנו לפי ספרת הביקורת.`);
+      }
+      const dropped = stats.noBarcode + stats.badBarcode + stats.duplicate;
+      if (dropped) {
+        parts.push(`דולגו ${dropped} שורות: ${stats.noBarcode} בלי ברקוד או שם, ${stats.badBarcode} ברקוד לא תקין, ${stats.duplicate} כפולות.`);
+      }
+      await render(req, res, { notice: parts.join(' ') });
     } catch (err) {
       if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
       next(err);

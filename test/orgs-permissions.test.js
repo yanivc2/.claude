@@ -105,3 +105,35 @@ test('the owner action dialogs ship with the buttons on every settings page', as
   }
   server.close();
 });
+
+test('the owner can upload a catalog file, and the result reports repairs', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+  const db = await freshDb();
+  const ow = await owner(db);
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+
+  // One clean row and one whose leading zeros a spreadsheet stripped.
+  const csv =
+    "﻿ברקוד,שם,מקט,יצרן,יחידת מידה,מחיר מדף\n" +
+    '7290000042435,חלב מפוסטר 1%,,תנובה,ליטר,5.99\n' +
+    '10181040009,מוצר שאקסל פגע בו,,יצרן,גרם,10\n';
+  const fd = new FormData();
+  fd.append('catalog', new Blob([csv], { type: 'text/csv' }), 'catalog.csv');
+  fd.append('source_name', 'בדיקה');
+
+  const res = await fetch(`${base}/settings/catalog-import`, { method: 'POST', headers: { cookie }, body: fd });
+  const html = await res.text();
+  assert.equal(res.status, 200);
+  assert.match(html, /נוספו 2/);
+  // Silently repairing an identity key would be worse than the damage — it has to be reported.
+  assert.match(html, /1 ברקודים/);
+
+  const rows = await db.many('SELECT barcode, name, sku FROM master_catalog ORDER BY barcode', []);
+  assert.deepEqual(rows.map((r) => r.barcode), ['010181040009', '7290000042435']);
+  server.close();
+});

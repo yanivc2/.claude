@@ -6,11 +6,11 @@ import { normalizeSupplierName } from '../lib/supplierMatch.js';
 // screen uses it to confirm barcodes and suggest names. retail_price is display-only and is
 // never compared to purchase prices.
 
-/** Inserted-rows chunk: 200 rows × 11 columns stays far below pg's placeholder limit. */
+/** Inserted-rows chunk: 200 rows × 12 columns stays far below pg's placeholder limit. */
 const INSERT_CHUNK = 200;
 
 const COLS = [
-  'barcode', 'name', 'manufacturer_name', 'manufacturer_norm', 'unit_qty', 'quantity',
+  'barcode', 'name', 'sku', 'manufacturer_name', 'manufacturer_norm', 'unit_qty', 'quantity',
   'qty_in_package', 'retail_price', 'source_chain', 'source_store', 'imported_at',
 ];
 
@@ -26,7 +26,7 @@ const COLS = [
  */
 export async function importCatalogItems(items, { chain = 'shufersal', store = null } = {}, x = getExecutor()) {
   const existing = new Map();
-  for (const row of await x.many('SELECT barcode, name, manufacturer_name, retail_price FROM master_catalog', [])) {
+  for (const row of await x.many('SELECT barcode, name, sku, manufacturer_name, retail_price FROM master_catalog', [])) {
     existing.set(row.barcode, row);
   }
 
@@ -41,6 +41,7 @@ export async function importCatalogItems(items, { chain = 'shufersal', store = n
     const row = [
       item.barcode,
       item.name,
+      item.sku ?? null,
       item.manufacturerName ?? null,
       item.manufacturerName ? normalizeSupplierName(item.manufacturerName) || null : null,
       item.unitQty ?? null,
@@ -55,7 +56,9 @@ export async function importCatalogItems(items, { chain = 'shufersal', store = n
     if (!prev) {
       fresh.push(row);
     } else if (
+      // Every field compared here must also be selected above, or an import silently no-ops on it.
       prev.name !== item.name ||
+      (prev.sku ?? null) !== (item.sku ?? null) ||
       (prev.manufacturer_name ?? null) !== (item.manufacturerName ?? null) ||
       Number(prev.retail_price ?? -1) !== Number(item.retailPrice ?? -1)
     ) {
@@ -76,8 +79,9 @@ export async function importCatalogItems(items, { chain = 'shufersal', store = n
     const barcode = row[0];
     await x.run(
       `UPDATE master_catalog
-          SET name = ?, manufacturer_name = ?, manufacturer_norm = ?, unit_qty = ?, quantity = ?,
-              qty_in_package = ?, retail_price = ?, source_chain = ?, source_store = ?, imported_at = ?
+          SET name = ?, sku = ?, manufacturer_name = ?, manufacturer_norm = ?, unit_qty = ?,
+              quantity = ?, qty_in_package = ?, retail_price = ?, source_chain = ?,
+              source_store = ?, imported_at = ?
         WHERE barcode = ?`,
       [...row.slice(1), barcode],
     );

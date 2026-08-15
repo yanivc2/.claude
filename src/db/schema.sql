@@ -449,6 +449,7 @@ CREATE TABLE IF NOT EXISTS master_catalog (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   barcode           TEXT NOT NULL UNIQUE,      -- ItemCode (EAN אוניברסלי בלבד)
   name              TEXT NOT NULL,             -- ItemName
+  sku               TEXT,                      -- מק"ט היצרן כשהקובץ מספק אותו (לרוב ריק)
   manufacturer_name TEXT,                      -- ManufacturerName ("תנובה", "טרה"...)
   manufacturer_norm TEXT,                      -- normalizeSupplierName(manufacturer_name)
   unit_qty          TEXT,                      -- UnitQty ("ליטר", "גרם"...)
