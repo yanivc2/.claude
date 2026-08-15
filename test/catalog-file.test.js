@@ -81,3 +81,25 @@ test('tab-separated files work too', () => {
   assert.equal(items[0].barcode, '7290000042435');
   assert.equal(items[0].manufacturerName, 'תנובה');
 });
+
+test('takes the median when a merged file has a price column per chain', () => {
+  // A four-chain catalog has מחיר שופרסל / רמי לוי / טיב טעם / קרפור instead of one מחיר מדף.
+  // The median represents a shelf price better than whichever chain happens to be first.
+  const head = 'ברקוד,שם,יצרן,מחיר שופרסל,מחיר רמי לוי,מחיר טיב טעם,מחיר קרפור';
+  const { items } = parseCatalogFile(`${head}\n7290000042435,חלב,תנובה,10,6,8,12`);
+  assert.equal(items[0].retailPrice, 900); // median of 6,8,10,12 = 9 ₪
+
+  // Chains that do not carry the item leave their cell empty and must not drag the median down.
+  const one = parseCatalogFile(`${head}\n7290000042435,חלב,תנובה,,,7.5,`);
+  assert.equal(one.items[0].retailPrice, 750);
+
+  const none = parseCatalogFile(`${head}\n7290000042435,חלב,תנובה,,,,`);
+  assert.equal(none.items[0].retailPrice, null);
+});
+
+test('min/max price columns are ignored rather than mistaken for the shelf price', () => {
+  const { items } = parseCatalogFile(
+    "ברקוד,שם,מחיר מדף,מחיר מדף מינ',מחיר מדף מקס'\n7290000042435,חלב,40.90,28.9,42.9",
+  );
+  assert.equal(items[0].retailPrice, 4090);
+});

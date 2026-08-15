@@ -1,7 +1,7 @@
-// Parse an owner-supplied catalog file (CSV/TSV with a Hebrew header row) into the item shape
-// importCatalogItems consumes. Pure: no I/O, no DB.
+// Parse an owner-supplied catalog file — .xlsx, or CSV/TSV with a Hebrew header row — into the
+// item shape importCatalogItems consumes. Pure: no I/O, no DB.
 //
-// Two things this file exists to survive, both seen on real uploads:
+// Three things this file exists to survive, all seen on real uploads:
 //
 // 1. **Varying columns.** The same catalog arrived once with 14 columns and once with 7. Headers
 //    are matched by name, and anything unrecognised is ignored — so the owner never has to trim a
@@ -17,9 +17,15 @@
 //    checksum. On that file the repair recovered 1,247 of 1,247 with no checksum failures — which
 //    is what makes it a repair and not a guess. Anything that fails the checksum is skipped and
 //    reported, never stored.
+//
+// 3. **A price column per chain.** A merged four-chain catalog has מחיר שופרסל / מחיר רמי לוי /
+//    מחיר טיב טעם / מחיר קרפור instead of one מחיר מדף. They all feed the single display-only
+//    retail_price, and the median of whichever are present represents a shelf price better than
+//    any one chain does.
 
 import { eanChecksumOk } from './ean.js';
 import { toAgorotFromNumber } from './extractValidate.js';
+import { looksLikeXlsx, readXlsx } from './xlsxRead.js';
 
 /** GTIN lengths, shortest first — the repair pads up to the next one that fits. */
 const GTIN_LENGTHS = [8, 12, 13, 14];
@@ -44,6 +50,16 @@ const HEADERS = {
   כמות: 'quantity',
   יחידתמידה: 'unitQty',
   מחירמדף: 'retailPrice',
+  // A merged multi-chain catalog carries one price column per chain. They all feed the same
+  // display-only field; parseRows takes the median of whichever are present, which represents a
+  // shelf price better than any single chain does.
+  מחירשופרסל: 'retailPrice',
+  מחיררמילוי: 'retailPrice',
+  מחירטיבטעם: 'retailPrice',
+  מחירקרפור: 'retailPrice',
+  מחירויקטורי: 'retailPrice',
+  מחירמדףמינ: 'ignore',
+  מחירמדףמקס: 'ignore',
 };
 
 /** Squash a header for matching: drop quotes, apostrophes, spaces and punctuation. */
@@ -123,36 +139,56 @@ function str(value) {
   return s === '' ? null : s;
 }
 
-/**
- * Parse a catalog file's text into items plus a report of what was dropped and why.
- *
- * @param {string} text the decoded file (a UTF-8 BOM is tolerated)
- * @returns {{items: Array<object>, stats: {rows:number, kept:number, repaired:number,
- *   noBarcode:number, badBarcode:number, duplicate:number, columns: string[]}}}
- */
-export function parseCatalogFile(text) {
-  const lines = String(text ?? '')
+/** Median of the numbers present — a multi-chain file's shelf price, not any one chain's. */
+function medianPrice(values) {
+  const nums = values.map(num).filter((n) => n !== null && n > 0).sort((a, b) => a - b);
+  if (nums.length === 0) return null;
+  const mid = Math.floor(nums.length / 2);
+  return nums.length % 2 ? nums[mid] : (nums[mid - 1] + nums[mid]) / 2;
+}
+
+/** The file as a matrix of cell strings: an xlsx workbook, or a delimited text file. */
+function toRows(input) {
+  if (Buffer.isBuffer(input) && looksLikeXlsx(input)) return readXlsx(input);
+  const text = Buffer.isBuffer(input) ? input.toString('utf8') : String(input ?? '');
+  const lines = text
     .replace(/^﻿/, '')
     .split(/\r?\n/)
     .filter((l) => l.trim() !== '');
-  const stats = { rows: 0, kept: 0, repaired: 0, noBarcode: 0, badBarcode: 0, duplicate: 0, columns: [] };
-  if (lines.length < 2) return { items: [], stats };
-
+  if (lines.length === 0) return [];
   const delimiter = detectDelimiter(lines[0]);
-  const headers = splitLine(lines[0], delimiter).map((h) => HEADERS[headerKey(h)] || null);
-  stats.columns = headers.filter(Boolean);
+  return lines.map((l) => splitLine(l, delimiter));
+}
+
+/**
+ * Parse a catalog file into items plus a report of what was dropped and why.
+ *
+ * @param {Buffer|string} input the raw file (xlsx) or its decoded text (csv/tsv; a BOM is fine)
+ * @returns {{items: Array<object>, stats: {rows:number, kept:number, repaired:number,
+ *   noBarcode:number, badBarcode:number, duplicate:number, columns: string[]}}}
+ */
+export function parseCatalogFile(input) {
+  const rows = toRows(input);
+  const stats = { rows: 0, kept: 0, repaired: 0, noBarcode: 0, badBarcode: 0, duplicate: 0, columns: [] };
+  if (rows.length < 2) return { items: [], stats };
+
+  const headers = rows[0].map((h) => HEADERS[headerKey(h)] || null);
+  stats.columns = [...new Set(headers.filter((h) => h && h !== 'ignore'))];
   if (!headers.includes('barcode') || !headers.includes('name')) {
     return { items: [], stats };
   }
 
   const items = [];
   const seen = new Set();
-  for (let i = 1; i < lines.length; i++) {
-    const cells = splitLine(lines[i], delimiter);
+  for (let i = 1; i < rows.length; i++) {
+    const cells = rows[i];
     stats.rows++;
-    const rec = {};
+    const rec = { retailPrices: [] };
     headers.forEach((field, col) => {
-      if (field) rec[field] = cells[col];
+      if (!field || field === 'ignore') return;
+      // Several columns can feed one field — a merged catalog has a price per chain.
+      if (field === 'retailPrice') rec.retailPrices.push(cells[col]);
+      else rec[field] = cells[col];
     });
 
     const raw = String(rec.barcode ?? '').trim();
@@ -184,7 +220,7 @@ export function parseCatalogFile(text) {
       unitQty: str(rec.unitQty),
       quantity: num(rec.quantity),
       qtyInPackage: num(rec.qtyInPackage),
-      retailPrice: toAgorotFromNumber(num(rec.retailPrice)),
+      retailPrice: toAgorotFromNumber(medianPrice(rec.retailPrices)),
     });
     stats.kept++;
   }

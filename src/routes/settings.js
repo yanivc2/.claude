@@ -25,6 +25,7 @@ import { verifyPassword, generatePassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll } from '../services/backup.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
 import { parseCatalogFile } from '../lib/catalogFile.js';
+import { looksLikeXlsx } from '../lib/xlsxRead.js';
 import { decodeBuffer } from '../lib/decodeText.js';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '../services/roleTemplates.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -451,9 +452,13 @@ router.post('/catalog-import', requireOwner, (req, res, next) => {
       if (uploadErr) throw new RuleError('CATALOG', 'העלאת הקובץ נכשלה (מוגבל ל-40MB).');
       if (!req.file) throw new RuleError('CATALOG', 'לא נבחר קובץ.');
 
-      const { items, stats } = parseCatalogFile(decodeBuffer(req.file.buffer));
+      // Sniff the bytes rather than trusting the extension: an .xlsx is a zip and must reach the
+      // parser as a Buffer, while a text file goes through decodeBuffer so a Windows-1255 export
+      // is not mangled into question marks.
+      const raw = req.file.buffer;
+      const { items, stats } = parseCatalogFile(looksLikeXlsx(raw) ? raw : decodeBuffer(raw));
       if (!stats.columns.includes('barcode') || !stats.columns.includes('name')) {
-        throw new RuleError('CATALOG', 'לא נמצאו העמודות "ברקוד" ו"שם" בשורת הכותרות. ודאו שהקובץ נשמר כ-CSV עם כותרות בעברית.');
+        throw new RuleError('CATALOG', 'לא נמצאו העמודות "ברקוד" ו"שם" בשורת הכותרות. הקובץ צריך להיות XLSX או CSV עם כותרות בעברית בשורה הראשונה.');
       }
       if (items.length === 0) throw new RuleError('CATALOG', 'לא נמצאה אף שורה תקינה בקובץ.');
 
