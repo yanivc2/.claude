@@ -28,7 +28,11 @@
   // late is a small annoyance, firing on a blurry frame costs a full extraction. Re-tune on a
   // real phone if the shutter feels sticky — and remember the manual button always works.
   var WORK_WIDTH = 480; // detection runs on a small copy; full res is only touched on capture
-  var MIN_AREA_RATIO = 0.18; // the page must fill at least this much of the frame
+  // The page must fill at least this much of the frame. 0.18 let through documents that warped to
+  // ~800px across — unreadable for small print no matter what happens downstream.
+  var MIN_AREA_RATIO = 0.3;
+  var MAX_AREA_RATIO = 0.95; // above this it is the frame border or a table edge, not a document
+  var CROP_PAD_RATIO = 0.02; // grow the crop outward so corner error never clips a character
   var STEADY_FRAMES = 3; // consecutive good frames before the shutter fires (~0.4s at 8fps)
   // Max corner drift between frames, as a fraction of the frame diagonal — measured against the
   // SMOOTHED quad, not the raw one. approxPolyDP re-fits the corners every frame, so a raw corner
@@ -37,7 +41,10 @@
   // fired. Smoothing removes the re-fit noise while still catching real hand movement.
   var MOVE_TOLERANCE = 0.045;
   var SMOOTHING = 0.45; // EMA weight for the newest frame (1 = no smoothing)
-  var SHARPNESS_MIN = 45; // variance of the Laplacian — the anti-blur gate
+  // Laplacian variance divided by the page's own contrast variance — a ratio, so it does not move
+  // with lighting the way the old raw variance did. Re-tune with מצב אבחון on a real phone.
+  var SHARPNESS_MIN = 0.06;
+  var APPROX_EPS = [0.015, 0.02, 0.03, 0.04]; // approxPolyDP sweep — first one that yields a quad
   var DETECT_INTERVAL_MS = 125; // ~8fps, so a mid-range phone keeps a smooth preview
   var RECAPTURE_PAUSE_MS = 1400; // ignore detections right after a shot (same page twice)
   var STUCK_EXPLAIN_MS = 2000; // how long a gate must block before the hint shows its numbers
@@ -51,7 +58,11 @@
 
   var cfg = {
     maxPages: 8,
-    maxEdge: 1800,
+    maxEdge: 2500,
+    // The model's real limit is an AREA limit — it bills ⌈w/28⌉×⌈h/28⌉ tokens and caps at about
+    // 3.75MP — so a long-edge rule alone either wastes resolution on a portrait page or blows the
+    // budget on a landscape one. Size by pixels, and keep maxEdge as the per-side guard.
+    maxPixels: 3600000,
     jpegQuality: 0.9,
     maxUploadBytes: 10 * 1024 * 1024,
     maxTotalBytes: 18 * 1024 * 1024,
@@ -388,7 +399,11 @@
     if (mats) return mats;
     mats = {
       gray: new cv.Mat(),
+      blur: new cv.Mat(),
       edges: new cv.Mat(),
+      scratch: new cv.Mat(),
+      hsv: new cv.Mat(),
+      hsvCh: new cv.MatVector(),
       lap: new cv.Mat(),
       mean: new cv.Mat(),
       stddev: new cv.Mat(),
@@ -409,52 +424,113 @@
     mats = null;
   }
 
-  /**
-   * Find the page in one working-size frame.
-   * @returns {{quad: Array<{x,y}>|null, sharpness: number}}
-   */
-  function analyse(src) {
-    var m = ensureMats();
-    cv.cvtColor(src, m.gray, cv.COLOR_RGBA2GRAY);
-
-    // Sharpness first — it is cheap and it is the gate that keeps blurry pages out.
-    cv.Laplacian(m.gray, m.lap, cv.CV_64F);
-    cv.meanStdDev(m.lap, m.mean, m.stddev);
-    var sd = m.stddev.doubleAt(0, 0);
-    var sharpness = sd * sd;
-
-    cv.GaussianBlur(m.gray, m.gray, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
-    cv.Canny(m.gray, m.edges, 60, 160);
-    // Close small gaps so an edge broken by a ceiling-light glare still forms a closed contour.
-    cv.morphologyEx(m.edges, m.edges, cv.MORPH_CLOSE, m.kernel);
-
+  /** Largest plausible quad in an edge map, or null. Caller owns `edges`. */
+  function quadFromEdges(edges, frameArea) {
     var contours = new cv.MatVector();
     var hierarchy = new cv.Mat();
-    cv.findContours(m.edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+    cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
 
-    // Keep the largest convex quad even when it is too small to accept: it is the difference
-    // between "I see nothing" and "get closer, you are at 12% of 18%", which is the single most
-    // useful thing the hint line can say.
-    var frameArea = src.cols * src.rows;
     var best = null;
     var bestArea = 0;
     for (var i = 0; i < contours.size(); i++) {
       var c = contours.get(i);
-      var approx = new cv.Mat();
-      cv.approxPolyDP(c, approx, 0.02 * cv.arcLength(c, true), true);
-      if (approx.rows === 4 && cv.isContourConvex(approx)) {
-        var area = Math.abs(cv.contourArea(approx));
-        if (area > bestArea) {
-          bestArea = area;
-          best = [];
-          for (var j = 0; j < 4; j++) best.push({ x: approx.data32S[j * 2], y: approx.data32S[j * 2 + 1] });
+      // Take the convex hull FIRST. A single edge broken by glare or notched by a shadow makes
+      // the raw contour non-convex, and the old code then discarded the page entirely.
+      var hull = new cv.Mat();
+      cv.convexHull(c, hull, false, true);
+      var peri = cv.arcLength(hull, true);
+      // Sweep epsilon instead of trusting the tutorial's 0.02: too small keeps rounding noise as
+      // extra vertices, too large collapses a real corner, and which one bites depends on the
+      // page, the distance and the lighting.
+      for (var e = 0; e < APPROX_EPS.length; e++) {
+        var approx = new cv.Mat();
+        cv.approxPolyDP(hull, approx, APPROX_EPS[e] * peri, true);
+        if (approx.rows === 4 && cv.isContourConvex(approx)) {
+          var area = Math.abs(cv.contourArea(approx));
+          if (area > bestArea && area < frameArea * MAX_AREA_RATIO) {
+            bestArea = area;
+            best = [];
+            for (var j = 0; j < 4; j++) best.push({ x: approx.data32S[j * 2], y: approx.data32S[j * 2 + 1] });
+          }
+          approx.delete();
+          break; // first epsilon that yields a quad wins for this contour
         }
+        approx.delete();
       }
-      approx.delete();
+      hull.delete();
       c.delete();
     }
     contours.delete();
     hierarchy.delete();
+    return { quad: best, area: bestArea };
+  }
+
+  /** Canny with thresholds derived from the image itself — see the comment in analyse(). */
+  function autoCanny(gray, edges, scratch) {
+    // Otsu returns the intensity that best separates the histogram's two modes; using it as the
+    // high threshold adapts to the actual lighting. A fixed 60/160 produced no edge at all on a
+    // bright frame and a wall of noise on a dim one, which is most of why detection felt random.
+    var t = cv.threshold(gray, scratch, 0, 255, cv.THRESH_BINARY + cv.THRESH_OTSU);
+    cv.Canny(gray, edges, Math.max(10, t * 0.5), Math.max(30, t));
+  }
+
+  /**
+   * Find the page in one working-size frame.
+   * @returns {{quad: Array<{x,y}>|null, areaRatio: number, sharpness: number}}
+   */
+  function analyse(src) {
+    var m = ensureMats();
+    var frameArea = src.cols * src.rows;
+    cv.cvtColor(src, m.gray, cv.COLOR_RGBA2GRAY);
+
+    cv.GaussianBlur(m.gray, m.blur, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+    autoCanny(m.blur, m.edges, m.scratch);
+    // Close small gaps so an edge broken by a ceiling-light glare still forms a closed contour.
+    cv.morphologyEx(m.edges, m.edges, cv.MORPH_CLOSE, m.kernel);
+    var found = quadFromEdges(m.edges, frameArea);
+
+    // White paper on a light wooden table has almost the same LUMINANCE as the table but very
+    // different CHROMA — wood is warm and saturated, paper is neutral. When the grey pass finds
+    // nothing usable, the saturation channel often finds the page immediately.
+    if (!found.quad || found.area < frameArea * MIN_AREA_RATIO) {
+      cv.cvtColor(src, m.hsv, cv.COLOR_RGBA2RGB);
+      cv.cvtColor(m.hsv, m.hsv, cv.COLOR_RGB2HSV);
+      cv.split(m.hsv, m.hsvCh);
+      var sat = m.hsvCh.get(1);
+      cv.GaussianBlur(sat, m.blur, new cv.Size(5, 5), 0, 0, cv.BORDER_DEFAULT);
+      autoCanny(m.blur, m.edges, m.scratch);
+      cv.morphologyEx(m.edges, m.edges, cv.MORPH_CLOSE, m.kernel);
+      var alt = quadFromEdges(m.edges, frameArea);
+      sat.delete();
+      if (alt.quad && alt.area > found.area) found = alt;
+    }
+
+    var best = found.quad;
+    var bestArea = found.area;
+
+    // Sharpness measured INSIDE the page, and normalised by the page's own contrast. Measuring
+    // the whole frame meant a textured desk could pass the gate while a blurry receipt on a plain
+    // table failed it; un-normalised variance also drifts with lighting, so the threshold only
+    // ever held for the room it was tuned in.
+    var sharpness = 0;
+    if (best) {
+      var xs = best.map(function (p) { return p.x; });
+      var ys = best.map(function (p) { return p.y; });
+      var x0 = Math.max(0, Math.min.apply(null, xs));
+      var y0 = Math.max(0, Math.min.apply(null, ys));
+      var x1 = Math.min(src.cols, Math.max.apply(null, xs));
+      var y1 = Math.min(src.rows, Math.max.apply(null, ys));
+      if (x1 - x0 > 8 && y1 - y0 > 8) {
+        var roi = m.gray.roi(new cv.Rect(x0, y0, x1 - x0, y1 - y0));
+        cv.Laplacian(roi, m.lap, cv.CV_64F);
+        cv.meanStdDev(m.lap, m.mean, m.stddev);
+        var lapSd = m.stddev.doubleAt(0, 0);
+        cv.meanStdDev(roi, m.mean, m.stddev);
+        var imgSd = m.stddev.doubleAt(0, 0);
+        sharpness = (lapSd * lapSd) / (imgSd * imgSd + 1e-6);
+        roi.delete();
+      }
+    }
 
     var areaRatio = frameArea > 0 ? bestArea / frameArea : 0;
     return {
@@ -604,7 +680,7 @@
     else if (reason === 'blur')
       setHint(
         verbose
-          ? 'מטושטש — חדות ' + Math.round(result.sharpness) + ' מתוך ' + SHARPNESS_MIN + ' נדרש'
+          ? 'מטושטש — חדות ' + result.sharpness.toFixed(3) + ' מתוך ' + SHARPNESS_MIN + ' נדרש'
           : 'התמונה מטושטשת — החזיקו יציב ותנו למצלמה להתמקד',
         'warn',
       );
@@ -633,7 +709,7 @@
     var m = lastMetrics;
     el.diag.innerHTML =
       diagRow('שטח', pct(m.area), pct(MIN_AREA_RATIO), m.area >= MIN_AREA_RATIO) +
-      diagRow('חדות', Math.round(m.sharpness), SHARPNESS_MIN, m.sharpness >= SHARPNESS_MIN) +
+      diagRow('חדות', m.sharpness.toFixed(3), SHARPNESS_MIN, m.sharpness >= SHARPNESS_MIN) +
       diagRow('תזוזה', isFinite(m.drift) ? pct(m.drift) : '—', pct(MOVE_TOLERANCE), m.drift < MOVE_TOLERANCE) +
       diagRow('פריימים', m.steady, STEADY_FRAMES, m.steady >= STEADY_FRAMES);
   }
@@ -653,7 +729,7 @@
   /** Human-readable summary of the frame that actually fired — shown under its thumbnail. */
   function metricsLabel(m) {
     if (!m) return '';
-    return 'שטח ' + pct(m.area) + ' · חדות ' + Math.round(m.sharpness) + ' · תזוזה ' + (isFinite(m.drift) ? pct(m.drift) : '—');
+    return 'שטח ' + pct(m.area) + ' · חדות ' + m.sharpness.toFixed(3) + ' · תזוזה ' + (isFinite(m.drift) ? pct(m.drift) : '—');
   }
 
   // ---- capture -----------------------------------------------------------------
@@ -714,32 +790,93 @@
     );
   }
 
+  /** Push a quad's corners outward from its centre by `pad` (a fraction of the short edge). */
+  function expandQuad(pts, pad) {
+    var cx = (pts[0].x + pts[1].x + pts[2].x + pts[3].x) / 4;
+    var cy = (pts[0].y + pts[1].y + pts[2].y + pts[3].y) / 4;
+    return pts.map(function (p) {
+      var dx = p.x - cx;
+      var dy = p.y - cy;
+      var len = Math.hypot(dx, dy) || 1;
+      return { x: p.x + (dx / len) * pad, y: p.y + (dy / len) * pad };
+    });
+  }
+
+  /**
+   * Is this quad plausibly a sheet of paper? A mis-detected quad warps text onto curved baselines
+   * and stretches glyphs — strictly worse than the original photo, and the model cannot tell it
+   * happened. Rejecting sends the uncropped frame instead, which is merely unhelpful.
+   */
+  function plausibleQuad(pts) {
+    var w = Math.max(dist(pts[0], pts[1]), dist(pts[3], pts[2]));
+    var h = Math.max(dist(pts[0], pts[3]), dist(pts[1], pts[2]));
+    if (!(w > 40 && h > 40)) return false;
+    var ratio = Math.max(w, h) / Math.min(w, h);
+    if (ratio > 8) return false; // a sliver, not a page
+    // Opposite edges of a rectangle photographed from any angle stay within ~35% of each other.
+    if (Math.abs(dist(pts[0], pts[1]) - dist(pts[3], pts[2])) / w > 0.35) return false;
+    if (Math.abs(dist(pts[0], pts[3]) - dist(pts[1], pts[2])) / h > 0.35) return false;
+    for (var i = 0; i < 4; i++) {
+      var a = pts[(i + 3) % 4];
+      var b = pts[i];
+      var c = pts[(i + 1) % 4];
+      var ang = Math.abs(
+        (Math.atan2(a.y - b.y, a.x - b.x) - Math.atan2(c.y - b.y, c.x - b.x)) * (180 / Math.PI),
+      );
+      if (ang > 180) ang = 360 - ang;
+      if (ang < 55 || ang > 125) return false; // 90° ± 35°
+    }
+    return true;
+  }
+
   /**
    * Perspective-correct `source` onto `target` using the detected quad.
-   * The output size comes from the quad's own edge lengths (so the aspect ratio of the real page
-   * is preserved) and is capped at cfg.maxEdge in the SAME step — warping straight to the final
-   * size resamples once instead of twice.
+   *
+   * Two things here are deliberate and were previously wrong:
+   *
+   * 1. **Warp at the quad's own size, then downscale separately.** warpPerspective is a point
+   *    sampler — folding a reduction into it aliases small text instead of area-averaging it.
+   *    One clean INTER_AREA pass afterwards is better than one aliased pass, even though it is
+   *    technically two resamples.
+   * 2. **Pad the crop outward.** "Crop to the invoice" means remove the table, not shave the
+   *    paper margin. Corners detected on a 480px working frame carry a few pixels of error that
+   *    scale up with the sensor; cropping exactly to them clips the first or last character of
+   *    lines near the edge — and on an RTL invoice that is the item-description column. The model
+   *    cannot tell a character is missing, so it silently returns a truncated string.
    */
   function warpTo(target, source, quad, upscale) {
     var pts = quad.map(function (p) {
       return { x: p.x * upscale, y: p.y * upscale };
     });
-    var w = Math.max(dist(pts[0], pts[1]), dist(pts[3], pts[2]));
-    var h = Math.max(dist(pts[0], pts[3]), dist(pts[1], pts[2]));
-    if (!(w > 40 && h > 40)) return false;
-    var s = Math.min(1, cfg.maxEdge / Math.max(w, h));
-    w = Math.round(w * s);
-    h = Math.round(h * s);
+    if (!plausibleQuad(pts)) return false;
+
+    var shortEdge = Math.min(
+      Math.max(dist(pts[0], pts[1]), dist(pts[3], pts[2])),
+      Math.max(dist(pts[0], pts[3]), dist(pts[1], pts[2])),
+    );
+    pts = expandQuad(pts, shortEdge * CROP_PAD_RATIO);
+
+    var w0 = Math.round(Math.max(dist(pts[0], pts[1]), dist(pts[3], pts[2])));
+    var h0 = Math.round(Math.max(dist(pts[0], pts[3]), dist(pts[1], pts[2])));
+
+    // The model's ceiling is an AREA ceiling (≈⌈w/28⌉×⌈h/28⌉ tokens), so size by megapixels and
+    // keep the long edge under the per-side cap as a second constraint.
+    var s = Math.min(1, Math.sqrt(cfg.maxPixels / (w0 * h0)), cfg.maxEdge / Math.max(w0, h0));
+    var w = Math.max(1, Math.round(w0 * s));
+    var h = Math.max(1, Math.round(h0 * s));
 
     var src = cv.imread(source);
     var dst = new cv.Mat();
     var from = cv.matFromArray(4, 1, cv.CV_32FC2, [
       pts[0].x, pts[0].y, pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y,
     ]);
-    var to = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, w, 0, w, h, 0, h]);
+    var to = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, w0, 0, w0, h0, 0, h0]);
     var M = cv.getPerspectiveTransform(from, to);
     try {
-      cv.warpPerspective(src, dst, M, new cv.Size(w, h), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+      // BORDER_REPLICATE, not a black fill: the padding above can reach past the frame edge, and
+      // a black wedge in the corner is something the model will try to interpret.
+      cv.warpPerspective(src, dst, M, new cv.Size(w0, h0), cv.INTER_CUBIC, cv.BORDER_REPLICATE, new cv.Scalar());
+      if (s < 1) cv.resize(dst, dst, new cv.Size(w, h), 0, 0, cv.INTER_AREA);
       target.width = w;
       target.height = h;
       cv.imshow(target, dst);
@@ -805,8 +942,12 @@
       .getUserMedia({
         video: {
           facingMode: { ideal: 'environment' },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          // Ask for the sensor, not the screen. The frame we capture IS this stream, so a 1080p
+          // track caps a half-frame receipt at roughly 1300px across — below what the model will
+          // happily read, and low enough that the size cap below never even engages. Detection
+          // still runs on a 480px copy, so asking for more costs memory, not CPU.
+          width: { ideal: 3840 },
+          height: { ideal: 2160 },
         },
         audio: false,
       })
