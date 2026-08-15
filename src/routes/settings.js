@@ -118,9 +118,25 @@ async function render(req, res, extra = {}) {
   });
 }
 
+/**
+ * Finish a successful action with Post/Redirect/Get.
+ *
+ * Rendering the page straight from the POST leaves the browser sitting on a URL that only accepts
+ * POST — so the next reload (or a back/forward restore, which Safari does eagerly because every
+ * dynamic response is no-store) issues a GET and gets a 404. The owner pressed "עדכון מסד נתונים",
+ * the upgrade ran fine, and then the refresh told them the page did not exist.
+ *
+ * Redirecting also removes the browser's "resubmit this form?" prompt, which for a destructive
+ * action like restore-from-backup is a genuinely dangerous thing to leave lying around.
+ */
+function done(res, notice) {
+  return res.redirect(303, '/settings?ok=' + encodeURIComponent(notice));
+}
+
 router.get('/', async (req, res, next) => {
   try {
-    await render(req, res);
+    // `ok` carries the message across the redirect done() performs after a successful action.
+    await render(req, res, { notice: req.query.ok ? String(req.query.ok) : null });
   } catch (err) {
     next(err);
   }
@@ -134,7 +150,7 @@ router.get('/guide', (req, res) => {
 router.post('/companies', async (req, res, next) => {
   try {
     await createCompany({ name: req.body.name, companyType: req.body.company_type, taxId: req.body.tax_id }, req.user);
-    await render(req, res, { notice: 'חברה נוספה.' });
+    return done(res, 'חברה נוספה.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -144,7 +160,7 @@ router.post('/companies', async (req, res, next) => {
 router.post('/companies/:id', async (req, res, next) => {
   try {
     await updateCompany(Number(req.params.id), { name: req.body.name, taxId: req.body.tax_id }, req.user);
-    await render(req, res, { notice: 'פרטי החברה עודכנו.' });
+    return done(res, 'פרטי החברה עודכנו.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -165,7 +181,7 @@ router.post('/stores', async (req, res, next) => {
       },
       req.user,
     );
-    await render(req, res, { notice: 'חנות וחשבון בנק נוספו.' });
+    return done(res, 'חנות וחשבון בנק נוספו.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -176,7 +192,7 @@ router.post('/stores', async (req, res, next) => {
 router.post('/stores/:id/delete', async (req, res, next) => {
   try {
     await deleteStore(Number(req.params.id), req.user);
-    await render(req, res, { notice: 'החנות נמחקה.' });
+    return done(res, 'החנות נמחקה.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -186,7 +202,7 @@ router.post('/stores/:id/delete', async (req, res, next) => {
 router.post('/accounts/:id', async (req, res, next) => {
   try {
     await updateAccountDisplayName(Number(req.params.id), req.body.display_name, req.user);
-    await render(req, res, { notice: 'שם התצוגה של החשבון עודכן.' });
+    return done(res, 'שם התצוגה של החשבון עודכן.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -197,7 +213,7 @@ router.post('/accounts/:id', async (req, res, next) => {
 router.post('/password', async (req, res, next) => {
   try {
     await changeOwnPassword(req.user.id, { current: req.body.current, next: req.body.next, confirm: req.body.confirm });
-    await render(req, res, { notice: 'הסיסמה שלך עודכנה.' });
+    return done(res, 'הסיסמה שלך עודכנה.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -218,7 +234,7 @@ router.post('/users', async (req, res, next) => {
       },
       req.user,
     );
-    await render(req, res, { notice: 'משתמש נוסף.' });
+    return done(res, 'משתמש נוסף.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -235,7 +251,7 @@ router.post('/users/:id', async (req, res, next) => {
       },
       req.user,
     );
-    await render(req, res, { notice: 'פרטי המשתמש עודכנו.' });
+    return done(res, 'פרטי המשתמש עודכנו.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -245,7 +261,7 @@ router.post('/users/:id', async (req, res, next) => {
 router.post('/users/:id/reset-password', async (req, res, next) => {
   try {
     await resetPasswordByOwner(Number(req.params.id), req.body.password, req.user);
-    await render(req, res, { notice: 'הסיסמה אופסה.' });
+    return done(res, 'הסיסמה אופסה.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -294,7 +310,7 @@ router.post('/users/:id/companies', async (req, res, next) => {
   try {
     const companyIds = [].concat(req.body.companies || []).map(Number).filter(Boolean);
     await setUserCompanies(Number(req.params.id), companyIds, getExecutor());
-    await render(req, res, { notice: 'הרשאות החברה עודכנו.' });
+    return done(res, 'הרשאות החברה עודכנו.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -304,7 +320,7 @@ router.post('/users/:id/companies', async (req, res, next) => {
 router.post('/users/:id/delete', async (req, res, next) => {
   try {
     await deleteUser(Number(req.params.id), req.user);
-    await render(req, res, { notice: 'המשתמש נמחק.' });
+    return done(res, 'המשתמש נמחק.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -315,7 +331,7 @@ router.post('/users/:id/delete', async (req, res, next) => {
 router.post('/role-templates', requireOwner, async (req, res, next) => {
   try {
     await createRoleTemplate({ name: req.body.name, permissions: req.body.permissions }, req.user);
-    await render(req, res, { notice: 'תבנית תפקיד נוספה.' });
+    return done(res, 'תבנית תפקיד נוספה.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -325,7 +341,7 @@ router.post('/role-templates', requireOwner, async (req, res, next) => {
 router.post('/role-templates/:id', requireOwner, async (req, res, next) => {
   try {
     await updateRoleTemplate(Number(req.params.id), { name: req.body.name, permissions: req.body.permissions }, req.user);
-    await render(req, res, { notice: 'תבנית התפקיד עודכנה.' });
+    return done(res, 'תבנית התפקיד עודכנה.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -335,7 +351,7 @@ router.post('/role-templates/:id', requireOwner, async (req, res, next) => {
 router.post('/role-templates/:id/delete', requireOwner, async (req, res, next) => {
   try {
     await deleteRoleTemplate(Number(req.params.id), req.user);
-    await render(req, res, { notice: 'תבנית התפקיד נמחקה.' });
+    return done(res, 'תבנית התפקיד נמחקה.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -350,9 +366,9 @@ router.post('/db-upgrade', requireOwner, async (req, res, next) => {
       // Some (idempotent) statements couldn't apply, but the rest did. Surface which, so a single
       // problematic migration doesn't silently mask that everything else succeeded.
       const list = failures.slice(0, 5).map((f) => `• ${f.message}`).join('\n');
-      await render(req, res, { notice: `מסד הנתונים עודכן. ${failures.length} משפטים דולגו (השאר הוחלו): \n${list}` });
+      return done(res, `מסד הנתונים עודכן. ${failures.length} משפטים דולגו (השאר הוחלו): \n${list}`);
     } else {
-      await render(req, res, { notice: 'מסד הנתונים עודכן בהצלחה — כל העמודות והטבלאות החדשות קיימות.' });
+      return done(res, 'מסד הנתונים עודכן בהצלחה — כל העמודות והטבלאות החדשות קיימות.');
     }
   } catch (err) {
     next(err);
@@ -418,7 +434,7 @@ router.post('/restore', requireOwner, (req, res, next) => {
       }
       const { restored } = await restoreAll(dump, req.user);
       const total = Object.values(restored).reduce((a, b) => a + b, 0);
-      await render(req, res, { notice: `השחזור הושלם — ${total} רשומות שוחזרו מהגיבוי.` });
+      return done(res, `השחזור הושלם — ${total} רשומות שוחזרו מהגיבוי.`);
     } catch (err) {
       if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
       next(err);
@@ -456,12 +472,19 @@ router.post('/catalog-import', requireOwner, (req, res, next) => {
       if (dropped) {
         parts.push(`דולגו ${dropped} שורות: ${stats.noBarcode} בלי ברקוד או שם, ${stats.badBarcode} ברקוד לא תקין, ${stats.duplicate} כפולות.`);
       }
-      await render(req, res, { notice: parts.join(' ') });
+      return done(res, parts.join(' '));
     } catch (err) {
       if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
       next(err);
     }
   });
 });
+
+// A GET on any action path (a reload of an old POST URL, a bookmark) is not a 404 — it is
+// someone who is already where they meant to be.
+router.get(
+  ['/db-upgrade', '/catalog-import', '/restore', '/reset-data', '/password', '/users', '/companies', '/stores'],
+  (req, res) => res.redirect(303, '/settings'),
+);
 
 export default router;

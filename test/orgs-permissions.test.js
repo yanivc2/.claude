@@ -149,3 +149,39 @@ test('the owner can upload a catalog file, and the result reports repairs', asyn
   assert.deepEqual(rows.map((r) => r.barcode), ['010181040009', '7290000042435']);
   server.close();
 });
+
+test('a settings action redirects instead of rendering, so a reload is not a 404', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+  const db = await freshDb();
+  const ow = await owner(db);
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+
+  // Rendering the page straight from the POST left the browser on a URL that only accepts POST,
+  // so the next reload issued a GET and got a 404 — the owner ran the DB upgrade successfully and
+  // was then told the page did not exist.
+  const posted = await fetch(`${base}/settings/db-upgrade`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { cookie },
+  });
+  assert.equal(posted.status, 303);
+  const location = posted.headers.get('location');
+  assert.match(location, /^\/settings\?ok=/);
+
+  // The message survives the redirect.
+  const followed = await fetch(`${base}${location}`, { headers: { cookie } });
+  assert.equal(followed.status, 200);
+  assert.match(await followed.text(), /מסד הנתונים עודכן/);
+
+  // And a GET on the action path itself — an old bookmark, or a reload of the pre-fix URL — is
+  // someone who is already where they meant to be, not a 404.
+  const stale = await fetch(`${base}/settings/db-upgrade`, { redirect: 'manual', headers: { cookie } });
+  assert.equal(stale.status, 303);
+  assert.equal(stale.headers.get('location'), '/settings');
+  server.close();
+});
