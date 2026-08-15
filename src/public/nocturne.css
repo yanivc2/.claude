@@ -273,8 +273,10 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
 
 /* stat grid — same small gap between tiles as the gap between cards, for even spacing */
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: var(--space-4); margin-bottom: var(--space-4); }
-/* The "צ׳קים בחוץ" tile spans two columns so its shekel figure gets room to breathe. Only once
-   the grid is wide enough for 3+ columns — on a narrow phone it stays one cell to avoid overflow. */
+/* The "צ׳קים בחוץ" tile is emphasised: full row on phones (1 or 2 columns), then exactly two
+   columns once the grid is wide enough for 3+. `1 / -1` maps to the existing tracks, so it fills
+   the row without ever creating an implicit column that would overflow a narrow screen. */
+.stat-grid .oc-tile { grid-column: 1 / -1; }
 @media (min-width: 620px) { .stat-grid .oc-tile { grid-column: span 2; } }
 .stat { margin-bottom: 0; }
 .stat { display: block; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); color: inherit; transition: transform .18s cubic-bezier(.22,1,.36,1), border-color .18s ease, box-shadow .18s ease; }
