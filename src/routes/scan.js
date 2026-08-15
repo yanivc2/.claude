@@ -12,6 +12,7 @@ import {
 import { listSuppliers, createSupplier } from '../services/suppliers.js';
 import { matchSupplier } from '../lib/supplierMatch.js';
 import { canViewPage } from '../lib/permissions.js';
+import { readiness } from '../services/supplierProfile.js';
 import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
 import { scopeClause } from '../lib/scope.js';
@@ -135,9 +136,13 @@ async function reviewContext(req, draft, extra = {}) {
 
 router.get('/', async (req, res, next) => {
   try {
+    // Suppliers are offered so the employee can name one BEFORE shooting: that is what lets the
+    // supplier's learned profile ("הסקיל") travel with the first extraction instead of a re-run.
+    const suppliers = await listSuppliers();
     res.render('scan/capture', {
       title: 'צילום חשבונית',
       stores: await storesInScope(req.scope.companyIds),
+      suppliers: suppliers.map((sp) => ({ id: sp.id, name: sp.name, ready: readiness(sp.scan_profile).state })),
       aiEnabled: config.ai.enabled,
       maxPages: config.ai.maxScanImages,
       // The client encodes with exactly these values so the browser and the server can never
@@ -167,7 +172,8 @@ router.post('/upload', handleScanImages, async (req, res, next) => {
       for (const ref of refs) await removeStored(ref); // no orphan blobs
       return res.status(403).json({ error: 'אין הרשאה לחנות שנבחרה' });
     }
-    const draft = await createDraft({ storeId, imageRefs: refs }, req.user);
+    const supplierId = Number(req.body.supplier_id) || null;
+    const draft = await createDraft({ storeId, imageRefs: refs, supplierId }, req.user);
     return res.json({ id: draft.id });
   } catch (err) {
     if (err instanceof RuleError) return res.status(400).json({ error: err.message });

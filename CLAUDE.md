@@ -76,6 +76,18 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
   invoices, last reconcile, open-checks count, unmatched cash, deposits history, Z-sequence gaps.
 - **Suppliers:** `routes/suppliers.js`, `services/suppliers.js`, `views/suppliers/*`. Multi-store
   assignment via `supplier_stores` (`_storepick.ejs`); payment methods incl אשראי/הו"ק.
+- **Supplier "skill" (`suppliers.scan_profile`):** every supplier accumulates a profile of how
+  ITS invoice is laid out — `services/supplierProfile.js`. Structure is **measured** from each
+  approved scan (code lengths + GTIN checksum → shortened-barcode vs full; is there a כ.בודד
+  column; is an allocation number ever printed), and repeated human corrections become hints only
+  after **2** occurrences. Hints ride in the **user message**, never the `cache_control:ephemeral`
+  system prompt (a test asserts the prompt is byte-identical with and without them). Naming the
+  supplier on the capture screen (`invoice_drafts.supplier_id`) is what gets the profile into the
+  FIRST pass. `חדש → לומד → מוכן`, where מוכן = 3 consecutive scans approved with zero corrections.
+  **Gotcha it was born from:** the model returns `06/08/2026`+shekels and the draft holds
+  `2026-08-06`+agorot, so a raw diff counts the validator's own normalization as human
+  corrections — every field goes through the same conversion before comparison.
+  See `docs/צילום-וחילוץ/פרופילי-ספקים/`.
 - **Scan → existing invoice:** a scan whose supplier + invoice number match an invoice already on
   file is **attached** to it (`attachToInvoice` in `services/scan.js`) instead of creating a
   duplicate payable: its photo fills an empty `image_path`, its lines are inserted only when the

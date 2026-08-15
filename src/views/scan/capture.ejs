@@ -21,6 +21,17 @@
       <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
     <% }); %>
   </select>
+  <%# Naming the supplier before the shot is what lets its learned profile ("הסקיל") travel with
+      the very first extraction. Optional on purpose: an employee who does not know the supplier
+      just shoots, and the system matches it from the document as before. %>
+  <label class="lbl" style="margin-top:var(--space-3)">ספק (לא חובה — משפר את הזיהוי)</label>
+  <select id="scanSupplier">
+    <option value="">— לא יודע / לא רלוונטי —</option>
+    <% suppliers.forEach(function(sp){ %>
+      <option value="<%= sp.id %>"><%= sp.name %><%= sp.ready === 'ready' ? ' ✓' : sp.ready === 'learning' ? ' · לומד' : '' %></option>
+    <% }); %>
+  </select>
+  <p class="muted" id="scanSupplierNote" style="margin:.4rem 0 0">בחירת ספק שולחת יחד עם הצילום את מה שהמערכת כבר למדה על מבנה החשבונית שלו.</p>
   <p class="muted" style="margin:.5rem 0 0">צלמו את כל עמודי החשבונית (עד <%= maxPages %> עמודים) — כולם יישלחו יחד כחשבונית אחת.</p>
 </div>
 

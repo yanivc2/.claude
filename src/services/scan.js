@@ -11,6 +11,7 @@ import { buildExtractionRequest, getClaudeClient } from '../ai/claude.js';
 import { createInvoice } from './invoices.js';
 import { upsertProductsFromLines } from './products.js';
 import { lookupByBarcodes, lookupByCodes } from './masterCatalog.js';
+import { getProfile, hintsFor, recordScan } from './supplierProfile.js';
 import { logAction } from './audit.js';
 
 // צילום חשבוניות (stage 5) — the draft pipeline behind the mobile capture screen:
@@ -103,16 +104,19 @@ export async function getDraft(id, x = getExecutor()) {
  * @param {{storeId: number, imageRefs: string[]}} input storage refs IN PAGE ORDER
  * @returns {Promise<object>} the new draft (parsed)
  */
-export async function createDraft({ storeId, imageRefs }, actor, x = getExecutor()) {
+export async function createDraft({ storeId, imageRefs, supplierId = null }, actor, x = getExecutor()) {
   const refs = Array.isArray(imageRefs) ? imageRefs.filter(Boolean) : [];
   if (refs.length === 0) throw new RuleError('VALIDATION', 'לא התקבלו צילומים');
   const store = await x.one('SELECT id, company_id FROM stores WHERE id = ?', [storeId]);
   if (!store) throw new NotFoundError(`חנות ${storeId} לא נמצאה`);
+  // Optional and chosen before the shot: naming the supplier up front is what lets its learned
+  // profile travel with the FIRST extraction rather than only with a re-run.
+  const armed = supplierId ? await x.one('SELECT id FROM suppliers WHERE id = ?', [supplierId]) : null;
 
   const info = await x.run(
-    `INSERT INTO invoice_drafts (store_id, company_id, status, images, created_by)
-     VALUES (?, ?, 'uploaded', ?, ?)`,
-    [storeId, store.company_id, JSON.stringify(refs), actor?.id ?? null],
+    `INSERT INTO invoice_drafts (store_id, company_id, supplier_id, status, images, created_by)
+     VALUES (?, ?, ?, 'uploaded', ?, ?)`,
+    [storeId, store.company_id, armed?.id ?? null, JSON.stringify(refs), actor?.id ?? null],
   );
   await logAction(
     {
@@ -251,9 +255,15 @@ export async function processDraft(
 
   // ---- call the model ---------------------------------------------------------
   const api = client || getClaudeClient();
+  // "הסקיל של הספק": what previous scans taught us about THIS supplier's invoice layout. Known
+  // either because the employee named the supplier before shooting, or — on a re-run — because
+  // the first pass already matched one. Empty for a supplier we have never scanned.
+  const armedSupplierId = draft.supplier_id ?? parseJson(draft.normalized)?.header?.supplierId ?? null;
+  const hints = armedSupplierId ? hintsFor(await getProfile(armedSupplierId, x)) : [];
+
   let response;
   try {
-    response = await api.messages.create(buildExtractionRequest(pages));
+    response = await api.messages.create(buildExtractionRequest(pages, { hints }));
   } catch (err) {
     logApiError(id, err);
     const message = apiErrorMessage(err);
@@ -629,6 +639,7 @@ export async function approveDraft(
         "UPDATE invoice_drafts SET status = 'committed', invoice_id = ?, normalized = ?, error = NULL, updated_at = ? WHERE id = ?",
         [attachTo.id, JSON.stringify(normalized), nowTs(), id],
       );
+      await recordScan(header.supplierId, { extraction: draft.extraction, normalized }, nowTs(), t);
       return { invoiceId: attachTo.id, attached: true, warnings: result.warnings };
     }
 
@@ -706,6 +717,11 @@ export async function approveDraft(
       },
       t,
     );
+    // Fold this scan into the supplier's profile: what its invoice layout looks like, and what a
+    // human had to correct. This is the only place learning happens, because approval is the only
+    // moment we know what the right answer actually was.
+    await recordScan(header.supplierId, { extraction: draft.extraction, normalized }, nowTs(), t);
+
     return { invoiceId: invoice.id, attached: false, warnings };
   });
 }

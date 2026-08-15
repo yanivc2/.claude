@@ -48,7 +48,13 @@ CREATE TABLE IF NOT EXISTS suppliers (
   contact_name   TEXT,   -- accounting/bookkeeping contact person
   contact_phone  TEXT,
   payment_method TEXT,   -- העברה / צק / מזומן / אשראי / הו"ק (transfer/check/cash/credit/standing_order)
-  payment_terms  TEXT    -- מיידי / דחוי 14 / 30 / 45 / טקסט חופשי
+  payment_terms  TEXT,   -- מיידי / דחוי 14 / 30 / 45 / טקסט חופשי
+  -- "הסקיל של הספק": what this supplier's invoices LOOK LIKE, learned from its own scans —
+  -- which column holds the product code and what shape it is, whether there is a כ.בודד column,
+  -- whether an allocation number is ever printed, the date format, and what humans keep
+  -- correcting. Sent back to the extractor on the next scan so it knows where to look.
+  -- JSON; see src/services/supplierProfile.js for the shape.
+  scan_profile   TEXT
 );
 
 -- Which stores a supplier serves (many-to-many). Shown on the suppliers page; a supplier may
@@ -424,6 +430,10 @@ CREATE TABLE IF NOT EXISTS invoice_drafts (
   id                    INTEGER PRIMARY KEY AUTOINCREMENT,
   store_id              INTEGER NOT NULL REFERENCES stores(id),
   company_id            INTEGER NOT NULL REFERENCES companies(id),
+  -- Optionally chosen on the capture screen BEFORE the photo is taken, so that supplier's
+  -- learned profile ("הסקיל") can travel with the very first extraction rather than only on a
+  -- re-run. Null means "we do not know yet" and the supplier is matched from the document.
+  supplier_id           INTEGER REFERENCES suppliers(id),
   status                TEXT NOT NULL DEFAULT 'uploaded'
                         CHECK (status IN ('uploaded','processing','needs_review','committed','failed')),
   images                TEXT NOT NULL,   -- JSON array of storage refs, בסדר העמודים

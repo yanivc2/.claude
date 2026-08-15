@@ -512,6 +512,8 @@
 
     var fd = new FormData();
     fd.append('store_id', el.store.value);
+    // Optional: naming the supplier sends its learned profile along with the photos.
+    if (el.supplier && el.supplier.value) fd.append('supplier_id', el.supplier.value);
     pages.forEach(function (p, i) {
       fd.append('images', p.blob, 'page-' + (i + 1) + (p.isPdf ? '.pdf' : '.jpg'));
     });
@@ -569,6 +571,7 @@
 
     el = {
       store: $('scanStore'),
+      supplier: $('scanSupplier'),
       thumbs: $('scanThumbs'),
       count: $('scanCount'),
       warn: $('scanBlurWarn'),
@@ -598,6 +601,23 @@
       }
       sync();
     });
+    // The supplier is remembered too: an employee usually photographs the same supplier's
+    // deliveries in a row, and re-picking it every time is the kind of friction that gets skipped.
+    if (el.supplier) {
+      try {
+        var lastSup = localStorage.getItem('scanSupplierId');
+        if (lastSup) el.supplier.value = lastSup;
+      } catch (e) {
+        /* private mode */
+      }
+      el.supplier.addEventListener('change', function () {
+        try {
+          localStorage.setItem('scanSupplierId', el.supplier.value);
+        } catch (e) {
+          /* ignore */
+        }
+      });
+    }
 
     $('btnCamera').addEventListener('click', function () {
       el.camInput.click();

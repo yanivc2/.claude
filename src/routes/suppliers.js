@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { parseProfile, readiness, hintsFor, setHints } from '../services/supplierProfile.js';
 import {
   listSuppliers,
   getSupplier,
@@ -154,15 +155,40 @@ router.post('/bulk', async (req, res, next) => {
 });
 
 // Edit a supplier's full details.
+// "הסקיל של הספק" — the owner's own notes on how to read this supplier's invoices. The learned
+// parts (layout, repeated corrections) are written by the scanner and are not editable here; this
+// only replaces the free-text lines, so a human can teach the system something it has not seen yet
+// and can delete a rule that turned out wrong.
+router.post('/:id/scan-hints', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const lines = String(req.body.hints || '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 12); // a profile is a short briefing, not a manual
+    await setHints(id, lines);
+    return res.redirect(303, `/suppliers/${id}/edit?saved=skill`);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id/edit', async (req, res, next) => {
   try {
     const supplier = await getSupplier(Number(req.params.id));
+    const profile = parseProfile(supplier.scan_profile);
     res.render('suppliers/edit', {
       title: `עריכת ספק — ${supplier.name}`,
       supplier,
       error: null,
       stores: await storeOptions(),
       selectedStores: await getSupplierStoreIds(supplier.id),
+      notice: req.query.saved === 'skill' ? 'הסקיל של הספק עודכן.' : null,
+      // "הסקיל": what scanning this supplier's invoices has taught the system so far.
+      profile,
+      readiness: readiness(profile),
+      profileHints: hintsFor(profile),
     });
   } catch (err) {
     next(err);

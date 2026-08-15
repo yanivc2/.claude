@@ -71,4 +71,38 @@ var sel = (selectedStores || []).map(Number);
     </div>
   </form>
 </div>
+
+<%# "הסקיל של הספק" — what scanning this supplier's invoices has taught the system about how its
+    invoice is laid out. It is built automatically from the scans themselves; the only editable
+    part is the owner's own notes, because the learned parts are measurements and overwriting a
+    measurement by hand would make the whole thing untrustworthy. %>
+<% var rd = typeof readiness !== 'undefined' ? readiness : { state: 'new', label: '' }; %>
+<div class="card">
+  <div class="toolbar" style="align-items:center;margin:0 0 .4rem">
+    <h2 style="margin:0">🎓 הסקיל של הספק</h2>
+    <span class="badge <%= rd.state === 'ready' ? 'b-approved' : rd.state === 'learning' ? 'b-on_hold' : 'b-neutral' %>">
+      <%= rd.state === 'ready' ? 'מוכן' : rd.state === 'learning' ? 'לומד' : 'חדש' %>
+    </span>
+  </div>
+  <p class="muted" style="margin:0 0 .6rem"><%= rd.label %><% if (rd.samples) { %> · נלמד מ-<%= rd.samples %> חשבוניות שצולמו<% } %></p>
+
+  <% if (profileHints && profileHints.length) { %>
+    <p class="muted" style="margin:0 0 .3rem">מה שנשלח יחד עם הצילום הבא של הספק הזה:</p>
+    <ul style="margin:0 0 .8rem">
+      <% profileHints.forEach(function(h){ %><li><%= h %></li><% }); %>
+    </ul>
+  <% } else { %>
+    <p class="muted" style="margin:0 0 .8rem">
+      עדיין אין מספיק מידע. צלמו חשבונית של הספק הזה, בחרו אותו במסך הצילום, ואשרו —
+      המערכת תלמד את מבנה החשבונית מהצילום עצמו ומכל תיקון שתעשו.
+    </p>
+  <% } %>
+
+  <form method="post" action="/suppliers/<%= supplier.id %>/scan-hints" class="stack">
+    <label class="lbl">הערות שלך לקריאת החשבונית (שורה לכל כלל)</label>
+    <textarea name="hints" rows="3" placeholder="לדוגמה: עמודת הקוד היא ברקוד מקוצר — ספרות הסיום של הברקוד המלא"><%= (profile.hints || []).join('\n') %></textarea>
+    <p class="muted" style="margin:.2rem 0 0">מה שנלמד אוטומטית לא נמחק בשמירה כאן.</p>
+    <div class="actions" style="margin-top:.4rem"><button type="submit">שמור הערות</button></div>
+  </form>
+</div>
 <%- include('../partials/footer') %>

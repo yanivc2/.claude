@@ -19,6 +19,20 @@ export function migrate(db) {
   migrateInvoiceLineUnits(db);
   migrateSupplierStores(db);
   migrateStandingOrder(db);
+  migrateDraftSupplier(db);
+}
+
+// invoice_drafts.supplier_id — the supplier chosen on the capture screen before the shot, so its
+// learned profile ("הסקיל") can travel with the very first extraction instead of only a re-run.
+function migrateDraftSupplier(db) {
+  const hasTable = db
+    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='invoice_drafts'")
+    .get();
+  if (!hasTable) return;
+  const cols = db.prepare('PRAGMA table_info(invoice_drafts)').all().map((c) => c.name);
+  if (!cols.includes('supplier_id')) {
+    db.exec('ALTER TABLE invoice_drafts ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id);');
+  }
 }
 
 // Expand the payments.method CHECK to allow 'standing_order' (הו"ק) on existing SQLite DBs.
@@ -232,7 +246,8 @@ function migrateSupplierContacts(db) {
     .get();
   if (!hasTable) return;
   const cols = db.prepare('PRAGMA table_info(suppliers)').all().map((c) => c.name);
-  for (const col of ['phone', 'email', 'contact_name', 'contact_phone', 'payment_method', 'payment_terms']) {
+  // scan_profile is "הסקיל" — the learned structure of this supplier's invoices.
+  for (const col of ['phone', 'email', 'contact_name', 'contact_phone', 'payment_method', 'payment_terms', 'scan_profile']) {
     if (!cols.includes(col)) db.exec(`ALTER TABLE suppliers ADD COLUMN ${col} TEXT;`);
   }
 }

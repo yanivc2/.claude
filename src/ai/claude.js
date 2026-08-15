@@ -247,7 +247,7 @@ const TASK_TEXT =
  * @param {Array<{buffer: Buffer, contentType: string}>} pages page objects in page order
  * @returns {object} params for `client.messages.create(...)`
  */
-export function buildExtractionRequest(pages) {
+export function buildExtractionRequest(pages, { hints = [] } = {}) {
   const content = (pages || []).map(({ buffer, contentType }) => {
     const data = Buffer.from(buffer).toString('base64');
     if (contentType === 'application/pdf') {
@@ -265,7 +265,16 @@ export function buildExtractionRequest(pages) {
       },
     };
   });
-  content.push({ type: 'text', text: TASK_TEXT });
+  // The supplier's own profile ("הסקיל") — what this supplier's invoices look like, learned from
+  // its previous scans. It goes in the USER message, never in the system prompt: the system
+  // prompt carries cache_control:'ephemeral' and must stay byte-identical for the prompt cache to
+  // hold, so per-supplier text there would cost a cache miss on every single scan.
+  const lines = (hints || []).map((h) => String(h || '').trim()).filter(Boolean);
+  const profileText = lines.length
+    ? '\n\nמה שידוע על החשבוניות של הספק הזה מסריקות קודמות (השתמש בזה, אבל אל תמציא מה שלא רואים בצילום):\n' +
+      lines.map((h) => `• ${h}`).join('\n')
+    : '';
+  content.push({ type: 'text', text: TASK_TEXT + profileText });
 
   return {
     model: config.ai.extractModel,

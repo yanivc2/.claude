@@ -13,7 +13,8 @@ import {
   listPending,
   getDraft,
 } from '../src/services/scan.js';
-import { buildExtractionRequest, EXTRACTION_SCHEMA } from '../src/ai/claude.js';
+import { buildExtractionRequest, EXTRACTION_SCHEMA, SYSTEM_PROMPT } from '../src/ai/claude.js';
+import { recordScan } from '../src/services/supplierProfile.js';
 import { toAgorot } from '../src/lib/money.js';
 
 // כל הבדיקות עובדות במצב לא-מקוון: לקוח Claude מזויף + loadImage מוזרק, והצילומים הם מחרוזות
@@ -797,4 +798,42 @@ test('attaching never rewrites the recorded amount, and never doubles existing l
   assert.equal(row.image_path, 'already-there.jpg'); // an existing document is not replaced
   const lines = await db.many('SELECT * FROM invoice_lines WHERE invoice_id = ?', [invoice.id]);
   assert.equal(lines.length, 1);
+});
+
+test("the supplier's skill rides along with the very next photo", async () => {
+  // End to end: a supplier that has been scanned before, a draft armed with that supplier on the
+  // capture screen, and the learned layout reaching the model with the images — on the FIRST pass,
+  // not on a re-run. That is the whole point of naming the supplier before shooting.
+  const db = await freshDb();
+  const { sec, store, supplier } = await setup(db);
+  const past = {
+    extraction: { invoice_number: '1', invoice_date: '01/01/2026', total_amount: 10 },
+    normalized: {
+      header: { invoiceNumber: '1', invoiceDate: '2026-01-01', totalAmount: 1000, allocationNumber: null },
+      lines: [{ barcode: '42435', unitQuantity: 16 }, { barcode: '43890', unitQuantity: 8 }, { barcode: '4136857', unitQuantity: 12 }],
+    },
+  };
+  // Twice: a single invoice is not evidence that this supplier ALWAYS prints a כ.בודד column, and
+  // the profile deliberately waits for a second sample before saying so.
+  await recordScan(supplier.id, past, 'now', db);
+  await recordScan(supplier.id, past, 'now', db);
+
+  const draft = await createDraft({ storeId: store.id, imageRefs: ['p1.jpg'], supplierId: supplier.id }, sec, db);
+  assert.equal(draft.supplier_id, supplier.id);
+  await processDraft(draft.id, sec, deps(), db);
+
+  const sent = client.calls[0].messages[0].content.at(-1).text;
+  assert.match(sent, /ברקוד מקוצר/, "the supplier's learned layout reached the model");
+  assert.match(sent, /כ\.בודד/);
+  // …and the cached system prompt is untouched, so this costs nothing extra.
+  assert.equal(client.calls[0].system[0].text, SYSTEM_PROMPT);
+});
+
+test('a supplier never scanned before adds nothing to the request', async () => {
+  const db = await freshDb();
+  const { sec, store } = await setup(db);
+  const draft = await createDraft({ storeId: store.id, imageRefs: ['p1.jpg'] }, sec, db);
+  await processDraft(draft.id, sec, deps(), db);
+  const sent = client.calls[0].messages[0].content.at(-1).text;
+  assert.ok(!/מסריקות קודמות/.test(sent), 'no profile section at all');
 });
