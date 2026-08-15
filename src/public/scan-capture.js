@@ -59,11 +59,17 @@
   var cfg = {
     maxPages: 8,
     maxEdge: 2500,
-    // The model's real limit is an AREA limit — it bills ⌈w/28⌉×⌈h/28⌉ tokens and caps at about
-    // 3.75MP — so a long-edge rule alone either wastes resolution on a portrait page or blows the
-    // budget on a landscape one. Size by pixels, and keep maxEdge as the per-side guard.
-    maxPixels: 3600000,
-    jpegQuality: 0.9,
+    // The model's real limit is an AREA limit: it bills ⌈w/28⌉×⌈h/28⌉ tokens and caps at 4,784,
+    // so a long-edge rule alone either wastes resolution on a portrait page or overshoots on a
+    // landscape one. 3.5MP leaves room for the ceilings to round up and still land under the cap
+    // (1600×2260 → 58×81 = 4,698). Going over does not cost more — it makes the API resample the
+    // image server-side, which is an extra resample we neither control nor see.
+    maxPixels: 3500000,
+    // 4:2:0 chroma subsampling (what Chrome emits below quality 1.0) halves the resolution of
+    // COLOUR only; luminance stays full-res, and text is a luminance signal. Chasing 4:4:4 means
+    // quality 1.0, which would push an 8-page request from ~11MB to ~43MB of base64 — past the
+    // 32MB request limit — to sharpen colour edges on a document that has almost no coloured text.
+    jpegQuality: 0.92,
     maxUploadBytes: 10 * 1024 * 1024,
     maxTotalBytes: 18 * 1024 * 1024,
   };
@@ -262,6 +268,38 @@
     return page;
   }
 
+  /**
+   * The JPEG's EXIF Orientation tag: 1 = upright, 2-8 = some flip/rotation, null = no EXIF.
+   * We need this because the extraction API does not read image metadata at all — an orientation
+   * that is not baked into the pixels simply never happens.
+   */
+  function jpegOrientation(buf) {
+    var b = new DataView(buf);
+    if (b.byteLength < 4 || b.getUint16(0) !== 0xffd8) return null;
+    var off = 2;
+    while (off + 4 <= b.byteLength) {
+      var marker = b.getUint16(off);
+      if ((marker & 0xff00) !== 0xff00) return null;
+      var len = b.getUint16(off + 2);
+      if (marker === 0xffe1) {
+        // APP1: "Exif\0\0" then a TIFF header whose byte order we must honour.
+        if (off + 10 > b.byteLength || b.getUint32(off + 4) !== 0x45786966) return null;
+        var tiff = off + 10;
+        var little = b.getUint16(tiff) === 0x4949;
+        var ifd = tiff + b.getUint32(tiff + 4, little);
+        var count = b.getUint16(ifd, little);
+        for (var i = 0; i < count; i++) {
+          var entry = ifd + 2 + i * 12;
+          if (b.getUint16(entry, little) === 0x0112) return b.getUint16(entry + 8, little);
+        }
+        return null;
+      }
+      if (marker === 0xffda) return null; // start of scan — no EXIF before the image data
+      off += 2 + len;
+    }
+    return null;
+  }
+
   // ---- importing files (gallery / Genius Scan) ---------------------------------
   /**
    * Decode an image with its EXIF orientation applied and re-encode it at cfg.maxEdge.
@@ -271,21 +309,37 @@
    */
   function normalizeImage(file) {
     return new Promise(function (resolve) {
+      var upright = false;
       // Resolves with null when the browser cannot decode the file at all (an iPhone HEIC picked
       // on Android is the realistic case). Uploading it would only fail server-side, later and
       // less clearly, so addFiles() drops it here with a message instead.
       var finish = function (source, w, h) {
-        var s = Math.min(1, cfg.maxEdge / Math.max(w, h));
+        var s = Math.min(1, Math.sqrt(cfg.maxPixels / (w * h)), cfg.maxEdge / Math.max(w, h));
+        // A gallery photo is ALREADY a camera JPEG. Decoding and re-encoding it makes it a
+        // second-generation JPEG, baking the first generation's artefacts in as signal and
+        // re-quantising them — the "multiple compression passes" the API guidance warns about.
+        // When it needs no resizing, the untouched original is strictly the better image.
+        //
+        // `upright` is not optional here: the API does NOT read image metadata, so an EXIF
+        // rotation is only ever applied if we bake it into the pixels. Passing through a photo
+        // that needs rotating would send it to the model sideways.
+        if (s >= 1 && upright && file.type === 'image/jpeg' && file.size <= cfg.maxUploadBytes) {
+          if (source.close) source.close();
+          resolve(file);
+          return;
+        }
         var c = document.createElement('canvas');
         c.width = Math.round(w * s);
         c.height = Math.round(h * s);
         c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
         if (source.close) source.close();
+        // Generation 2 deserves more headroom than a first encode from raw sensor pixels.
         c.toBlob(function (blob) {
           resolve(blob || file);
-        }, 'image/jpeg', cfg.jpegQuality);
+        }, 'image/jpeg', 0.95);
       };
-      if (typeof createImageBitmap === 'function') {
+      var decode = function () {
+        if (typeof createImageBitmap !== 'function') return legacyDecode(file, finish, resolve);
         createImageBitmap(file, { imageOrientation: 'from-image' })
           .then(function (bmp) {
             finish(bmp, bmp.width, bmp.height);
@@ -293,9 +347,23 @@
           .catch(function () {
             legacyDecode(file, finish, resolve);
           });
-        return;
+      };
+
+      // Read the EXIF orientation before decoding, so finish() knows whether passing the original
+      // through is safe. Any failure here just means "assume it needs rotating" — the re-encode
+      // path is always correct, only slightly lossier.
+      if (file.type === 'image/jpeg' && file.arrayBuffer) {
+        file
+          .arrayBuffer()
+          .then(function (buf) {
+            var o = jpegOrientation(buf);
+            upright = o === null || o === 1;
+          })
+          .catch(function () {})
+          .then(decode, decode);
+      } else {
+        decode();
       }
-      legacyDecode(file, finish, resolve);
     });
   }
 
