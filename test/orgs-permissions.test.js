@@ -80,7 +80,7 @@ test('toCsv quotes commas/quotes/newlines and prepends a BOM', () => {
   assert.ok(csv.includes('"line1\nline2"'));
 });
 
-test('the owner action dialogs ship with the buttons on every settings page', async () => {
+test('every owner-action button ships with the dialog it opens, and lives in the page body', async () => {
   const { createApp } = await import('../src/app.js');
   const { createSession } = await import('../src/lib/auth.js');
   const { once } = await import('node:events');
@@ -91,18 +91,30 @@ test('the owner action dialogs ship with the buttons on every settings page', as
   const base = `http://127.0.0.1:${server.address().port}`;
   const cookie = `session=${createSession(ow.id)}`;
 
-  // The header renders these buttons on EVERY /settings/* path. When the dialog markup lived only
-  // in settings/index.ejs, a click from /settings/guide called showModal() on null and the button
-  // was simply dead — no error the owner could see, and no request in the server log.
+  const ACTIONS = ['dlg-db', 'dlg-catalog', 'dlg-backup', 'dlg-reset', 'dlg-restore'];
+
+  // The invariant that matters, asserted over BOTH pages rather than as two presence checks: a
+  // button is never rendered without the dialog it opens. Violating it produced a dead button —
+  // showModal() on null, no error, no request — that took a round trip to diagnose.
   for (const path of ['/settings', '/settings/guide']) {
     const html = await (await fetch(`${base}${path}`, { headers: { cookie } })).text();
-    assert.match(html, /apOpen\('dlg-db'\)/, `${path} is missing the button`);
-    assert.match(html, /<dialog id="dlg-db"/, `${path} is missing the dialog`);
-    assert.match(html, /action="\/settings\/db-upgrade"/, `${path} is missing the upgrade form`);
-    for (const id of ['dlg-backup', 'dlg-reset', 'dlg-restore']) {
-      assert.match(html, new RegExp(`<dialog id="${id}"`), `${path} is missing ${id}`);
+    for (const id of ACTIONS) {
+      const hasButton = html.includes(`apOpen('${id}')`);
+      const hasDialog = html.includes(`<dialog id="${id}"`);
+      assert.equal(hasButton, hasDialog, `${path}: ${id} button=${hasButton} dialog=${hasDialog}`);
     }
   }
+
+  const settings = await (await fetch(`${base}/settings`, { headers: { cookie } })).text();
+  for (const id of ACTIONS) assert.ok(settings.includes(`apOpen('${id}')`), `/settings missing ${id}`);
+  assert.match(settings, /action="\/settings\/catalog-import"/);
+
+  // ...and they must be in the page BODY. They previously rendered inside the ☰ navigation menu,
+  // which is why the owner reported the catalog upload as simply missing.
+  assert.ok(
+    settings.indexOf("apOpen('dlg-catalog')") > settings.indexOf('<main'),
+    'owner actions must render inside <main>, not in the nav menu',
+  );
   server.close();
 });
 

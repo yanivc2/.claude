@@ -4,6 +4,42 @@
   <a href="/settings/guide" class="btn btn-secondary">📖 מדריך למשתמש</a>
 </div>
 <p class="muted">ניהול מבנה החברות, החנויות, חשבונות הבנק והמשתמשים. פעולות בעלים בלבד.</p>
+
+<% if (currentUser.role === 'owner') { %>
+  <%# These five used to live in the ☰ navigation menu, which cost two support round-trips: nobody
+      looks for an action inside a navigation menu. They belong on the page the owner opens in
+      order to perform them. The dialogs they open are included from THIS file for the same reason
+      the previous bug happened — a button and the dialog it opens must ship together. %>
+  <div class="card">
+    <h2 style="margin:0 0 .2rem">פעולות בעלים</h2>
+    <p class="muted" style="margin:0 0 var(--space-3)">פעולות תחזוקה על המערכת כולה.</p>
+    <div class="owner-actions">
+      <button type="button" class="dial" onclick="apOpen('dlg-db')">
+        <span class="dial-ic">🗄️</span>
+        <span class="dial-txt"><strong>עדכון מסד נתונים</strong><small>הרץ פעם אחת אחרי כל עדכון גרסה. בטוח, לא מוחק דבר.</small></span>
+      </button>
+      <button type="button" class="dial" onclick="apOpen('dlg-catalog')">
+        <span class="dial-ic">🏷️</span>
+        <span class="dial-txt"><strong>טעינת קטלוג-על</strong><small>העלאת קובץ CSV של מוצרים — משמש לזיהוי מוצרים בסריקת חשבוניות.</small></span>
+      </button>
+      <button type="button" class="dial" onclick="apOpen('dlg-backup')">
+        <span class="dial-ic">⬇</span>
+        <span class="dial-txt"><strong>גיבוי מלא</strong><small>הורדת עותק של כל הנתונים כקובץ JSON.</small></span>
+      </button>
+    </div>
+    <div class="owner-actions" style="margin-top:var(--space-3)">
+      <button type="button" class="dial danger" onclick="apOpen('dlg-restore')">
+        <span class="dial-ic">♻</span>
+        <span class="dial-txt"><strong>שחזור מגיבוי</strong><small>מחליף את כל הנתונים בתוכן קובץ גיבוי. בלתי הפיך.</small></span>
+      </button>
+      <button type="button" class="dial danger" onclick="apOpen('dlg-reset')">
+        <span class="dial-ic">⚠</span>
+        <span class="dial-txt"><strong>איפוס — התחל מחדש</strong><small>מוחק את נתוני העבודה ומשאיר חברות, חנויות ומשתמשים. בלתי הפיך.</small></span>
+      </button>
+    </div>
+  </div>
+  <%- include('../partials/_ownerDialogs') %>
+<% } %>
 <% function permLabel(key){ var f = permissionCatalog.find(function(p){return p.key===key;}); return f ? f.label : key; } %>
 <script>
   window.AP_ROLE_TEMPLATES = <%- JSON.stringify(typeof roleTemplates !== 'undefined' && roleTemplates ? roleTemplates : []) %>;

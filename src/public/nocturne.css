@@ -672,27 +672,30 @@ details.paymenu .paymenu-items .btn { text-align: center; }
    Owner action "dials" — compact round-icon buttons. They live in the sidebar
    (below התנתק) on the settings page; kept small so they read as secondary.
    ============================================================ */
-/* Scoped under .nav-actions so these win over the base `.menu-panel button` rule
-   (higher specificity) — otherwise width/padding/border get clobbered and the
-   non-danger pills render inconsistently. Full-width => flush to the right edge. */
-.nav-actions { display: flex; flex-direction: column; gap: 5px; align-items: stretch; }
-.nav-actions .dial {
-  display: flex; align-items: center; justify-content: flex-start; gap: .4rem;
-  width: 100%; box-sizing: border-box; cursor: pointer; white-space: nowrap;
-  background: var(--color-surface); color: var(--color-text); font: inherit;
-  border: 1px solid var(--color-line); border-radius: 999px;
-  padding: .14rem .5rem .14rem .14rem; transition: border-color .15s ease;
+/* Owner maintenance actions on the settings page. These used to be pills inside the ☰ menu,
+   which cost two support round-trips — nobody looks for an action in a navigation menu. They are
+   now cards in the page body, big enough to carry a one-line explanation of what each one does. */
+.owner-actions { display: grid; gap: var(--space-2); grid-template-columns: 1fr; }
+@media (min-width: 720px) { .owner-actions { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); } }
+.owner-actions .dial {
+  display: flex; align-items: flex-start; gap: var(--space-3); text-align: start;
+  width: 100%; box-sizing: border-box; cursor: pointer; font: inherit;
+  background: var(--color-surface-2); color: var(--color-text);
+  border: 1px solid var(--color-line); border-radius: var(--radius-md);
+  padding: var(--space-3); transition: border-color .15s ease, background .15s ease;
 }
-.nav-actions .dial:hover { border-color: var(--color-accent); background: var(--color-surface); color: var(--color-text); }
-.nav-actions .dial .dial-ic {
-  width: 25px; height: 25px; flex: 0 0 auto; border-radius: 50%;
+.owner-actions .dial:hover { border-color: var(--color-accent); background: var(--color-surface); }
+.owner-actions .dial .dial-ic {
+  width: 32px; height: 32px; flex: 0 0 auto; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent-grad); color: #fff; font-size: 12px;
+  background: var(--accent-grad); color: #fff; font-size: 15px;
 }
-.nav-actions .dial .dial-lbl { font-weight: 600; font-size: 11px; }
-.nav-actions .dial.danger { border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line)); }
-.nav-actions .dial.danger .dial-ic { background: var(--color-bad); }
-.nav-actions .dial.danger:hover { border-color: var(--color-bad); }
+.owner-actions .dial .dial-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.owner-actions .dial .dial-txt strong { font-size: 14px; font-weight: 600; }
+.owner-actions .dial .dial-txt small { font-size: 11.5px; color: var(--color-muted); line-height: 1.4; white-space: normal; }
+.owner-actions .dial.danger { border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line)); }
+.owner-actions .dial.danger .dial-ic { background: var(--color-bad); }
+.owner-actions .dial.danger:hover { border-color: var(--color-bad); }
 
 /* Native <dialog> modals used by the owner dials */
 dialog.ndialog {
