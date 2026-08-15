@@ -51,4 +51,9 @@ test('getCheckPrintData assembles payee, drawer, words and defaults to unapprove
   assert.equal(data.account.company_name, 'על הדרך סופר');
   assert.equal(data.account.company_tax_id, '514737832');
   assert.equal(data.approved, false); // gated by default — DRAFT until bank approval (§11.5)
+  // Activation readiness: unapproved by default, so the code line stays a placeholder.
+  assert.equal(data.micrReady, false);
+  // The MICR code line is built from the check number + branch + account number.
+  assert.ok(data.micrLine.includes('8801'), 'micrLine carries the check number');
+  assert.ok(data.micrLine.includes(String(data.account.account_number)), 'micrLine carries the account number');
 });

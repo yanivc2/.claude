@@ -57,11 +57,21 @@ export const config = {
     langPath: process.env.OCR_LANG_PATH || null,
   },
   // Stage 4 check printing (Standard 501 / MICR). GATED: printing a real, negotiable
-  // check requires bank approval and an approved E-13B MICR encoding (🔴 §11.5, §10.3).
-  // Until CHECK_PRINTING_APPROVED=true the layout renders as a watermarked DRAFT with a
-  // MICR *placeholder* only — never a scanner-valid magnetic line.
+  // check requires bank approval and an approved MICR encoding (🔴 §11.5, §10.3 — CMC-7 in
+  // Israel, E-13B in the US/UK). Until CHECK_PRINTING_APPROVED=true the layout renders as a
+  // watermarked DRAFT. Even when approved, the code line stays a *placeholder* until a
+  // bank-approved MICR font is installed.
+  //
+  // ACTIVATION (no code change needed):
+  //   1. Get the bank's approval to self-print + their MICR spec.
+  //   2. Commit the licensed MICR font to src/public/fonts/micr.woff2 (+ .woff fallback).
+  //   3. On Vercel set  CHECK_PRINTING_APPROVED=true  and  CHECK_PRINTING_MICR_FONT=1.
+  // The DRAFT watermark drops at step 3a; the real code-line font renders at step 3b.
   checkPrinting: {
     approved: process.env.CHECK_PRINTING_APPROVED === 'true',
+    // Truthy once the licensed MICR font file is committed and this flag is set. Any non-empty
+    // value counts as "installed"; the print page then renders the code line in that font.
+    micrFontInstalled: Boolean(process.env.CHECK_PRINTING_MICR_FONT),
   },
   // Authentication (real login for cloud exposure). Seed passwords come from env on first run;
   // change them afterwards. sessionSecret signs the stateless session cookie.

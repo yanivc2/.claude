@@ -36,9 +36,14 @@
     .foot .sig { min-width:45mm; border-top:1px solid var(--line); padding-top:1mm; }
     .memo { position:absolute; bottom: 12mm; right:8mm; font-size:2.8mm; }
 
-    /* MICR line — PLACEHOLDER only. Not an E-13B encoding; not scanner-valid. */
+    /* Bank-approved MICR font (commit the licensed file here to activate — see fonts/README.txt).
+       Self-hosted, so it satisfies the app's font-src 'self' CSP. Absent → falls back to Courier. */
+    @font-face { font-family: 'MICR'; src: url('/fonts/micr.woff2') format('woff2'),
+      url('/fonts/micr.woff') format('woff'); font-display: swap; }
+    /* MICR line — a PLACEHOLDER (Courier) until the approved font is installed and both flags on. */
     .micr { position:absolute; bottom: 3mm; right:8mm; left:8mm; text-align:center;
       font-family: "Courier New", monospace; letter-spacing: 2px; font-size: 4mm; color:#111; }
+    .micr.ready { font-family: 'MICR', "Courier New", monospace; letter-spacing: 4px; }
     .micr small { display:block; font-family:Arial; letter-spacing:normal; font-size:2.4mm; color:#b3261e; }
 
     /* DRAFT watermark (shown until bank-approved). */
@@ -62,10 +67,15 @@
       (E-13B) מאושר (🔴 §11.5, §10.3). שורת ה-MICR כאן היא placeholder בלבד ואינה נקראת ע"י הבנק.
       לאחר אישור הבנק — הגדר <code>CHECK_PRINTING_APPROVED=true</code> והוסף גופן MICR מאושר.
     </div>
-  <% } else { %>
+  <% } else if (!micrReady) { %>
     <div class="screen-note">
-      מצב "מאושר" פעיל, אך שורת ה-MICR עדיין placeholder — יש להתקין גופן E-13B מאושר לפני
-      הפקה אמיתית. ודא התאמה לתקן 501 מול הבנק.
+      מצב "מאושר" פעיל, אך גופן ה-MICR עדיין לא הותקן — התחייב את קובץ הגופן ב-
+      <code>src/public/fonts/micr.woff2</code> והגדר <code>CHECK_PRINTING_MICR_FONT=1</code>.
+      עד אז שורת ה-MICR היא placeholder.
+    </div>
+  <% } else { %>
+    <div class="screen-note" style="background:#e7f6ec;color:#1a7f37;border-color:#bfe6cb">
+      מוכן להדפסה. ודא התאמה לתקן 501 ולפריסת ה-MICR מול הבנק לפני הפקה בכמות.
     </div>
   <% } %>
 
@@ -101,9 +111,9 @@
     </div>
     <div class="foot"><div class="sig">חתימה מורשה</div></div>
 
-    <div class="micr">
-      ⑈<%= payment.check_number %>⑈ &nbsp; ⑆<%= account.branch %> <%= account.account_number %>⑆
-      <small>שורת MICR — placeholder בלבד, אינה קידוד E-13B תקני ואינה נקראת ע"י הבנק</small>
+    <div class="micr <%= micrReady ? 'ready' : '' %>">
+      <%= micrLine %>
+      <% if (!micrReady) { %><small>שורת MICR — placeholder בלבד, עד להתקנת גופן MICR מאושר אינה נקראת ע"י הבנק</small><% } %>
     </div>
   </div>
 </body>

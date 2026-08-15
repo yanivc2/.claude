@@ -292,12 +292,21 @@ export async function getCheckPrintData(id, x = getExecutor()) {
     )
   ).map((r) => r.name);
 
+  // Code line built from the fields a bank MICR line carries. It renders in the approved MICR
+  // font only when both flags are on; until then the print view labels it a placeholder. The
+  // exact symbol layout must match the bank's spec before real issuance (CMC-7 in Israel).
+  const micrLine = `⑈${payment.check_number || ''}⑈ ⑆${account?.branch || ''} ${account?.account_number || ''}⑆`;
+  const approved = config.checkPrinting.approved;
+  const micrReady = approved && config.checkPrinting.micrFontInstalled;
+
   return {
     payment,
     account,
     payees,
     amountWords: amountToHebrewWords(payment.amount),
-    approved: config.checkPrinting.approved,
+    micrLine,
+    approved,
+    micrReady,
   };
 }
 
