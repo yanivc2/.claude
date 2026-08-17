@@ -1,18 +1,25 @@
 {
-  "supplier_id": "<id or normalized name>",
-  "samples_seen": 0,
-  "notes": "Human-readable summary of this supplier's invoice quirks.",
-  "rules": {
-    "column_map": { "cartons": null, "singles": null, "barcode": null, "sku": null },
-    "allocation_position": null,
-    "date_format": null,
-    "barcode_shape": null,
-    "vat_rate": null,
-    "name_fixes": []
+  "_doc": "Per-supplier profile. This mirrors the PROVEN in-app shape (src/services/supplierProfile.js): structure is MEASURED from what past scans actually returned (not guessed), and a correction becomes a hint only after it REPEATS. Thresholds: a supplier is 'ready' after cleanStreak >= 3 (three scans approved untouched); a corrected field becomes an instruction after count >= 2. Hints ride in the USER message on the next scan, never in the cached system prompt.",
+
+  "samples": 0,
+  "cleanStreak": 0,
+
+  "layout": {
+    "codes": { "total": 0, "short": 0, "full": 0, "minLen": null, "maxLen": null },
+    "unitQuantity": 0,
+    "allocation": 0,
+    "sku": 0,
+    "packCost": 0
   },
-  "confidence_per_rule": {
-    "_doc": "Each learned rule gets a count. Seen once = hint (inject softly). Confirmed >= 5 = firm rule (inject as an instruction). A rule that regresses fixtures is demoted/removed.",
-    "example.allocation_position": { "confirmed": 0, "status": "candidate" }
-  },
-  "hint_block": "Rendered from `rules` as a short, non-cached system block injected on the next scan for this supplier. Keep it terse and specific — e.g. 'Column 3 is cartons, column 5 is כ.בודד; allocation number prints bottom-left; house barcode is the 5-digit tail of the EAN.'"
+
+  "corrections": {},
+
+  "hints": [],
+  "updatedAt": null,
+
+  "_derivation": {
+    "codes": "For each line barcode: length>=12 and passes GTIN check digit → full++; length 4-9 and cannot → short++ (this supplier prints the EAN tail). short>full over >=3 codes → 'shortened barcode' hint.",
+    "corrections": "Diff the raw extraction against the human-approved value AFTER putting both through the validator's own normalization (dates→ISO, money→agorot) — otherwise the validator's normalization looks like a human correction and every scan reports false fixes.",
+    "readiness": "new (samples 0) → learning (cleanStreak < 3) → ready (cleanStreak >= 3). One correction resets the streak to 0."
+  }
 }

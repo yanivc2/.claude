@@ -68,11 +68,18 @@ The whole point: each supplier's invoice looks different, so steer the extractor
   allocation number sits, date format, house barcode shape, recurring name normalizations, and a
   **confidence per rule that grows with repetition** (seen once = hint; confirmed 5× = firm rule).
   See `profiles/_TEMPLATE.json`.
-- **Inject** — on the next scan for that supplier, add the profile as a second system block.
-  Requires knowing the supplier *before* extraction: a cheap ID pre-pass, the store's dominant
-  supplier, or the user picking the supplier at capture.
-- **Safety** — a new rule enters as a *candidate* and is promoted only after the validator confirms
-  it didn't regress other fields.
+- **Inject** — on the next scan for that supplier, add the hints to the **user message** (not the
+  cached system prompt — keep that byte-stable). Requires knowing the supplier *before* extraction:
+  a cheap ID pre-pass, the store's dominant supplier, or the user picking the supplier at capture.
+- **Readiness** — `new` (no scans) → `learning` (clean streak < 3) → `ready` (3 scans approved
+  untouched). One correction resets the streak.
+- **Safety** — a new rule enters as a *candidate* and is promoted only after it REPEATS (>= 2) and
+  the validator confirms it didn't regress other fields.
+
+> **Reference implementation:** this exact loop is live and test-covered in the AP-Control app —
+> `src/services/supplierProfile.js` (pure `learnFromScan`/`hintsFor`/`readiness`, wired into
+> `src/services/scan.js` at extract-time and approve-time) with `test/supplier-profile.test.js`.
+> `profiles/_TEMPLATE.json` mirrors its profile shape and thresholds. Port from it, don't re-derive.
 
 ## Self-check (the validator)
 
