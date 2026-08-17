@@ -1,0 +1,18 @@
+{
+  "supplier_id": "<id or normalized name>",
+  "samples_seen": 0,
+  "notes": "Human-readable summary of this supplier's invoice quirks.",
+  "rules": {
+    "column_map": { "cartons": null, "singles": null, "barcode": null, "sku": null },
+    "allocation_position": null,
+    "date_format": null,
+    "barcode_shape": null,
+    "vat_rate": null,
+    "name_fixes": []
+  },
+  "confidence_per_rule": {
+    "_doc": "Each learned rule gets a count. Seen once = hint (inject softly). Confirmed >= 5 = firm rule (inject as an instruction). A rule that regresses fixtures is demoted/removed.",
+    "example.allocation_position": { "confirmed": 0, "status": "candidate" }
+  },
+  "hint_block": "Rendered from `rules` as a short, non-cached system block injected on the next scan for this supplier. Keep it terse and specific — e.g. 'Column 3 is cartons, column 5 is כ.בודד; allocation number prints bottom-left; house barcode is the 5-digit tail of the EAN.'"
+}

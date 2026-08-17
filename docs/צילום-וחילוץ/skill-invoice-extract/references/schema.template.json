@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "supplier_name", "supplier_tax_id", "supplier_phone", "invoice_number",
+    "allocation_number", "invoice_date", "doc_type",
+    "amount_before_vat", "vat_amount", "total_amount", "lines", "notes"
+  ],
+  "properties": {
+    "supplier_name": { "type": "string", "description": "Supplier/vendor name as printed. \"\" if absent." },
+    "supplier_tax_id": { "type": "string", "description": "Vendor tax id (ח.פ / VAT no.). \"\" if absent." },
+    "supplier_phone": { "type": "string", "description": "\"\" if absent." },
+    "invoice_number": { "type": "string", "description": "Document number. \"\" if absent." },
+    "allocation_number": { "type": "string", "description": "9-digit allocation number, only when printed near its label. \"\" otherwise." },
+    "invoice_date": { "type": "string", "description": "YYYY-MM-DD. Day-first locale on the page. \"\" if unreadable." },
+    "doc_type": { "type": "string", "enum": ["tax_invoice", "tax_invoice_receipt", "credit_note", "unknown"] },
+    "amount_before_vat": { "type": ["number", "null"], "description": "Absolute value; null if unreadable." },
+    "vat_amount": { "type": ["number", "null"] },
+    "total_amount": { "type": ["number", "null"] },
+    "lines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "barcode", "sku", "quantity", "unit_quantity", "unit_cost", "pack_cost", "line_total", "confidence"],
+        "properties": {
+          "name": { "type": "string" },
+          "barcode": { "type": "string", "description": "EAN as printed. \"\" if none. NOT the sku." },
+          "sku": { "type": "string", "description": "Internal item code (מק\"ט). \"\" if none." },
+          "quantity": { "type": ["number", "null"] },
+          "unit_quantity": { "type": ["number", "null"], "description": "Units per pack (כ.בודד)." },
+          "unit_cost": { "type": ["number", "null"], "description": "Price per single unit. null if only a pack price is printed." },
+          "pack_cost": { "type": ["number", "null"], "description": "Price per carton/pack." },
+          "line_total": { "type": ["number", "null"], "description": "Absolute line total before VAT." },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    "notes": { "type": "string", "description": "Anything ambiguous. \"\" if none." }
+  }
+}

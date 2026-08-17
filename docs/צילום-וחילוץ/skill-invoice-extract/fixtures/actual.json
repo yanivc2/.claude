@@ -1,0 +1,17 @@
+{
+  "supplier_name": "תנובה",
+  "supplier_tax_id": "510834017",
+  "supplier_phone": "",
+  "invoice_number": "INV-2026-441",
+  "allocation_number": "",
+  "invoice_date": "2026-08-14",
+  "doc_type": "tax_invoice",
+  "amount_before_vat": 100.00,
+  "vat_amount": 18.00,
+  "total_amount": 118.00,
+  "lines": [
+    { "name": "חלב 3% 1 ליטר", "barcode": "7290000042435", "sku": "42435", "quantity": 12, "unit_quantity": 1, "unit_cost": 5.50, "pack_cost": 66.00, "line_total": 66.00, "confidence": "high" },
+    { "name": "קוטג' 250 גרם", "barcode": "", "sku": "1234", "quantity": 6, "unit_quantity": 1, "unit_cost": 5.67, "pack_cost": 34.00, "line_total": 34.00, "confidence": "medium" }
+  ],
+  "notes": ""
+}
