@@ -92,8 +92,13 @@ Run these before shipping and after any profile change — this is the "skill th
 - `node scripts/regression.mjs <expected.json> <actual.json>` — field-level known-answer diff with a
   pass ratio. Keep a fixture (real invoice → expected JSON) per supplier and overall; watch the
   ratio for **drift** over time.
+- `node scripts/run-fixtures.mjs` — **the whole validator suite**: runs check-invariants + regression
+  over every `fixtures/by-supplier/<name>.{expected,actual}.json` pair plus the demo pair, one line
+  per fixture. Add a real invoice per supplier here to catch per-supplier drift.
 
-Scripts are dependency-free Node ESM (Node 18+). `fixtures/` has a passing demo pair.
+Scripts are dependency-free Node ESM (Node 18+). `fixtures/` has a passing demo pair; a worked
+per-supplier example (shortened barcodes) lives in `fixtures/by-supplier/tnuva.*` with a matching
+learned profile in `profiles/tnuva.example.json`.
 
 ## Building it on a new platform
 

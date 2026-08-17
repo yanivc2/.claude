@@ -1,0 +1,17 @@
+{
+  "supplier_name": "תנובה",
+  "supplier_tax_id": "510834017",
+  "supplier_phone": "",
+  "invoice_number": "TN-88231",
+  "allocation_number": "",
+  "invoice_date": "2026-08-16",
+  "doc_type": "tax_invoice",
+  "amount_before_vat": 240.00,
+  "vat_amount": 43.20,
+  "total_amount": 283.20,
+  "lines": [
+    { "name": "חלב תנובה 3% 1 ליטר", "barcode": "42435", "sku": "", "quantity": 24, "unit_quantity": 1, "unit_cost": 5.50, "pack_cost": 132.00, "line_total": 132.00, "confidence": "high" },
+    { "name": "שמנת מתוקה 38%", "barcode": "31872", "sku": "", "quantity": 12, "unit_quantity": 1, "unit_cost": 9.00, "pack_cost": 108.00, "line_total": 108.00, "confidence": "high" }
+  ],
+  "notes": ""
+}

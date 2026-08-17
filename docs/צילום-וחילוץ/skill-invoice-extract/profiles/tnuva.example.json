@@ -1,0 +1,9 @@
+{
+  "_doc": "Illustrative LEARNED profile for a supplier that prints shortened barcodes (Tnuva). Matches the live shape (src/services/supplierProfile.js). Here samples=4 and cleanStreak=3 → readiness 'ready'; hintsFor() would emit: shortened-barcode + unit-quantity column + 'no allocation number'.",
+  "samples": 4,
+  "cleanStreak": 3,
+  "layout": { "codes": { "total": 8, "short": 8, "full": 0, "minLen": 5, "maxLen": 5 }, "unitQuantity": 8, "allocation": 0, "sku": 0, "packCost": 8 },
+  "corrections": {},
+  "hints": [],
+  "updatedAt": "2026-08-16"
+}
