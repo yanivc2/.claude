@@ -112,3 +112,39 @@ test('ranking is stable and explains itself', () => {
   const nameOnly = rankCandidates(rows, { printedName: 'הומוגני 1% דל' });
   assert.equal(nameOnly[0].row.barcode, '7290000042435');
 });
+
+test('the supplier breaks a tie but never outvotes a clear description', () => {
+  // Measured on the owner's catalog: for a 5-digit code, in 17.9% of cases the RIGHT product has
+  // no manufacturer on file while a WRONG candidate does — the manufacturer column is populated
+  // for only 44.6% of rows. A flat supplier bonus would adopt the wrong product in exactly those
+  // cases, because a correct name match scores 0.25-0.34 on the real invoice.
+  const rows = [
+    { barcode: '7290000000001', name: 'כפפות ניטריל שחור', manufacturer_name: 'תנובה בע"מ' }, // supplier matches…
+    { barcode: '7290000000002', name: 'רויון 1.5% בקרטון 1ל', manufacturer_name: null }, // …but THIS is the product
+  ];
+  const ranked = rankCandidates(rows, { printedName: 'רויון 1 ליטר', supplierName: 'תנובה' });
+  assert.equal(ranked[0].row.barcode, '7290000000002', 'the description wins over the supplier');
+  assert.ok(ranked[0].byName > 0);
+  assert.equal(ranked[0].bySupplier, false);
+
+  // …and when the names really are tied, the supplier is exactly what decides.
+  const tied = rankCandidates(
+    [
+      { barcode: '7290000000003', name: 'חלב 1 ליטר', manufacturer_name: 'שטראוס' },
+      { barcode: '7290000000004', name: 'חלב 1 ליטר', manufacturer_name: 'תנובה בע"מ' },
+    ],
+    { printedName: 'חלב 1 ליטר', supplierName: 'תנובה' },
+  );
+  assert.equal(tied[0].row.barcode, '7290000000004');
+  assert.equal(tied[0].bySupplier, true);
+
+  // With no name evidence at all every candidate is contested, so the supplier still decides.
+  const blind = rankCandidates(
+    [
+      { barcode: '7290000000005', name: 'מוצר א', manufacturer_name: null },
+      { barcode: '7290000000006', name: 'מוצר ב', manufacturer_name: 'תנובה בע"מ' },
+    ],
+    { printedName: '', supplierName: 'תנובה' },
+  );
+  assert.equal(blind[0].row.barcode, '7290000000006');
+});

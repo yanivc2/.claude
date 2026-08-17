@@ -259,20 +259,42 @@ const SUPPLIER_BONUS = 0.35; // the candidate is made by the supplier who issued
  * Rank catalog candidates for one printed code against what the line actually says.
  * Pure and exported for testing; returns the candidates best-first with their scores.
  *
+ * **The supplier breaks ties; it does not outvote the description.** Measured on the owner's
+ * 80,461-item catalog, for a 5-digit printed code:
+ *
+ *     43.2%  only one candidate anyway
+ *     24.9%  several, and the supplier picks the right one
+ *     0.05%  several, and even the supplier cannot separate them
+ *     17.9%  ⚠ the RIGHT product has no manufacturer on file and a WRONG one does
+ *
+ * That last row is why the supplier is a tie-break and not a filter — and why its bonus must not
+ * be able to beat a clear name match. The manufacturer column is populated for only 44.6% of the
+ * catalog, so in ~18% of ambiguous 5-digit lookups the only candidate carrying the invoice's
+ * supplier is the wrong one. A flat additive bonus of 0.35 would win those outright, because a
+ * correct name match scores 0.25-0.34 on the real Tnuva invoice — the wrong product would be
+ * adopted over the right one. So the bonus only applies among candidates whose name evidence is
+ * effectively tied.
+ *
  * @param {object[]} rows catalog rows sharing the printed code
  * @param {{printedName?: string|null, supplierName?: string|null}} context
  */
 export function rankCandidates(rows, { printedName = null, supplierName = null } = {}) {
   const printed = tokens(printedName);
   const supplier = supplierName ? normalizeSupplierName(supplierName) : '';
-  return (rows || [])
-    .map((row) => {
-      const manufacturer = manufacturerOf(row);
-      const bySupplier = Boolean(supplier && manufacturer && normalizeSupplierName(manufacturer) === supplier);
-      const byName = overlap(printed, tokens(row.name));
-      return { row, score: byName + (bySupplier ? SUPPLIER_BONUS : 0), byName, bySupplier };
-    })
-    .sort((a, b) => b.score - a.score);
+  const scored = (rows || []).map((row) => {
+    const manufacturer = manufacturerOf(row);
+    const bySupplier = Boolean(supplier && manufacturer && normalizeSupplierName(manufacturer) === supplier);
+    return { row, byName: overlap(printed, tokens(row.name)), bySupplier };
+  });
+
+  // The best name evidence anyone offers. A candidate is "in the running" only if its own name
+  // evidence is within NAME_MARGIN of that — the supplier then separates whoever is left.
+  const bestName = scored.reduce((m, c) => Math.max(m, c.byName), 0);
+  for (const c of scored) {
+    c.contested = c.byName >= bestName - NAME_MARGIN;
+    c.score = c.byName + (c.bySupplier && c.contested ? SUPPLIER_BONUS : 0);
+  }
+  return scored.sort((a, b) => b.score - a.score);
 }
 
 /**

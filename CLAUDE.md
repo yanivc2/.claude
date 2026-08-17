@@ -138,10 +138,14 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
     for `7290000042435`). `lookupByCodes()` resolves a printed code of ≥5 digits by suffix, over
     both the barcode and the מק"ט column. Several candidates are **ranked** by `rankCandidates()`
     (`extractValidate.js`): name overlap with the printed description decides (measured: it
-    separates 97% of ambiguous groups; manufacturer only 26%, and that column is 56% filled with
-    9,274 junk `,` values), + a bonus when the manufacturer is the invoice's supplier. A clear
+    separates 97% of ambiguous groups; manufacturer only 26%, and that column is usable on just
+    44.6% of rows), + a supplier bonus that applies **only among candidates whose name evidence is
+    tied** — measured on the catalog, for a 5-digit code the right product has no manufacturer
+    while a wrong candidate does in **17.9%** of cases, so a flat bonus would adopt the wrong
+    product there. Supplier breaks ties; it never outvotes the description. A clear
     winner → `catalog_suffix_match`, otherwise `catalog_ambiguous` with the list ranked. Code
-    length drives the badge: 5 digits resolve uniquely 64.5% of the time, 7 digits 99.4%.
+    length drives the badge: per product, a 5-digit code is ambiguous 56.8% of the time,
+    6 digits 11.2%, 7 digits 1.1%, 8 digits 0.2%.
     Everything is an **offer** — the review screen adopts on a click, nothing is ever written
     automatically. `test/catalog-identify.test.js` is the known-answer test over the 30 codes on
     a real Tnuva invoice; see `docs/צילום-וחילוץ/קטלוגים/זיהוי-מוצר.md`.
