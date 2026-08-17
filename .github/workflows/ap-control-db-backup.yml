@@ -23,28 +23,49 @@ jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
-      - name: pg_dump (PostgreSQL 18 client, matches Neon) and compress
+      - name: pg_dump (PostgreSQL client via docker) and compress
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          set -euo pipefail
+          set -uo pipefail
           if [ -z "${DATABASE_URL:-}" ]; then
             echo "::error::DATABASE_URL secret is not set. Add it in repo Settings -> Secrets -> Actions."
             exit 1
           fi
+          IMG=postgres:18-alpine
           OUT="ap-control-db-$(date +%F).sql.gz"
-          # pg_dump 18 via docker so the client major matches Neon (server 18.x); stream through gzip.
-          # pipefail makes a pg_dump failure fail the job instead of uploading a truncated/empty file.
-          docker run --rm postgres:18-alpine \
-            pg_dump --no-owner --no-privileges --format=plain "$DATABASE_URL" \
-            | gzip -9 > "$OUT"
-          # Integrity guard: a real dump defines tables. An empty/aborted dump does not — fail loudly
-          # so a broken backup can never masquerade as a successful one.
-          if ! zcat "$OUT" | grep -q "CREATE TABLE"; then
-            echo "::error::backup contains no tables — pg_dump likely failed. Not a valid backup."
+
+          # Show client + server versions — a client older than the server makes pg_dump abort, and
+          # this is the first thing to check when a dump comes back empty.
+          echo "pg_dump client: $(docker run --rm "$IMG" pg_dump --version)"
+          docker run --rm "$IMG" psql "$DATABASE_URL" -tAc 'select version()' \
+            && echo "(server version above)" \
+            || echo "::warning::could not query server version (connection / pooler / SSL issue?)"
+
+          # Dump to a plain file (NOT straight into a pipe) so pg_dump's real exit code and stderr are
+          # visible instead of being swallowed by 'gzip: Broken pipe'.
+          set +e
+          docker run --rm "$IMG" \
+            pg_dump --no-owner --no-privileges --format=plain "$DATABASE_URL" > dump.sql 2> pgerr.txt
+          code=$?
+          set -e
+
+          if [ "$code" -ne 0 ]; then
+            echo "::error::pg_dump exited $code — see its output below."
+            echo "----- pg_dump stderr -----"; cat pgerr.txt
             exit 1
           fi
-          echo "Wrote $OUT ($(du -h "$OUT" | cut -f1)), $(zcat "$OUT" | grep -c 'CREATE TABLE') tables"
+          # Integrity guard: a real dump defines tables. Exit 0 with no tables means we connected to
+          # the wrong database/branch, an empty DB, or the pooled '-pooler' endpoint. Fail loudly.
+          if ! grep -q "CREATE TABLE" dump.sql; then
+            echo "::error::pg_dump exit 0 but no CREATE TABLE. Likely the wrong database/branch or the pooled '-pooler' endpoint. Use Neon's DIRECT connection string."
+            echo "----- pg_dump stderr -----"; cat pgerr.txt
+            echo "----- first 30 lines of the dump -----"; head -30 dump.sql
+            exit 1
+          fi
+
+          gzip -9 < dump.sql > "$OUT"
+          echo "Wrote $OUT ($(du -h "$OUT" | cut -f1)), $(grep -c 'CREATE TABLE' dump.sql) tables"
 
       - name: Upload backup artifact
         uses: actions/upload-artifact@v4
