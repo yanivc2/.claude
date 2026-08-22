@@ -27,7 +27,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          set -uo pipefail
+          set -euo pipefail
           if [ -z "${DATABASE_URL:-}" ]; then
             echo "::error::DATABASE_URL secret is not set. Add it in repo Settings -> Secrets -> Actions."
             exit 1
@@ -35,12 +35,10 @@ jobs:
           IMG=postgres:18-alpine
           OUT="ap-control-db-$(date +%F).sql.gz"
 
-          # Show client + server versions — a client older than the server makes pg_dump abort, and
-          # this is the first thing to check when a dump comes back empty.
+          # Print the pg_dump client version. If the client is older than the Neon server, pg_dump
+          # aborts with a clear "server version mismatch" — now visible via the captured stderr below,
+          # so no separate psql probe (which would put the password in argv) is needed.
           echo "pg_dump client: $(docker run --rm "$IMG" pg_dump --version)"
-          docker run --rm "$IMG" psql "$DATABASE_URL" -tAc 'select version()' \
-            && echo "(server version above)" \
-            || echo "::warning::could not query server version (connection / pooler / SSL issue?)"
 
           # Dump to a plain file (NOT straight into a pipe) so pg_dump's real exit code and stderr are
           # visible instead of being swallowed by 'gzip: Broken pipe'.
