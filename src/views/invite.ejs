@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>הגדרת חשבון · AP Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Heebo:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/nocturne.css" />
+  <meta name="theme-color" content="#161826" />
+</head>
+<body>
+  <div class="amb amb-glow"></div>
+  <div class="amb amb-grid"></div>
+  <div class="amb amb-vignette"></div>
+
+  <main class="page" style="max-width:400px; margin-top:10vh">
+    <div class="card fade-up">
+      <div class="nav-brand" style="margin-bottom:var(--space-4)"><span class="mark">AP</span>Control</div>
+      <h1 style="font-size:22px">הגדרת חשבון</h1>
+      <% if (typeof name !== 'undefined' && name) { %><p class="text-muted" style="margin:0 0 var(--space-3)">שלום <%= name %>, בחר שם משתמש וסיסמה להתחברות.</p><% } %>
+      <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+      <% if (token) { %>
+        <form method="post" action="/invite/<%= token %>" class="stack">
+          <label>שם משתמש</label>
+          <input name="username" class="mono" autocomplete="username" value="<%= typeof username !== 'undefined' ? username : '' %>" minlength="3" autofocus required />
+          <label>סיסמה (6+ תווים, אות גדולה, קטנה וספרה — אותיות וספרות בלבד)</label>
+          <input name="password" type="password" autocomplete="new-password" minlength="6" pattern="[A-Za-z0-9]+" required />
+          <label>אישור סיסמה</label>
+          <input name="confirm" type="password" autocomplete="new-password" minlength="6" pattern="[A-Za-z0-9]+" required />
+          <div style="margin-top:var(--space-4)"><button type="submit" class="btn btn-primary btn-block">צור חשבון</button></div>
+        </form>
+      <% } else { %>
+        <p class="text-muted">הקישור אינו תקף. בקש מהבעלים קישור חדש.</p>
+      <% } %>
+      <p class="text-muted" style="margin:var(--space-3) 0 0"><a href="/login">חזרה להתחברות</a></p>
+    </div>
+  </main>
+</body>
+</html>

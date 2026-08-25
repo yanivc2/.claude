@@ -24,14 +24,16 @@ export function verifyPassword(password, stored) {
   return dk.length === expected.length && crypto.timingSafeEqual(dk, expected);
 }
 
-// Password policy: at least 6 chars, with an uppercase letter, a lowercase letter and a digit.
-export const PASSWORD_POLICY_TEXT = 'הסיסמה חייבת לפחות 8 תווים, ולכלול אות גדולה, אות קטנה וספרה';
+// Password policy: at least 6 chars, an uppercase letter, a lowercase letter and a digit, and
+// LETTERS + DIGITS ONLY (no spaces or special characters).
+export const PASSWORD_POLICY_TEXT = 'הסיסמה חייבת לפחות 6 תווים, לכלול אות גדולה, אות קטנה וספרה — אותיות וספרות בלבד';
 export function passwordPolicyError(pw) {
   const p = String(pw ?? '');
-  if (p.length < 8) return PASSWORD_POLICY_TEXT;
+  if (p.length < 6) return PASSWORD_POLICY_TEXT;
   if (!/[A-Z]/.test(p)) return PASSWORD_POLICY_TEXT;
   if (!/[a-z]/.test(p)) return PASSWORD_POLICY_TEXT;
   if (!/[0-9]/.test(p)) return PASSWORD_POLICY_TEXT;
+  if (!/^[A-Za-z0-9]+$/.test(p)) return PASSWORD_POLICY_TEXT; // letters + digits only
   return null;
 }
 

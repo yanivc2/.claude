@@ -21,6 +21,12 @@ function resetLink(origin, token) {
   return `${base}/reset/${token}`;
 }
 
+// Self-setup link: the invitee opens it and chooses their OWN username + password.
+function inviteLink(origin, token) {
+  const base = (config.mail.appUrl || origin || '').replace(/\/$/, '');
+  return `${base}/invite/${token}`;
+}
+
 /**
  * Start a reset for the given identifier (username or email). Neutral by design.
  * @returns {Promise<{sent:boolean, reason?:string}>}
@@ -73,7 +79,31 @@ export async function createInviteLink(userId, { origin } = {}, x = getExecutor(
     [user.id, sha256(token), expires],
   );
   await logAction({ userId: user.id, action: 'auth.invite_link', entityType: 'user', entityId: user.id }, x);
-  return { user, link: resetLink(origin, token) };
+  return { user, link: inviteLink(origin, token) };
+}
+
+/**
+ * Complete a self-setup invite: the invitee picks a username + password. Validates the username is
+ * present, well-formed and unique, and the password against the policy; then sets both, clears the
+ * forced-change flag, and burns the token. Reasons: invalid | username_required | username_format |
+ * username_taken | policy.
+ */
+export async function completeInvite(token, { username, password } = {}, x = getExecutor()) {
+  const found = await verifyResetToken(token, x);
+  if (!found) return { ok: false, reason: 'invalid' };
+  const un = (username || '').trim();
+  if (!un) return { ok: false, reason: 'username_required' };
+  if (!/^[A-Za-z0-9._-]{3,}$/.test(un)) return { ok: false, reason: 'username_format' };
+  const dup = await x.one('SELECT id FROM users WHERE username = ? AND id <> ?', [un, found.user.id]);
+  if (dup) return { ok: false, reason: 'username_taken' };
+  if (passwordPolicyError(password)) return { ok: false, reason: 'policy' };
+  await x.run(
+    'UPDATE users SET username = ?, password_hash = ?, must_change_password = 0 WHERE id = ?',
+    [un, hashPassword(password), found.user.id],
+  );
+  await x.run('UPDATE password_resets SET used_at = ? WHERE id = ?', [new Date().toISOString(), found.reset.id]);
+  await logAction({ userId: found.user.id, action: 'auth.invite_complete', entityType: 'user', entityId: found.user.id, details: { username: un } }, x);
+  return { ok: true };
 }
 
 /** Return the valid (unexpired, unused) reset row + user for a raw token, or null. */

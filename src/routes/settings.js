@@ -29,6 +29,7 @@ import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFi
 import { looksLikeXlsx } from '../lib/xlsxRead.js';
 import { decodeBuffer } from '../lib/decodeText.js';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '../services/roleTemplates.js';
+import { createInviteLink } from '../services/passwordReset.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -51,6 +52,24 @@ function buildInviteMessage(user, appUrl, password) {
     '```' + password + '```',
     '',
     'מומלץ להחליף סיסמה אחרי הכניסה הראשונה: הגדרות ‹ הסיסמה שלי.',
+    '',
+    '📲 הוספה למסך הבית של הנייד:',
+    '• אייפון (Safari): כפתור השיתוף ⬆️ ← "הוסף למסך הבית".',
+    '• אנדרואיד (Chrome): תפריט ⋮ ← "הוספה למסך הבית".',
+  ].join('\n');
+}
+
+// WhatsApp message for a SELF-SETUP link: the invitee opens it and chooses their own username +
+// password (no password is sent). Includes the home-screen install tip.
+function buildLinkInviteMessage(user, link) {
+  return [
+    `שלום ${user.name || ''} 👋`,
+    `נפתח עבורך חשבון ב-AP Control. לחץ על הקישור כדי לבחור שם משתמש וסיסמה משלך:`,
+    '',
+    '🔗 הגדרת החשבון:',
+    link,
+    '',
+    '(הקישור אישי ותקף ל-7 ימים.)',
     '',
     '📲 הוספה למסך הבית של הנייד:',
     '• אייפון (Safari): כפתור השיתוף ⬆️ ← "הוסף למסך הבית".',
@@ -116,6 +135,7 @@ async function render(req, res, extra = {}) {
     notice: null,
     schemaWarning,
     invite: null,
+    linkInvite: null,
     ...extra,
   });
 }
@@ -301,6 +321,25 @@ router.post('/users/:id/invite', async (req, res, next) => {
       loginUrl: `${appUrl}/login`, message, waUrl: whatsappDeepLink(user, message),
     };
     await render(req, res, { notice: `מוכן לשליחה ל-${user.name}. ניתן לערוך שם משתמש/סיסמה ולהכין מחדש.`, invite });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// Generate a SELF-SETUP link: the invitee opens it and picks their own username + password. No
+// password is set here. Prepares a ready-to-send WhatsApp message (owner picks the contact).
+router.post('/users/:id/invite-link', requireOwner, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const made = await createInviteLink(id, { origin: origin(req) });
+    if (!made) return render(req, res, { error: 'משתמש לא נמצא' });
+    const { user, link } = made;
+    const message = buildLinkInviteMessage(user, link);
+    const linkInvite = {
+      userId: id, name: user.name, link, message, waUrl: whatsappDeepLink(user, message),
+    };
+    await render(req, res, { notice: `קישור הגדרה עצמית מוכן ל-${user.name}. המשתמש יבחר שם משתמש וסיסמה בעצמו.`, linkInvite });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);

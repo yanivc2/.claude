@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getExecutor } from '../db/adapter.js';
 import { verifyPassword, createSession, PASSWORD_POLICY_TEXT } from '../lib/auth.js';
-import { requestReset, verifyResetToken, completeReset } from '../services/passwordReset.js';
+import { requestReset, verifyResetToken, completeReset, completeInvite } from '../services/passwordReset.js';
 import { mailEnabled } from '../lib/mailer.js';
 import { logAction } from '../services/audit.js';
 import { firstAllowedPath } from '../lib/permissions.js';
@@ -111,6 +111,42 @@ router.post('/reset/:token', async (req, res, next) => {
       return res.status(400).render('reset', { title: 'איפוס סיסמה', token: result.reason === 'policy' ? req.params.token : null, error: msg });
     }
     res.render('login', { title: 'התחברות', error: null, notice: 'הסיסמה עודכנה — אפשר להתחבר עם הסיסמה החדשה.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// --- Self-setup invite: the invitee picks their OWN username + password ---
+router.get('/invite/:token', async (req, res, next) => {
+  try {
+    const found = await verifyResetToken(req.params.token);
+    if (!found) return res.status(400).render('invite', { title: 'הגדרת חשבון', token: null, username: '', name: '', error: 'הקישור אינו תקף או שפג תוקפו.' });
+    res.render('invite', { title: 'הגדרת חשבון', token: req.params.token, username: found.user.username || '', name: found.user.name || '', error: null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/invite/:token', async (req, res, next) => {
+  try {
+    const username = (req.body.username || '').trim();
+    const password = req.body.password || '';
+    if (password !== (req.body.confirm || '')) {
+      return res.status(400).render('invite', { title: 'הגדרת חשבון', token: req.params.token, username, name: '', error: 'אישור הסיסמה אינו תואם.' });
+    }
+    const result = await completeInvite(req.params.token, { username, password });
+    if (!result.ok) {
+      const msg = {
+        policy: PASSWORD_POLICY_TEXT,
+        username_required: 'יש להזין שם משתמש.',
+        username_format: 'שם המשתמש חייב לפחות 3 תווים — אותיות, ספרות, נקודה, מקף או קו תחתון בלבד.',
+        username_taken: 'שם המשתמש כבר תפוס — בחר אחר.',
+        invalid: 'הקישור אינו תקף או שפג תוקפו.',
+      }[result.reason] || 'שגיאה.';
+      const keepToken = result.reason !== 'invalid';
+      return res.status(400).render('invite', { title: 'הגדרת חשבון', token: keepToken ? req.params.token : null, username, name: '', error: msg });
+    }
+    res.render('login', { title: 'התחברות', error: null, notice: 'החשבון הוגדר — אפשר להתחבר עם שם המשתמש והסיסמה שבחרת.' });
   } catch (err) {
     next(err);
   }

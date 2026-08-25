@@ -121,6 +121,37 @@
   </div>
 <% } %>
 
+<% if (typeof linkInvite !== 'undefined' && linkInvite) { %>
+  <div class="card" style="border-color:var(--color-accent)">
+    <div class="card-kicker">קישור הגדרה עצמית</div>
+    <strong>קישור עבור <%= linkInvite.name %></strong>
+    <p class="card-body" style="margin:.3rem 0">שלח את הקישור — המשתמש יבחר <strong>שם משתמש וסיסמה משלו</strong>. לא נשלחת סיסמה. הקישור אישי ותקף ל-7 ימים.</p>
+    <label style="margin:.2rem 0 0">הקישור</label>
+    <input id="li_link" class="input mono" style="width:100%" readonly value="<%= linkInvite.link %>" onclick="this.select()" />
+    <label style="margin:.4rem 0 0">ההודעה המלאה</label>
+    <textarea id="li_msg" class="input" style="width:100%;min-height:130px" readonly onclick="this.select()"><%= linkInvite.message %></textarea>
+    <div class="actions" style="margin-top:.6rem;flex-wrap:wrap">
+      <button type="button" class="btn btn-primary" onclick="liShare()">שלח / שתף בוואטסאפ</button>
+      <a class="btn btn-secondary" href="<%= linkInvite.waUrl %>" target="_blank" rel="noopener">פתח וואטסאפ (בחירת איש קשר)</a>
+      <button type="button" class="btn btn-secondary" onclick="liCopy('li_link', this)">העתק קישור</button>
+      <button type="button" class="btn btn-secondary" onclick="liCopy('li_msg', this)">העתק הודעה</button>
+    </div>
+    <script>
+      function liCopy(id, btn){
+        var el = document.getElementById(id); if (!el) return; el.focus(); el.select();
+        var done = function(){ var t = btn.textContent; btn.textContent = 'הועתק ✓'; setTimeout(function(){ btn.textContent = t; }, 1500); };
+        if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(el.value).then(done, done); }
+        else { try { document.execCommand('copy'); } catch(e){} done(); }
+      }
+      function liShare(){
+        var msg = document.getElementById('li_msg').value;
+        if (navigator.share) { navigator.share({ text: msg }).catch(function(){}); }
+        else { window.open('<%= linkInvite.waUrl %>', '_blank', 'noopener'); }
+      }
+    </script>
+  </div>
+<% } %>
+
 <%# The owner action dialogs (עדכון DB / גיבוי / איפוס / שחזור) now live in
     partials/_ownerDialogs.ejs, included by the header alongside the buttons that open them —
     keeping them here meant every OTHER /settings/* page had the buttons but not the dialogs. %>
@@ -336,6 +367,9 @@
               <button type="button" class="secondary small" onclick="var e=document.getElementById('edit-user-<%= u.id %>'); e.hidden=!e.hidden">ערוך</button>
               <form method="post" action="/settings/users/<%= u.id %>/invite" style="display:inline">
                 <button class="secondary small" type="submit">שלח בוואטסאפ</button>
+              </form>
+              <form method="post" action="/settings/users/<%= u.id %>/invite-link" style="display:inline">
+                <button class="secondary small" type="submit" title="המשתמש יבחר שם משתמש וסיסמה בעצמו">קישור הגדרה עצמית</button>
               </form>
               <% if (u.id !== currentUser.id) { %>
                 <form method="post" action="/settings/users/<%= u.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את המשתמש <%= u.name %>?')">

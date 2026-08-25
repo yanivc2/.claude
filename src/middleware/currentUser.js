@@ -33,6 +33,7 @@ export async function currentUser(req, res, next) {
         req.path === '/login' ||
         req.path === '/forgot' ||
         req.path.startsWith('/reset/') ||
+        req.path.startsWith('/invite/') ||
         req.path === '/privacy' ||
         req.path === '/accessibility' ||
         req.path === '/audit/reminders/run'
@@ -46,7 +47,7 @@ export async function currentUser(req, res, next) {
       res.clearCookie('session');
       const pub =
         req.path === '/login' || req.path === '/forgot' || req.path.startsWith('/reset/') ||
-        req.path === '/privacy' || req.path === '/accessibility';
+        req.path.startsWith('/invite/') || req.path === '/privacy' || req.path === '/accessibility';
       if (pub) return next();
       return res.redirect('/login?blocked=hours');
     }
