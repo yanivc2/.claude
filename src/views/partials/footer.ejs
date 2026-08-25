@@ -79,6 +79,18 @@
     function toISO(y,m,d){ return y + '-' + pad(m+1) + '-' + pad(d); }
     function fmt(iso){ var p = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return p ? p[3]+'/'+p[2]+'/'+p[1] : ''; }
     function parse(iso){ var p = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return p ? {y:+p[1], m:+p[2]-1, d:+p[3]} : null; }
+    // Parse a day-first typed date: "6/8/26", "06/08/2026", "6.8.26", "6-8-26" → ISO. A 2-digit year
+    // becomes 20YY. Returns null for anything that isn't a real calendar date (rejects 31/2, 45/1…).
+    function parseTyped(s){
+      var m = /^\s*(\d{1,2})\s*[\/.\-]\s*(\d{1,2})\s*[\/.\-]\s*(\d{2,4})\s*$/.exec(s || '');
+      if (!m) return null;
+      var d = +m[1], mo = +m[2], y = +m[3];
+      if (y < 100) y += 2000;
+      if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+      var dt = new Date(y, mo - 1, d);
+      if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+      return toISO(y, mo - 1, d);
+    }
     function isoOf(dt){ return toISO(dt.getFullYear(), dt.getMonth(), dt.getDate()); }
     function weekBounds(y,m,d){ var dt = new Date(y,m,d); var sun = new Date(y,m,d - dt.getDay()); var sat = new Date(sun); sat.setDate(sun.getDate()+6); return { sun: sun, sat: sat }; }
     function weekLabel(iso){ var p = parse(iso); if (!p) return ''; var w = weekBounds(p.y,p.m,p.d); return fmt(isoOf(w.sun)) + ' – ' + fmt(isoOf(w.sat)); }
@@ -163,15 +175,38 @@
       input.parentNode.insertBefore(wrap, input); wrap.appendChild(input);
       var hidden = document.createElement('input'); hidden.type = 'hidden'; if (name) hidden.name = name; hidden.value = iso || '';
       wrap.appendChild(hidden);
-      input.removeAttribute('name'); input.required = false; input.type = 'text'; input.readOnly = true;
-      input.setAttribute('inputmode', 'none'); input.autocomplete = 'off';
-      if (!input.placeholder) input.placeholder = mode === 'month' ? 'בחר חודש' : mode === 'week' ? 'בחר שבוע' : 'בחר תאריך';
+      input.removeAttribute('name'); input.required = false; input.type = 'text'; input.autocomplete = 'off';
+      // Typing a day-first date is allowed on pointer-fine (desktop) devices, so the user can key
+      // "6/8/26" instead of reaching for the mouse. Touch keeps the readonly picker (no keyboard
+      // popping over the calendar), and week/month modes stay picker-only.
+      var canType = mode === 'day' && window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+      if (!canType) { input.readOnly = true; input.setAttribute('inputmode', 'none'); }
+      if (!input.placeholder) input.placeholder = mode === 'month' ? 'בחר חודש' : mode === 'week' ? 'בחר שבוע' : (canType ? 'הקלד או בחר · יום/חודש/שנה' : 'בחר תאריך');
       input.value = iso ? label(iso, mode) : '';
       var dp = makePicker(hidden, input, mode, autosubmit); wrap.appendChild(dp.el);
       function toggle(e){ e.preventDefault(); input.blur();
         document.querySelectorAll('.dp-pop').forEach(function(p){ if (p !== dp.el) p.hidden = true; });
         if (dp.el.hidden) dp.open(); else dp.el.hidden = true; }
-      input.addEventListener('mousedown', toggle);
+      if (canType) {
+        // Parse what was typed → commit to the hidden ISO + canonical DD/MM/YYYY display.
+        function commitTyped(){
+          var v = (input.value || '').trim();
+          if (v === '') { hidden.value = ''; hidden.dispatchEvent(new Event('change', { bubbles: true })); return true; }
+          var isoT = parseTyped(v);
+          if (isoT) { hidden.value = isoT; input.value = label(isoT, mode); hidden.dispatchEvent(new Event('change', { bubbles: true })); return true; }
+          return false; // leave the raw text so the user can fix it
+        }
+        input.addEventListener('focus', function(){
+          document.querySelectorAll('.dp-pop').forEach(function(p){ if (p !== dp.el) p.hidden = true; });
+          dp.open();
+        });
+        input.addEventListener('keydown', function(e){ if (e.key === 'Enter') { if (commitTyped()) dp.el.hidden = true; } });
+        // Delay so a click on a calendar day (which blurs the input) commits first.
+        input.addEventListener('blur', function(){ setTimeout(commitTyped, 150); });
+        wrap._dpCommit = commitTyped; // the submit guard commits typed text synchronously before validating
+      } else {
+        input.addEventListener('mousedown', toggle);
+      }
     }
     function enhanceAll(root){ (root || document).querySelectorAll('input[type="date"]').forEach(enhance); }
 
@@ -181,10 +216,89 @@
     });
     // Enforce "required" for enhanced date fields (readonly inputs skip native required validation).
     document.addEventListener('submit', function(e){
+      // Commit any date typed but not yet blurred (typed → Submit without leaving the field).
+      if (e.target.querySelectorAll) e.target.querySelectorAll('.dp-wrap').forEach(function(w){ if (w._dpCommit) w._dpCommit(); });
       var wraps = e.target.querySelectorAll ? e.target.querySelectorAll('.dp-wrap[data-req="1"]') : [];
       for (var i = 0; i < wraps.length; i++) {
         var h = wraps[i].querySelector('input[type="hidden"]');
         if (h && !h.value) { e.preventDefault(); alert('יש לבחור תאריך'); wraps[i].querySelector('input[type="text"]').focus(); return; }
+      }
+    }, true);
+  })();
+  </script>
+
+  <script>
+  // Searchable combobox: enhance any <select class="js-combo"> into a type-to-filter field. Users
+  // key part of a name (or a few letters, in order) and pick from the similar matches. The original
+  // <select> stays the submitted control (hidden), so the server contract is unchanged.
+  (function () {
+    function norm(s){ return (s == null ? '' : String(s)).trim().toLowerCase(); }
+    function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;' }[c]; }); }
+    // match = plain substring, OR every whitespace token is a substring, OR chars appear in order.
+    function matches(text, q){
+      var h = norm(text), n = norm(q);
+      if (!n) return true;
+      if (h.indexOf(n) !== -1) return true;
+      var toks = n.split(/\s+/).filter(Boolean);
+      if (toks.length > 1 && toks.every(function(t){ return h.indexOf(t) !== -1; })) return true;
+      var i = 0; for (var j = 0; j < h.length && i < n.length; j++) { if (h.charAt(j) === n.charAt(i)) i++; }
+      return i === n.length;
+    }
+
+    function enhance(sel){
+      if (sel.dataset.comboDone) return; sel.dataset.comboDone = '1';
+      var opts = Array.prototype.slice.call(sel.options).map(function(o){ return { v: o.value, t: (o.text || '').trim(), disabled: o.disabled }; });
+      var wrap = document.createElement('span'); wrap.className = 'combo';
+      sel.parentNode.insertBefore(wrap, sel); wrap.appendChild(sel);
+      sel.style.display = 'none'; sel.setAttribute('aria-hidden', 'true'); sel.tabIndex = -1;
+      var req = sel.required; if (req) { sel.required = false; wrap.dataset.req = '1'; }
+      wrap.dataset.label = sel.getAttribute('data-combo-label') || 'ערך';
+
+      var input = document.createElement('input'); input.type = 'text'; input.className = 'combo-input';
+      input.autocomplete = 'off'; input.placeholder = sel.getAttribute('data-combo-ph') || 'הקלד לחיפוש…';
+      var cur = opts.filter(function(o){ return o.v !== '' && o.v === sel.value; })[0];
+      if (cur) input.value = cur.t;
+      wrap.insertBefore(input, sel);
+      var pop = document.createElement('div'); pop.className = 'combo-pop'; pop.hidden = true; wrap.appendChild(pop);
+
+      var shown = [], activeIdx = -1;
+      function setVal(o){ sel.value = o.v; input.value = o.t; sel.dispatchEvent(new Event('change', { bubbles: true })); }
+      function paint(){ Array.prototype.forEach.call(pop.children, function(c){ if (c.dataset.i != null) c.classList.toggle('active', +c.dataset.i === activeIdx); });
+        var a = pop.querySelector('.combo-opt.active'); if (a) a.scrollIntoView({ block: 'nearest' }); }
+      function render(q){
+        shown = opts.filter(function(o){ return o.v !== '' && !o.disabled && matches(o.t, q); });
+        activeIdx = shown.length ? 0 : -1;
+        pop.innerHTML = shown.length
+          ? shown.map(function(o, i){ return '<div class="combo-opt" data-i="' + i + '">' + esc(o.t) + '</div>'; }).join('')
+          : '<div class="combo-empty">אין תוצאות</div>';
+        pop.hidden = false; paint();
+      }
+      input.addEventListener('focus', function(){ render(input.value === (cur && cur.t) ? '' : input.value); });
+      input.addEventListener('input', function(){ sel.value = ''; render(input.value); });
+      input.addEventListener('keydown', function(e){
+        if (pop.hidden) { if (e.key === 'ArrowDown') { render(''); } return; }
+        if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, shown.length - 1); paint(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); paint(); }
+        else if (e.key === 'Enter') { if (activeIdx >= 0 && shown[activeIdx]) { e.preventDefault(); setVal(shown[activeIdx]); pop.hidden = true; } }
+        else if (e.key === 'Escape') { pop.hidden = true; }
+      });
+      pop.addEventListener('mousedown', function(e){ var t = e.target.closest ? e.target.closest('.combo-opt') : null; if (!t) return; e.preventDefault(); setVal(shown[+t.dataset.i]); pop.hidden = true; });
+      input.addEventListener('blur', function(){ setTimeout(function(){
+        pop.hidden = true;
+        if (!sel.value) { var exact = opts.filter(function(o){ return o.v !== '' && norm(o.t) === norm(input.value); })[0]; if (exact) setVal(exact); }
+        var c = opts.filter(function(o){ return o.v !== '' && o.v === sel.value; })[0];
+        input.value = c ? c.t : (sel.value ? input.value : '');
+        cur = c || null;
+      }, 150); });
+    }
+    function enhanceAll(root){ (root || document).querySelectorAll('select.js-combo').forEach(enhance); }
+    document.addEventListener('DOMContentLoaded', function(){ enhanceAll(); });
+    document.addEventListener('click', function(e){ document.querySelectorAll('.combo-pop').forEach(function(p){ if (!p.parentNode.contains(e.target)) p.hidden = true; }); });
+    document.addEventListener('submit', function(e){
+      var wraps = e.target.querySelectorAll ? e.target.querySelectorAll('.combo[data-req="1"]') : [];
+      for (var i = 0; i < wraps.length; i++) {
+        var s = wraps[i].querySelector('select');
+        if (s && !s.value) { e.preventDefault(); alert('יש לבחור ' + (wraps[i].dataset.label || 'ערך')); wraps[i].querySelector('.combo-input').focus(); return; }
       }
     }, true);
   })();

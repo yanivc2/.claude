@@ -420,6 +420,25 @@ details.collapse[open] > summary .caret { transform: rotate(90deg); }
 .menu-panel button.danger { color: var(--color-bad); }
 .menu-panel button.danger:hover { background: color-mix(in srgb, var(--color-bad) 14%, transparent); color: var(--color-bad); }
 
+/* Highlighted entry field — soft green frame (e.g. "סכום כולל מע"מ" on the new-invoice form).
+   Scoped with input. + :not(:focus-visible) so it out-specifies the base input border yet still
+   yields to the accent focus ring while the field is active. */
+input.input-hl-green { background: color-mix(in srgb, var(--color-ok) 9%, var(--color-surface-2)); }
+input.input-hl-green:not(:focus-visible) { border-color: color-mix(in srgb, var(--color-ok) 70%, var(--color-line)); }
+input.input-hl-green:hover:not(:focus-visible) { border-color: var(--color-ok); }
+
+/* ---- searchable combobox (type-to-filter <select>, e.g. supplier name search) ---- */
+.combo { position: relative; display: block; }
+.combo-pop {
+  position: absolute; z-index: 60; top: calc(100% + 4px); inset-inline-start: 0; width: 100%;
+  max-height: 300px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg); padding: 4px;
+}
+.combo-opt { padding: 9px 11px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; color: var(--color-body); }
+.combo-opt:hover, .combo-opt.active { background: color-mix(in srgb, var(--color-accent) 14%, transparent); color: var(--color-accent-200); }
+.combo-empty { padding: 9px 11px; color: var(--color-muted); font-size: 13px; }
+
 /* ---- custom day-first date picker (replaces the native month/year wheel) ---- */
 .dp-wrap { position: relative; display: block; }
 .dp-pop {

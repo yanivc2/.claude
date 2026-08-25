@@ -19,7 +19,7 @@
     <div class="row">
       <div>
         <label>ספק *</label>
-        <select name="supplier_id" required>
+        <select name="supplier_id" required class="js-combo" data-combo-ph="הקלד שם ספק לחיפוש…" data-combo-label="ספק">
           <option value="">— בחר ספק —</option>
           <% suppliers.forEach(function(s){ %>
             <option value="<%= s.id %>" <%= String(values.supplier_id) === String(s.id) ? 'selected' : '' %>>
@@ -68,7 +68,7 @@
       </div>
       <div>
         <label>סכום כולל מע"מ (₪)</label>
-        <input id="total_incl" inputmode="decimal" value="" placeholder="מלא כאן או למטה" />
+        <input id="total_incl" class="input-hl-green" inputmode="decimal" value="" placeholder="מלא כאן או למטה" />
       </div>
     </div>
     <div class="row">
