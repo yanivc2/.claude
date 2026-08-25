@@ -420,12 +420,12 @@ details.collapse[open] > summary .caret { transform: rotate(90deg); }
 .menu-panel button.danger { color: var(--color-bad); }
 .menu-panel button.danger:hover { background: color-mix(in srgb, var(--color-bad) 14%, transparent); color: var(--color-bad); }
 
-/* Highlighted entry field — soft green frame (e.g. "סכום כולל מע"מ" on the new-invoice form).
+/* Highlighted entry field — bright yellow frame (e.g. "סכום כולל מע"מ" on the new-invoice form).
    Scoped with input. + :not(:focus-visible) so it out-specifies the base input border yet still
    yields to the accent focus ring while the field is active. */
-input.input-hl-green { background: color-mix(in srgb, var(--color-ok) 9%, var(--color-surface-2)); }
-input.input-hl-green:not(:focus-visible) { border-color: color-mix(in srgb, var(--color-ok) 70%, var(--color-line)); }
-input.input-hl-green:hover:not(:focus-visible) { border-color: var(--color-ok); }
+input.input-hl-yellow { background: color-mix(in srgb, #ffd400 12%, var(--color-surface-2)); }
+input.input-hl-yellow:not(:focus-visible) { border-color: #ffd400; box-shadow: 0 0 0 1px rgba(255, 212, 0, 0.45); }
+input.input-hl-yellow:hover:not(:focus-visible) { border-color: #ffdd33; }
 
 /* ---- searchable combobox (type-to-filter <select>, e.g. supplier name search) ---- */
 .combo { position: relative; display: block; }
