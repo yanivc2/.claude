@@ -5,6 +5,8 @@
   <%# viewport-fit=cover: without it env(safe-area-inset-*) is always 0, and the fullscreen
       scanner (/scan) would put its controls under the notch and the home indicator. %>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <%# Apply the saved theme (מצב בהיר/כהה) before the stylesheet paints, so there is no flash. %>
+  <script>(function(){try{var t=localStorage.getItem('ap-theme');if(t==='light'||t==='dark'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();</script>
   <title><%= title %> · AP Control</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -48,6 +50,7 @@
           <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>
         <% } %>
         <div class="menu-sep"></div>
+        <button type="button" id="themeToggle" onclick="apToggleTheme()"><span class="mi-ic" id="themeIco">🌙</span><span id="themeTxt">מצב בהיר</span></button>
         <form method="post" action="/logout" style="margin:0">
           <button type="submit"><span class="mi-ic">🚪</span>התנתק</button>
         </form>
@@ -64,6 +67,26 @@
       (mq.addEventListener ? mq.addEventListener('change', sync) : mq.addListener(sync));
       sync();
     })();
+
+    /* Theme toggle (מצב בהיר/כהה). Persists to localStorage; the <head> script applies it on load.
+       Default (no data-theme) is the dark Nocturne ground; toggling adds/removes data-theme=light. */
+    function apCurrentTheme(){ return document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark'; }
+    function apSyncThemeLabel(){
+      var light = apCurrentTheme() === 'light';
+      var ico = document.getElementById('themeIco'), txt = document.getElementById('themeTxt');
+      if (ico) ico.textContent = light ? '☀️' : '🌙';
+      if (txt) txt.textContent = light ? 'מצב כהה' : 'מצב בהיר';
+      var meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', light ? '#f4f5fa' : '#161826');
+    }
+    function apToggleTheme(){
+      var next = apCurrentTheme() === 'light' ? 'dark' : 'light';
+      if (next === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      else document.documentElement.removeAttribute('data-theme');
+      try { localStorage.setItem('ap-theme', next); } catch (e) {}
+      apSyncThemeLabel();
+    }
+    apSyncThemeLabel();
   </script>
 
   <main class="page fade-up">
