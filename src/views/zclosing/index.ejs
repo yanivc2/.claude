@@ -34,6 +34,14 @@
   <form method="post" action="/zclosing" class="stack" id="zclose-form" style="margin-top:.8rem">
     <input type="hidden" name="started_at" value="<%= startedAt %>" />
     <p class="muted" style="margin:0 0 .6rem">תחילת ספירה: <strong><%= startedAt %></strong> · שעון ישראל</p>
+
+    <details class="card collapse-card" style="background:var(--color-surface-2);margin:0 0 1rem">
+      <summary>איזון קופות (ספירת מזומן בכל קופה לפני ה-Z)</summary>
+      <p class="muted" style="margin:.5rem 0 .6rem">ספור את המזומן בכל קופה. אפשר להוסיף קופה נוספת. הספירה נשמרת עם הסגירה ואינה משפיעה על טבלת המגירה למטה.</p>
+      <div id="reg-list"></div>
+      <button type="button" class="btn btn-secondary small" onclick="regAdd()">➕ הוסף קופה</button>
+    </details>
+
     <% if (empOpts.length) { %>
       <div>
         <label>עובד (מבצע הספירה)</label>
@@ -244,6 +252,56 @@
     }
   });
   recalc();
+})();
+</script>
+
+<script>
+// "איזון קופות" — repeatable per-register cash count. Each block posts parallel arrays
+// (reg_first[]/reg_last[]/reg_number[]/reg_store[]/reg_count_<denom>[]) zipped by index server-side.
+(function(){
+  var list = document.getElementById('reg-list');
+  if (!list) return;
+  var DENOMS = <%- JSON.stringify((denoms || []).map(function(d){ return { key: d.key, value: d.value, kind: d.kind }; })) %>;
+  var STORES = <%- JSON.stringify((stOpts || []).map(function(s){ return { id: s.id, label: s.name + ' · ' + s.company_name }; })) %>;
+  function fmt(a){ return '₪' + a.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function storeOptsHtml(){ return STORES.map(function(s){ return '<option value="'+s.id+'">'+s.label+'</option>'; }).join(''); }
+  function denomRows(){
+    return DENOMS.map(function(d){
+      return '<tr><td>₪'+d.value+' <span class="muted" style="font-size:12px">'+d.kind+'</span></td>'
+        + '<td><input name="reg_count_'+d.key+'[]" class="rc-cnt" data-val="'+d.value+'" inputmode="numeric" placeholder="0" style="max-width:120px"></td>'
+        + '<td class="right rc-line">₪0.00</td></tr>';
+    }).join('');
+  }
+  window.regDel = function(btn){ var b = btn.closest('.reg-block'); if (b) b.remove(); };
+  function recalcBlock(block){
+    var t = 0;
+    block.querySelectorAll('.rc-cnt').forEach(function(i){
+      var v = parseFloat(i.dataset.val); var c = parseInt(i.value, 10) || 0; var line = v * c; t += line;
+      var cell = i.closest('tr').querySelector('.rc-line'); if (cell) cell.textContent = fmt(line);
+    });
+    var tot = block.querySelector('.rc-total'); if (tot) tot.textContent = fmt(t);
+  }
+  window.regAdd = function(){
+    var n = list.querySelectorAll('.reg-block').length + 1;
+    var div = document.createElement('div');
+    div.className = 'reg-block';
+    div.style.cssText = 'background:var(--color-surface);border:1px solid var(--color-line);border-radius:var(--radius-md);margin:.5rem 0;padding:.7rem';
+    div.innerHTML =
+      '<div class="row">'
+      + '<div><label>שם פרטי</label><input name="reg_first[]" autocomplete="off"></div>'
+      + '<div><label>שם משפחה</label><input name="reg_last[]" autocomplete="off"></div>'
+      + '<div><label>קופה</label><select name="reg_number[]"><option value="1">קופה 1</option><option value="2">קופה 2</option><option value="3">קופה 3</option></select></div>'
+      + '<div><label>חנות</label><select name="reg_store[]">' + storeOptsHtml() + '</select></div>'
+      + '</div>'
+      + '<div class="table-scroll" style="margin-top:.4rem"><table><thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>'
+      + '<tbody>' + denomRows() + '</tbody>'
+      + '<tfoot><tr><th>סה"כ קופה ' + n + '</th><th></th><th class="right rc-total">₪0.00</th></tr></tfoot></table></div>'
+      + '<div style="margin-top:.4rem"><button type="button" class="danger small" onclick="regDel(this)">הסר קופה</button></div>';
+    var sel = div.querySelector('select[name="reg_number[]"]'); if (sel) sel.value = String(Math.min(n, 3));
+    list.appendChild(div);
+    div.addEventListener('input', function(e){ if (e.target.classList && e.target.classList.contains('rc-cnt')) recalcBlock(div); });
+  };
+  regAdd(); // start with one register
 })();
 </script>
 <%- include('../partials/footer') %>

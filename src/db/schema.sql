@@ -318,6 +318,7 @@ CREATE TABLE IF NOT EXISTS z_closings (
   expenses       TEXT,                          -- JSON [{ desc, amount }]
   total_expenses INTEGER NOT NULL DEFAULT 0,    -- agorot
   grand_total    INTEGER NOT NULL DEFAULT 0,    -- agorot (cash + expenses)
+  registers      TEXT,                          -- JSON [{first,last,register,storeId,breakdown,total}] — per-register cash balancing done before the Z
   employee_id    INTEGER REFERENCES employees(id),  -- who performed the count (from employees list)
   created_by     INTEGER REFERENCES users(id),
   created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))

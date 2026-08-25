@@ -472,3 +472,5 @@ CREATE INDEX IF NOT EXISTS ix_z_closing_expenses_invoice ON z_closing_expenses(i
 
 -- Register closing: who performed the count (link to the employees list, replacing free text).
 ALTER TABLE z_closings ADD COLUMN IF NOT EXISTS employee_id INTEGER REFERENCES employees(id);
+-- Per-register cash balancing (JSON) counted before the Z.
+ALTER TABLE z_closings ADD COLUMN IF NOT EXISTS registers TEXT;

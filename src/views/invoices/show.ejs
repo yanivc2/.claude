@@ -71,9 +71,10 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
   </div>
 <% } %>
 
-<!-- פרטי החשבונית (ללא מספר חשבונית; רק החנות) -->
+<!-- פרטי החשבונית -->
 <div class="card" style="<%= requiresAllocation ? 'border-color:var(--color-bad)' : '' %>">
   <div class="row">
+    <div><span class="text-muted">מספר חשבונית</span><br><span class="mono"><%= invoice.invoice_number || '—' %></span></div>
     <div><span class="text-muted">ספק</span><br><%= invoice.supplier_name %>
       <% if (invoice.supplier_status !== 'approved') { %><span class="badge b-<%= invoice.supplier_status %>">ספק <%= invoice.supplier_status === 'pending' ? 'ממתין לאישור' : 'חסום' %></span><% } %>
     </div>

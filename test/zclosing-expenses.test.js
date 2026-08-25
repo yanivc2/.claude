@@ -65,6 +65,36 @@ test('register closing stores rich cash expenses (kind/date/employee/invoice) an
   assert.ok(recent.every((r) => r.amount > 0));
 });
 
+test('register balancing (איזון קופות) persists per-register counts, totals, and survives edit', async () => {
+  const x = await freshDb();
+  const o = await owner(x);
+  const store = await firstStore(x);
+
+  const id = await createZClosing(baseInput(store, {
+    registers: [
+      { first: 'רון', last: 'לוי', register: '1', storeId: store.id, counts: { 200: 2, 100: 1, 50: 0 } },
+      { first: 'דנה', last: 'כהן', register: '2', storeId: store.id, counts: { 20: 3 } },
+      { first: '', last: '', register: '', storeId: null, counts: {} }, // empty → dropped
+    ],
+  }), o, x);
+
+  const c = await getZClosing(id, x);
+  const regs = JSON.parse(c.registers);
+  assert.equal(regs.length, 2); // the empty register was dropped
+  assert.equal(regs[0].first, 'רון');
+  assert.equal(regs[0].register, '1');
+  assert.equal(regs[0].storeId, store.id);
+  assert.equal(regs[0].total, 2 * 20000 + 1 * 10000); // ₪200×2 + ₪100×1 = 50000 agorot
+  assert.equal(regs[0].breakdown['200'], 2);
+  assert.equal(regs[1].total, 3 * 2000); // ₪20×3 = 6000 agorot
+  // Registers are independent of the main drawer count.
+  assert.equal(c.total_cash, 20000); // still just baseInput's ₪200
+
+  // Editing with no registers clears them.
+  await updateZClosing(id, baseInput(store, { registers: [] }), o, x);
+  assert.equal(JSON.parse((await getZClosing(id, x)).registers).length, 0);
+});
+
 test('editing a closing replaces its expense lines; delete cascades them', async () => {
   const x = await freshDb();
   const o = await owner(x);

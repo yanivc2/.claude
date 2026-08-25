@@ -163,6 +163,7 @@ function migrateZClosings(db) {
   if (!cols.includes('z_number')) db.exec('ALTER TABLE z_closings ADD COLUMN z_number TEXT;');
   if (!cols.includes('drawer_cash')) db.exec('ALTER TABLE z_closings ADD COLUMN drawer_cash INTEGER NOT NULL DEFAULT 0;');
   if (!cols.includes('employee_id')) db.exec('ALTER TABLE z_closings ADD COLUMN employee_id INTEGER REFERENCES employees(id);');
+  if (!cols.includes('registers')) db.exec('ALTER TABLE z_closings ADD COLUMN registers TEXT;');
   // Itemized cash expenses of a register closing (kind/date/payer/purpose/employee/invoice).
   db.exec(`CREATE TABLE IF NOT EXISTS z_closing_expenses (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,

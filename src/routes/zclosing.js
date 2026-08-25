@@ -56,6 +56,22 @@ function closingInputFrom(b) {
     amount: a != null && String(a).trim() !== '' ? toAgorot(a) : 0,
     invoiceId: invoiceIds[i] || null,
   }));
+
+  // "איזון קופות" — one repeatable register block posts parallel arrays; zip them by index.
+  const rFirst = [].concat(b.reg_first || []);
+  const rLast = [].concat(b.reg_last || []);
+  const rNum = [].concat(b.reg_number || []);
+  const rStore = [].concat(b.reg_store || []);
+  const rCounts = {};
+  for (const d of CLOSING_DENOMS) rCounts[d.key] = [].concat(b[`reg_count_${d.key}`] || []);
+  const regN = Math.max(rFirst.length, rLast.length, rNum.length, rStore.length, ...CLOSING_DENOMS.map((d) => rCounts[d.key].length));
+  const registers = [];
+  for (let i = 0; i < regN; i++) {
+    const rc = {};
+    for (const d of CLOSING_DENOMS) rc[d.key] = Number(rCounts[d.key][i] || 0);
+    registers.push({ first: rFirst[i], last: rLast[i], register: rNum[i], storeId: rStore[i] || null, counts: rc });
+  }
+
   return {
     employeeFirst: b.employee_first,
     employeeLast: b.employee_last,
@@ -66,6 +82,7 @@ function closingInputFrom(b) {
     startedAt: b.started_at,
     counts,
     expenses,
+    registers,
   };
 }
 
