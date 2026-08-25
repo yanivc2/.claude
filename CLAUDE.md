@@ -22,6 +22,30 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
 - I have **no access to the live Neon DB.** Company names, users, etc. are runtime data the owner
   edits in Settings — my deploys can't change existing rows, only code/schema.
 
+## Multi-session work (IMPORTANT)
+Several Claude sessions work on this app at once — **each session is its own branch**, and they
+all deploy through the one trunk `apnew/main`. Branches don't collide while separate; collisions
+happen only at merge. So:
+- **git is the shared memory.** Sessions don't talk directly — they coordinate through `apnew/main`.
+  A session learns what others did by fetching it. So: **start from the latest `apnew/main`, and
+  `git fetch apnew main && git rebase apnew/main` right before every push.** This session did that
+  on every push; keep doing it.
+- **Never force-overwrite another session's commits.** Rebase onto them (force-with-lease only to
+  replace my *own* superseded pre-rebase commit).
+- **Don't edit the same files as another active session at the same time.** If two must touch the
+  same area, sequence it: one merges, the other rebases on top. Check `git log apnew/main` (and, if
+  needed, `mcp__claude-code-remote__list_sessions`) to see what's in flight before starting related
+  work.
+- **`BUILD_VERSION` collides across sessions** (two sessions both bump to the same `·NN`). After a
+  rebase, take a *fresh* number and re-verify the live footer.
+- **Only `apnew/main` is live.** Work on an unmerged branch is invisible to the app (Vercel deploys
+  the ap-control repo's `main`). Merging into the `.claude` repo does NOT affect the app.
+- **A bad merge is reversible** — `git revert` the commit and redeploy; nothing is lost. So the rule
+  isn't "never merge", it's **review the diff + run tests before merging**; `main` = production.
+- **Other lines of work seen on this app** (branches may still be active): invoice capture/extraction
+  + per-supplier profiles (`services/supplierProfile.js`), catalog/barcode matching, and a separate
+  `supplier-orders` repo (price scraping). Don't duplicate their area — coordinate via git.
+
 ## Run & test
 - `npm test` → SQLite dialect. `TEST_PG=1 npm test` → Postgres dialect (pg-mem). **Run both** before pushing.
 - `node scripts/smoke.mjs [paths...]` → boots the real app + an owner session and asserts pages render
