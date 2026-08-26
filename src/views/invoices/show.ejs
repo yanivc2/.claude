@@ -252,7 +252,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
     <details class="menu up">
       <summary class="btn btn-secondary">אפשרויות <span class="caret">▾</span></summary>
       <div class="menu-panel" style="min-width:220px">
-        <% if (canEdit) { %><a href="/invoices/<%= invoice.id %>/edit">✏️ ערוך חשבונית</a><% } %>
+        <% if (canEdit && invoice.status !== 'paid') { %><a href="/invoices/<%= invoice.id %>/edit">✏️ ערוך חשבונית</a><% } %>
         <% if (canPay && invoice.payment && invoice.payment.id) { %>
           <a href="/payments/<%= invoice.payment.id %>/edit">💳 ערוך אמצעי תשלום</a>
         <% } %>
