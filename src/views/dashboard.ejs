@@ -184,6 +184,14 @@
       <div class="label">צ׳קים בחוץ<%= ocSelectedName ? ' · ' + ocSelectedName : ' · כל החנויות' %></div>
     </a>
   </div>
+  <a class="stat <%= (typeof zNoDepositCount !== 'undefined' && zNoDepositCount) ? 'attn' : '' %>" href="/reports/zreports" title="דוחות Z שהוזנו ללא הצהרת הפקדה — לחץ להצהיר">
+    <div class="num"><%= typeof zNoDepositCount !== 'undefined' ? zNoDepositCount : 0 %></div>
+    <div class="label">Z ללא הצהרת הפקדה</div>
+  </a>
+  <a class="stat <%= (typeof notDepositedCount !== 'undefined' && notDepositedCount) ? 'attn' : '' %>" href="/reports/zreports" title="הפקדות שהוצהרו וטרם הופקדו — לחץ לסמן הפקדה">
+    <div class="num"><%= typeof notDepositedCount !== 'undefined' ? notDepositedCount : 0 %></div>
+    <div class="label">הצהרות שלא הופקדו</div>
+  </a>
 </div>
 
 <div class="card">
@@ -208,15 +216,15 @@
 <div class="card">
   <h2 style="margin:0 0 .5rem">היסטוריית הפקדות</h2>
   <table class="sortable">
-    <thead><tr><th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>הופקד</th><th class="right">יתרה / זכות</th></tr></thead>
+    <thead><tr><th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>סטטוס</th><th class="right">יתרה / זכות</th></tr></thead>
     <tbody>
       <% if (!depositsHistory || depositsHistory.length === 0) { %><tr><td colspan="5" class="muted">אין הפקדות.</td></tr><% } %>
-      <% (depositsHistory || []).forEach(function(d){ %>
+      <% (depositsHistory || []).forEach(function(d){ var ds = depositStatus(d); %>
         <tr>
           <td class="mono"><%= d.bag_number || '—' %></td>
           <td class="right"><%= formatIls(d.amount) %></td>
           <td><%= formatDate(d.deposit_date) %></td>
-          <td><% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %></td>
+          <td><span class="badge <%= ds.badge %>"><%= ds.label %></span></td>
           <td class="right">
             <% if (d.recon_diff == null) { %><span class="muted">—</span>
             <% } else if (d.recon_diff === 0) { %><span class="badge b-approved">מאוזן</span>

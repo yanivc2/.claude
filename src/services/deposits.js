@@ -80,6 +80,51 @@ export async function setDeposited(id, deposited, actor, x = getExecutor()) {
   await logAction({ userId: actor.id, action: 'deposit.mark', entityType: 'deposit', entityId: id, details: { deposited: !!deposited } }, x);
 }
 
+/** Set the bag number on a deposit (used by the barcode scanner before marking it deposited). */
+export async function setDepositBag(id, bagNumber, actor, x = getExecutor()) {
+  const bag = (bagNumber && String(bagNumber).trim()) || null;
+  await x.run('UPDATE deposits SET bag_number = ? WHERE id = ?', [bag, id]);
+  await logAction({ userId: actor.id, action: 'deposit.bag', entityType: 'deposit', entityId: id, details: { bagNumber: bag } }, x);
+}
+
+/**
+ * Lifecycle status of a deposit declaration, derived from existing columns (no schema change):
+ *   • matched_txn_id set → 'matched'   (הותאמה בבנק)
+ *   • deposited = 1      → 'deposited' (הופקדה)
+ *   • otherwise          → 'declared'  (הונפקה)
+ */
+export function depositStatus(d) {
+  if (!d) return null;
+  if (d.matched_txn_id != null) return { key: 'matched', label: 'הותאמה בבנק', badge: 'b-cleared' };
+  if (Number(d.deposited) === 1) return { key: 'deposited', label: 'הופקדה', badge: 'b-approved' };
+  return { key: 'declared', label: 'הונפקה', badge: 'b-on_hold' };
+}
+
+/** Deposits that were declared but not yet marked deposited (deposited = 0). Newest first. */
+export async function declaredNotDeposited({ scope = null, storeId = null } = {}, x = getExecutor()) {
+  const sc = scopeClause(scope, 'st.company_id');
+  const params = [...sc.params];
+  let sql = `${DEPOSIT_SELECT} WHERE d.deposited = 0${sc.sql}`;
+  if (storeId) { sql += ' AND d.store_id = ?'; params.push(storeId); }
+  sql += ' ORDER BY d.deposit_date DESC, d.id DESC';
+  return x.many(sql, params);
+}
+
+/** Z reports that have no deposit declaration linked to them yet. Newest first. */
+export async function zReportsWithoutDeposit({ scope = null, storeId = null } = {}, x = getExecutor()) {
+  const sc = scopeClause(scope, 'st.company_id');
+  const params = [...sc.params];
+  // NOT IN (non-correlated) keeps pg-mem happy — it rejects correlated subqueries / anti-joins.
+  let sql = `SELECT z.id, z.z_number, z.z_date, z.store_id, st.name AS store_name, c.name AS company_name
+               FROM z_reports z
+               JOIN stores st ON st.id = z.store_id
+               JOIN companies c ON c.id = st.company_id
+              WHERE z.id NOT IN (SELECT z_report_id FROM deposits WHERE z_report_id IS NOT NULL)${sc.sql}`;
+  if (storeId) { sql += ' AND z.store_id = ?'; params.push(storeId); }
+  sql += ' ORDER BY z.z_date DESC, z.id DESC';
+  return x.many(sql, params);
+}
+
 export async function deleteDeposit(id, actor, x = getExecutor()) {
   await x.run('DELETE FROM deposits WHERE id = ?', [id]);
   await logAction({ userId: actor.id, action: 'deposit.delete', entityType: 'deposit', entityId: id }, x);

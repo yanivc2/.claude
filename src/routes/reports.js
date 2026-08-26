@@ -15,7 +15,7 @@ import {
   setCreditCards, ccReconciliation, CC_BRANDS,
   zReconciliationStatus,
 } from '../services/zreports.js';
-import { createDeposit, listDeposits, setDeposited, deleteDeposit, depositTotalForZ, upsertDepositForZ, depositForZ } from '../services/deposits.js';
+import { createDeposit, listDeposits, setDeposited, setDepositBag, deleteDeposit, depositTotalForZ, upsertDepositForZ, depositForZ, declaredNotDeposited, zReportsWithoutDeposit } from '../services/deposits.js';
 import { listEmployees } from '../services/employees.js';
 import { matchingClosing, CLOSING_DENOMS } from '../services/zclosing.js';
 import { listInvoices } from '../services/invoices.js';
@@ -26,7 +26,7 @@ import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
 import { requirePageAccess, requirePermission } from '../middleware/requireOwner.js';
-import { RuleError, AuthError } from '../lib/errors.js';
+import { RuleError, AuthError, NotFoundError } from '../lib/errors.js';
 import { scopeParam } from '../lib/scopeGuard.js';
 
 const router = Router();
@@ -239,6 +239,9 @@ async function renderZReports(req, res, extra = {}) {
     zStoreId,
     missingZ: zStoreId ? await missingZNumbers(zStoreId) : [],
     deposits: await listDeposits({ storeId: zStoreId, scope: req.scope.companyIds }),
+    // Deposit-lifecycle rubrics (bottom of the page).
+    zNoDeposit: await zReportsWithoutDeposit({ scope: req.scope.companyIds, storeId: zStoreId }),
+    notDeposited: await declaredNotDeposited({ scope: req.scope.companyIds, storeId: zStoreId }),
     invoiceOptions: await invoicePickOptions(req.scope.companyIds),
     employeeOptions: await listEmployees(),
     error: null,
@@ -255,6 +258,34 @@ router.get('/zreports', requirePageAccess('nav_zreports'), async (req, res, next
   }
 });
 
+// Declare a deposit on a Z report that has none yet (from the "דוחות Z ללא הצהרת הפקדה" rubric).
+router.post('/deposits/declare', requirePermission('manage_deposits'), async (req, res, next) => {
+  try {
+    const zReportId = Number(req.body.z_report_id);
+    const z = await getZReport(zReportId);
+    if (!z) throw new NotFoundError('דוח Z לא נמצא');
+    // Scope guard: the Z's store must belong to a company the user may access.
+    if (req.scope.companyIds !== null) {
+      const st = await getExecutor().one('SELECT company_id FROM stores WHERE id = ?', [z.store_id]);
+      if (!st || !req.scope.companyIds.includes(Number(st.company_id))) throw new AuthError('אין הרשאה לדוח זה');
+    }
+    await createDeposit({
+      storeId: z.store_id,
+      zReportId,
+      depositDate: z.z_date,
+      bagNumber: req.body.bag_number || null,
+      amount: toAgorot(req.body.amount || '0'),
+      deposited: false,
+    }, req.user);
+    res.redirect(303, req.get('referer') || '/reports/zreports');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, '/reports/zreports?deperr=' + encodeURIComponent(err.message));
+    }
+    next(err);
+  }
+});
+
 // Deposit declarations (הצהרה על הפקדה) — created together with a Z report (POST /zreports).
 router.post('/deposits/:id/deposited', requirePermission('manage_deposits'), async (req, res, next) => {
   try {
@@ -262,6 +293,10 @@ router.post('/deposits/:id/deposited', requirePermission('manage_deposits'), asy
     // Cancelling a deposit mark (un-marking) is owner-only — per the owner's request.
     if (!markDeposited && req.user.role !== 'owner') {
       throw new AuthError('ביטול סימון הפקדה — בעלים בלבד');
+    }
+    // The barcode scanner (or manual entry) can set the bag number as part of marking deposited.
+    if (markDeposited && typeof req.body.bag_number === 'string' && req.body.bag_number.trim()) {
+      await setDepositBag(Number(req.params.id), req.body.bag_number, req.user);
     }
     await setDeposited(Number(req.params.id), markDeposited, req.user);
     res.redirect(303, req.get('referer') || '/reports/zreports');

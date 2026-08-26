@@ -539,6 +539,14 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .card.collapsed .card-cbody { display: none; }
 .card-ctoggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: 4px; }
 
+/* bag-barcode scan overlay */
+.bag-scan-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.85);
+  display: flex; align-items: center; justify-content: center; padding: var(--space-4); }
+.bag-scan-box { display: flex; flex-direction: column; gap: var(--space-3); align-items: center; max-width: 520px; width: 100%; }
+.bag-scan-video { width: 100%; max-height: 60vh; border-radius: var(--radius); background: #000; object-fit: cover; }
+.bag-scan-hint { color: #fff; font-size: 15px; }
+.bag-scan-actions { display: flex; gap: var(--space-3); }
+
 /* global table tools toolbar (live search + Excel/CSV export) */
 .tbl-tools { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin: 0 0 var(--space-2); }
 .tbl-tools .tbl-search { max-width: 260px; min-height: 0; padding: 6px 10px; }

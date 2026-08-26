@@ -144,6 +144,9 @@
 
 ## 👥 עובדים — `routes/employees.js` · 🧾 הפקדות — `services/deposits.js`
 עובדים: `GET/POST /employees`, מחיקה. מפרעות/שכר מ-Z ניזונים לספר-מעקב. הפקדות ("הצהרות הפקדה") מותאמות לבנק לפי bag.
+- **מחזור חיי הפקדה** (`depositStatus(d)` — נגזר, ללא שינוי סכימה): `matched_txn_id`→**הותאמה בבנק**, `deposited=1`→**הופקדה**, אחרת→**הונפקה**. `reconcileDeposits` (`services/reconciliation.js`) מתאים **לפי מספר אסמכתה=שקית בלבד** (לא תלוי סכום; מתעד `recon_diff`=בנק−מוצהר). מוצג בבאדג' ב"היסטוריית הפקדות".
+- **רובריקות** (דוחות-Z למטה + קוביות בלוח הבקרה): "דוחות Z ללא הצהרת הפקדה" (`zReportsWithoutDeposit`) → טופס הצהרה inline (`POST /reports/deposits/declare`); "הפקדה שהוצהרה ולא הופקדה" (`declaredNotDeposited`) → סימון הופקד (`POST /reports/deposits/:id/deposited`, מקבל `bag_number` אופציונלי). שתיהן מכובדות ל-`storeId` פעיל.
+- **סריקת ברקוד שקית**: `public/bag-scan.js` — `BarcodeDetector` מובנה + מצלמה (`getUserMedia`) היכן שנתמך, אחרת נפילה להקלדה ידנית (CSP-safe, ללא ספרייה חיצונית). כפתור עם `data-bag-scan="<input-id>"`.
 
 ---
 

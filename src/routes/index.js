@@ -8,7 +8,7 @@ import {
 } from '../services/reports.js';
 import { lookupChecks } from '../services/payments.js';
 import { unmatchedCashExpenses, zSequenceStatus } from '../services/zreports.js';
-import { listDeposits } from '../services/deposits.js';
+import { listDeposits, zReportsWithoutDeposit, declaredNotDeposited } from '../services/deposits.js';
 import { searchSuppliers } from '../services/suppliers.js';
 import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
@@ -93,6 +93,8 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       unmatchedCash: await unmatchedCashExpenses(scope, 20, storeId),
       depositsHistory: await listDeposits({ scope, storeId, limit: 20 }),
       zStatus: await zSequenceStatus(scope, storeId),
+      zNoDepositCount: (await zReportsWithoutDeposit({ scope, storeId })).length,
+      notDepositedCount: (await declaredNotDeposited({ scope, storeId })).length,
       openChecksCount,
     });
   } catch (err) {

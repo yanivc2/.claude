@@ -221,3 +221,29 @@ test('dashboard sources honor the active store: unmatchedCashExpenses + listDepo
   assert.equal((await unmatchedCashExpenses(null, 30, b, db)).length, 0);
   assert.equal((await listDeposits({ scope: null, storeId: b }, db)).length, 0);
 });
+
+test('deposit rubrics: zReportsWithoutDeposit, declaredNotDeposited, depositStatus', async () => {
+  const { zReportsWithoutDeposit, declaredNotDeposited, depositStatus, setDeposited } =
+    await import('../src/services/deposits.js');
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+
+  const zWith = await createZReport({ storeId: store.id, zNumber: '710', zDate: '2026-08-05', drawerCash: 5000 }, ow, db);
+  const zWithout = await createZReport({ storeId: store.id, zNumber: '711', zDate: '2026-08-06', drawerCash: 5000 }, ow, db);
+  await createDeposit({ storeId: store.id, zReportId: zWith.id, depositDate: '2026-08-05', bagNumber: 'B710', amount: 5000 }, ow, db);
+
+  const noDep = await zReportsWithoutDeposit({ scope: null }, db);
+  assert.ok(noDep.some((z) => z.id === zWithout.id));   // the undeclared Z shows up
+  assert.ok(!noDep.some((z) => z.id === zWith.id));      // the declared one does not
+
+  const notDep = await declaredNotDeposited({ scope: null }, db);
+  const d = notDep.find((x) => x.bag_number === 'B710');
+  assert.ok(d);                                          // declared but not deposited
+  assert.equal(depositStatus(d).key, 'declared');        // הונפקה
+
+  await setDeposited(d.id, true, ow, db);
+  const after = (await listDeposits({ scope: null }, db)).find((x) => x.bag_number === 'B710');
+  assert.equal(depositStatus(after).key, 'deposited');   // הופקדה
+  assert.ok(!(await declaredNotDeposited({ scope: null }, db)).some((x) => x.bag_number === 'B710'));
+});

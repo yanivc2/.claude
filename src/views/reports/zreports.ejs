@@ -105,4 +105,71 @@
   </table>
   </div>
 </div>
+
+<%# ===== רובריקה: דוחות Z ללא הצהרת הפקדה — הצהר על הפקדה ===== %>
+<div class="card">
+  <h2 style="margin:0 0 .5rem">דוחות Z ללא הצהרת הפקדה<% if (zNoDeposit && zNoDeposit.length) { %> <span class="badge b-on_hold"><%= zNoDeposit.length %></span><% } %></h2>
+  <% if (!zNoDeposit || zNoDeposit.length === 0) { %>
+    <p class="muted" style="margin:0">כל דוחות ה-Z כוללים הצהרת הפקדה. ✓</p>
+  <% } else { %>
+    <div class="table-scroll">
+      <table class="no-enhance">
+        <thead><tr><th>Z</th><th>חנות</th><th>תאריך</th><th class="no-print" data-nosort>הצהרת הפקדה</th></tr></thead>
+        <tbody>
+          <% zNoDeposit.forEach(function(z){ %>
+            <tr>
+              <td class="mono">Z <%= z.z_number %></td>
+              <td><%= z.store_name %></td>
+              <td><%= formatDate(z.z_date) %></td>
+              <td class="no-print">
+                <form method="post" action="/reports/deposits/declare" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0">
+                  <input type="hidden" name="z_report_id" value="<%= z.id %>" />
+                  <input name="bag_number" id="declbag-<%= z.id %>" placeholder="מספר שקית" style="max-width:130px" />
+                  <button type="button" class="btn btn-secondary small" data-bag-scan="declbag-<%= z.id %>">📷 סרוק</button>
+                  <input name="amount" inputmode="decimal" placeholder="סכום ₪" style="max-width:110px" />
+                  <button type="submit" class="btn btn-primary small">הצהר</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%# ===== רובריקה: הפקדה שהוצהרה ולא הופקדה — סמן הפקדה / סרוק שקית ===== %>
+<div class="card">
+  <h2 style="margin:0 0 .5rem">הפקדה שהוצהרה ולא הופקדה<% if (notDeposited && notDeposited.length) { %> <span class="badge b-on_hold"><%= notDeposited.length %></span><% } %></h2>
+  <% if (!notDeposited || notDeposited.length === 0) { %>
+    <p class="muted" style="margin:0">אין הפקדות שהוצהרו וטרם הופקדו. ✓</p>
+  <% } else { %>
+    <div class="table-scroll">
+      <table class="no-enhance">
+        <thead><tr><th>שקית</th><th>Z</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th class="no-print" data-nosort>הופקד?</th></tr></thead>
+        <tbody>
+          <% notDeposited.forEach(function(d){ %>
+            <tr>
+              <td class="mono"><%= d.bag_number || '—' %></td>
+              <td class="mono"><%= d.z_number ? 'Z ' + d.z_number : '—' %></td>
+              <td><%= d.store_name %></td>
+              <td><%= formatDate(d.deposit_date) %></td>
+              <td class="right"><%= formatIls(d.amount) %></td>
+              <td class="no-print">
+                <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0">
+                  <input type="hidden" name="value" value="1" />
+                  <input name="bag_number" id="depbag-<%= d.id %>" placeholder="שקית (אופציונלי)" value="<%= d.bag_number || '' %>" style="max-width:130px" />
+                  <button type="button" class="btn btn-secondary small" data-bag-scan="depbag-<%= d.id %>">📷 סרוק</button>
+                  <button type="submit" class="btn ok small">✓ הופקד</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<script src="/bag-scan.js"></script>
 <%- include('../partials/footer') %>
