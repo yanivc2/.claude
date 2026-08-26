@@ -49,7 +49,7 @@ test('cash expense can be matched to an invoice; unmatched ones surface for the 
   assert.equal(matched.invoice_id, inv.id);
   assert.equal(matched.invoice_number, 'INV-1');
 
-  const un = await unmatchedCashExpenses(null, 30, db);
+  const un = await unmatchedCashExpenses(null, 30, null, db);
   assert.equal(un.length, 1);
   assert.equal(un[0].payer_name, 'רני');
   assert.equal(un[0].source, 'zreport');
@@ -72,7 +72,7 @@ test('register-closing (סגירת Z) cash expenses also surface as unmatched on
     ],
   }, ow, db);
 
-  const un = await unmatchedCashExpenses(null, 30, db);
+  const un = await unmatchedCashExpenses(null, 30, null, db);
   const mine = un.filter((r) => r.source === 'zclosing');
   assert.equal(mine.length, 1);                 // only the manual, unmatched line
   assert.equal(mine[0].payer_name, 'תיו');
@@ -157,7 +157,7 @@ test('zSequenceStatus reports a gap with the Z before and after it', async () =>
   // 11 is missing
   await createZReport({ storeId: store.id, zNumber: '12', zDate: '2026-08-03', drawerCash: 100 }, ow, db);
 
-  const status = await zSequenceStatus(null, db);
+  const status = await zSequenceStatus(null, null, db);
   assert.equal(status.ok, false);
   const gap = status.gaps.find((g) => g.from === 11);
   assert.ok(gap);
@@ -173,7 +173,7 @@ test('zSequenceStatus joins consecutive missing numbers into one range', async (
   await createZReport({ storeId: store.id, zNumber: '15', zDate: '2026-08-01', drawerCash: 100 }, ow, db);
   // 16..424 missing
   await createZReport({ storeId: store.id, zNumber: '425', zDate: '2026-08-05', drawerCash: 100 }, ow, db);
-  const status = await zSequenceStatus(null, db);
+  const status = await zSequenceStatus(null, null, db);
   assert.equal(status.gaps.length, 1);
   assert.equal(status.gaps[0].from, 16);
   assert.equal(status.gaps[0].to, 424);
@@ -201,4 +201,23 @@ test('matchingClosing links a Z report to its closing by store + Z number; manag
   const saved = JSON.parse((await getZReport(z.id, db)).manager_breakdown);
   assert.equal(saved['200'].count, 2);
   assert.equal(saved['200'].ok, true);
+});
+
+test('dashboard sources honor the active store: unmatchedCashExpenses + listDeposits filter by storeId', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const stores = await db.many('SELECT id FROM stores ORDER BY id', []);
+  const [a, b] = [stores[0].id, stores[1].id];
+
+  // A cash expense + a deposit, both on store A.
+  const z = await createZReport({ storeId: a, zNumber: '600', zDate: '2026-08-05', drawerCash: 50000 }, ow, db);
+  await replaceExpenses(z.id, [{ payerName: 'מזומן', purpose: 'קניה', amount: 4200 }], ow, db);
+  await createDeposit({ storeId: a, depositDate: '2026-08-05', bagNumber: 'BAGA', amount: 5000 }, ow, db);
+
+  // store A sees them
+  assert.equal((await unmatchedCashExpenses(null, 30, a, db)).length, 1);
+  assert.equal((await listDeposits({ scope: null, storeId: a }, db)).length, 1);
+  // store B sees nothing (this was the bug — the dashboard showed another store's data)
+  assert.equal((await unmatchedCashExpenses(null, 30, b, db)).length, 0);
+  assert.equal((await listDeposits({ scope: null, storeId: b }, db)).length, 0);
 });

@@ -243,7 +243,7 @@ export async function listExpenses(zReportId, x = getExecutor()) {
  * Cash expenses not yet matched to an invoice ("תשלום במזומן ללא התאמה") — for the dashboard.
  * Only real lines (a positive amount) are surfaced. Scoped to the caller's companies.
  */
-export async function unmatchedCashExpenses(scope = null, limit = 30, x = getExecutor()) {
+export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = null, x = getExecutor()) {
   // Cash expenses live in TWO subsystems and both must surface here:
   //   • z_expenses      — the older "דוח Z" flow  (z_reports)
   //   • z_closing_expenses — the "סגירת Z" register-closing flow (z_closings)
@@ -253,6 +253,11 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, x = getExe
   // the employees page). `source` tells the view which detail page to link to.
   const scR = scopeClause(scope, 'st.company_id'); // z_reports side
   const scC = scopeClause(scope, 'st.company_id'); // z_closings side
+  // Active-store context: filter both sides by the store (z_reports.store_id / z_closings.store_id).
+  const stR = storeId ? ' AND z.store_id = ?' : '';
+  const stC = storeId ? ' AND zc.store_id = ?' : '';
+  const stRp = storeId ? [storeId] : [];
+  const stCp = storeId ? [storeId] : [];
   return x.many(
     `SELECT * FROM (
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount,
@@ -261,7 +266,7 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, x = getExe
          JOIN z_reports z ON z.id = e.z_report_id
          JOIN stores st ON st.id = z.store_id
         WHERE e.invoice_id IS NULL AND e.amount > 0
-          AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scR.sql}
+          AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scR.sql}${stR}
        UNION ALL
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount,
               zc.z_number, 'zclosing' AS source, zc.id AS ref_id
@@ -269,10 +274,10 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, x = getExe
          JOIN z_closings zc ON zc.id = e.closing_id
          JOIN stores st ON st.id = zc.store_id
         WHERE e.invoice_id IS NULL AND e.amount > 0
-          AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scC.sql}
+          AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scC.sql}${stC}
      ) u
      ORDER BY u.expense_date DESC, u.id DESC LIMIT ?`,
-    [...scR.params, ...scC.params, limit],
+    [...scR.params, ...stRp, ...scC.params, ...stCp, limit],
   );
 }
 
@@ -408,13 +413,15 @@ export async function missingZNumbers(storeId, x = getExecutor()) {
  * @returns {Promise<{ok:boolean, gaps:Array<{storeName:string, missing:number,
  *   before:object|null, after:object|null}>}>}
  */
-export async function zSequenceStatus(scope = null, x = getExecutor()) {
+export async function zSequenceStatus(scope = null, storeId = null, x = getExecutor()) {
   const sc = scopeClause(scope, 'st.company_id');
+  const st = storeId ? ' AND z.store_id = ?' : '';
+  const stp = storeId ? [storeId] : [];
   const rows = await x.many(
     `SELECT z.id, z.z_number, z.z_date, z.daily_total, z.store_id, st.name AS store_name
        FROM z_reports z JOIN stores st ON st.id = z.store_id
-      WHERE 1 = 1${sc.sql}`,
-    [...sc.params],
+      WHERE 1 = 1${sc.sql}${st}`,
+    [...sc.params, ...stp],
   );
   const byStore = new Map();
   for (const r of rows) {
