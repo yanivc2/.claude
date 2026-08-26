@@ -73,11 +73,11 @@
 <div class="table-scroll">
 <table class="sortable">
   <thead>
-    <tr><th>מספר חשבונית</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th><th>שולם</th></tr>
+    <tr><th class="no-print" data-nosort>✓</th><th>מספר חשבונית</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th><th>שולם</th></tr>
   </thead>
   <tbody>
     <% if (invoices.length === 0) { %>
-      <tr><td colspan="6" class="muted">אין חשבוניות להצגה.</td></tr>
+      <tr><td colspan="7" class="muted">אין חשבוניות להצגה.</td></tr>
     <% } %>
     <% invoices.forEach(function(i){ %>
       <%
@@ -95,8 +95,17 @@
         }
         var unmatchedCash = (i.pay_method === 'cash' && !(i.cash_matches > 0));
         var rowCls = i.status === 'on_hold' ? 'row-hold' : (unmatchedCash ? 'row-unmatched-cash' : '');
+        // Selectable for a combined payment: payable (recorded/approved) and not already paid.
+        var selectable = (i.status === 'recorded' || i.status === 'approved_for_payment') && !i.pay_method && !(i.cash_matches > 0);
       %>
       <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= rowCls %>">
+        <td class="no-print" onclick="event.stopPropagation()">
+          <% if (selectable) { %>
+            <input type="checkbox" class="inv-pick" style="width:auto;min-height:0"
+              data-id="<%= i.id %>" data-sup="<%= i.supplier_id %>" data-store="<%= i.store_id %>"
+              data-supname="<%= i.supplier_name %>" />
+          <% } %>
+        </td>
         <td class="mono"><%= i.invoice_number %></td>
         <td><%= i.store_name %></td>
         <td><%= formatDate(i.invoice_date) %></td>
@@ -112,6 +121,43 @@
   </tbody>
 </table>
 </div>
+
+<div id="payBar" class="pay-bar no-print" hidden>
+  <span>נבחרו <strong id="payCount">0</strong> חשבוניות · ספק <strong id="paySup"></strong></span>
+  <div style="display:flex;gap:.5rem;margin-inline-start:auto">
+    <button type="button" id="payClear" class="btn btn-secondary btn-sm">בטל בחירה</button>
+    <button type="button" id="payBtn" class="btn btn-primary btn-sm">💳 הנפק תשלום לנבחרים</button>
+  </div>
+</div>
+
+<script>
+  // Multi-select → combined payment. A payment can't span suppliers/stores (one bank account), so
+  // once one invoice is picked, checkboxes of any other supplier/store are disabled. "הנפק תשלום"
+  // hands the selection to the existing batch-payment screen (/invoices/new?supplier=&store=&pick=).
+  (function(){
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('.inv-pick'));
+    if (!boxes.length) return;
+    var bar = document.getElementById('payBar');
+    function picked(){ return boxes.filter(function(b){ return b.checked; }); }
+    function refresh(){
+      var sel = picked();
+      var sup = sel.length ? sel[0].dataset.sup : null, store = sel.length ? sel[0].dataset.store : null;
+      boxes.forEach(function(b){ b.disabled = sel.length > 0 && (b.dataset.sup !== sup || b.dataset.store !== store); });
+      if (sel.length) {
+        bar.hidden = false;
+        document.getElementById('payCount').textContent = sel.length;
+        document.getElementById('paySup').textContent = sel[0].dataset.supname || '';
+      } else { bar.hidden = true; }
+    }
+    boxes.forEach(function(b){ b.addEventListener('change', refresh); });
+    document.getElementById('payClear').addEventListener('click', function(){ boxes.forEach(function(b){ b.checked = false; }); refresh(); });
+    document.getElementById('payBtn').addEventListener('click', function(){
+      var sel = picked(); if (!sel.length) return;
+      var ids = sel.map(function(b){ return b.dataset.id; }).join(',');
+      location = '/invoices/new?supplier=' + sel[0].dataset.sup + '&store=' + sel[0].dataset.store + '&pick=' + ids;
+    });
+  })();
+</script>
 
 <script>
   // Filter panel: checkboxes reveal the supplier / store / date-range controls (choose one up to all).
