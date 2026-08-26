@@ -5,19 +5,54 @@
 <p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7). לחץ על שורה לפירוט.</p>
 
 <%
-// Preserve the selected account when switching month, and vice-versa.
-function ocLink(m){ var p = []; if (detailAccountId) p.push('account=' + detailAccountId); if (m) p.push('month=' + m); return '/reports/outstanding' + (p.length ? '?' + p.join('&') : ''); }
+// "הכל" resets the cut (preserving the selected account).
+function ocAllLink(){ return '/reports/outstanding' + (detailAccountId ? '?account=' + detailAccountId : ''); }
+// The current cut as a '&'-prefixed querystring fragment, so account/export/print links keep it.
+function cutQS(){
+  var p = [];
+  if (cut === 'date') { p.push('cut=date'); if (from) p.push('from=' + encodeURIComponent(from)); if (to) p.push('to=' + encodeURIComponent(to)); }
+  else if (cut === 'months') { p.push('cut=months'); (selMonths || []).forEach(function(m){ p.push('months=' + encodeURIComponent(m)); }); }
+  else if (month) { p.push('month=' + encodeURIComponent(month)); }
+  return p.length ? '&' + p.join('&') : '';
+}
 %>
 <% if (months && months.length) { %>
 <div class="card no-print">
-  <label class="lbl" style="margin:0 0 .4rem">חתך חודשי (לפי תאריך פירעון)</label>
-  <div class="actions" style="flex-wrap:wrap;gap:.4rem">
-    <a class="chip <%= !month ? 'active' : '' %>" href="<%= ocLink(null) %>">הכל</a>
-    <% months.forEach(function(mo){ %>
-      <a class="chip <%= month === mo.value ? 'active' : '' %>" href="<%= ocLink(mo.value) %>"><%= mo.label %></a>
-    <% }); %>
+  <label class="lbl" style="margin:0 0 .5rem">חתך לפי תאריך פירעון</label>
+  <div class="actions" style="flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem">
+    <a class="chip <%= cut === 'all' ? 'active' : '' %>" href="<%= ocAllLink() %>">הכל</a>
+    <button type="button" class="chip <%= cut === 'date' ? 'active' : '' %>" onclick="ocShowCut('date')">חתך תאריכים</button>
+    <button type="button" class="chip <%= cut === 'months' ? 'active' : '' %>" onclick="ocShowCut('months')">חתך חודשים</button>
   </div>
+
+  <form method="get" action="/reports/outstanding" id="oc-date" class="oc-cut no-enhance" style="<%= cut === 'date' ? '' : 'display:none' %>">
+    <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
+    <input type="hidden" name="cut" value="date" />
+    <div class="row">
+      <div><label>מתאריך</label><input type="date" name="from" value="<%= from || '' %>" /></div>
+      <div><label>עד תאריך</label><input type="date" name="to" value="<%= to || '' %>" /></div>
+    </div>
+    <div style="margin-top:.5rem"><button type="submit">הצג</button></div>
+  </form>
+
+  <form method="get" action="/reports/outstanding" id="oc-months" class="oc-cut" style="<%= cut === 'months' ? '' : 'display:none' %>">
+    <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
+    <input type="hidden" name="cut" value="months" />
+    <p class="muted" style="margin:0 0 .5rem">סמן אילו חודשים להציג (רק חודשים שיש בהם צ׳קים פתוחים):</p>
+    <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.6rem">
+      <% months.forEach(function(mo){ %>
+        <label style="display:flex;align-items:center;gap:5px;margin:0"><input type="checkbox" name="months" value="<%= mo.value %>" style="width:auto;min-height:0" <%= (selMonths || []).includes(mo.value) ? 'checked' : '' %> /> <%= mo.label %></label>
+      <% }); %>
+    </div>
+    <button type="submit">הצג נבחרים</button>
+  </form>
 </div>
+<script>
+  function ocShowCut(m){
+    document.querySelectorAll('.oc-cut').forEach(function(f){ f.style.display = 'none'; });
+    var el = document.getElementById('oc-' + m); if (el) el.style.display = '';
+  }
+</script>
 <% } %>
 
 <div class="card">
@@ -28,7 +63,7 @@ function ocLink(m){ var p = []; if (detailAccountId) p.push('account=' + detailA
     </thead>
     <tbody>
       <% accounts.forEach(function(a){ %>
-        <tr onclick="location='/reports/outstanding?account=<%= a.id %><%= month ? '&month=' + month : '' %>'" style="cursor:pointer"
+        <tr onclick="location='/reports/outstanding?account=<%= a.id %><%= cutQS() %>'" style="cursor:pointer"
             class="<%= detailAccountId === a.id ? 'b-approved' : '' %>">
           <td><%= a.company_name %></td>
           <td><%= a.display_name %></td>
@@ -38,8 +73,8 @@ function ocLink(m){ var p = []; if (detailAccountId) p.push('account=' + detailA
             <details class="menu open-in">
               <summary class="btn btn-secondary btn-sm">ייצוא <span class="caret">▾</span></summary>
               <div class="menu-panel" style="min-width:150px">
-                <a href="/reports/outstanding-detail.csv?account=<%= a.id %><%= month ? '&month=' + month : '' %>">📄 ייצוא CSV</a>
-                <a href="/reports/outstanding?account=<%= a.id %><%= month ? '&month=' + month : '' %>&print=1">🖨️ הדפסה</a>
+                <a href="/reports/outstanding-detail.csv?account=<%= a.id %><%= cutQS() %>">📄 ייצוא CSV</a>
+                <a href="/reports/outstanding?account=<%= a.id %><%= cutQS() %>&print=1">🖨️ הדפסה</a>
               </div>
             </details>
           </td>
@@ -61,7 +96,7 @@ function ocLink(m){ var p = []; if (detailAccountId) p.push('account=' + detailA
   <div class="card">
     <div class="toolbar">
       <h2 style="margin:0">פירוט צ׳קים שלא נפרעו — החשבון הנבחר</h2>
-      <a class="btn secondary no-print" href="/reports/outstanding-detail.csv?account=<%= detailAccountId %><%= month ? '&month=' + month : '' %>">ייצוא CSV מפורט</a>
+      <a class="btn secondary no-print" href="/reports/outstanding-detail.csv?account=<%= detailAccountId %><%= cutQS() %>">ייצוא CSV מפורט</a>
     </div>
     <table class="sortable">
       <thead>

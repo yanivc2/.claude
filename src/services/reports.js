@@ -8,15 +8,32 @@ import { parseSearchTerms, anyTermLike } from '../lib/search.js';
  *
  * @returns {{ accounts: Array, totalOutstanding: number }}
  */
-export async function outstandingChecks(scope = null, { month = null, storeId = null } = {}, x = getExecutor()) {
+/**
+ * Build a due-date (payment_date) cut condition on the `p` alias. Supports a single month
+ * (YYYY-MM), a list of months (multi-select), or a from/to date range. Returns { cond, params }.
+ */
+function dueDateCut({ month = null, months = null, from = null, to = null } = {}) {
+  if (from || to) {
+    let cond = ''; const params = [];
+    if (from) { cond += ' AND p.payment_date >= ?'; params.push(from); }
+    if (to) { cond += ' AND p.payment_date <= ?'; params.push(to); }
+    return { cond, params };
+  }
+  const list = (months && months.length) ? months : (month ? [month] : []);
+  if (!list.length) return { cond: '', params: [] };
+  const ors = list.map(() => 'p.payment_date LIKE ?').join(' OR ');
+  return { cond: ` AND (${ors})`, params: list.map((m) => `${m}%`) };
+}
+
+export async function outstandingChecks(scope = null, cut = {}, x = getExecutor()) {
+  const { storeId = null } = cut;
   const sc = scopeClause(scope, 'ba.company_id');
-  // Optional monthly cut: only checks whose due date (payment_date) falls in the given YYYY-MM.
-  const mCond = month ? " AND p.payment_date LIKE ?" : '';
-  const mParam = month ? [`${month}%`] : [];
+  // Optional due-date cut: single month, a list of months, or a from/to range.
+  const dc = dueDateCut(cut);
   let accounts = await x.many(
     `SELECT ba.id, ba.display_name, st.id AS store_id, c.name AS company_name, st.name AS store_name,
-            COALESCE(SUM(CASE WHEN p.status = 'issued'${mCond} THEN p.amount ELSE 0 END), 0) AS outstanding,
-            COUNT(CASE WHEN p.status = 'issued'${mCond} THEN 1 END) AS outstanding_count
+            COALESCE(SUM(CASE WHEN p.status = 'issued'${dc.cond} THEN p.amount ELSE 0 END), 0) AS outstanding,
+            COUNT(CASE WHEN p.status = 'issued'${dc.cond} THEN 1 END) AS outstanding_count
        FROM bank_accounts ba
        JOIN companies c ON c.id = ba.company_id
        JOIN stores st ON st.id = ba.store_id
@@ -24,7 +41,7 @@ export async function outstandingChecks(scope = null, { month = null, storeId = 
       WHERE 1 = 1${sc.sql}
       GROUP BY ba.id, ba.display_name, st.id, c.name, st.name
       ORDER BY c.name, st.name`,
-    [...mParam, ...mParam, ...sc.params],
+    [...dc.params, ...dc.params, ...sc.params],
   );
 
   // Optional store cut (active-store context). Post-filtered in JS on the per-store rows — pg-mem
@@ -137,15 +154,14 @@ export async function outstandingChecksForAccount(bankAccountId, x = getExecutor
  * invoice line(s) and any credit note(s). Columns for the report:
  *   supplier, invoice number(s)+date+amount, credit number(s)+amount, due date, net amount.
  */
-export async function outstandingCheckDetail(bankAccountId, { month = null } = {}, x = getExecutor()) {
-  const mCond = month ? " AND p.payment_date LIKE ?" : '';
-  const mParam = month ? [`${month}%`] : [];
+export async function outstandingCheckDetail(bankAccountId, cut = {}, x = getExecutor()) {
+  const dc = dueDateCut(cut);
   const payments = await x.many(
     `SELECT p.id, p.payment_date, p.amount, p.method, p.check_number, p.reference, p.batch_number
        FROM payments p
-      WHERE p.bank_account_id = ? AND p.status = 'issued'${mCond}
+      WHERE p.bank_account_id = ? AND p.status = 'issued'${dc.cond}
       ORDER BY p.payment_date, p.id`,
-    [bankAccountId, ...mParam],
+    [bankAccountId, ...dc.params],
   );
   if (payments.length === 0) return [];
 

@@ -280,10 +280,26 @@ router.post('/deposits/:id/delete', requirePermission('manage_deposits'), async 
 });
 
 // §7 "צ׳קים בחוץ"
+// Parse the due-date cut from the query: mode 'all' | 'date' | 'months'. Returns the cut object for
+// the services plus the raw selections for the view.
+function parseOutstandingCut(q) {
+  const cut = (q.cut === 'date' || q.cut === 'months') ? q.cut : 'all';
+  const isoDate = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null);
+  const from = cut === 'date' ? isoDate(q.from) : null;
+  const to = cut === 'date' ? isoDate(q.to) : null;
+  const months = cut === 'months'
+    ? [].concat(q.months || []).filter((m) => /^\d{4}-\d{2}$/.test(m))
+    : [];
+  // Back-compat: a bare ?month= still works as a single-month cut.
+  const month = (cut === 'all' && /^\d{4}-\d{2}$/.test(q.month || '')) ? q.month : null;
+  return { cut, from, to, months, month };
+}
+
 router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res, next) => {
   try {
-    const month = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : null;
-    const { accounts, totalOutstanding } = await outstandingChecks(req.scope.companyIds, { month });
+    const c = parseOutstandingCut(req.query);
+    const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to };
+    const { accounts, totalOutstanding } = await outstandingChecks(req.scope.companyIds, cutArg);
     const detailAccountId = req.query.account ? Number(req.query.account) : null;
     // Scope guard: only show detail for an account the user is allowed to see.
     const inScope = detailAccountId != null && accounts.some((a) => a.id === detailAccountId);
@@ -292,9 +308,13 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
       accounts,
       totalOutstanding,
       months: await outstandingMonths(req.scope.companyIds),
-      month,
+      month: c.month,
+      cut: c.cut,
+      selMonths: c.months,
+      from: c.from,
+      to: c.to,
       detailAccountId: inScope ? detailAccountId : null,
-      detail: inScope ? await outstandingCheckDetail(detailAccountId, { month }) : [],
+      detail: inScope ? await outstandingCheckDetail(detailAccountId, cutArg) : [],
     });
   } catch (err) {
     next(err);
@@ -305,10 +325,11 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
 router.get('/outstanding-detail.csv', async (req, res, next) => {
   try {
     const accountId = Number(req.query.account);
-    const month = /^\d{4}-\d{2}$/.test(req.query.month || '') ? req.query.month : null;
+    const c = parseOutstandingCut(req.query);
+    const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to };
     const { accounts } = await outstandingChecks(req.scope.companyIds);
     if (!accounts.some((a) => a.id === accountId)) { res.status(404).send('not found'); return; }
-    const rows = (await outstandingCheckDetail(accountId, { month })).map((r) => [
+    const rows = (await outstandingCheckDetail(accountId, cutArg)).map((r) => [
       r.supplierName,
       r.invoiceNumbers,
       r.invoiceDate,

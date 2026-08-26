@@ -108,6 +108,7 @@
 | הוצאות (bulk/single/מחיקה) | `POST /reports/zreports/:id/expenses[-bulk]`, `POST /reports/zexpenses/:id/delete` | `zreports.js` | — | — |
 | הפקדה / כרטיסי אשראי / חשבון-מגירה | `POST /reports/zreports/:id/{deposit,creditcards,verify-bills}` | — | התאמת מזומן/אשראי; חוסר/יתרה. | `deposits.z_report_id` (nullable). |
 | רווחיות / צ׳קים בחוץ / lookup (+CSV) | `GET /reports/{profitability,outstanding,lookup}[.csv]` | `services/reports.js` | קריאה-בלבד; `lookup` משתמש ב-`invoiceLookup` (רב-מונחי). | — |
+| צ׳קים בחוץ — חתך תאריך פירעון | `GET /reports/outstanding?cut=date&from&to` / `?cut=months&months[]` | `parseOutstandingCut` (route) → `dueDateCut` (`services/reports.js`) בשתי השאילתות | 3 מצבים: "הכל" / "חתך תאריכים" (from/to) / "חתך חודשים" (checkbox רב-בחירה, רק חודשים שיש בהם צ׳קים). התנאי בתוך ה-CASE על `p.payment_date` (עובד ב-pg-mem, שלא כמו WHERE על JOIN). ייצוא Excel/CSV/PDF של הטבלאות דרך כלי-הטבלה הגלובליים (`footer.ejs`). | `outstandingChecks`/`outstandingCheckDetail` מקבלים כעת `cut={month,months,from,to,storeId}`. `?month=` נשמר לתאימות. |
 
 ---
 

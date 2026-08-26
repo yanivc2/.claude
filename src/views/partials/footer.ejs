@@ -360,6 +360,22 @@
       var lines = [m.head].concat(m.body).map(function (row) { return row.map(csvCell).join(','); });
       download(base + '.csv', new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
     }
+    function exportPdf(table, base) {
+      // Open a clean, RTL print view of just this table (visible rows, no action columns) — the user
+      // then saves it as PDF from the print dialog. Falls back to printing the page if pop-ups block.
+      var m = buildMatrix(table);
+      var w = window.open('', '_blank');
+      if (!w) { window.print(); return; }
+      var doc = '<html dir="rtl"><head><meta charset="utf-8"><title>' + esc(base) + '</title>'
+        + '<style>body{font-family:Arial,sans-serif;direction:rtl;margin:24px}h3{margin:0 0 12px}'
+        + 'table{border-collapse:collapse;width:100%}th,td{border:1px solid #999;padding:6px 8px;text-align:right;font-size:12px}'
+        + 'thead th{background:#eee}</style></head><body><h3>' + esc(base) + '</h3><table><thead><tr>'
+        + m.head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>'
+        + m.body.map(function (row) { return '<tr>' + row.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('')
+        + '</tbody></table></body></html>';
+      w.document.write(doc); w.document.close(); w.focus();
+      setTimeout(function () { try { w.print(); } catch (e) {} }, 300);
+    }
     function baseName(table) {
       var card = table.closest('.card');
       var h = card ? card.querySelector('h1, h2, h3') : null;
@@ -382,9 +398,10 @@
       var count = document.createElement('span'); count.className = 'tbl-count muted';
       var xls = document.createElement('button'); xls.type = 'button'; xls.className = 'btn btn-secondary btn-sm'; xls.textContent = '⬇ Excel';
       var csv = document.createElement('button'); csv.type = 'button'; csv.className = 'btn btn-secondary btn-sm'; csv.textContent = 'CSV';
+      var pdf = document.createElement('button'); pdf.type = 'button'; pdf.className = 'btn btn-secondary btn-sm'; pdf.textContent = 'PDF';
       tools.appendChild(search); tools.appendChild(count);
       var spacer = document.createElement('span'); spacer.style.marginInlineStart = 'auto'; tools.appendChild(spacer);
-      tools.appendChild(xls); tools.appendChild(csv);
+      tools.appendChild(xls); tools.appendChild(csv); tools.appendChild(pdf);
 
       // place the toolbar just before the table (or its scroll wrapper)
       var anchor = table.closest('.table-scroll') || table;
@@ -405,6 +422,7 @@
       search.addEventListener('input', filter);
       xls.addEventListener('click', function () { exportExcel(table, baseName(table)); });
       csv.addEventListener('click', function () { exportCsv(table, baseName(table)); });
+      pdf.addEventListener('click', function () { exportPdf(table, baseName(table)); });
     });
   })();
   </script>
