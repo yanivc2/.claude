@@ -30,7 +30,7 @@
 
 <details class="card no-print collapse-card">
   <summary>הוצאות מזומן (מסגירות Z)</summary>
-  <div style="margin-top:.6rem"><%- include('../partials/_cashExpenses', { rows: closingExpenses }) %></div>
+  <div style="margin-top:.6rem"><%- include('../partials/_cashExpenses', { rows: closingExpenses, matchable: true, matchInvoices: matchInvoices }) %></div>
 </details>
 
 <form method="get" action="/invoices" class="card no-print" style="margin-bottom:1rem">

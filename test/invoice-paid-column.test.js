@@ -4,7 +4,7 @@ import { freshDb, owner, secretary, firstStore, accountForStore } from './helper
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice, listInvoices } from '../src/services/invoices.js';
 import { createPayment } from '../src/services/payments.js';
-import { createZClosing } from '../src/services/zclosing.js';
+import { createZClosing, matchClosingExpenseToInvoice, unmatchClosingExpense } from '../src/services/zclosing.js';
 import { toAgorot } from '../src/lib/money.js';
 
 async function mkInvoice(db, store, number, supId) {
@@ -50,4 +50,55 @@ test('listInvoices enriches "שולם": paid-by-check, paid-in-cash (Z match), a
 
   assert.equal(by['UN-1'].pay_method, null);
   assert.equal(Number(by['UN-1'].cash_matches), 0); // "לא שולם"
+});
+
+test('matching a manual cash expense to an invoice flips it to "שולם במזומן"; unmatch reverts', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  const sec = await secretary(db);
+  const sup = (await approveSupplier((await createSupplier({ name: 'ספק מ' }, sec, db)).id, ow, db)).id;
+  const inv = await mkInvoice(db, store, 'MATCH-1', sup);
+
+  // a register closing with one manual cash expense (no invoice yet)
+  await createZClosing(
+    { employeeFirst: 'ר', employeeLast: 'ל', storeId: store.id, zNumber: '800', drawerCash: 0,
+      counts: { 200: 1 }, expenses: [{ kind: 'manual', payerName: 'מזומן', purpose: 'קניה', amount: 5000 }] },
+    ow, db,
+  );
+  const exp = await db.one("SELECT id FROM z_closing_expenses WHERE description_type = 'manual' ORDER BY id DESC", []);
+
+  // before: unpaid
+  let by = Object.fromEntries((await listInvoices({}, db)).map((r) => [r.invoice_number, r]));
+  assert.equal(Number(by['MATCH-1'].cash_matches), 0);
+
+  await matchClosingExpenseToInvoice(exp.id, inv.id, ow, null, db);
+  by = Object.fromEntries((await listInvoices({}, db)).map((r) => [r.invoice_number, r]));
+  assert.ok(by['MATCH-1'].cash_matches > 0); // now "שולם במזומן"
+  const linked = await db.one('SELECT invoice_id, description_type FROM z_closing_expenses WHERE id = ?', [exp.id]);
+  assert.equal(Number(linked.invoice_id), inv.id);
+  assert.equal(linked.description_type, 'invoice');
+
+  await unmatchClosingExpense(exp.id, ow, db);
+  by = Object.fromEntries((await listInvoices({}, db)).map((r) => [r.invoice_number, r]));
+  assert.equal(Number(by['MATCH-1'].cash_matches), 0); // reverted to "לא שולם"
+});
+
+test('matchClosingExpenseToInvoice refuses an out-of-scope expense before mutating', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db); // store 1 → company 2
+  const sec = await secretary(db);
+  const sup = (await approveSupplier((await createSupplier({ name: 'ספק ס' }, sec, db)).id, ow, db)).id;
+  const inv = await mkInvoice(db, store, 'SC-1', sup);
+  await createZClosing(
+    { employeeFirst: 'ר', employeeLast: 'ל', storeId: store.id, zNumber: '801', drawerCash: 0,
+      counts: { 200: 1 }, expenses: [{ kind: 'manual', payerName: 'x', purpose: 'y', amount: 5000 }] },
+    ow, db,
+  );
+  const exp = await db.one("SELECT id FROM z_closing_expenses WHERE description_type = 'manual' ORDER BY id DESC", []);
+  // scope excludes company 2 → must throw, and must NOT have linked the expense
+  await assert.rejects(() => matchClosingExpenseToInvoice(exp.id, inv.id, ow, [999], db), /הרשאה/);
+  const after = await db.one('SELECT invoice_id FROM z_closing_expenses WHERE id = ?', [exp.id]);
+  assert.equal(after.invoice_id, null);
 });

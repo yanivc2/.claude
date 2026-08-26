@@ -16,7 +16,7 @@ import {
 } from '../services/invoices.js';
 import { listSuppliers } from '../services/suppliers.js';
 import { cashPaymentsForInvoice } from '../services/zreports.js';
-import { recentClosingExpenses } from '../services/zclosing.js';
+import { recentClosingExpenses, matchClosingExpenseToInvoice, unmatchClosingExpense } from '../services/zclosing.js';
 import { runOcrForInvoice, compareToInvoice, getOcr, deleteOcr } from '../services/ocr.js';
 import { createEvent } from '../services/calendar.js';
 import { getExecutor } from '../db/adapter.js';
@@ -111,6 +111,8 @@ router.get('/', async (req, res, next) => {
       suppliers,
       stores,
       closingExpenses: await recentClosingExpenses(req.scope.companyIds, 30),
+      // Payable invoices (in scope) a cash expense can be matched to, for the "התאם לחשבונית" control.
+      matchInvoices: (await listPayable()).filter((iv) => req.scope.companyIds === null || req.scope.companyIds.includes(iv.company_id)),
     });
   } catch (err) {
     next(err);
@@ -291,6 +293,33 @@ router.post('/pay-batch', async (req, res, next) => {
         ...(await batchContext(supplierId, storeId)),
       });
     }
+    next(err);
+  }
+});
+
+// Match / unmatch a register-closing cash expense to an invoice → the invoice reads "שולם במזומן".
+// Scope-guarded on both sides so a restricted user can't touch another company's data.
+router.post('/match-cash', async (req, res, next) => {
+  try {
+    const expenseId = Number(req.body.expense_id);
+    const invoiceId = Number(req.body.invoice_id);
+    if (!expenseId || !invoiceId) throw new RuleError('R', 'יש לבחור הוצאת מזומן וחשבונית');
+    await assertInScope('invoice', invoiceId, req.scope.companyIds);
+    await matchClosingExpenseToInvoice(expenseId, invoiceId, req.user, req.scope.companyIds);
+    return res.redirect(303, '/invoices');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, '/invoices?matcherr=' + encodeURIComponent(err.message));
+    }
+    next(err);
+  }
+});
+
+router.post('/unmatch-cash', async (req, res, next) => {
+  try {
+    await unmatchClosingExpense(Number(req.body.expense_id), req.user);
+    return res.redirect(303, '/invoices');
+  } catch (err) {
     next(err);
   }
 });

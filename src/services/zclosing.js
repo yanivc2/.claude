@@ -252,6 +252,44 @@ export async function recentClosingExpenses(scope = null, limit = 30, x = getExe
   );
 }
 
+/**
+ * Match a register-closing cash expense to an invoice → the invoice reads "שולם במזומן". Returns the
+ * expense's company_id so the caller can scope-check it. Idempotent per (expense).
+ */
+export async function matchClosingExpenseToInvoice(expenseId, invoiceId, actor, scopeCompanyIds = null, x = getExecutor()) {
+  const exp = await x.one(
+    `SELECT e.id, zc.store_id, st.company_id
+       FROM z_closing_expenses e JOIN z_closings zc ON zc.id = e.closing_id
+       LEFT JOIN stores st ON st.id = zc.store_id WHERE e.id = ?`,
+    [expenseId],
+  );
+  if (!exp) throw new NotFoundError(`הוצאת מזומן ${expenseId} לא נמצאה`);
+  // Scope-check the expense side BEFORE mutating (the invoice side is checked by the route).
+  if (scopeCompanyIds !== null && exp.company_id != null && !scopeCompanyIds.includes(Number(exp.company_id))) {
+    throw new RuleError('SCOPE', 'אין הרשאה להוצאה זו');
+  }
+  const inv = await x.one('SELECT id FROM invoices WHERE id = ?', [invoiceId]);
+  if (!inv) throw new NotFoundError(`חשבונית ${invoiceId} לא נמצאה`);
+  await x.run(
+    "UPDATE z_closing_expenses SET invoice_id = ?, description_type = 'invoice' WHERE id = ?",
+    [invoiceId, expenseId],
+  );
+  await logAction(
+    { userId: actor?.id ?? null, action: 'zclosing.match_cash', entityType: 'invoice', entityId: invoiceId, details: { expenseId } },
+    x,
+  );
+  return { companyId: exp.company_id == null ? null : Number(exp.company_id) };
+}
+
+/** Undo a cash-expense↔invoice match (back to a plain manual expense). */
+export async function unmatchClosingExpense(expenseId, actor, x = getExecutor()) {
+  await x.run(
+    "UPDATE z_closing_expenses SET invoice_id = NULL, description_type = 'manual' WHERE id = ?",
+    [expenseId],
+  );
+  await logAction({ userId: actor?.id ?? null, action: 'zclosing.unmatch_cash', entityType: 'z_closing_expense', entityId: expenseId }, x);
+}
+
 /** Edit an existing closing — recomputes all totals server-side, same validation as create. */
 export async function updateZClosing(id, input, actor, x = getExecutor()) {
   await getZClosing(id, x);

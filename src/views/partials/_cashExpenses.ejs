@@ -1,14 +1,17 @@
 <%
-  // Read-only "הוצאות מזומן" rubric — rows from recentClosingExpenses(). Columns match the entry
-  // table: סוג · תאריך · שם · פרטים · סכום. Required local: `rows`.
+  // "הוצאות מזומן" rubric — rows from recentClosingExpenses(). Columns: סוג · תאריך · שם · פרטים · סכום.
+  // Required local: `rows`. Optional: `matchable` (+ `matchInvoices`) adds a "התאמה" column that lets
+  // the user link an unmatched cash expense to an invoice → the invoice reads "שולם במזומן".
   var _cxKindLabel = { manual: 'ידני', salary: 'שכר', advance: 'מפרעה', invoice: 'תשלום חשבונית' };
+  var _matchable = (typeof matchable !== 'undefined' && matchable);
+  var _matchInvoices = (typeof matchInvoices !== 'undefined' && matchInvoices) ? matchInvoices : [];
 %>
 <div class="table-scroll">
   <table class="sortable">
-    <thead><tr><th>סוג</th><th>תאריך</th><th>שם</th><th>פרטים</th><th class="right">סכום</th></tr></thead>
+    <thead><tr><th>סוג</th><th>תאריך</th><th>שם</th><th>פרטים</th><th class="right">סכום</th><% if (_matchable) { %><th class="no-print" data-nosort>התאמה לחשבונית</th><% } %></tr></thead>
     <tbody>
       <% if (!rows || rows.length === 0) { %>
-        <tr><td colspan="5" class="muted">אין הוצאות מזומן עדיין.</td></tr>
+        <tr><td colspan="<%= _matchable ? 6 : 5 %>" class="muted">אין הוצאות מזומן עדיין.</td></tr>
       <% } %>
       <% (rows || []).forEach(function(e){ %>
         <tr>
@@ -37,6 +40,30 @@
             <% } %>
           </td>
           <td class="right"><%= formatIls(e.amount) %></td>
+          <% if (_matchable) { %>
+            <td class="no-print">
+              <% if (e.invoice_id) { %>
+                <span class="badge b-paid">מותאם ✓</span>
+                <form method="post" action="/invoices/unmatch-cash" style="display:inline">
+                  <input type="hidden" name="expense_id" value="<%= e.id %>" />
+                  <button type="submit" class="btn btn-secondary small" title="בטל התאמה">✕</button>
+                </form>
+              <% } else if (e.description_type === 'salary' || e.description_type === 'advance') { %>
+                <span class="muted" style="font-size:12px">—</span>
+              <% } else { %>
+                <form method="post" action="/invoices/match-cash" style="display:flex;gap:4px;align-items:center;margin:0">
+                  <input type="hidden" name="expense_id" value="<%= e.id %>" />
+                  <select name="invoice_id" class="js-combo" data-combo-ph="בחר חשבונית" required style="min-width:150px">
+                    <option value=""></option>
+                    <% _matchInvoices.forEach(function(iv){ %>
+                      <option value="<%= iv.id %>">#<%= iv.invoice_number %> · <%= iv.supplier_name %> · <%= formatIls(iv.total_amount) %></option>
+                    <% }); %>
+                  </select>
+                  <button type="submit" class="btn btn-secondary small">התאם</button>
+                </form>
+              <% } %>
+            </td>
+          <% } %>
         </tr>
       <% }); %>
     </tbody>
