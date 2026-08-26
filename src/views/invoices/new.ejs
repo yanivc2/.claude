@@ -53,8 +53,8 @@
         <input name="invoice_number" required value="<%= values.invoice_number || '' %>" />
       </div>
       <div>
-        <label>מספר הקצאה (9 ספרות, אם קיים)</label>
-        <input name="allocation_number" maxlength="9" pattern="\d{9}" value="<%= values.allocation_number || '' %>" />
+        <label>מספר הקצאה (6 ספרות אחרונות, אם קיים)</label>
+        <input name="allocation_number" maxlength="9" pattern="\d{6,}" inputmode="numeric" title="לפחות 6 ספרות" value="<%= values.allocation_number || '' %>" />
       </div>
       <div>
         <label>תאריך חשבונית *</label>

@@ -259,7 +259,7 @@ export async function reconcileR3Hold(id, x = getExecutor()) {
 export async function setAllocationNumber(id, allocationNumber, actor, x = getExecutor()) {
   const invoice = await getInvoice(id, x);
   const alloc = normalizeAllocation(allocationNumber);
-  if (!alloc) throw new RuleError('VALIDATION', 'מספר הקצאה חייב להיות 9 ספרות');
+  if (!alloc) throw new RuleError('VALIDATION', 'מספר הקצאה חייב להיות לפחות 6 ספרות');
 
   const clash = await x.one('SELECT id FROM invoices WHERE allocation_number = ? AND id <> ?', [alloc, id]);
   if (clash) {
@@ -460,8 +460,8 @@ function normalizeAllocation(value) {
   if (value === null || value === undefined) return null;
   const t = String(value).trim();
   if (t === '') return null;
-  if (!/^\d{9}$/.test(t)) {
-    throw new RuleError('VALIDATION', 'מספר הקצאה חייב להיות בדיוק 9 ספרות');
+  if (!/^\d{6,}$/.test(t)) {
+    throw new RuleError('VALIDATION', 'מספר הקצאה חייב להיות לפחות 6 ספרות');
   }
   return t;
 }

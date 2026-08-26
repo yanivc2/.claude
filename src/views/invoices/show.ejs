@@ -135,8 +135,8 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 
         <% if (requiresAllocation) { %>
           <form method="post" action="/invoices/<%= invoice.id %>/allocation" style="padding:8px 12px">
-            <label class="lbl" style="color:var(--color-bad)">נדרש מספר הקצאה (9 ספרות)</label>
-            <input name="allocation_number" maxlength="9" pattern="\d{9}" placeholder="9 ספרות" required />
+            <label class="lbl" style="color:var(--color-bad)">נדרש מספר הקצאה (6 ספרות אחרונות)</label>
+            <input name="allocation_number" maxlength="9" pattern="\d{6,}" inputmode="numeric" placeholder="6 ספרות אחרונות" title="לפחות 6 ספרות" required />
             <button class="btn btn-secondary btn-sm btn-block" type="submit" style="margin-top:6px">שמור הקצאה</button>
           </form>
           <div class="menu-sep"></div>
@@ -329,7 +329,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
     <p class="text-muted" style="font-size:13px">לחץ על שדה כדי לתקן אותו, ואז "אישור" כדי להחיל על החשבונית.</p>
     <form method="post" action="/invoices/<%= invoice.id %>/ocr/apply">
       <div class="row">
-        <div class="field"><label>מספר הקצאה<% if (ex.allocationNumber) { %> · OCR זיהה <span class="mono"><%= ex.allocationNumber %></span><% } %></label><input name="allocation_number" maxlength="9" pattern="\d{9}" value="<%= ex.allocationNumber || invoice.allocation_number || '' %>" /></div>
+        <div class="field"><label>מספר הקצאה<% if (ex.allocationNumber) { %> · OCR זיהה <span class="mono"><%= ex.allocationNumber %></span><% } %></label><input name="allocation_number" maxlength="9" pattern="\d{6,}" inputmode="numeric" title="לפחות 6 ספרות" value="<%= ex.allocationNumber || invoice.allocation_number || '' %>" /></div>
         <div class="field"><label>תאריך</label><input name="invoice_date" type="date" value="<%= invoice.invoice_date %>" /></div>
       </div>
       <div class="row">
