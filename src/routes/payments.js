@@ -165,11 +165,27 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-// Edit a payment's method / identifier / date (amount + linked invoices unchanged).
+// Edit a payment's method / identifier / date, and (for an issued, not-bank-matched payment)
+// re-target which invoices it applies to — e.g. add a credit note so the net = the real check.
+async function retargetData(payment) {
+  if (payment.status !== 'issued' || !payment.lines.length) return { canRetarget: false, candidates: [] };
+  const x = getExecutor();
+  const matched = await x.one('SELECT 1 AS m FROM bank_transactions WHERE matched_payment_id = ? LIMIT 1', [payment.id]);
+  if (matched) return { canRetarget: false, candidates: [] };
+  const anyInv = await x.one('SELECT supplier_id, store_id FROM invoices WHERE id = ?', [payment.lines[0].invoice_id]);
+  if (!anyInv) return { canRetarget: false, candidates: [] };
+  const appliedIds = new Set(payment.lines.map((l) => l.invoice_id));
+  const applied = payment.lines.map((l) => ({ id: l.invoice_id, invoice_number: l.invoice_number, doc_type: l.doc_type, invoice_date: l.invoice_date, total_amount: l.amount_applied, applied: true }));
+  const open = (await listPayable())
+    .filter((i) => i.supplier_id === anyInv.supplier_id && i.store_id === anyInv.store_id && !appliedIds.has(i.id))
+    .map((i) => ({ id: i.id, invoice_number: i.invoice_number, doc_type: i.doc_type, invoice_date: i.invoice_date, total_amount: i.total_amount, applied: false }));
+  return { canRetarget: true, candidates: [...applied, ...open] };
+}
+
 router.get('/:id/edit', requirePermission('approve_payment'), async (req, res, next) => {
   try {
     const payment = await getPaymentDetail(Number(req.params.id));
-    res.render('payments/edit', { title: `עריכת תשלום #${payment.id}`, payment, error: null });
+    res.render('payments/edit', { title: `עריכת תשלום #${payment.id}`, payment, ...(await retargetData(payment)), error: null });
   } catch (err) {
     next(err);
   }
@@ -179,6 +195,7 @@ router.post('/:id/edit', requirePermission('approve_payment'), async (req, res, 
   const id = Number(req.params.id);
   try {
     const b = req.body;
+    const invoiceIds = [].concat(b.invoice_ids || []).map(Number).filter(Boolean);
     await updatePayment(id, {
       method: b.method,
       checkNumber: b.check_number,
@@ -187,12 +204,13 @@ router.post('/:id/edit', requirePermission('approve_payment'), async (req, res, 
       cardLast4: b.card_last4,
       batchNumber: b.batch_number,
       paymentDate: b.payment_date,
+      invoiceIds,
     }, req.user);
     res.redirect(303, `/payments/${id}`);
   } catch (err) {
     if (err instanceof RuleError) {
       const payment = await getPaymentDetail(id);
-      return res.status(400).render('payments/edit', { title: `עריכת תשלום #${id}`, payment, error: err.message });
+      return res.status(400).render('payments/edit', { title: `עריכת תשלום #${id}`, payment, ...(await retargetData(payment)), error: err.message });
     }
     next(err);
   }

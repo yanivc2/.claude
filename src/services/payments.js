@@ -100,6 +100,15 @@ export async function createPayment(input, actor, x = getExecutor()) {
   const account = await x.one('SELECT * FROM bank_accounts WHERE id = ?', [bankAccountId]);
   if (!account) throw new NotFoundError(`חשבון בנק ${bankAccountId} לא נמצא`);
 
+  // Friendly guard for a duplicate check number (a voided check released its number, so it's free).
+  if (fields.check_number) {
+    const dup = await x.one(
+      "SELECT id FROM payments WHERE bank_account_id = ? AND check_number = ? AND status <> 'voided'",
+      [account.id, fields.check_number],
+    );
+    if (dup) throw new RuleError('CHECK', `מספר צ׳ק ${fields.check_number} כבר קיים בחשבון זה (תשלום #${dup.id}). אם זה תיקון — בטל את הצ׳ק הקודם ואז אפשר להשתמש שוב באותו מספר.`);
+  }
+
   // Collected for the "paid earlier than terms" Telegram alert, evaluated after commit.
   const termsRows = [];
 
@@ -247,17 +256,69 @@ export async function updatePayment(id, input, actor, x = getExecutor()) {
   if (!paymentDate) throw new RuleError('VALIDATION', 'תאריך תשלום חובה');
   const fields = methodIdentifierFields({ ...input, method });
 
-  // Check number stays unique within the bank account (excluding this same payment).
+  // Check number stays unique within the bank account — among LIVE payments only (a voided check
+  // released its number), and excluding this same payment.
   if (fields.check_number) {
-    const dup = await x.one('SELECT id FROM payments WHERE bank_account_id = ? AND check_number = ? AND id <> ?', [existing.bank_account_id, fields.check_number, id]);
+    const dup = await x.one(
+      "SELECT id FROM payments WHERE bank_account_id = ? AND check_number = ? AND status <> 'voided' AND id <> ?",
+      [existing.bank_account_id, fields.check_number, id],
+    );
     if (dup) throw new RuleError('VALIDATION', `מספר צ׳ק ${fields.check_number} כבר קיים בחשבון זה`);
   }
 
-  await x.run(
-    `UPDATE payments SET method = ?, check_number = ?, reference = ?, payer_name = ?, card_last4 = ?, batch_number = ?, payment_date = ? WHERE id = ?`,
-    [method, fields.check_number, fields.reference, fields.payer_name, fields.card_last4, fields.batch_number, paymentDate, id],
-  );
-  await logAction({ userId: actor?.id ?? null, action: 'payment.update', entityType: 'payment', entityId: id, details: { method, ...fields, paymentDate } }, x);
+  // Optional: re-target the invoices this payment applies to (e.g. add a credit note so the net
+  // becomes the real check amount). Allowed only for an issued, not-bank-matched payment. The
+  // amount is recomputed from the selected invoices (R5) — never edited to an arbitrary value.
+  const retarget = Array.isArray(input.invoiceIds) && input.invoiceIds.length > 0;
+
+  await tx(async (t) => {
+    if (retarget) {
+      if (existing.status !== 'issued') throw new RuleError('VALIDATION', 'שינוי החשבוניות המשויכות אפשרי רק לתשלום שהונפק (לא נפרע/מבוטל)');
+      const matched = await t.one('SELECT 1 AS m FROM bank_transactions WHERE matched_payment_id = ? LIMIT 1', [id]);
+      if (matched) throw new RuleError('VALIDATION', 'התשלום מותאם לתנועת בנק — בטל את ההתאמה לפני שינוי החשבוניות');
+
+      const curIds = new Set((await t.many('SELECT invoice_id FROM payment_lines WHERE payment_id = ?', [id])).map((r) => Number(r.invoice_id)));
+      const newIds = [...new Set(input.invoiceIds.map(Number).filter(Boolean))];
+      let net = 0;
+      const lines = [];
+      for (const invId of newIds) {
+        const inv = await t.one(
+          `SELECT i.*, s.status AS supplier_status, s.name AS supplier_name, ba.id AS store_bank_account_id
+             FROM invoices i JOIN suppliers s ON s.id = i.supplier_id JOIN bank_accounts ba ON ba.store_id = i.store_id
+            WHERE i.id = ?`,
+          [invId],
+        );
+        if (!inv) throw new NotFoundError(`חשבונית ${invId} לא נמצאה`);
+        const okStatus = ['recorded', 'approved_for_payment'].includes(inv.status) || (inv.status === 'paid' && curIds.has(invId));
+        if (!okStatus) throw new RuleError('R1', `חשבונית #${inv.id}: סטטוס "${inv.status}" — לא ניתן לשייך לתשלום`, { invoiceId: inv.id });
+        if (inv.supplier_status !== 'approved') throw new RuleError('R1', `הספק "${inv.supplier_name}" אינו מאושר — תשלום חסום`, { invoiceId: inv.id });
+        if (inv.store_bank_account_id !== existing.bank_account_id) throw new RuleError('ACCOUNT', `חשבונית #${inv.id} משויכת לחשבון בנק אחר`, { invoiceId: inv.id });
+        net += inv.total_amount;
+        lines.push({ invoiceId: inv.id, amountApplied: inv.total_amount });
+      }
+      if (net <= 0) throw new RuleError('R5', `נטו לתשלום הוא ${net / 100} ₪ — לא ניתן לתשלום בסכום אפס או שלילי`);
+      if (method === 'cash' && config.cashCeilingAgorot > 0 && net > config.cashCeilingAgorot) {
+        throw new RuleError('CASH_LIMIT', `תשלום במזומן מוגבל ל-${config.cashCeilingAgorot / 100} ₪ לפי חוק צמצום השימוש במזומן.`);
+      }
+      // Invoices dropped from this payment revert to unpaid ('recorded'); kept/added become 'paid'.
+      for (const oldId of curIds) if (!newIds.includes(oldId)) await t.run("UPDATE invoices SET status = 'recorded' WHERE id = ?", [oldId]);
+      await t.run('DELETE FROM payment_lines WHERE payment_id = ?', [id]);
+      for (const l of lines) {
+        await t.run('INSERT INTO payment_lines (payment_id, invoice_id, amount_applied) VALUES (?, ?, ?)', [id, l.invoiceId, l.amountApplied]);
+        await t.run("UPDATE invoices SET status = 'paid', bank_account_id = ? WHERE id = ?", [existing.bank_account_id, l.invoiceId]);
+      }
+      await t.run(
+        `UPDATE payments SET method = ?, check_number = ?, reference = ?, payer_name = ?, card_last4 = ?, batch_number = ?, payment_date = ?, amount = ? WHERE id = ?`,
+        [method, fields.check_number, fields.reference, fields.payer_name, fields.card_last4, fields.batch_number, paymentDate, net, id],
+      );
+    } else {
+      await t.run(
+        `UPDATE payments SET method = ?, check_number = ?, reference = ?, payer_name = ?, card_last4 = ?, batch_number = ?, payment_date = ? WHERE id = ?`,
+        [method, fields.check_number, fields.reference, fields.payer_name, fields.card_last4, fields.batch_number, paymentDate, id],
+      );
+    }
+  });
+  await logAction({ userId: actor?.id ?? null, action: 'payment.update', entityType: 'payment', entityId: id, details: { method, ...fields, paymentDate, retarget } }, x);
   return getPaymentDetail(id, x);
 }
 

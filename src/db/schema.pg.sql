@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
-  ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL;
+  ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL AND status <> 'voided';
 
 -- payment_lines -----------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS payment_lines (
@@ -474,3 +474,9 @@ CREATE INDEX IF NOT EXISTS ix_z_closing_expenses_invoice ON z_closing_expenses(i
 ALTER TABLE z_closings ADD COLUMN IF NOT EXISTS employee_id INTEGER REFERENCES employees(id);
 -- Per-register cash balancing (JSON) counted before the Z.
 ALTER TABLE z_closings ADD COLUMN IF NOT EXISTS registers TEXT;
+
+-- A voided check must release its number so a corrected check can reuse it. Rebuild the unique
+-- index to exclude voided payments (the old index blocked reissuing a voided check's number).
+DROP INDEX IF EXISTS ux_payments_account_check;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
+  ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL AND status <> 'voided';

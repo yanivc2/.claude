@@ -15,7 +15,9 @@
   <p class="muted" style="margin:.6rem 0 0">שיוך לחשבוניות:
     <% payment.lines.forEach(function(l, i){ %><%= i ? ' · ' : ' ' %><a href="/invoices/<%= l.invoice_id %>"><%= l.invoice_number %></a> (<%= l.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %>)<% }); %>
   </p>
-  <p class="muted" style="margin:.3rem 0 0">הסכום והשיוך לחשבוניות אינם משתנים כאן. לשינוי החשבוניות — בטל את התשלום וצור חדש.</p>
+  <% if (!(typeof canRetarget !== 'undefined' && canRetarget)) { %>
+    <p class="muted" style="margin:.3rem 0 0">הסכום נגזר מהחשבוניות המשויכות. לשינוי החשבוניות/סכום — התשלום צריך להיות "הונפק" וללא התאמת בנק (בטל התאמה/פירעון קודם, או בטל וצור מחדש).</p>
+  <% } %>
 </div>
 
 <div class="card">
@@ -43,6 +45,28 @@
       </div>
     </div>
 
+    <% if (typeof canRetarget !== 'undefined' && canRetarget && candidates && candidates.length) { %>
+      <h3 style="margin:1rem 0 .2rem">חשבוניות משויכות לתשלום</h3>
+      <p class="muted" style="margin:0 0 .4rem">סמן את החשבוניות והזיכויים שהתשלום מכסה. <strong>סכום הצ׳ק יחושב אוטומטית</strong> כנטו של המסומנות (זיכוי מקזז). כך מצרפים זיכוי לצ׳ק קיים והסכום מתעדכן לסכום האמיתי.</p>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th data-nosort></th><th>מס'</th><th>תאריך</th><th>סוג</th><th class="right">סכום</th></tr></thead>
+          <tbody>
+            <% candidates.forEach(function(c){ %>
+              <tr>
+                <td><input type="checkbox" class="rt-check" name="invoice_ids" value="<%= c.id %>" data-amt="<%= c.total_amount %>" <%= c.applied ? 'checked' : '' %> style="width:auto;min-height:0" /></td>
+                <td class="mono"><a href="/invoices/<%= c.id %>"><%= c.invoice_number %></a></td>
+                <td><%= formatDate(c.invoice_date) %></td>
+                <td><%= c.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
+                <td class="right <%= c.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(c.total_amount) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+          <tfoot><tr><td colspan="4" class="right"><strong>נטו לצ׳ק (מסומנות)</strong></td><td class="right"><strong id="rtNet">₪0.00</strong></td></tr></tfoot>
+        </table>
+      </div>
+    <% } %>
+
     <div style="margin-top:.6rem"><button type="submit">💾 שמור שינויים</button></div>
   </form>
 </div>
@@ -64,6 +88,14 @@
     }
     sel.addEventListener('change', upd);
     upd();
+  })();
+  (function(){
+    var checks = Array.prototype.slice.call(document.querySelectorAll('.rt-check'));
+    var net = document.getElementById('rtNet'); if (!checks.length || !net) return;
+    function fmt(ag){ var s = ag<0?'-':''; ag=Math.abs(ag); return '₪'+s+(Math.floor(ag/100)).toLocaleString('en-US')+'.'+String(ag%100).padStart(2,'0'); }
+    function recalc(){ var sum=0; checks.forEach(function(c){ if(c.checked) sum+=parseInt(c.dataset.amt,10)||0; }); net.textContent = fmt(sum); }
+    checks.forEach(function(c){ c.addEventListener('change', recalc); });
+    recalc();
   })();
 </script>
 <%- include('../partials/footer') %>

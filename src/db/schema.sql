@@ -184,9 +184,10 @@ CREATE TABLE IF NOT EXISTS payments (
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
--- A check number is unique within a bank account (checks only).
+-- A check number is unique within a bank account (checks only, and only among LIVE payments —
+-- a voided check releases its number so a corrected one can be re-issued with the same number).
 CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
-  ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL;
+  ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL AND status <> 'voided';
 
 -- §4 payment_lines (check <-> invoices/credit notes) ----------------------------
 CREATE TABLE IF NOT EXISTS payment_lines (

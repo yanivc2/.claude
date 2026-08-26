@@ -20,6 +20,20 @@ export function migrate(db) {
   migrateSupplierStores(db);
   migrateStandingOrder(db);
   migrateDraftSupplier(db);
+  migrateCheckNumberReuse(db);
+}
+
+// A voided check must release its number so a corrected check can be re-issued with the same
+// number. The original unique index covered voided payments too, blocking reuse — rebuild it to
+// exclude status='voided'. Idempotent: drops and recreates on every boot.
+function migrateCheckNumberReuse(db) {
+  const hasTable = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='payments'").get();
+  if (!hasTable) return;
+  db.exec('DROP INDEX IF EXISTS ux_payments_account_check;');
+  db.exec(
+    `CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
+       ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL AND status <> 'voided';`,
+  );
 }
 
 // invoice_drafts.supplier_id — the supplier chosen on the capture screen before the shot, so its
@@ -69,7 +83,7 @@ function migrateStandingOrder(db) {
     db.exec('DROP TABLE payments;');
     db.exec('ALTER TABLE payments_new RENAME TO payments;');
     db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
-               ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL;`);
+               ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL AND status <> 'voided';`);
   });
   run();
   db.pragma('foreign_keys = ON');
@@ -295,7 +309,7 @@ function migratePaymentsMethods(db) {
     db.exec('ALTER TABLE payments_new RENAME TO payments;');
     db.exec(
       `CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
-         ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL;`,
+         ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL AND status <> 'voided';`,
     );
   });
   run();
