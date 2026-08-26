@@ -22,7 +22,7 @@ import { requireOwner, requirePermission } from '../middleware/requireOwner.js';
 import { PERMISSIONS, ROLE_PRESETS } from '../lib/permissions.js';
 import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { verifyPassword, generatePassword } from '../lib/auth.js';
-import { exportAll, resetTransactionalData, restoreAll } from '../services/backup.js';
+import { exportAll, resetTransactionalData, restoreAll, cleanStartInvoicesPaymentsZ } from '../services/backup.js';
 import { storageSelfTest } from '../lib/storage.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
 import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFile.js';
@@ -456,6 +456,22 @@ router.post('/reset-data', requireOwner, async (req, res, next) => {
   }
 });
 
+// "Clean start" (owner-only): wipe invoices, payments, and Z reports (+ scan drafts) but KEEP the
+// register closings, suppliers, catalog, employees, bank imports and setup. Owner-password guarded.
+router.post('/clean-start', requireOwner, async (req, res, next) => {
+  try {
+    if (!(await ownerPasswordOk(req))) {
+      return render(req, res, { error: 'הפעולה לא בוצעה — סיסמת הבעלים שגויה.' });
+    }
+    const { counts, deletedImages } = await cleanStartInvoicesPaymentsZ(req.user);
+    await render(req, res, {
+      notice: `נמחקו ${counts.invoices} חשבוניות, ${counts.payments} תשלומים, ${counts.zReports} דוחות Z ו-${counts.drafts} טיוטות סריקה (${deletedImages} תמונות). סגירות ה-Z, הספקים, הקטלוג והעובדים נשמרו.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Restore from a backup JSON (owner-only). REPLACES all data with the file's snapshot,
 // atomically. Guarded by a typed confirmation because it overwrites everything.
 const backupUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1 } }).single('backup');
@@ -611,7 +627,7 @@ router.post('/storage-test', requireOwner, async (req, res, next) => {
 // A GET on any action path (a reload of an old POST URL, a bookmark) is not a 404 — it is
 // someone who is already where they meant to be.
 router.get(
-  ['/db-upgrade', '/catalog-import', '/storage-test', '/restore', '/reset-data', '/password', '/users', '/companies', '/stores'],
+  ['/db-upgrade', '/catalog-import', '/storage-test', '/restore', '/reset-data', '/clean-start', '/password', '/users', '/companies', '/stores'],
   (req, res) => res.redirect(303, '/settings'),
 );
 

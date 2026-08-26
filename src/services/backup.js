@@ -107,6 +107,62 @@ export async function resetTransactionalData({ alsoSuppliers = false } = {}, act
 }
 
 /**
+ * Targeted "clean start": wipe every invoice, payment, and Z report (+ their children and, per the
+ * owner's request, scan drafts/OCR) so the books can be reopened empty — while KEEPING the register
+ * closings (z_closings/z_closing_expenses), suppliers, the product catalog, employees, bank imports,
+ * deposits, daily-sales totals, and all business setup.
+ *
+ * References from KEPT tables into the deleted rows are nulled first (kept row survives, dead link
+ * dropped): z_closing_expenses.invoice_id, product_prices.invoice_id, bank_transactions.matched_
+ * payment_id, deposits.z_report_id. Then rows are deleted child-before-parent (FK-safe): scan drafts,
+ * then z_reports (cascades z_expenses), then payments (cascades payment_lines), then invoices
+ * (cascades invoice_lines + invoice_ocr).
+ * @returns {{counts:{invoices:number,payments:number,zReports:number,drafts:number}, deletedImages:number}}
+ */
+export async function cleanStartInvoicesPaymentsZ(actor, x = getExecutor()) {
+  // Counts for the confirmation message (before anything is removed).
+  const countOf = async (t) => Number((await x.one(`SELECT COUNT(*) AS n FROM ${t}`, [])).n) || 0;
+  const counts = {
+    invoices: await countOf('invoices'),
+    payments: await countOf('payments'),
+    zReports: await countOf('z_reports'),
+    drafts: await countOf('invoice_drafts'),
+  };
+
+  // Collect blob refs to clean up afterwards: invoice photos, Z cash-expense photos, draft pages.
+  const imgs = [
+    ...(await x.many("SELECT image_path FROM invoices WHERE image_path IS NOT NULL", [])),
+    ...(await x.many("SELECT image_path FROM z_expenses WHERE image_path IS NOT NULL", [])),
+  ].map((r) => r.image_path).filter(Boolean);
+  for (const row of await x.many("SELECT images FROM invoice_drafts WHERE images IS NOT NULL", [])) {
+    try { const refs = JSON.parse(row.images); if (Array.isArray(refs)) imgs.push(...refs.filter(Boolean)); }
+    catch { /* draft with malformed images — skip (at worst an orphan blob remains) */ }
+  }
+
+  await tx(async (t) => {
+    // 1) Null links FROM kept tables INTO rows we are about to delete (keep the row, drop the link).
+    await t.run('UPDATE bank_transactions SET matched_payment_id = NULL WHERE matched_payment_id IS NOT NULL', []);
+    await t.run('UPDATE product_prices SET invoice_id = NULL WHERE invoice_id IS NOT NULL', []);
+    await t.run('UPDATE z_closing_expenses SET invoice_id = NULL WHERE invoice_id IS NOT NULL', []);
+    await t.run('UPDATE deposits SET z_report_id = NULL WHERE z_report_id IS NOT NULL', []);
+    // 2) Delete child-before-parent (cascades handle invoice_lines/invoice_ocr/payment_lines/z_expenses).
+    await t.run('DELETE FROM invoice_drafts', []);
+    await t.run('DELETE FROM z_reports', []);
+    await t.run('DELETE FROM payments', []);
+    await t.run('DELETE FROM invoices', []);
+  });
+
+  let deletedImages = 0;
+  for (const ref of imgs) { await delStored(ref); deletedImages += 1; }
+
+  await logAction(
+    { userId: actor?.id ?? null, action: 'data.clean_start', entityType: 'system', entityId: null, details: { ...counts, deletedImages } },
+    x,
+  );
+  return { counts, deletedImages };
+}
+
+/**
  * Restore a full backup produced by exportAll(). Replaces ALL data with the snapshot's rows,
  * atomically (wipe + insert in one transaction — a malformed file rolls back and leaves the
  * live data untouched). After commit, Postgres identity sequences are reseeded so new inserts

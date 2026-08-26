@@ -73,6 +73,23 @@
   </div>
 </dialog>
 
+<dialog id="dlg-clean" class="ndialog" onclick="event.stopPropagation()">
+  <form method="post" action="/settings/clean-start" class="stack" onsubmit="return confirm('להתחיל נקי? כל החשבוניות, התשלומים, דוחות ה-Z והטיוטות יימחקו לצמיתות. סגירות ה-Z, הספקים, הקטלוג והעובדים יישמרו. פעולה בלתי הפיכה.')">
+    <h3 style="margin:0;color:var(--color-bad)">התחלה נקייה — חשבוניות / תשלומים / Z</h3>
+    <p class="muted" style="margin:.2rem 0">
+      מוחק לצמיתות את כל <strong>החשבוניות</strong>, כל <strong>התשלומים</strong> (צ׳קים, העברות וכל השאר), כל <strong>דוחות ה-Z</strong> ואת <strong>טיוטות הסריקה</strong> (כולל צילומי החשבוניות).
+      <br><strong>נשמרים:</strong> סגירות ה-Z (איזון קופות), ספקים, קטלוג המוצרים, עובדים, תנועות בנק, הפקדות, חברות/חנויות/משתמשים. הפקדות ומחירים רק מנותקים מהחשבוניות/ה-Z שנמחקו.
+      <br>⚠️ פעולה בלתי הפיכה. אם תרצה גיבוי — סגור והורד "גיבוי מלא" קודם.
+    </p>
+    <label class="lbl" style="margin-top:.2rem">סיסמת הבעלים</label>
+    <input type="password" name="password" required autocomplete="current-password" placeholder="הסיסמה שלך" style="max-width:260px" />
+    <div class="actions" style="justify-content:flex-end;margin-top:.4rem">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
+      <button class="danger" type="submit">מחק והתחל נקי</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="dlg-reset" class="ndialog" onclick="event.stopPropagation()">
   <form method="post" action="/settings/reset-data" class="stack" onsubmit="return apReset(event)">
     <h3 style="margin:0;color:var(--color-bad)">אזור מסוכן — התחל מחדש</h3>
