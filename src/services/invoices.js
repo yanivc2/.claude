@@ -435,7 +435,52 @@ export async function listInvoices(
   if (to) { sql += ' AND i.invoice_date <= ?'; params.push(to); }
   sql += sc.sql; params.push(...sc.params);
   sql += ' ORDER BY i.id DESC';
-  return x.many(sql, params);
+  const rows = await x.many(sql, params);
+  return enrichPaidStatus(rows, x);
+}
+
+/**
+ * Attach paid-status fields to invoice rows for the "שולם" column — done in JS (not one big JOIN)
+ * because pg-mem can't join on aggregated derived tables. For each invoice:
+ *  • pay_* — its latest non-voided payment applied via payment_lines (method + identifier);
+ *  • cash_matches — how many cash expenses (z_closing_expenses + z_expenses) are matched to it.
+ */
+async function enrichPaidStatus(rows, x = getExecutor()) {
+  if (!rows.length) return rows;
+  const ids = rows.map((r) => r.id);
+  const ph = ids.map(() => '?').join(',');
+  const payments = await x.many(
+    `SELECT pl.invoice_id, p.id AS pid, p.method, p.check_number, p.reference,
+            p.batch_number, p.card_last4, p.payer_name, p.status
+       FROM payment_lines pl JOIN payments p ON p.id = pl.payment_id
+      WHERE p.status <> 'voided' AND pl.invoice_id IN (${ph})`,
+    ids,
+  );
+  // Keep the latest (highest pid) payment per invoice.
+  const payByInv = new Map();
+  for (const p of payments) {
+    const prev = payByInv.get(p.invoice_id);
+    if (!prev || Number(p.pid) > Number(prev.pid)) payByInv.set(p.invoice_id, p);
+  }
+  const countInto = async (table, map) => {
+    const cnt = await x.many(`SELECT invoice_id, COUNT(*) AS n FROM ${table} WHERE invoice_id IN (${ph}) GROUP BY invoice_id`, ids);
+    for (const c of cnt) map.set(c.invoice_id, (map.get(c.invoice_id) || 0) + Number(c.n));
+  };
+  const cashByInv = new Map();
+  await countInto('z_closing_expenses', cashByInv);
+  await countInto('z_expenses', cashByInv);
+  for (const r of rows) {
+    const p = payByInv.get(r.id);
+    r.pay_method = p ? p.method : null;
+    r.pay_check_number = p ? p.check_number : null;
+    r.pay_reference = p ? p.reference : null;
+    r.pay_batch_number = p ? p.batch_number : null;
+    r.pay_card_last4 = p ? p.card_last4 : null;
+    r.pay_payer_name = p ? p.payer_name : null;
+    r.pay_status = p ? p.status : null;
+    r.cash_matches = cashByInv.get(r.id) || 0;
+  }
+  return rows;
 }
 
 /**

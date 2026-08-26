@@ -73,14 +73,30 @@
 <div class="table-scroll">
 <table class="sortable">
   <thead>
-    <tr><th>מספר חשבונית</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th></tr>
+    <tr><th>מספר חשבונית</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th><th>שולם</th></tr>
   </thead>
   <tbody>
     <% if (invoices.length === 0) { %>
-      <tr><td colspan="5" class="muted">אין חשבוניות להצגה.</td></tr>
+      <tr><td colspan="6" class="muted">אין חשבוניות להצגה.</td></tr>
     <% } %>
     <% invoices.forEach(function(i){ %>
-      <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= i.status === 'on_hold' ? 'row-hold' : '' %>">
+      <%
+        // "שולם" cell: a real payment → its method+identifier; a matched Z cash expense →
+        // "שולם במזומן"; a cash payment with NO Z match → flagged (light-red row).
+        var paid = { label: 'לא שולם', cls: 'b-neutral' };
+        if (i.pay_method) {
+          paid = { label: paymentIdent({ method: i.pay_method, check_number: i.pay_check_number,
+            reference: i.pay_reference, batch_number: i.pay_batch_number, card_last4: i.pay_card_last4,
+            payer_name: i.pay_payer_name }), cls: 'b-paid' };
+        } else if (i.cash_matches > 0) {
+          paid = { label: 'שולם במזומן', cls: 'b-paid' };
+        } else if (i.status === 'paid') {
+          paid = { label: 'שולם', cls: 'b-paid' };
+        }
+        var unmatchedCash = (i.pay_method === 'cash' && !(i.cash_matches > 0));
+        var rowCls = i.status === 'on_hold' ? 'row-hold' : (unmatchedCash ? 'row-unmatched-cash' : '');
+      %>
+      <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= rowCls %>">
         <td class="mono"><%= i.invoice_number %></td>
         <td><%= i.store_name %></td>
         <td><%= formatDate(i.invoice_date) %></td>
@@ -90,6 +106,7 @@
             <span class="badge b-<%= i.supplier_status %>">ספק <%= i.supplier_status === 'pending' ? 'ממתין' : 'חסום' %></span>
           <% } %>
         </td>
+        <td><span class="badge <%= paid.cls %>"><%= paid.label %></span><% if (unmatchedCash) { %> <span class="muted" style="font-size:11px">ללא התאמה</span><% } %></td>
       </tr>
     <% }); %>
   </tbody>

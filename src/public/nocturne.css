@@ -486,6 +486,9 @@ input.input-hl-yellow:hover:not(:focus-visible) { border-color: #ffdd33; }
 /* an on-hold invoice (missing allocation number) is flagged red across its row */
 tr.row-hold td { background: color-mix(in srgb, var(--color-bad) 10%, transparent); }
 tr.row-hold:hover td { background: color-mix(in srgb, var(--color-bad) 16%, transparent); }
+/* cash-paid invoice not matched to a Z cash-expense — light red per the matching rule */
+tr.row-unmatched-cash td { background: color-mix(in srgb, var(--color-bad) 12%, transparent); }
+tr.row-unmatched-cash:hover td { background: color-mix(in srgb, var(--color-bad) 18%, transparent); }
 
 /* alerts */
 .alert { border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }
