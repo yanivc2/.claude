@@ -17,3 +17,6 @@ uploads/
 # logs / os
 *.log
 .DS_Store
+
+# scratchpad for one-off verification scripts (never committed)
+scratchpad/
