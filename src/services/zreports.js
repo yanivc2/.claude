@@ -244,19 +244,35 @@ export async function listExpenses(zReportId, x = getExecutor()) {
  * Only real lines (a positive amount) are surfaced. Scoped to the caller's companies.
  */
 export async function unmatchedCashExpenses(scope = null, limit = 30, x = getExecutor()) {
-  const sc = scopeClause(scope, 'st.company_id');
-  // Salary/advance lines are tracked on the employees page, not here — this cube is for cash
-  // payments that may still need matching to an invoice.
+  // Cash expenses live in TWO subsystems and both must surface here:
+  //   • z_expenses      — the older "דוח Z" flow  (z_reports)
+  //   • z_closing_expenses — the "סגירת Z" register-closing flow (z_closings)
+  // The register-closer enters cash expenses in "סגירת Z", so those land in z_closing_expenses; a
+  // dashboard that read only z_expenses showed nothing. UNION both, keeping only real cash lines
+  // (positive, not yet matched to an invoice, not salary/advance — those are payroll, tracked on
+  // the employees page). `source` tells the view which detail page to link to.
+  const scR = scopeClause(scope, 'st.company_id'); // z_reports side
+  const scC = scopeClause(scope, 'st.company_id'); // z_closings side
   return x.many(
-    `SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount,
-            z.id AS z_report_id, z.z_number, z.z_date, st.name AS store_name
-       FROM z_expenses e
-       JOIN z_reports z ON z.id = e.z_report_id
-       JOIN stores st ON st.id = z.store_id
-      WHERE e.invoice_id IS NULL AND e.amount > 0
-        AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${sc.sql}
-      ORDER BY e.expense_date DESC, e.id DESC LIMIT ?`,
-    [...sc.params, limit],
+    `SELECT * FROM (
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount,
+              z.z_number, 'zreport' AS source, z.id AS ref_id
+         FROM z_expenses e
+         JOIN z_reports z ON z.id = e.z_report_id
+         JOIN stores st ON st.id = z.store_id
+        WHERE e.invoice_id IS NULL AND e.amount > 0
+          AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scR.sql}
+       UNION ALL
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount,
+              zc.z_number, 'zclosing' AS source, zc.id AS ref_id
+         FROM z_closing_expenses e
+         JOIN z_closings zc ON zc.id = e.closing_id
+         JOIN stores st ON st.id = zc.store_id
+        WHERE e.invoice_id IS NULL AND e.amount > 0
+          AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scC.sql}
+     ) u
+     ORDER BY u.expense_date DESC, u.id DESC LIMIT ?`,
+    [...scR.params, ...scC.params, limit],
   );
 }
 

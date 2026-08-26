@@ -5,6 +5,7 @@ import {
   createZReport, updateZReport, getZReport, replaceExpenses, listExpenses,
   unmatchedCashExpenses, zSequenceStatus,
 } from '../src/services/zreports.js';
+import { createZClosing } from '../src/services/zclosing.js';
 import { createDeposit, listDeposits, upsertDepositForZ, depositForZ } from '../src/services/deposits.js';
 import { reconcileDeposits } from '../src/services/reconciliation.js';
 import { importTransactions } from '../src/services/bankTransactions.js';
@@ -51,8 +52,32 @@ test('cash expense can be matched to an invoice; unmatched ones surface for the 
   const un = await unmatchedCashExpenses(null, 30, db);
   assert.equal(un.length, 1);
   assert.equal(un[0].payer_name, 'רני');
-  assert.equal(un[0].z_report_id, z.id);
+  assert.equal(un[0].source, 'zreport');
+  assert.equal(un[0].ref_id, z.id);
   assert.equal(un[0].z_number, '300');
+});
+
+test('register-closing (סגירת Z) cash expenses also surface as unmatched on the dashboard', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  const inv = await anInvoice(db, store, 'INV-C');
+  const closingId = await createZClosing({
+    employeeFirst: 'רון', employeeLast: 'לוי', storeId: store.id, zNumber: '2162',
+    drawerCash: 0, counts: { 200: 1 },
+    expenses: [
+      { kind: 'manual', payerName: 'תיו', purpose: 'ציוד משרדי', amount: 9000 },         // unmatched → surfaces
+      { kind: 'invoice', payerName: 'טרטאה', amount: 97900, invoiceId: inv.id },          // matched → hidden
+      { kind: 'salary', payerName: 'עובד', amount: 500 },                                 // payroll → hidden
+    ],
+  }, ow, db);
+
+  const un = await unmatchedCashExpenses(null, 30, db);
+  const mine = un.filter((r) => r.source === 'zclosing');
+  assert.equal(mine.length, 1);                 // only the manual, unmatched line
+  assert.equal(mine[0].payer_name, 'תיו');
+  assert.equal(mine[0].ref_id, closingId);      // links back to the register closing
+  assert.equal(mine[0].z_number, '2162');
 });
 
 test('deposit declared on a Z links back to it (שיוך ל-Z)', async () => {

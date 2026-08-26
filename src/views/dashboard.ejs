@@ -198,7 +198,7 @@
           <td><%= e.payer_name || '—' %></td>
           <td><%= e.purpose || '—' %></td>
           <td class="right"><%= formatIls(e.amount) %></td>
-          <td><a href="/reports/zreports/<%= e.z_report_id %>">Z <%= e.z_number %></a></td>
+          <td><a href="<%= e.source === 'zclosing' ? '/zclosing/' + e.ref_id : '/reports/zreports/' + e.ref_id %>">Z <%= e.z_number %></a></td>
         </tr>
       <% }); %>
     </tbody>

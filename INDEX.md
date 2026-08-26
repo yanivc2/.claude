@@ -51,7 +51,7 @@
 |---|---|---|---|---|
 | חיפוש (`q`) + חנות/חברה | `GET /` | `invoiceLookup` (`reports.js`), `lookupChecks` (`payments.js`), `searchSuppliers` | **רב-מונחים**: `lib/search.js` (`parseSearchTerms`/`anyTermLike`) — פיצול רווח/פסיק/;/שורה, OR. תוצאות: חשבוניות/צ׳קים/ספקים. Enter שולח (טופס רגיל). | שינוי `lib/search.js` משפיע גם על רשימת החשבוניות. הסרת `q` = אין חיפוש בלוח. |
 | "רק שלא שולמו" | `GET /?unpaid=1` | `invoiceLookup({unpaidOnly})` → `AND i.status<>'paid'` | מסנן תוצאות החשבוניות לפתוחות. | תלוי בסטטוסי החשבונית — ראה "סטטוס חשבונית". |
-| קוביות (ספקים ממתינים, מוחזקות, צ׳קים בחוץ, מזומן לא-משויך, הפקדות, פערי Z) | `GET /` | `dashboardStats`, `outstandingChecks`, `unmatchedCashExpenses`, `listDeposits`, `zSequenceStatus` | קריאה-בלבד; לינקים לדפי המקור. | מחיקת קובייה = ויזואלי בלבד. שינוי השאילתות משפיע על מספרים בלבד. |
+| קוביות (ספקים ממתינים, מוחזקות, צ׳קים בחוץ, מזומן לא-משויך, הפקדות, פערי Z) | `GET /` | `dashboardStats`, `outstandingChecks`, `unmatchedCashExpenses`, `listDeposits`, `zSequenceStatus` | קריאה-בלבד; לינקים לדפי המקור. "תשלום במזומן ללא התאמה" מ**אחד** את שתי טבלאות ההוצאות (`z_expenses` מדוח-Z **+** `z_closing_expenses` מסגירת-Z) דרך UNION; שדה `source` קובע אם הלינק ל-`/reports/zreports/:id` או `/zclosing/:id`. | מחיקת קובייה = ויזואלי בלבד. אם משנים את שמות השדות (`source`/`ref_id`) — לעדכן גם `dashboard.ejs`. |
 | אישורים (`/approvals`) | `GET /approvals`, `POST /approvals/:id/approve|reject` | `services/changeRequests.js` | עריכות של לא-בעלים ממתינות לאישור בעלים → מיושמות ב-approve. | מחיקה = לא-בעלים לא יכולים לבקש שינויים. |
 | יומן (`/audit`) | `GET /audit`, `POST /audit/events…` | `services/calendar.js`, `services/audit.js` | לוח שנה + לוג פעולות + תזכורות פוש. | קריאה-בלבד ברובו. |
 
@@ -116,7 +116,7 @@
 |---|---|---|---|---|
 | הזנת סגירה + ספירת מזומן | `GET/POST /zclosing` | `createZClosing` (`computeClosing` — כל הסכומים בשרת) | בחירת חנות ננעלת אם יש חנות מורשית אחת; אחרת dropdown scoped. חוסר>₪20 → פוש. | חישוב תמיד בשרת (לא סומכים על הדפדפן). |
 | **איזון קופות** | אותו POST (`reg_*[]`) | `normalizeRegisters` → `z_closings.registers` (JSON) | ספירת מזומן per-קופה לפני ה-Z; עצמאי מטבלת המגירה. | עמודה `registers` ב-3 מקומות. `edit.ejs` טוען מראש מה-JSON. |
-| הוצאות מזומן (kinds) | אותו POST (`expense_*[]`) | `insertExpenses` → `z_closing_expenses` | ידני/שכר/מפרעה/חשבונית; מקשר עובד/חשבונית. רובריקה משותפת בדף חשבוניות (`_cashExpenses.ejs`). | `z_closing_expenses.invoice_id` (nullable, **לא** cascade — ה-clean-start מנתק אותו). |
+| הוצאות מזומן (kinds) | אותו POST (`expense_*[]`) | `insertExpenses` → `z_closing_expenses` | ידני/שכר/מפרעה/חשבונית; מקשר עובד/חשבונית. רובריקה משותפת בדף חשבוניות (`_cashExpenses.ejs`). כל שורה ב-`_cashExpenses` מקשרת ל-`/zclosing/:closing_id` **רק לבעלים** (הדף `requireOwner`); לאחרים טקסט בלבד. | `z_closing_expenses.invoice_id` (nullable, **לא** cascade — ה-clean-start מנתק אותו). הלינק תלוי ב-`closing_id` שמגיע מ-`recentClosingExpenses`. |
 | עריכה/מחיקה | `GET /zclosing/:id`, `POST /zclosing/:id[/delete]` (owner) | `updateZClosing`,`deleteZClosing` | — | — |
 | "הוצאות מזומן אחרונות" / "סגירות אחרונות" (מתקפלים) | `views/zclosing/index.ejs` (client-only) | `<details class="collapse-card" data-accordion="recent-z">` + סקריפט accordion inline | שני קלפים מתקפלים, סגורים כברירת מחדל; פתיחת אחד סוגרת את השני (קבוצת `recent-z`). תצוגה בלבד — לא נשמר. | הסקריפט תלוי ב-`data-accordion` על שני ה-`<details>`; להשאיר אותם באותה קבוצה. `.collapse-card` מוגדר ב-`nocturne.css`. |
 

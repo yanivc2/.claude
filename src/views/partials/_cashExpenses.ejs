@@ -23,7 +23,16 @@
             <% } else { %>
               <%= e.purpose || '—' %>
             <% } %>
-            <% if (e.store_name || e.z_number) { %>
+            <%
+              // Link the Z reference to its register-closing detail page for anyone allowed to open
+              // it. GET /zclosing/:id is requireOwner, so only the owner gets a link; everyone else
+              // sees the same reference as plain text (no dead link, no 403).
+              var _canOpenClosing = (typeof currentUser !== 'undefined' && currentUser
+                && currentUser.role === 'owner' && e.closing_id);
+            %>
+            <% if (_canOpenClosing) { %>
+              <a class="muted" style="font-size:12px" href="/zclosing/<%= e.closing_id %>" title="פתח את סגירת ה-Z לצפייה/עריכה"><%= e.store_name ? ' · ' + e.store_name : '' %> · Z <%= e.z_number || 'סגירה' %> ›</a>
+            <% } else if (e.store_name || e.z_number) { %>
               <span class="muted" style="font-size:12px"><%= e.store_name ? ' · ' + e.store_name : '' %><%= e.z_number ? ' · Z ' + e.z_number : '' %></span>
             <% } %>
           </td>
