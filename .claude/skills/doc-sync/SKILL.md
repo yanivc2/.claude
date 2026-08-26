@@ -25,6 +25,14 @@ After you add / change / move / remove any of: a button or UI action, a route, a
 function, a schema column/table, a permission, or a cross-feature coupling. Do it as the last step
 of the change, **before the commit/push** — same turn.
 
+**A Stop hook enforces this automatically.** `.claude/settings.json` runs `scripts/doc-sync-hook.mjs`
+at the end of every turn. It blocks the stop (asking you to run this skill) when either: (a)
+`node scripts/doc-check.mjs` fails, or (b) files under `src/` changed but INDEX.md/CLAUDE.md did not.
+It nudges once (`stop_hook_active` prevents a loop) and always fails safe — a broken hook never locks
+the session. So even if you forget, you'll be reminded before the turn ends; still, run the skill as
+part of the change rather than waiting for the hook. If a `src/` change genuinely needs no doc update,
+say so briefly and stop again to clear the nudge.
+
 ## Update procedure
 
 1. **Find the affected INDEX.md row(s).** Update: what it does · route · wiring (service/view) ·
