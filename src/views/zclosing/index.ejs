@@ -136,14 +136,16 @@
   </form>
 </details>
 
-<div class="card">
-  <h2>הוצאות מזומן אחרונות</h2>
-  <%- include('../partials/_cashExpenses', { rows: closingExpenses }) %>
-</div>
+<details class="card collapse-card" data-accordion="recent-z">
+  <summary>הוצאות מזומן אחרונות</summary>
+  <div style="margin-top:.8rem">
+    <%- include('../partials/_cashExpenses', { rows: closingExpenses }) %>
+  </div>
+</details>
 
-<div class="card">
-  <h2>סגירות אחרונות</h2>
-  <div class="table-scroll">
+<details class="card collapse-card" data-accordion="recent-z">
+  <summary>סגירות אחרונות</summary>
+  <div class="table-scroll" style="margin-top:.8rem">
     <table class="sortable">
       <% var isOwner = currentUser && currentUser.role === 'owner'; %>
       <thead><tr><th>עובד</th><th>חנות</th><th>Z</th><th>סיום</th><th class="right">מגירה</th><th class="right">נספר</th><th class="right">הוצאות</th><th class="right">סה"כ</th><% if (isOwner) { %><th class="no-print" data-nosort></th><% } %></tr></thead>
@@ -172,9 +174,21 @@
       </tbody>
     </table>
   </div>
-</div>
+</details>
 
 <script>
+// Accordion: opening one [data-accordion] card in a group closes its siblings in the same group.
+(function(){
+  document.querySelectorAll('details[data-accordion]').forEach(function(d){
+    d.addEventListener('toggle', function(){
+      if (!d.open) return;
+      var group = d.getAttribute('data-accordion');
+      document.querySelectorAll('details[data-accordion="' + group + '"]').forEach(function(o){
+        if (o !== d && o.open) o.open = false;
+      });
+    });
+  });
+})();
 (function(){
   var form = document.getElementById('zclose-form');
   if (!form) return;

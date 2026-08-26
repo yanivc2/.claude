@@ -118,6 +118,7 @@
 | **איזון קופות** | אותו POST (`reg_*[]`) | `normalizeRegisters` → `z_closings.registers` (JSON) | ספירת מזומן per-קופה לפני ה-Z; עצמאי מטבלת המגירה. | עמודה `registers` ב-3 מקומות. `edit.ejs` טוען מראש מה-JSON. |
 | הוצאות מזומן (kinds) | אותו POST (`expense_*[]`) | `insertExpenses` → `z_closing_expenses` | ידני/שכר/מפרעה/חשבונית; מקשר עובד/חשבונית. רובריקה משותפת בדף חשבוניות (`_cashExpenses.ejs`). | `z_closing_expenses.invoice_id` (nullable, **לא** cascade — ה-clean-start מנתק אותו). |
 | עריכה/מחיקה | `GET /zclosing/:id`, `POST /zclosing/:id[/delete]` (owner) | `updateZClosing`,`deleteZClosing` | — | — |
+| "הוצאות מזומן אחרונות" / "סגירות אחרונות" (מתקפלים) | `views/zclosing/index.ejs` (client-only) | `<details class="collapse-card" data-accordion="recent-z">` + סקריפט accordion inline | שני קלפים מתקפלים, סגורים כברירת מחדל; פתיחת אחד סוגרת את השני (קבוצת `recent-z`). תצוגה בלבד — לא נשמר. | הסקריפט תלוי ב-`data-accordion` על שני ה-`<details>`; להשאיר אותם באותה קבוצה. `.collapse-card` מוגדר ב-`nocturne.css`. |
 
 ---
 
