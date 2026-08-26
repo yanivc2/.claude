@@ -181,18 +181,7 @@
 </details>
 
 <script>
-// Accordion: opening one [data-accordion] card in a group closes its siblings in the same group.
-(function(){
-  document.querySelectorAll('details[data-accordion]').forEach(function(d){
-    d.addEventListener('toggle', function(){
-      if (!d.open) return;
-      var group = d.getAttribute('data-accordion');
-      document.querySelectorAll('details[data-accordion="' + group + '"]').forEach(function(o){
-        if (o !== d && o.open) o.open = false;
-      });
-    });
-  });
-})();
+// (accordion for the recents is handled globally in partials/footer.ejs)
 (function(){
   var form = document.getElementById('zclose-form');
   if (!form) return;

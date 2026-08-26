@@ -304,6 +304,77 @@
   })();
   </script>
 
+  <script>
+  // Global collapsible rubrics + accordion. Two mechanisms, one behaviour ("open one → the others
+  // in its group close"):
+  //   1) Native <details data-accordion="grp"> (e.g. the Z-closing recents) — opening one closes
+  //      its group siblings.
+  //   2) Every titled .card in <main> becomes collapsible: its <h2> turns into a click/keyboard
+  //      toggle with a chevron, and expanding one card collapses the other cards on the page.
+  // Cards start expanded (nothing hidden on load); each card's state is remembered per page in
+  // localStorage. Cards holding a required control are skipped so validation never targets a hidden
+  // field. Opt out of a specific card with class "no-collapse".
+  (function () {
+    // (1) native <details data-accordion>
+    document.querySelectorAll('details[data-accordion]').forEach(function (d) {
+      d.addEventListener('toggle', function () {
+        if (!d.open) return;
+        var g = d.getAttribute('data-accordion');
+        document.querySelectorAll('details[data-accordion="' + g + '"]').forEach(function (o) {
+          if (o !== d && o.open) o.open = false;
+        });
+      });
+    });
+
+    // (2) collapsible titled cards
+    var main = document.querySelector('main.page') || document.querySelector('main');
+    if (!main) return;
+    var pageKey = 'apCollapse:' + location.pathname;
+    function readState() { try { return JSON.parse(localStorage.getItem(pageKey) || '{}'); } catch (e) { return {}; } }
+    function saveState(s) { try { localStorage.setItem(pageKey, JSON.stringify(s)); } catch (e) {} }
+    var state = readState();
+    var cards = [];
+
+    main.querySelectorAll('.card').forEach(function (card) {
+      if (card.tagName === 'DETAILS') return;               // already a native collapsible
+      if (card.classList.contains('no-collapse')) return;
+      if (card.dataset.collapseDone) return;
+      if (card.closest('details')) return;                  // nested inside a collapsible
+      if (card.parentElement && card.parentElement.closest('.card')) return; // nested card
+      var h = null, k = card.firstElementChild;
+      while (k) { if (k.tagName === 'H2') { h = k; break; } k = k.nextElementSibling; } // direct-child <h2> only
+      if (!h) return;
+      if (card.querySelector('[required]')) return;         // don't hide required inputs
+
+      card.dataset.collapseDone = '1';
+      var body = document.createElement('div');
+      body.className = 'card-cbody';
+      var n = h.nextSibling;
+      while (n) { var next = n.nextSibling; body.appendChild(n); n = next; }
+      card.appendChild(body);
+      h.classList.add('card-ctoggle');
+      h.setAttribute('role', 'button');
+      h.setAttribute('tabindex', '0');
+
+      var key = (h.textContent || '').trim().slice(0, 60);
+      function apply(c) { card.classList.toggle('collapsed', c); h.setAttribute('aria-expanded', String(!c)); }
+      apply(state[key] === 1);
+
+      function setCollapsed(c, viaUser) {
+        apply(c);
+        state[key] = c ? 1 : 0; saveState(state);
+        if (!c && viaUser) cards.forEach(function (o) { if (o.card !== card) o.setCollapsed(true, false); });
+      }
+      var rec = { card: card, setCollapsed: setCollapsed };
+      cards.push(rec);
+      h.addEventListener('click', function () { setCollapsed(!card.classList.contains('collapsed'), true); });
+      h.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed(!card.classList.contains('collapsed'), true); }
+      });
+    });
+  })();
+  </script>
+
   <!-- מחוות סלולר (רק ב-PWA מותקן, שם אין מחוות דפדפן טבעיות):
        גלילה מטה מלמעלה = רענון · סחיבה שמאלה = חזרה · סחיבה ימינה = הדף הבא -->
   <div id="ptr" aria-hidden="true"><span class="ptr-ico"></span></div>

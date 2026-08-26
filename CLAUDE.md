@@ -83,7 +83,10 @@ happen only at merge. So:
   replaces every `input[type=date]` — displays `DD/MM/YY`, and on pointer-fine (desktop) is **typable**
   (`parseTyped` accepts `6/8/26`→`2026-08-06`); touch keeps the readonly picker. (2) the **searchable
   combobox** enhances `<select class="js-combo">` (type-to-filter). Both keep a hidden/original control
-  as the submitted value + enforce required on submit.
+  as the submitted value + enforce required on submit. (3) **collapsible rubrics** — every `.card` with a
+  direct `<h2>` becomes collapsible (accordion: opening one closes the others on the page; state in
+  localStorage); skips `<details>`, `.no-collapse`, and cards with a `[required]` control. Also handles
+  `<details data-accordion="grp">`.
 
 ## Auth, permissions & scope
 - `middleware/currentUser.js` — auth gate: reads signed `session` cookie, loads user, sets
