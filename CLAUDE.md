@@ -72,6 +72,11 @@ happen only at merge. So:
   `Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem' })`.
 - **Telegram push:** `lib/notify.js#notify(html)` — fire-and-forget, no-op if unconfigured. Never throws.
 - **Dates:** stored ISO `YYYY-MM-DD`; `res.locals.formatDate` → `DD/MM/YY`.
+- **`partials/footer.ejs` global enhancers** (run on every page): (1) the **day-first date picker**
+  replaces every `input[type=date]` — displays `DD/MM/YY`, and on pointer-fine (desktop) is **typable**
+  (`parseTyped` accepts `6/8/26`→`2026-08-06`); touch keeps the readonly picker. (2) the **searchable
+  combobox** enhances `<select class="js-combo">` (type-to-filter). Both keep a hidden/original control
+  as the submitted value + enforce required on submit.
 
 ## Auth, permissions & scope
 - `middleware/currentUser.js` — auth gate: reads signed `session` cookie, loads user, sets
@@ -98,6 +103,9 @@ happen only at merge. So:
 ## Feature → files index
 - **Dashboard:** `routes/index.js` (`/`), `views/dashboard.ejs`. Cubes: pending suppliers, on-hold
   invoices, last reconcile, open-checks count, unmatched cash, deposits history, Z-sequence gaps.
+  Lookup box (`q`) does **multi-term search** (`lib/search.js` `parseSearchTerms`/`anyTermLike` —
+  split on space/comma/;/newline, OR-match) over invoice#/allocation/supplier (`invoiceLookup`) and
+  check#/reference (`lookupChecks`); a "רק שלא שולמו" checkbox (`unpaid=1`) filters to `status<>'paid'`.
 - **Suppliers:** `routes/suppliers.js`, `services/suppliers.js`, `views/suppliers/*`. Multi-store
   assignment via `supplier_stores` (`_storepick.ejs`); payment methods incl אשראי/הו"ק.
 - **Supplier "skill" (`suppliers.scan_profile`):** every supplier accumulates a profile of how
@@ -121,16 +129,35 @@ happen only at merge. So:
   `new.ejs` has an inline payment section (methods: check/transfer/cash/credit/standing_order) that
   auto-creates a payment on save (R1/R5 enforced). Cash-in-Z payments surface via
   `zreports.cashPaymentsForInvoice`.
+  - **Detail page (`show.ejs`)** shows the invoice number + an **אפשרויות** menu (edit_invoice →
+    ערוך חשבונית; approve_payment + a payment exists → ערוך אמצעי תשלום) and a "לאותו ספק" link →
+    `/invoices/new?supplier=&store=` (batch mode). The menu shows even after the invoice is **paid**.
+  - **Supplier field is a searchable combobox** (`<select class="js-combo">`, enhanced in `footer.ejs`)
+    — type part of a name → filtered matches; the `<select>` stays the submitted control.
+  - **List filter (`index.ejs`):** status tabs incl. a virtual **`unpaid`** (`status<>'paid'`, use with
+    the supplier filter); `q` is multi-term (invoice#/allocation/supplier).
+  - **"צרף חשבונית פתוחה"** on `new.ejs`: a dialog of open payable invoices (`listPayable`); pick some
+    of ONE supplier → navigates to `?supplier=&store=&pick=ids` and pre-checks them in the batch section.
+  - **Allocation number** accepts **≥6 digits** now (was exactly 9) — `normalizeAllocation` `/^\d{6,}$/`,
+    inputs `pattern="\d{6,}"` in new/edit/show/OCR-apply.
 - **Payments/checks:** `routes/payments.js`, `services/payments.js`. `createPayment` enforces R1
   (approved supplier + invoice) & R5 (amount == Σ applied lines). Methods in `METHODS`.
   `earlyPaymentAlerts`/`parsePaymentTermsDays` → Telegram push when paid earlier than terms.
+  - **`updatePayment` + `/payments/:id/edit` (`payments/edit.ejs`, approve_payment):** edit method /
+    identifier / date; and (issued + not bank-matched only) **re-target the applied invoices** — add a
+    credit note so net = the real check amount (R5 preserved; amount is derived, never free-typed).
+  - **A voided check releases its number:** `ux_payments_account_check` excludes `status='voided'`, so a
+    corrected check can reuse the same number. create/updatePayment pre-check for an *active* duplicate
+    and throw a Hebrew message instead of the raw PG constraint error.
 - **Z-reports:** `routes/reports.js` (`/reports/zreports`, also outstanding/profitability/lookup CSVs),
   `services/zreports.js`, `views/reports/_zform.ejs` (shared add/edit form), `zreport.ejs`, `zreports.ejs`.
   Cash-expense rows have a **kind** (manual/salary/advance/invoice) → `description_type`, linking an
   employee or invoice. Credit-card reconcile, deposit recon (חוסר/יתרה), Z-number gap detection.
 - **Deposits:** `services/deposits.js` ("הצהרות הפקדה"), reconciled to bank by bag=reference.
 - **Register closing (סגירת Z):** `routes/zclosing.js`, `services/zclosing.js`, `views/zclosing/*`.
-  Cashier role is locked to this page by the firewall.
+  Cashier role is locked to this page by the firewall. Rich cash expenses (kinds manual/salary/
+  advance/invoice, `z_closing_expenses`) + **"איזון קופות"** — repeatable per-register cash count
+  (`z_closings.registers` JSON, `normalizeRegisters`), counted before the Z, independent of the drawer.
 - **Employees & salaries:** `routes/employees.js`, `services/employees.js`, `views/employees/*`.
   Advances/salary lines from Z feed the tracking ledger + per-employee totals.
 - **Reconciliation (bank):** `routes/reconciliation.js`, `services/reconciliation.js`,
@@ -139,7 +166,26 @@ happen only at merge. So:
   outstanding checks (monthly cut `outstandingMonths`), invoice lookup — all in `services/reports.js`.
 - **Settings/org:** `routes/settings.js`, `services/orgs.js` (companies/stores/accounts; `deleteStore`),
   `services/users.js`, `services/roleTemplates.js`, `views/settings/*` (`_permpicker.ejs` visual perms,
-  company×user matrix, guide.ejs). Backup/restore/reset in `services/backup.js`.
+  company×user matrix, guide.ejs). Owner dials live in `partials/_ownerDialogs.ejs` (button + its
+  dialog must ship together — a test asserts it). Backup/restore/reset in `services/backup.js`, incl.
+  **`cleanStartInvoicesPaymentsZ`** ("התחלה נקייה" — wipes invoices/payments/Z reports/scan drafts,
+  KEEPS z_closings + suppliers + catalog + employees + deposits; nulls dead FKs first, deletes
+  child-before-parent). Owner-password-guarded like the other destructive dials.
+- **App settings / entitlements:** `services/appSettings.js` over the `app_settings` key/value table
+  (`getSetting`/`setSetting` — the INSERT needs an explicit `RETURNING key` so the PG adapter doesn't
+  inject `RETURNING id` on a table whose PK isn't `id`). Holds `scan_enabled` (see Scan lock below).
+- **Light mode:** the whole UI is token-driven, so `nocturne.css` defines a light palette under
+  `:root[data-theme="light"]`. A nav toggle (`partials/header.ejs`, 🌙/☀️) persists `ap-theme` to
+  localStorage; an inline `<head>` script applies it before first paint. Default = dark.
+- **Scan lock (entitlement):** invoice scanning is **locked by default** behind `app_settings.scan_enabled`
+  (`isScanEnabled`/`setScanEnabled`). `app.js` gates the `/scan` mount: when disabled it renders
+  `views/scan-locked.ejs` (423) instead of the scanner, and sets `res.locals.scanEnabled` for the nav
+  (🔒 "נעול"). Owner toggles via **`POST /settings/scan-toggle`** (a dial on the settings page).
+  Groundwork for a future scan package (N invoices included, then per-invoice billing). **Route/service/
+  view tests that hit `/scan` must `setScanEnabled(true, db)` in setup** (see `test/scan-routes.test.js`).
+- **Products page + master-catalog upload are HIDDEN from the UI** (owner asked to remove them): the
+  "מוצרים" nav link and the Settings "טעינת קטלוג-על" dial+dialog are gone. The `/products` route and
+  all catalog services stay mounted — the scan matcher still uses them, and it's a parallel line of work.
 - **Scan + catalog (from a parallel line of work):** `routes/scan.js`+`products.js`,
   `services/scan.js` (needs `@anthropic-ai/sdk`), `services/masterCatalog.js`/`products.js`,
   `lib/priceXml.js`/`ean.js`/`extractValidate.js`/`supplierMatch.js`/`pdfPages.js`.
