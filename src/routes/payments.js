@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   createPayment,
+  updatePayment,
   markCleared,
   markIssued,
   voidPayment,
@@ -14,6 +15,7 @@ import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js'
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
 import { scopeParam } from '../lib/scopeGuard.js';
+import { requirePermission } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -159,6 +161,39 @@ router.get('/:id', async (req, res, next) => {
       payment: await getPaymentDetail(Number(req.params.id)),
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+// Edit a payment's method / identifier / date (amount + linked invoices unchanged).
+router.get('/:id/edit', requirePermission('approve_payment'), async (req, res, next) => {
+  try {
+    const payment = await getPaymentDetail(Number(req.params.id));
+    res.render('payments/edit', { title: `עריכת תשלום #${payment.id}`, payment, error: null });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/edit', requirePermission('approve_payment'), async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    const b = req.body;
+    await updatePayment(id, {
+      method: b.method,
+      checkNumber: b.check_number,
+      reference: b.reference,
+      payerName: b.payer_name,
+      cardLast4: b.card_last4,
+      batchNumber: b.batch_number,
+      paymentDate: b.payment_date,
+    }, req.user);
+    res.redirect(303, `/payments/${id}`);
+  } catch (err) {
+    if (err instanceof RuleError) {
+      const payment = await getPaymentDetail(id);
+      return res.status(400).render('payments/edit', { title: `עריכת תשלום #${id}`, payment, error: err.message });
+    }
     next(err);
   }
 });

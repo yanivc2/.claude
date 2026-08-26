@@ -33,6 +33,7 @@ const router = Router();
 router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
   try {
     const q = (req.query.q || '').trim();
+    const unpaidOnly = req.query.unpaid === '1';
     let companyId = req.query.company ? Number(req.query.company) : null;
     let storeId = req.query.store ? Number(req.query.store) : null;
     const scope = req.scope.companyIds; // null = all (owner)
@@ -83,7 +84,8 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       ocLinkBase,
       companies,
       stores,
-      invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope }) : null,
+      unpaidOnly,
+      invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope, unpaidOnly }) : null,
       checkResults: q ? await lookupChecks(q, scope) : null,
       supplierResults: q ? await searchSuppliers(q) : null,
       unmatchedCash: await unmatchedCashExpenses(scope, 20),

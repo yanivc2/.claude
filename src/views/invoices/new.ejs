@@ -1,5 +1,10 @@
 <%- include('../partials/header') %>
-<h1>חשבונית חדשה</h1>
+<div class="toolbar">
+  <h1 style="margin:0">חשבונית חדשה</h1>
+  <% if (typeof openInvoices !== 'undefined' && openInvoices && openInvoices.length) { %>
+    <button type="button" class="btn btn-secondary no-print" onclick="document.getElementById('openInvDlg').showModal()">📎 צרף חשבונית פתוחה (<%= openInvoices.length %>)</button>
+  <% } %>
+</div>
 
 <% if (typeof notice !== 'undefined' && notice) { %>
   <div class="alert alert-ok"><%= notice %></div>
@@ -221,7 +226,7 @@
         <tbody>
           <% batchInvoices.forEach(function(iv){ %>
             <tr>
-              <td><input type="checkbox" class="bp-check" name="invoice_ids" value="<%= iv.id %>" style="width:auto;min-height:0" /></td>
+              <td><input type="checkbox" class="bp-check" name="invoice_ids" value="<%= iv.id %>" <%= (typeof pickIds !== 'undefined' && pickIds.indexOf(iv.id) !== -1) ? 'checked' : '' %> style="width:auto;min-height:0" /></td>
               <td class="mono"><a href="/invoices/<%= iv.id %>"><%= iv.invoice_number %></a></td>
               <td><%= formatDate(iv.invoice_date) %></td>
               <td><%= iv.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
@@ -286,6 +291,62 @@
       function recalc(){ var sum=0; checks.forEach(function(c,i){ if(c.checked) sum+=amounts[i]; }); net.textContent = fmt(sum); }
       checks.forEach(function(c){ c.addEventListener('change', recalc); });
       recalc();
+    })();
+  </script>
+<% } %>
+
+<%# "צרף חשבונית פתוחה" — pick open (payable, no-payment) invoices of ONE supplier to pay together. %>
+<% if (typeof openInvoices !== 'undefined' && openInvoices && openInvoices.length) { %>
+  <dialog id="openInvDlg" class="ndialog" onclick="event.stopPropagation()" style="max-width:640px">
+    <div class="stack">
+      <h3 style="margin:0">צרף חשבונית פתוחה לתשלום</h3>
+      <p class="muted" style="margin:.2rem 0">כל החשבוניות הפתוחות (ללא אמצעי תשלום). סמן חשבוניות של <strong>אותו ספק</strong> (אפשר גם זיכויים) והמשך לתשלום מרוכז אחד.</p>
+      <div class="table-scroll" style="max-height:50vh">
+        <table>
+          <thead><tr><th data-nosort></th><th>ספק</th><th>מס'</th><th>תאריך</th><th>סוג</th><th class="right">סכום</th></tr></thead>
+          <tbody>
+            <% openInvoices.forEach(function(iv){ %>
+              <tr>
+                <td><input type="checkbox" class="oi-check" value="<%= iv.id %>" data-sup="<%= iv.supplier_id %>" data-store="<%= iv.store_id %>" style="width:auto;min-height:0" /></td>
+                <td><%= iv.supplier_name %></td>
+                <td class="mono"><%= iv.invoice_number %></td>
+                <td><%= formatDate(iv.invoice_date) %></td>
+                <td><%= iv.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
+                <td class="right <%= iv.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(iv.total_amount) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" id="oiHint" style="margin:.2rem 0;min-height:1.2em"></p>
+      <div class="actions" style="justify-content:flex-end">
+        <button type="button" class="secondary" onclick="document.getElementById('openInvDlg').close()">ביטול</button>
+        <button type="button" class="btn btn-primary" id="oiGo" disabled>המשך לתשלום מרוכז</button>
+      </div>
+    </div>
+  </dialog>
+  <script>
+    (function(){
+      var dlg = document.getElementById('openInvDlg'); if (!dlg) return;
+      var boxes = Array.prototype.slice.call(dlg.querySelectorAll('.oi-check'));
+      var go = document.getElementById('oiGo'), hint = document.getElementById('oiHint');
+      function state(){
+        var picked = boxes.filter(function(b){ return b.checked; });
+        // enforce a single supplier+store — a payment can't span suppliers/accounts.
+        var sup = picked.length ? picked[0].dataset.sup : null, store = picked.length ? picked[0].dataset.store : null;
+        var mixed = picked.some(function(b){ return b.dataset.sup !== sup || b.dataset.store !== store; });
+        boxes.forEach(function(b){ b.disabled = picked.length > 0 && (b.dataset.sup !== sup || b.dataset.store !== store); });
+        if (!picked.length) { hint.textContent = ''; go.disabled = true; }
+        else if (mixed) { hint.textContent = 'יש לבחור חשבוניות של אותו ספק בלבד.'; go.disabled = true; }
+        else { hint.textContent = picked.length + ' חשבוניות נבחרו.'; go.disabled = false; }
+        return { picked: picked, sup: sup, store: store };
+      }
+      boxes.forEach(function(b){ b.addEventListener('change', state); });
+      go.addEventListener('click', function(){
+        var s = state(); if (go.disabled) return;
+        var ids = s.picked.map(function(b){ return b.value; }).join(',');
+        location.href = '/invoices/new?supplier=' + encodeURIComponent(s.sup) + '&store=' + encodeURIComponent(s.store) + '&pick=' + encodeURIComponent(ids);
+      });
     })();
   </script>
 <% } %>

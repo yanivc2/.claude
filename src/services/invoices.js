@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
 import { scopeClause } from '../lib/scope.js';
+import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 import { logAction } from './audit.js';
 
 const DOC_TYPES = ['tax_invoice', 'tax_invoice_receipt', 'credit_note'];
@@ -423,10 +424,13 @@ export async function listInvoices(
   const sc = scopeClause(scope, 'i.company_id');
   let sql = `${base} WHERE 1 = 1`;
   const params = [];
-  if (status) { sql += ' AND i.status = ?'; params.push(status); }
+  // 'unpaid' is a virtual filter = everything not yet paid (recorded / on_hold / approved).
+  if (status === 'unpaid') { sql += " AND i.status <> 'paid'"; }
+  else if (status) { sql += ' AND i.status = ?'; params.push(status); }
   if (supplierId) { sql += ' AND i.supplier_id = ?'; params.push(supplierId); }
   if (storeId) { sql += ' AND i.store_id = ?'; params.push(storeId); }
-  if (q) { sql += ' AND i.invoice_number LIKE ?'; params.push(`%${q}%`); }
+  const terms = parseSearchTerms(q);
+  if (terms.length) { const m = anyTermLike(terms, ['i.invoice_number', 'i.allocation_number', 's.name']); sql += ` AND ${m.sql}`; params.push(...m.params); }
   if (from) { sql += ' AND i.invoice_date >= ?'; params.push(from); }
   if (to) { sql += ' AND i.invoice_date <= ?'; params.push(to); }
   sql += sc.sql; params.push(...sc.params);

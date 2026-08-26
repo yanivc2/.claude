@@ -1,5 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
+import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 
 /**
  * §7 "צ׳קים בחוץ" — outstanding checks. Per bank account, the sum of `issued` payments
@@ -187,12 +188,13 @@ export async function outstandingCheckDetail(bankAccountId, { month = null } = {
 /**
  * §7 "בדיקת חשבונית" — invoice lookup by invoice number, allocation number, or supplier name.
  */
-export async function invoiceLookup(query, { companyId = null, storeId = null, scope = null } = {}, x = getExecutor()) {
-  const q = (query ?? '').trim();
-  if (!q) return [];
-  const like = `%${q}%`;
-  const params = [like, like, like];
+export async function invoiceLookup(query, { companyId = null, storeId = null, scope = null, unpaidOnly = false } = {}, x = getExecutor()) {
+  const terms = parseSearchTerms(query);
+  if (!terms.length) return [];
+  const m = anyTermLike(terms, ['i.invoice_number', 'i.allocation_number', 's.name']);
+  const params = [...m.params];
   let filter = '';
+  if (unpaidOnly) filter += " AND i.status <> 'paid'";
   if (companyId) {
     filter += ' AND i.company_id = ?';
     params.push(companyId);
@@ -215,7 +217,7 @@ export async function invoiceLookup(query, { companyId = null, storeId = null, s
        JOIN stores st ON st.id = i.store_id
        LEFT JOIN payment_lines pl ON pl.invoice_id = i.id
        LEFT JOIN payments p ON p.id = pl.payment_id
-      WHERE (i.invoice_number LIKE ? OR i.allocation_number LIKE ? OR s.name LIKE ?)${filter}
+      WHERE ${m.sql}${filter}
       ORDER BY i.id DESC`,
     params,
   );

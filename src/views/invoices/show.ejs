@@ -244,16 +244,24 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
   </script>
 <% } %>
 
-<!-- שורת פעולות: אפשרויות (עריכה) + חזרה לרשימה משמאלו -->
-<div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">
-  <% if (invoice.status !== 'paid' && typeof can === 'function' && can('edit_invoice')) { %>
+<!-- שורת פעולות: אפשרויות (עריכה) + הוספה לאותו ספק + חזרה לרשימה -->
+<div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3); flex-wrap:wrap">
+  <% var canEdit = typeof can === 'function' && can('edit_invoice'); %>
+  <% var canPay = typeof can === 'function' && can('approve_payment'); %>
+  <% if (canEdit || canPay) { %>
     <details class="menu up">
       <summary class="btn btn-secondary">אפשרויות <span class="caret">▾</span></summary>
-      <div class="menu-panel" style="min-width:180px">
-        <a href="/invoices/<%= invoice.id %>/edit">ערוך חשבונית</a>
+      <div class="menu-panel" style="min-width:220px">
+        <% if (canEdit) { %><a href="/invoices/<%= invoice.id %>/edit">✏️ ערוך חשבונית</a><% } %>
+        <% if (canPay && invoice.payment && invoice.payment.id) { %>
+          <a href="/payments/<%= invoice.payment.id %>/edit">💳 ערוך אמצעי תשלום</a>
+        <% } %>
+        <div class="menu-sep"></div>
+        <a href="/invoices/new?supplier=<%= invoice.supplier_id %>&store=<%= invoice.store_id %>">➕ חשבונית / זיכוי נוסף לאותו ספק</a>
       </div>
     </details>
   <% } %>
+  <a href="/invoices/new?supplier=<%= invoice.supplier_id %>&store=<%= invoice.store_id %>" class="btn btn-secondary">➕ לאותו ספק</a>
   <a href="/invoices" class="btn btn-secondary">חזרה לרשימה</a>
   <a href="/invoices/new" class="btn btn-primary">+ חשבונית חדשה</a>
 </div>

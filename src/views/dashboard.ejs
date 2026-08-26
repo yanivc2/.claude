@@ -42,7 +42,14 @@
     </div>
     <div>
       <label class="lbl">מספר / שם לחיפוש</label>
-      <input name="q" value="<%= q %>" inputmode="text" placeholder="ספרות אחרונות של חשבונית / צ׳ק, מס' הקצאה, או שם ספק" style="max-width:340px" />
+      <input name="q" value="<%= q %>" inputmode="text" placeholder="חשבונית / צ׳ק / הקצאה / שם ספק — אפשר כמה מופרדים ברווח או פסיק" style="max-width:340px" />
+      <small class="muted" style="display:block;margin-top:2px">אפשר לחפש כמה מספרים יחד (מופרדים ברווח, פסיק או שורה) וללחוץ Enter.</small>
+    </div>
+    <div>
+      <label class="lbl">&nbsp;</label>
+      <label style="display:flex;align-items:center;gap:6px;font-weight:400;white-space:nowrap;min-height:44px">
+        <input type="checkbox" name="unpaid" value="1" <%= typeof unpaidOnly !== 'undefined' && unpaidOnly ? 'checked' : '' %> style="width:auto;min-height:0" /> רק שלא שולמו
+      </label>
     </div>
     <div><button type="submit">חפש</button></div>
   </form>

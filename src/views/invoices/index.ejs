@@ -1,5 +1,5 @@
 <%- include('../partials/header') %>
-<% var filterLabel = filter === 'recorded' ? 'נרשמו' : filter === 'on_hold' ? 'מוחזקות' : filter === 'approved_for_payment' ? 'מאושרות לתשלום' : filter === 'paid' ? 'שולמו' : 'הכל'; %>
+<% var filterLabel = filter === 'recorded' ? 'נרשמו' : filter === 'on_hold' ? 'מוחזקות' : filter === 'approved_for_payment' ? 'מאושרות לתשלום' : filter === 'unpaid' ? 'לא שולמו' : filter === 'paid' ? 'שולמו' : 'הכל'; %>
 <div class="toolbar">
   <h1>חשבוניות</h1>
   <div class="actions no-print">
@@ -10,6 +10,7 @@
         <a href="/invoices?status=recorded" class="<%= filter === 'recorded' ? 'active' : '' %>">נרשמו</a>
         <a href="/invoices?status=on_hold" class="<%= filter === 'on_hold' ? 'active' : '' %>">מוחזקות</a>
         <a href="/invoices?status=approved_for_payment" class="<%= filter === 'approved_for_payment' ? 'active' : '' %>">מאושרות לתשלום</a>
+        <a href="/invoices?status=unpaid" class="<%= filter === 'unpaid' ? 'active' : '' %>">לא שולמו</a>
         <a href="/invoices?status=paid" class="<%= filter === 'paid' ? 'active' : '' %>">שולמו</a>
       </div>
     </details>
@@ -35,7 +36,7 @@
 <form method="get" action="/invoices" class="card no-print" style="margin-bottom:1rem">
   <input type="hidden" name="status" value="<%= filter %>" />
   <div class="row">
-    <div><label>חיפוש לפי מספר חשבונית</label><input name="q" value="<%= q %>" inputmode="text" placeholder="מספר חשבונית" /></div>
+    <div><label>חיפוש לפי מספר חשבונית / הקצאה / ספק</label><input name="q" value="<%= q %>" inputmode="text" placeholder="אפשר כמה מספרים מופרדים ברווח או פסיק" /></div>
   </div>
   <div style="display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin:.7rem 0 .2rem">
     <span class="muted">סינון לפי:</span>

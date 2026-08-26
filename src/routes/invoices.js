@@ -121,6 +121,10 @@ router.get('/new', async (req, res, next) => {
     const supplierId = req.query.supplier ? Number(req.query.supplier) : null;
     const storeId = req.query.store ? Number(req.query.store) : null;
     const ctx = await batchContext(supplierId, storeId);
+    // Open (payable, no payment) invoices for the "צרף חשבונית פתוחה" picker — scoped to the user.
+    const scope = req.scope.companyIds;
+    const openInvoices = (await listPayable()).filter((i) => scope === null || scope.includes(i.company_id));
+    const pickIds = String(req.query.pick || '').split(',').map(Number).filter(Boolean);
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
       ...(await formData(req.scope.companyIds)),
@@ -128,6 +132,8 @@ router.get('/new', async (req, res, next) => {
       warnings: [],
       error: null,
       notice: req.query.added ? 'החשבונית נשמרה. אפשר להזין עוד חשבונית לאותו הספק, או לשייך את הכל לתשלום למטה.' : null,
+      openInvoices,
+      pickIds,
       ...ctx,
     });
   } catch (err) {

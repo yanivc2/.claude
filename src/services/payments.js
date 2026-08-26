@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import { NotFoundError, RuleError, AuthError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
 import { scopeClause } from '../lib/scope.js';
+import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { notify } from '../lib/notify.js';
 import { logAction } from './audit.js';
@@ -203,6 +204,63 @@ export async function createPayment(input, actor, x = getExecutor()) {
   return getPaymentDetail(paymentId, x);
 }
 
+// Per-method identifier validation → the columns to store. Shared shape with createPayment.
+function methodIdentifierFields({ method, checkNumber, reference, payerName, cardLast4, batchNumber }) {
+  const fields = { check_number: null, reference: null, payer_name: null, card_last4: null, batch_number: null };
+  if (method === 'check') {
+    if (!checkNumber || !String(checkNumber).trim()) throw new RuleError('CHECK', 'לא ניתן להנפיק צ׳ק ללא מספר צ׳ק');
+    fields.check_number = String(checkNumber).trim();
+  } else if (method === 'cash') {
+    if (!payerName || !String(payerName).trim()) throw new RuleError('VALIDATION', 'תשלום מזומן — שם המשלם חובה');
+    fields.payer_name = String(payerName).trim();
+  } else if (method === 'credit') {
+    const last4 = String(cardLast4 || '').trim();
+    if (last4 && !/^\d{4}$/.test(last4)) throw new RuleError('VALIDATION', 'תשלום אשראי — 4 הספרות האחרונות חייבות להיות בדיוק 4 ספרות');
+    fields.card_last4 = last4 || null;
+  } else if (method === 'transfer') {
+    if (!reference || !String(reference).trim()) throw new RuleError('VALIDATION', 'העברה — מספר אסמכתא חובה');
+    fields.reference = String(reference).trim();
+  } else if (method === 'standing_order') {
+    if (!reference || !String(reference).trim()) throw new RuleError('VALIDATION', 'הו"ק — מספר הרשאה / אסמכתא חובה');
+    fields.reference = String(reference).trim();
+  } else if (method === 'batch') {
+    if (!batchNumber || !String(batchNumber).trim()) throw new RuleError('VALIDATION', 'מקבץ — מספר מקבץ חובה');
+    if (!reference || !String(reference).trim()) throw new RuleError('VALIDATION', 'מקבץ — מספר אסמכתא חובה');
+    fields.batch_number = String(batchNumber).trim();
+    fields.reference = String(reference).trim();
+  }
+  return fields;
+}
+
+/**
+ * Edit an existing payment's method / identifier / payment date. The amount and the invoices it is
+ * applied to are NOT changed here (that would re-open R5 and the invoice paid-state); to re-target
+ * invoices, void this payment and issue a new one. A voided payment can't be edited.
+ */
+export async function updatePayment(id, input, actor, x = getExecutor()) {
+  const existing = await x.one('SELECT * FROM payments WHERE id = ?', [id]);
+  if (!existing) throw new NotFoundError(`תשלום ${id} לא נמצא`);
+  if (existing.status === 'voided') throw new RuleError('VALIDATION', 'לא ניתן לערוך תשלום מבוטל');
+  const method = input.method || existing.method;
+  if (!METHODS.includes(method)) throw new RuleError('VALIDATION', `אמצעי תשלום לא תקין: ${method}`);
+  const paymentDate = input.paymentDate || existing.payment_date;
+  if (!paymentDate) throw new RuleError('VALIDATION', 'תאריך תשלום חובה');
+  const fields = methodIdentifierFields({ ...input, method });
+
+  // Check number stays unique within the bank account (excluding this same payment).
+  if (fields.check_number) {
+    const dup = await x.one('SELECT id FROM payments WHERE bank_account_id = ? AND check_number = ? AND id <> ?', [existing.bank_account_id, fields.check_number, id]);
+    if (dup) throw new RuleError('VALIDATION', `מספר צ׳ק ${fields.check_number} כבר קיים בחשבון זה`);
+  }
+
+  await x.run(
+    `UPDATE payments SET method = ?, check_number = ?, reference = ?, payer_name = ?, card_last4 = ?, batch_number = ?, payment_date = ? WHERE id = ?`,
+    [method, fields.check_number, fields.reference, fields.payer_name, fields.card_last4, fields.batch_number, paymentDate, id],
+  );
+  await logAction({ userId: actor?.id ?? null, action: 'payment.update', entityType: 'payment', entityId: id, details: { method, ...fields, paymentDate } }, x);
+  return getPaymentDetail(id, x);
+}
+
 /** Manually mark a check as cleared (stage-1 manual reconciliation; R7 automates this in stage 2). */
 export async function markCleared(id, clearedDate, actor, x = getExecutor()) {
   const payment = await x.one('SELECT * FROM payments WHERE id = ?', [id]);
@@ -345,9 +403,9 @@ export async function listPayments({ status = null, companyId = null, storeId = 
 
 /** Lookup payments by (last digits of) check number / transfer reference / batch number. */
 export async function lookupChecks(query, scope = null, x = getExecutor()) {
-  const q = (query ?? '').trim();
-  if (!q) return [];
-  const like = `%${q}%`;
+  const terms = parseSearchTerms(query);
+  if (!terms.length) return [];
+  const m = anyTermLike(terms, ['p.check_number', 'p.reference', 'p.batch_number']);
   const sc = scopeClause(scope, 'ba.company_id');
   // Correlated subquery for one supplier name -> one row per payment, portable across SQLite/Postgres.
   return x.many(
@@ -361,8 +419,8 @@ export async function lookupChecks(query, scope = null, x = getExecutor()) {
               ORDER BY pl.id LIMIT 1) AS supplier_name
        FROM payments p
        JOIN bank_accounts ba ON ba.id = p.bank_account_id
-      WHERE (p.check_number LIKE ? OR p.reference LIKE ? OR p.batch_number LIKE ?)${sc.sql}
+      WHERE ${m.sql}${sc.sql}
       ORDER BY p.id DESC`,
-    [like, like, like, ...sc.params],
+    [...m.params, ...sc.params],
   );
 }
