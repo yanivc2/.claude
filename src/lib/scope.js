@@ -17,20 +17,28 @@ export async function authorizedCompanyIds(user, x = getExecutor()) {
   const direct = await getUserCompanyIds(user.id, x);
   // Store grants imply their parent company, so a user granted only specific stores still passes
   // the existing company-scoped queries (dashboard stats, etc.). Union keeps company-only grants
-  // unchanged and only widens for users who also hold per-store grants.
-  const viaStores = await x.many(
-    'SELECT DISTINCT s.company_id FROM user_stores us JOIN stores s ON s.id = us.store_id WHERE us.user_id = ?',
-    [user.id],
-  );
+  // unchanged and only widens for users who also hold per-store grants. Guarded: before the owner
+  // runs the DB upgrade the user_stores table may not exist yet — degrade to direct grants only.
+  let viaStores = [];
+  try {
+    viaStores = await x.many(
+      'SELECT DISTINCT s.company_id FROM user_stores us JOIN stores s ON s.id = us.store_id WHERE us.user_id = ?',
+      [user.id],
+    );
+  } catch { viaStores = []; }
   return [...new Set([...direct, ...viaStores.map((r) => Number(r.company_id))])];
 }
 
 // ---- Per-user STORE access (הרשאה פר-חנות) — finer than company grants. --------------------
 
-/** Raw store-id grants for a user (from user_stores). */
+/** Raw store-id grants for a user (from user_stores). [] if the table doesn't exist yet (pre-upgrade). */
 export async function getUserStoreIds(userId, x = getExecutor()) {
-  const rows = await x.many('SELECT store_id FROM user_stores WHERE user_id = ?', [userId]);
-  return rows.map((r) => Number(r.store_id));
+  try {
+    const rows = await x.many('SELECT store_id FROM user_stores WHERE user_id = ?', [userId]);
+    return rows.map((r) => Number(r.store_id));
+  } catch {
+    return [];
+  }
 }
 
 /**

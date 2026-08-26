@@ -68,6 +68,7 @@ export async function currentUser(req, res, next) {
     }
 
     // Per-user company scope (הפרדת חברות): null = all (owner), else the granted company ids.
+    // (scope.js degrades gracefully if the user_stores table isn't there yet — pre DB-upgrade.)
     const companyIds = await authorizedCompanyIds(user);
     const storeIds = await authorizedStoreIds(user); // null = all (owner), else granted store ids
     req.scope = { companyIds, storeIds, all: companyIds == null };
