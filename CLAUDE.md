@@ -6,6 +6,10 @@ register closings, employees, and a product catalog. **Live:** https://ap-contro
 
 This file is the fast map of *where things live* so I don't re-read the whole tree each session.
 
+> **Before changing any button/feature, read [`INDEX.md`](INDEX.md)** — a per-feature index of what
+> each button does, how it's wired, what it's coupled to, and what breaks if you delete/change/move
+> it, plus the load-bearing invariants that fail silently. Keep both files updated when a feature changes.
+
 ## Deploy & branch workflow (IMPORTANT)
 - Work happens on branch **`ap-control-split`**. It tracks **`apnew/main`** (github.com/yanivc2/ap-control),
   which is what Vercel deploys. Push with: `git push apnew ap-control-split:main`.
