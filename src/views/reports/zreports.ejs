@@ -122,7 +122,7 @@
               <td><%= z.store_name %></td>
               <td><%= formatDate(z.z_date) %></td>
               <td class="no-print">
-                <form method="post" action="/reports/deposits/declare" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0">
+                <form method="post" action="/reports/deposit-declare" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0">
                   <input type="hidden" name="z_report_id" value="<%= z.id %>" />
                   <input name="bag_number" id="declbag-<%= z.id %>" placeholder="מספר שקית" style="max-width:130px" />
                   <button type="button" class="btn btn-secondary small" data-bag-scan="declbag-<%= z.id %>">📷 סרוק</button>

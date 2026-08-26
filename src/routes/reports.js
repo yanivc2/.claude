@@ -259,7 +259,9 @@ router.get('/zreports', requirePageAccess('nav_zreports'), async (req, res, next
 });
 
 // Declare a deposit on a Z report that has none yet (from the "דוחות Z ללא הצהרת הפקדה" rubric).
-router.post('/deposits/declare', requirePermission('manage_deposits'), async (req, res, next) => {
+// NOTE: path is /deposit-declare (not /deposits/declare) so the `router.use('/deposits/:id', …)`
+// scope-guard above doesn't capture "declare" as an :id and 404 the request.
+router.post('/deposit-declare', requirePermission('manage_deposits'), async (req, res, next) => {
   try {
     const zReportId = Number(req.body.z_report_id);
     const z = await getZReport(zReportId);
