@@ -5,6 +5,7 @@ import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice, listInvoices } from '../src/services/invoices.js';
 import { createPayment } from '../src/services/payments.js';
 import { createZClosing, matchClosingExpenseToInvoice, unmatchClosingExpense } from '../src/services/zclosing.js';
+import { outstandingChecks } from '../src/services/reports.js';
 import { toAgorot } from '../src/lib/money.js';
 
 async function mkInvoice(db, store, number, supId) {
@@ -101,4 +102,24 @@ test('matchClosingExpenseToInvoice refuses an out-of-scope expense before mutati
   await assert.rejects(() => matchClosingExpenseToInvoice(exp.id, inv.id, ow, [999], db), /הרשאה/);
   const after = await db.one('SELECT invoice_id FROM z_closing_expenses WHERE id = ?', [exp.id]);
   assert.equal(after.invoice_id, null);
+});
+
+test('outstandingChecks filters by store (active-store context on the dashboard)', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db); // store 1
+  const acct = await accountForStore(db, store.id);
+  const sec = await secretary(db);
+  const sup = (await approveSupplier((await createSupplier({ name: 'ספק ח' }, sec, db)).id, ow, db)).id;
+  const inv = await mkInvoice(db, store, 'OC-1', sup);
+  await createPayment(
+    { bankAccountId: acct.id, checkNumber: '9100', paymentDate: '2026-09-01', invoiceIds: [inv.id] },
+    ow, db,
+  );
+
+  const here = await outstandingChecks(null, { storeId: store.id }, db);
+  assert.ok(here.totalOutstanding > 0); // this store has an outstanding check
+
+  const other = await outstandingChecks(null, { storeId: 999 }, db);
+  assert.equal(other.totalOutstanding, 0); // a different store shows nothing
 });

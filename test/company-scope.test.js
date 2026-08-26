@@ -68,7 +68,7 @@ test('listInvoices + dashboardStats are scoped per user', async () => {
   assert.equal(adamInv.length, 1);
   assert.equal(adamInv[0].invoice_number, 'AL-1'); // only על הדרך
 
-  const stats = await dashboardStats(null, db);
+  const stats = await dashboardStats(null, null, db);
   assert.equal(Number(stats.pendingSuppliers), 0);
 });
 

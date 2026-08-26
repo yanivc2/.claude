@@ -8,12 +8,12 @@ import { parseSearchTerms, anyTermLike } from '../lib/search.js';
  *
  * @returns {{ accounts: Array, totalOutstanding: number }}
  */
-export async function outstandingChecks(scope = null, { month = null } = {}, x = getExecutor()) {
+export async function outstandingChecks(scope = null, { month = null, storeId = null } = {}, x = getExecutor()) {
   const sc = scopeClause(scope, 'ba.company_id');
   // Optional monthly cut: only checks whose due date (payment_date) falls in the given YYYY-MM.
   const mCond = month ? " AND p.payment_date LIKE ?" : '';
   const mParam = month ? [`${month}%`] : [];
-  const accounts = await x.many(
+  let accounts = await x.many(
     `SELECT ba.id, ba.display_name, st.id AS store_id, c.name AS company_name, st.name AS store_name,
             COALESCE(SUM(CASE WHEN p.status = 'issued'${mCond} THEN p.amount ELSE 0 END), 0) AS outstanding,
             COUNT(CASE WHEN p.status = 'issued'${mCond} THEN 1 END) AS outstanding_count
@@ -26,6 +26,10 @@ export async function outstandingChecks(scope = null, { month = null } = {}, x =
       ORDER BY c.name, st.name`,
     [...mParam, ...mParam, ...sc.params],
   );
+
+  // Optional store cut (active-store context). Post-filtered in JS on the per-store rows — pg-mem
+  // can't put a joined column in this GROUP BY query's WHERE, and real Postgres/SQLite match here.
+  if (storeId) accounts = accounts.filter((a) => Number(a.store_id) === Number(storeId));
 
   const totalOutstanding = accounts.reduce((sum, a) => sum + a.outstanding, 0);
   return { accounts, totalOutstanding };
@@ -275,13 +279,16 @@ export async function profitability(fromDate, toDate, scope = null, x = getExecu
   return { stores, totals };
 }
 
-/** Small counters for the dashboard. */
-export async function dashboardStats(scope = null, x = getExecutor()) {
+/** Small counters for the dashboard. `storeId` (the active-store context) narrows the store-bound
+ * counters; pending-suppliers is company-level (suppliers aren't store-scoped) so it's unaffected. */
+export async function dashboardStats(scope = null, storeId = null, x = getExecutor()) {
   const sc = scopeClause(scope, 'company_id');
+  const st = storeId ? ' AND store_id = ?' : '';
+  const stp = storeId ? [storeId] : [];
   const pendingSuppliers = (await x.one("SELECT COUNT(*) AS n FROM suppliers WHERE status = 'pending'", [])).n;
-  const onHoldInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'on_hold'${sc.sql}`, [...sc.params])).n;
-  const approvedInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'approved_for_payment'${sc.sql}`, [...sc.params])).n;
-  const { totalOutstanding } = await outstandingChecks(scope, {}, x);
+  const onHoldInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'on_hold'${sc.sql}${st}`, [...sc.params, ...stp])).n;
+  const approvedInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'approved_for_payment'${sc.sql}${st}`, [...sc.params, ...stp])).n;
+  const { totalOutstanding } = await outstandingChecks(scope, { storeId }, x);
   const lastReconciledAt = await lastReconciliationAt(x);
   return { pendingSuppliers, onHoldInvoices, approvedInvoices, totalOutstanding, lastReconciledAt };
 }

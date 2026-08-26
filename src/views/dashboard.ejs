@@ -187,7 +187,7 @@
 </div>
 
 <div class="card">
-  <h2 style="margin:0 0 .5rem">תשלום במזומן ללא התאמה</h2>
+  <h2 style="margin:0 0 .5rem">תשלום במזומן ללא התאמה<% if (unmatchedCash && unmatchedCash.length) { %> <span class="badge b-on_hold" title="יש תשלומי מזומן שדורשים התאמה לחשבונית"><%= unmatchedCash.length %> לטיפול</span><% } %></h2>
   <table>
     <thead><tr><th>Z</th><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th></tr></thead>
     <tbody>

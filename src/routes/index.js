@@ -56,7 +56,8 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
 
     // "צ׳קים בחוץ" tile — pick a store (oc_store) to see just its outstanding total,
     // otherwise all stores combined. Reuses the per-account outstanding breakdown.
-    const ocStore = req.query.oc_store ? Number(req.query.oc_store) : null;
+    // Default the outstanding tile to the active-store context (unless an explicit oc_store is given).
+    const ocStore = req.query.oc_store ? Number(req.query.oc_store) : (storeId || null);
     const { accounts: ocAccounts, totalOutstanding } = await outstandingChecks(scope);
     const ocSelected = ocStore ? ocAccounts.find((a) => a.store_id === ocStore) : null;
     const outstandingDisplay = ocSelected ? ocSelected.outstanding : totalOutstanding;
@@ -74,7 +75,7 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
 
     res.render('dashboard', {
       title: 'לוח בקרה',
-      stats: await dashboardStats(scope),
+      stats: await dashboardStats(scope, storeId),
       q,
       companyId,
       storeId,

@@ -305,6 +305,111 @@
   </script>
 
   <script>
+  // Global table tools: for every data table (a <table> with a <thead> and ≥2 body rows), add a
+  // compact toolbar with (a) a live per-keystroke search that filters rows across ALL columns, and
+  // (b) Excel + CSV export of the currently-visible rows. Columns whose header is .no-print or
+  // [data-noexport] (action/checkbox/ייצוא columns) are excluded from the export. Opt out with
+  // class "no-enhance" on the table.
+  (function () {
+    var main = document.querySelector('main') || document.body;
+    function norm(s) { return (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim().toLowerCase(); }
+    function dataRows(tbody) {
+      return Array.prototype.slice.call(tbody.rows).filter(function (r) { return !r.querySelector('td[colspan]'); });
+    }
+    function exportCols(table) {
+      var ths = table.tHead ? table.tHead.rows[0].cells : [];
+      var keep = [];
+      Array.prototype.forEach.call(ths, function (th, i) {
+        var skip = th.classList.contains('no-print') || th.hasAttribute('data-noexport');
+        if (!skip) keep.push(i);
+      });
+      return keep;
+    }
+    function cellText(cell) {
+      // Prefer a link's text; collapse whitespace. Keeps numbers/×/— readable in the export.
+      return (cell ? cell.textContent : '').replace(/\s+/g, ' ').trim();
+    }
+    function buildMatrix(table) {
+      var cols = exportCols(table);
+      var ths = table.tHead.rows[0].cells;
+      var head = cols.map(function (i) { return cellText(ths[i]); });
+      var body = dataRows(table.tBodies[0])
+        .filter(function (r) { return r.style.display !== 'none'; })
+        .map(function (r) { return cols.map(function (i) { return cellText(r.cells[i]); }); });
+      return { head: head, body: body };
+    }
+    function download(name, blob) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+    }
+    function esc(s) { return String(s).replace(/[&<>]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]; }); }
+    function exportExcel(table, base) {
+      var m = buildMatrix(table);
+      var html = '<html><head><meta charset="utf-8"></head><body><table border="1" dir="rtl"><thead><tr>'
+        + m.head.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>'
+        + m.body.map(function (row) { return '<tr>' + row.map(function (c) { return '<td>' + esc(c) + '</td>'; }).join('') + '</tr>'; }).join('')
+        + '</tbody></table></body></html>';
+      download(base + '.xls', new Blob(['﻿' + html], { type: 'application/vnd.ms-excel' }));
+    }
+    function csvCell(s) { return '"' + String(s).replace(/"/g, '""') + '"'; }
+    function exportCsv(table, base) {
+      var m = buildMatrix(table);
+      var lines = [m.head].concat(m.body).map(function (row) { return row.map(csvCell).join(','); });
+      download(base + '.csv', new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+    }
+    function baseName(table) {
+      var card = table.closest('.card');
+      var h = card ? card.querySelector('h1, h2, h3') : null;
+      var t = (h ? h.textContent : (document.querySelector('h1') ? document.querySelector('h1').textContent : 'table'));
+      return (t || 'table').replace(/\s+/g, ' ').trim().slice(0, 40) || 'table';
+    }
+
+    main.querySelectorAll('table').forEach(function (table) {
+      if (table.classList.contains('no-enhance')) return;
+      if (table.dataset.toolsDone) return;
+      if (!table.tHead || !table.tBodies.length) return;
+      if (dataRows(table.tBodies[0]).length < 2) return; // nothing worth searching/exporting
+      table.dataset.toolsDone = '1';
+
+      var tools = document.createElement('div');
+      tools.className = 'tbl-tools no-print';
+      var search = document.createElement('input');
+      search.type = 'search'; search.className = 'tbl-search';
+      search.placeholder = 'חיפוש בטבלה…'; search.autocomplete = 'off';
+      var count = document.createElement('span'); count.className = 'tbl-count muted';
+      var xls = document.createElement('button'); xls.type = 'button'; xls.className = 'btn btn-secondary btn-sm'; xls.textContent = '⬇ Excel';
+      var csv = document.createElement('button'); csv.type = 'button'; csv.className = 'btn btn-secondary btn-sm'; csv.textContent = 'CSV';
+      tools.appendChild(search); tools.appendChild(count);
+      var spacer = document.createElement('span'); spacer.style.marginInlineStart = 'auto'; tools.appendChild(spacer);
+      tools.appendChild(xls); tools.appendChild(csv);
+
+      // place the toolbar just before the table (or its scroll wrapper)
+      var anchor = table.closest('.table-scroll') || table;
+      anchor.parentNode.insertBefore(tools, anchor);
+
+      var rows = dataRows(table.tBodies[0]);
+      function filter() {
+        var toks = norm(search.value).split(' ').filter(Boolean);
+        var shown = 0;
+        rows.forEach(function (r) {
+          var hay = norm(r.textContent);
+          var ok = toks.every(function (t) { return hay.indexOf(t) !== -1; });
+          r.style.display = ok ? '' : 'none';
+          if (ok) shown++;
+        });
+        count.textContent = toks.length ? (shown + ' / ' + rows.length) : '';
+      }
+      search.addEventListener('input', filter);
+      xls.addEventListener('click', function () { exportExcel(table, baseName(table)); });
+      csv.addEventListener('click', function () { exportCsv(table, baseName(table)); });
+    });
+  })();
+  </script>
+
+  <script>
   // Global collapsible rubrics + accordion. Two mechanisms, one behaviour ("open one → the others
   // in its group close"):
   //   1) Native <details data-accordion="grp"> (e.g. the Z-closing recents) — opening one closes

@@ -539,6 +539,11 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .card.collapsed .card-cbody { display: none; }
 .card-ctoggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: 4px; }
 
+/* global table tools toolbar (live search + Excel/CSV export) */
+.tbl-tools { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin: 0 0 var(--space-2); }
+.tbl-tools .tbl-search { max-width: 260px; min-height: 0; padding: 6px 10px; }
+.tbl-tools .tbl-count { font-size: 12px; }
+
 /* sticky multi-select action bar (invoices → combined payment) */
 .pay-bar { position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; gap: var(--space-3);
   margin-top: var(--space-3); padding: var(--space-3) var(--space-4);
