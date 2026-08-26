@@ -64,11 +64,6 @@
       <button type="button" class="round-btn" title="פירוט הוצאות" onclick="var p=document.getElementById('cx-panel');p.hidden=!p.hidden;">🧾</button>
     </div>
   </div>
-  <div style="display:flex;align-items:center;gap:.6rem;margin:.2rem 0 .4rem">
-    <span style="font-weight:600">הכנסות מאשראי</span>
-    <button type="button" class="round-btn" title="דוח כרטיסי אשראי" onclick="var p=document.getElementById('cc-panel');p.hidden=!p.hidden;">💳</button>
-  </div>
-
   <div id="cx-panel" <%= exRows.length ? '' : 'hidden' %>>
     <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · תשלום חשבונית. שכר/מפרעה משויכים לעובד; תשלום חשבונית משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
     <div class="table-scroll">
@@ -104,6 +99,11 @@
       </tbody>
     </table>
     </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:.6rem;margin:.9rem 0 .4rem">
+    <span style="font-weight:600">הכנסות מאשראי</span>
+    <button type="button" class="round-btn" title="דוח כרטיסי אשראי" onclick="var p=document.getElementById('cc-panel');p.hidden=!p.hidden;">💳</button>
   </div>
 
   <div id="cc-panel" hidden>
