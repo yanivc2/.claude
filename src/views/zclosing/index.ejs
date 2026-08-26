@@ -60,7 +60,11 @@
     <div class="row">
       <div>
         <label>חנות</label>
-        <% if (stOpts.length === 1) { %>
+        <% if (typeof activeStore !== 'undefined' && activeStore) { %>
+          <%# Locked to the active-store context (switch it in the banner at the top). %>
+          <input type="hidden" name="store_id" value="<%= activeStore.id %>" />
+          <input value="<%= activeStore.name %> · <%= activeStore.company_name %>" readonly title="נעול לחנות הפעילה" />
+        <% } else if (stOpts.length === 1) { %>
           <input type="hidden" name="store_id" value="<%= stOpts[0].id %>" />
           <input value="<%= stOpts[0].name %> · <%= stOpts[0].company_name %>" readonly />
         <% } else { %>

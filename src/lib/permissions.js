@@ -102,7 +102,7 @@ export const NAV_ALLOW = {
 };
 
 // Paths any authenticated user may always reach (own account, logout, legal, cron runner).
-export const OPEN_PATHS = ['/account', '/logout', '/privacy', '/accessibility', '/audit/reminders/run'];
+export const OPEN_PATHS = ['/account', '/logout', '/privacy', '/accessibility', '/audit/reminders/run', '/context'];
 
 /** The set of page-permission keys a user actually has (empty = unrestricted, legacy behavior). */
 export function navPermsOf(user) {

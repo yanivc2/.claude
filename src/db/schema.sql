@@ -93,6 +93,16 @@ CREATE TABLE IF NOT EXISTS user_companies (
   UNIQUE (user_id, company_id)
 );
 
+-- Per-user store access (הרשאה פר-חנות). Finer than user_companies: an owner sees all stores; a
+-- non-owner with rows here is limited to exactly those stores. A non-owner with NO rows here falls
+-- back to all stores in their granted companies (backward compatible with company-only grants).
+CREATE TABLE IF NOT EXISTS user_stores (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  store_id INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  UNIQUE (user_id, store_id)
+);
+
 -- Password-reset tokens (email flow). Only a SHA-256 hash of the token is stored.
 CREATE TABLE IF NOT EXISTS password_resets (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

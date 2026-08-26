@@ -27,6 +27,7 @@
 | 8 | **DB חי = Postgres (Neon); אין apply-schema אוטומטי** | `api/index.js` `connectDb()` | אחרי שינוי סכימה הבעלים **חייב** ללחוץ הגדרות → "עדכן מסד נתונים". אין לי גישה ל-DB החי — deploy לא נוגע בשורות קיימות. |
 | 9 | **workflow דחיפה** | `apnew/main` = מה ש-Vercel מפרסם | `git push apnew ap-control-split:main` + mirror `git push origin ap-control-split`. `fetch apnew main && rebase` לפני כל דחיפה. אף פעם לא לדרוס commit של סשן אחר. |
 | 10 | **סכימה נבחרת מפורשות ב-SELECT** | הרבה services בוחרים רשימת עמודות מפורשת (`getUser`/`listUsers`) | עמודה חדשה שלא נוספה ל-SELECT → `undefined` בתצוגה למרות שהיא במסד. |
+| 11 | **הקשר "חנות פעילה" + הרשאה פר-חנות** | `middleware/currentUser.js` (קובע `req.activeStoreId`, `req.scope.storeIds`, `res.locals.activeStore/availableStores`), `lib/scope.js` (`authorizedStoreIds`/`availableStoresFor`/`setUserStores`), `routes/context.js` (`POST /context/store`, cookie `ap_store`), טבלת `user_stores`. | הבורר בבאנר (`header.ejs`) חייב את `/context` ב-`OPEN_PATHS` אחרת תפקיד מוגבל חסום. `authorizedStoreIds`: אין grants → כל חנויות החברות המורשות (תאימות לאחור). `authorizedCompanyIds` מאחד גם חברות-דרך-חנויות. טפסי יצירה (חשבונית/סגירה) ננעלים ל-`activeStore`. |
 
 ---
 
@@ -42,6 +43,7 @@
 | **בורר תאריך (footer)** | מחליף `input[type=date]` → תצוגה DD/MM/YY, הקלדה במחשב (`parseTyped`). שומר hidden ISO בשם המקורי. | שינוי → משפיע על **כל** שדות התאריך. `data-dp-mode=week/month` נשארים picker-only. |
 | **קומבובוקס (footer)** | מחליף `<select class="js-combo">` בשדה חיפוש; ה-select נשאר הערך הנשלח. | הסרת המחלקה `js-combo` מהשדה מחזירה select רגיל (לא שובר). שינוי הלוגיקה משפיע על שדה הספק בחשבוניות. |
 | **חלונות בעלים** (`_ownerDialogs.ejs`) | כפתור `apOpen('dlg-X')` + `<dialog id="dlg-X">` **חייבים לנסוע יחד** (מבחן `orgs-permissions.test.js` אוכף). | כפתור בלי הדיאלוג = כפתור מת (showModal על null). מחיקת דיאלוג → הסר גם את הכפתור + עדכן את מערך `ACTIONS` במבחן. |
+| **באנר "חנות פעילה"** (`header.ejs`, ראשון ב-`<main>`) | מציג `activeStore` (או "כל החנויות"); בורר `<select onchange=submit>` + כפתור מחווט ל-`POST /context/store` (cookie `ap_store`). CSS `.store-banner` ב-`nocturne.css`. נעילה אוטומטית כשיש חנות זמינה אחת. | מוצג בכל דף כשיש `availableStores`. הסרת ה-cookie/route → אין הקשר. תלוי ב-`res.locals.availableStores/activeStore` מ-`currentUser`. |
 
 ---
 
@@ -149,6 +151,7 @@
 |---|---|---|---|---|
 | חברות/חנויות/חשבונות | `POST /settings/{companies,stores,accounts}[/…]` | `services/orgs.js` | הקמה + `deleteStore`. | חשבוניות/Z תלויים בחנות+חשבון בנק. |
 | משתמשים + הרשאות + מטריצת חברות | `POST /settings/users[/:id/…]` | `services/users.js`, `_permpicker.ejs`, `lib/scope.js` | הרשאות ויזואליות (`PERMISSIONS`), presets (`ROLE_PRESETS`), הפרדת חברות. | הרשאות משפיעות על ה-firewall ועל הניווט. |
+| מטריצת הרשאות חנויות (פר-חנות) | `POST /settings/users/:id/stores` (owner) | `storeGrantMatrix`/`setUserStores` (`lib/scope.js`), עמודות מ-`listStructure` (חברה→חנויות) | סימון חנויות → `user_stores`; ריק = כל חנויות החברות המורשות. קובע את `availableStores` (בורר החנות הפעילה). | מוגן ב-`router.use('/users', requireOwner)`. תלוי ב-`companies` (nested stores) ו-`storeGrants` מה-render. |
 | הזמנה / קישור הגדרה-עצמית | `POST /settings/users/:id/{invite,invite-link}` | `services/passwordReset.js` (`createInviteLink`,`completeInvite`) | וואטסאפ / קישור `/invite/:token`; מדיניות סיסמה ≥6, אות גדולה+קטנה+ספרה, אלפאנומרי. | טוקנים ב-`password_resets`. מדיניות ב-`lib/auth.js`. |
 | **עדכון מסד נתונים** (`dlg-db`) | `POST /settings/db-upgrade` | `upgradeSchema` (re-apply `schema.pg.sql`) | הרצה אחרי כל שינוי סכימה. בטוח, לא מוחק. | חובה אחרי עמודה/טבלה חדשה. |
 | גיבוי מלא (`dlg-backup`) | `GET /settings/backup` | `exportAll` (`backup.js`) | JSON snapshot של כל הטבלאות. | — |

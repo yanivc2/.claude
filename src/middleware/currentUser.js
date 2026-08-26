@@ -1,7 +1,7 @@
 import { getExecutor } from '../db/adapter.js';
 import { readSession } from '../lib/auth.js';
 import { userCan, canViewPage } from '../lib/permissions.js';
-import { authorizedCompanyIds } from '../lib/scope.js';
+import { authorizedCompanyIds, authorizedStoreIds, availableStoresFor } from '../lib/scope.js';
 import { loginAllowedNow } from '../lib/loginHours.js';
 import { countPending } from '../services/changeRequests.js';
 
@@ -69,7 +69,8 @@ export async function currentUser(req, res, next) {
 
     // Per-user company scope (הפרדת חברות): null = all (owner), else the granted company ids.
     const companyIds = await authorizedCompanyIds(user);
-    req.scope = { companyIds, all: companyIds == null };
+    const storeIds = await authorizedStoreIds(user); // null = all (owner), else granted store ids
+    req.scope = { companyIds, storeIds, all: companyIds == null };
     if (companyIds == null) {
       res.locals.scopeCompanies = null; // owner — sees everything
     } else {
@@ -80,6 +81,23 @@ export async function currentUser(req, res, next) {
           )
         : [];
     }
+
+    // Active-store context (בורר "חנות פעילה"). A persistent cookie remembers the chosen store; the
+    // header banner shows it and every scoped page/new-form defaults to it. Guards:
+    //   • the chosen store must be one the user may access (else it's ignored — no cross-store leak);
+    //   • a user with exactly one available store is auto-locked to it (no picker needed);
+    //   • owner/multi-store with no valid cookie → null = "all stores".
+    const availableStores = await availableStoresFor(user);
+    res.locals.availableStores = availableStores;
+    let activeStore = null;
+    if (availableStores.length === 1) {
+      activeStore = availableStores[0];
+    } else if (cookies.ap_store) {
+      const wanted = Number(cookies.ap_store);
+      activeStore = availableStores.find((s) => Number(s.id) === wanted) || null;
+    }
+    req.activeStoreId = activeStore ? Number(activeStore.id) : null;
+    res.locals.activeStore = activeStore; // {id,name,company_id,company_name} or null = all
     return next();
   } catch (err) {
     return next(err);

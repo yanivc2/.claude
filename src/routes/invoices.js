@@ -94,7 +94,8 @@ router.get('/', async (req, res, next) => {
   try {
     const q = (req.query.q || '').trim();
     const supplierId = req.query.supplier ? Number(req.query.supplier) : null;
-    const storeId = req.query.store ? Number(req.query.store) : null;
+    // Default to the active-store context unless an explicit ?store= overrides it.
+    const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
     const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : null;
     const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : null;
     const { suppliers, stores } = await formData(req.scope.companyIds);

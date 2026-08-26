@@ -36,14 +36,20 @@
       </div>
       <div>
         <label>חנות *</label>
-        <select name="store_id" required>
-          <option value="">— בחר חנות —</option>
-          <% stores.forEach(function(st){ %>
-            <option value="<%= st.id %>" <%= String(values.store_id) === String(st.id) ? 'selected' : '' %>>
-              <%= st.name %> · <%= st.company_name %>
-            </option>
-          <% }); %>
-        </select>
+        <% if (typeof activeStore !== 'undefined' && activeStore) { %>
+          <%# Locked to the active-store context so a new invoice can't be filed to the wrong store. %>
+          <input type="hidden" name="store_id" value="<%= activeStore.id %>" />
+          <input value="<%= activeStore.name %> · <%= activeStore.company_name %>" readonly title="נעול לחנות הפעילה — החלף בבאנר למעלה" />
+        <% } else { %>
+          <select name="store_id" required>
+            <option value="">— בחר חנות —</option>
+            <% stores.forEach(function(st){ %>
+              <option value="<%= st.id %>" <%= String(values.store_id) === String(st.id) ? 'selected' : '' %>>
+                <%= st.name %> · <%= st.company_name %>
+              </option>
+            <% }); %>
+          </select>
+        <% } %>
       </div>
     </div>
 

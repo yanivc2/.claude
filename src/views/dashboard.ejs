@@ -189,16 +189,16 @@
 <div class="card">
   <h2 style="margin:0 0 .5rem">תשלום במזומן ללא התאמה</h2>
   <table>
-    <thead><tr><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th><th>Z</th></tr></thead>
+    <thead><tr><th>Z</th><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th></tr></thead>
     <tbody>
       <% if (!unmatchedCash || unmatchedCash.length === 0) { %><tr><td colspan="5" class="muted">אין הוצאות מזומן ללא התאמה.</td></tr><% } %>
       <% (unmatchedCash || []).forEach(function(e){ %>
         <tr>
+          <td><a href="<%= e.source === 'zclosing' ? '/zclosing/' + e.ref_id : '/reports/zreports/' + e.ref_id %>">Z <%= e.z_number %></a></td>
           <td><%= formatDate(e.expense_date) %></td>
           <td><%= e.payer_name || '—' %></td>
           <td><%= e.purpose || '—' %></td>
           <td class="right"><%= formatIls(e.amount) %></td>
-          <td><a href="<%= e.source === 'zclosing' ? '/zclosing/' + e.ref_id : '/reports/zreports/' + e.ref_id %>">Z <%= e.z_number %></a></td>
         </tr>
       <% }); %>
     </tbody>

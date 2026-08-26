@@ -22,6 +22,7 @@ export function migrate(db) {
   migrateDraftSupplier(db);
   migrateCheckNumberReuse(db);
   migrateAppSettings(db);
+  migrateUserStores(db);
 }
 
 // app_settings — app-wide key/value flags (e.g. the scan-feature lock). Create it on existing DBs.
@@ -218,6 +219,16 @@ function migrateDeposits(db) {
     deposited    INTEGER NOT NULL DEFAULT 0,
     created_by   INTEGER NOT NULL REFERENCES users(id),
     created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+  );`);
+}
+
+// Adds the user_stores table (per-user store access, finer than user_companies) to older databases.
+function migrateUserStores(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS user_stores (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    store_id INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    UNIQUE (user_id, store_id)
   );`);
 }
 

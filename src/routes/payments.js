@@ -27,7 +27,8 @@ router.param('id', scopeParam('payment'));
 router.get('/', async (req, res, next) => {
   try {
     const companyId = req.query.company ? Number(req.query.company) : null;
-    const storeId = req.query.store ? Number(req.query.store) : null;
+    // Default to the active-store context unless an explicit ?store= overrides it.
+    const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
     const scope = req.scope.companyIds;
     const cScope = scopeClause(scope, 'id');
     const sScope = scopeClause(scope, 'st.company_id');

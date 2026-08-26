@@ -21,12 +21,13 @@ import zclosingRoutes from './routes/zclosing.js';
 import employeeRoutes from './routes/employees.js';
 import scanRoutes from './routes/scan.js';
 import productRoutes from './routes/products.js';
+import contextRoutes from './routes/context.js';
 import { isScanEnabled } from './services/appSettings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-15·73';
+const BUILD_VERSION = '2026-08-15·74';
 
 export function createApp() {
   const app = express();
@@ -140,6 +141,7 @@ export function createApp() {
   app.use('/', authRoutes);
   app.use('/', legalRoutes);
   app.use('/account', accountRoutes);
+  app.use('/context', contextRoutes); // active-store switch (OPEN_PATH → reachable by restricted roles)
   app.use('/', indexRoutes);
   app.use('/suppliers', requirePageAccess('nav_suppliers'), supplierRoutes);
   app.use('/invoices', requirePageAccess('nav_invoices'), invoiceRoutes);

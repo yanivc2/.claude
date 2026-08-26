@@ -306,6 +306,65 @@
 </details>
 <% } %>
 
+<!-- ===== מטריצת הרשאות חנויות (הרשאה פר-חנות, בעלים בלבד) ===== -->
+<% if (currentUser.role === 'owner') { %>
+<%
+  var _allStores = [];
+  (companies || []).forEach(function(c){ (c.stores || []).forEach(function(s){ _allStores.push(s); }); });
+  var _nonOwners = users.filter(function(u){ return u.role !== 'owner'; });
+%>
+<details class="section">
+  <summary>מטריצת הרשאות חנויות (הרשאה פר-חנות)</summary>
+  <div class="section-body">
+    <p class="muted">אופציונלי, ומדויק יותר מהרשאת חברה: סמן לאילו <strong>חנויות</strong> יש למשתמש גישה.
+      אם לא סומנה אף חנות — המשתמש רואה את כל החנויות בחברות המורשות לו (כמו קודם). אם סומנו חנויות —
+      הוא מוגבל אליהן בלבד, וזו גם רשימת החנויות שיוכל לבחור כ"חנות פעילה" בבאנר העליון.</p>
+    <% if (_allStores.length === 0) { %>
+      <p class="muted">לא הוגדרו חנויות עדיין.</p>
+    <% } else { %>
+      <% _nonOwners.forEach(function(u){ %>
+        <form id="sgrant-<%= u.id %>" method="post" action="/settings/users/<%= u.id %>/stores"></form>
+      <% }); %>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th rowspan="2">משתמש</th>
+              <% (companies || []).filter(function(c){ return (c.stores || []).length; }).forEach(function(c){ %>
+                <th colspan="<%= c.stores.length %>" style="text-align:center"><%= c.name %></th>
+              <% }); %>
+              <th class="no-print" rowspan="2"></th>
+            </tr>
+            <tr>
+              <% (companies || []).forEach(function(c){ (c.stores || []).forEach(function(s){ %>
+                <th style="text-align:center;font-weight:400;font-size:12px"><%= s.name %></th>
+              <% }); }); %>
+            </tr>
+          </thead>
+          <tbody>
+            <% _nonOwners.forEach(function(u){ %>
+              <tr>
+                <td><strong><%= u.label || u.name %></strong> <span class="muted mono" style="font-size:.8rem"><%= u.username || '' %></span></td>
+                <% (companies || []).forEach(function(c){ (c.stores || []).forEach(function(s){ %>
+                  <td style="text-align:center">
+                    <input form="sgrant-<%= u.id %>" type="checkbox" name="stores" value="<%= s.id %>" style="width:auto"
+                      <%= (storeGrants[u.id] || []).includes(s.id) ? 'checked' : '' %> />
+                  </td>
+                <% }); }); %>
+                <td class="no-print"><button form="sgrant-<%= u.id %>" class="small" type="submit">שמור</button></td>
+              </tr>
+            <% }); %>
+            <% if (_nonOwners.length === 0) { %>
+              <tr><td colspan="<%= _allStores.length + 2 %>" class="muted">אין משתמשים שאינם בעלים.</td></tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </div>
+</details>
+<% } %>
+
 <!-- ===== תבניות תפקיד (בעלים בלבד) ===== -->
 <% if (currentUser.role === 'owner') { %>
 <details class="section">

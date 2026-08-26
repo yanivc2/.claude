@@ -20,7 +20,7 @@ import { upgradeSchema } from '../db/index.js';
 import { getExecutor } from '../db/adapter.js';
 import { requireOwner, requirePermission } from '../middleware/requireOwner.js';
 import { PERMISSIONS, ROLE_PRESETS } from '../lib/permissions.js';
-import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
+import { companyGrantMatrix, setUserCompanies, storeGrantMatrix, setUserStores } from '../lib/scope.js';
 import { verifyPassword, generatePassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll, cleanStartInvoicesPaymentsZ } from '../services/backup.js';
 import { setScanEnabled } from '../services/appSettings.js';
@@ -97,6 +97,7 @@ async function render(req, res, extra = {}) {
   let users = [];
   let companyList = [];
   let grants = {}; // { userId: [companyId, ...] } for the company×user matrix
+  let storeGrants = {}; // { userId: [storeId, ...] } for the per-store grant layer
   let roleTemplates = []; // saved permission presets the owner can apply to a user
   let schemaWarning = null;
   try {
@@ -113,6 +114,8 @@ async function render(req, res, extra = {}) {
     companyList = await getExecutor().many('SELECT id, name FROM companies ORDER BY name', []);
     const m = await companyGrantMatrix();
     grants = Object.fromEntries([...m.entries()].map(([uid, set]) => [uid, [...set]]));
+    const sm = await storeGrantMatrix();
+    storeGrants = Object.fromEntries([...sm.entries()].map(([uid, set]) => [uid, [...set]]));
   } catch (e) {
     schemaWarning = 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
   }
@@ -129,6 +132,7 @@ async function render(req, res, extra = {}) {
     users,
     companyList,
     grants,
+    storeGrants,
     roleTemplates,
     permissionCatalog: PERMISSIONS,
     rolePresets: ROLE_PRESETS,
@@ -353,6 +357,19 @@ router.post('/users/:id/companies', async (req, res, next) => {
     const companyIds = [].concat(req.body.companies || []).map(Number).filter(Boolean);
     await setUserCompanies(Number(req.params.id), companyIds, getExecutor());
     return done(res, 'הרשאות החברה עודכנו.');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// Set a user's per-store access (הרשאה פר-חנות matrix). No rows = fall back to all stores in the
+// user's granted companies; rows here pin the user to exactly those stores.
+router.post('/users/:id/stores', async (req, res, next) => {
+  try {
+    const storeIds = [].concat(req.body.stores || []).map(Number).filter(Boolean);
+    await setUserStores(Number(req.params.id), storeIds, getExecutor());
+    return done(res, 'הרשאות החנות עודכנו.');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);

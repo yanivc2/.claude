@@ -89,6 +89,34 @@
   </script>
 
   <main class="page fade-up">
+    <%# Active-store context banner — always visible so the user knows which store they're on. %>
+    <% if (typeof availableStores !== 'undefined' && availableStores && availableStores.length) { %>
+      <div class="store-banner<%= (typeof activeStore !== 'undefined' && activeStore) ? '' : ' is-all' %>">
+        <span class="store-banner-ico" aria-hidden="true">🏪</span>
+        <span class="store-banner-label">חנות פעילה</span>
+        <strong class="store-banner-name">
+          <% if (typeof activeStore !== 'undefined' && activeStore) { %>
+            <%= activeStore.name %><% if (activeStore.company_name) { %> <span class="store-banner-co">· <%= activeStore.company_name %></span><% } %>
+          <% } else { %>
+            כל החנויות
+          <% } %>
+        </strong>
+        <% if (availableStores.length > 1) { %>
+          <form method="post" action="/context/store" class="store-banner-switch">
+            <input type="hidden" name="return_to" value="<%= path %>">
+            <select name="store_id" onchange="this.form.submit()" aria-label="בחר חנות פעילה">
+              <option value="">— כל החנויות —</option>
+              <% availableStores.forEach(function(s){ %>
+                <option value="<%= s.id %>"<%= (typeof activeStore !== 'undefined' && activeStore && Number(activeStore.id) === Number(s.id)) ? ' selected' : '' %>><%= s.name %> · <%= s.company_name %></option>
+              <% }); %>
+            </select>
+            <button type="submit" class="btn btn-secondary btn-sm">החלף</button>
+          </form>
+        <% } else { %>
+          <span class="tag tag-outline store-banner-lock">נעול לחנות זו</span>
+        <% } %>
+      </div>
+    <% } %>
     <% if (typeof scopeCompanies !== 'undefined' && scopeCompanies) { %>
       <div class="scope-strip">
         <span class="tag tag-outline">חברות מורשות</span>

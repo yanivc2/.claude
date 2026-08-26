@@ -101,6 +101,12 @@ happen only at merge. So:
 - Company separation ("הפרדת חברות"): `lib/scope.js` — `authorizedCompanyIds(user)` (null = owner/all),
   `scopeClause(scope, col)` → `{sql, params}` appended to WHERE. `lib/scopeGuard.js#assertInScope` +
   `scopeParam` guard id-bearing routes against IDOR.
+- Store separation + active-store context ("חנות פעילה"): `lib/scope.js` — `authorizedStoreIds(user)`
+  (null=owner; explicit `user_stores` grants else all stores in granted companies), `availableStoresFor`,
+  `setUserStores`. `currentUser` sets `req.activeStoreId` + `res.locals.activeStore/availableStores` from
+  the `ap_store` cookie (validated; auto-locks when one store). `POST /context/store` (`routes/context.js`,
+  `/context` ∈ `OPEN_PATHS`) switches it; the header banner shows it; new invoice/zclosing forms lock to it.
+  Detail → INDEX.md (invariant #11). New table `user_stores` (schema in 3 places).
 - Login flow: `routes/auth.js` — checks `loginAllowedNow` (403 outside window), pushes a Telegram
   notice on every login. Forced-change + temp-password onboarding: `routes/account.js` (change form),
   `routes/settings.js` (invite builds WhatsApp msg + temp password), `services/users.js`

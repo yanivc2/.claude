@@ -35,7 +35,8 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
     const q = (req.query.q || '').trim();
     const unpaidOnly = req.query.unpaid === '1';
     let companyId = req.query.company ? Number(req.query.company) : null;
-    let storeId = req.query.store ? Number(req.query.store) : null;
+    // Default the dashboard to the active-store context unless an explicit ?store= is given.
+    let storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
     const scope = req.scope.companyIds; // null = all (owner)
     const cScope = scopeClause(scope, 'id');
     const sScope = scopeClause(scope, 'company_id');
