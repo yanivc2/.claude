@@ -474,3 +474,11 @@ CREATE TABLE IF NOT EXISTS master_catalog (
   created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
 CREATE INDEX IF NOT EXISTS ix_master_catalog_manufacturer ON master_catalog(manufacturer_norm);
+
+-- app_settings — app-wide key/value flags (entitlements/toggles), e.g. scan feature lock.
+-- value is TEXT; callers coerce. Owner-managed from Settings.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);

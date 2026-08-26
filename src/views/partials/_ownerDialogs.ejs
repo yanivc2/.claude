@@ -14,39 +14,6 @@
   </form>
 </dialog>
 
-<dialog id="dlg-catalog" class="ndialog" onclick="event.stopPropagation()">
-  <form method="post" action="/settings/catalog-import" enctype="multipart/form-data" class="stack">
-    <h3 style="margin:0">טעינת קטלוג-על</h3>
-    <p class="muted" style="margin:.2rem 0">
-      קובץ <strong>XLSX או CSV</strong> עם כותרות בעברית: <strong>ברקוד, שם</strong> (חובה), ואם יש גם מקט, יצרן, יח' אריזה, כמות, יחידת מידה ומחיר מדף.
-      קובץ שמאחד כמה רשתות יכול להחזיק עמודת מחיר לכל רשת — כולן נקראות והמחיר שנשמר הוא החציון.
-      עמודות אחרות פשוט לא נקראות — <strong>אין צורך למחוק אותן</strong>.
-      הטעינה מוסיפה ומעדכנת בלבד ואף פעם לא מוחקת.
-    </p>
-    <p class="muted" style="margin:.2rem 0">
-      ⚠ <strong>אל תשמרו את הקובץ מחדש כ-CSV מתוך אקסל.</strong> אקסל מוריד אפסים מובילים
-      מהברקודים (‎012345… הופך ל-‎12345…). המערכת מתקנת את זה לפי ספרת הביקורת ומדווחת כמה תוקנו,
-      אבל <strong>XLSX מקורי עדיף</strong> — הוא לא עובר את ההמרה הזו כלל.
-      קובץ גדול נקרא בדפדפן ונשלח במנות, כך שאין מגבלת גודל מעשית.
-    </p>
-    <label class="lbl">קובץ הקטלוג</label>
-    <input type="file" name="catalog" accept=".xlsx,.csv,.tsv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
-    <label class="lbl" style="margin-top:.4rem">שם המקור (לתיעוד)</label>
-    <input type="text" name="source_name" placeholder="למשל: קטלוג ספקים 2026" maxlength="60" />
-    <%# Progress + result, driven by /catalog-upload.js. Hidden (and inert) when the script is
-        absent, in which case the form just posts to /settings/catalog-import as before. %>
-    <div id="catalog-progress" hidden style="margin-top:.6rem">
-      <div class="scan-progress"><div id="catalog-bar"></div></div>
-      <p class="muted" id="catalog-status" style="margin:.4rem 0 0"></p>
-    </div>
-    <div class="actions" style="justify-content:flex-end;margin-top:.4rem">
-      <button type="button" class="secondary" onclick="this.closest('dialog').close()">סגור</button>
-      <button type="submit">טען קטלוג</button>
-    </div>
-  </form>
-</dialog>
-<script type="module" src="/catalog-upload.js?v=1"></script>
-
 <dialog id="dlg-storage" class="ndialog" onclick="event.stopPropagation()">
   <form method="post" action="/settings/storage-test" class="stack">
     <h3 style="margin:0">בדיקת אחסון קבצים</h3>

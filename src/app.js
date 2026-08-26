@@ -21,11 +21,12 @@ import zclosingRoutes from './routes/zclosing.js';
 import employeeRoutes from './routes/employees.js';
 import scanRoutes from './routes/scan.js';
 import productRoutes from './routes/products.js';
+import { isScanEnabled } from './services/appSettings.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-15·69';
+const BUILD_VERSION = '2026-08-15·70';
 
 export function createApp() {
   const app = express();
@@ -124,6 +125,14 @@ export function createApp() {
     next();
   });
 
+  // Scan-feature entitlement: exposed to the nav (lock icon) and enforced at the /scan mount.
+  // Default LOCKED until the owner enables it in Settings (foundation for a future scan package).
+  app.use(async (req, res, next) => {
+    try { res.locals.scanEnabled = req.user ? await isScanEnabled() : false; }
+    catch { res.locals.scanEnabled = false; }
+    next();
+  });
+
   // Default-deny firewall for restricted roles (e.g. the register-closer). Runs before every
   // route so no detail/CSV/settings path can be reached outside a role's granted pages.
   app.use(enforcePageScope);
@@ -138,7 +147,18 @@ export function createApp() {
   app.use('/reports', reportRoutes); // per-sub-page access guarded inside reportRoutes
   app.use('/reconciliation', requirePageAccess('nav_reconciliation'), reconciliationRoutes);
   app.use('/zclosing', requirePageAccess('nav_zclosing'), zclosingRoutes);
-  app.use('/scan', requirePageAccess('nav_scan'), scanRoutes);
+  // Scan is locked behind the entitlement: when disabled, show the locked page (GET) or refuse
+  // (other verbs) — a future scan package flips this on per customer.
+  const scanGate = async (req, res, next) => {
+    let enabled = false;
+    try { enabled = await isScanEnabled(); } catch { enabled = false; }
+    if (enabled) return next();
+    if (req.method === 'GET') {
+      return res.status(423).render('scan-locked', { title: 'צילום חשבוניות — נעול' });
+    }
+    return res.status(423).send('צילום חשבוניות אינו פעיל');
+  };
+  app.use('/scan', requirePageAccess('nav_scan'), scanGate, scanRoutes);
   app.use('/products', requirePageAccess('nav_products'), productRoutes);
   app.use('/employees', requirePageAccess('nav_employees'), employeeRoutes);
   app.use('/settings', settingsRoutes);

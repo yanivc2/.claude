@@ -18,10 +18,13 @@
         <span class="dial-ic">🗄️</span>
         <span class="dial-txt"><strong>עדכון מסד נתונים</strong><small>הרץ פעם אחת אחרי כל עדכון גרסה. בטוח, לא מוחק דבר.</small></span>
       </button>
-      <button type="button" class="dial" onclick="apOpen('dlg-catalog')">
-        <span class="dial-ic">🏷️</span>
-        <span class="dial-txt"><strong>טעינת קטלוג-על</strong><small>העלאת קובץ CSV של מוצרים — משמש לזיהוי מוצרים בסריקת חשבוניות.</small></span>
-      </button>
+      <form method="post" action="/settings/scan-toggle" style="margin:0">
+        <input type="hidden" name="on" value="<%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? '0' : '1' %>" />
+        <button type="submit" class="dial" style="width:100%">
+          <span class="dial-ic"><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? '📷' : '🔒' %></span>
+          <span class="dial-txt"><strong>צילום חשבוניות — <%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'פעיל' : 'נעול' %></strong><small><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'לחץ כדי לנעול את התכונה.' : 'תכונה בתשלום. לחץ כדי להפעיל (חבילת צילום חשבוניות).' %></small></span>
+        </button>
+      </form>
       <button type="button" class="dial" onclick="apOpen('dlg-backup')">
         <span class="dial-ic">⬇</span>
         <span class="dial-txt"><strong>גיבוי מלא</strong><small>הורדת עותק של כל הנתונים כקובץ JSON.</small></span>

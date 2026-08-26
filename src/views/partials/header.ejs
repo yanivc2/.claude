@@ -32,8 +32,7 @@
         <% function nav(key){ return typeof canView !== 'function' || canView(key); } %>
         <% if (nav('nav_dashboard')) { %><a href="/" class="<%= path === '/' ? 'active' : '' %>"><span class="mi-ic">🏠</span>לוח בקרה</a><% } %>
         <% if (nav('nav_invoices')) { %><a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>"><span class="mi-ic">🧾</span>חשבוניות</a><% } %>
-        <% if (nav('nav_scan')) { %><a href="/scan" class="<%= path.startsWith('/scan') ? 'active' : '' %>"><span class="mi-ic">📷</span>צילום חשבוניות</a><% } %>
-        <% if (nav('nav_products')) { %><a href="/products" class="<%= path.startsWith('/products') ? 'active' : '' %>"><span class="mi-ic">🏷️</span>מוצרים</a><% } %>
+        <% if (nav('nav_scan')) { %><a href="/scan" class="<%= path.startsWith('/scan') ? 'active' : '' %>"><span class="mi-ic"><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? '📷' : '🔒' %></span>צילום חשבוניות<% if (!(typeof scanEnabled !== 'undefined' && scanEnabled)) { %> <span class="tag" style="font-size:10px">נעול</span><% } %></a><% } %>
         <% if (nav('nav_payments')) { %><a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>"><span class="mi-ic">💳</span>מרקורים</a><% } %>
         <% if (nav('nav_zreports')) { %><a href="/reports/zreports" class="<%= path.startsWith('/reports/zreports') ? 'active' : '' %>"><span class="mi-ic">📊</span>דוחות Z</a><% } %>
         <% if (nav('nav_zclosing')) { %><a href="/zclosing" class="<%= path.startsWith('/zclosing') ? 'active' : '' %>"><span class="mi-ic">🔒</span>סגירת Z</a><% } %>

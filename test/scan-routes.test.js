@@ -5,6 +5,7 @@ import { freshDb, owner, firstStore } from './helpers.js';
 import { createApp } from '../src/app.js';
 import { createSession } from '../src/lib/auth.js';
 import { createDraft } from '../src/services/scan.js';
+import { setScanEnabled } from '../src/services/appSettings.js';
 
 // מסכי צילום החשבוניות מקצה לקצה (HTTP), אך ללא רשת: הצילומים הם מזהים מזויפים, ולכן גם אם
 // מוגדר מפתח API — טעינת הקבצים נכשלת לפני כל קריאה ל-Claude. הבדיקות מוודאות שהתבניות
@@ -27,6 +28,7 @@ async function get(path, cookie) {
 
 before(async () => {
   db = await freshDb();
+  await setScanEnabled(true, db); // scan is locked by default now; these route tests need it on
 
   const ow = await owner(db);
   cookies.owner = cookieFor(ow);

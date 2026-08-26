@@ -21,6 +21,18 @@ export function migrate(db) {
   migrateStandingOrder(db);
   migrateDraftSupplier(db);
   migrateCheckNumberReuse(db);
+  migrateAppSettings(db);
+}
+
+// app_settings — app-wide key/value flags (e.g. the scan-feature lock). Create it on existing DBs.
+function migrateAppSettings(db) {
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS app_settings (
+       key        TEXT PRIMARY KEY,
+       value      TEXT,
+       updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+     );`,
+  );
 }
 
 // A voided check must release its number so a corrected check can be re-issued with the same

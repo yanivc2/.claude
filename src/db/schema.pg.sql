@@ -480,3 +480,10 @@ ALTER TABLE z_closings ADD COLUMN IF NOT EXISTS registers TEXT;
 DROP INDEX IF EXISTS ux_payments_account_check;
 CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
   ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL AND status <> 'voided';
+
+-- app_settings — app-wide key/value flags (entitlements/toggles), e.g. scan feature lock.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT,
+  updated_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+);

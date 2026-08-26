@@ -91,7 +91,7 @@ test('every owner-action button ships with the dialog it opens, and lives in the
   const base = `http://127.0.0.1:${server.address().port}`;
   const cookie = `session=${createSession(ow.id)}`;
 
-  const ACTIONS = ['dlg-db', 'dlg-catalog', 'dlg-backup', 'dlg-reset', 'dlg-restore'];
+  const ACTIONS = ['dlg-db', 'dlg-backup', 'dlg-reset', 'dlg-restore'];
 
   // The invariant that matters, asserted over BOTH pages rather than as two presence checks: a
   // button is never rendered without the dialog it opens. Violating it produced a dead button —
@@ -107,12 +107,11 @@ test('every owner-action button ships with the dialog it opens, and lives in the
 
   const settings = await (await fetch(`${base}/settings`, { headers: { cookie } })).text();
   for (const id of ACTIONS) assert.ok(settings.includes(`apOpen('${id}')`), `/settings missing ${id}`);
-  assert.match(settings, /action="\/settings\/catalog-import"/);
 
   // ...and they must be in the page BODY. They previously rendered inside the ☰ navigation menu,
-  // which is why the owner reported the catalog upload as simply missing.
+  // which is why the owner reported the backup action as simply missing.
   assert.ok(
-    settings.indexOf("apOpen('dlg-catalog')") > settings.indexOf('<main'),
+    settings.indexOf("apOpen('dlg-backup')") > settings.indexOf('<main'),
     'owner actions must render inside <main>, not in the nav menu',
   );
   server.close();

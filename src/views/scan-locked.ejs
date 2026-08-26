@@ -1,0 +1,20 @@
+<%- include('partials/header') %>
+<div class="toolbar"><h1 style="margin:0">📷 צילום חשבוניות</h1></div>
+
+<div class="card" style="max-width:640px">
+  <h2 style="margin:0 0 .4rem">🔒 התכונה נעולה</h2>
+  <p class="muted" style="margin:0 0 .8rem">
+    צילום חשבוניות (צילום בנייד → חילוץ אוטומטי של פרטי החשבונית) אינו פעיל בחשבון זה כרגע.
+    זוהי תכונה בתשלום — בקרוב תוכל לרכוש חבילת צילום של מספר חשבוניות, וכל חשבונית נוספת מעבר לחבילה תחויב בנפרד.
+  </p>
+  <% if (typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'owner') { %>
+    <form method="post" action="/settings/scan-toggle" style="margin:0">
+      <input type="hidden" name="on" value="1" />
+      <button type="submit" class="btn btn-primary">🔓 הפעל צילום חשבוניות</button>
+    </form>
+    <p class="muted" style="margin:.6rem 0 0">אפשר להפעיל/לכבות גם דרך <a href="/settings">הגדרות</a>.</p>
+  <% } else { %>
+    <p class="muted" style="margin:0">לפתיחת התכונה פנה לבעל החשבון / לספק.</p>
+  <% } %>
+</div>
+<%- include('partials/footer') %>

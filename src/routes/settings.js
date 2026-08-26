@@ -23,6 +23,7 @@ import { PERMISSIONS, ROLE_PRESETS } from '../lib/permissions.js';
 import { companyGrantMatrix, setUserCompanies } from '../lib/scope.js';
 import { verifyPassword, generatePassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll, cleanStartInvoicesPaymentsZ } from '../services/backup.js';
+import { setScanEnabled } from '../services/appSettings.js';
 import { storageSelfTest } from '../lib/storage.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
 import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFile.js';
@@ -456,6 +457,17 @@ router.post('/reset-data', requireOwner, async (req, res, next) => {
   }
 });
 
+// Owner toggle: unlock/lock the invoice-scan feature (the future scan package's on/off switch).
+router.post('/scan-toggle', requireOwner, async (req, res, next) => {
+  try {
+    const on = req.body.on === '1';
+    await setScanEnabled(on);
+    await render(req, res, { notice: on ? 'צילום חשבוניות הופעל.' : 'צילום חשבוניות ננעל.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // "Clean start" (owner-only): wipe invoices, payments, and Z reports (+ scan drafts) but KEEP the
 // register closings, suppliers, catalog, employees, bank imports and setup. Owner-password guarded.
 router.post('/clean-start', requireOwner, async (req, res, next) => {
@@ -627,7 +639,7 @@ router.post('/storage-test', requireOwner, async (req, res, next) => {
 // A GET on any action path (a reload of an old POST URL, a bookmark) is not a 404 — it is
 // someone who is already where they meant to be.
 router.get(
-  ['/db-upgrade', '/catalog-import', '/storage-test', '/restore', '/reset-data', '/clean-start', '/password', '/users', '/companies', '/stores'],
+  ['/db-upgrade', '/catalog-import', '/storage-test', '/restore', '/reset-data', '/clean-start', '/scan-toggle', '/password', '/users', '/companies', '/stores'],
   (req, res) => res.redirect(303, '/settings'),
 );
 
