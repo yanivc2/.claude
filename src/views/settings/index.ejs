@@ -86,16 +86,17 @@
   <div class="card" style="border-color:var(--color-accent)">
     <div class="card-kicker">הזמנה בוואטסאפ</div>
     <strong>פרטי התחברות עבור <%= invite.name %></strong>
-    <p class="card-body" style="margin:.3rem 0">נוצרה <strong>סיסמה זמנית</strong>. לחץ "פתח וואטסאפ" — ההודעה כבר מוכנה (קישור לאפליקציה + סיסמה + הסבר להתקנה). אם וואטסאפ לא מילא את הטקסט, לחץ "העתק הודעה" והדבק ידנית.</p>
+    <p class="card-body" style="margin:.3rem 0">נוצרה <strong>סיסמה זמנית</strong>. אפשר להעתיק כל פרט בנפרד (שם משתמש / סיסמה), או ללחוץ "שלח / שתף בוואטסאפ" — ההודעה כבר מוכנה (קישור לאפליקציה + סיסמה + הסבר להתקנה).</p>
 
     <form method="post" action="/settings/users/<%= invite.userId %>/invite" class="stack" style="margin:.4rem 0">
       <div class="row" style="gap:.6rem;align-items:end;flex-wrap:wrap">
-        <div><label style="margin:0">שם משתמש (ניתן לשנות)</label><input name="username" class="mono" style="max-width:200px" value="<%= invite.username %>" /></div>
+        <div><label style="margin:0">שם משתמש (ניתן לשנות)</label><input id="inv_user" name="username" class="mono" style="max-width:200px" value="<%= invite.username %>" /></div>
         <div><label style="margin:0">סיסמה זמנית (ניתן לשנות)</label><input id="inv_pw" name="password" class="mono" style="max-width:200px" value="<%= invite.password %>" /></div>
       </div>
       <div class="actions" style="margin-top:.4rem;flex-wrap:wrap">
         <button type="submit" class="btn btn-secondary btn-sm">עדכן והכן הודעה מחדש</button>
-        <button type="button" class="btn btn-secondary btn-sm" onclick="copyVal('inv_pw', this)">העתק סיסמה</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="copyVal('inv_user', this)">📋 העתק שם משתמש</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="copyVal('inv_pw', this)">📋 העתק סיסמה</button>
       </div>
       <p class="muted" style="margin:.1rem 0 0;font-size:12px">שינית שם משתמש או סיסמה? לחץ "עדכן והכן הודעה מחדש" כדי לשמור ולעדכן את ההודעה.</p>
     </form>
@@ -105,7 +106,6 @@
 
     <div class="actions" style="margin-top:.6rem;flex-wrap:wrap">
       <button type="button" class="btn btn-primary" onclick="shareInvite()">שלח / שתף בוואטסאפ</button>
-      <a class="btn btn-secondary" href="<%= invite.waUrl %>" target="_blank" rel="noopener">פתח וואטסאפ (בחירת איש קשר)</a>
       <button type="button" class="btn btn-secondary" onclick="copyVal('inv_msg', this)">העתק הודעה</button>
       <a class="btn btn-secondary" href="<%= invite.loginUrl %>" target="_blank" rel="noopener">פתח את דף ההתחברות</a>
     </div>
@@ -139,7 +139,6 @@
     <textarea id="li_msg" class="input" style="width:100%;min-height:130px" readonly onclick="this.select()"><%= linkInvite.message %></textarea>
     <div class="actions" style="margin-top:.6rem;flex-wrap:wrap">
       <button type="button" class="btn btn-primary" onclick="liShare()">שלח / שתף בוואטסאפ</button>
-      <a class="btn btn-secondary" href="<%= linkInvite.waUrl %>" target="_blank" rel="noopener">פתח וואטסאפ (בחירת איש קשר)</a>
       <button type="button" class="btn btn-secondary" onclick="liCopy('li_link', this)">העתק קישור</button>
       <button type="button" class="btn btn-secondary" onclick="liCopy('li_msg', this)">העתק הודעה</button>
     </div>
