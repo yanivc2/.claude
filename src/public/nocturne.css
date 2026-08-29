@@ -489,6 +489,9 @@ tr.row-hold:hover td { background: color-mix(in srgb, var(--color-bad) 16%, tran
 /* cash-paid invoice not matched to a Z cash-expense — light red per the matching rule */
 tr.row-unmatched-cash td { background: color-mix(in srgb, var(--color-bad) 12%, transparent); }
 tr.row-unmatched-cash:hover td { background: color-mix(in srgb, var(--color-bad) 18%, transparent); }
+/* Recents cash-expense row that opens its Z for editing on click (owner only). */
+tr.cx-recent-row { cursor: pointer; }
+tr.cx-recent-row:hover td { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
 
 /* alerts */
 .alert { border: 1px solid var(--color-line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-4); }

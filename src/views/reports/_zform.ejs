@@ -22,7 +22,7 @@
     return h;
   }
   function cxKindOptsFor(sel){
-    var opts = [['manual','ידני'],['salary','שכר'],['advance','מפרעה'],['invoice','תשלום חשבונית']];
+    var opts = [['manual','ידני'],['salary','שכר'],['advance','מפרעה'],['invoice','חשבונית']];
     var s = sel || 'manual';
     return opts.map(function(o){ return '<option value="'+o[0]+'"'+(s===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('');
   }
@@ -65,7 +65,7 @@
     </div>
   </div>
   <div id="cx-panel" <%= exRows.length ? '' : 'hidden' %>>
-    <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · תשלום חשבונית. שכר/מפרעה משויכים לעובד; תשלום חשבונית משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
+    <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · חשבונית. שכר/מפרעה משויכים לעובד; סוג 'חשבונית' משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
     <div id="cx-body" class="cx-list">
       <% exRows.forEach(function(e){ %>
         <div class="cx-row">

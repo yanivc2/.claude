@@ -2,7 +2,7 @@
   // "הוצאות מזומן" rubric — rows from recentClosingExpenses(). Columns: סוג · תאריך · שם · פרטים · סכום.
   // Required local: `rows`. Optional: `matchable` (+ `matchInvoices`) adds a "התאמה" column that lets
   // the user link an unmatched cash expense to an invoice → the invoice reads "שולם במזומן".
-  var _cxKindLabel = { manual: 'ידני', salary: 'שכר', advance: 'מפרעה', invoice: 'תשלום חשבונית' };
+  var _cxKindLabel = { manual: 'ידני', salary: 'שכר', advance: 'מפרעה', invoice: 'חשבונית' };
   var _matchable = (typeof matchable !== 'undefined' && matchable);
   var _matchInvoices = (typeof matchInvoices !== 'undefined' && matchInvoices) ? matchInvoices : [];
 %>
@@ -14,8 +14,21 @@
         <tr><td colspan="<%= _matchable ? 6 : 5 %>" class="muted">אין הוצאות מזומן עדיין.</td></tr>
       <% } %>
       <% (rows || []).forEach(function(e){ %>
-        <tr>
-          <td><%= _cxKindLabel[e.description_type] || 'ידני' %></td>
+        <%
+          // GET /zclosing/:id is requireOwner. In the recents rubric (not the matchable/invoices
+          // one) the whole row leads to editing that Z — but only for the owner, who alone may open
+          // it; everyone else gets a plain, non-clickable row (no dead link, no 403).
+          var _canOpenClosing = (typeof currentUser !== 'undefined' && currentUser
+            && currentUser.role === 'owner' && e.closing_id);
+          var _rowHref = (!_matchable && _canOpenClosing) ? ('/zclosing/' + e.closing_id) : null;
+        %>
+        <tr<% if (_rowHref) { %> class="cx-recent-row" data-href="<%= _rowHref %>" title="פתח את סגירת ה-Z לעריכה"<% } %>>
+          <td>
+            <% if (e.store_name || e.z_number) { %>
+              <div class="muted" style="font-size:12px"><%= e.store_name || '' %><%= (e.store_name && e.z_number) ? ' · ' : '' %><%= e.z_number ? 'Z ' + e.z_number : '' %></div>
+            <% } %>
+            <%= _cxKindLabel[e.description_type] || 'ידני' %>
+          </td>
           <td class="mono"><%= formatDate(e.expense_date) %></td>
           <td><%= e.payer_name || '—' %></td>
           <td>
@@ -25,18 +38,6 @@
               <%= ((e.emp_first || '') + ' ' + (e.emp_last || '')).trim() %>
             <% } else { %>
               <%= e.purpose || '—' %>
-            <% } %>
-            <%
-              // Link the Z reference to its register-closing detail page for anyone allowed to open
-              // it. GET /zclosing/:id is requireOwner, so only the owner gets a link; everyone else
-              // sees the same reference as plain text (no dead link, no 403).
-              var _canOpenClosing = (typeof currentUser !== 'undefined' && currentUser
-                && currentUser.role === 'owner' && e.closing_id);
-            %>
-            <% if (_canOpenClosing) { %>
-              <a class="muted" style="font-size:12px" href="/zclosing/<%= e.closing_id %>" title="פתח את סגירת ה-Z לצפייה/עריכה"><%= e.store_name ? ' · ' + e.store_name : '' %> · Z <%= e.z_number || 'סגירה' %> ›</a>
-            <% } else if (e.store_name || e.z_number) { %>
-              <span class="muted" style="font-size:12px"><%= e.store_name ? ' · ' + e.store_name : '' %><%= e.z_number ? ' · Z ' + e.z_number : '' %></span>
             <% } %>
           </td>
           <td class="right"><%= formatIls(e.amount) %></td>
@@ -69,3 +70,17 @@
     </tbody>
   </table>
 </div>
+<script>
+// Clickable recents row → open its Z for editing. Delegated on document (guarded so multiple
+// includes don't double-bind). Clicks on inner links/buttons/form controls keep their own action.
+(function(){
+  if (window.__cxRowLinkInit) return; window.__cxRowLinkInit = true;
+  document.addEventListener('click', function(e){
+    var row = e.target.closest('tr.cx-recent-row');
+    if (!row) return;
+    if (e.target.closest('a, button, input, select, textarea, label, form')) return;
+    var href = row.getAttribute('data-href');
+    if (href) window.location.href = href;
+  });
+})();
+</script>
