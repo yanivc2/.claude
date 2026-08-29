@@ -98,8 +98,9 @@
       </table>
     </div>
 
-    <h3 style="margin:1.1rem 0 .2rem">הוצאות מזומן</h3>
-    <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · תשלום חשבונית. שכר/מפרעה משויכים לעובד; תשלום חשבונית משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
+    <details class="cx-collapse no-collapse">
+      <summary><h3 style="margin:0;display:inline">הוצאות מזומן</h3></summary>
+    <p class="muted" style="margin:.5rem 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · תשלום חשבונית. שכר/מפרעה משויכים לעובד; תשלום חשבונית משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
     <div id="cx-body" class="cx-list">
       <div class="cx-row">
         <div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></div>
@@ -115,6 +116,7 @@
       </div>
     </div>
     <div class="cx-total">סה"כ הוצאות: <strong id="exp-total">₪0.00</strong></div>
+    </details>
 
     <div class="card" style="background:var(--color-surface-2);margin-top:1rem">
       <div style="display:flex;justify-content:space-between;align-items:center">

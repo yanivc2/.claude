@@ -542,6 +542,12 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 /* Z-closing cash-expense entry — comfortable stacked cards instead of a cramped table.
    Each row wraps its fields; the details field (purpose + emp/invoice) spans full width so the
    inputs and the date picker have room (no clipping inside a scroll container). */
+/* Collapsible "הוצאות מזומן" block on the register-close form (starts collapsed). */
+.cx-collapse { margin: 1.1rem 0 .2rem; }
+.cx-collapse > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .4rem; padding: 4px 0; }
+.cx-collapse > summary::-webkit-details-marker { display: none; }
+.cx-collapse > summary::before { content: '▸'; color: var(--color-muted); font-size: 13px; transition: transform .15s ease; }
+.cx-collapse[open] > summary::before { transform: rotate(90deg); }
 .cx-list { display: flex; flex-direction: column; gap: var(--space-3); }
 .cx-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3);
   padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius);
@@ -570,6 +576,21 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .tbl-tools { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin: 0 0 var(--space-2); }
 .tbl-tools .tbl-search { max-width: 260px; min-height: 0; padding: 6px 10px; }
 .tbl-tools .tbl-count { font-size: 12px; }
+/* One "ייצוא" button that reveals Excel / CSV / PDF in a small menu below it. */
+.tbl-export { position: relative; }
+.tbl-export-menu {
+  position: absolute; top: calc(100% + 4px); inset-inline-end: 0; z-index: 40;
+  min-width: 140px; padding: 4px; margin: 0;
+  background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18); display: flex; flex-direction: column; gap: 2px;
+}
+.tbl-export-menu[hidden] { display: none; }   /* keep the hidden attribute effective despite display:flex above */
+.tbl-export-item {
+  appearance: none; background: none; border: 0; cursor: pointer;
+  text-align: start; padding: 8px 10px; border-radius: 7px; font: inherit; font-size: 13px;
+  color: var(--color-text);
+}
+.tbl-export-item:hover, .tbl-export-item:focus { background: var(--color-surface-2); outline: none; }
 
 /* sticky multi-select action bar (invoices → combined payment) */
 .pay-bar { position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; gap: var(--space-3);

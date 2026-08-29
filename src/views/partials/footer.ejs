@@ -397,12 +397,33 @@
       search.type = 'search'; search.className = 'tbl-search';
       search.placeholder = 'חיפוש בטבלה…'; search.autocomplete = 'off';
       var count = document.createElement('span'); count.className = 'tbl-count muted';
-      var xls = document.createElement('button'); xls.type = 'button'; xls.className = 'btn btn-secondary btn-sm'; xls.textContent = '⬇ Excel';
-      var csv = document.createElement('button'); csv.type = 'button'; csv.className = 'btn btn-secondary btn-sm'; csv.textContent = 'CSV';
-      var pdf = document.createElement('button'); pdf.type = 'button'; pdf.className = 'btn btn-secondary btn-sm'; pdf.textContent = 'PDF';
+      // A single "ייצוא" button that opens a small menu with the three formats (Excel / CSV / PDF),
+      // instead of three separate buttons cluttering every table toolbar.
+      var exportWrap = document.createElement('div'); exportWrap.className = 'tbl-export';
+      var exportBtn = document.createElement('button');
+      exportBtn.type = 'button'; exportBtn.className = 'btn btn-secondary btn-sm tbl-export-toggle';
+      exportBtn.textContent = '⬇ ייצוא ▾'; exportBtn.setAttribute('aria-haspopup', 'true'); exportBtn.setAttribute('aria-expanded', 'false');
+      var menu = document.createElement('div'); menu.className = 'tbl-export-menu'; menu.hidden = true;
+      var xls = document.createElement('button'); xls.type = 'button'; xls.className = 'tbl-export-item'; xls.textContent = 'Excel';
+      var csv = document.createElement('button'); csv.type = 'button'; csv.className = 'tbl-export-item'; csv.textContent = 'CSV';
+      var pdf = document.createElement('button'); pdf.type = 'button'; pdf.className = 'tbl-export-item'; pdf.textContent = 'PDF';
+      menu.appendChild(xls); menu.appendChild(csv); menu.appendChild(pdf);
+      exportWrap.appendChild(exportBtn); exportWrap.appendChild(menu);
       tools.appendChild(search); tools.appendChild(count);
       var spacer = document.createElement('span'); spacer.style.marginInlineStart = 'auto'; tools.appendChild(spacer);
-      tools.appendChild(xls); tools.appendChild(csv); tools.appendChild(pdf);
+      tools.appendChild(exportWrap);
+
+      function closeMenu() { menu.hidden = true; exportBtn.setAttribute('aria-expanded', 'false'); }
+      exportBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var open = menu.hidden;
+        // close any other open export menu first
+        document.querySelectorAll('.tbl-export-menu').forEach(function (m) { if (m !== menu) m.hidden = true; });
+        menu.hidden = !open; exportBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      });
+      menu.addEventListener('click', function () { closeMenu(); });
+      document.addEventListener('click', function (e) { if (!exportWrap.contains(e.target)) closeMenu(); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
 
       // place the toolbar just before the table (or its scroll wrapper)
       var anchor = table.closest('.table-scroll') || table;
