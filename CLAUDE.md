@@ -28,6 +28,16 @@ This file is the fast map of *where things live* so I don't re-read the whole tr
   re-applies `schema.pg.sql`). Tell the user this whenever I add a column/table.
 - I have **no access to the live Neon DB.** Company names, users, etc. are runtime data the owner
   edits in Settings — my deploys can't change existing rows, only code/schema.
+- **The container is ephemeral — it can re-provision mid-session** to the session's *default* managed
+  state (branch `claude/ap-control-system-gy6aor` = the `.claude` config repo), which wipes the manual
+  `ap-control-split` app checkout, the `apnew` remote, and `node_modules` (gitignored). **Nothing is
+  lost** — every change is already pushed to `apnew/main` (production) + mirrored to
+  `origin/ap-control-split`; that's *why* I push after every step. **At the start of any work, verify
+  the app tree is present** (`git branch --show-current` → `ap-control-split`, and `src/` exists). If
+  it re-provisioned, recover:
+  `git fetch origin ap-control-split && git checkout ap-control-split` →
+  `git remote add apnew https://github.com/yanivc2/ap-control && git fetch apnew main` →
+  `npm ci` (restores `node_modules`). Then continue as normal.
 
 ## Multi-session work (IMPORTANT)
 Several Claude sessions work on this app at once — **each session is its own branch**, and they
