@@ -539,6 +539,25 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .card.collapsed .card-cbody { display: none; }
 .card-ctoggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; border-radius: 4px; }
 
+/* Z-closing cash-expense entry — comfortable stacked cards instead of a cramped table.
+   Each row wraps its fields; the details field (purpose + emp/invoice) spans full width so the
+   inputs and the date picker have room (no clipping inside a scroll container). */
+.cx-list { display: flex; flex-direction: column; gap: var(--space-3); }
+.cx-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3);
+  padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius);
+  background: var(--color-surface-2); }
+.cx-row .cx-field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 150px; min-width: 130px; }
+.cx-row .cx-field > label { font-size: 12px; color: var(--color-muted); }
+.cx-row .cx-field input, .cx-row .cx-field select { width: 100%; min-height: 42px; }
+.cx-row .cx-details { flex: 1 1 100%; gap: 6px; }        /* purpose + emp/invoice on their own row */
+.cx-row .cx-amt-field { flex: 1 1 120px; }
+.cx-row .cx-del { flex: 0 0 auto; align-self: flex-end; min-height: 42px; }
+.cx-total { margin-top: var(--space-3); text-align: left; font-size: 15px; font-weight: 500; }
+@media (max-width: 620px) {          /* phones: every field full-width, easy to tap */
+  .cx-row .cx-field, .cx-row .cx-amt-field { flex: 1 1 100%; }
+  .cx-row .cx-del { width: 100%; }
+}
+
 /* bag-barcode scan overlay */
 .bag-scan-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(0,0,0,.85);
   display: flex; align-items: center; justify-content: center; padding: var(--space-4); }

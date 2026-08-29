@@ -209,6 +209,7 @@
       }
     }
     function enhanceAll(root){ (root || document).querySelectorAll('input[type="date"]').forEach(enhance); }
+    window.apEnhanceDates = enhanceAll; // so dynamically-added rows (e.g. Z-closing expenses) get the day-first picker
 
     document.addEventListener('DOMContentLoaded', function(){ enhanceAll(); });
     document.addEventListener('click', function(e){

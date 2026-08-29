@@ -100,26 +100,21 @@
 
     <h3 style="margin:1.1rem 0 .2rem">הוצאות מזומן</h3>
     <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · תשלום חשבונית. שכר/מפרעה משויכים לעובד; תשלום חשבונית משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>סוג</th><th>תאריך</th><th>שם</th><th>פרטים</th><th class="right">סכום (₪)</th><th></th></tr></thead>
-        <tbody id="cx-body">
-          <tr>
-            <td><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></td>
-            <td><input type="date" name="expense_date" /></td>
-            <td><input name="payer_name" /></td>
-            <td>
-              <input name="purpose" class="cx-purpose" placeholder="עבור" />
-              <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(null) %></select>
-              <select name="expense_invoice_id" class="cx-inv" style="max-width:240px"><%- cxInvOptsFor(null) %></select>
-            </td>
-            <td><input name="amount" class="cx-amt" inputmode="decimal" /></td>
-            <td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>
-          </tr>
-        </tbody>
-        <tfoot><tr><th colspan="4">סה"כ הוצאות</th><th class="right" id="exp-total">₪0.00</th><th></th></tr></tfoot>
-      </table>
+    <div id="cx-body" class="cx-list">
+      <div class="cx-row">
+        <div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></div>
+        <div class="cx-field"><label>תאריך</label><input type="date" name="expense_date" /></div>
+        <div class="cx-field"><label>שם</label><input name="payer_name" autocomplete="off" /></div>
+        <div class="cx-field cx-details"><label>פרטים</label>
+          <input name="purpose" class="cx-purpose" placeholder="עבור" autocomplete="off" />
+          <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(null) %></select>
+          <select name="expense_invoice_id" class="cx-inv"><%- cxInvOptsFor(null) %></select>
+        </div>
+        <div class="cx-field cx-amt-field"><label>סכום (₪)</label><input name="amount" class="cx-amt" inputmode="decimal" placeholder="0.00" /></div>
+        <button type="button" class="btn btn-secondary small cx-del" onclick="cxDel(this)">✕ הסר</button>
+      </div>
     </div>
+    <div class="cx-total">סה"כ הוצאות: <strong id="exp-total">₪0.00</strong></div>
 
     <div class="card" style="background:var(--color-surface-2);margin-top:1rem">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -227,31 +222,33 @@
     if (inv) inv.hidden = (kind !== 'invoice');
   }
   window.cxDel = function(btn){
-    var rows = body.querySelectorAll('tr');
-    if (rows.length > 1) btn.closest('tr').remove();
-    else btn.closest('tr').querySelectorAll('input,select').forEach(function(i){ i.value=''; });
+    var rows = body.querySelectorAll('.cx-row');
+    if (rows.length > 1) btn.closest('.cx-row').remove();
+    else btn.closest('.cx-row').querySelectorAll('input,select').forEach(function(i){ i.value=''; });
     recalc();
   };
   function addRow(){
-    var tr = document.createElement('tr');
-    tr.innerHTML = '<td><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></td>'
-      + '<td><input type="date" name="expense_date"></td>'
-      + '<td><input name="payer_name"></td>'
-      + '<td><input name="purpose" class="cx-purpose" placeholder="עבור">'
+    var row = document.createElement('div');
+    row.className = 'cx-row';
+    row.innerHTML = '<div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></div>'
+      + '<div class="cx-field"><label>תאריך</label><input type="date" name="expense_date"></div>'
+      + '<div class="cx-field"><label>שם</label><input name="payer_name" autocomplete="off"></div>'
+      + '<div class="cx-field cx-details"><label>פרטים</label><input name="purpose" class="cx-purpose" placeholder="עבור" autocomplete="off">'
       +   '<select name="expense_employee_id" class="cx-emp">' + CX_EMP_OPTS + '</select>'
-      +   '<select name="expense_invoice_id" class="cx-inv" style="max-width:240px">' + CX_INV_OPTS + '</select></td>'
-      + '<td><input name="amount" class="cx-amt" inputmode="decimal"></td>'
-      + '<td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>';
-    body.appendChild(tr);
-    applyKind(tr);
+      +   '<select name="expense_invoice_id" class="cx-inv">' + CX_INV_OPTS + '</select></div>'
+      + '<div class="cx-field cx-amt-field"><label>סכום (₪)</label><input name="amount" class="cx-amt" inputmode="decimal" placeholder="0.00"></div>'
+      + '<button type="button" class="btn btn-secondary small cx-del" onclick="cxDel(this)">✕ הסר</button>';
+    body.appendChild(row);
+    applyKind(row);
+    if (window.apEnhanceDates) window.apEnhanceDates(row); // enhance the new row's date input
   }
-  body.querySelectorAll('tr').forEach(applyKind);
+  body.querySelectorAll('.cx-row').forEach(applyKind);
   body.addEventListener('change', function(e){
-    if (e.target && e.target.classList.contains('cx-kind')) applyKind(e.target.closest('tr'));
+    if (e.target && e.target.classList.contains('cx-kind')) applyKind(e.target.closest('.cx-row'));
   });
   body.addEventListener('input', function(e){
     recalc();
-    var rows = body.querySelectorAll('tr');
+    var rows = body.querySelectorAll('.cx-row');
     var last = rows[rows.length - 1];
     if (last.contains(e.target)) {
       var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
