@@ -112,6 +112,8 @@ function migrateEmployees(db) {
     created_by  INTEGER REFERENCES users(id),
     created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
   );`);
+  const empCols = db.prepare('PRAGMA table_info(employees)').all().map((c) => c.name);
+  if (!empCols.includes('phone')) db.exec('ALTER TABLE employees ADD COLUMN phone TEXT;');
   const has = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='z_expenses'").get();
   if (has) {
     const cols = db.prepare('PRAGMA table_info(z_expenses)').all().map((c) => c.name);

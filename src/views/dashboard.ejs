@@ -163,8 +163,12 @@
     <div class="label">חשבוניות מוחזקות</div>
   </a>
   <a class="stat" href="/reconciliation">
-    <div class="num" style="font-size:22px"><%= stats.lastReconciledAt ? formatDate(String(stats.lastReconciledAt).slice(0,10)) : '—' %></div>
-    <div class="label">התאמת בנק אחרונה</div>
+    <div class="num" style="font-size:22px"><%= (stats.lastReconciled && stats.lastReconciled.ts) ? formatDate(String(stats.lastReconciled.ts).slice(0,10)) : '—' %></div>
+    <div class="label">התאמת בנק אחרונה<%
+      // When no single store is active ("all stores"), name which store the latest reconciliation
+      // belongs to; with an active store the banner already says which store, so the name is omitted.
+      var _actStore = (typeof activeStore !== 'undefined' && activeStore);
+      if (!_actStore && stats.lastReconciled && stats.lastReconciled.storeName) { %> · <%= stats.lastReconciled.storeName %><% } %></div>
   </a>
   <div class="stat oc-tile" style="position:relative; display:flex; align-items:flex-start; gap:10px">
     <details class="menu up no-print" style="flex:0 0 auto">

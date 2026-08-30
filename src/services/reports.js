@@ -305,8 +305,8 @@ export async function dashboardStats(scope = null, storeId = null, x = getExecut
   const onHoldInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'on_hold'${sc.sql}${st}`, [...sc.params, ...stp])).n;
   const approvedInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'approved_for_payment'${sc.sql}${st}`, [...sc.params, ...stp])).n;
   const { totalOutstanding } = await outstandingChecks(scope, { storeId }, x);
-  const lastReconciledAt = await lastReconciliationAt(x);
-  return { pendingSuppliers, onHoldInvoices, approvedInvoices, totalOutstanding, lastReconciledAt };
+  const lastReconciled = await lastReconciliationFor(scope, storeId, x);
+  return { pendingSuppliers, onHoldInvoices, approvedInvoices, totalOutstanding, lastReconciled };
 }
 
 /**
@@ -320,4 +320,50 @@ export async function lastReconciliationAt(x = getExecutor()) {
     [],
   );
   return row && row.ts ? row.ts : null;
+}
+
+/**
+ * Last bank reconciliation **per store**, for the dashboard cube. Reconciliation events live in the
+ * audit_log: `reconcile.match` (entity = payment → bank_account → store) and `reconcile.auto`
+ * (entity = bank_account → store). We group each by store, merge, then in JS apply the company
+ * scope and pick: the active store's own last date when one is set, otherwise the most recent across
+ * the authorized stores (with its store name — the dashboard shows the name when "all stores").
+ * @returns {Promise<{ts:string, storeName:string} | null>}
+ */
+export async function lastReconciliationFor(scope = null, storeId = null, x = getExecutor()) {
+  const grouped = async (sql) => x.many(sql, []);
+  const matchRows = await grouped(
+    `SELECT ba.store_id AS store_id, ba.company_id AS company_id, st.name AS store_name, MAX(al.timestamp) AS ts
+       FROM audit_log al
+       JOIN payments p ON p.id = al.entity_id
+       JOIN bank_accounts ba ON ba.id = p.bank_account_id
+       JOIN stores st ON st.id = ba.store_id
+      WHERE al.action = 'reconcile.match' AND al.entity_type = 'payment'
+      GROUP BY ba.store_id, ba.company_id, st.name`,
+  );
+  const autoRows = await grouped(
+    `SELECT ba.store_id AS store_id, ba.company_id AS company_id, st.name AS store_name, MAX(al.timestamp) AS ts
+       FROM audit_log al
+       JOIN bank_accounts ba ON ba.id = al.entity_id
+       JOIN stores st ON st.id = ba.store_id
+      WHERE al.action = 'reconcile.auto' AND al.entity_type = 'bank_account'
+      GROUP BY ba.store_id, ba.company_id, st.name`,
+  );
+
+  // Merge to one row per store (keep the latest ts), applying the company scope in JS (pg-mem-safe).
+  const allow = scope == null ? null : new Set(scope.map(Number));
+  const byStore = new Map();
+  for (const r of [...matchRows, ...autoRows]) {
+    if (!r.ts) continue;
+    if (allow && !allow.has(Number(r.company_id))) continue;
+    const cur = byStore.get(r.store_id);
+    if (!cur || String(r.ts) > String(cur.ts)) byStore.set(r.store_id, { ts: r.ts, storeName: r.store_name });
+  }
+  if (storeId) {
+    const r = byStore.get(Number(storeId)) || byStore.get(String(storeId));
+    return r || null;
+  }
+  let best = null;
+  for (const r of byStore.values()) if (!best || String(r.ts) > String(best.ts)) best = r;
+  return best;
 }

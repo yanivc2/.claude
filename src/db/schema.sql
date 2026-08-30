@@ -274,6 +274,7 @@ CREATE TABLE IF NOT EXISTS employees (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   first_name  TEXT NOT NULL,
   last_name   TEXT NOT NULL,
+  phone       TEXT,                                          -- optional; used to dedupe an Excel import
   active      INTEGER NOT NULL DEFAULT 1,
   created_by  INTEGER REFERENCES users(id),
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))

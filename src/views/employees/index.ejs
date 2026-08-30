@@ -9,20 +9,38 @@
   <form method="post" action="/employees" class="actions" style="gap:.6rem;align-items:flex-end;flex-wrap:wrap">
     <div><label class="lbl">שם פרטי *</label><input name="first_name" required /></div>
     <div><label class="lbl">שם משפחה *</label><input name="last_name" required /></div>
+    <div><label class="lbl">טלפון</label><input name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="050-0000000" /></div>
     <div><button type="submit">הוסף עובד</button></div>
   </form>
+
+  <details class="section" style="margin-top:1rem">
+    <summary>ייבוא רשימת עובדים מקובץ Excel</summary>
+    <div class="section-body">
+      <p class="muted" style="margin:.4rem 0">
+        העלה קובץ <strong>Excel (.xlsx)</strong> או CSV עם שורת כותרות. עמודות מזוהות: <strong>שם</strong>
+        (או "שם פרטי" + "שם משפחה") ו-<strong>טלפון</strong>. עובד שכבר קיים (לפי מספר טלפון) לא ייווסף — כדי
+        למנוע כפילויות.
+      </p>
+      <form method="post" action="/employees/import" enctype="multipart/form-data" class="actions"
+            style="gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+        <div><label class="lbl">קובץ עובדים</label><input type="file" name="file" accept=".xlsx,.csv,.tsv,text/csv" required /></div>
+        <div><button type="submit">ייבא עובדים</button></div>
+      </form>
+    </div>
+  </details>
 </div>
 
 <div class="card">
   <h2 style="margin:0 0 .5rem">עובדים — סיכום</h2>
   <div class="table-scroll">
   <table class="sortable">
-    <thead><tr><th>שם</th><th class="right">מפרעות</th><th class="right">שכר</th><th class="right">רישומים</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
+    <thead><tr><th>שם</th><th>טלפון</th><th class="right">מפרעות</th><th class="right">שכר</th><th class="right">רישומים</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
     <tbody>
-      <% if (!totals || totals.length === 0) { %><tr><td colspan="6" class="muted">אין עובדים. הוסף עובד למעלה.</td></tr><% } %>
+      <% if (!totals || totals.length === 0) { %><tr><td colspan="7" class="muted">אין עובדים. הוסף עובד למעלה.</td></tr><% } %>
       <% (totals || []).forEach(function(e){ %>
         <tr>
           <td><%= e.first_name %> <%= e.last_name %></td>
+          <td class="mono"><% if (e.phone) { %><a href="<%= telLink(e.phone) %>"><%= e.phone %></a><% } else { %>—<% } %></td>
           <td class="right"><%= e.advances ? formatIls(e.advances) : '—' %></td>
           <td class="right"><%= e.salary ? formatIls(e.salary) : '—' %></td>
           <td class="right"><%= e.lines || 0 %></td>

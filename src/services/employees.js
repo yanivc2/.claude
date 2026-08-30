@@ -1,5 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
+import { normalizePhone } from '../lib/employeeImport.js';
 import { logAction } from './audit.js';
 
 // "עובדים ומשכורות" — staff list + a tracking table of advances (מפרעות) and salary lines
@@ -16,16 +17,48 @@ export async function getEmployee(id, x = getExecutor()) {
   return row;
 }
 
-export async function createEmployee({ firstName, lastName }, actor, x = getExecutor()) {
+export async function createEmployee({ firstName, lastName, phone }, actor, x = getExecutor()) {
   const f = (firstName ?? '').trim();
   const l = (lastName ?? '').trim();
   if (!f || !l) throw new RuleError('VALIDATION', 'שם פרטי ושם משפחה חובה');
+  const ph = normalizePhone(phone) || null;
   const info = await x.run(
-    'INSERT INTO employees (first_name, last_name, created_by) VALUES (?, ?, ?)',
-    [f, l, actor?.id ?? null],
+    'INSERT INTO employees (first_name, last_name, phone, created_by) VALUES (?, ?, ?, ?)',
+    [f, l, ph, actor?.id ?? null],
   );
   await logAction({ userId: actor?.id, action: 'employee.create', entityType: 'employee', entityId: info.lastInsertRowid, details: { name: `${f} ${l}` } }, x);
   return getEmployee(info.lastInsertRowid, x);
+}
+
+/**
+ * Bulk-import employees from a parsed staff list (see lib/employeeImport.js#parseEmployeeFile).
+ * Dedupes by phone number: a row whose phone already belongs to an existing employee — or to an
+ * earlier row in the same file — is skipped so the list never gains duplicates. Rows without a
+ * phone can't be deduped, so they're always added (name is required).
+ * @param {Array<{firstName,lastName,phone}>} rows
+ * @returns {{added:number, skipped:number, invalid:number}}
+ */
+export async function importEmployees(rows, actor, x = getExecutor()) {
+  const existing = await x.many('SELECT phone FROM employees', []);
+  const seen = new Set(existing.map((e) => normalizePhone(e.phone)).filter(Boolean));
+  let added = 0;
+  let skipped = 0;
+  let invalid = 0;
+  for (const r of rows || []) {
+    const f = (r.firstName ?? '').trim();
+    const l = (r.lastName ?? '').trim();
+    if (!f && !l) { invalid += 1; continue; }
+    const ph = normalizePhone(r.phone);
+    if (ph && seen.has(ph)) { skipped += 1; continue; } // duplicate by phone — don't add
+    const info = await x.run(
+      'INSERT INTO employees (first_name, last_name, phone, created_by) VALUES (?, ?, ?, ?)',
+      [f || l, f ? l : '', ph || null, actor?.id ?? null],
+    );
+    if (ph) seen.add(ph);
+    added += 1;
+    await logAction({ userId: actor?.id, action: 'employee.import', entityType: 'employee', entityId: info.lastInsertRowid, details: { name: `${f} ${l}`.trim() } }, x);
+  }
+  return { added, skipped, invalid };
 }
 
 /** Soft-delete an employee if they have tracked lines (keep history); hard-delete otherwise. */
