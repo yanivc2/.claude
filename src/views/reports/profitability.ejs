@@ -26,7 +26,7 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
     <% if (preset === 'month') { %>
       <form method="get" action="/reports/profitability" class="actions" style="gap:.6rem;align-items:flex-end;flex-wrap:wrap">
         <input type="hidden" name="preset" value="month" />
-        <div><label class="lbl">חודש</label><input type="month" name="from" value="<%= from.slice(0,7) %>" onchange="this.form.submit()" /></div>
+        <div><label class="lbl">חודש</label><input type="month" name="from" value="<%= from.slice(0,7) %>" onchange="apAutoSubmit(this)" /></div>
         <div><button type="submit">הצג</button></div>
       </form>
     <% } else if (preset === 'week') { %>

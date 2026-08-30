@@ -3,6 +3,17 @@
   </footer>
   </main>
   <script>
+  // Auto-submit a form from a control's change handler. Uses requestSubmit() (a genuine, gesture-tied
+  // submit) instead of form.submit(): inside an installed iOS PWA, a programmatic form.submit() breaks
+  // the navigation out to a Safari sheet ("address is invalid") instead of staying in the app. Same
+  // mitigation the js-combo enhancer already uses. Pass the changed control (its .form is submitted).
+  window.apAutoSubmit = function (el) {
+    var f = el && el.form ? el.form : (el && el.closest ? el.closest('form') : null);
+    if (!f) return;
+    if (f.requestSubmit) f.requestSubmit(); else f.submit();
+  };
+  </script>
+  <script>
   // Close any open floating menu (<details class="menu">) when clicking outside it or pressing Esc.
   (function () {
     var deskMq = window.matchMedia('(min-width: 1000px)');

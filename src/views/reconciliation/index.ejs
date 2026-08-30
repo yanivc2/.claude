@@ -12,7 +12,7 @@
 <div class="card">
   <form method="get" action="/reconciliation" class="actions">
     <label style="margin:0">חשבון בנק:</label>
-    <select name="account" onchange="this.form.submit()" style="max-width:340px">
+    <select name="account" onchange="apAutoSubmit(this)" style="max-width:340px">
       <% accounts.forEach(function(a){ %>
         <option value="<%= a.id %>" <%= a.id === accountId ? 'selected' : '' %>><%= a.display_name %></option>
       <% }); %>

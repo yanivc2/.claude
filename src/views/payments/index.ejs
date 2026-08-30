@@ -133,14 +133,14 @@
       <div class="menu-panel" style="min-width:250px; padding:12px">
         <form method="get" action="/payments">
           <label class="lbl">חברה</label>
-          <select name="company" onchange="this.form.submit()">
+          <select name="company" onchange="apAutoSubmit(this)">
             <option value="">כל החברות</option>
             <% companies.forEach(function(c){ %>
               <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
             <% }); %>
           </select>
           <label class="lbl" style="margin-top:10px">חנות / חשבון בנק</label>
-          <select name="store" onchange="this.form.submit()">
+          <select name="store" onchange="apAutoSubmit(this)">
             <option value="">כל החנויות (הכל יחד)</option>
             <% stores.forEach(function(s){ %>
               <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %><%= s.bank_account_name ? ' · ' + s.bank_account_name : '' %></option>

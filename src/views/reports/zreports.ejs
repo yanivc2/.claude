@@ -46,7 +46,7 @@
   <div class="toolbar">
     <h2 style="margin:0">רשומות Z אחרונות</h2>
     <form method="get" action="/reports/zreports" class="no-print">
-      <select name="zstore" onchange="this.form.submit()">
+      <select name="zstore" onchange="apAutoSubmit(this)">
         <option value="">כל החנויות</option>
         <% storeOptions.forEach(function(st){ %>
           <option value="<%= st.id %>" <%= zStoreId === st.id ? 'selected' : '' %>><%= st.name %></option>

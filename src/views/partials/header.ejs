@@ -104,7 +104,7 @@
         <% if (availableStores.length > 1) { %>
           <form method="post" action="/context/store" class="store-banner-switch">
             <input type="hidden" name="return_to" value="<%= path %>">
-            <select name="store_id" onchange="this.form.submit()" aria-label="בחר חנות פעילה">
+            <select name="store_id" onchange="apAutoSubmit(this)" aria-label="בחר חנות פעילה">
               <option value="">— כל החנויות —</option>
               <% availableStores.forEach(function(s){ %>
                 <option value="<%= s.id %>"<%= (typeof activeStore !== 'undefined' && activeStore && Number(activeStore.id) === Number(s.id)) ? ' selected' : '' %>><%= s.name %> · <%= s.company_name %></option>
