@@ -105,7 +105,7 @@
 | כפתור/פיצ'ר | route | wiring | מה עושה / מקושר | אם מוחקים/משנים |
 |---|---|---|---|---|
 | דוחות Z (רשימה/הוספה/עריכה) | `GET/POST /reports/zreports[/:id]` | `_zform.ejs` (טופס משותף) | הוצאות מזומן עם **kind** (manual/salary/advance/invoice→`description_type`) המקשר עובד/חשבונית. | `z_expenses.invoice_id`/`employee_id` (nullable). מחיקת Z → cascade ל-`z_expenses`. |
-| הוצאות (bulk/single/מחיקה) | `POST /reports/zreports/:id/expenses[-bulk]`, `POST /reports/zexpenses/:id/delete` | `zreports.js` | — | — |
+| הוצאות (bulk/מחיקה) | `POST /reports/zreports/:id/expenses-bulk`, `POST /reports/zexpenses/:id/delete` | `replaceExpenses`/`deleteExpense` (`zreports.js`) | הטופס משתמש ב-**`replaceExpenses`** (מחליף הכל, ממפה kind+`employee_id`/`invoice_id`). `addExpense` (append יחיד) נשאר **לטסטים בלבד** — לא מחווט ל-UI ולא ממפה `employee_id`; לא לחווט אליו טופס שכר/מפרעה. | — |
 | הפקדה / כרטיסי אשראי / חשבון-מגירה | `POST /reports/zreports/:id/{deposit,creditcards,verify-bills}` | — | התאמת מזומן/אשראי; חוסר/יתרה. | `deposits.z_report_id` (nullable). |
 | רווחיות / צ׳קים בחוץ / lookup (+CSV) | `GET /reports/{profitability,outstanding,lookup}[.csv]` | `services/reports.js` | קריאה-בלבד; `lookup` משתמש ב-`invoiceLookup` (רב-מונחי). | — |
 | צ׳קים בחוץ — חתך תאריך פירעון | `GET /reports/outstanding?cut=date&from&to` / `?cut=months&months[]` | `parseOutstandingCut` (route) → `dueDateCut` (`services/reports.js`) בשתי השאילתות | 3 מצבים: "הכל" / "חתך תאריכים" (from/to) / "חתך חודשים" (checkbox רב-בחירה, רק חודשים שיש בהם צ׳קים). התנאי בתוך ה-CASE על `p.payment_date` (עובד ב-pg-mem, שלא כמו WHERE על JOIN). ייצוא Excel/CSV/PDF של הטבלאות דרך כלי-הטבלה הגלובליים (`footer.ejs`). | `outstandingChecks`/`outstandingCheckDetail` מקבלים כעת `cut={month,months,from,to,storeId}`. `?month=` נשמר לתאימות. |
@@ -212,7 +212,7 @@
 ## ✅ צ'קליסט לפני דחיפה
 1. קראתי את סעיף האינווריאנטים + הפיצ'ר בטבלה.
 2. סכימה? עדכנתי `schema.sql` + `migrate.js` + `schema.pg.sql`, וכל `SELECT` מפורש.
-3. `npm test` ✔ + `TEST_PG=1 npm test` ✔ + `node scripts/smoke.mjs` ✔.
+3. `npm test` ✔ + `TEST_PG=1 npm test` ✔ + `node scripts/smoke.mjs` ✔. (`test/data-flow.test.js` מאמת את **חיבורי הנתונים בין המסכים** — Z/סגירה/חשבונית/תשלום/בנק/הפקדה/ספק/עובד → יעדיהם; אם שינית שאילתת מקור, ודא שלא נשבר.)
 4. `git fetch apnew main && git rebase apnew/main`; קידמתי `BUILD_VERSION` (מספר טרי).
 5. דחפתי ל-`apnew ap-control-split:main` + `origin ap-control-split`; אימתתי footer חי.
 6. סכימה? הזכרתי לבעלים ללחוץ **"עדכן מסד נתונים"**.

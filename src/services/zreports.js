@@ -213,6 +213,10 @@ export const EXPENSE_TYPES = [
 ];
 
 /** Add a drawer-expense line to a Z report. amount in agorot. */
+// Append a SINGLE cash-expense line (test/helper use). The Z form itself uses replaceExpenses(),
+// which is the richer path that maps kind + employee_id/invoice_id. This helper only stores
+// description_type + a free-text employee_name — do NOT wire it to a salary/advance UI, or those
+// lines won't reach the employees ledger (which joins on z_expenses.employee_id).
 export async function addExpense(zReportId, input, actor, x = getExecutor()) {
   await getZReport(zReportId, x);
   const { expenseDate = null, payerName = null, descriptionType = null, employeeName = null, amount = 0, imagePath = null } = input;

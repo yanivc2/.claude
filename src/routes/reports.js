@@ -9,7 +9,7 @@ import {
 } from '../services/reports.js';
 import {
   createZReport, updateZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
-  addExpense, listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
+  listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
   replaceExpenses, setZReportImage, setManagerBreakdown,
   setDeposit, cashReconciliation, DENOMS,
   setCreditCards, ccReconciliation, CC_BRANDS,
@@ -620,35 +620,6 @@ router.get('/zreports/:id', async (req, res, next) => {
   try {
     await renderZReport(req, res, Number(req.params.id));
   } catch (err) {
-    next(err);
-  }
-});
-
-// Add a drawer-expense line (with optional note image).
-router.post('/zreports/:id/expenses', handleInvoiceImage, async (req, res, next) => {
-  const id = Number(req.params.id);
-  try {
-    if (req.uploadError) {
-      if (req.file) removeUpload(req.file.filename);
-      return renderZReport(req, res, id, { error: req.uploadError });
-    }
-    await addExpense(
-      id,
-      {
-        expenseDate: req.body.expense_date || null,
-        payerName: req.body.payer_name,
-        descriptionType: req.body.description_type,
-        employeeName: req.body.employee_name,
-        amount: toAgorot(req.body.amount),
-        imagePath: req.file ? req.file.filename : null,
-      },
-      req.user,
-    );
-    await alertIfUnmatched(req, id);
-    await renderZReport(req, res, id, { notice: 'הוצאה נוספה.' });
-  } catch (err) {
-    if (req.file) removeUpload(req.file.filename);
-    if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
     next(err);
   }
 });
