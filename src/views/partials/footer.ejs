@@ -507,6 +507,10 @@
     function saveState(s) { try { localStorage.setItem(pageKey, JSON.stringify(s)); } catch (e) {} }
     var state = readState();
     var cards = [];
+    // A page can opt every collapsible card into starting COLLAPSED (e.g. Settings) by placing a
+    // [data-collapse-default] marker inside <main>. A card the user has explicitly toggled before
+    // (its key is in saved state) still wins over this default.
+    var collapseDefault = !!main.querySelector('[data-collapse-default]');
 
     main.querySelectorAll('.card').forEach(function (card) {
       if (card.tagName === 'DETAILS') return;               // already a native collapsible
@@ -531,7 +535,7 @@
 
       var key = (h.textContent || '').trim().slice(0, 60);
       function apply(c) { card.classList.toggle('collapsed', c); h.setAttribute('aria-expanded', String(!c)); }
-      apply(state[key] === 1);
+      apply((key in state) ? state[key] === 1 : collapseDefault);
 
       function setCollapsed(c, viaUser) {
         apply(c);
