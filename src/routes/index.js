@@ -9,7 +9,7 @@ import {
 import { lookupChecks } from '../services/payments.js';
 import { unmatchedCashExpenses, zSequenceStatus } from '../services/zreports.js';
 import { listDeposits, zReportsWithoutDeposit, declaredNotDeposited } from '../services/deposits.js';
-import { searchSuppliers } from '../services/suppliers.js';
+import { searchSuppliers, listSuppliers } from '../services/suppliers.js';
 import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
 import { listRequests, approveRequest, rejectRequest, actionLabel } from '../services/changeRequests.js';
@@ -118,6 +118,7 @@ router.get('/approvals', ownerOnly, async (req, res, next) => {
     res.render('approvals', {
       title: 'אישורים',
       pending: await listRequests({ status: 'pending' }),
+      pendingSuppliers: await listSuppliers('pending'),
       history: await listRequests({ status: null }),
       actionLabel,
       notice: null,
@@ -137,6 +138,7 @@ router.post('/approvals/:id/approve', ownerOnly, async (req, res, next) => {
       return res.render('approvals', {
         title: 'אישורים',
         pending: await listRequests({ status: 'pending' }),
+        pendingSuppliers: await listSuppliers('pending'),
         history: await listRequests({ status: null }),
         actionLabel,
         notice: null,

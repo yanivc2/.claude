@@ -4,6 +4,7 @@ import { userCan, canViewPage } from '../lib/permissions.js';
 import { authorizedCompanyIds, authorizedStoreIds, availableStoresFor } from '../lib/scope.js';
 import { loginAllowedNow } from '../lib/loginHours.js';
 import { countPending } from '../services/changeRequests.js';
+import { countPendingSuppliers } from '../services/suppliers.js';
 
 // Authentication gate. Reads the signed `session` cookie, loads the acting user, and blocks
 // unauthenticated access to everything except the login page. Static assets are served earlier
@@ -56,7 +57,7 @@ export async function currentUser(req, res, next) {
     res.locals.currentUser = user;
     res.locals.can = (perm) => userCan(user, perm);
     res.locals.canView = (navKey) => canViewPage(user, navKey);
-    res.locals.pendingApprovals = user.role === 'owner' ? await countPending() : 0;
+    res.locals.pendingApprovals = user.role === 'owner' ? (await countPending()) + (await countPendingSuppliers()) : 0;
 
     // Forced first-login password change: when the owner issued a temporary password
     // (must_change_password=1), block every page except the change-password form + logout

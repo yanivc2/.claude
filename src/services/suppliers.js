@@ -3,6 +3,16 @@ import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
 import { logAction } from './audit.js';
 
+/** Count suppliers awaiting owner approval — feeds the "אישורים" nav badge. Tolerant pre-upgrade. */
+export async function countPendingSuppliers(x = getExecutor()) {
+  try {
+    const r = await x.one("SELECT COUNT(*) AS n FROM suppliers WHERE status = 'pending'", []);
+    return Number(r?.n || 0);
+  } catch {
+    return 0;
+  }
+}
+
 /** List suppliers, optionally filtered by status, ordered by name. Each row gets a `stores`
  *  array ([{id,name}]) of the stores it's assigned to. */
 export async function listSuppliers(status = null, x = getExecutor()) {

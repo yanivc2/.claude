@@ -233,10 +233,16 @@ router.post('/:id/edit', async (req, res, next) => {
   }
 });
 
+// Same-site relative redirect only (e.g. back to /approvals when approved from there).
+function safeReturn(req, fallback) {
+  const r = (req.body.return_to || '').toString();
+  return r.startsWith('/') && !r.startsWith('//') ? r : fallback;
+}
+
 router.post('/:id/approve', async (req, res, next) => {
   try {
     await approveSupplier(Number(req.params.id), req.user);
-    res.redirect(303, '/suppliers?status=pending');
+    res.redirect(303, safeReturn(req, '/suppliers?status=pending'));
   } catch (err) {
     if (err instanceof AuthError) return renderList(res, { error: err.message });
     next(err);
@@ -246,7 +252,7 @@ router.post('/:id/approve', async (req, res, next) => {
 router.post('/:id/block', async (req, res, next) => {
   try {
     await blockSupplier(Number(req.params.id), req.user, req.body.reason || null);
-    res.redirect(303, '/suppliers');
+    res.redirect(303, safeReturn(req, '/suppliers'));
   } catch (err) {
     if (err instanceof AuthError) return renderList(res, { error: err.message });
     next(err);

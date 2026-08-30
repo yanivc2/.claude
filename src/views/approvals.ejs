@@ -1,9 +1,46 @@
 <%- include('partials/header') %>
 <h1>אישורים</h1>
-<p class="muted">בקשות עריכה שהגישו משתמשים (מזכירה / מנהל). אשר לביצוע או דחה.</p>
+<p class="muted">ספקים חדשים שהוזנו וממתינים לאישור, ובקשות עריכה שהגישו משתמשים (מזכירה / מנהל). אשר לביצוע או דחה.</p>
 
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-info"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<% var _pendingSuppliers = (typeof pendingSuppliers !== 'undefined' && pendingSuppliers) ? pendingSuppliers : []; %>
+<div class="card">
+  <h2 style="margin-top:0">ספקים ממתינים לאישור (<%= _pendingSuppliers.length %>)</h2>
+  <p class="muted" style="margin:0 0 .6rem">ספק חדש נשמר כ<strong>ממתין</strong> עד לאישור — אפשר לרשום עליו חשבוניות, אך <strong>תשלום חסום</strong> עד שתאשר.</p>
+  <% if (_pendingSuppliers.length === 0) { %>
+    <p class="muted">אין ספקים ממתינים.</p>
+  <% } else { %>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>ספק</th><th>ח.פ / ע.מ</th><th>טלפון</th><th>איש קשר</th><th class="no-print" data-nosort></th></tr></thead>
+        <tbody>
+          <% _pendingSuppliers.forEach(function(s){ %>
+            <tr>
+              <td><a href="/suppliers/<%= s.id %>"><%= s.name %></a></td>
+              <td class="mono"><%= s.tax_id || '—' %></td>
+              <td class="mono"><% if (s.phone) { %><a href="<%= telLink(s.phone) %>"><%= s.phone %></a><% } else { %>—<% } %></td>
+              <td><%= s.contact_name || '—' %></td>
+              <td class="no-print">
+                <div class="actions" style="gap:.3rem;justify-content:flex-end">
+                  <form method="post" action="/suppliers/<%= s.id %>/approve" style="display:inline">
+                    <input type="hidden" name="return_to" value="/approvals" />
+                    <button class="ok small" type="submit">אשר ספק</button>
+                  </form>
+                  <form method="post" action="/suppliers/<%= s.id %>/block" style="display:inline" onsubmit="return confirm('לחסום את הספק <%= s.name %>?')">
+                    <input type="hidden" name="return_to" value="/approvals" />
+                    <button class="danger small" type="submit">חסום</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
 
 <div class="card">
   <h2 style="margin-top:0">ממתינות לאישור (<%= pending.length %>)</h2>
