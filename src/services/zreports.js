@@ -262,9 +262,9 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
   const stC = storeId ? ' AND zc.store_id = ?' : '';
   const stRp = storeId ? [storeId] : [];
   const stCp = storeId ? [storeId] : [];
-  return x.many(
+  const rows = await x.many(
     `SELECT * FROM (
-       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount,
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, z.store_id AS store_id,
               z.z_number, 'zreport' AS source, z.id AS ref_id
          FROM z_expenses e
          JOIN z_reports z ON z.id = e.z_report_id
@@ -272,7 +272,7 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
         WHERE e.invoice_id IS NULL AND e.amount > 0
           AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scR.sql}${stR}
        UNION ALL
-       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount,
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, zc.store_id AS store_id,
               zc.z_number, 'zclosing' AS source, zc.id AS ref_id
          FROM z_closing_expenses e
          JOIN z_closings zc ON zc.id = e.closing_id
@@ -280,9 +280,33 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
         WHERE e.invoice_id IS NULL AND e.amount > 0
           AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scC.sql}${stC}
      ) u
-     ORDER BY u.expense_date DESC, u.id DESC LIMIT ?`,
-    [...scR.params, ...stRp, ...scC.params, ...stCp, limit],
+     ORDER BY u.expense_date DESC, u.id DESC`,
+    [...scR.params, ...stRp, ...scC.params, ...stCp],
   );
+
+  // "תשלום מזומן = מטופל": a register cash expense that already has a matching cash PAYMENT (same
+  // store + same amount, non-voided) is considered reconciled — drop it from the "unmatched" list.
+  // We consume one payment per expense so N payments clear N same-store/amount expenses (no more).
+  const cashPays = await x.many(
+    `SELECT p.amount AS amount, ba.store_id AS store_id
+       FROM payments p JOIN bank_accounts ba ON ba.id = p.bank_account_id
+      WHERE p.method = 'cash' AND p.status <> 'voided'`,
+    [],
+  );
+  const payCount = new Map(); // `${store}|${amount}` -> available payments
+  for (const p of cashPays) {
+    const k = `${Number(p.store_id)}|${Number(p.amount)}`;
+    payCount.set(k, (payCount.get(k) || 0) + 1);
+  }
+  const out = [];
+  for (const r of rows) {
+    const k = `${Number(r.store_id)}|${Number(r.amount)}`;
+    const avail = payCount.get(k) || 0;
+    if (avail > 0) { payCount.set(k, avail - 1); continue; } // matched by a cash payment → skip
+    out.push(r);
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 /**

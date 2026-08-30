@@ -93,8 +93,8 @@
         } else if (i.status === 'paid') {
           paid = { label: 'שולם', cls: 'b-paid' };
         }
-        var unmatchedCash = (i.pay_method === 'cash' && !(i.cash_matches > 0));
-        var rowCls = i.status === 'on_hold' ? 'row-hold' : (unmatchedCash ? 'row-unmatched-cash' : '');
+        // A recorded cash payment counts as handled (per owner decision) — no "unmatched" flag.
+        var rowCls = i.status === 'on_hold' ? 'row-hold' : '';
         // Selectable for a combined payment: payable (recorded/approved) and not already paid.
         var selectable = (i.status === 'recorded' || i.status === 'approved_for_payment') && !i.pay_method && !(i.cash_matches > 0);
       %>
@@ -115,7 +115,7 @@
             <span class="badge b-<%= i.supplier_status %>">ספק <%= i.supplier_status === 'pending' ? 'ממתין' : 'חסום' %></span>
           <% } %>
         </td>
-        <td><span class="badge <%= paid.cls %>"><%= paid.label %></span><% if (unmatchedCash) { %> <span class="muted" style="font-size:11px">ללא התאמה</span><% } %></td>
+        <td><span class="badge <%= paid.cls %>"><%= paid.label %></span></td>
       </tr>
     <% }); %>
   </tbody>
