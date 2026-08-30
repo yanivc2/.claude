@@ -111,7 +111,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <% if (invoice.payment) { %>
   <div class="card">
     <h2 style="margin-top:0">תשלום</h2>
-    <p>שולם ב<%= methodLabel(invoice.payment.method || 'check') %> <a href="/payments/<%= invoice.payment.id %>"><span class="mono"><%= invoice.payment.check_number || '' %></span></a>
+    <p>שולם ב<a href="/payments/<%= invoice.payment.id %>"><%= paymentIdent(invoice.payment) %></a>
       מתאריך <%= formatDate(invoice.payment.payment_date) %> —
       <span class="badge b-<%= invoice.payment.payment_status %>"><%= invoice.payment.payment_status === 'issued' ? 'הונפק' : invoice.payment.payment_status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
       <% if (invoice.payment.cleared_date) { %> · נפרע ב-<%= formatDate(invoice.payment.cleared_date) %><% } %>

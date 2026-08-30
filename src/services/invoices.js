@@ -401,9 +401,11 @@ export async function getInvoiceDetail(id, x = getExecutor()) {
     [id],
   );
   if (!row) throw new NotFoundError(`חשבונית ${id} לא נמצאה`);
-  // Which payment (check) paid this invoice, if any.
+  // Which payment paid this invoice, if any. Includes the method + every identifier field so the
+  // detail view can label it correctly (cash / transfer / credit / batch …), not always "צ׳ק".
   row.payment = await x.one(
-    `SELECT p.id, p.check_number, p.payment_date, p.status AS payment_status, p.cleared_date
+    `SELECT p.id, p.method, p.check_number, p.reference, p.batch_number, p.card_last4, p.payer_name,
+            p.payment_date, p.status AS payment_status, p.cleared_date
        FROM payment_lines pl JOIN payments p ON p.id = pl.payment_id
       WHERE pl.invoice_id = ?`,
     [id],
