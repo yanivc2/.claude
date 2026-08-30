@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
+import { assertInScope } from '../lib/scopeGuard.js';
 import { toAgorot } from '../lib/money.js';
 import { parseCsv } from '../lib/csv.js';
 import { parseXlsx } from '../lib/xlsx.js';
@@ -53,9 +54,12 @@ async function accounts(scope = null) {
   );
 }
 
+// Resolve the account to act on from body.account_id (form POST) or ?account= (GET), but ONLY if
+// it is one the caller is authorized to see — a forged/foreign id falls back to the first
+// authorized account, never acting cross-company. This is the single scope gate for account_id.
 async function resolveAccountId(req) {
   const all = await accounts(req.scope.companyIds);
-  const requested = Number(req.query.account);
+  const requested = Number(req.body?.account_id) || Number(req.query.account);
   return all.some((a) => a.id === requested) ? requested : all[0]?.id;
 }
 
@@ -86,7 +90,7 @@ router.get('/', async (req, res, next) => {
 // תאריך / חובה / זכות (or תאריך / סכום), plus אסמכתא and a description column.
 router.post('/import-csv', requirePermission('import_bank'), (req, res, next) => {
   csvUpload(req, res, async (uploadErr) => {
-    const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+    const accountId = await resolveAccountId(req);
     try {
       if (uploadErr) throw new RuleError('CSV', 'העלאת הקובץ נכשלה');
       if (!req.file) throw new RuleError('CSV', 'לא נבחר קובץ');
@@ -113,7 +117,7 @@ router.post('/import-csv', requirePermission('import_bank'), (req, res, next) =>
 
 // Manual single transaction (signed shekels, debit negative).
 router.post('/add', requirePermission('import_bank'), async (req, res, next) => {
-  const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  const accountId = await resolveAccountId(req);
   try {
     await importTransactions(
       accountId,
@@ -136,7 +140,7 @@ router.post('/add', requirePermission('import_bank'), async (req, res, next) => 
 });
 
 router.post('/auto', async (req, res, next) => {
-  const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  const accountId = await resolveAccountId(req);
   try {
     const r = await autoReconcile(accountId, req.user);
     await renderPage(req, res, accountId, {
@@ -148,8 +152,12 @@ router.post('/auto', async (req, res, next) => {
 });
 
 router.post('/match', async (req, res, next) => {
-  const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  const accountId = await resolveAccountId(req);
   try {
+    // Scope guard: the transaction and the payment must both belong to the caller's companies —
+    // a forged txn_id/payment_id from another company is refused (404, existence not leaked).
+    await assertInScope('bankTxn', Number(req.body.txn_id), req.scope.companyIds);
+    await assertInScope('payment', Number(req.body.payment_id), req.scope.companyIds);
     await confirmMatch(Number(req.body.txn_id), Number(req.body.payment_id), req.user);
     await renderPage(req, res, accountId, { notice: 'הצ׳ק סומן כנפרע.' });
   } catch (err) {
@@ -159,9 +167,10 @@ router.post('/match', async (req, res, next) => {
 });
 
 router.post('/txn/:id/edit', async (req, res, next) => {
-  const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  const accountId = await resolveAccountId(req);
   const id = Number(req.params.id);
   try {
+    await assertInScope('bankTxn', id, req.scope.companyIds);
     const fields = {
       txnDate: req.body.txn_date,
       amount: toAgorot(req.body.amount),
@@ -186,8 +195,9 @@ router.post('/txn/:id/edit', async (req, res, next) => {
 });
 
 router.post('/txn/:id/delete', async (req, res, next) => {
-  const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  const accountId = await resolveAccountId(req);
   try {
+    await assertInScope('bankTxn', Number(req.params.id), req.scope.companyIds);
     await deleteTransaction(Number(req.params.id), req.user);
     await renderPage(req, res, accountId, { notice: 'התנועה נמחקה.' });
   } catch (err) {
@@ -197,8 +207,9 @@ router.post('/txn/:id/delete', async (req, res, next) => {
 });
 
 router.post('/unmatch', async (req, res, next) => {
-  const accountId = Number(req.body.account_id) || (await resolveAccountId(req));
+  const accountId = await resolveAccountId(req);
   try {
+    await assertInScope('bankTxn', Number(req.body.txn_id), req.scope.companyIds);
     await unmatch(Number(req.body.txn_id), req.user);
     await renderPage(req, res, accountId, { notice: 'ההתאמה בוטלה, הצ׳ק חזר לסטטוס פתוח.' });
   } catch (err) {

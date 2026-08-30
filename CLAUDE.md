@@ -87,8 +87,9 @@ happen only at merge. So:
      NOT EXISTS` at the bottom for existing-DB migrations). Order matters (FKs validated at create).
   - **Gotcha:** services often `SELECT` explicit column lists (e.g. `getUser`/`listUsers` in
     `services/users.js`) — add new columns there too or they'll be `undefined` in views.
-- **Israel time:** `lib/loginHours.js#israelClock()` and `services/zclosing.js#israelNow()` use
-  `Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem' })`.
+- **Israel time:** `lib/loginHours.js#israelClock()`/`israelToday()` (→`'YYYY-MM-DD'`) and
+  `services/zclosing.js#israelNow()` use `Intl.DateTimeFormat(..., { timeZone: 'Asia/Jerusalem' })`.
+  Use `israelToday()` for any "today" default (e.g. `markCleared`), never `new Date().toISOString()`.
 - **Telegram push:** `lib/notify.js#notify(html)` — fire-and-forget, no-op if unconfigured. Never throws.
 - **Dates:** stored ISO `YYYY-MM-DD`; `res.locals.formatDate` → `DD/MM/YY`.
 - **`partials/footer.ejs` global enhancers** (run on every page): (1) the **day-first date picker**

@@ -11,6 +11,14 @@ export function israelClock(now = new Date()) {
   return { hhmm: `${p.hour}:${p.minute}`, minutes: Number(p.hour) * 60 + Number(p.minute) };
 }
 
+/** Today's date in Israel as 'YYYY-MM-DD' (Asia/Jerusalem) — not UTC, which can be a day off near midnight. */
+export function israelToday(now = new Date()) {
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  return fmt.format(now); // en-CA formats as YYYY-MM-DD
+}
+
 /** Parse 'HH:MM' → minutes since midnight, or null if not a valid time. */
 export function parseHhmm(v) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || '').trim());

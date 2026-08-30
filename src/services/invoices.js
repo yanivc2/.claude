@@ -333,20 +333,21 @@ export async function updateInvoice(id, input, actor, x = getExecutor()) {
     [supplierId, store.company_id, storeId, String(invoiceNumber).trim(), alloc, invoiceDate, beforeVat, vat, total, docType, id],
   );
 
-  // R3 re-evaluation: an automatic hold (placed when the amount was over the allocation
-  // threshold) is stale once the invoice no longer qualifies — the amount was corrected below
-  // the threshold, an allocation number was added, or the doc type changed. Clear it so the
-  // invoice stops showing as "מוחזק (R3)" for a case that no longer applies. Manual owner holds
-  // (whose reason does not start with "R3") are never touched here.
+  // R3 re-evaluation — symmetric. An automatic hold (placed when the amount was over the
+  // allocation threshold) is stale once the invoice no longer qualifies (amount corrected below
+  // the threshold, an allocation number added, or doc type changed) → clear it. Conversely, an
+  // edit that newly pushes a plain 'recorded' invoice over the threshold must place the hold, or
+  // an edit-up would silently bypass R3. Manual owner holds (reason not starting with "R3") and
+  // deliberate states (approved_for_payment / paid) are never touched here.
   const stillR3 =
     docType === 'tax_invoice' && !alloc && Math.abs(beforeVat) > config.rules.allocationThresholdAgorot;
-  if (
-    invoice.status === 'on_hold' &&
-    typeof invoice.hold_reason === 'string' &&
-    invoice.hold_reason.startsWith('R3') &&
-    !stillR3
-  ) {
+  const isR3Hold =
+    invoice.status === 'on_hold' && typeof invoice.hold_reason === 'string' && invoice.hold_reason.startsWith('R3');
+  if (isR3Hold && !stillR3) {
     await x.run("UPDATE invoices SET status = 'recorded', hold_reason = NULL WHERE id = ?", [id]);
+  } else if (stillR3 && invoice.status === 'recorded') {
+    const r3Reason = `R3: חשבונית מס מעל ${config.rules.allocationThresholdAgorot / 100} ₪ ללא מספר הקצאה — חסום לתשלום עד השלמת הקצאה או עקיפת בעלים`;
+    await x.run("UPDATE invoices SET status = 'on_hold', hold_reason = ? WHERE id = ?", [r3Reason, id]);
   }
 
   await logAction(
@@ -489,7 +490,8 @@ async function enrichPaidStatus(rows, x = getExecutor()) {
  * Invoices eligible to be applied to a payment: recorded or approved_for_payment (paying
  * implicitly approves), not on_hold and not yet paid.
  */
-export async function listPayable(x = getExecutor()) {
+export async function listPayable(scope = null, x = getExecutor()) {
+  const sc = scopeClause(scope, 'i.company_id');
   return x.many(
     `SELECT i.*, s.name AS supplier_name, st.name AS store_name, ba.id AS derived_bank_account_id,
             ba.display_name AS bank_account_name
@@ -497,9 +499,9 @@ export async function listPayable(x = getExecutor()) {
        JOIN suppliers s ON s.id = i.supplier_id
        JOIN stores st ON st.id = i.store_id
        JOIN bank_accounts ba ON ba.store_id = i.store_id
-      WHERE i.status IN ('recorded', 'approved_for_payment')
+      WHERE i.status IN ('recorded', 'approved_for_payment')${sc.sql}
       ORDER BY s.name, i.invoice_date`,
-    [],
+    [...sc.params],
   );
 }
 

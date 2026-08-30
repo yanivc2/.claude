@@ -14,11 +14,20 @@ import { listDeposits } from '../services/deposits.js';
 import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
-import { scopeParam } from '../lib/scopeGuard.js';
+import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
+
+// Bank accounts the caller may pick from — scoped to their authorized companies (owner = all).
+async function scopedAccounts(companyIds) {
+  const sc = scopeClause(companyIds, 'company_id');
+  return getExecutor().many(
+    `SELECT * FROM bank_accounts WHERE 1 = 1${sc.sql} ORDER BY display_name`,
+    [...sc.params],
+  );
+}
 
 // Company-separation guard: every /payments/:id route (view, print, clear, void) is refused
 // with 404 when the payment belongs to a company the caller isn't authorized for.
@@ -107,8 +116,8 @@ router.get('/new', async (req, res, next) => {
     const preselectId = req.query.invoice ? Number(req.query.invoice) : null;
     res.render('payments/new', {
       title: 'תשלום חדש',
-      payable: await listPayable(),
-      accounts: await getExecutor().many('SELECT * FROM bank_accounts ORDER BY display_name', []),
+      payable: await listPayable(req.scope.companyIds),
+      accounts: await scopedAccounts(req.scope.companyIds),
       values: { method },
       preselectId,
       error: null,
@@ -125,6 +134,9 @@ router.post('/', async (req, res, next) => {
     .map(Number)
     .filter(Boolean);
   try {
+    // Company scope: refuse a forged bank_account_id from a company the caller isn't authorized
+    // for (cross-company IDOR on POST). Owners have scope=null → allowed. 404 hides existence.
+    await assertInScope('bankAccount', Number(b.bank_account_id), req.scope.companyIds);
     const payment = await createPayment(
       {
         bankAccountId: Number(b.bank_account_id),
@@ -144,8 +156,8 @@ router.post('/', async (req, res, next) => {
     if (err instanceof RuleError || err instanceof AuthError) {
       return res.status(400).render('payments/new', {
         title: 'תשלום חדש',
-        payable: await listPayable(),
-        accounts: await getExecutor().many('SELECT * FROM bank_accounts ORDER BY display_name', []),
+        payable: await listPayable(req.scope.companyIds),
+        accounts: await scopedAccounts(req.scope.companyIds),
         values: b,
         preselectId: null,
         error: err.message,

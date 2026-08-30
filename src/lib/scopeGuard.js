@@ -17,11 +17,14 @@ const COMPANY_OF = {
   expense:
     'SELECT st.company_id AS company_id FROM z_expenses e JOIN z_reports z ON z.id = e.z_report_id JOIN stores st ON st.id = z.store_id WHERE e.id = ?',
   scanDraft: 'SELECT company_id FROM invoice_drafts WHERE id = ?',
+  bankAccount: 'SELECT company_id FROM bank_accounts WHERE id = ?',
+  bankTxn:
+    'SELECT ba.company_id AS company_id FROM bank_transactions bt JOIN bank_accounts ba ON ba.id = bt.bank_account_id WHERE bt.id = ?',
 };
 
 /**
  * Throw NotFoundError if entity <kind:id> is missing OR outside the caller's company scope.
- * @param {'invoice'|'payment'|'zreport'|'deposit'|'expense'|'scanDraft'} kind
+ * @param {'invoice'|'payment'|'zreport'|'deposit'|'expense'|'scanDraft'|'bankAccount'|'bankTxn'} kind
  * @param {number|string} id
  * @param {number[]|null} scope  companyIds (null = owner / all)
  * @returns {Promise<number>} the entity's company_id (when in scope)

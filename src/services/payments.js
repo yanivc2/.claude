@@ -6,6 +6,7 @@ import { scopeClause } from '../lib/scope.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { notify } from '../lib/notify.js';
+import { israelToday } from '../lib/loginHours.js';
 import { logAction } from './audit.js';
 
 const METHODS = ['check', 'cash', 'credit', 'transfer', 'batch', 'standing_order'];
@@ -312,6 +313,12 @@ export async function updatePayment(id, input, actor, x = getExecutor()) {
         [method, fields.check_number, fields.reference, fields.payer_name, fields.card_last4, fields.batch_number, paymentDate, net, id],
       );
     } else {
+      // Plain edit (no retarget): the amount is unchanged, but the method may have switched to
+      // cash — enforce the cash ceiling here too, or a large check could be relabelled 'cash'
+      // above the legal limit without recomputing.
+      if (method === 'cash' && config.cashCeilingAgorot > 0 && existing.amount > config.cashCeilingAgorot) {
+        throw new RuleError('CASH_LIMIT', `תשלום במזומן מוגבל ל-${config.cashCeilingAgorot / 100} ₪ לפי חוק צמצום השימוש במזומן.`);
+      }
       await t.run(
         `UPDATE payments SET method = ?, check_number = ?, reference = ?, payer_name = ?, card_last4 = ?, batch_number = ?, payment_date = ? WHERE id = ?`,
         [method, fields.check_number, fields.reference, fields.payer_name, fields.card_last4, fields.batch_number, paymentDate, id],
@@ -329,7 +336,7 @@ export async function markCleared(id, clearedDate, actor, x = getExecutor()) {
   if (payment.status === 'voided') throw new RuleError('R', 'צ׳ק מבוטל — לא ניתן לסמן כנפרע');
 
   await x.run("UPDATE payments SET status = 'cleared', cleared_date = ? WHERE id = ?", [
-    clearedDate || new Date().toISOString().slice(0, 10),
+    clearedDate || israelToday(),
     id,
   ]);
   await logAction({ userId: actor.id, action: 'payment.clear', entityType: 'payment', entityId: id, details: { clearedDate } }, x);
@@ -352,6 +359,9 @@ export async function voidPayment(id, actor, reason = null, x = getExecutor()) {
   if (!userCan(actor, 'void_payment')) throw new AuthError('ביטול צ׳ק — נדרשת הרשאת ביטול תשלום');
   const payment = await x.one('SELECT * FROM payments WHERE id = ?', [id]);
   if (!payment) throw new NotFoundError(`תשלום ${id} לא נמצא`);
+  // Idempotency guard: voiding an already-voided check would re-revert its invoices to
+  // approved_for_payment, silently un-doing any later state (e.g. re-paid on a new check).
+  if (payment.status === 'voided') throw new RuleError('R', 'הצ׳ק כבר בוטל');
 
   await tx(async (t) => {
     const lines = await t.many('SELECT invoice_id FROM payment_lines WHERE payment_id = ?', [id]);
@@ -471,6 +481,7 @@ export async function lookupChecks(query, scope = null, x = getExecutor()) {
   // Correlated subquery for one supplier name -> one row per payment, portable across SQLite/Postgres.
   return x.many(
     `SELECT p.id, p.method, p.check_number, p.reference, p.batch_number,
+            p.payer_name, p.card_last4,
             p.payment_date, p.amount, p.status,
             ba.display_name AS bank_account_name,
             (SELECT s.name FROM payment_lines pl

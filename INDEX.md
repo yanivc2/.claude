@@ -72,7 +72,7 @@
 | התאמת הוצאת-מזומן↔חשבונית | `POST /invoices/{match-cash,unmatch-cash}` | `matchClosingExpenseToInvoice`/`unmatchClosingExpense` (`services/zclosing.js`) | ברובריקת "הוצאות מזומן (מסגירות Z)" בדף חשבוניות (`_cashExpenses.ejs` במצב `matchable`): בורר חשבונית + "התאם" → מציב `z_closing_expenses.invoice_id` → החשבונית קוראת "שולם במזומן". סקופ נבדק בשני הצדדים **לפני** השינוי. | הרובריקה משותפת עם דף סגירת-Z (שם `matchable` כבוי). `matchInvoices`=`listPayable` בסקופ. |
 | דף חשבונית + מספר חשבונית | `GET /invoices/:id` | `getInvoiceDetail` (`SELECT i.*`) | מציג מספר חשבונית + שורות (אם מסריקה) + תמונה/OCR. שורת התשלום משתמשת ב-`paymentIdent(invoice.payment)` — לכן `row.payment` **חייב** לכלול את `p.method` + שדות המזהה (reference/batch_number/card_last4/payer_name/check_number), אחרת התווית נופלת ל"צ׳ק" גם על מזומן/העברה. | הסתרת מספר החשבונית הייתה בעבר — הוחזרה. הסרת `p.method` מה-SELECT מחזירה את הבאג "שולם בצ׳ק" על כל אמצעי תשלום. |
 | תפריט **אפשרויות** (גם אחרי תשלום) | לינקים | `can('edit_invoice')` / `can('approve_payment')` | ✏️ ערוך חשבונית (מוסתר כש-`status==='paid'`) · 💳 ערוך אמצעי תשלום (אם יש תשלום) · ➕ לאותו ספק (`?supplier=&store=`). | התפריט מוצג גם לחשבונית ששולמה (בשביל תשלום/הוספה). עריכת **נתוני** חשבונית ששולמה חסומה — `GET /:id/edit` מפנה (303) חזרה; מתקנים דרך "ערוך אמצעי תשלום". |
-| ערוך חשבונית | `GET/POST /invoices/:id/edit` | `updateInvoice` (`requirePermission('edit_invoice')`) | עריכת ספק/מספר/סכום/הקצאה; חוסם חשבונית ששולמה. | R2 נבדק מחדש. |
+| ערוך חשבונית | `GET/POST /invoices/:id/edit` | `updateInvoice` (`requirePermission('edit_invoice')`) | עריכת ספק/מספר/סכום/הקצאה; חוסם חשבונית ששולמה. **R3 נבדק מחדש סימטרית:** עריכה שמורידה מתחת לסף / מוסיפה הקצאה → מנקה החזקת-R3 ישנה; עריכה שמעלה חשבונית `recorded` מעל הסף בלי הקצאה → **מציבה** החזקת-R3 (אחרת עריכה-כלפי-מעלה עוקפת את R3 בשקט). החזקות ידניות (reason שלא מתחיל ב-"R3") ומצבים מכוונים (approved/paid) לא נוגעים. | R2 נבדק מחדש. הצבת ההחזקה חלה רק על סטטוס `recorded`. |
 | תשלום/אישור (תפריט) | `POST /invoices/:id/{approve,request-payment,release,hold,allocation}` | `services/invoices.js` | R3 (הקצאה), R1/R5 (תשלום), החזקה (on_hold) + סיבה + תזכורת פוש. | שינוי סטטוסים משפיע על התשלום ועל ה-firewall. |
 | תמונה/OCR | `POST /invoices/:id/{image,ocr,ocr/apply,ocr/delete,image/delete}` | `services/ocr.js`, `lib/storage.js` | העלאת צילום (שחור-לבן), OCR כתמיכת החלטה בלבד (לא דורס ערכים). | `image_path`/`invoice_ocr` (PK=`invoice_id`, ON DELETE CASCADE). |
 
@@ -89,8 +89,8 @@
 | רשימה + סינון-עמודות | `GET /payments` | `listPayments` | סינון client-side בשורת ה-`.filter-row`. | ויזואלי. |
 | תשלום חדש | `GET /payments/new`, `POST /payments` | `createPayment` | R1 (ספק+חשבונית מאושרים), R5 (סכום=Σ שורות), מזהה לפי אמצעי (צ׳ק=מספר צ׳ק וכו'), תקרת מזומן. **בודק מראש כפילות מספר צ׳ק פעיל** → הודעה בעברית. | R1/R5 קריטיים. שינוי המזהים משפיע על `getCheckPrintData`. |
 | דף תשלום + סטטוס | `GET /payments/:id` | `getPaymentDetail` | פירעון/ביטול דרך תגית הסטטוס. | — |
-| **ערוך אמצעי תשלום** | `GET/POST /payments/:id/edit` | `updatePayment` (`requirePermission('approve_payment')`) | עריכת אמצעי/מזהה/תאריך. **ורק לצ׳ק "הונפק" ולא מותאם-בנק** — re-target של החשבוניות: הוספת זיכוי → הסכום=net מחדש (R5 נשמר, לא נערך ידנית). | מסך `payments/edit.ejs`. re-target משנה סטטוסי חשבוניות (paid↔recorded). חסום ל-cleared/voided/matched. |
-| נפרע / החזר / בטל | `POST /payments/:id/{clear,unclear,void}` | `markCleared`,`markIssued`,`voidPayment` | ביטול → **משחרר את מספר הצ׳ק** (האינדקס `ux_payments_account_check` מחריג `status='voided'`). טפסי `/void` (וכל טופס עם `data-busy`) מקבלים **משוב מיידי** בשליחה (כפתור→disabled + "מבטל…", enhancer גלובלי ב-`footer.ejs`) כדי שהמתנת ה-round-trip לא תבלבל. | שינוי האינדקס (הסרת החרגת voided) מחזיר את הבאג "אי אפשר להנפיק שוב מספר צ׳ק שבוטל". |
+| **ערוך אמצעי תשלום** | `GET/POST /payments/:id/edit` | `updatePayment` (`requirePermission('approve_payment')`) | עריכת אמצעי/מזהה/תאריך. **ורק לצ׳ק "הונפק" ולא מותאם-בנק** — re-target של החשבוניות: הוספת זיכוי → הסכום=net מחדש (R5 נשמר, לא נערך ידנית). **תקרת מזומן נאכפת בשני הענפים** — גם בעריכה רגילה (בלי re-target) ששינתה את האמצעי ל-`cash`, הסכום הקיים נבדק מול `cashCeilingAgorot` (אחרת צ׳ק גדול הוסב ל"מזומן" מעל הסף). | מסך `payments/edit.ejs`. re-target משנה סטטוסי חשבוניות (paid↔recorded). חסום ל-cleared/voided/matched. |
+| נפרע / החזר / בטל | `POST /payments/:id/{clear,unclear,void}` | `markCleared`,`markIssued`,`voidPayment` | ביטול → **משחרר את מספר הצ׳ק** (האינדקס `ux_payments_account_check` מחריג `status='voided'`). **`voidPayment` חוסם ביטול-כפול** (`status==='voided'` → שגיאה "הצ׳ק כבר בוטל") כדי לא להחזיר שוב חשבוניות ל-`approved_for_payment` ולבטל מצב מאוחר. **`markCleared` קובע `cleared_date` ברירת-מחדל לפי `israelToday()`** (Asia/Jerusalem, לא UTC — קרוב לחצות ה-UTC היה יום לפני/אחרי). טפסי `/void` (וכל טופס עם `data-busy`) מקבלים **משוב מיידי** בשליחה (כפתור→disabled + "מבטל…", enhancer גלובלי ב-`footer.ejs`). | שינוי האינדקס (הסרת החרגת voided) מחזיר את הבאג "אי אפשר להנפיק שוב מספר צ׳ק שבוטל". `israelToday()` ב-`lib/loginHours.js`. |
 | הדפסת צ׳ק | `GET /payments/:id/print` | `getCheckPrintData`, `views/payments/print.ejs` | פריסת Standard-501; פעיל תחת `config.checkPrinting.approved`. | דורש MICR font + אישור בנק. |
 | התאמה אוטומטית | `POST /payments/auto-reconcile` | `services/reconciliation.js` | — | ראה התאמת בנק. |
 
@@ -139,6 +139,8 @@
 ## 🏦 התאמת בנק — `routes/reconciliation.js`, `services/reconciliation.js`
 
 **מוגן ב-`requirePageAccess('nav_reconciliation')`.** ייבוא CSV/XLSX (Hapoalim, `lib/bankCsv.js`), התאמת תנועות לתשלומים (`bank_transactions.matched_payment_id`) והפקדות (bag=reference). מחיקת תשלום מנתקת התאמות (clean-start עושה זאת).
+- **הפרדת חברות ב-POST (נגד IDOR):** `resolveAccountId` הוא שער-הסקופ היחיד ל-`account_id` — מאמת את ה-id (מ-body או query) מול החשבונות המורשים ל-`req.scope.companyIds`, ו-id מזויף/זר נופל לחשבון המורשה הראשון (לעולם לא פעולה חוצת-חברה). כל handler שמקבל `txn_id`/`:id`/`payment_id` קורא `assertInScope('bankTxn'|'payment', …, req.scope.companyIds)` **לפני** הפעולה (404 מסתיר קיום). שני kinds חדשים ב-`scopeGuard.js`: `bankAccount`, `bankTxn`.
+- **הבאדג' "נפרע" מציג את אמצעי-התשלום האמיתי:** `listTransactions` מצרף `p.method AS matched_method` והתצוגה קוראת `methodLabel(t.matched_method)` (לא קשיח "צ׳ק").
 
 ---
 
@@ -195,7 +197,7 @@
 - `middleware/currentUser.js` — שער אימות: קורא cookie חתום, טוען `req.user`, קובע `res.locals.can/canView`, `req.scope`. אוכף `must_change_password` ושעות-התחברות. נתיבים ציבוריים: `/login,/forgot,/reset,/invite,/privacy,/accessibility`.
 - `lib/permissions.js` — `PERMISSIONS` (קטלוג), `userCan`/`canViewPage` (בעלים=תמיד true), `NAV_PAGES`/`NAV_ALLOW`/`OPEN_PATHS`, `ROLE_PRESETS`, `firstAllowedPath`.
 - `middleware/requireOwner.js` — `requireOwner`,`requirePermission(key)`,`requirePageAccess(nav_key)`, ו-**`enforcePageScope`** (default-deny לפני ה-routes).
-- הפרדת חברות: `lib/scope.js` (`scopeClause`), `lib/scopeGuard.js` (`assertInScope`/`scopeParam` נגד IDOR).
+- הפרדת חברות: `lib/scope.js` (`scopeClause`), `lib/scopeGuard.js` (`assertInScope`/`scopeParam` נגד IDOR). `COMPANY_OF` kinds: `invoice`,`payment`,`zreport`,`deposit`,`expense`,`scanDraft`,`bankAccount`,`bankTxn`. **יצירה בשירות אינה מסוקפת** (כמו `createInvoice`/`createPayment`) — הסקופ נאכף ב-route (`scopeParam` על `:id`, `assertInScope` על ids מה-body) וב-list/read; POST `/payments` מאמת `bankAccount` בסקופ, POST-ים ב-`reconciliation` מאמתים `bankTxn`/`payment`.
 - **אם משנים:** נתיב חדש שדורש גישה מוגבלת → הוסף ל-`NAV_ALLOW`; ציבורי → `OPEN_PATHS` + `currentUser.js`. שינוי `requirePageAccess` במאונט = פותח/סוגר דף שלם.
 
 ---
@@ -203,7 +205,7 @@
 ## חוקי-על עסקיים (R-rules)
 - **R1:** תשלום רק לספק+חשבונית מאושרים.
 - **R2:** מספר הקצאה כפול = חסימה קשה; ספק+מספר כפול = אזהרה רכה.
-- **R3:** חשבונית מס מעל סף בלי הקצאה = on_hold.
+- **R3:** חשבונית מס מעל סף בלי הקצאה = on_hold. נבדק **סימטרית** גם ב-`updateInvoice` (מציב החזקה כשעריכה חוצה את הסף, מנקה כשלא) — לא רק ביצירה.
 - **R5:** סכום תשלום = Σ שורות מיושמות (net; זיכוי שלילי).
 שינוי כל אחד מאלה משפיע על `createInvoice`/`createPayment`/`updatePayment` — ראה `services/invoices.js` + `services/payments.js`.
 

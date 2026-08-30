@@ -92,7 +92,7 @@
           <td class="muted"><%= t.source %></td>
           <td>
             <% if (t.matched_payment_id) { %>
-              <span class="badge b-cleared">נפרע · צ׳ק <span class="mono"><%= t.matched_check_number %></span></span>
+              <span class="badge b-cleared">נפרע · <%= methodLabel(t.matched_method) %> <span class="mono"><%= t.matched_check_number %></span></span>
             <% } else if (t.amount < 0) { %>
               <span class="badge b-issued">ממתין להתאמה</span>
             <% } else { %>
