@@ -221,7 +221,7 @@
 </div>
 
 <% if (typeof batchInvoices !== 'undefined' && batchInvoices && batchInvoices.length) { %>
-  <div class="card">
+  <div class="card" id="batchPay">
     <h2 style="margin:0 0 .3rem">שיוך לתשלום — <%= batchInvoices[0].supplier_name %> · <%= batchInvoices[0].store_name %></h2>
     <p class="muted" style="margin:0 0 .6rem">בחר את החשבוניות שברצונך לשלם יחד (זיכויים מקזזים) ובחר אמצעי תשלום. ייווצר תשלום אחד וישויך לכולן.</p>
     <form method="post" action="/invoices/pay-batch" class="stack">
@@ -297,6 +297,14 @@
       function recalc(){ var sum=0; checks.forEach(function(c,i){ if(c.checked) sum+=amounts[i]; }); net.textContent = fmt(sum); }
       checks.forEach(function(c){ c.addEventListener('change', recalc); });
       recalc();
+      // Arriving here from "הנפק תשלום לנבחרים" (a ?pick= list) means the user wants to pay, not to
+      // create a new invoice — jump straight to this section and the payment-method field so there's
+      // no scrolling past the whole new-invoice form.
+      if (/[?&]pick=/.test(location.search)) {
+        var card = document.getElementById('batchPay');
+        if (card) { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        setTimeout(function(){ try { sel.focus({ preventScroll: true }); } catch (e) {} }, 400);
+      }
     })();
   </script>
 <% } %>
@@ -313,7 +321,7 @@
           <tbody>
             <% openInvoices.forEach(function(iv){ %>
               <tr>
-                <td><input type="checkbox" class="oi-check" value="<%= iv.id %>" data-sup="<%= iv.supplier_id %>" data-store="<%= iv.store_id %>" style="width:auto;min-height:0" /></td>
+                <td><input type="checkbox" class="oi-check" value="<%= iv.id %>" data-sup="<%= iv.supplier_id %>" data-store="<%= iv.store_id %>" data-amount="<%= iv.total_amount %>" style="width:auto;min-height:0" /></td>
                 <td><%= iv.supplier_name %></td>
                 <td class="mono"><%= iv.invoice_number %></td>
                 <td><%= formatDate(iv.invoice_date) %></td>
@@ -336,15 +344,17 @@
       var dlg = document.getElementById('openInvDlg'); if (!dlg) return;
       var boxes = Array.prototype.slice.call(dlg.querySelectorAll('.oi-check'));
       var go = document.getElementById('oiGo'), hint = document.getElementById('oiHint');
+      function fmtAg(ag){ var s = ag<0?'-':''; ag=Math.abs(ag); return '₪'+s+(Math.floor(ag/100)).toLocaleString('en-US')+'.'+String(ag%100).padStart(2,'0'); }
       function state(){
         var picked = boxes.filter(function(b){ return b.checked; });
         // enforce a single supplier+store — a payment can't span suppliers/accounts.
         var sup = picked.length ? picked[0].dataset.sup : null, store = picked.length ? picked[0].dataset.store : null;
         var mixed = picked.some(function(b){ return b.dataset.sup !== sup || b.dataset.store !== store; });
         boxes.forEach(function(b){ b.disabled = picked.length > 0 && (b.dataset.sup !== sup || b.dataset.store !== store); });
+        var net = picked.reduce(function(s, b){ return s + (parseInt(b.dataset.amount, 10) || 0); }, 0);
         if (!picked.length) { hint.textContent = ''; go.disabled = true; }
         else if (mixed) { hint.textContent = 'יש לבחור חשבוניות של אותו ספק בלבד.'; go.disabled = true; }
-        else { hint.textContent = picked.length + ' חשבוניות נבחרו.'; go.disabled = false; }
+        else { hint.textContent = picked.length + ' חשבוניות נבחרו · נטו לתשלום ' + fmtAg(net) + ' (זיכויים מקזזים).'; go.disabled = false; }
         return { picked: picked, sup: sup, store: store };
       }
       boxes.forEach(function(b){ b.addEventListener('change', state); });

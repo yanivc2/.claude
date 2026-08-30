@@ -103,7 +103,7 @@
           <% if (selectable) { %>
             <input type="checkbox" class="inv-pick" style="width:auto;min-height:0"
               data-id="<%= i.id %>" data-sup="<%= i.supplier_id %>" data-store="<%= i.store_id %>"
-              data-supname="<%= i.supplier_name %>" />
+              data-supname="<%= i.supplier_name %>" data-amount="<%= i.total_amount %>" />
           <% } %>
         </td>
         <td class="mono"><%= i.invoice_number %></td>
@@ -123,7 +123,7 @@
 </div>
 
 <div id="payBar" class="pay-bar no-print" hidden>
-  <span>נבחרו <strong id="payCount">0</strong> חשבוניות · ספק <strong id="paySup"></strong></span>
+  <span>נבחרו <strong id="payCount">0</strong> חשבוניות · ספק <strong id="paySup"></strong> · נטו לתשלום <strong id="payNet">₪0.00</strong></span>
   <div style="display:flex;gap:.5rem;margin-inline-start:auto">
     <button type="button" id="payClear" class="btn btn-secondary btn-sm">בטל בחירה</button>
     <button type="button" id="payBtn" class="btn btn-primary btn-sm">💳 הנפק תשלום לנבחרים</button>
@@ -139,6 +139,7 @@
     if (!boxes.length) return;
     var bar = document.getElementById('payBar');
     function picked(){ return boxes.filter(function(b){ return b.checked; }); }
+    function fmtAg(ag){ var s = ag<0?'-':''; ag=Math.abs(ag); return '₪'+s+(Math.floor(ag/100)).toLocaleString('en-US')+'.'+String(ag%100).padStart(2,'0'); }
     function refresh(){
       var sel = picked();
       var sup = sel.length ? sel[0].dataset.sup : null, store = sel.length ? sel[0].dataset.store : null;
@@ -147,6 +148,9 @@
         bar.hidden = false;
         document.getElementById('payCount').textContent = sel.length;
         document.getElementById('paySup').textContent = sel[0].dataset.supname || '';
+        // Net = sum of the selected invoices in agorot; credit notes are negative and net out.
+        var net = sel.reduce(function(s, b){ return s + (parseInt(b.dataset.amount, 10) || 0); }, 0);
+        document.getElementById('payNet').textContent = fmtAg(net);
       } else { bar.hidden = true; }
     }
     boxes.forEach(function(b){ b.addEventListener('change', refresh); });

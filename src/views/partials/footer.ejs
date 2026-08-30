@@ -29,6 +29,20 @@
       .then(function () { location.assign(dest); })
       .catch(function () { location.assign(dest); });
   };
+  // Immediate feedback for slow POST actions that navigate (voiding a check, etc.): once the form is
+  // actually submitting (after any confirm() in its onsubmit), disable its submit button and show a
+  // "…" label so the round-trip doesn't look like nothing happened. Runs only for forms opted in with
+  // data-busy or a /void action. The form data is already collected when 'submit' fires, so disabling
+  // the button here drops no field.
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f || !f.matches || !f.matches('form[data-busy], form[action*="/void"]')) return;
+    var btn = f.querySelector('button[type="submit"], button:not([type]), [type="submit"]');
+    if (btn && !btn.disabled) {
+      var busy = f.getAttribute('data-busy') || 'מבטל…';
+      setTimeout(function () { btn.disabled = true; if ('textContent' in btn) btn.textContent = busy; }, 0);
+    }
+  });
   </script>
   <script>
   // Close any open floating menu (<details class="menu">) when clicking outside it or pressing Esc.

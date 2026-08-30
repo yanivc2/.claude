@@ -131,7 +131,9 @@ router.get('/new', async (req, res, next) => {
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
       ...(await formData(req.scope.companyIds)),
-      values: supplierId ? { supplier_id: supplierId, store_id: storeId || '' } : {},
+      // "שמור והוסף עוד לספק" pre-selects a credit note by default (a charge is usually paired with
+      // a credit); the user can still switch the doc type. Only that value is honored from the query.
+      values: supplierId ? { supplier_id: supplierId, store_id: storeId || '', doc_type: req.query.doc === 'credit_note' ? 'credit_note' : undefined } : {},
       warnings: [],
       error: null,
       notice: req.query.added ? 'החשבונית נשמרה. אפשר להזין עוד חשבונית לאותו הספק, או לשייך את הכל לתשלום למטה.' : null,
@@ -222,7 +224,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
     }
     // "שמור והוסף עוד לספק" — reopen the form for the same supplier/store to keep entering.
     if (b.action === 'add_another') {
-      return res.redirect(303, `/invoices/new?supplier=${invoice.supplier_id}&store=${invoice.store_id}&added=1`);
+      return res.redirect(303, `/invoices/new?supplier=${invoice.supplier_id}&store=${invoice.store_id}&added=1&doc=credit_note`);
     }
     return res.redirect(303, `/invoices/${invoice.id}`);
   } catch (err) {
