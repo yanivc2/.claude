@@ -65,8 +65,10 @@ happen only at merge. So:
 
 ## Run & test
 - `npm test` → SQLite dialect. `TEST_PG=1 npm test` → Postgres dialect (pg-mem). **Run both** before pushing.
-- `node scripts/smoke.mjs [paths...]` → boots the real app + an owner session and asserts pages render
-  (catches EJS regressions unit tests miss). Default paths cover the main screens.
+- `node scripts/smoke.mjs` → boots the real app + an owner session, seeds a full dataset, and sweeps
+  **every GET route (~52)** — every page, detail (`:id`), CSV, JSON and image route — asserting a
+  healthy status (not the error page). Catches EJS/500 regressions unit tests miss. `node
+  scripts/smoke.mjs [paths...]` = quick mode: check just those paths (expects 200).
 - Tests live in `test/*.test.js` (~48 files). Helpers: `test/helpers.js` → `freshDb()` (schema+seed,
   SQLite or PG via `TEST_PG`), `owner(x)`, `secretary(x)`, `firstStore(x)`, `accountForStore(x, id)`.
 
