@@ -852,9 +852,12 @@ details.paymenu .paymenu-items .btn { text-align: center; }
   display: inline-flex; align-items: center; justify-content: center;
   background: var(--accent-grad); color: #fff; font-size: 15px;
 }
-.owner-actions .dial .dial-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.owner-actions .dial .dial-txt strong { font-size: 14px; font-weight: 600; }
-.owner-actions .dial .dial-txt small { font-size: 11.5px; color: var(--color-muted); line-height: 1.4; white-space: normal; }
+.owner-actions .dial .dial-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; text-align: start; }
+/* Set text-align explicitly on the text nodes (not just inherited from the <button>): iOS Safari
+   otherwise leaks the button's UA `text-align:center` into these flex-item lines, so a wrapped
+   description looks centered instead of flush to the right. */
+.owner-actions .dial .dial-txt strong { font-size: 14px; font-weight: 600; text-align: start; }
+.owner-actions .dial .dial-txt small { font-size: 11.5px; color: var(--color-muted); line-height: 1.4; white-space: normal; text-align: start; }
 .owner-actions .dial.danger { border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line)); }
 .owner-actions .dial.danger .dial-ic { background: var(--color-bad); }
 .owner-actions .dial.danger:hover { border-color: var(--color-bad); }
