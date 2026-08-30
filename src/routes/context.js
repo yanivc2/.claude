@@ -16,14 +16,23 @@ function safeReturn(req) {
   return r.startsWith('/') && !r.startsWith('//') ? r : '/';
 }
 
+// The banner posts this via fetch() from an installed iOS PWA (see footer.ejs#apAutoSubmit): a 302
+// answer to a POST breaks the PWA out to a Safari sheet, so when the request is the fetch one we
+// answer 204 (no body, no redirect) and let the client navigate itself. A plain (no-JS) form post
+// still gets the normal redirect.
+function isFetch(req) {
+  return (req.headers['x-requested-with'] || '').toLowerCase() === 'fetch';
+}
+
 router.post('/store', async (req, res, next) => {
   try {
     const raw = (req.body.store_id ?? '').toString().trim();
     const dest = safeReturn(req);
+    const done = () => (isFetch(req) ? res.status(204).end() : res.redirect(dest));
     if (!raw) {
       // Empty selection = clear the context (owner/multi-store → "all stores").
       res.clearCookie('ap_store');
-      return res.redirect(dest);
+      return done();
     }
     const wanted = Number(raw);
     const available = await availableStoresFor(req.user);
@@ -35,8 +44,8 @@ router.post('/store', async (req, res, next) => {
         maxAge: 365 * 24 * 3600 * 1000,
       });
     }
-    // Silently ignore an unauthorized/invalid store id (no cross-store leak); just redirect back.
-    return res.redirect(dest);
+    // Silently ignore an unauthorized/invalid store id (no cross-store leak); just return/redirect back.
+    return done();
   } catch (err) {
     return next(err);
   }

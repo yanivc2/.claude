@@ -3,14 +3,31 @@
   </footer>
   </main>
   <script>
-  // Auto-submit a form from a control's change handler. Uses requestSubmit() (a genuine, gesture-tied
-  // submit) instead of form.submit(): inside an installed iOS PWA, a programmatic form.submit() breaks
-  // the navigation out to a Safari sheet ("address is invalid") instead of staying in the app. Same
-  // mitigation the js-combo enhancer already uses. Pass the changed control (its .form is submitted).
+  // Auto-submit a filter/switch form from a control's change handler — WITHOUT a programmatic form
+  // submit. Inside an installed iOS PWA a scripted submit (form.submit() or requestSubmit()) whose
+  // POST answers with a 302 breaks the navigation out to a Safari sheet ("address is invalid"), so we
+  // never let the form navigate itself:
+  //   • GET  → build action?params and navigate client-side (stays in the app).
+  //   • POST → send it with fetch(), then navigate client-side to return_to (or reload). The server
+  //            answers fetch with 204 (see routes/context.js) so there is no redirect to break out on.
+  // Falls back to a plain form.submit() if fetch is unavailable.
   window.apAutoSubmit = function (el) {
     var f = el && el.form ? el.form : (el && el.closest ? el.closest('form') : null);
     if (!f) return;
-    if (f.requestSubmit) f.requestSubmit(); else f.submit();
+    var method = (f.getAttribute('method') || 'get').toLowerCase();
+    var action = f.getAttribute('action') || location.pathname;
+    var params = new URLSearchParams(new FormData(f));
+    if (method !== 'post') {
+      var qs = params.toString();
+      location.assign(action + (qs ? ('?' + qs) : ''));
+      return;
+    }
+    var rt = f.querySelector('[name=return_to]');
+    var dest = (rt && rt.value) ? rt.value : (location.pathname + location.search);
+    if (!window.fetch) { f.submit(); return; }
+    fetch(action, { method: 'POST', body: params, credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
+      .then(function () { location.assign(dest); })
+      .catch(function () { location.assign(dest); });
   };
   </script>
   <script>
