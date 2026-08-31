@@ -63,6 +63,17 @@ var sel = (selectedStores || []).map(Number);
     <h3 style="margin:1rem 0 .2rem">חנויות משויכות</h3>
     <%- include('_storepick', { stores: stores, selected: sel }) %>
 
+    <% if (typeof parentOptions !== 'undefined') { %>
+      <label style="margin-top:1rem">חברת-אם (לתשלום מרוכז)</label>
+      <select name="parent_supplier_id" class="js-combo">
+        <option value="">— ללא (ספק עצמאי) —</option>
+        <% parentOptions.forEach(function(p){ %>
+          <option value="<%= p.id %>" <%= Number(supplier.parent_supplier_id) === p.id ? 'selected' : '' %>><%= p.name %></option>
+        <% }); %>
+      </select>
+      <p class="muted" style="margin:.2rem 0 0">אם ספק זה הוא חברת-בת (למשל טרה תחת קוקה קולה) — בחר את חברת-האם, וכך אפשר יהיה לשלם את החשבוניות של שתיהן יחד בתשלום אחד.</p>
+    <% } %>
+
     <label style="margin-top:1rem">הערות</label>
     <textarea name="notes" rows="2"><%= supplier.notes || '' %></textarea>
     <div style="margin-top:1rem" class="actions">

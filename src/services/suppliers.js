@@ -133,16 +133,17 @@ export async function updateSupplierContacts(
 /** Update a supplier's full details (name / tax id / notes / contacts). */
 export async function updateSupplier(
   id,
-  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null, storeIds = null },
+  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null, storeIds = null, parentSupplierId = undefined },
   actor,
   x = getExecutor(),
 ) {
   await getSupplier(id, x);
   const trimmed = (name ?? '').trim();
   if (!trimmed) throw new RuleError('VALIDATION', 'שם ספק חובה');
+  const parentId = parentSupplierId === undefined ? undefined : await validateParent(id, parentSupplierId, x);
   await x.run(
     `UPDATE suppliers SET name = ?, tax_id = ?, notes = ?, phone = ?, email = ?, contact_name = ?, contact_phone = ?,
-            payment_method = ?, payment_terms = ?
+            payment_method = ?, payment_terms = ?${parentId === undefined ? '' : ', parent_supplier_id = ?'}
      WHERE id = ?`,
     [
       trimmed,
@@ -154,12 +155,47 @@ export async function updateSupplier(
       contactPhone?.trim() || null,
       paymentMethod?.trim() || null,
       paymentTerms?.trim() || null,
+      ...(parentId === undefined ? [] : [parentId]),
       id,
     ],
   );
   if (Array.isArray(storeIds)) await setSupplierStores(id, storeIds, x);
   await logAction({ userId: actor.id, action: 'supplier.update', entityType: 'supplier', entityId: id }, x);
   return getSupplier(id, x);
+}
+
+/**
+ * Validate a subsidiary→parent link (returns the normalized parent id, or null to unlink).
+ * Kept to a single level: the chosen parent must be a top-level supplier, this supplier must not
+ * itself be a parent, and no self-parenting — so a payment "family" is always exactly root + kids.
+ */
+async function validateParent(id, parentSupplierId, x) {
+  const pid = Number(parentSupplierId) || null;
+  if (pid === null) return null; // unlink
+  if (pid === Number(id)) throw new RuleError('VALIDATION', 'ספק לא יכול להיות חברת-בת של עצמו');
+  const parent = await x.one('SELECT id, parent_supplier_id FROM suppliers WHERE id = ?', [pid]);
+  if (!parent) throw new NotFoundError(`ספק ${pid} לא נמצא`);
+  if (parent.parent_supplier_id != null) {
+    throw new RuleError('VALIDATION', 'חברת-האם הנבחרת היא עצמה חברת-בת — בחר חברת-אם ברמה העליונה');
+  }
+  const kids = await x.one('SELECT COUNT(*) AS n FROM suppliers WHERE parent_supplier_id = ?', [id]);
+  if (Number(kids.n) > 0) {
+    throw new RuleError('VALIDATION', 'ספק זה הוא חברת-אם של ספקים אחרים — לא ניתן להגדיר לו חברת-אם');
+  }
+  return pid;
+}
+
+/**
+ * The supplier ids in one payment "family" — a parent and all its subsidiaries — so their open
+ * invoices can be paid together in a single payment (e.g. קוקה קולה + טרה). For a top-level
+ * supplier the root is itself; for a subsidiary the root is its parent. Returns unique ids.
+ */
+export async function supplierFamilyIds(supplierId, x = getExecutor()) {
+  const s = await x.one('SELECT id, parent_supplier_id FROM suppliers WHERE id = ?', [supplierId]);
+  if (!s) return [Number(supplierId)];
+  const rootId = s.parent_supplier_id != null ? Number(s.parent_supplier_id) : Number(s.id);
+  const kids = await x.many('SELECT id FROM suppliers WHERE parent_supplier_id = ?', [rootId]);
+  return [...new Set([rootId, ...kids.map((k) => Number(k.id))])];
 }
 
 /** Quick supplier search by name / tax id / phone / contact — for the dashboard search box. */

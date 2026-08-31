@@ -131,6 +131,7 @@
 | כפתור/פיצ'ר | route | wiring | מה עושה / מקושר | אם מוחקים/משנים |
 |---|---|---|---|---|
 | רשימה / אנשי קשר / חדש / עריכה | `GET /suppliers[/contacts,/new,/:id/edit]`, `POST …` | `createSupplier`,`updateSupplier` | סטטוס pending/approved/blocked; שיוך רב-חנותי (`supplier_stores`, `_storepick.ejs`). | חשבוניות/תשלומים תלויים ב-`supplier.status='approved'` (R1). |
+| **חברת-אם (תשלום מרוכז)** | טופס `GET/POST /suppliers/:id/edit` (שדה `parent_supplier_id`) | `updateSupplier`(`parentSupplierId`)→`validateParent`; `supplierFamilyIds(id)` | חברת-בת (טרה) מצביעה לחברת-אם (קוקה קולה) דרך עמודת **`suppliers.parent_supplier_id`** (סכימה ×3+migrate; `getSupplier`/`listSuppliers`=`SELECT *` אז צף לבד). **מגבלה: רמה אחת** — האם חייבת להיות top-level, לא עצמי, וספק שהוא-אם לא יכול לקבל אם. `supplierFamilyIds`=root(אם/עצמי)+כל הבנות → `batchContext` וה-picker (`data-fam`) כוללים את כל המשפחה, כך שחשבוניות של שתיהן (אותה חנות) משולמות בתשלום אחד. | `createPayment` כבר מתיר חוצה-ספק אותו חשבון-בנק. הסרת העמודה שוברת את הבורר. **תזכיר לבעלים "עדכן מסד נתונים".** |
 | אישור/חסימה/מחיקה | `POST /suppliers/:id/{approve,block,delete}` | — | אישור = מאפשר תשלום. | חסימה חוסמת תשלום. |
 | "סקיל" הספק | `POST /suppliers/:id/scan-hints` | `services/supplierProfile.js` (`suppliers.scan_profile`) | פרופיל מבנה החשבונית לצילום. | אזור סשן מקביל — תאם. |
 

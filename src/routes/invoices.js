@@ -14,7 +14,7 @@ import {
   clearImage,
   listPayable,
 } from '../services/invoices.js';
-import { listSuppliers } from '../services/suppliers.js';
+import { listSuppliers, supplierFamilyIds } from '../services/suppliers.js';
 import { cashPaymentsForInvoice } from '../services/zreports.js';
 import { recentClosingExpenses, matchClosingExpenseToInvoice, unmatchClosingExpense } from '../services/zclosing.js';
 import { runOcrForInvoice, compareToInvoice, getOcr, deleteOcr } from '../services/ocr.js';
@@ -86,8 +86,11 @@ async function batchContext(supplierId, storeId) {
   const sid = Number(supplierId);
   const stid = Number(storeId);
   if (!sid || !stid) return { batchInvoices: [] };
+  // Include the supplier's whole payment family (parent + subsidiaries, e.g. קוקה קולה + טרה) so
+  // their open invoices in this store can be paid together in one payment.
+  const family = new Set(await supplierFamilyIds(sid));
   const payable = await listPayable();
-  return { batchInvoices: payable.filter((i) => i.supplier_id === sid && i.store_id === stid) };
+  return { batchInvoices: payable.filter((i) => family.has(i.supplier_id) && i.store_id === stid) };
 }
 
 router.get('/', async (req, res, next) => {

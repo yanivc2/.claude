@@ -290,6 +290,10 @@ function migrateSupplierContacts(db) {
   for (const col of ['phone', 'email', 'contact_name', 'contact_phone', 'payment_method', 'payment_terms', 'scan_profile']) {
     if (!cols.includes(col)) db.exec(`ALTER TABLE suppliers ADD COLUMN ${col} TEXT;`);
   }
+  // Consolidated payment: a subsidiary points at its parent supplier (INTEGER, not TEXT).
+  if (!cols.includes('parent_supplier_id')) {
+    db.exec('ALTER TABLE suppliers ADD COLUMN parent_supplier_id INTEGER REFERENCES suppliers(id);');
+  }
 }
 
 // Adds the payment-method columns (method/reference/payer_name/card_last4/batch_number) and

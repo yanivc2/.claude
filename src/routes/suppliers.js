@@ -184,6 +184,9 @@ router.get('/:id/edit', async (req, res, next) => {
       error: null,
       stores: await storeOptions(),
       selectedStores: await getSupplierStoreIds(supplier.id),
+      // Parent-supplier options for the "חברת-אם (לתשלום מרוכז)" picker: top-level suppliers only
+      // (a subsidiary can't itself be a parent), excluding this supplier.
+      parentOptions: (await listSuppliers()).filter((s) => s.id !== supplier.id && s.parent_supplier_id == null),
       notice: req.query.saved === 'skill' ? 'הסקיל של הספק עודכן.' : null,
       // "הסקיל": what scanning this supplier's invoices has taught the system so far.
       profile,
@@ -203,6 +206,7 @@ router.post('/:id/edit', async (req, res, next) => {
       phone: req.body.phone, email: req.body.email,
       contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
       storeIds: storeIdsFrom(req.body),
+      parentSupplierId: req.body.parent_supplier_id ? Number(req.body.parent_supplier_id) : null,
       ...paymentFields(req.body),
     };
     // Non-owners: queue the field edit for approval (store assignment is not part of the queued
@@ -226,8 +230,8 @@ router.post('/:id/edit', async (req, res, next) => {
     res.redirect(303, '/suppliers');
   } catch (err) {
     if (err instanceof RuleError) {
-      const supplier = { ...req.body, id: Number(req.params.id), tax_id: req.body.tax_id, contact_name: req.body.contact_name, contact_phone: req.body.contact_phone };
-      return res.status(400).render('suppliers/edit', { title: 'עריכת ספק', supplier, error: err.message, stores: await storeOptions(), selectedStores: storeIdsFrom(req.body) });
+      const supplier = { ...req.body, id: Number(req.params.id), tax_id: req.body.tax_id, contact_name: req.body.contact_name, contact_phone: req.body.contact_phone, parent_supplier_id: req.body.parent_supplier_id ? Number(req.body.parent_supplier_id) : null };
+      return res.status(400).render('suppliers/edit', { title: 'עריכת ספק', supplier, error: err.message, stores: await storeOptions(), selectedStores: storeIdsFrom(req.body), parentOptions: (await listSuppliers()).filter((s) => s.id !== Number(req.params.id) && s.parent_supplier_id == null) });
     }
     next(err);
   }

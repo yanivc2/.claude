@@ -124,12 +124,14 @@ CREATE TABLE IF NOT EXISTS suppliers (
   contact_phone  TEXT,
   payment_method TEXT,
   payment_terms  TEXT,
-  scan_profile   TEXT   -- "הסקיל": מבנה החשבונית של הספק, נלמד מהסריקות שלו (JSON)
+  scan_profile   TEXT,  -- "הסקיל": מבנה החשבונית של הספק, נלמד מהסריקות שלו (JSON)
+  parent_supplier_id INTEGER REFERENCES suppliers(id)  -- תשלום מרוכז: חברת-בת מצביעה לחברת-האם
 );
 -- migrations for existing databases (idempotent)
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_method TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_terms  TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS scan_profile   TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS parent_supplier_id INTEGER REFERENCES suppliers(id);
 
 -- Which stores a supplier serves (many-to-many). stores is defined above, so the FK validates.
 CREATE TABLE IF NOT EXISTS supplier_stores (

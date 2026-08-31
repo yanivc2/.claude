@@ -222,17 +222,19 @@
 
 <% if (typeof batchInvoices !== 'undefined' && batchInvoices && batchInvoices.length) { %>
   <div class="card" id="batchPay">
-    <h2 style="margin:0 0 .3rem">שיוך לתשלום — <%= batchInvoices[0].supplier_name %> · <%= batchInvoices[0].store_name %></h2>
-    <p class="muted" style="margin:0 0 .6rem">בחר את החשבוניות שברצונך לשלם יחד (זיכויים מקזזים) ובחר אמצעי תשלום. ייווצר תשלום אחד וישויך לכולן.</p>
+    <% var bpSuppliers = [...new Set(batchInvoices.map(function(iv){ return iv.supplier_name; }))]; %>
+    <h2 style="margin:0 0 .3rem">שיוך לתשלום — <%= bpSuppliers.join(' + ') %> · <%= batchInvoices[0].store_name %></h2>
+    <p class="muted" style="margin:0 0 .6rem">בחר את החשבוניות שברצונך לשלם יחד (זיכויים מקזזים) ובחר אמצעי תשלום. ייווצר תשלום אחד וישויך לכולן.<% if (bpSuppliers.length > 1) { %> כולל חברת-אם וחברות-בת.<% } %></p>
     <form method="post" action="/invoices/pay-batch" class="stack">
       <input type="hidden" name="supplier_id" value="<%= batchInvoices[0].supplier_id %>" />
       <input type="hidden" name="store_id" value="<%= batchInvoices[0].store_id %>" />
       <table>
-        <thead><tr><th data-nosort></th><th>מס'</th><th>תאריך</th><th>סוג</th><th class="right">סכום</th></tr></thead>
+        <thead><tr><th data-nosort></th><th>ספק</th><th>מס'</th><th>תאריך</th><th>סוג</th><th class="right">סכום</th></tr></thead>
         <tbody>
           <% batchInvoices.forEach(function(iv){ %>
             <tr>
               <td><input type="checkbox" class="bp-check" name="invoice_ids" value="<%= iv.id %>" <%= (typeof pickIds !== 'undefined' && pickIds.indexOf(iv.id) !== -1) ? 'checked' : '' %> style="width:auto;min-height:0" /></td>
+              <td><%= iv.supplier_name %></td>
               <td class="mono"><a href="/invoices/<%= iv.id %>"><%= iv.invoice_number %></a></td>
               <td><%= formatDate(iv.invoice_date) %></td>
               <td><%= iv.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
@@ -240,7 +242,7 @@
             </tr>
           <% }); %>
         </tbody>
-        <tfoot><tr><td colspan="4" class="right"><strong>נטו לתשלום (מסומנות)</strong></td><td class="right"><strong id="bpNet"><%= formatIls(0) %></strong></td></tr></tfoot>
+        <tfoot><tr><td colspan="5" class="right"><strong>נטו לתשלום (מסומנות)</strong></td><td class="right"><strong id="bpNet"><%= formatIls(0) %></strong></td></tr></tfoot>
       </table>
 
       <label style="margin-top:.6rem">אמצעי תשלום</label>
@@ -314,14 +316,14 @@
   <dialog id="openInvDlg" class="ndialog" onclick="event.stopPropagation()" style="max-width:640px">
     <div class="stack">
       <h3 style="margin:0">צרף חשבונית פתוחה לתשלום</h3>
-      <p class="muted" style="margin:.2rem 0">כל החשבוניות הפתוחות (ללא אמצעי תשלום). סמן חשבוניות של <strong>אותו ספק</strong> (אפשר גם זיכויים) והמשך לתשלום מרוכז אחד.</p>
+      <p class="muted" style="margin:.2rem 0">כל החשבוניות הפתוחות (ללא אמצעי תשלום). סמן חשבוניות של <strong>אותו ספק — או חברת-אם וחברות-הבת שלה</strong> (אפשר גם זיכויים) והמשך לתשלום מרוכז אחד.</p>
       <div class="table-scroll" style="max-height:50vh">
         <table>
           <thead><tr><th data-nosort></th><th>ספק</th><th>מס'</th><th>תאריך</th><th>סוג</th><th class="right">סכום</th></tr></thead>
           <tbody>
             <% openInvoices.forEach(function(iv){ %>
               <tr>
-                <td><input type="checkbox" class="oi-check" value="<%= iv.id %>" data-sup="<%= iv.supplier_id %>" data-store="<%= iv.store_id %>" data-amount="<%= iv.total_amount %>" style="width:auto;min-height:0" /></td>
+                <td><input type="checkbox" class="oi-check" value="<%= iv.id %>" data-sup="<%= iv.supplier_id %>" data-fam="<%= iv.supplier_parent_id || iv.supplier_id %>" data-store="<%= iv.store_id %>" data-amount="<%= iv.total_amount %>" style="width:auto;min-height:0" /></td>
                 <td><%= iv.supplier_name %></td>
                 <td class="mono"><%= iv.invoice_number %></td>
                 <td><%= formatDate(iv.invoice_date) %></td>
@@ -347,13 +349,15 @@
       function fmtAg(ag){ var s = ag<0?'-':''; ag=Math.abs(ag); return '₪'+s+(Math.floor(ag/100)).toLocaleString('en-US')+'.'+String(ag%100).padStart(2,'0'); }
       function state(){
         var picked = boxes.filter(function(b){ return b.checked; });
-        // enforce a single supplier+store — a payment can't span suppliers/accounts.
-        var sup = picked.length ? picked[0].dataset.sup : null, store = picked.length ? picked[0].dataset.store : null;
-        var mixed = picked.some(function(b){ return b.dataset.sup !== sup || b.dataset.store !== store; });
-        boxes.forEach(function(b){ b.disabled = picked.length > 0 && (b.dataset.sup !== sup || b.dataset.store !== store); });
+        // Enforce a single payment family (parent + subsidiaries) + store — a payment can't span
+        // unrelated suppliers or bank accounts, but קוקה קולה + טרה share a family and pay together.
+        var fam = picked.length ? picked[0].dataset.fam : null, store = picked.length ? picked[0].dataset.store : null;
+        var sup = picked.length ? picked[0].dataset.sup : null;
+        var mixed = picked.some(function(b){ return b.dataset.fam !== fam || b.dataset.store !== store; });
+        boxes.forEach(function(b){ b.disabled = picked.length > 0 && (b.dataset.fam !== fam || b.dataset.store !== store); });
         var net = picked.reduce(function(s, b){ return s + (parseInt(b.dataset.amount, 10) || 0); }, 0);
         if (!picked.length) { hint.textContent = ''; go.disabled = true; }
-        else if (mixed) { hint.textContent = 'יש לבחור חשבוניות של אותו ספק בלבד.'; go.disabled = true; }
+        else if (mixed) { hint.textContent = 'יש לבחור חשבוניות של אותו ספק (או חברת-אם וחברות-הבת שלה) ואותה חנות.'; go.disabled = true; }
         else { hint.textContent = picked.length + ' חשבוניות נבחרו · נטו לתשלום ' + fmtAg(net) + ' (זיכויים מקזזים).'; go.disabled = false; }
         return { picked: picked, sup: sup, store: store };
       }

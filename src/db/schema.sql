@@ -54,7 +54,10 @@ CREATE TABLE IF NOT EXISTS suppliers (
   -- whether an allocation number is ever printed, the date format, and what humans keep
   -- correcting. Sent back to the extractor on the next scan so it knows where to look.
   -- JSON; see src/services/supplierProfile.js for the shape.
-  scan_profile   TEXT
+  scan_profile   TEXT,
+  -- Consolidated payment: a subsidiary (e.g. טרה) points at its parent (e.g. קוקה קולה) so their
+  -- open invoices can be paid together in one payment. NULL = a top-level supplier.
+  parent_supplier_id INTEGER REFERENCES suppliers(id)
 );
 
 -- Which stores a supplier serves (many-to-many). Shown on the suppliers page; a supplier may

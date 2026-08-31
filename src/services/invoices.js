@@ -493,7 +493,8 @@ async function enrichPaidStatus(rows, x = getExecutor()) {
 export async function listPayable(scope = null, x = getExecutor()) {
   const sc = scopeWhere(scope, 'i.company_id', 'i.store_id');
   return x.many(
-    `SELECT i.*, s.name AS supplier_name, st.name AS store_name, ba.id AS derived_bank_account_id,
+    `SELECT i.*, s.name AS supplier_name, s.parent_supplier_id AS supplier_parent_id,
+            st.name AS store_name, ba.id AS derived_bank_account_id,
             ba.display_name AS bank_account_name
        FROM invoices i
        JOIN suppliers s ON s.id = i.supplier_id
