@@ -439,7 +439,30 @@ export async function listInvoices(
   sql += sc.sql; params.push(...sc.params);
   sql += ' ORDER BY i.id DESC';
   const rows = await x.many(sql, params);
-  return enrichPaidStatus(rows, x);
+  const enriched = await enrichPaidStatus(rows, x);
+  return groupByPayment(enriched);
+}
+
+/**
+ * Reorder the invoice list so invoices paid together (same payment) sit one under the other, in
+ * the order they were saved — e.g. a טרה invoice and a קוקה קולה invoice entered apart but paid
+ * on one check appear as a block. Each group is anchored at its newest invoice id so the list
+ * stays newest-first overall; within a group the order is by id ascending (saved order). Pure
+ * reordering — no row is added, removed, or changed.
+ */
+function groupByPayment(rows) {
+  const key = (r) => (r.pay_id ? `p${r.pay_id}` : `i${r.id}`);
+  const anchor = new Map();
+  for (const r of rows) {
+    const k = key(r);
+    anchor.set(k, Math.max(anchor.get(k) ?? 0, Number(r.id)));
+  }
+  return [...rows].sort((a, b) => {
+    const ka = key(a);
+    const kb = key(b);
+    if (ka !== kb) return anchor.get(kb) - anchor.get(ka); // groups: newest anchor first
+    return Number(a.id) - Number(b.id); // within a group: saved order
+  });
 }
 
 /**
@@ -474,6 +497,7 @@ async function enrichPaidStatus(rows, x = getExecutor()) {
   await countInto('z_expenses', cashByInv);
   for (const r of rows) {
     const p = payByInv.get(r.id);
+    r.pay_id = p ? Number(p.pid) : null; // groups invoices paid together on the list
     r.pay_method = p ? p.method : null;
     r.pay_check_number = p ? p.check_number : null;
     r.pay_reference = p ? p.reference : null;
