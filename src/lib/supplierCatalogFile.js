@@ -172,6 +172,19 @@ export function parseSupplierCatalog(input) {
     const field = HEADERS[h];
     if (field && map[field] === undefined) map[field] = i;
   });
+
+  // A header line that splits into fewer fields than the rows beneath it did not survive
+  // parsing, and the damage is silent: every column after the break shifts by one, so the file
+  // still yields the right NUMBER of rows with most of its columns quietly empty. The usual
+  // cause is a bare double-quote in a Hebrew header — `מק"ט` written without doubling it, which
+  // RFC-4180 reads as an opening quote that swallows the commas after it. Worth stating rather
+  // than importing 108 rows with the packaging and the item number both blank.
+  const widths = new Map();
+  for (const row of rows.slice(1, 40)) {
+    if (row && row.length) widths.set(row.length, (widths.get(row.length) || 0) + 1);
+  }
+  const modalWidth = [...widths.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? header.length;
+  const headerBroken = header.length < modalWidth;
   if (map.barcode === undefined || map.name === undefined) {
     return {
       items: [],
@@ -227,6 +240,13 @@ export function parseSupplierCatalog(input) {
     });
   }
 
+  if (headerBroken) {
+    warnings.push(
+      `שורת הכותרות נקראה כ-${header.length} עמודות בזמן שהשורות עצמן מכילות ${modalWidth} — ` +
+        'ככל הנראה יש גרש כפול בודד באחת הכותרות (למשל מק"ט). חלק מהעמודות לא ייקראו. ' +
+        'מומלץ להעלות את הקובץ כ-XLSX.',
+    );
+  }
   if (badBarcode) {
     warnings.push(`${badBarcode} שורות נדחו — ספרת הביקורת של הברקוד שגויה. יש לבדוק את הקובץ.`);
   }

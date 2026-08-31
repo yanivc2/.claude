@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { freshDb } from './helpers.js';
 import { parseSupplierCatalog, baseName, PACK_BOX, PACK_CARTON } from '../src/lib/supplierCatalogFile.js';
 import { buildSupplierIndex, matchLine, resolvePack } from '../src/lib/supplierCatalogMatch.js';
+import { validateExtraction } from '../src/lib/extractValidate.js';
 import {
   importSupplierCatalog,
   catalogForSupplier,
@@ -247,4 +248,93 @@ test('a catalog loaded through the DB matches exactly as the fixture does', asyn
   assert.equal(gold.row.barcode, '7290115190083');
   assert.equal(gold.row.pack_type, PACK_CARTON);
   assert.equal(gold.row.pack_units, 10);
+});
+
+// ── the review draft ─────────────────────────────────────────────────────────
+// The catalog only earns its keep if a scanned line comes back identified, so these run the real
+// validator over the real catalogs.
+
+test('validateExtraction identifies a barcode-less tobacco line through the supplier catalog', () => {
+  const idx = indexOf(PHILIP);
+  const out = validateExtraction(
+    {
+      supplier_name: PHILIP, invoice_number: '123', invoice_date: '2026-08-30',
+      doc_type: 'tax_invoice', amount_before_vat: 100, vat_amount: 18, total_amount: 118,
+      lines: [
+        // No barcode, no מק"ט — exactly what these invoices print.
+        { name: 'פאקט מרלבורו גולד', barcode: '', sku: '', quantity: 2, unit_cost: 280, line_total: 560 },
+        { name: 'מרלבורו אדום', barcode: '', sku: '', quantity: 4, unit_cost: 28, line_total: 112 },
+      ],
+      field_confidence: {}, notes: '',
+    },
+    { suppliers: [], vatRate: 0.18, masterCatalog: null, supplierCatalog: idx },
+  );
+
+  assert.ok(out.lines[0].flags.includes('supplier_catalog_match'));
+  assert.equal(out.lines[0].catalog.barcode, '7290115190083');
+  assert.equal(out.lines[0].catalog.packType, PACK_CARTON);
+  assert.equal(out.lines[0].catalog.source, 'supplier');
+
+  assert.equal(out.lines[1].catalog.barcode, '7290115190014');
+  assert.equal(out.lines[1].catalog.packType, PACK_BOX);
+
+  // Nothing was written over what the model read — the catalog offers, a human adopts.
+  assert.equal(out.lines[0].barcode, null);
+  assert.equal(out.lines[0].name, 'פאקט מרלבורו גולד');
+});
+
+test('a packaging conflict reaches the draft as a flag, with both options attached', () => {
+  const out = validateExtraction(
+    {
+      supplier_name: GLOBRANDS, invoice_number: '1', invoice_date: '2026-08-30',
+      doc_type: 'tax_invoice', amount_before_vat: 100, vat_amount: 18, total_amount: 118,
+      // The description is the קופסה's name; 5 units of 50 singles says cartons of 10.
+      lines: [{ name: 'וינסטון כחול בוקס', sku: '6100', quantity: 5, unit_quantity: 50, line_total: 1400 }],
+      field_confidence: {}, notes: '',
+    },
+    { suppliers: [], vatRate: 0.18, masterCatalog: null, supplierCatalog: indexOf(GLOBRANDS) },
+  );
+  const line = out.lines[0];
+  assert.ok(line.flags.includes('supplier_catalog_conflict'));
+  assert.equal(line.catalog, null, 'nothing is adopted while the evidence disagrees');
+  assert.equal(line.candidates.length, 2, 'both packagings are on the screen to choose from');
+});
+
+test('a line the supplier catalog cannot place still falls through to the master catalog', () => {
+  // The supplier catalog is consulted first, but it must not swallow lines it knows nothing
+  // about — the master-catalog path has to behave exactly as it did before.
+  const rows = [{ barcode: '7290000042435', name: 'חלב דל שומן 1%', manufacturer_name: 'תנובה' }];
+  const out = validateExtraction(
+    {
+      supplier_name: 'תנובה', invoice_number: '1', invoice_date: '2026-08-30',
+      doc_type: 'tax_invoice', amount_before_vat: 100, vat_amount: 18, total_amount: 118,
+      lines: [{ name: 'הומוגני 1% דל', barcode: '42435', quantity: 1, unit_cost: 5, line_total: 5 }],
+      field_confidence: {}, notes: '',
+    },
+    {
+      suppliers: [], vatRate: 0.18,
+      masterCatalog: { exact: new Map(), byCode: new Map([['42435', rows]]) },
+      supplierCatalog: indexOf(PHILIP), // a catalog that has nothing to do with this line
+    },
+  );
+  assert.ok(out.lines[0].flags.includes('catalog_suffix_match'));
+  assert.equal(out.lines[0].catalog.barcode, '7290000042435');
+});
+
+test('a header broken by a bare double-quote is reported, not imported quietly', () => {
+  // `מק"ט` written without doubling the quote is read as an opening quote that swallows the
+  // commas after it, so the header splits into fewer fields than the rows and every column past
+  // it shifts. The row COUNT stays right, which is what makes it dangerous.
+  const broken = 'ברקוד,שם מוצר,מק"ט,סוג אריזה,יח\' אריזה\n7290121290036,וינסטון כחול בוקס,6100,קופסה,1\n';
+  const bad = parseSupplierCatalog(broken);
+  assert.equal(bad.items.length, 1, 'the rows still parse — that is the trap');
+  assert.equal(bad.items[0].sku, null, '…while the columns after the break are empty');
+  assert.match(bad.warnings.join(' '), /שורת הכותרות/);
+
+  // Correctly quoted, the same file reads in full and says nothing.
+  const good = 'ברקוד,שם מוצר,"מק""ט",סוג אריזה,יח\' אריזה\n7290121290036,וינסטון כחול בוקס,6100,קופסה,1\n';
+  const ok = parseSupplierCatalog(good);
+  assert.equal(ok.items[0].sku, '6100');
+  assert.equal(ok.items[0].packType, 'קופסה');
+  assert.deepEqual(ok.warnings, []);
 });

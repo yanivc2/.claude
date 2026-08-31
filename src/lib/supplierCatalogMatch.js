@@ -97,6 +97,13 @@ const NAME_MARGIN = 0.08;
 // description clears nothing.
 const PACK_NAME_MARGIN = 0.1;
 
+// Below this a near-miss is not worth putting on the screen at all. Without a floor, ANY line
+// sharing a single bigram with any of the supplier's products came back with candidates — and a
+// line with candidates looked like a line this catalog had something to say about, which stopped
+// it reaching the master-catalog path behind it. A Tnuva line does not belong on a פיליפ מוריס
+// shortlist at any score.
+const OFFER_FLOOR = 0.35;
+
 /**
  * Index one supplier's catalog rows for lookup. Built once per draft.
  * @param {object[]} rows supplier_catalog rows (barcode, name, name_norm, sku, pack_type, pack_units…)
@@ -274,7 +281,10 @@ export function matchLine(line, index) {
       };
     }
     // Nothing decisive: hand back the nearest few for a human to choose from, best first.
-    return { ...empty, candidates: scored.filter((s) => s.score > 0).slice(0, 5).flatMap((s) => s.group) };
+    return {
+      ...empty,
+      candidates: scored.filter((s) => s.score >= OFFER_FLOOR).slice(0, 5).flatMap((s) => s.group),
+    };
   }
 
   return empty;

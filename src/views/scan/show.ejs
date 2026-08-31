@@ -21,6 +21,10 @@ var FLAG_LABELS = {
   catalog_suffix_match: 'הקוד המודפס הוא ברקוד מקוצר — נמצא ברקוד מלא תואם בקטלוג',
   catalog_ambiguous: 'הקוד המודפס מתאים למספר מוצרים בקטלוג ואף אחד לא בלט — בחר את הנכון',
   barcode_invalid: 'ספרת ביקורת שגויה בברקוד — ככל הנראה נקרא שגוי',
+  supplier_catalog_match: 'זוהה מול הקטלוג של הספק',
+  supplier_catalog_pack: 'המוצר זוהה אך לא האריזה — קופסה ופאקט הם ברקודים שונים והפרש של פי 10 במחיר ליחידה. בחר',
+  supplier_catalog_conflict: 'השורה סותרת את עצמה לגבי האריזה — התיאור אומר דבר אחד וכ.בודד ÷ כמות אומר אחר. בחר',
+  supplier_catalog_ambiguous: 'כמה מוצרים של הספק דומים לתיאור ואף אחד לא בלט — בחר את הנכון',
   dup_allocation: 'מספר ההקצאה כבר קיים בחשבונית אחרת',
   dup_number: 'כבר קיימת חשבונית לספק זה עם מספר זה',
   dup_draft: 'ייתכן שהחשבונית כבר צולמה — קיימת טיוטה פתוחה'
@@ -284,7 +288,17 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
               <tr>
                 <td data-label="מוצר">
                   <input name="line_name[]" value="<%= l.name || '' %>" class="<%= lf.filter(function(c){ return c !== 'catalog_match' && c !== 'catalog_suffix_match'; }).length ? 'flag-warn' : '' %>" title="<%= lTitle %>" />
-                  <% if (l.catalog) { %>
+                  <% if (l.catalog && l.catalog.source === 'supplier') { %>
+                    <%# The supplier's OWN catalog identified this line — including which packaging,
+                        which the master catalog cannot know. That distinction is the whole point:
+                        קופסה and פאקט are separate barcodes ten times apart in unit price, so the
+                        badge names the packaging rather than just claiming a match. %>
+                    <span class="tag tag-accent" title="קטלוג הספק: <%= l.catalog.name %><%= l.catalog.packUnits ? ' · ' + l.catalog.packUnits + ' יח\' באריזה' : '' %> · <%= l.catalog.barcode %>"
+                    >קטלוג ספק ✓<%= l.catalog.packType ? ' · ' + l.catalog.packType : '' %></span>
+                    <% if (l.catalog.nameDiffers || l.barcode !== l.catalog.barcode) { %>
+                      <button type="button" class="tag tag-outline cat-adopt" data-name="<%= l.catalog.name %>" data-barcode="<%= l.catalog.barcode %>" title="<%= l.catalog.barcode %> · <%= l.catalog.name %>">אמץ ברקוד ושם</button>
+                    <% } %>
+                  <% } else if (l.catalog) { %>
                     <% var viaSuffix = lf.indexOf('catalog_suffix_match') >= 0; %>
                     <%# A shortened code is a weaker claim than a printed 13-digit barcode, and how
                         much weaker depends on its length: measured on this catalog, 5 digits
@@ -306,11 +320,13 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
                         first. Shown even when one was adopted: that is what makes a wrong pick one
                         click from corrected instead of invisible. Guessing silently would attach
                         the wrong product to a purchase price. %>
-                    <% if (!l.catalog) { %><span class="tag tag-warn">מספר התאמות</span><% } %>
+                    <% if (!l.catalog) { %>
+                      <span class="tag tag-warn"><%= lf.indexOf('supplier_catalog_conflict') >= 0 ? 'אריזה סותרת — בחר' : lf.indexOf('supplier_catalog_pack') >= 0 ? 'קופסה או פאקט?' : 'מספר התאמות' %></span>
+                    <% } %>
                     <select class="cat-pick" aria-label="בחר מוצר מהקטלוג">
                       <option value=""><%= l.catalog ? '— מוצר אחר מהקטלוג —' : '— בחר מהקטלוג —' %></option>
                       <% l.candidates.forEach(function(c){ %>
-                        <option value="<%= c.barcode %>" data-name="<%= c.name %>"><%= c.barcode %> · <%= c.name %><%= c.manufacturer ? ' · ' + c.manufacturer : '' %></option>
+                        <option value="<%= c.barcode %>" data-name="<%= c.name %>"><%= c.barcode %> · <%= c.name %><%= c.packType ? ' · ' + c.packType + (c.packUnits ? ' (' + c.packUnits + ')' : '') : '' %><%= c.manufacturer ? ' · ' + c.manufacturer : '' %></option>
                       <% }); %>
                     </select>
                   <% } %>
@@ -342,9 +358,13 @@ function supVal(field, fallback){ return sv ? (sv[field] || '') : (fallback || '
         <button type="button" class="btn btn-secondary btn-sm" id="btnAddLine">הוסף שורה +</button>
       </div>
       <p class="muted" style="margin:.4rem 0 0">שורה שהשם שלה נמחק לא תישמר. מחיר ליחידה ריק — יחושב מסה"כ נטו חלקי כ.בודד (או חלקי הכמות כשאין כ.בודד). "כמות" היא כפי שמודפס — אצל חלק מהספקים ארגזים; "כ.בודד" = יחידות בודדות.</p>
-      <% var catMatched = (n.lines || []).filter(function(l){ return l.catalog; }).length; %>
-      <% if (catMatched > 0) { %>
-        <p class="muted" style="margin:.3rem 0 0"><%= catMatched %> מתוך <%= (n.lines || []).length %> שורות אומתו מול קטלוג-העל ✓</p>
+      <% var bySupplierCat = (n.lines || []).filter(function(l){ return l.catalog && l.catalog.source === 'supplier'; }).length; %>
+      <% var byMasterCat = (n.lines || []).filter(function(l){ return l.catalog && l.catalog.source !== 'supplier'; }).length; %>
+      <% if (byMasterCat > 0) { %>
+        <p class="muted" style="margin:.3rem 0 0"><%= byMasterCat %> מתוך <%= (n.lines || []).length %> שורות אומתו מול קטלוג-העל ✓</p>
+      <% } %>
+      <% if (bySupplierCat > 0) { %>
+        <p class="muted" style="margin:.3rem 0 0"><%= bySupplierCat %> מתוך <%= (n.lines || []).length %> שורות זוהו מול הקטלוג של הספק ✓</p>
       <% } %>
     </div>
 

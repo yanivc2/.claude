@@ -11,6 +11,9 @@ import { buildExtractionRequest, getClaudeClient } from '../ai/claude.js';
 import { createInvoice } from './invoices.js';
 import { upsertProductsFromLines } from './products.js';
 import { lookupByBarcodes, lookupByCodes } from './masterCatalog.js';
+import { catalogForSupplier } from './supplierCatalog.js';
+import { buildSupplierIndex } from '../lib/supplierCatalogMatch.js';
+import { matchSupplier } from '../lib/supplierMatch.js';
 import { getProfile, hintsFor, recordScan } from './supplierProfile.js';
 import { logAction } from './audit.js';
 
@@ -39,6 +42,31 @@ async function masterCatalogFor(lines, x) {
   const values = (lines || []).flatMap((l) => [l?.barcode, l?.sku]);
   const [exact, byCode] = await Promise.all([lookupByBarcodes(values, x), lookupByCodes(values, x)]);
   return { exact, byCode };
+}
+
+/**
+ * The SUPPLIER's own catalog, indexed for the pure validator — what identifies a line on an
+ * invoice that prints no barcode (מוצרי איכות קנדים, פיליפ מוריס) or only the supplier's own
+ * item number (גלוברנדס, דובק).
+ *
+ * Which supplier, though, is decided by the document, and the validator is what decides it — so
+ * the match is run once here first. The draft's own supplier_id wins when the capture screen was
+ * told who it is; otherwise the same matchSupplier the validator will use answers it, and both
+ * arrive at the same supplier. A supplier with no catalog loaded simply yields null and every
+ * line falls through to the master-catalog path unchanged.
+ *
+ * @returns {Promise<object|null>} buildSupplierIndex() result, or null
+ */
+async function supplierCatalogFor(draftId, parsed, suppliers, x) {
+  const draft = await rawDraft(draftId, x);
+  let supplierId = draft?.supplier_id ?? null;
+  if (!supplierId) {
+    const match = matchSupplier(parsed?.supplier_name ?? null, parsed?.supplier_tax_id ?? null, suppliers);
+    supplierId = match?.supplier?.id ?? null;
+  }
+  if (!supplierId) return null;
+  const rows = await catalogForSupplier(supplierId, x);
+  return rows.length ? buildSupplierIndex(rows) : null;
 }
 
 /**
@@ -288,7 +316,13 @@ export async function processDraft(
   // ---- normalize + duplicate probes -------------------------------------------
   const suppliers = await x.many('SELECT * FROM suppliers', []);
   const masterCatalog = await masterCatalogFor(parsed.lines, x);
-  const normalized = validateExtraction(parsed, { suppliers, vatRate: config.vatRate, masterCatalog });
+  const supplierCatalog = await supplierCatalogFor(id, parsed, suppliers, x);
+  const normalized = validateExtraction(parsed, {
+    suppliers,
+    vatRate: config.vatRate,
+    masterCatalog,
+    supplierCatalog,
+  });
   await probeDuplicates(id, normalized, x);
 
   await x.run(

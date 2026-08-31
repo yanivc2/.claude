@@ -166,6 +166,23 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
 - **Shortened barcodes:** `lookupByCodes`/`rankCandidates` resolve the EAN tail by suffix + name overlap
   (supplier only breaks ties). Everything is an **offer**, adopted on click. Read
   `docs/צילום-וחילוץ/מחקרים/תקלות-ופתרונן.md` before debugging this area.
+- **קטלוג ספק (`supplier_catalog`)** — the file a supplier hands over; what identifies a TOBACCO
+  line. `lib/supplierCatalogFile.js` (parse) + `lib/supplierCatalogMatch.js` (pure matcher) +
+  `services/supplierCatalog.js`; upload at הגדרות ← 🚬 קטלוג ספק (shown only when scan is enabled).
+  קנדים/פיליפ מוריס print **no code at all**; גלוברנדס/דובק print a "פריט" that is the supplier's
+  own item number (measured: 4 digits, 54 distinct — under `MIN_SUFFIX_LEN`, so the suffix matcher
+  ignores it). `scripts/code-column-probe.mjs` decides tail-vs-item-number by measurement.
+  - **A product is TWO rows** — קופסה + פאקט (10, or 5 for rolling tobacco), one מק"ט, two
+    barcodes. **The item number identifies the product, never the packaging**, and the wrong side
+    is a silent **10× unit-cost error** in price history. Packaging is decided by **vote** (name
+    closeness · explicit פאקט/קופסה word · `כ.בודד ÷ כמות` = יח' אריזה); disagreement →
+    `supplier_catalog_conflict`, silence → both offered. First-hit-wins got this wrong by 10×.
+  - Name matching is safe here only because base names are **measured unique** per supplier (0
+    collisions, 26-54 items); still banned against קטלוג-על. Score = max(word overlap, char-bigram
+    Dice) — Dice is what survives a one-letter misread. Consulted **before** the master catalog,
+    but only a product-level hit takes the line, or a shortlist blocks the fallback.
+  - Import **replaces** that supplier's catalog. Bad check digit → **rejected, never repaired**.
+    A CSV header with a bare `"` silently shifts every column after it — the parser warns now.
 
 ## Adding a DB column — checklist
 1. `schema.sql` (SQLite CREATE) + `schema.pg.sql` (CREATE + bottom `ALTER … ADD COLUMN IF NOT EXISTS`).

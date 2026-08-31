@@ -7,6 +7,7 @@
 import { fromAgorot, formatIls } from './money.js';
 import { matchSupplier, normalizeSupplierName } from './supplierMatch.js';
 import { eanChecksumOk } from './ean.js';
+import { matchLine } from './supplierCatalogMatch.js';
 
 /**
  * Every flag code this module can emit.
@@ -32,10 +33,22 @@ import { eanChecksumOk } from './ean.js';
  *   'catalog_ambiguous' — the shortened code matches several catalog barcodes; `candidates`
  *                         carries them for a human to pick from
  *   'barcode_invalid'   — GTIN checksum failed and no catalog hit — likely misread digits
+ *   'supplier_catalog_match' — identified in the SUPPLIER's own catalog, packaging included.
+ *                         This is what carries the tobacco invoices, which print no barcode at
+ *                         all (מוצרי איכות קנדים, פיליפ מוריס) or only the supplier's own item
+ *                         number (גלוברנדס, דובק)
+ *   'supplier_catalog_pack' — the product is known but not which packaging: קופסה and פאקט are
+ *                         separate barcodes and a 10× difference in unit cost, so both are
+ *                         offered rather than one being guessed
+ *   'supplier_catalog_conflict' — the line contradicts itself about the packaging (its
+ *                         description says one thing, its כ.בודד ÷ כמות another)
+ *   'supplier_catalog_ambiguous' — several of the supplier's products are close to the printed
+ *                         description and none is decisively closest
  * @typedef {'no_supplier_match'|'fuzzy_match'|'missing'|'low_confidence'|'defaulted'
  *   |'invalid_format'|'vat_mismatch'|'vat_rate_off'|'lines_sum_mismatch'
  *   |'computed'|'computed_per_unit'|'missing_amounts'|'catalog_match'|'catalog_suffix_match'
- *   |'catalog_ambiguous'|'barcode_invalid'} FlagCode
+ *   |'catalog_ambiguous'|'barcode_invalid'|'supplier_catalog_match'|'supplier_catalog_pack'
+ *   |'supplier_catalog_conflict'|'supplier_catalog_ambiguous'} FlagCode
  */
 export const FLAG_CODES = Object.freeze([
   'no_supplier_match',
@@ -54,6 +67,10 @@ export const FLAG_CODES = Object.freeze([
   'catalog_suffix_match',
   'catalog_ambiguous',
   'barcode_invalid',
+  'supplier_catalog_match',
+  'supplier_catalog_pack',
+  'supplier_catalog_conflict',
+  'supplier_catalog_ambiguous',
 ]);
 
 /** Header fields that always appear as keys in the returned `flags` object. */
@@ -308,7 +325,7 @@ export function rankCandidates(rows, { printedName = null, supplierName = null }
  * without a hit flags a likely misread. Absence from the catalog alone is never an error —
  * it holds one chain's range, not the world.
  */
-function normalizeLine(raw, lineNo, masterCatalog = null, supplierName = null) {
+function normalizeLine(raw, lineNo, masterCatalog = null, supplierName = null, supplierCatalog = null) {
   const src = raw && typeof raw === 'object' ? raw : {};
   const flags = [];
   const quantity = num(src.quantity);
@@ -363,6 +380,71 @@ function normalizeLine(raw, lineNo, masterCatalog = null, supplierName = null) {
   let catalog = null;
   let candidates = null;
 
+  // The supplier's OWN catalog is consulted first, and outranks the קטלוג-על for its own
+  // invoices for the obvious reason: it is that supplier's actual product list, so it can say
+  // which packaging a line is as well as which product. It is also the only thing that can
+  // identify these tobacco lines at all — two of the four suppliers print no code whatsoever.
+  // When it has nothing to say, the master-catalog path below runs exactly as it always did.
+  const supplierInfo = (row) => ({
+    source: 'supplier',
+    name: row.name,
+    barcode: row.barcode,
+    manufacturer: row.brand ?? row.category ?? null,
+    packType: row.pack_type ?? row.packType ?? null,
+    packUnits: num(row.pack_units ?? row.packUnits),
+    quantity: null,
+    unitQty: null,
+    qtyInPackage: null,
+    nameDiffers: looseName(name) !== looseName(row.name),
+  });
+
+  const fromSupplier = supplierCatalog
+    ? matchLine({ barcode, sku, name, quantity, unitQuantity }, supplierCatalog)
+    : null;
+  // Only a PRODUCT-level hit takes over the line. A shortlist of near-misses is not an
+  // identification, and treating it as one used to stop the line ever reaching the master-catalog
+  // path below — a Tnuva line would be captured by a פיליפ מוריס catalog that merely had
+  // something vaguely similar in it. Those shortlists are re-attached at the end instead, but
+  // only once the master catalog has had its turn and come back empty.
+  const identifiedHere = fromSupplier && (fromSupplier.row || fromSupplier.product.length > 0);
+
+  if (identifiedHere) {
+    if (fromSupplier.row) {
+      flags.push('supplier_catalog_match');
+      catalog = supplierInfo(fromSupplier.row);
+    } else if (fromSupplier.packConflict) {
+      // Two pieces of evidence on one line disagree about the packaging. Adopting either would
+      // be a silent 10× error in the unit cost, so the line goes to a human with both named.
+      flags.push('supplier_catalog_conflict');
+    } else if (fromSupplier.product && fromSupplier.product.length > 1) {
+      flags.push('supplier_catalog_pack');
+    } else {
+      flags.push('supplier_catalog_ambiguous');
+    }
+    // Alternatives stay visible even when one was adopted — same rule as the master catalog:
+    // that is what makes a wrong pick one click from corrected rather than invisible.
+    const offered = fromSupplier.candidates && fromSupplier.candidates.length
+      ? fromSupplier.candidates
+      : fromSupplier.product;
+    candidates = (offered || []).slice(0, 6).map(supplierInfo);
+    return {
+      lineNo,
+      name,
+      barcode,
+      sku,
+      quantity,
+      unitQuantity,
+      unitCost,
+      unitCostSource,
+      packCost,
+      lineTotal,
+      confidence,
+      flags,
+      catalog,
+      candidates,
+    };
+  }
+
   const hit = barcode ? (exact?.get?.(barcode) ?? null) : null;
   if (hit) {
     flags.push('catalog_match');
@@ -408,6 +490,14 @@ function normalizeLine(raw, lineNo, masterCatalog = null, supplierName = null) {
     }
   }
 
+  // The master catalog had nothing either, but the supplier's own catalog holds a few products
+  // that resemble what was printed. Offer them — a shortlist is worth showing when the
+  // alternative is a line with no identity at all.
+  if (!catalog && !candidates && fromSupplier && fromSupplier.candidates.length) {
+    flags.push('supplier_catalog_ambiguous');
+    candidates = fromSupplier.candidates.slice(0, 6).map(supplierInfo);
+  }
+
   return {
     lineNo,
     name,
@@ -436,12 +526,18 @@ function normalizeLine(raw, lineNo, masterCatalog = null, supplierName = null) {
  *
  * @param {object|null} extraction parsed model JSON (see EXTRACTION_SCHEMA)
  * @param {{suppliers?: Array<object>, vatRate?: number,
- *   masterCatalog?: Map<string, object>|null}} [opts] masterCatalog holds ONLY the barcodes
- *   of this draft (the caller queries them) — the validator stays pure and offline-testable.
+ *   masterCatalog?: Map<string, object>|null,
+ *   supplierCatalog?: object|null}} [opts] masterCatalog holds ONLY the barcodes of this draft
+ *   (the caller queries them) — the validator stays pure and offline-testable. supplierCatalog
+ *   is a buildSupplierIndex() over this supplier's own catalog, and takes precedence over the
+ *   master catalog for its own invoices.
  * @returns {{header: object, lines: object[], flags: Record<string, string[]>,
  *   warnings: Array<{code: string, message: string}>, notes: string|null}}
  */
-export function validateExtraction(extraction, { suppliers = [], vatRate = 0.18, masterCatalog = null } = {}) {
+export function validateExtraction(
+  extraction,
+  { suppliers = [], vatRate = 0.18, masterCatalog = null, supplierCatalog = null } = {},
+) {
   const src = extraction && typeof extraction === 'object' ? extraction : {};
   const flags = {};
   for (const f of FLAG_FIELDS) flags[f] = [];
@@ -540,7 +636,8 @@ export function validateExtraction(extraction, { suppliers = [], vatRate = 0.18,
   // The supplier goes in so a shortened code can be resolved by who made the product:
   // prefer the matched supplier's canonical name, falling back to what was printed.
   const lineSupplier = (match && match.supplier && match.supplier.name) || supplierName;
-  const lines = rawLines.map((line, i) => normalizeLine(line, i + 1, masterCatalog, lineSupplier));
+  const lines = rawLines.map((line, i) =>
+    normalizeLine(line, i + 1, masterCatalog, lineSupplier, supplierCatalog));
 
   // ברקוד עם ספרת ביקורת שגויה וללא התאמת קטלוג — כנראה קריאה שגויה מהצילום.
   // אזהרה מרוכזת אחת; catalog_match לא מייצר אזהרה — האישור מוצג ברמת השורה בלבד.
