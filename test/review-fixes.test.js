@@ -124,6 +124,36 @@ test('listTransactions exposes the matched payment method (badge is no longer ha
   assert.equal(matched.matched_method, 'transfer');
 });
 
+test('double-payment guard: the status-conditional UPDATE is a no-op once an invoice is paid (both dialects)', async () => {
+  const { db, own, sec, st, acct, sup } = await base();
+  const { invoice } = await createInvoice(
+    { supplierId: sup.id, storeId: st.id, invoiceNumber: 'D1', invoiceDate: '2026-07-01', amountBeforeVat: 10000, vatAmount: 0, docType: 'tax_invoice' },
+    sec, db,
+  );
+  await approveInvoiceForPayment(invoice.id, own, db);
+  await createPayment(
+    { bankAccountId: acct.id, method: 'check', checkNumber: '8001', paymentDate: '2026-07-02', invoiceIds: [invoice.id] },
+    own, db,
+  );
+  assert.equal((await getInvoice(invoice.id, db)).status, 'paid');
+
+  // The guard createPayment relies on: flipping a NON-payable invoice to 'paid' changes 0 rows.
+  // That 0-row result is what makes a racing second payment abort instead of double-paying.
+  const r = await db.run(
+    "UPDATE invoices SET status = 'paid' WHERE id = ? AND status IN ('recorded', 'approved_for_payment')",
+    [invoice.id],
+  );
+  assert.equal(r.changes, 0);
+
+  // And a plain second payment on the same invoice is refused (upstream status check).
+  await assert.rejects(
+    createPayment(
+      { bankAccountId: acct.id, method: 'check', checkNumber: '8002', paymentDate: '2026-07-02', invoiceIds: [invoice.id] },
+      own, db,
+    ),
+  );
+});
+
 test('scopeGuard resolves bankAccount and bankTxn company for the reconciliation IDOR guards', async () => {
   const { db, own, sec, st, acct, sup } = await base();
   const companyId = (await db.one('SELECT company_id FROM bank_accounts WHERE id = ?', [acct.id])).company_id;

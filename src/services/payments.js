@@ -185,7 +185,18 @@ export async function createPayment(input, actor, x = getExecutor()) {
         line.invoiceId,
         line.amountApplied,
       ]);
-      await t.run("UPDATE invoices SET status = 'paid', bank_account_id = ? WHERE id = ?", [account.id, line.invoiceId]);
+      // Concurrency guard against a double payment (double-submit / two racing requests): flip to
+      // 'paid' ONLY if the invoice is still payable. Under Postgres READ COMMITTED the second
+      // transaction blocks on this row until the first commits, then re-checks the WHERE against
+      // the now-'paid' row → 0 rows changed → we abort and roll back the whole payment. (SQLite
+      // serializes writers, so it's inherently safe there; this keeps both backends consistent.)
+      const upd = await t.run(
+        "UPDATE invoices SET status = 'paid', bank_account_id = ? WHERE id = ? AND status IN ('recorded', 'approved_for_payment')",
+        [account.id, line.invoiceId],
+      );
+      if (!upd.changes) {
+        throw new RuleError('R2', `חשבונית #${line.invoiceId} כבר שולמה או שונתה בו-זמנית — התשלום בוטל. רענן ונסה שוב.`, { invoiceId: line.invoiceId });
+      }
     }
 
     const sumRow = await t.one('SELECT COALESCE(SUM(amount_applied),0) AS s FROM payment_lines WHERE payment_id = ?', [pid]);

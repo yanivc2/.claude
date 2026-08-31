@@ -208,6 +208,7 @@
 - **R3:** חשבונית מס מעל סף בלי הקצאה = on_hold. נבדק **סימטרית** גם ב-`updateInvoice` (מציב החזקה כשעריכה חוצה את הסף, מנקה כשלא) — לא רק ביצירה.
 - **R5:** סכום תשלום = Σ שורות מיושמות (net; זיכוי שלילי).
 שינוי כל אחד מאלה משפיע על `createInvoice`/`createPayment`/`updatePayment` — ראה `services/invoices.js` + `services/payments.js`.
+- **מניעת תשלום-כפול (מרוץ/double-submit):** ב-`createPayment` המעבר ל-`status='paid'` הוא UPDATE **מותנה** — `WHERE id=? AND status IN ('recorded','approved_for_payment')`; אם `changes===0` (החשבונית כבר שולמה/שונתה בו-זמנית) → זריקת שגיאה וגלגול-לאחור של כל התשלום. ב-Postgres (READ COMMITTED) העסקה השנייה ננעלת על השורה עד ה-COMMIT הראשון ואז רואה `paid` → 0 שורות. SQLite מסדרן כותבים ממילא. **אל תחליף חזרה ל-UPDATE ללא-תנאי** — זה מחזיר את חלון המרוץ.
 
 ---
 
