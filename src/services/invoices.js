@@ -2,7 +2,7 @@ import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 import { logAction } from './audit.js';
 
@@ -424,7 +424,7 @@ export async function listInvoices(
                   FROM invoices i
                   JOIN suppliers s ON s.id = i.supplier_id
                   JOIN stores st ON st.id = i.store_id`;
-  const sc = scopeClause(scope, 'i.company_id');
+  const sc = scopeWhere(scope, 'i.company_id', 'i.store_id');
   let sql = `${base} WHERE 1 = 1`;
   const params = [];
   // 'unpaid' is a virtual filter = everything not yet paid (recorded / on_hold / approved).
@@ -491,7 +491,7 @@ async function enrichPaidStatus(rows, x = getExecutor()) {
  * implicitly approves), not on_hold and not yet paid.
  */
 export async function listPayable(scope = null, x = getExecutor()) {
-  const sc = scopeClause(scope, 'i.company_id');
+  const sc = scopeWhere(scope, 'i.company_id', 'i.store_id');
   return x.many(
     `SELECT i.*, s.name AS supplier_name, st.name AS store_name, ba.id AS derived_bank_account_id,
             ba.display_name AS bank_account_name

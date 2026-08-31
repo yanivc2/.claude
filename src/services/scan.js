@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { getExecutor, nowTs, tx } from '../db/adapter.js';
 import { config } from '../config.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { formatIls, fromAgorot } from '../lib/money.js';
 import { del, getObject } from '../lib/storage.js';
 import { validateExtraction } from '../lib/extractValidate.js';
@@ -851,7 +851,7 @@ export async function deleteDraft(id, actor, x = getExecutor()) {
  * @param {number[]|null} scope authorized company ids, null = all (owner)
  */
 export async function listPending(scope = null, x = getExecutor()) {
-  const sc = scopeClause(scope, 'd.company_id');
+  const sc = scopeWhere(scope, 'd.company_id', 'd.store_id');
   const placeholders = PENDING_STATUSES.map(() => '?').join(', ');
   const rows = await x.many(
     `SELECT d.*, st.name AS store_name, u.name AS created_by_name

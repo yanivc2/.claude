@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { getExecutor } from '../db/adapter.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { assertInScope } from '../lib/scopeGuard.js';
 import { toAgorot } from '../lib/money.js';
 import { parseCsv } from '../lib/csv.js';
@@ -44,7 +44,7 @@ function looksLikeXlsx(file) {
 }
 
 async function accounts(scope = null) {
-  const sc = scopeClause(scope, 'ba.company_id');
+  const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
   return getExecutor().many(
     `SELECT ba.*, c.name AS company_name, st.name AS store_name
        FROM bank_accounts ba JOIN companies c ON c.id = ba.company_id
@@ -58,7 +58,7 @@ async function accounts(scope = null) {
 // it is one the caller is authorized to see — a forged/foreign id falls back to the first
 // authorized account, never acting cross-company. This is the single scope gate for account_id.
 async function resolveAccountId(req) {
-  const all = await accounts(req.scope.companyIds);
+  const all = await accounts(req.scope);
   const requested = Number(req.body?.account_id) || Number(req.query.account);
   return all.some((a) => a.id === requested) ? requested : all[0]?.id;
 }
@@ -68,7 +68,7 @@ async function renderPage(req, res, accountId, extra = {}) {
   const classified = await Promise.all(unmatched.map(async (t) => ({ txn: t, ...(await classify(t)) })));
   res.render('reconciliation/index', {
     title: 'התאמת בנק',
-    accounts: await accounts(req.scope.companyIds),
+    accounts: await accounts(req.scope),
     accountId,
     classified,
     transactions: accountId ? await listTransactions(accountId) : [],
@@ -156,8 +156,8 @@ router.post('/match', async (req, res, next) => {
   try {
     // Scope guard: the transaction and the payment must both belong to the caller's companies —
     // a forged txn_id/payment_id from another company is refused (404, existence not leaked).
-    await assertInScope('bankTxn', Number(req.body.txn_id), req.scope.companyIds);
-    await assertInScope('payment', Number(req.body.payment_id), req.scope.companyIds);
+    await assertInScope('bankTxn', Number(req.body.txn_id), req.scope);
+    await assertInScope('payment', Number(req.body.payment_id), req.scope);
     await confirmMatch(Number(req.body.txn_id), Number(req.body.payment_id), req.user);
     await renderPage(req, res, accountId, { notice: 'הצ׳ק סומן כנפרע.' });
   } catch (err) {
@@ -170,7 +170,7 @@ router.post('/txn/:id/edit', async (req, res, next) => {
   const accountId = await resolveAccountId(req);
   const id = Number(req.params.id);
   try {
-    await assertInScope('bankTxn', id, req.scope.companyIds);
+    await assertInScope('bankTxn', id, req.scope);
     const fields = {
       txnDate: req.body.txn_date,
       amount: toAgorot(req.body.amount),
@@ -197,7 +197,7 @@ router.post('/txn/:id/edit', async (req, res, next) => {
 router.post('/txn/:id/delete', async (req, res, next) => {
   const accountId = await resolveAccountId(req);
   try {
-    await assertInScope('bankTxn', Number(req.params.id), req.scope.companyIds);
+    await assertInScope('bankTxn', Number(req.params.id), req.scope);
     await deleteTransaction(Number(req.params.id), req.user);
     await renderPage(req, res, accountId, { notice: 'התנועה נמחקה.' });
   } catch (err) {
@@ -209,7 +209,7 @@ router.post('/txn/:id/delete', async (req, res, next) => {
 router.post('/unmatch', async (req, res, next) => {
   const accountId = await resolveAccountId(req);
   try {
-    await assertInScope('bankTxn', Number(req.body.txn_id), req.scope.companyIds);
+    await assertInScope('bankTxn', Number(req.body.txn_id), req.scope);
     await unmatch(Number(req.body.txn_id), req.user);
     await renderPage(req, res, accountId, { notice: 'ההתאמה בוטלה, הצ׳ק חזר לסטטוס פתוח.' });
   } catch (err) {

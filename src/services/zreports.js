@@ -1,6 +1,6 @@
 import { getExecutor, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { logAction } from './audit.js';
 
 // Daily register (Z) close (priority 2). daily_total ("יומי Z") feeds the profitability report;
@@ -255,8 +255,8 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
   // dashboard that read only z_expenses showed nothing. UNION both, keeping only real cash lines
   // (positive, not yet matched to an invoice, not salary/advance — those are payroll, tracked on
   // the employees page). `source` tells the view which detail page to link to.
-  const scR = scopeClause(scope, 'st.company_id'); // z_reports side
-  const scC = scopeClause(scope, 'st.company_id'); // z_closings side
+  const scR = scopeWhere(scope, 'st.company_id', 'z.store_id'); // z_reports side
+  const scC = scopeWhere(scope, 'st.company_id', 'zc.store_id'); // z_closings side
   // Active-store context: filter both sides by the store (z_reports.store_id / z_closings.store_id).
   const stR = storeId ? ' AND z.store_id = ?' : '';
   const stC = storeId ? ' AND zc.store_id = ?' : '';
@@ -442,7 +442,7 @@ export async function missingZNumbers(storeId, x = getExecutor()) {
  *   before:object|null, after:object|null}>}>}
  */
 export async function zSequenceStatus(scope = null, storeId = null, x = getExecutor()) {
-  const sc = scopeClause(scope, 'st.company_id');
+  const sc = scopeWhere(scope, 'st.company_id', 'st.id');
   const st = storeId ? ' AND z.store_id = ?' : '';
   const stp = storeId ? [storeId] : [];
   const rows = await x.many(

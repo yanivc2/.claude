@@ -101,7 +101,7 @@ router.get('/', async (req, res, next) => {
     const { suppliers, stores } = await formData(req.scope.companyIds);
     res.render('invoices/index', {
       title: 'חשבוניות',
-      invoices: await listInvoices({ status: req.query.status || null, scope: req.scope.companyIds, supplierId, storeId, q, from, to }),
+      invoices: await listInvoices({ status: req.query.status || null, scope: req.scope, supplierId, storeId, q, from, to }),
       filter: req.query.status || '',
       q,
       supplierId,
@@ -110,9 +110,9 @@ router.get('/', async (req, res, next) => {
       to,
       suppliers,
       stores,
-      closingExpenses: await recentClosingExpenses(req.scope.companyIds, 30),
+      closingExpenses: await recentClosingExpenses(req.scope, 30),
       // Payable invoices (in scope) a cash expense can be matched to, for the "התאם לחשבונית" control.
-      matchInvoices: (await listPayable()).filter((iv) => req.scope.companyIds === null || req.scope.companyIds.includes(iv.company_id)),
+      matchInvoices: await listPayable(req.scope),
     });
   } catch (err) {
     next(err);
@@ -125,8 +125,7 @@ router.get('/new', async (req, res, next) => {
     const storeId = req.query.store ? Number(req.query.store) : null;
     const ctx = await batchContext(supplierId, storeId);
     // Open (payable, no payment) invoices for the "צרף חשבונית פתוחה" picker — scoped to the user.
-    const scope = req.scope.companyIds;
-    const openInvoices = (await listPayable()).filter((i) => scope === null || scope.includes(i.company_id));
+    const openInvoices = await listPayable(req.scope);
     const pickIds = String(req.query.pick || '').split(',').map(Number).filter(Boolean);
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
@@ -260,7 +259,7 @@ router.post('/pay-batch', async (req, res, next) => {
   try {
     if (invoiceIds.length === 0) throw new RuleError('R', 'לא נבחרו חשבוניות לתשלום');
     // Company separation: refuse if any selected invoice is outside the caller's scope.
-    for (const invId of invoiceIds) await assertInScope('invoice', invId, req.scope.companyIds);
+    for (const invId of invoiceIds) await assertInScope('invoice', invId, req.scope);
     const ba = await getExecutor().one('SELECT id FROM bank_accounts WHERE store_id = ?', [storeId]);
     const method = (b.pay_method || 'check').trim();
     const payInput = { bankAccountId: ba?.id, method, invoiceIds };
@@ -306,7 +305,7 @@ router.post('/match-cash', async (req, res, next) => {
     const expenseId = Number(req.body.expense_id);
     const invoiceId = Number(req.body.invoice_id);
     if (!expenseId || !invoiceId) throw new RuleError('R', 'יש לבחור הוצאת מזומן וחשבונית');
-    await assertInScope('invoice', invoiceId, req.scope.companyIds);
+    await assertInScope('invoice', invoiceId, req.scope);
     await matchClosingExpenseToInvoice(expenseId, invoiceId, req.user, req.scope.companyIds);
     return res.redirect(303, '/invoices');
   } catch (err) {

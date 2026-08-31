@@ -1,5 +1,5 @@
 import { getExecutor } from '../db/adapter.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 
 /**
@@ -27,7 +27,7 @@ function dueDateCut({ month = null, months = null, from = null, to = null } = {}
 
 export async function outstandingChecks(scope = null, cut = {}, x = getExecutor()) {
   const { storeId = null } = cut;
-  const sc = scopeClause(scope, 'ba.company_id');
+  const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
   // Optional due-date cut: single month, a list of months, or a from/to range.
   const dc = dueDateCut(cut);
   let accounts = await x.many(
@@ -59,7 +59,7 @@ export async function outstandingChecks(scope = null, cut = {}, x = getExecutor(
  * @returns {Promise<Array<{value:string,label:string}>>}
  */
 export async function outstandingMonths(scope = null, x = getExecutor()) {
-  const sc = scopeClause(scope, 'ba.company_id');
+  const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
   const rows = await x.many(
     `SELECT p.payment_date FROM payments p
        JOIN bank_accounts ba ON ba.id = p.bank_account_id
@@ -89,7 +89,7 @@ export async function outstandingMonths(scope = null, x = getExecutor()) {
  * Accounts without any stored balance are omitted — the caller shows nothing for them.
  */
 export async function latestBalances(scope = null, x = getExecutor()) {
-  const sc = scopeClause(scope, 'ba.company_id');
+  const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
   const accounts = await x.many(
     `SELECT ba.id AS account_id, ba.display_name, c.name AS company_name, st.name AS store_name
        FROM bank_accounts ba
@@ -125,7 +125,7 @@ export async function latestBalances(scope = null, x = getExecutor()) {
 
 /** Issued (outstanding) checks whose payment_date falls in [fromIso, toIso], for the calendar. */
 export async function outstandingChecksInRange(fromIso, toIso, scope = null, x = getExecutor()) {
-  const sc = scopeClause(scope, 'ba.company_id');
+  const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
   return x.many(
     `SELECT p.id, p.payment_date, p.amount, p.method, p.check_number, p.reference, p.batch_number,
             c.name AS company_name, st.name AS store_name
@@ -223,7 +223,7 @@ export async function invoiceLookup(query, { companyId = null, storeId = null, s
     filter += ' AND i.store_id = ?';
     params.push(storeId);
   }
-  const sc = scopeClause(scope, 'i.company_id');
+  const sc = scopeWhere(scope, 'i.company_id', 'i.store_id');
   filter += sc.sql;
   params.push(...sc.params);
 
@@ -250,7 +250,7 @@ export async function invoiceLookup(query, { companyId = null, storeId = null, s
 export async function profitability(fromDate, toDate, scope = null, x = getExecutor()) {
   // Aggregate purchases and sales per store separately, then merge in JS — avoids correlated
   // subqueries (portable across SQLite/Postgres and cheaper than a per-store subquery).
-  const sc = scopeClause(scope, 'c.id');
+  const sc = scopeWhere(scope, 'c.id', 'st.id');
   const storeRows = await x.many(
     `SELECT st.id, st.name AS store_name, c.name AS company_name
        FROM stores st JOIN companies c ON c.id = st.company_id
@@ -298,7 +298,7 @@ export async function profitability(fromDate, toDate, scope = null, x = getExecu
 /** Small counters for the dashboard. `storeId` (the active-store context) narrows the store-bound
  * counters; pending-suppliers is company-level (suppliers aren't store-scoped) so it's unaffected. */
 export async function dashboardStats(scope = null, storeId = null, x = getExecutor()) {
-  const sc = scopeClause(scope, 'company_id');
+  const sc = scopeWhere(scope, 'company_id', 'store_id');
   const st = storeId ? ' AND store_id = ?' : '';
   const stp = storeId ? [storeId] : [];
   const pendingSuppliers = (await x.one("SELECT COUNT(*) AS n FROM suppliers WHERE status = 'pending'", [])).n;
@@ -343,11 +343,14 @@ export async function lastReconciliationFor(scope = null, storeId = null, x = ge
       GROUP BY ba.store_id, ba.company_id, st.name`,
     [],
   );
-  const allow = scope == null ? null : new Set(scope.map(Number));
+  const { companyIds, storeIds } = normalizeScope(scope);
+  const allowCompany = companyIds == null ? null : new Set(companyIds.map(Number));
+  const allowStore = storeIds == null ? null : new Set(storeIds.map(Number));
   const byStore = new Map();
   for (const r of rows) {
     if (!r.ts) continue;
-    if (allow && !allow.has(Number(r.company_id))) continue;
+    if (allowCompany && !allowCompany.has(Number(r.company_id))) continue;
+    if (allowStore && !allowStore.has(Number(r.store_id))) continue;
     byStore.set(Number(r.store_id), { ts: r.ts, storeName: r.store_name });
   }
   if (storeId) return byStore.get(Number(storeId)) || null; // that store's own date, or nothing

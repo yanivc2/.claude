@@ -189,7 +189,7 @@ async function storeList() {
 
 async function renderProfitability(req, res, extra = {}) {
   const { from, to, preset } = resolveRange(req);
-  const { stores, totals } = await profitability(from, to, req.scope.companyIds);
+  const { stores, totals } = await profitability(from, to, req.scope);
   res.render('reports/profitability', {
     title: 'רווחיות',
     from,
@@ -238,10 +238,10 @@ async function renderZReports(req, res, extra = {}) {
     unmatchedCount: zReports.filter((z) => z.hasDeposit && !z.depMatched).length,
     zStoreId,
     missingZ: zStoreId ? await missingZNumbers(zStoreId) : [],
-    deposits: await listDeposits({ storeId: zStoreId, scope: req.scope.companyIds }),
+    deposits: await listDeposits({ storeId: zStoreId, scope: req.scope }),
     // Deposit-lifecycle rubrics (bottom of the page).
-    zNoDeposit: await zReportsWithoutDeposit({ scope: req.scope.companyIds, storeId: zStoreId }),
-    notDeposited: await declaredNotDeposited({ scope: req.scope.companyIds, storeId: zStoreId }),
+    zNoDeposit: await zReportsWithoutDeposit({ scope: req.scope, storeId: zStoreId }),
+    notDeposited: await declaredNotDeposited({ scope: req.scope, storeId: zStoreId }),
     invoiceOptions: await invoicePickOptions(req.scope.companyIds),
     employeeOptions: await listEmployees(),
     error: null,
@@ -336,7 +336,7 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
   try {
     const c = parseOutstandingCut(req.query);
     const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to };
-    const { accounts, totalOutstanding } = await outstandingChecks(req.scope.companyIds, cutArg);
+    const { accounts, totalOutstanding } = await outstandingChecks(req.scope, cutArg);
     const detailAccountId = req.query.account ? Number(req.query.account) : null;
     // Scope guard: only show detail for an account the user is allowed to see.
     const inScope = detailAccountId != null && accounts.some((a) => a.id === detailAccountId);
@@ -344,7 +344,7 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
       title: 'צ׳קים בחוץ',
       accounts,
       totalOutstanding,
-      months: await outstandingMonths(req.scope.companyIds),
+      months: await outstandingMonths(req.scope),
       month: c.month,
       cut: c.cut,
       selMonths: c.months,
@@ -364,7 +364,7 @@ router.get('/outstanding-detail.csv', async (req, res, next) => {
     const accountId = Number(req.query.account);
     const c = parseOutstandingCut(req.query);
     const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to };
-    const { accounts } = await outstandingChecks(req.scope.companyIds);
+    const { accounts } = await outstandingChecks(req.scope);
     if (!accounts.some((a) => a.id === accountId)) { res.status(404).send('not found'); return; }
     const rows = (await outstandingCheckDetail(accountId, cutArg)).map((r) => [
       r.supplierName,
@@ -396,7 +396,7 @@ function sendCsv(res, filename, headers, rows) {
 // CSV export — "צ׳קים בחוץ"
 router.get('/outstanding.csv', async (req, res, next) => {
   try {
-    const { accounts } = await outstandingChecks(req.scope.companyIds);
+    const { accounts } = await outstandingChecks(req.scope);
     const rows = accounts.map((a) => [a.company_name, a.store_name, a.display_name, a.outstanding_count, fromAgorot(a.outstanding)]);
     sendCsv(res, 'outstanding-checks.csv', ['חברה', 'חנות', 'חשבון', 'מס׳ צ׳קים פתוחים', 'סכום בחוץ'], rows);
   } catch (err) {
@@ -411,7 +411,7 @@ router.get('/lookup', async (req, res, next) => {
     res.render('reports/lookup', {
       title: 'בדיקת חשבונית',
       query: q,
-      results: q ? await invoiceLookup(q, { scope: req.scope.companyIds }) : [],
+      results: q ? await invoiceLookup(q, { scope: req.scope }) : [],
     });
   } catch (err) {
     next(err);
@@ -422,7 +422,7 @@ router.get('/lookup', async (req, res, next) => {
 router.get('/lookup.csv', async (req, res, next) => {
   try {
     const q = req.query.q || '';
-    const results = q ? await invoiceLookup(q, { scope: req.scope.companyIds }) : [];
+    const results = q ? await invoiceLookup(q, { scope: req.scope }) : [];
     const rows = results.map((r) => [
       r.id, r.supplier_name, r.store_name, r.invoice_number, r.allocation_number || '',
       r.invoice_date, fromAgorot(r.total_amount), r.invoice_status, r.check_number || '', r.payment_status || '',

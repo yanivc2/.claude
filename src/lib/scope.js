@@ -117,10 +117,39 @@ export async function setUserCompanies(userId, companyIds, x = getExecutor()) {
  * is empty. When it's an empty array, it forces an impossible match (sees nothing).
  */
 export function scopeClause(companyIds, colExpr) {
+  // Tolerate the full req.scope object — use its companyIds — so a route can pass req.scope to a
+  // company-only query without breaking (the store dimension is simply ignored here; use
+  // scopeWhere when you also want a store filter). Arrays / null behave exactly as before.
+  if (companyIds != null && !Array.isArray(companyIds) && typeof companyIds === 'object') {
+    companyIds = companyIds.companyIds ?? null;
+  }
   if (companyIds == null) return { sql: '', params: [] };
   if (companyIds.length === 0) return { sql: ` AND 1 = 0`, params: [] };
   const ph = companyIds.map(() => '?').join(',');
   return { sql: ` AND ${colExpr} IN (${ph})`, params: [...companyIds] };
+}
+
+// Accept either the historical `companyIds` shape (array / null) or the full req.scope object
+// { companyIds, storeIds }. Array/null → company-only (store filter off), for back-compat with the
+// many callers (and tests) that pass companyIds directly.
+export function normalizeScope(scope) {
+  if (scope == null) return { companyIds: null, storeIds: null };
+  if (Array.isArray(scope)) return { companyIds: scope, storeIds: null };
+  return { companyIds: scope.companyIds ?? null, storeIds: scope.storeIds ?? null };
+}
+
+/**
+ * Combined company + store WHERE fragment. `scope` may be a companyIds array/null (store filter
+ * off) or a req.scope object { companyIds, storeIds }. Emits ` AND <companyCol> IN (...)` and, when
+ * store-scoped and a storeCol is given, ` AND <storeCol> IN (...)`. An owner (null) adds nothing;
+ * a company-only grant has storeIds = all stores in the companies, so the store clause is a
+ * no-op superset — only explicit per-store grants actually narrow. Returns { sql, params }.
+ */
+export function scopeWhere(scope, companyCol, storeCol = null) {
+  const { companyIds, storeIds } = normalizeScope(scope);
+  const c = scopeClause(companyIds, companyCol);
+  const s = storeCol ? scopeClause(storeIds, storeCol) : { sql: '', params: [] };
+  return { sql: c.sql + s.sql, params: [...c.params, ...s.params] };
 }
 
 /** The full company×user grant map for the settings matrix. */

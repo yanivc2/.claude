@@ -2,7 +2,7 @@ import { getExecutor, tx } from '../db/adapter.js';
 import { config } from '../config.js';
 import { NotFoundError, RuleError, AuthError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { notify } from '../lib/notify.js';
@@ -465,10 +465,8 @@ export async function listPayments({ status = null, companyId = null, storeId = 
     where.push('ba.store_id = ?');
     params.push(storeId);
   }
-  if (scope != null) {
-    if (scope.length === 0) where.push('1 = 0');
-    else { where.push(`ba.company_id IN (${scope.map(() => '?').join(',')})`); params.push(...scope); }
-  }
+  const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
+  if (sc.sql) { where.push(sc.sql.replace(/^ AND /, '')); params.push(...sc.params); }
   const sql = `SELECT p.*, ba.display_name AS bank_account_name,
                       c.name AS company_name, st.name AS store_name,
                       CASE WHEN mt.matched_payment_id IS NOT NULL THEN 1 ELSE 0 END AS auto_cleared
@@ -488,7 +486,7 @@ export async function lookupChecks(query, scope = null, x = getExecutor()) {
   const terms = parseSearchTerms(query);
   if (!terms.length) return [];
   const m = anyTermLike(terms, ['p.check_number', 'p.reference', 'p.batch_number']);
-  const sc = scopeClause(scope, 'ba.company_id');
+  const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
   // Correlated subquery for one supplier name -> one row per payment, portable across SQLite/Postgres.
   return x.many(
     `SELECT p.id, p.method, p.check_number, p.reference, p.batch_number,

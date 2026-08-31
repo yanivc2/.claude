@@ -1,6 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { logAction } from './audit.js';
 
 // "הצהרה על הפקדה" — a bank deposit declaration: a bag number + amount for a store, with a flag
@@ -33,7 +33,7 @@ const DEPOSIT_SELECT = `SELECT d.*, st.name AS store_name, c.name AS company_nam
                   LEFT JOIN z_reports z ON z.id = d.z_report_id`;
 
 export async function listDeposits({ storeId = null, scope = null, limit = 30 } = {}, x = getExecutor()) {
-  const sc = scopeClause(scope, 'st.company_id');
+  const sc = scopeWhere(scope, 'st.company_id', 'st.id');
   const params = [...sc.params];
   let sql = `${DEPOSIT_SELECT} WHERE 1 = 1${sc.sql}`;
   if (storeId) { sql += ' AND d.store_id = ?'; params.push(storeId); }
@@ -102,7 +102,7 @@ export function depositStatus(d) {
 
 /** Deposits that were declared but not yet marked deposited (deposited = 0). Newest first. */
 export async function declaredNotDeposited({ scope = null, storeId = null } = {}, x = getExecutor()) {
-  const sc = scopeClause(scope, 'st.company_id');
+  const sc = scopeWhere(scope, 'st.company_id', 'st.id');
   const params = [...sc.params];
   let sql = `${DEPOSIT_SELECT} WHERE d.deposited = 0${sc.sql}`;
   if (storeId) { sql += ' AND d.store_id = ?'; params.push(storeId); }
@@ -112,7 +112,7 @@ export async function declaredNotDeposited({ scope = null, storeId = null } = {}
 
 /** Z reports that have no deposit declaration linked to them yet. Newest first. */
 export async function zReportsWithoutDeposit({ scope = null, storeId = null } = {}, x = getExecutor()) {
-  const sc = scopeClause(scope, 'st.company_id');
+  const sc = scopeWhere(scope, 'st.company_id', 'st.id');
   const params = [...sc.params];
   // NOT IN (non-correlated) keeps pg-mem happy — it rejects correlated subqueries / anti-joins.
   let sql = `SELECT z.id, z.z_number, z.z_date, z.store_id, st.name AS store_name, c.name AS company_name

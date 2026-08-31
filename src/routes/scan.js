@@ -185,7 +185,7 @@ router.get('/pending', async (req, res, next) => {
   try {
     res.render('scan/pending', {
       title: 'סריקות ממתינות',
-      drafts: await listPending(req.scope.companyIds),
+      drafts: await listPending(req.scope),
     });
   } catch (err) {
     next(err);

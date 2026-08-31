@@ -37,7 +37,7 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
     let companyId = req.query.company ? Number(req.query.company) : null;
     // Default the dashboard to the active-store context unless an explicit ?store= is given.
     let storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
-    const scope = req.scope.companyIds; // null = all (owner)
+    const scope = req.scope; // {companyIds, storeIds} — scopeClause tolerates it; scopeWhere adds the store filter
     const cScope = scopeClause(scope, 'id');
     const sScope = scopeClause(scope, 'company_id');
     const x = getExecutor();
@@ -186,7 +186,7 @@ router.get('/audit', requirePageAccess('nav_audit'), async (req, res, next) => {
     const gridEnd = new Date(gridStart);
     gridEnd.setDate(gridStart.getDate() + weeksCount * 7 - 1);
 
-    const checks = await outstandingChecksInRange(ymd(gridStart), ymd(gridEnd), req.scope.companyIds);
+    const checks = await outstandingChecksInRange(ymd(gridStart), ymd(gridEnd), req.scope);
     const byDate = {};
     for (const c of checks) {
       (byDate[c.payment_date] ||= { count: 0, total: 0 });
@@ -228,7 +228,7 @@ router.get('/audit', requirePageAccess('nav_audit'), async (req, res, next) => {
       todayAnchor: ymd(today),
       periodLabel: anchor.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }),
       weeks,
-      balances: await latestBalances(req.scope.companyIds),
+      balances: await latestBalances(req.scope),
       rangeCount: checks.length,
       rangeTotal: checks.reduce((s, c) => s + c.amount, 0),
       events,

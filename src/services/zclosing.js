@@ -2,7 +2,7 @@ import { getExecutor, tx } from '../db/adapter.js';
 import { RuleError, NotFoundError } from '../lib/errors.js';
 import { fromAgorot } from '../lib/money.js';
 import { notify } from '../lib/notify.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { logAction } from './audit.js';
 import { EXPENSE_KINDS } from './zreports.js';
 
@@ -234,7 +234,7 @@ export async function listClosingExpenses(closingId, x = getExecutor()) {
  * closings list and at the top of the invoices page.
  */
 export async function recentClosingExpenses(scope = null, limit = 30, x = getExecutor()) {
-  const sc = scopeClause(scope, 'st.company_id');
+  const sc = scopeWhere(scope, 'st.company_id', 'st.id');
   return x.many(
     `SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.description_type, e.amount,
             e.invoice_id, i.invoice_number, s.name AS invoice_supplier,

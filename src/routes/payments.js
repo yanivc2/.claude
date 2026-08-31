@@ -13,16 +13,18 @@ import { listPayable } from '../services/invoices.js';
 import { listDeposits } from '../services/deposits.js';
 import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js';
 import { getExecutor } from '../db/adapter.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
 
-// Bank accounts the caller may pick from — scoped to their authorized companies (owner = all).
-async function scopedAccounts(companyIds) {
-  const sc = scopeClause(companyIds, 'company_id');
+// Bank accounts the caller may pick from — scoped to their authorized companies AND stores
+// (owner = all). Accepts the req.scope object so a per-store-granted user only sees their stores'
+// accounts in the new-payment dropdown.
+async function scopedAccounts(scope) {
+  const sc = scopeWhere(scope, 'company_id', 'store_id');
   return getExecutor().many(
     `SELECT * FROM bank_accounts WHERE 1 = 1${sc.sql} ORDER BY display_name`,
     [...sc.params],
@@ -38,7 +40,7 @@ router.get('/', async (req, res, next) => {
     const companyId = req.query.company ? Number(req.query.company) : null;
     // Default to the active-store context unless an explicit ?store= overrides it.
     const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
-    const scope = req.scope.companyIds;
+    const scope = req.scope;
     const cScope = scopeClause(scope, 'id');
     const sScope = scopeClause(scope, 'st.company_id');
     const x = getExecutor();
@@ -116,8 +118,8 @@ router.get('/new', async (req, res, next) => {
     const preselectId = req.query.invoice ? Number(req.query.invoice) : null;
     res.render('payments/new', {
       title: 'תשלום חדש',
-      payable: await listPayable(req.scope.companyIds),
-      accounts: await scopedAccounts(req.scope.companyIds),
+      payable: await listPayable(req.scope),
+      accounts: await scopedAccounts(req.scope),
       values: { method },
       preselectId,
       error: null,
@@ -136,7 +138,7 @@ router.post('/', async (req, res, next) => {
   try {
     // Company scope: refuse a forged bank_account_id from a company the caller isn't authorized
     // for (cross-company IDOR on POST). Owners have scope=null → allowed. 404 hides existence.
-    await assertInScope('bankAccount', Number(b.bank_account_id), req.scope.companyIds);
+    await assertInScope('bankAccount', Number(b.bank_account_id), req.scope);
     const payment = await createPayment(
       {
         bankAccountId: Number(b.bank_account_id),
@@ -156,8 +158,8 @@ router.post('/', async (req, res, next) => {
     if (err instanceof RuleError || err instanceof AuthError) {
       return res.status(400).render('payments/new', {
         title: 'תשלום חדש',
-        payable: await listPayable(req.scope.companyIds),
-        accounts: await scopedAccounts(req.scope.companyIds),
+        payable: await listPayable(req.scope),
+        accounts: await scopedAccounts(req.scope),
         values: b,
         preselectId: null,
         error: err.message,

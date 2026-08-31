@@ -114,15 +114,22 @@ happen only at merge. So:
 - `middleware/requireOwner.js` — `requireOwner`, `requirePermission(key)`, `requirePageAccess(nav_key)`,
   and **`enforcePageScope`** = global default-deny firewall (mounted in app.js before routes) so a
   restricted role (e.g. cashier → only /zclosing) can't reach any other detail/CSV/action path.
-- Company separation ("הפרדת חברות"): `lib/scope.js` — `authorizedCompanyIds(user)` (null = owner/all),
-  `scopeClause(scope, col)` → `{sql, params}` appended to WHERE. `lib/scopeGuard.js#assertInScope` +
-  `scopeParam` guard id-bearing routes against IDOR.
-- Store separation + active-store context ("חנות פעילה"): `lib/scope.js` — `authorizedStoreIds(user)`
-  (null=owner; explicit `user_stores` grants else all stores in granted companies), `availableStoresFor`,
-  `setUserStores`. `currentUser` sets `req.activeStoreId` + `res.locals.activeStore/availableStores` from
-  the `ap_store` cookie (validated; auto-locks when one store). `POST /context/store` (`routes/context.js`,
-  `/context` ∈ `OPEN_PATHS`) switches it; the header banner shows it; new invoice/zclosing forms lock to it.
-  Detail → INDEX.md (invariant #11). New table `user_stores` (schema in 3 places).
+- Company + store separation ("הפרדת חברות"/"הפרדת חנות") — **enforced, not just contextual**:
+  `lib/scope.js` — `authorizedCompanyIds(user)` (null=owner/all), `authorizedStoreIds(user)` (null=owner;
+  explicit `user_stores` grants else all stores in granted companies). `req.scope` = `{companyIds, storeIds}`.
+  - **Filtering:** `scopeClause(scope, col)` (company; **tolerates a req.scope object** → uses its companyIds)
+    and **`scopeWhere(scope, companyCol, storeCol)`** (company **and** store) → `{sql, params}`. List services
+    call `scopeWhere` and routes pass `req.scope` (object) — a per-store-granted user's lists/pickers show
+    only their stores; a company-only grant has storeIds = all its stores (no-op superset). `normalizeScope`
+    accepts array/null (back-compat) or the object.
+  - **By-id IDOR:** `lib/scopeGuard.js#assertInScope(kind, id, scope)` + `scopeParam` resolve `{company_id,
+    store_id}` per kind (`SCOPE_OF`) and refuse (404) out-of-company **or** out-of-store; `scope` may be a
+    companyIds array (company-only, back-compat) or the req.scope object (company+store). A null-store row
+    stays visible within the company. Routes pass `req.scope`.
+- Active-store context ("חנות פעילה"): `availableStoresFor`, `setUserStores`. `currentUser` sets
+  `req.activeStoreId` + `res.locals.activeStore/availableStores` from the `ap_store` cookie (validated;
+  auto-locks when one store). `POST /context/store` (`routes/context.js`, `/context` ∈ `OPEN_PATHS`)
+  switches it; header banner shows it; new invoice/zclosing forms lock to it. Table `user_stores` (schema ×3).
 - Login flow: `routes/auth.js` — checks `loginAllowedNow` (403 outside window), pushes a Telegram
   notice on every login. Forced-change + temp-password onboarding: `routes/account.js` (change form),
   `routes/settings.js` (invite builds WhatsApp msg + temp password), `services/users.js`
