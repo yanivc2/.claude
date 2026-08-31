@@ -126,7 +126,11 @@ router.get('/new', async (req, res, next) => {
     const ctx = await batchContext(supplierId, storeId);
     // Open (payable, no payment) invoices for the "צרף חשבונית פתוחה" picker — scoped to the user.
     const openInvoices = await listPayable(req.scope);
-    const pickIds = String(req.query.pick || '').split(',').map(Number).filter(Boolean);
+    let pickIds = String(req.query.pick || '').split(',').map(Number).filter(Boolean);
+    // After "שמור והוסף עוד לספק" (added=1) with nothing explicitly picked: pre-select every
+    // invoice/credit already entered for this supplier+store, so the batch-payment section below
+    // defaults its amount to their summed net (R5, credits subtracting). The user can still uncheck.
+    if (req.query.added && !pickIds.length) pickIds = (ctx.batchInvoices || []).map((iv) => iv.id);
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
       ...(await formData(req.scope.companyIds)),
