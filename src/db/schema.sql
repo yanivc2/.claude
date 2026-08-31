@@ -496,3 +496,26 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value      TEXT,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
+-- supplier_catalog — הקטלוג של הספק עצמו: מה שהספק מוכר לנו, מקובץ שהוא מסר.
+-- להבדיל מ-master_catalog (קטלוג-על ציבורי לפי ברקוד), זה קטלוג פר-ספק, והוא מה שמאפשר לזהות
+-- מוצר בחשבונית שאין בה ברקוד כלל (מוצרי איכות קנדים, פיליפ מוריס) או שיש בה רק מק"ט פנימי
+-- (גלוברנדס, דובק). מוצר = שתי שורות: קופסה ופאקט, עם אותו name_norm ואותו מק"ט, ברקוד שונה.
+CREATE TABLE IF NOT EXISTS supplier_catalog (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier_id     INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  barcode         TEXT NOT NULL,             -- ברקוד מלא (GTIN, ספרת ביקורת נבדקה בייבוא)
+  name            TEXT NOT NULL,             -- שם מוצר כפי שהוא בקטלוג ("פאקט מרלבורו אדום")
+  name_norm       TEXT NOT NULL,             -- השם בלי מילת האריזה — מפתח הזיהוי, משותף לזוג
+  sku             TEXT,                      -- מק"ט/פריט של הספק (גלוברנדס: 4 ספרות, משותף לזוג)
+  pack_type       TEXT,                      -- 'קופסה' / 'פאקט'
+  pack_units      INTEGER,                   -- יח' אריזה: 1 / 5 / 10
+  brand           TEXT,                      -- מותג / משפחה
+  category        TEXT,                      -- 'סיגריות' / 'טבק לגלגול' / ...
+  linked_barcode  TEXT,                      -- הברקוד של האריזה השנייה של אותו מוצר
+  imported_at     TEXT NOT NULL,
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  UNIQUE (supplier_id, barcode)
+);
+CREATE INDEX IF NOT EXISTS ix_supplier_catalog_supplier ON supplier_catalog(supplier_id);
+CREATE INDEX IF NOT EXISTS ix_supplier_catalog_name ON supplier_catalog(supplier_id, name_norm);
+CREATE INDEX IF NOT EXISTS ix_supplier_catalog_sku ON supplier_catalog(supplier_id, sku);

@@ -26,6 +26,14 @@
           <span class="dial-txt"><strong>צילום חשבוניות — <%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'פעיל' : 'נעול' %></strong><small><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'לחץ כדי לנעול את התכונה.' : 'תכונה בתשלום. לחץ כדי להפעיל (חבילת צילום חשבוניות).' %></small></span>
         </button>
       </form>
+      <%# Only while scanning is unlocked: a supplier's catalog exists to identify lines on
+          a scanned invoice, so it has nothing to do while there is no scanning. %>
+      <% if (typeof scanEnabled !== 'undefined' && scanEnabled) { %>
+        <button type="button" class="dial" onclick="apOpen('dlg-supcat')">
+          <span class="dial-ic">🚬</span>
+          <span class="dial-txt"><strong>קטלוג ספק</strong><small>הקובץ שהספק מסר — מזהה מוצרים בחשבוניות שאין בהן ברקוד (סיגריות וטבק).</small></span>
+        </button>
+      <% } %>
       <button type="button" class="dial" onclick="apOpen('dlg-backup')">
         <span class="dial-ic">⬇</span>
         <span class="dial-txt"><strong>גיבוי מלא</strong><small>הורדת עותק של כל הנתונים כקובץ JSON.</small></span>
@@ -544,3 +552,46 @@
   })();
 </script>
 <%- include('../partials/footer') %>
+
+<%# Supplier-catalog upload. Button and dialog live together here (not in _ownerDialogs.ejs)
+    because this one needs the supplier list, which only this page's render() provides. %>
+<dialog id="dlg-supcat" class="ndialog" onclick="event.stopPropagation()">
+  <form method="post" action="/settings/supplier-catalog-import" enctype="multipart/form-data" class="stack">
+    <h3 style="margin:0">טעינת קטלוג ספק</h3>
+    <p class="muted" style="margin:.2rem 0">
+      הקובץ שהספק עצמו מסר, עם הכותרות <strong>ברקוד, שם מוצר</strong> (חובה), ואם יש גם
+      <strong>מק"ט / פריט, סוג אריזה, יח' אריזה, מותג, קטגוריה</strong>. עמודות אחרות לא נקראות.
+    </p>
+    <p class="muted" style="margin:.2rem 0">
+      זה מה שמאפשר לזהות מוצר בחשבונית שאין בה ברקוד כלל, או שמודפס בה רק מספר פריט של הספק.
+      <strong>הטעינה מחליפה את הקטלוג הקודם של אותו ספק</strong> — הקובץ הוא מה שהספק מוכר היום,
+      ומוצר שירד ממנו לא צריך להמשיך להיות מוצע.
+    </p>
+    <p class="muted" style="margin:.2rem 0">
+      ⚠ ברקוד עם ספרת ביקורת שגויה <strong>נדחה ולא מתוקן</strong> — כאן ברקוד שגוי הוא מוצר שגוי
+      שיאומץ בביטחון. אם דולגו שורות, יש לבדוק את הקובץ.
+    </p>
+    <label class="lbl">ספק</label>
+    <select name="supplier_id" required>
+      <option value="">— בחר ספק —</option>
+      <% (typeof suppliersList !== 'undefined' ? suppliersList : []).forEach(function(sup){ %>
+        <option value="<%= sup.id %>"><%= sup.name %></option>
+      <% }); %>
+    </select>
+    <label class="lbl" style="margin-top:.4rem">קובץ הקטלוג</label>
+    <input type="file" name="catalog" accept=".xlsx,.csv,.tsv,.txt,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+    <% var loaded = (typeof supplierCatalogs !== 'undefined' ? supplierCatalogs : []); %>
+    <% if (loaded.length) { %>
+      <p class="muted" style="margin:.6rem 0 .2rem"><strong>קטלוגים טעונים:</strong></p>
+      <ul class="muted" style="margin:0;padding-inline-start:1.2rem">
+        <% loaded.forEach(function(c){ %>
+          <li><%= c.supplier_name %> — <%= c.products %> מוצרים (<%= c.row_count %> שורות)</li>
+        <% }); %>
+      </ul>
+    <% } %>
+    <div class="actions" style="justify-content:flex-end;margin-top:.4rem">
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">סגור</button>
+      <button type="submit">טען קטלוג ספק</button>
+    </div>
+  </form>
+</dialog>

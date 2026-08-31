@@ -27,6 +27,8 @@ import { setScanEnabled } from '../services/appSettings.js';
 import { storageSelfTest } from '../lib/storage.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
 import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFile.js';
+import { parseSupplierCatalog } from '../lib/supplierCatalogFile.js';
+import { importSupplierCatalog, supplierCatalogSummary } from '../services/supplierCatalog.js';
 import { looksLikeXlsx } from '../lib/xlsxRead.js';
 import { decodeBuffer } from '../lib/decodeText.js';
 import { listRoleTemplates, createRoleTemplate, updateRoleTemplate, deleteRoleTemplate } from '../services/roleTemplates.js';
@@ -126,10 +128,21 @@ async function render(req, res, extra = {}) {
     // with "עדכן מסד נתונים". Render the rest of the page regardless.
     schemaWarning = schemaWarning || 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
   }
+  let suppliersList = [];
+  let supplierCatalogs = [];
+  try {
+    suppliersList = await getExecutor().many('SELECT id, name FROM suppliers ORDER BY name', []);
+    supplierCatalogs = await supplierCatalogSummary();
+  } catch (e) {
+    // supplier_catalog may predate this feature on the live DB — "עדכן מסד נתונים" creates it.
+    schemaWarning = schemaWarning || 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
+  }
   res.render('settings/index', {
     title: 'הגדרות',
     companies,
     users,
+    suppliersList,
+    supplierCatalogs,
     companyList,
     grants,
     storeGrants,
@@ -639,6 +652,51 @@ router.post('/catalog-import', requireOwner, (req, res, next) => {
   });
 });
 
+// ── Supplier-catalog upload (owner-only) ────────────────────────────────────────────────────
+// The catalog a supplier hands over, listing what IT sells. Unlike the קטלוג-על this is scoped
+// to one supplier and is small — the three tobacco files are 51-108 rows, ~20KB — so it goes up
+// in one request with no need for the browser-side chunking the big catalog requires.
+const supplierCatalogUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024, files: 1 },
+}).single('catalog');
+
+router.post('/supplier-catalog-import', requireOwner, (req, res, next) => {
+  supplierCatalogUpload(req, res, async (uploadErr) => {
+    try {
+      if (uploadErr) throw new RuleError('CATALOG', 'העלאת הקובץ נכשלה (מוגבל ל-4MB).');
+      if (!req.file) throw new RuleError('CATALOG', 'לא נבחר קובץ.');
+      const supplierId = Number(req.body.supplier_id);
+      if (!Number.isFinite(supplierId) || supplierId <= 0) {
+        throw new RuleError('CATALOG', 'יש לבחור ספק.');
+      }
+      const supplier = await getExecutor().one('SELECT id, name FROM suppliers WHERE id = ?', [supplierId]);
+      if (!supplier) throw new RuleError('CATALOG', 'הספק לא נמצא.');
+
+      const raw = req.file.buffer;
+      const { items, warnings, stats } = parseSupplierCatalog(looksLikeXlsx(raw) ? raw : decodeBuffer(raw));
+      if (!items.length) {
+        throw new RuleError('CATALOG', warnings[0] || 'לא נמצאה אף שורה תקינה בקובץ.');
+      }
+
+      const result = await importSupplierCatalog(supplierId, items);
+      const parts = [
+        `הקטלוג של ${supplier.name} נטען — ${result.imported} שורות, ${stats.products} מוצרים ` +
+          `(${stats.boxes} קופסה, ${stats.cartons} פאקט).`,
+      ];
+      if (result.replaced) parts.push(`הוחלף קטלוג קודם בן ${result.replaced} שורות.`);
+      // Skips are reported rather than swallowed: a row dropped for a bad check digit is a row
+      // that will never be identified, and the owner is the only one who can fix the file.
+      if (stats.skipped) parts.push(`דולגו ${stats.skipped} שורות.`);
+      for (const w of warnings) parts.push(`⚠ ${w}`);
+      return done(res, parts.join(' '));
+    } catch (err) {
+      if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+      next(err);
+    }
+  });
+});
+
 // Storage self-test (owner-only). "The photos don't open" is not reproducible off the real store:
 // uploads clearly work, the read fails, and until now nothing was logged. This writes a tiny file,
 // reads it back and deletes it, reporting each step — one click instead of a deploy cycle.
@@ -656,7 +714,7 @@ router.post('/storage-test', requireOwner, async (req, res, next) => {
 // A GET on any action path (a reload of an old POST URL, a bookmark) is not a 404 — it is
 // someone who is already where they meant to be.
 router.get(
-  ['/db-upgrade', '/catalog-import', '/storage-test', '/restore', '/reset-data', '/clean-start', '/scan-toggle', '/password', '/users', '/companies', '/stores'],
+  ['/db-upgrade', '/catalog-import', '/supplier-catalog-import', '/storage-test', '/restore', '/reset-data', '/clean-start', '/scan-toggle', '/password', '/users', '/companies', '/stores'],
   (req, res) => res.redirect(303, '/settings'),
 );
 
