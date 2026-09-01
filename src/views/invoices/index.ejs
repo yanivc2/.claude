@@ -1,5 +1,15 @@
 <%- include('../partials/header') %>
 <% var filterLabel = filter === 'recorded' ? 'נרשמו' : filter === 'on_hold' ? 'מוחזקות' : filter === 'approved_for_payment' ? 'מאושרות לתשלום' : filter === 'unpaid' ? 'לא שולמו' : filter === 'paid' ? 'שולמו' : 'הכל'; %>
+<% if (typeof paidNotice !== 'undefined' && paidNotice) { %>
+  <div class="alert alert-info no-print" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+    <span>✅ נוצר תשלום ושויך לחשבוניות שנבחרו.</span>
+    <a class="btn secondary small" href="/payments/<%= paidNotice.paymentId %>">צפה בתשלום</a>
+    <% if (paidNotice.supplierId) { %>
+      <a class="btn secondary small" href="/invoices/new?supplier=<%= paidNotice.supplierId %><%= paidNotice.storeId ? '&store=' + paidNotice.storeId : '' %>">➕ חשבונית נוספת לאותו ספק</a>
+    <% } %>
+    <a class="btn secondary small" href="/invoices/new">➕ חשבונית חדשה</a>
+  </div>
+<% } %>
 <div class="toolbar">
   <h1>חשבוניות</h1>
   <div class="actions no-print">

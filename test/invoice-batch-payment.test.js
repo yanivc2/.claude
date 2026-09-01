@@ -51,7 +51,11 @@ test('pay-batch nets the entered invoices into one payment (R5)', async () => {
   });
   assert.equal(res.status, 303);
   const loc = res.headers.get('location');
-  const pid = Number(loc.split('/').pop());
+  // Stay in the invoices flow (not the payments page) so entering more invoices is one click.
+  assert.match(loc, /^\/invoices\?/);
+  const q = new URLSearchParams(loc.split('?')[1]);
+  const pid = Number(q.get('paid'));
+  assert.equal(q.get('nsup'), String(sup.id));
   const pay = await getPaymentDetail(pid, db);
   // net = (10000+1700) − (4000+680) = 7020 agorot
   assert.equal(pay.amount, 7020);

@@ -113,6 +113,11 @@ router.get('/', async (req, res, next) => {
       to,
       suppliers,
       stores,
+      // After a batch payment we come back HERE (not to the payments page) so entering more
+      // invoices stays one click away; nsup/nstore carry the supplier+store for that shortcut.
+      paidNotice: req.query.paid
+        ? { paymentId: Number(req.query.paid), supplierId: Number(req.query.nsup) || null, storeId: Number(req.query.nstore) || null }
+        : null,
       closingExpenses: await recentClosingExpenses(req.scope, 30),
       // Payable invoices (in scope) a cash expense can be matched to, for the "התאם לחשבונית" control.
       matchInvoices: await listPayable(req.scope),
@@ -288,7 +293,12 @@ router.post('/pay-batch', async (req, res, next) => {
     }
     if (!payInput.paymentDate) payInput.paymentDate = new Date().toISOString().slice(0, 10);
     const payment = await createPayment(payInput, req.user);
-    return res.redirect(303, `/payments/${payment.id}`);
+    // Stay in the invoices flow (the owner keeps entering invoices); the notice links to the
+    // payment and offers "another invoice for the same supplier".
+    const q = new URLSearchParams({ paid: String(payment.id) });
+    if (supplierId) q.set('nsup', String(supplierId));
+    if (storeId) q.set('nstore', String(storeId));
+    return res.redirect(303, `/invoices?${q.toString()}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       return res.status(400).render('invoices/new', {

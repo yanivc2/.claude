@@ -160,11 +160,14 @@ export async function zReconciliationStatus(zReportId, x = getExecutor()) {
 }
 
 // Credit-card brands for the credit-card report (§ 2d). Each maps to a cc_<key> column.
+// Order is the owner's reporting order — the view renders CC_BRANDS as-is, so this list IS the
+// on-screen order. Adding a brand needs a matching cc_<key> column (schema ×3 + migrate).
 export const CC_BRANDS = [
-  { key: 'kal', label: 'כ.א.ל' },
   { key: 'isracard', label: 'ישראכרט' },
+  { key: 'kal', label: 'כ.א.ל' },
   { key: 'diners', label: 'דיינרס' },
   { key: 'amex', label: 'אמ. אקס' },
+  { key: 'leumi', label: 'לאומיק.' },
   { key: 'tourist', label: 'כרטיס תייר' },
   { key: 'general', label: 'כללי' },
 ];
@@ -183,9 +186,9 @@ export async function setCreditCards(zReportId, { amounts = {} }, actor, x = get
     total += a;
   }
   await x.run(
-    `UPDATE z_reports SET cc_kal = ?, cc_isracard = ?, cc_diners = ?, cc_amex = ?, cc_general = ?, cc_tourist = ?, cc_total = ?
+    `UPDATE z_reports SET cc_kal = ?, cc_isracard = ?, cc_diners = ?, cc_amex = ?, cc_leumi = ?, cc_general = ?, cc_tourist = ?, cc_total = ?
      WHERE id = ?`,
-    [v.kal, v.isracard, v.diners, v.amex, v.general, v.tourist, total, zReportId],
+    [v.kal, v.isracard, v.diners, v.amex, v.leumi, v.general, v.tourist, total, zReportId],
   );
   await logAction({ userId: actor.id, action: 'zreport.creditcards', entityType: 'z_report', entityId: zReportId, details: { total } }, x);
   return getZReport(zReportId, x);

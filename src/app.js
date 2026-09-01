@@ -30,7 +30,7 @@ import { depositStatus } from './services/deposits.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-30·119';
+const BUILD_VERSION = '2026-08-30·120';
 
 export function createApp() {
   const app = express();

@@ -267,13 +267,14 @@ CREATE TABLE IF NOT EXISTS z_reports (
   deposit_amount   BIGINT,
   deposit_bag      TEXT,
   deposit_breakdown TEXT,
-  cc_kal BIGINT, cc_isracard BIGINT, cc_diners BIGINT, cc_amex BIGINT,
+  cc_kal BIGINT, cc_isracard BIGINT, cc_diners BIGINT, cc_amex BIGINT, cc_leumi BIGINT,
   cc_general BIGINT, cc_tourist BIGINT, cc_total BIGINT,
   status           TEXT NOT NULL DEFAULT 'ok' CHECK (status IN ('ok','unmatched')),
   reconcile_notes  TEXT,
   created_by       INTEGER NOT NULL REFERENCES users(id),
   created_at       TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
+ALTER TABLE z_reports ADD COLUMN IF NOT EXISTS cc_leumi BIGINT;
 CREATE INDEX IF NOT EXISTS ix_zreports_store_date ON z_reports(store_id, z_date);
 
 -- employees — staff for "עובדים ומשכורות"; advances/salary lines on a Z reference an employee.

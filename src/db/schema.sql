@@ -289,7 +289,7 @@ CREATE TABLE IF NOT EXISTS z_reports (
   deposit_bag      TEXT,
   deposit_breakdown TEXT,                         -- JSON of bill counts
   -- כרטיסי אשראי (phase 2d)
-  cc_kal INTEGER, cc_isracard INTEGER, cc_diners INTEGER, cc_amex INTEGER,
+  cc_kal INTEGER, cc_isracard INTEGER, cc_diners INTEGER, cc_amex INTEGER, cc_leumi INTEGER,
   cc_general INTEGER, cc_tourist INTEGER, cc_total INTEGER,
   status           TEXT NOT NULL DEFAULT 'ok' CHECK (status IN ('ok','unmatched')),
   reconcile_notes  TEXT,

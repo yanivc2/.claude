@@ -192,6 +192,8 @@ function migrateZExtras(db) {
     if (!cols.includes('image_path')) db.exec('ALTER TABLE z_reports ADD COLUMN image_path TEXT;');
     if (!cols.includes('updated_at')) db.exec('ALTER TABLE z_reports ADD COLUMN updated_at TEXT;');
     if (!cols.includes('manager_breakdown')) db.exec('ALTER TABLE z_reports ADD COLUMN manager_breakdown TEXT;');
+    // לאומיק. — a credit-card brand added to the Z credit report.
+    if (!cols.includes('cc_leumi')) db.exec('ALTER TABLE z_reports ADD COLUMN cc_leumi INTEGER;');
   }
   // Cash expense → invoice link; deposit → Z link + bank reconciliation (bag=reference).
   if (has('z_expenses')) {
