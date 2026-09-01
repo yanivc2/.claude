@@ -1,5 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
+import { revenueInRange } from './revenueReports.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 
 /**
@@ -270,24 +271,37 @@ export async function profitability(fromDate, toDate, scope = null, x = getExecu
   );
   const purchaseByStore = new Map(purchaseRows.map((r) => [r.store_id, r.amt]));
   const salesByStore = new Map(salesRows.map((r) => [r.store_id, r.amt]));
+  // "דוח פדיון" — the nightly revenue report. It is the systematic sales source (Z reports are
+  // entered irregularly), so when a store has report days in range its revenue drives the profit;
+  // stores with no report fall back to the Z totals, unchanged.
+  const revenueByStore = await revenueInRange(fromDate, toDate, x);
 
   const stores = storeRows.map((r) => {
     const purchases = purchaseByStore.get(r.id) || 0;
-    const sales = salesByStore.get(r.id) || 0;
+    const zSales = salesByStore.get(r.id) || 0;
+    const rev = revenueByStore.get(Number(r.id)) || null;
+    const revenueSales = rev ? rev.sales : 0;
+    const revenueCredit = rev ? rev.credit : 0;
+    const revenueDays = rev ? rev.days : 0;
+    const usesRevenue = revenueDays > 0;
+    const sales = usesRevenue ? revenueSales : zSales; // profit basis
     const grossProfit = sales - purchases;
     const marginPct = sales > 0 ? (grossProfit / sales) * 100 : null;
     const markupPct = purchases > 0 ? (grossProfit / purchases) * 100 : null;
-    return { ...r, purchases, sales, grossProfit, marginPct, markupPct };
+    return { ...r, purchases, sales, zSales, revenueSales, revenueCredit, revenueDays, usesRevenue, grossProfit, marginPct, markupPct };
   });
 
   const totals = stores.reduce(
     (acc, s) => {
       acc.purchases += s.purchases;
       acc.sales += s.sales;
+      acc.zSales += s.zSales;
+      acc.revenueSales += s.revenueSales;
+      acc.revenueCredit += s.revenueCredit;
       acc.grossProfit += s.grossProfit;
       return acc;
     },
-    { purchases: 0, sales: 0, grossProfit: 0 },
+    { purchases: 0, sales: 0, zSales: 0, revenueSales: 0, revenueCredit: 0, grossProfit: 0 },
   );
   totals.marginPct = totals.sales > 0 ? (totals.grossProfit / totals.sales) * 100 : null;
   totals.markupPct = totals.purchases > 0 ? (totals.grossProfit / totals.purchases) * 100 : null;

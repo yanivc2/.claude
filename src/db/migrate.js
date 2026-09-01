@@ -24,6 +24,24 @@ export function migrate(db) {
   migrateAppSettings(db);
   migrateUserStores(db);
   migrateNotifications(db);
+  migrateRevenueReports(db);
+}
+
+// "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
+function migrateRevenueReports(db) {
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS revenue_reports (
+       id           INTEGER PRIMARY KEY AUTOINCREMENT,
+       store_id     INTEGER NOT NULL REFERENCES stores(id),
+       report_date  TEXT NOT NULL,
+       gross_sales  INTEGER NOT NULL DEFAULT 0,
+       credit_total INTEGER NOT NULL DEFAULT 0,
+       source       TEXT NOT NULL DEFAULT 'upload',
+       created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+       UNIQUE (store_id, report_date)
+     );`,
+  );
+  db.exec('CREATE INDEX IF NOT EXISTS ix_revenue_reports_date ON revenue_reports(report_date);');
 }
 
 // In-app notification stream (bell + /notifications) — mirrors the Telegram alerts.

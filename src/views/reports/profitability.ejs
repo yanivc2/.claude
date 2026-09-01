@@ -47,11 +47,11 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
 
 <div>
     <div class="card">
-      <p class="muted">תקופה: <%= from %> — <%= to %>. מכירות מחושבות מ<strong>יומי Z</strong>.</p>
+      <p class="muted">תקופה: <%= from %> — <%= to %>. ההכנסות מחושבות מ<strong>דוח הפדיון</strong> כשהוא קיים לטווח (מקור שיטתי, מגיע כל לילה); אחרת נפילה חזרה ל<strong>דוחות Z</strong>.</p>
       <div class="table-scroll">
       <table>
         <thead>
-          <tr><th>חברה</th><th>חנות</th><th class="right">קניות</th><th class="right">מכירות (Z)</th><th class="right">רווח גולמי</th><th class="right">רווח מלמעלה<br><small class="muted">% מהמכירות</small></th><th class="right">רווח מלמטה<br><small class="muted">% מהעלות</small></th></tr>
+          <tr><th>חברה</th><th>חנות</th><th class="right">קניות</th><th class="right">דוח פדיון</th><th class="right"><small class="muted">מזה אשראי</small></th><th class="right">מכירות (Z)</th><th class="right">רווח גולמי</th><th class="right">רווח מלמעלה<br><small class="muted">% מהמכירות</small></th><th class="right">רווח מלמטה<br><small class="muted">% מהעלות</small></th></tr>
         </thead>
         <tbody>
           <% stores.forEach(function(s){ %>
@@ -59,7 +59,9 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
               <td><%= s.company_name %></td>
               <td><%= s.store_name %></td>
               <td class="right"><%= formatIls(s.purchases) %></td>
-              <td class="right"><%= formatIls(s.sales) %></td>
+              <td class="right"><% if (s.revenueDays) { %><strong><%= formatIls(s.revenueSales) %></strong><br><small class="muted"><%= s.revenueDays %> ימים</small><% } else { %><span class="muted">—</span><% } %></td>
+              <td class="right"><% if (s.revenueDays) { %><%= formatIls(s.revenueCredit) %><% } else { %><span class="muted">—</span><% } %></td>
+              <td class="right <%= s.usesRevenue ? 'muted' : '' %>"><%= formatIls(s.zSales) %></td>
               <td class="right <%= s.grossProfit < 0 ? 'neg' : '' %>"><strong><%= formatIls(s.grossProfit) %></strong></td>
               <td class="right"><%= s.marginPct === null ? '—' : s.marginPct.toFixed(1) + '%' %></td>
               <td class="right"><%= s.markupPct === null ? '—' : s.markupPct.toFixed(1) + '%' %></td>
@@ -70,7 +72,9 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
           <tr>
             <th colspan="2">סה"כ</th>
             <th class="right"><%= formatIls(totals.purchases) %></th>
-            <th class="right"><%= formatIls(totals.sales) %></th>
+            <th class="right"><%= formatIls(totals.revenueSales) %></th>
+            <th class="right"><%= formatIls(totals.revenueCredit) %></th>
+            <th class="right muted"><%= formatIls(totals.zSales) %></th>
             <th class="right <%= totals.grossProfit < 0 ? 'neg' : '' %>"><%= formatIls(totals.grossProfit) %></th>
             <th class="right"><%= totals.marginPct === null ? '—' : totals.marginPct.toFixed(1) + '%' %></th>
             <th class="right"><%= totals.markupPct === null ? '—' : totals.markupPct.toFixed(1) + '%' %></th>
@@ -109,5 +113,75 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
     <a class="btn btn-secondary btn-block" href="mailto:?subject=<%= encodeURIComponent(mailSubject) %>&body=<%= encodeURIComponent(reportText) %>">✉️ מייל</a>
   </div>
 </dialog>
+
+<%# "דוח פדיון מידנייט" — the nightly revenue report: upload the XLS (or let the email
+    ingestion fill it), then it drives the הכנסות/רווח for the selected range above. %>
+<div class="card">
+  <h2 style="margin:0 0 .3rem">📈 דוח פדיון מידנייט</h2>
+  <p class="muted" style="margin:0 0 .6rem">
+    הדוח הלילי (סך המכירות + סליקות האשראי) מגיע כקובץ XLS במייל. העלה אותו כאן — או חבר קליטה
+    אוטומטית מהמייל. הנתונים מסוכמים לפי טווח התאריכים שנבחר למעלה ומשמשים לחישוב ההכנסות והרווח.
+  </p>
+
+  <form method="post" action="/reports/profitability/revenue-import" enctype="multipart/form-data" class="stack">
+    <div class="row">
+      <div>
+        <label>חנות</label>
+        <select name="store_id" class="js-combo" required>
+          <% (revStores || []).forEach(function(st){ %>
+            <option value="<%= st.id %>" <%= /מידנייט/.test(st.name) ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option>
+          <% }); %>
+        </select>
+      </div>
+      <div>
+        <label>קובץ הדוח (XLS / XLSX / CSV)</label>
+        <input type="file" name="file" accept=".xls,.xlsx,.csv,text/csv" required />
+      </div>
+    </div>
+
+    <% if (typeof revPreview !== 'undefined' && revPreview && revPreview.headers && revPreview.headers.length) { %>
+      <div class="card" style="background:var(--color-surface-2);margin-top:.6rem">
+        <p style="margin:0 0 .4rem">לא זוהו כל העמודות — בחר אותן ידנית והעלה שוב:</p>
+        <div class="row">
+          <% [['date','תאריך'],['sales','פדיון / מכירות'],['credit','אשראי / סליקה']].forEach(function(c){ %>
+            <div>
+              <label><%= c[1] %></label>
+              <select name="col_<%= c[0] %>">
+                <option value="">— לא קיים —</option>
+                <% revPreview.headers.forEach(function(h, i){ %>
+                  <option value="<%= i %>" <%= revPreview.detected[c[0]] === i ? 'selected' : '' %>><%= h || ('עמודה ' + (i+1)) %></option>
+                <% }); %>
+              </select>
+            </div>
+          <% }); %>
+        </div>
+      </div>
+    <% } %>
+
+    <div style="margin-top:.7rem"><button type="submit">קלוט דוח פדיון</button></div>
+  </form>
+
+  <h3 style="margin:1rem 0 .3rem">ימים אחרונים שנקלטו</h3>
+  <% if (!revRows || !revRows.length) { %>
+    <p class="muted" style="margin:0">עדיין לא נקלט דוח פדיון.</p>
+  <% } else { %>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>תאריך</th><th>חנות</th><th class="right">פדיון</th><th class="right">אשראי</th><th>מקור</th></tr></thead>
+        <tbody>
+          <% revRows.forEach(function(r){ %>
+            <tr>
+              <td><%= formatDate(r.report_date) %></td>
+              <td><%= r.store_name %></td>
+              <td class="right"><%= formatIls(r.gross_sales) %></td>
+              <td class="right"><%= formatIls(r.credit_total) %></td>
+              <td class="muted"><%= r.source === 'email' ? 'מייל' : 'העלאה' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
 
 <%- include('../partials/footer') %>

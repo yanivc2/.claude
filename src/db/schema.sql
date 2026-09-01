@@ -162,6 +162,22 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE INDEX IF NOT EXISTS ix_notifications_created ON notifications(created_at);
 
+-- "דוח פדיון" — the nightly revenue report per store (Midnight first): total sales + the credit
+-- clearing figure for one business day. Arrives as an XLS (uploaded, or ingested from the nightly
+-- email) and is the SYSTEMATIC sales source for profitability — Z reports are entered irregularly.
+-- One row per store per day; re-importing the same day replaces it.
+CREATE TABLE IF NOT EXISTS revenue_reports (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id     INTEGER NOT NULL REFERENCES stores(id),
+  report_date  TEXT NOT NULL,                    -- 'YYYY-MM-DD' (the business day)
+  gross_sales  INTEGER NOT NULL DEFAULT 0,       -- agorot — סך המכירות
+  credit_total INTEGER NOT NULL DEFAULT 0,       -- agorot — סליקות אשראי
+  source       TEXT NOT NULL DEFAULT 'upload',   -- upload | email
+  created_at   TEXT NOT NULL,
+  UNIQUE (store_id, report_date)
+);
+CREATE INDEX IF NOT EXISTS ix_revenue_reports_date ON revenue_reports(report_date);
+
 -- §4 invoices -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoices (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,

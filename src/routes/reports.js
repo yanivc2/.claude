@@ -23,11 +23,14 @@ import { getExecutor } from '../db/adapter.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
+import multer from 'multer';
+import { parseRevenueReport } from '../lib/revenueReportFile.js';
+import { importRevenueRows, listRevenue } from '../services/revenueReports.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
 import { requirePageAccess, requirePermission } from '../middleware/requireOwner.js';
 import { RuleError, AuthError, NotFoundError } from '../lib/errors.js';
-import { scopeParam } from '../lib/scopeGuard.js';
+import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
 
 const router = Router();
 
@@ -197,6 +200,9 @@ async function renderProfitability(req, res, extra = {}) {
     preset,
     stores,
     totals,
+    // "דוח פדיון מידנייט" rubric: the store picker + the most recent imported days.
+    revStores: await storeList(),
+    revRows: await listRevenue({ limit: 20, scope: req.scope }),
     error: null,
     notice: null,
     ...extra,
@@ -448,6 +454,41 @@ router.get('/profitability', requirePageAccess('nav_profitability'), async (req,
 });
 
 // CSV export — "רווחיות"
+// "דוח פדיון" import — upload the nightly XLS/CSV for one store. Columns are auto-detected
+// (Hebrew headers vary by POS); an explicit mapping can be posted when detection fails.
+const revenueUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } }).single('file');
+
+router.post('/profitability/revenue-import', requirePageAccess('nav_profitability'), (req, res, next) => {
+  revenueUpload(req, res, async (uploadErr) => {
+    try {
+      if (uploadErr) throw new RuleError('CSV', 'העלאת הקובץ נכשלה');
+      if (!req.file) throw new RuleError('CSV', 'לא נבחר קובץ');
+      const storeId = Number(req.body.store_id);
+      if (!storeId) throw new RuleError('VALIDATION', 'יש לבחור חנות');
+      await assertInScope('store', storeId, req.scope).catch(() => { throw new RuleError('VALIDATION', 'חנות לא מורשית'); });
+      const mapping = {};
+      for (const k of ['date', 'sales', 'credit']) {
+        const v = req.body[`col_${k}`];
+        if (v !== undefined && v !== '') mapping[k] = Number(v);
+      }
+      const { rows, headers, detected, warnings } = parseRevenueReport(req.file.buffer, mapping);
+      if (!rows.length) {
+        return renderProfitability(req, res, {
+          error: `לא נקלטו שורות. ${warnings.join(' ')}`,
+          revPreview: { headers, detected, storeId },
+        });
+      }
+      const { inserted, updated } = await importRevenueRows(storeId, rows, 'upload', req.user);
+      return renderProfitability(req, res, {
+        notice: `דוח פדיון נקלט: ${inserted} ימים חדשים, ${updated} עודכנו.${warnings.length ? ' ' + warnings.join(' ') : ''}`,
+      });
+    } catch (err) {
+      if (err instanceof RuleError) return renderProfitability(req, res, { error: err.message });
+      next(err);
+    }
+  });
+});
+
 router.get('/profitability.csv', async (req, res, next) => {
   try {
     const { from, to } = resolveRange(req);

@@ -23,13 +23,14 @@ import scanRoutes from './routes/scan.js';
 import productRoutes from './routes/products.js';
 import contextRoutes from './routes/context.js';
 import notificationRoutes from './routes/notifications.js';
+import ingestRoutes from './routes/ingest.js';
 import { isScanEnabled } from './services/appSettings.js';
 import { depositStatus } from './services/deposits.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-30·117';
+const BUILD_VERSION = '2026-08-30·118';
 
 export function createApp() {
   const app = express();
@@ -78,6 +79,10 @@ export function createApp() {
     );
     next();
   });
+
+  // Machine ingestion (nightly revenue-report email → webhook). Mounted BEFORE the session gate:
+  // there is no logged-in user; it authenticates with a shared secret (see routes/ingest.js).
+  app.use('/ingest', ingestRoutes);
 
   app.use(currentUser);
 

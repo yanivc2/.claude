@@ -10,6 +10,7 @@ import { NotFoundError } from './errors.js';
 
 // One query per kind → { company_id, store_id }. Every guarded kind is store-bound.
 const SCOPE_OF = {
+  store: 'SELECT company_id, id AS store_id FROM stores WHERE id = ?',
   invoice: 'SELECT company_id, store_id FROM invoices WHERE id = ?',
   payment:
     'SELECT ba.company_id AS company_id, ba.store_id AS store_id FROM payments p JOIN bank_accounts ba ON ba.id = p.bank_account_id WHERE p.id = ?',
@@ -33,7 +34,7 @@ function normalizeScope(scope) {
 
 /**
  * Throw NotFoundError if entity <kind:id> is missing OR outside the caller's company/store scope.
- * @param {'invoice'|'payment'|'zreport'|'deposit'|'expense'|'scanDraft'|'bankAccount'|'bankTxn'} kind
+ * @param {'store'|'invoice'|'payment'|'zreport'|'deposit'|'expense'|'scanDraft'|'bankAccount'|'bankTxn'} kind
  * @param {number|string} id
  * @param {number[]|null|{companyIds:number[]|null, storeIds:number[]|null}} scope
  * @returns {Promise<number>} the entity's company_id (when in scope)
