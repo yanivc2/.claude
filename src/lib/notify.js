@@ -42,6 +42,8 @@ export async function sendTelegramDetailed(text) {
     let fix;
     if (code === 401 || code === 404 || /unauthorized|not found/i.test(why)) {
       fix = `הטוקן (TELEGRAM_BOT_TOKEN) שגוי/מעוות. העתק את הטוקן המלא מ-@BotFather בדיוק (בפורמט 123456789:AA... , בלי רווחים, מרכאות או שורה חדשה) לתוך TELEGRAM_BOT_TOKEN ב-Vercel, ואז Redeploy. (השגיאה הזו אינה קשורה ל-chat_id.)`;
+    } else if (/can't send messages to the bot|bots can't|to the bot/i.test(why)) {
+      fix = `ה-chat_id (${chatId}) הוא של בוט, לא המזהה האישי שלך. השג את המזהה שלך מ-@userinfobot בטלגרם, עדכן את TELEGRAM_CHAT_ID ב-Vercel, ואז Redeploy.`;
     } else if (code === 403 || /blocked|can't initiate|bot can/i.test(why)) {
       fix = `פתח צ׳אט עם הבוט ולחץ Start (בוט לא יכול לשלוח למי שלא פתח איתו שיחה), וודא שה-chat_id (${chatId}) הוא שלך.`;
     } else if (/chat not found/i.test(why)) {
