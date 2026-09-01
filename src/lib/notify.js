@@ -40,8 +40,8 @@ export async function sendTelegramDetailed(text) {
     const why = body && body.description ? body.description : `HTTP ${res.status}`;
     const code = res.status;
     let fix;
-    if (code === 401 || /unauthorized/i.test(why)) {
-      fix = `הטוקן (TELEGRAM_BOT_TOKEN) שגוי או בוטל. צור טוקן חדש ב-@BotFather ועדכן אותו ב-Vercel (Environment Variables), ואז Redeploy.`;
+    if (code === 401 || code === 404 || /unauthorized|not found/i.test(why)) {
+      fix = `הטוקן (TELEGRAM_BOT_TOKEN) שגוי/מעוות. העתק את הטוקן המלא מ-@BotFather בדיוק (בפורמט 123456789:AA... , בלי רווחים, מרכאות או שורה חדשה) לתוך TELEGRAM_BOT_TOKEN ב-Vercel, ואז Redeploy. (השגיאה הזו אינה קשורה ל-chat_id.)`;
     } else if (code === 403 || /blocked|can't initiate|bot can/i.test(why)) {
       fix = `פתח צ׳אט עם הבוט ולחץ Start (בוט לא יכול לשלוח למי שלא פתח איתו שיחה), וודא שה-chat_id (${chatId}) הוא שלך.`;
     } else if (/chat not found/i.test(why)) {
