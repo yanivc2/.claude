@@ -74,7 +74,7 @@ test('auto-reconcile matches a single candidate by amount + date window and clea
 
   await importTransactions(acct, [{ txnDate: '2026-07-05', amount: -payment.amount, description: 'משיכת צ׳ק' }], 'manual', sec, db);
   const res = await autoReconcile(acct, sec, db);
-  assert.deepEqual(res, { matched: 1, ambiguous: 0, unmatched: 0 });
+  assert.deepEqual(res, { matched: 1, ambiguous: 0, unmatched: 0, voidedSeen: 0 });
 
   const p = await db.one('SELECT status, cleared_date FROM payments WHERE id=?', [payment.id]);
   assert.equal(p.status, 'cleared');

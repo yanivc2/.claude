@@ -373,6 +373,14 @@ export async function voidPayment(id, actor, reason = null, x = getExecutor()) {
   // Idempotency guard: voiding an already-voided check would re-revert its invoices to
   // approved_for_payment, silently un-doing any later state (e.g. re-paid on a new check).
   if (payment.status === 'voided') throw new RuleError('R', 'הצ׳ק כבר בוטל');
+  // A payment may be voided ONLY while it is still 'issued' and NOT reconciled to the bank —
+  // once the money went through it is irreversible; the correction there is a stop-payment / a
+  // manual credit, not a void. The bank-match check comes first (a matched payment is also
+  // 'cleared', and its message is the more actionable one). To void either, first unmatch and
+  // revert the clear (markIssued).
+  const matched = await x.one('SELECT 1 AS m FROM bank_transactions WHERE matched_payment_id = ? LIMIT 1', [id]);
+  if (matched) throw new RuleError('R', 'התשלום הותאם לתנועת בנק — בטל את ההתאמה תחילה, ורק אז ניתן לבטל.');
+  if (payment.status !== 'issued') throw new RuleError('R', 'תשלום שנפרע — לא ניתן לבטל (הכסף כבר עבר). שחרר את הפירעון תחילה אם זו טעות.');
 
   await tx(async (t) => {
     const lines = await t.many('SELECT invoice_id FROM payment_lines WHERE payment_id = ?', [id]);

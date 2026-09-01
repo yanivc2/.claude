@@ -1,6 +1,8 @@
 import { getExecutor, tx } from '../db/adapter.js';
 import { config } from '../config.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
+import { scopeWhere } from '../lib/scope.js';
+import { notify } from '../lib/notify.js';
 import { getTransaction } from './bankTransactions.js';
 import { logAction } from './audit.js';
 
@@ -41,6 +43,58 @@ export async function findCandidates(txn, x = getExecutor()) {
     null;
 
   return { candidates, deterministic };
+}
+
+/**
+ * Unmatched bank debits on an account that correspond to a VOIDED payment — same amount AND the
+ * voided check's identifier (check number / reference / batch) appears in the bank line's text.
+ * A check that was voided in the software but still cleared the bank: money left the account, so
+ * it needs human attention (the void was wrong, or the check must be re-issued/stop-payment).
+ * @returns {Promise<Array<{txn:object, payment:object}>>}
+ */
+export async function voidedCheckHits(bankAccountId, x = getExecutor()) {
+  const voided = await x.many(
+    "SELECT id, check_number, reference, batch_number, amount FROM payments WHERE bank_account_id = ? AND status = 'voided'",
+    [bankAccountId],
+  );
+  if (!voided.length) return [];
+  const debits = await x.many(
+    'SELECT * FROM bank_transactions WHERE bank_account_id = ? AND matched_payment_id IS NULL AND amount < 0',
+    [bankAccountId],
+  );
+  const hits = [];
+  for (const t of debits) {
+    const ref = (t.raw_reference ?? '').trim();
+    const text = `${t.description ?? ''} ${t.raw_reference ?? ''}`;
+    const v = voided.find(
+      (p) =>
+        p.amount === Math.abs(t.amount) &&
+        [p.check_number, p.reference, p.batch_number].filter(Boolean).some((id) => id === ref || text.includes(id)),
+    );
+    if (v) hits.push({ txn: t, payment: v });
+  }
+  return hits;
+}
+
+/**
+ * Dashboard signal: voided checks seen in the bank, across the caller's authorized accounts
+ * (company + store scope, plus the active-store filter). { count, rows }.
+ */
+export async function voidedChecksSeenInBank(scope = null, storeId = null, x = getExecutor()) {
+  const sc = scopeWhere(scope, 'company_id', 'store_id');
+  const st = storeId ? ' AND store_id = ?' : '';
+  const accts = await x.many(
+    `SELECT id FROM bank_accounts WHERE 1 = 1${sc.sql}${st}`,
+    [...sc.params, ...(storeId ? [storeId] : [])],
+  );
+  let count = 0;
+  const rows = [];
+  for (const a of accts) {
+    const hits = await voidedCheckHits(a.id, x);
+    count += hits.length;
+    rows.push(...hits);
+  }
+  return { count, rows };
 }
 
 /** Human-facing classification of a transaction's match state (for the reconciliation UI). */
@@ -124,11 +178,20 @@ export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
     }
   }
 
+  // Alert: a voided check that nonetheless shows up as a bank debit (money left the account).
+  const voidedSeen = await voidedCheckHits(bankAccountId, x);
+  if (voidedSeen.length) {
+    const lines = voidedSeen.map(
+      (h) => `• צ׳ק ${h.payment.check_number || h.payment.reference || ''} · ${Math.abs(h.txn.amount) / 100} ₪ · ${h.txn.txn_date}`,
+    );
+    notify(`⚠️ <b>צ׳ק מבוטל הופיע בדף הבנק</b>\n${lines.join('\n')}\nהכסף עבר — יש לבדוק (ביטול שגוי / stop-payment / הנפקה מחדש).`);
+  }
+
   await logAction(
-    { userId: actor?.id ?? null, action: 'reconcile.auto', entityType: 'bank_account', entityId: bankAccountId, details: { matched, ambiguous, unmatched } },
+    { userId: actor?.id ?? null, action: 'reconcile.auto', entityType: 'bank_account', entityId: bankAccountId, details: { matched, ambiguous, unmatched, voidedSeen: voidedSeen.length } },
     x,
   );
-  return { matched, ambiguous, unmatched };
+  return { matched, ambiguous, unmatched, voidedSeen: voidedSeen.length };
 }
 
 /**
