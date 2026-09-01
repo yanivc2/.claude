@@ -29,19 +29,40 @@ function daysBetween(fromIso, toIso) {
 
 /**
  * Which paid invoices were paid EARLIER than the supplier's payment terms (§7 — Telegram push).
- * @param {Array<{supplierName,invoiceNumber,invoiceDate,terms}>} rows
+ *
+ * The terms clock starts at the TAX INVOICE only: a credit note (`docType === 'credit_note'`)
+ * reduces the amount, it never sets the due date. When one payment nets several tax invoices of
+ * the same supplier, the EARLIEST tax-invoice date is the basis (its terms window closes first),
+ * so a supplier yields at most one alert. Rows without a `docType` count as tax invoices.
+ * @param {Array<{supplierId?,supplierName,invoiceNumber,invoiceDate,terms,docType?}>} rows
  * @param {string} paymentDate ISO date
- * @returns {Array<{supplierName,invoiceNumber,termsDays,actualDays,earlyDays}>}
+ * @returns {Array<{supplierName,invoiceNumber,termsDays,actualDays,earlyDays,invoiceDate}>}
  */
 export function earlyPaymentAlerts(rows, paymentDate) {
-  const out = [];
+  // Earliest tax invoice per supplier.
+  const basis = new Map();
   for (const r of rows || []) {
+    if (r.docType === 'credit_note') continue;
+    const key = r.supplierId != null ? `#${r.supplierId}` : `n:${r.supplierName || ''}`;
+    const prev = basis.get(key);
+    if (!prev || String(r.invoiceDate).slice(0, 10) < String(prev.invoiceDate).slice(0, 10)) basis.set(key, r);
+  }
+
+  const out = [];
+  for (const r of basis.values()) {
     const termsDays = parsePaymentTermsDays(r.terms);
     if (termsDays == null) continue;
     const actual = daysBetween(r.invoiceDate, paymentDate);
     if (actual == null) continue;
     if (actual < termsDays) {
-      out.push({ supplierName: r.supplierName, invoiceNumber: r.invoiceNumber, termsDays, actualDays: actual, earlyDays: termsDays - actual });
+      out.push({
+        supplierName: r.supplierName,
+        invoiceNumber: r.invoiceNumber,
+        invoiceDate: r.invoiceDate,
+        termsDays,
+        actualDays: actual,
+        earlyDays: termsDays - actual,
+      });
     }
   }
   return out;
@@ -128,7 +149,8 @@ export async function createPayment(input, actor, x = getExecutor()) {
         [invId],
       );
       if (!inv) throw new NotFoundError(`חשבונית ${invId} לא נמצאה`);
-      termsRows.push({ supplierName: inv.supplier_name, invoiceNumber: inv.invoice_number, invoiceDate: inv.invoice_date, terms: inv.supplier_terms });
+      // docType matters: the alert's clock starts at the earliest TAX invoice, never at a credit note.
+      termsRows.push({ supplierId: inv.supplier_id, supplierName: inv.supplier_name, invoiceNumber: inv.invoice_number, invoiceDate: inv.invoice_date, terms: inv.supplier_terms, docType: inv.doc_type });
 
       // Paying an invoice implicitly approves it: accept "recorded" and "approved_for_payment".
       // R3-blocked (on_hold) and already-paid invoices are still refused.
@@ -216,7 +238,7 @@ export async function createPayment(input, actor, x = getExecutor()) {
     const alerts = earlyPaymentAlerts(termsRows, paymentDate);
     if (alerts.length) {
       const lines = alerts.map(
-        (a) => `• ${a.supplierName} · חשבונית ${a.invoiceNumber}: שולם ${a.actualDays} ימים מהחשבונית (תנאי ${a.termsDays} ימים) — מוקדם ב-${a.earlyDays} ימים`,
+        (a) => `• ${a.supplierName} · חשבונית מס ${a.invoiceNumber}: שולם ${a.actualDays} ימים מתאריך החשבונית (תנאי ${a.termsDays} ימים) — מוקדם ב-${a.earlyDays} ימים`,
       );
       notify(`⏱️ <b>תשלום מוקדם מתנאי התשלום</b>\n${lines.join('\n')}`);
     }

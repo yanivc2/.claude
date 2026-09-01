@@ -96,6 +96,8 @@
 | הדפסת צ׳ק | `GET /payments/:id/print` | `getCheckPrintData`, `views/payments/print.ejs` | פריסת Standard-501; פעיל תחת `config.checkPrinting.approved`. | דורש MICR font + אישור בנק. |
 | התאמה אוטומטית | `POST /payments/auto-reconcile` | `services/reconciliation.js` | — | ראה התאמת בנק. |
 
+- **התראת "תשלום מוקדם מתנאי התשלום"** (`earlyPaymentAlerts` ב-`services/payments.js`, נשלחת אחרי commit ב-`createPayment` דרך `notify`) — **שעון ימי האשראי מתחיל בחשבונית המס בלבד**: שורה עם `docType==='credit_note'` מדולגת (זיכוי מקטין סכום, לא קובע תאריך יעד), וכששולמו כמה חשבוניות מס של אותו ספק בתשלום אחד **התאריך הקובע הוא של חשבונית המס המוקדמת ביותר** (חלון התנאים שלה נסגר ראשון) — לכן **התראה אחת לכל ספק**, לא אחת לכל חשבונית. בתשלום מרוכז למשפחת ספקים (טרה+קוקה קולה) כל ספק שומר על השעון שלו. שורה בלי `docType` נחשבת חשבונית מס (תאימות לאחור). `termsRows` ב-`createPayment` דוחף `supplierId`+`docType` — הסרתם מחזירה את הבאג (התראה לפי תאריך הזיכוי).
+
 **קריטי:** האינדקס `ux_payments_account_check` = `(bank_account_id, check_number) WHERE check_number IS NOT NULL AND status<>'voided'` — קיים ב-schema.sql / schema.pg.sql / migrate.js (`migrateCheckNumberReuse`). שינוי בו = שנה בכל שלושתם.
 
 ---
