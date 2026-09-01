@@ -9,36 +9,49 @@ import { config } from '../config.js';
 
 const TG_API = 'https://api.telegram.org';
 
+/** True when a bot token + chat id are configured (env). */
+export function telegramConfigured() {
+  return Boolean(config.telegram.botToken && config.telegram.chatId);
+}
+
+/**
+ * Send a Telegram message and report exactly what happened — for the owner's "בדוק טלגרם" test,
+ * so a silent no-op becomes a visible reason. Never rejects.
+ * @returns {Promise<{ok:boolean, detail:string}>}
+ */
+export async function sendTelegramDetailed(text) {
+  const { botToken, chatId } = config.telegram;
+  if (!botToken) return { ok: false, detail: 'לא הוגדר TELEGRAM_BOT_TOKEN במשתני הסביבה של השרת (Vercel → Settings → Environment Variables). לאחר הוספה — צריך Redeploy.' };
+  if (!chatId) return { ok: false, detail: 'לא הוגדר TELEGRAM_CHAT_ID.' };
+  try {
+    const res = await fetch(`${TG_API}/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+    });
+    let body = null;
+    try { body = await res.json(); } catch { /* non-JSON */ }
+    if (res.ok && body && body.ok) return { ok: true, detail: `נשלחה הודעת בדיקה ל-chat ${chatId}. בדוק את הטלגרם.` };
+    // Telegram returns a human description, e.g. "chat not found" / "bot was blocked by the user"
+    // / "Forbidden: bots can't send messages to bots". The most common cause: the owner never
+    // pressed Start on the bot, or chat_id is wrong.
+    const why = body && body.description ? body.description : `HTTP ${res.status}`;
+    return { ok: false, detail: `Telegram סירב: ${why}. ודא שלחצת Start בצ׳אט עם הבוט, ושה-chat_id (${chatId}) הוא שלך.` };
+  } catch (err) {
+    return { ok: false, detail: `שגיאת רשת אל Telegram: ${err.message}` };
+  }
+}
+
 /**
  * Send a Telegram message to the configured chat. Resolves to true if sent, false if skipped
  * (no token) or failed. Never rejects.
  * @param {string} text  message body (HTML parse mode — links allowed)
  */
 export async function sendTelegram(text) {
-  const { botToken, chatId } = config.telegram;
-  if (!botToken || !chatId) return false; // not configured yet → no-op
-  try {
-    const res = await fetch(`${TG_API}/bot${botToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-      }),
-    });
-    if (!res.ok) {
-      // eslint-disable-next-line no-console
-      console.error(`[notify] Telegram sendMessage failed: ${res.status}`);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error(`[notify] Telegram error: ${err.message}`);
-    return false;
-  }
+  const r = await sendTelegramDetailed(text);
+  // eslint-disable-next-line no-console
+  if (!r.ok && config.telegram.botToken) console.error(`[notify] ${r.detail}`);
+  return r.ok;
 }
 
 /**

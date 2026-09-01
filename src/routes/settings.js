@@ -25,6 +25,7 @@ import { verifyPassword, generatePassword } from '../lib/auth.js';
 import { exportAll, resetTransactionalData, restoreAll, cleanStartInvoicesPaymentsZ } from '../services/backup.js';
 import { setScanEnabled } from '../services/appSettings.js';
 import { storageSelfTest } from '../lib/storage.js';
+import { sendTelegramDetailed, telegramConfigured } from '../lib/notify.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
 import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFile.js';
 import { parseSupplierCatalog } from '../lib/supplierCatalogFile.js';
@@ -152,6 +153,7 @@ async function render(req, res, extra = {}) {
     error: null,
     notice: null,
     schemaWarning,
+    telegramReady: telegramConfigured(),
     invite: null,
     linkInvite: null,
     ...extra,
@@ -493,6 +495,17 @@ router.post('/scan-toggle', requireOwner, async (req, res, next) => {
     const on = req.body.on === '1';
     await setScanEnabled(on);
     await render(req, res, { notice: on ? 'צילום חשבוניות הופעל.' : 'צילום חשבוניות ננעל.' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Telegram self-test (owner-only): send a test message and report the exact outcome, so a silent
+// no-op (missing token / user never pressed Start / wrong chat_id) becomes a visible reason.
+router.post('/telegram-test', requireOwner, async (req, res, next) => {
+  try {
+    const r = await sendTelegramDetailed(`בדיקת טלגרם מ-AP Control ✅ — אם קיבלת הודעה זו, ההתראות פעילות.`);
+    await render(req, res, { notice: (r.ok ? '✅ ' : '⚠️ ') + r.detail });
   } catch (err) {
     next(err);
   }

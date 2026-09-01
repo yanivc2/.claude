@@ -26,6 +26,12 @@
           <span class="dial-txt"><strong>צילום חשבוניות — <%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'פעיל' : 'נעול' %></strong><small><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'לחץ כדי לנעול את התכונה.' : 'תכונה בתשלום. לחץ כדי להפעיל (חבילת צילום חשבוניות).' %></small></span>
         </button>
       </form>
+      <form method="post" action="/settings/telegram-test" style="margin:0">
+        <button type="submit" class="dial" style="width:100%">
+          <span class="dial-ic">📨</span>
+          <span class="dial-txt"><strong>בדוק טלגרם — <%= (typeof telegramReady !== 'undefined' && telegramReady) ? 'מוגדר' : 'לא מוגדר' %></strong><small>שולח הודעת בדיקה ומראה אם ההתראות עובדות (ואם לא — למה).</small></span>
+        </button>
+      </form>
       <%# Only while scanning is unlocked: a supplier's catalog exists to identify lines on
           a scanned invoice, so it has nothing to do while there is no scanning. %>
       <% if (typeof scanEnabled !== 'undefined' && scanEnabled) { %>

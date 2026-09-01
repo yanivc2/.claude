@@ -91,6 +91,9 @@ happen only at merge. So:
   `services/zclosing.js#israelNow()` use `Intl.DateTimeFormat(..., { timeZone: 'Asia/Jerusalem' })`.
   Use `israelToday()` for any "today" default (e.g. `markCleared`), never `new Date().toISOString()`.
 - **Telegram push:** `lib/notify.js#notify(html)` — fire-and-forget, no-op if unconfigured. Never throws.
+  Needs **`TELEGRAM_BOT_TOKEN`** env (Vercel) to send; `chatId` = `TELEGRAM_CHAT_ID` (defaults to the
+  owner's id). Owner can verify via **הגדרות → "בדוק טלגרם"** (`POST /settings/telegram-test` →
+  `sendTelegramDetailed` surfaces the real reason: no token / Telegram rejection / ok).
 - **Dates:** stored ISO `YYYY-MM-DD`; `res.locals.formatDate` → `DD/MM/YY`.
 - **`partials/footer.ejs` global enhancers** (run on every page): (1) the **day-first date picker**
   replaces every `input[type=date]` — displays `DD/MM/YY`, and on pointer-fine (desktop) is **typable**
