@@ -91,8 +91,10 @@ happen only at merge. So:
   `services/zclosing.js#israelNow()` use `Intl.DateTimeFormat(..., { timeZone: 'Asia/Jerusalem' })`.
   Use `israelToday()` for any "today" default (e.g. `markCleared`), never `new Date().toISOString()`.
 - **דוח פדיון (revenue reports):** the nightly per-store sales+credit report is the **systematic
-  sales source** for profitability (Z reports are irregular). `lib/revenueReportFile.js` parses
-  XLS/CSV (auto-detected Hebrew headers + manual column mapping), `services/revenueReports.js`
+  sales source** for profitability (Z reports are irregular). `lib/revenueReportFile.js` parses it
+  (+ **`lib/xlsRead.js`** for the legacy OLE2/BIFF `.xls` the POS actually emits — NOT xlsx). Two
+  shapes: a per-day table (auto-detected Hebrew headers / manual mapping) and the **summary** shape
+  (RTL label→value, one day, **no date in the file** — the caller supplies it; default = yesterday), `services/revenueReports.js`
   upserts one row per store/day (`revenue_reports`). Email ingestion: `POST /ingest/revenue-report`
   (mounted BEFORE `currentUser`, guarded by **`REVENUE_INGEST_SECRET`** env — unset = 503).
 - **Alerts:** `lib/notify.js#notify(html, {kind?,link?})` — fire-and-forget, never throws. Does TWO

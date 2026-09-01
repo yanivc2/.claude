@@ -122,3 +122,46 @@ test('ingest endpoint: disabled without a secret, refuses a wrong one, imports w
     config.revenueIngestSecret = saved;
   }
 });
+
+// ---- the REAL nightly report from the POS (legacy .xls, JasperReports) ----------------------
+// Shape: one business day, RTL label→value rows, NO date anywhere in the file.
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { readXls, looksLikeXls } from '../src/lib/xlsRead.js';
+
+const realReport = () => readFileSync(fileURLToPath(new URL('./fixtures/revenue-midnight.xls', import.meta.url)));
+
+test('legacy .xls (OLE2/BIFF) is recognised and decoded into a grid', () => {
+  const buf = realReport();
+  assert.equal(looksLikeXls(buf), true);
+  const grid = readXls(buf);
+  assert.ok(grid.length > 20);
+  assert.ok(grid.some((r) => r.some((c) => String(c).includes('סה"כ פדיון'))));
+});
+
+test('the real midnight report yields פדיון / אשראי / מזומן, and needs a date from the caller', () => {
+  const buf = realReport();
+  const noDate = parseRevenueReport(buf);
+  assert.equal(noDate.kind, 'summary');
+  assert.deepEqual(noDate.summary, { gross: 3545584, credit: 2340164, cash: 1145320 }); // ₪35,455.84 / ₪23,401.64 / ₪11,453.20
+  assert.equal(noDate.rows.length, 0);
+  assert.ok(noDate.warnings.some((w) => /תאריך/.test(w)));
+
+  const withDate = parseRevenueReport(buf, { reportDate: '2026-08-31' });
+  assert.deepEqual(withDate.rows, [{ date: '2026-08-31', gross: 3545584, credit: 2340164 }]);
+});
+
+test('the real report imports and drives the profitability column', async () => {
+  const db = await freshDb();
+  const own = await owner(db);
+  const st = await firstStore(db);
+  const { rows } = parseRevenueReport(realReport(), { reportDate: '2026-08-31' });
+  await importRevenueRows(st.id, rows, 'upload', own, db);
+
+  const { stores } = await profitability('2026-08-31', '2026-08-31', null, db);
+  const row = stores.find((s) => s.id === st.id);
+  assert.equal(row.revenueSales, 3545584);
+  assert.equal(row.revenueCredit, 2340164);
+  assert.equal(row.usesRevenue, true);
+  assert.equal(row.sales, 3545584);
+});

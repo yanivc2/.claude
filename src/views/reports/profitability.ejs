@@ -137,6 +137,11 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
         <label>קובץ הדוח (XLS / XLSX / CSV)</label>
         <input type="file" name="file" accept=".xls,.xlsx,.csv,text/csv" required />
       </div>
+      <div>
+        <label>תאריך הדוח</label>
+        <input type="date" name="report_date" value="<%= typeof revDefaultDate !== 'undefined' ? revDefaultDate : '' %>" />
+        <small class="muted">הדוח היומי של הקופה אינו מכיל תאריך — ברירת המחדל היא אתמול (הדוח מגיע אחרי 00:30).</small>
+      </div>
     </div>
 
     <% if (typeof revPreview !== 'undefined' && revPreview && revPreview.headers && revPreview.headers.length) { %>

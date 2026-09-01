@@ -1,4 +1,5 @@
 import { readXlsx, looksLikeXlsx } from './xlsxRead.js';
+import { readXls, looksLikeXls } from './xlsRead.js';
 import { decodeBuffer } from './decodeText.js';
 import { toAgorot } from './money.js';
 
@@ -84,10 +85,69 @@ function splitDelimited(text) {
   return rows;
 }
 
-/** Rows of the file as string[][] (first sheet for xlsx, raw grid otherwise). */
+/** Rows of the file as string[][] — .xlsx (ZIP), legacy .xls (OLE2/BIFF), or delimited text. */
 function toRows(buf) {
   if (looksLikeXlsx(buf)) return readXlsx(buf);
+  if (looksLikeXls(buf)) return readXls(buf); // the POS report is a legacy JasperReports .xls
   return splitDelimited(decodeBuffer(buf));
+}
+
+/**
+ * Money out of a report cell: '23401.64 ₪', '35028.74₪', '1,234.50' → agorot. A percentage
+ * ('66.81 %') is not money and returns null, as does anything without a digit.
+ */
+export function parseMoneyLoose(v) {
+  const s = String(v ?? '').replace(/[\u200e\u200f\u202a-\u202e]/g, '').trim();
+  if (!s || s.includes('%')) return null;
+  const cleaned = s.replace(/[^\d.,-]/g, '').replace(/,/g, '');
+  if (!/\d/.test(cleaned)) return null;
+  const n = Number.parseFloat(cleaned);
+  return Number.isFinite(n) ? Math.round(n * 100) : null;
+}
+
+// Labels are matched on a squeezed key so gershayim/quotes/spacing never matter:
+// 'סה"כ פדיון(כולל ת.חוב)' → 'סהכפדיון(כוללת.חוב)'.
+const labelKey = (s) => String(s ?? '').replace(/["'\u05f4\u05f3]/g, '').replace(/\s+/g, '').trim();
+
+/**
+ * Parse the POS "דוח פדיון" **summary** shape: one business day laid out as label→value rows in
+ * RTL (the label is the right-most cell, its figures sit to the left), e.g.
+ *   כרטיס אשראי | 361 | 23401.64 ₪ | 66.81 %
+ *   סה"כ פדיון(כולל ת.חוב) | 35455.84₪
+ * The file carries NO date — the caller supplies the business day.
+ * @returns {{gross:number, credit:number, cash:number}|null}
+ */
+export function parseSummaryGrid(grid) {
+  const rows = [];
+  for (const row of grid || []) {
+    if (!row || !row.length) continue;
+    let li = -1;
+    for (let i = row.length - 1; i >= 0; i -= 1) if (String(row[i] ?? '').trim()) { li = i; break; }
+    if (li <= 0) continue; // need a label plus at least one value to its left
+    rows.push({
+      key: labelKey(row[li]),
+      values: row.slice(0, li).map((v) => String(v ?? '').trim()).filter(Boolean),
+    });
+  }
+  if (!rows.length) return null;
+  const find = (pred) => rows.find((r) => pred(r.key));
+  const money = (r) => {
+    if (!r) return null;
+    const ils = r.values.find((v) => v.includes('₪'));
+    if (ils !== undefined) return parseMoneyLoose(ils);
+    for (const v of r.values) { const m = parseMoneyLoose(v); if (m !== null) return m; }
+    return null;
+  };
+  // "פדיון" is the headline the owner asked for; fall back to the sales totals.
+  const gross =
+    money(find((k) => k.includes('סהכפדיון'))) ??
+    money(find((k) => k.includes('סהכמכיר')));
+  if (gross === null) return null;
+  return {
+    gross,
+    credit: money(find((k) => k === 'כרטיסאשראי')) ?? 0,
+    cash: money(find((k) => k === 'מזומן')) ?? 0,
+  };
 }
 
 /**
@@ -97,10 +157,20 @@ function toRows(buf) {
  * @returns {{rows:Array<{date:string,gross:number,credit:number}>, headers:string[],
  *            detected:{date:number,sales:number,credit:number}, warnings:string[]}}
  */
-export function parseRevenueReport(buf, mapping = {}) {
+export function parseRevenueReport(buf, opts = {}) {
+  // Back-compat: the 2nd argument may be a column mapping ({date:0,sales:2}) or an options object
+  // ({ reportDate:'YYYY-MM-DD' }). Numeric keys = mapping; a string date = the business day.
+  const mapping = {};
+  for (const k of ['date', 'sales', 'credit']) if (typeof opts[k] === 'number') mapping[k] = opts[k];
+  const reportDate = typeof opts.reportDate === 'string' ? opts.reportDate
+    : (typeof opts.date === 'string' ? opts.date : null);
+  return parseTabularOrSummary(buf, mapping, reportDate);
+}
+
+function parseTabularOrSummary(buf, mapping, reportDate) {
   const all = toRows(buf).filter((r) => r && r.some((c) => String(c ?? '').trim() !== ''));
   const warnings = [];
-  if (!all.length) return { rows: [], headers: [], detected: { date: -1, sales: -1, credit: -1 }, warnings: ['הקובץ ריק'] };
+  if (!all.length) return { rows: [], headers: [], detected: { date: -1, sales: -1, credit: -1 }, warnings: ['הקובץ ריק'], kind: 'unknown', summary: null };
 
   // The header is the first row that yields a date column (reports often carry title rows above it).
   let headerIdx = 0;
@@ -119,7 +189,22 @@ export function parseRevenueReport(buf, mapping = {}) {
   if (dateCol === -1) warnings.push('לא זוהתה עמודת תאריך — בחר אותה ידנית.');
   if (salesCol === -1) warnings.push('לא זוהתה עמודת פדיון/מכירות — בחר אותה ידנית.');
   if (creditCol === -1) warnings.push('לא זוהתה עמודת אשראי/סליקה — סליקות האשראי יירשמו 0.');
-  if (dateCol === -1 || salesCol === -1) return { rows: [], headers, detected, warnings };
+  if (dateCol === -1 || salesCol === -1) {
+    // No per-day table → try the POS summary shape (one business day, label→value, no date in the
+    // file). The caller supplies the business day; without it we report what we found and ask.
+    const summary = parseSummaryGrid(all);
+    if (summary) {
+      return {
+        kind: 'summary',
+        summary,
+        rows: reportDate ? [{ date: reportDate, gross: summary.gross, credit: summary.credit }] : [],
+        headers,
+        detected,
+        warnings: reportDate ? [] : ['דוח יומי מסוכם — הקובץ אינו מכיל תאריך. בחר את תאריך הדוח.'],
+      };
+    }
+    return { rows: [], headers, detected, warnings, kind: 'unknown', summary: null };
+  }
 
   const byDate = new Map(); // one row per business day; a repeated date sums (multi-register files)
   for (let i = headerIdx + 1; i < all.length; i += 1) {
@@ -136,5 +221,5 @@ export function parseRevenueReport(buf, mapping = {}) {
   }
   const rows = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
   if (!rows.length) warnings.push('לא נמצאו שורות עם תאריך תקין.');
-  return { rows, headers, detected, warnings };
+  return { rows, headers, detected, warnings, kind: 'daily', summary: null };
 }

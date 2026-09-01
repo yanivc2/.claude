@@ -31,6 +31,7 @@ import { notify } from '../lib/notify.js';
 import { requirePageAccess, requirePermission } from '../middleware/requireOwner.js';
 import { RuleError, AuthError, NotFoundError } from '../lib/errors.js';
 import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
+import { israelToday } from '../lib/loginHours.js';
 
 const router = Router();
 
@@ -182,6 +183,14 @@ function resolveRange(req) {
   return { from: q('from'), to: q('to'), preset: '' };
 }
 
+/** Yesterday in Israel time ('YYYY-MM-DD') — the business day the nightly report covers. */
+function yesterdayInIsrael() {
+  const today = israelToday();
+  const d = new Date(`${today}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 async function storeList() {
   return getExecutor().many(
     `SELECT st.id, st.name, c.name AS company_name
@@ -203,6 +212,8 @@ async function renderProfitability(req, res, extra = {}) {
     // "דוח פדיון מידנייט" rubric: the store picker + the most recent imported days.
     revStores: await storeList(),
     revRows: await listRevenue({ limit: 20, scope: req.scope }),
+    // The nightly mail lands after 00:30 for the PREVIOUS business day → default to yesterday.
+    revDefaultDate: yesterdayInIsrael(),
     error: null,
     notice: null,
     ...extra,
@@ -471,8 +482,17 @@ router.post('/profitability/revenue-import', requirePageAccess('nav_profitabilit
         const v = req.body[`col_${k}`];
         if (v !== undefined && v !== '') mapping[k] = Number(v);
       }
-      const { rows, headers, detected, warnings } = parseRevenueReport(req.file.buffer, mapping);
+      const reportDate = (req.body.report_date || '').trim() || null;
+      const parsed = parseRevenueReport(req.file.buffer, { ...mapping, reportDate });
+      const { rows, headers, detected, warnings, kind, summary } = parsed;
       if (!rows.length) {
+        // A summary report parsed fine but has no date in it — show what we read and ask for the day.
+        if (kind === 'summary' && summary) {
+          return renderProfitability(req, res, {
+            error: `זוהה דוח יומי מסוכם (פדיון ${summary.gross / 100} ₪ · אשראי ${summary.credit / 100} ₪). בחר את תאריך הדוח ושלח שוב.`,
+            revPreview: { headers, detected, storeId, summary },
+          });
+        }
         return renderProfitability(req, res, {
           error: `לא נקלטו שורות. ${warnings.join(' ')}`,
           revPreview: { headers, detected, storeId },

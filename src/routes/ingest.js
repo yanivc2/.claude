@@ -5,6 +5,14 @@ import { config } from '../config.js';
 import { parseRevenueReport } from '../lib/revenueReportFile.js';
 import { importRevenueRows } from '../services/revenueReports.js';
 import { notify } from '../lib/notify.js';
+import { israelToday } from '../lib/loginHours.js';
+
+/** Yesterday in Israel time — the business day the nightly report covers. */
+function yesterdayInIsrael() {
+  const d = new Date(`${israelToday()}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
 
 // Machine ingestion for the nightly "דוח פדיון" email. An inbound-email provider (Mailgun routes /
 // SendGrid Inbound Parse / CloudMailin) receives the report mail and POSTs it here as multipart with
@@ -37,7 +45,10 @@ router.post('/revenue-report', (req, res) => {
       const file = (req.files || []).find(isReportFile);
       if (!file) return res.status(400).json({ ok: false, error: 'no XLS/CSV attachment' });
 
-      const { rows, warnings } = parseRevenueReport(file.buffer);
+      // The POS summary report carries no date; the nightly mail arrives after 00:30 for the
+      // PREVIOUS business day. Accept an explicit ?date=, else default to yesterday (Israel).
+      const reportDate = String(req.query.date || '').trim() || yesterdayInIsrael();
+      const { rows, warnings } = parseRevenueReport(file.buffer, { reportDate });
       if (!rows.length) {
         notify(`⚠️ <b>דוח פדיון לא נקלט</b>\n${store.name}: לא זוהו שורות בקובץ שהגיע במייל. ${warnings.join(' ')}`, { link: '/reports/profitability' });
         return res.status(422).json({ ok: false, error: 'no rows parsed', warnings });
