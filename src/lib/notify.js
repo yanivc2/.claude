@@ -32,11 +32,24 @@ export async function sendTelegramDetailed(text) {
     let body = null;
     try { body = await res.json(); } catch { /* non-JSON */ }
     if (res.ok && body && body.ok) return { ok: true, detail: `נשלחה הודעת בדיקה ל-chat ${chatId}. בדוק את הטלגרם.` };
-    // Telegram returns a human description, e.g. "chat not found" / "bot was blocked by the user"
-    // / "Forbidden: bots can't send messages to bots". The most common cause: the owner never
-    // pressed Start on the bot, or chat_id is wrong.
+    // Telegram returns a human description + error code. Map the common ones to the ACTUAL fix,
+    // so the owner isn't sent chasing the wrong thing:
+    //   401 Unauthorized  → the bot token is wrong/revoked (NOT a chat problem).
+    //   403 Forbidden     → the chat blocked the bot / never pressed Start.
+    //   400 chat not found → the chat_id is wrong.
     const why = body && body.description ? body.description : `HTTP ${res.status}`;
-    return { ok: false, detail: `Telegram סירב: ${why}. ודא שלחצת Start בצ׳אט עם הבוט, ושה-chat_id (${chatId}) הוא שלך.` };
+    const code = res.status;
+    let fix;
+    if (code === 401 || /unauthorized/i.test(why)) {
+      fix = `הטוקן (TELEGRAM_BOT_TOKEN) שגוי או בוטל. צור טוקן חדש ב-@BotFather ועדכן אותו ב-Vercel (Environment Variables), ואז Redeploy.`;
+    } else if (code === 403 || /blocked|can't initiate|bot can/i.test(why)) {
+      fix = `פתח צ׳אט עם הבוט ולחץ Start (בוט לא יכול לשלוח למי שלא פתח איתו שיחה), וודא שה-chat_id (${chatId}) הוא שלך.`;
+    } else if (/chat not found/i.test(why)) {
+      fix = `ה-chat_id (${chatId}) שגוי. השג את ה-id שלך (שלח הודעה ל-@userinfobot) ועדכן TELEGRAM_CHAT_ID ב-Vercel, ואז Redeploy.`;
+    } else {
+      fix = `ודא שהטוקן וה-chat_id (${chatId}) נכונים.`;
+    }
+    return { ok: false, detail: `Telegram סירב: ${why}. ${fix}` };
   } catch (err) {
     return { ok: false, detail: `שגיאת רשת אל Telegram: ${err.message}` };
   }
