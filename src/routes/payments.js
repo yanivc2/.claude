@@ -15,7 +15,7 @@ import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js'
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
-import { requirePermission } from '../middleware/requireOwner.js';
+import { requirePermission, requireOwner } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
@@ -197,7 +197,11 @@ async function retargetData(payment) {
   return { canRetarget: true, candidates: [...applied, ...open] };
 }
 
-router.get('/:id/edit', requirePermission('approve_payment'), async (req, res, next) => {
+// Editing an already-recorded payment method is OWNER-ONLY — a human-error escape hatch. The
+// business rule is: once a payment (check/transfer/cash/…) is recorded you don't edit it, you void
+// and reissue. The owner keeps edit for the one recurring mistake (a credit note entered after the
+// check amount was already recorded), which the re-target flow fixes by recomputing the net.
+router.get('/:id/edit', requireOwner, async (req, res, next) => {
   try {
     const payment = await getPaymentDetail(Number(req.params.id));
     res.render('payments/edit', { title: `עריכת תשלום #${payment.id}`, payment, ...(await retargetData(payment)), error: null });
@@ -206,7 +210,7 @@ router.get('/:id/edit', requirePermission('approve_payment'), async (req, res, n
   }
 });
 
-router.post('/:id/edit', requirePermission('approve_payment'), async (req, res, next) => {
+router.post('/:id/edit', requireOwner, async (req, res, next) => {
   const id = Number(req.params.id);
   try {
     const b = req.body;

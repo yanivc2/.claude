@@ -253,8 +253,8 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
       <summary class="btn btn-secondary">אפשרויות <span class="caret">▾</span></summary>
       <div class="menu-panel" style="min-width:220px">
         <% if (canEdit && invoice.status !== 'paid') { %><a href="/invoices/<%= invoice.id %>/edit">✏️ ערוך חשבונית</a><% } %>
-        <% if (canPay && invoice.payment && invoice.payment.id) { %>
-          <a href="/payments/<%= invoice.payment.id %>/edit">💳 ערוך אמצעי תשלום</a>
+        <% if (typeof isOwner !== 'undefined' && isOwner && invoice.payment && invoice.payment.id) { %>
+          <a href="/payments/<%= invoice.payment.id %>/edit">💳 ערוך אמצעי תשלום (בעלים)</a>
         <% } %>
         <div class="menu-sep"></div>
         <a href="/invoices/new?supplier=<%= invoice.supplier_id %>&store=<%= invoice.store_id %>">➕ חשבונית / זיכוי נוסף לאותו ספק</a>

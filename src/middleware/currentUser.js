@@ -55,6 +55,7 @@ export async function currentUser(req, res, next) {
 
     req.user = user;
     res.locals.currentUser = user;
+    res.locals.isOwner = user.role === 'owner';
     res.locals.can = (perm) => userCan(user, perm);
     res.locals.canView = (navKey) => canViewPage(user, navKey);
     res.locals.pendingApprovals = user.role === 'owner' ? (await countPending()) + (await countPendingSuppliers()) : 0;
