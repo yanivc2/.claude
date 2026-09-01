@@ -67,12 +67,33 @@ export async function sendTelegram(text) {
   return r.ok;
 }
 
+/** Strip the small HTML we use in alerts (<b>, links, <br>) down to plain text. */
+function toPlain(html) {
+  return String(html || '')
+    .replace(/<br\s*\/?>(\n)?/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .trim();
+}
+
 /**
- * Fire-and-forget wrapper: schedule a Telegram alert without blocking the caller. Safe to call
- * from a request handler — errors are swallowed by sendTelegram.
- * @param {string} text
+ * Fire-and-forget wrapper: push a Telegram alert AND record it to the in-app notification stream,
+ * without blocking the caller. Both paths are best-effort and never throw. `opts.link` (optional)
+ * makes the in-app notification clickable; `opts.kind` tags it.
+ * @param {string} text  HTML message body
+ * @param {{kind?:string, link?:string}} [opts]
  */
-export function notify(text) {
-  // Intentionally not awaited; sendTelegram never rejects.
-  void sendTelegram(text);
+export function notify(text, opts = {}) {
+  void sendTelegram(text); // Telegram (no-op if unconfigured); never rejects
+  // In-app copy: first line → title, remainder → body. Dynamic import keeps this lib free of a
+  // static dependency on the service/DB layer (and avoids any import cycle).
+  (async () => {
+    try {
+      const plain = toPlain(text);
+      if (!plain) return;
+      const [title, ...rest] = plain.split('\n');
+      const { recordNotification } = await import('../services/notifications.js');
+      await recordNotification({ kind: opts.kind || 'alert', title, body: rest.join('\n').trim() || null, link: opts.link || null });
+    } catch { /* best-effort */ }
+  })();
 }

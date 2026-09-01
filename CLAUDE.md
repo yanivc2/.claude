@@ -90,10 +90,13 @@ happen only at merge. So:
 - **Israel time:** `lib/loginHours.js#israelClock()`/`israelToday()` (→`'YYYY-MM-DD'`) and
   `services/zclosing.js#israelNow()` use `Intl.DateTimeFormat(..., { timeZone: 'Asia/Jerusalem' })`.
   Use `israelToday()` for any "today" default (e.g. `markCleared`), never `new Date().toISOString()`.
-- **Telegram push:** `lib/notify.js#notify(html)` — fire-and-forget, no-op if unconfigured. Never throws.
-  Needs **`TELEGRAM_BOT_TOKEN`** env (Vercel) to send; `chatId` = `TELEGRAM_CHAT_ID` (defaults to the
-  owner's id). Owner can verify via **הגדרות → "בדוק טלגרם"** (`POST /settings/telegram-test` →
-  `sendTelegramDetailed` surfaces the real reason: no token / Telegram rejection / ok).
+- **Alerts:** `lib/notify.js#notify(html, {kind?,link?})` — fire-and-forget, never throws. Does TWO
+  things: pushes to Telegram (no-op without token) **and** records an in-app notification (bell +
+  `/notifications`, owner-only) via `services/notifications.js` (HTML→text, first line=title). So
+  every alert reaches the owner even without Telegram. Telegram needs **`TELEGRAM_BOT_TOKEN`** env
+  (Vercel); `chatId` = `TELEGRAM_CHAT_ID` (default = owner's id). Verify via **הגדרות → "בדוק
+  טלגרם"** (`POST /settings/telegram-test` → `sendTelegramDetailed` gives the real reason:
+  401=bad token / 403=press Start / 400=bad chat id / ok).
 - **Dates:** stored ISO `YYYY-MM-DD`; `res.locals.formatDate` → `DD/MM/YY`.
 - **`partials/footer.ejs` global enhancers** (run on every page): (1) the **day-first date picker**
   replaces every `input[type=date]` — displays `DD/MM/YY`, and on pointer-fine (desktop) is **typable**

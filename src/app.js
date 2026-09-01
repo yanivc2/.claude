@@ -22,13 +22,14 @@ import employeeRoutes from './routes/employees.js';
 import scanRoutes from './routes/scan.js';
 import productRoutes from './routes/products.js';
 import contextRoutes from './routes/context.js';
+import notificationRoutes from './routes/notifications.js';
 import { isScanEnabled } from './services/appSettings.js';
 import { depositStatus } from './services/deposits.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-30·114';
+const BUILD_VERSION = '2026-08-30·115';
 
 export function createApp() {
   const app = express();
@@ -165,6 +166,7 @@ export function createApp() {
   app.use('/scan', requirePageAccess('nav_scan'), scanGate, scanRoutes);
   app.use('/products', requirePageAccess('nav_products'), productRoutes);
   app.use('/employees', requirePageAccess('nav_employees'), employeeRoutes);
+  app.use('/notifications', notificationRoutes); // in-app alert stream (owner-only, enforced inside)
   app.use('/settings', settingsRoutes);
 
   // Unmatched route -> friendly page (instead of Express's raw "Cannot GET/POST ...").

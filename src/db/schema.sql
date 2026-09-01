@@ -148,6 +148,20 @@ CREATE TABLE IF NOT EXISTS change_requests (
 );
 CREATE INDEX IF NOT EXISTS ix_change_requests_status ON change_requests(status);
 
+-- In-app notification stream (a bell + /notifications page) — the same alerts pushed to Telegram
+-- are also recorded here, so the owner isn't dependent on Telegram. read_at is a single global
+-- read marker (the bell is owner-facing).
+CREATE TABLE IF NOT EXISTS notifications (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind       TEXT NOT NULL DEFAULT 'alert',
+  title      TEXT NOT NULL,
+  body       TEXT,
+  link       TEXT,
+  created_at TEXT NOT NULL,
+  read_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_notifications_created ON notifications(created_at);
+
 -- §4 invoices -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoices (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,

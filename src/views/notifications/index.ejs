@@ -1,0 +1,40 @@
+<%- include('../partials/header') %>
+<div class="toolbar">
+  <h1 style="margin:0">🔔 התראות</h1>
+  <% if (notifications.some(function(n){ return !n.read_at; })) { %>
+    <form method="post" action="/notifications/read-all" style="margin:0">
+      <button type="submit" class="btn btn-secondary">סמן הכל כנקרא</button>
+    </form>
+  <% } %>
+</div>
+
+<div class="card">
+  <% if (!notifications.length) { %>
+    <p class="muted" style="margin:0">אין התראות.</p>
+  <% } else { %>
+    <table>
+      <thead><tr><th>מתי</th><th>הודעה</th><th data-nosort class="no-print"></th></tr></thead>
+      <tbody>
+        <% notifications.forEach(function(n){ %>
+          <tr<%= n.read_at ? '' : ' style="font-weight:600"' %>>
+            <td class="muted" style="white-space:nowrap"><%= formatDateTime(n.created_at) %></td>
+            <td>
+              <% if (!n.read_at) { %><span class="badge b-on_hold">חדש</span> <% } %>
+              <% if (n.link) { %><a href="<%= n.link %>"><%= n.title %></a><% } else { %><%= n.title %><% } %>
+              <% if (n.body) { %><div class="muted" style="font-weight:400; white-space:pre-line"><%= n.body %></div><% } %>
+            </td>
+            <td class="no-print">
+              <% if (!n.read_at) { %>
+                <form method="post" action="/notifications/<%= n.id %>/read" style="margin:0">
+                  <input type="hidden" name="return_to" value="/notifications" />
+                  <button type="submit" class="btn secondary small">סמן כנקרא</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+<%- include('../partials/footer') %>

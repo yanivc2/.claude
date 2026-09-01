@@ -94,8 +94,8 @@ const routes = [
   ['page', '/login', true], ['page', '/forgot', true], ['page', '/privacy'], ['page', '/accessibility'],
   ['softAny', '/reset/DUMMYTOKEN', true], ['softAny', '/invite/DUMMYTOKEN', true],
   ['page', '/account/password'],
-  // dashboard + approvals + audit
-  ['page', '/'], ['page', '/approvals'], ['page', '/audit'],
+  // dashboard + approvals + audit + notifications
+  ['page', '/'], ['page', '/approvals'], ['page', '/audit'], ['page', '/notifications'],
   // invoices
   ['page', '/invoices'], ['page', '/invoices/new'],
   ['page', `/invoices/${inv.id}`], ['page', `/invoices/${inv2.id}/edit`],

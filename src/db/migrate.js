@@ -23,6 +23,23 @@ export function migrate(db) {
   migrateCheckNumberReuse(db);
   migrateAppSettings(db);
   migrateUserStores(db);
+  migrateNotifications(db);
+}
+
+// In-app notification stream (bell + /notifications) — mirrors the Telegram alerts.
+function migrateNotifications(db) {
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS notifications (
+       id         INTEGER PRIMARY KEY AUTOINCREMENT,
+       kind       TEXT NOT NULL DEFAULT 'alert',
+       title      TEXT NOT NULL,
+       body       TEXT,
+       link       TEXT,
+       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+       read_at    TEXT
+     );`,
+  );
+  db.exec('CREATE INDEX IF NOT EXISTS ix_notifications_created ON notifications(created_at);');
 }
 
 // app_settings — app-wide key/value flags (e.g. the scan-feature lock). Create it on existing DBs.
