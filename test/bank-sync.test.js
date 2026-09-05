@@ -7,7 +7,7 @@ import { freshDb, owner, firstStore, accountForStore } from './helpers.js';
 import { config } from '../src/config.js';
 import { createInvoice, approveInvoiceForPayment } from '../src/services/invoices.js';
 import { createPayment } from '../src/services/payments.js';
-import { syncBankAccount, linkFinancyAccounts, daysAgoInIsrael } from '../src/services/bankSync.js';
+import { syncBankAccount, syncAllLinkedAccounts, linkFinancyAccounts, daysAgoInIsrael } from '../src/services/bankSync.js';
 import { listTransactions } from '../src/services/bankTransactions.js';
 
 const realFetch = global.fetch;
@@ -141,4 +141,45 @@ test('with no API key configured the sync refuses instead of half-working', asyn
   await db.run('UPDATE bank_accounts SET financy_account_id = ? WHERE id = ?', ['fin_9', ba.id]);
   config.financy.apiKey = null;
   await assert.rejects(() => syncBankAccount(ba.id, {}, ow, db), /לא מוגדר/);
+});
+
+// --- the nightly scheduler ---------------------------------------------------------------------
+
+test('syncAllLinkedAccounts covers every linked account and one failure never stops the rest', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  const stores = await db.many('SELECT id FROM stores ORDER BY id', []);
+  assert.ok(stores.length >= 2, 'the seed has more than one store');
+  const accts = await db.many('SELECT id FROM bank_accounts ORDER BY id', []);
+  assert.ok(accts.length >= 2);
+
+  // Link the first two; leave any others unlinked so they are skipped, not attempted.
+  await db.run('UPDATE bank_accounts SET financy_account_id = ? WHERE id = ?', ['fin_a', accts[0].id]);
+  await db.run('UPDATE bank_accounts SET financy_account_id = ? WHERE id = ?', ['fin_b', accts[1].id]);
+
+  // fin_a answers; fin_b fails — a bank that is briefly unreachable must not lose fin_a's rows.
+  global.fetch = async (url) => {
+    const u = new URL(String(url));
+    if (u.searchParams.get('accountId') === 'fin_b') {
+      return { ok: false, status: 429, text: async () => 'slow down' };
+    }
+    return { ok: true, status: 200, json: async () => ({ items: [txn()], nextPage: null }) };
+  };
+
+  const r = await syncAllLinkedAccounts({}, ow, db);
+  assert.equal(r.accounts, 2, 'only the linked accounts are attempted');
+  assert.equal(r.inserted, 1);
+  assert.equal(r.results.length, 1);
+  assert.equal(r.errors.length, 1);
+  assert.match(r.errors[0].error, /429/);
+  // fin_a's row is committed despite fin_b failing.
+  assert.equal((await listTransactions(accts[0].id, db)).length, 1);
+});
+
+test('with no linked accounts the scheduled run is a clean no-op', async () => {
+  const db = await freshDb();
+  const ow = await owner(db);
+  stubFinancy({ transactions: [txn()] });
+  const r = await syncAllLinkedAccounts({}, ow, db);
+  assert.deepEqual({ accounts: r.accounts, inserted: r.inserted, errors: r.errors.length }, { accounts: 0, inserted: 0, errors: 0 });
 });

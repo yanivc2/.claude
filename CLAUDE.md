@@ -103,6 +103,8 @@ happen only at merge. So:
   mapper) + `services/bankSync.js`. Needs **`FINANCY_API_KEY`** env (unset ⇒ the UI says "not
   configured") and a Financy **Starter** plan. Accounts are linked owner-side by branch+account
   number (הגדרות ← 🏦 "קשר חשבונות בנק"); a re-pull is idempotent via `bank_transactions.external_id`.
+  Nightly: `GET /ingest/bank-sync` (before the auth gate, guarded by **`CRON_SECRET`** — unset = 503;
+  Vercel Cron sends it as a Bearer header), scheduled in `vercel.json` → `crons`.
 - **Alerts:** `lib/notify.js#notify(html, {kind?,link?})` — fire-and-forget, never throws. Does TWO
   things: pushes to Telegram (no-op without token) **and** records an in-app notification (bell +
   `/notifications`, owner-only) via `services/notifications.js` (HTML→text, first line=title). So

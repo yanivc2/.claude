@@ -128,3 +128,42 @@ export async function syncBankAccount(bankAccountId, opts = {}, actor, x = getEx
 
   return { inserted, skipped, fetched: raw.length, matched, voidedSeen, from: dateFrom, to: dateTo };
 }
+
+/**
+ * Sync every LINKED bank account — what the nightly scheduler calls. One account's failure (a bank
+ * that is briefly unreachable, a consent that expired) must not stop the others, so each is caught
+ * and reported rather than thrown; the caller decides whether a partial run is an error.
+ * @returns {{accounts:number, inserted:number, matched:number, results:Array, errors:Array}}
+ */
+export async function syncAllLinkedAccounts(opts = {}, actor, x = getExecutor()) {
+  const accounts = await x.many(
+    'SELECT id, display_name FROM bank_accounts WHERE financy_account_id IS NOT NULL ORDER BY id',
+    [],
+  );
+
+  const results = [];
+  const errors = [];
+  for (const acct of accounts) {
+    try {
+      const r = await syncBankAccount(acct.id, opts, actor, x);
+      results.push({ accountId: acct.id, displayName: acct.display_name, ...r });
+    } catch (e) {
+      errors.push({ accountId: acct.id, displayName: acct.display_name, error: e.message });
+    }
+  }
+
+  if (errors.length) {
+    notify(
+      `⚠️ <b>סנכרון בנק נכשל</b>\n${errors.map((e) => `• ${e.displayName}: ${e.error}`).join('\n')}`,
+      { kind: 'bank', link: '/reconciliation' },
+    );
+  }
+
+  return {
+    accounts: accounts.length,
+    inserted: results.reduce((n, r) => n + r.inserted, 0),
+    matched: results.reduce((n, r) => n + r.matched, 0),
+    results,
+    errors,
+  };
+}

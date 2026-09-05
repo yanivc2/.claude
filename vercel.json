@@ -7,6 +7,15 @@
     }
   },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api/index" }
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
+    }
+  ],
+  "crons": [
+    {
+      "path": "/ingest/bank-sync",
+      "schedule": "0 4 * * *"
+    }
   ]
 }
