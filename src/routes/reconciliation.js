@@ -26,6 +26,8 @@ import {
   unmatch,
   autoReconcile,
 } from '../services/reconciliation.js';
+import { syncBankAccount } from '../services/bankSync.js';
+import { financyConfigured } from '../lib/financy.js';
 
 const router = Router();
 
@@ -72,6 +74,11 @@ async function renderPage(req, res, accountId, extra = {}) {
     accountId,
     classified,
     transactions: accountId ? await listTransactions(accountId) : [],
+    // Open-Banking sync is offered only when the key is configured AND this account is linked.
+    financyReady: financyConfigured(),
+    financyLinked: Boolean(
+      accountId && (await getExecutor().one('SELECT financy_account_id FROM bank_accounts WHERE id = ?', [accountId]))?.financy_account_id,
+    ),
     error: null,
     notice: null,
     ...extra,
@@ -113,6 +120,24 @@ router.post('/import-csv', requirePermission('import_bank'), (req, res, next) =>
       next(err);
     }
   });
+});
+
+// Open-Banking sync — pull this account's movements from Financy and run the matcher.
+// Same permission as the CSV import: this is the same act (bring the statement in), automated.
+router.post('/sync', requirePermission('import_bank'), async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  try {
+    if (!accountId) throw new RuleError('FINANCY', 'לא נבחר חשבון בנק');
+    const r = await syncBankAccount(accountId, {}, req.user);
+    return renderPage(req, res, accountId, {
+      notice:
+        `סונכרן מהבנק (${r.from} — ${r.to}): ${r.fetched} תנועות נמשכו, ${r.inserted} חדשות, ` +
+        `${r.skipped} כבר היו קיימות, ${r.matched} הותאמו אוטומטית לתשלומים.`,
+    });
+  } catch (err) {
+    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    next(err);
+  }
 });
 
 // Manual single transaction (signed shekels, debit negative).

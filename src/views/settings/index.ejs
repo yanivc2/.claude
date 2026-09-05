@@ -32,6 +32,12 @@
           <span class="dial-txt"><strong>בדוק טלגרם — <%= (typeof telegramReady !== 'undefined' && telegramReady) ? 'מוגדר' : 'לא מוגדר' %></strong><small>שולח הודעת בדיקה ומראה אם ההתראות עובדות (ואם לא — למה).</small></span>
         </button>
       </form>
+      <form method="post" action="/settings/financy-link" style="margin:0" data-busy>
+        <button type="submit" class="dial" style="width:100%">
+          <span class="dial-ic">🏦</span>
+          <span class="dial-txt"><strong>קשר חשבונות בנק — <%= (typeof financyReady !== 'undefined' && financyReady) ? 'מוגדר' : 'לא מוגדר' %></strong><small>בנקאות פתוחה (Financy, קריאה בלבד): מקשר כל חשבון בנק לחשבון המקביל אצל הספק לפי סניף+מספר חשבון, ואז אפשר למשוך תנועות ישירות בדף התאמת בנק.</small></span>
+        </button>
+      </form>
       <%# Only while scanning is unlocked: a supplier's catalog exists to identify lines on
           a scanned invoice, so it has nothing to do while there is no scanning. %>
       <% if (typeof scanEnabled !== 'undefined' && scanEnabled) { %>

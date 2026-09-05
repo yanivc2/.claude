@@ -11,6 +11,7 @@ export function migrate(db) {
   migrateSupplierContacts(db);
   migrateUserAuth(db);
   migrateBankBalance(db);
+  migrateOpenBankingSync(db);
   migrateUserCompanies(db);
   migrateDeposits(db);
   migrateZExtras(db);
@@ -296,6 +297,22 @@ function migrateBankBalance(db) {
   if (!hasTable) return;
   const cols = db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name);
   if (!cols.includes('balance_after')) db.exec('ALTER TABLE bank_transactions ADD COLUMN balance_after INTEGER;');
+}
+
+// Open-Banking sync (Financy): the provider's account id on bank_accounts, and the provider's own
+// transaction id on bank_transactions — the latter is the dedupe key for a re-pulled date window.
+function migrateOpenBankingSync(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  if (has('bank_accounts')) {
+    const cols = db.prepare('PRAGMA table_info(bank_accounts)').all().map((c) => c.name);
+    if (!cols.includes('financy_account_id')) db.exec('ALTER TABLE bank_accounts ADD COLUMN financy_account_id TEXT;');
+  }
+  if (has('bank_transactions')) {
+    const cols = db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name);
+    if (!cols.includes('external_id')) db.exec('ALTER TABLE bank_transactions ADD COLUMN external_id TEXT;');
+    db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS ux_bank_txn_external
+             ON bank_transactions(bank_account_id, external_id) WHERE external_id IS NOT NULL;`);
+  }
 }
 
 // Adds login columns (username / password_hash) to users for older databases.

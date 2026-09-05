@@ -112,6 +112,18 @@ export const config = {
     scanJpegQuality: Number(process.env.SCAN_JPEG_QUALITY ?? 0.9),
     enabled: Boolean(process.env.ANTHROPIC_API_KEY),
   },
+  // Open Banking (Financy / open-finance.ai) — pulls bank movements straight into
+  // bank_transactions instead of importing a CSV by hand. READ-ONLY: the key's scopes cover
+  // accounts/transactions only; nothing in this app can move money. Without FINANCY_API_KEY the
+  // sync button reports the feature as unconfigured instead of failing mid-request (enabled=false).
+  financy: {
+    apiKey: process.env.FINANCY_API_KEY || null,
+    baseUrl: process.env.FINANCY_BASE_URL || 'https://api.open-finance.ai/v2',
+    // How far back a manual/scheduled sync reaches. An overlapping window is free: rows carry the
+    // provider's own id (external_id), so a re-pull is deduped, never duplicated.
+    syncDays: Number(process.env.FINANCY_SYNC_DAYS ?? 90),
+    enabled: Boolean(process.env.FINANCY_API_KEY),
+  },
   // Shared secret so an external scheduler (e.g. Vercel Cron) can trigger the reminders runner
   // without a login session: GET /audit/reminders/run?key=<CRON_SECRET>.
   cronSecret: process.env.CRON_SECRET || null,

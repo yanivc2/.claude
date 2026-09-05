@@ -24,20 +24,29 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
       }
       const desc = r.description ?? null;
       const ref = r.rawReference ?? null;
-      const dup = await t.one(
-        `SELECT id FROM bank_transactions
-          WHERE bank_account_id = ? AND txn_date = ? AND amount = ?
-            AND COALESCE(description,'') = COALESCE(?, '') AND COALESCE(raw_reference,'') = COALESCE(?, '')`,
-        [bankAccountId, r.txnDate, r.amount, desc, ref],
-      );
+      const externalId = r.externalId ?? null;
+      // A row that carries the provider's own id (Open Banking sync) dedupes on THAT — the bank may
+      // restate a line's description or value date between pulls, and an overlapping date window is
+      // re-fetched on every sync. Rows without one (CSV / manual) keep the field-equality check.
+      const dup = externalId
+        ? await t.one(
+            'SELECT id FROM bank_transactions WHERE bank_account_id = ? AND external_id = ?',
+            [bankAccountId, externalId],
+          )
+        : await t.one(
+            `SELECT id FROM bank_transactions
+              WHERE bank_account_id = ? AND txn_date = ? AND amount = ?
+                AND COALESCE(description,'') = COALESCE(?, '') AND COALESCE(raw_reference,'') = COALESCE(?, '')`,
+            [bankAccountId, r.txnDate, r.amount, desc, ref],
+          );
       if (dup) {
         skipped += 1;
         continue;
       }
       await t.run(
-        `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, balance_after, source)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [bankAccountId, r.txnDate, r.amount, desc, ref, Number.isFinite(r.balanceAfter) ? r.balanceAfter : null, source],
+        `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, balance_after, source, external_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [bankAccountId, r.txnDate, r.amount, desc, ref, Number.isFinite(r.balanceAfter) ? r.balanceAfter : null, source, externalId],
       );
       inserted += 1;
     }

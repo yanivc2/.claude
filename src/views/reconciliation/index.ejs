@@ -18,6 +18,22 @@
       <% }); %>
     </select>
   </form>
+
+  <% if (typeof financyReady !== 'undefined' && financyReady && accountId) { %>
+    <% if (financyLinked) { %>
+      <form method="post" action="/reconciliation/sync" class="actions" style="margin-top:var(--space-4)" data-busy>
+        <input type="hidden" name="account_id" value="<%= accountId %>" />
+        <button type="submit">🏦 משוך תנועות מהבנק</button>
+        <span class="muted" style="font-size:12px">
+          משיכה ישירה מהבנק (בנקאות פתוחה, קריאה בלבד) במקום ייבוא קובץ — ואז התאמה אוטומטית לצ׳קים.
+        </span>
+      </form>
+    <% } else { %>
+      <p class="muted" style="margin-top:var(--space-4); font-size:12px">
+        החשבון הזה עדיין לא מקושר ל-Financy. הגדרות ← "קשר חשבונות בנק" כדי לאפשר משיכה ישירה מהבנק.
+      </p>
+    <% } %>
+  <% } %>
 </div>
 
 <div class="card">

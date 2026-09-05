@@ -26,6 +26,8 @@ import { exportAll, resetTransactionalData, restoreAll, cleanStartInvoicesPaymen
 import { setScanEnabled } from '../services/appSettings.js';
 import { storageSelfTest } from '../lib/storage.js';
 import { sendTelegramDetailed, telegramConfigured } from '../lib/notify.js';
+import { linkFinancyAccounts } from '../services/bankSync.js';
+import { financyConfigured } from '../lib/financy.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
 import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFile.js';
 import { parseSupplierCatalog } from '../lib/supplierCatalogFile.js';
@@ -154,6 +156,7 @@ async function render(req, res, extra = {}) {
     notice: null,
     schemaWarning,
     telegramReady: telegramConfigured(),
+    financyReady: financyConfigured(),
     invite: null,
     linkInvite: null,
     ...extra,
@@ -507,6 +510,23 @@ router.post('/telegram-test', requireOwner, async (req, res, next) => {
     const r = await sendTelegramDetailed(`בדיקת טלגרם מ-AP Control ✅ — אם קיבלת הודעה זו, ההתראות פעילות.`);
     await render(req, res, { notice: (r.ok ? '✅ ' : '⚠️ ') + r.detail });
   } catch (err) {
+    next(err);
+  }
+});
+
+// Link AP Control's bank accounts to their Financy (Open Banking) counterparts, matched on
+// branch + account number. Owner-only: it decides which real bank account each account pulls from.
+router.post('/financy-link', requireOwner, async (req, res, next) => {
+  try {
+    const r = await linkFinancyAccounts(req.user);
+    const parts = [`קושרו ${r.linked.length} חשבונות`];
+    if (r.alreadyLinked) parts.push(`${r.alreadyLinked} כבר היו מקושרים`);
+    if (r.unmatched.length) {
+      parts.push(`ללא התאמה: ${r.unmatched.map((u) => u.displayName).join(', ')}`);
+    }
+    await render(req, res, { notice: '🏦 ' + parts.join(' · ') });
+  } catch (err) {
+    if (err instanceof RuleError) return render(req, res, { error: err.message });
     next(err);
   }
 });

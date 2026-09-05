@@ -29,7 +29,10 @@ CREATE TABLE IF NOT EXISTS bank_accounts (
   bank_name      TEXT NOT NULL DEFAULT 'הפועלים',
   branch         TEXT NOT NULL,
   account_number TEXT NOT NULL,
-  display_name   TEXT NOT NULL
+  display_name   TEXT NOT NULL,
+  -- Open-Banking link (Financy / open-finance.ai): the provider's account id for this account.
+  -- NULL = not linked; the bank-sync button is only offered for a linked account.
+  financy_account_id TEXT
 );
 
 -- §4 suppliers ------------------------------------------------------------------
@@ -253,8 +256,13 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   raw_reference      TEXT,
   balance_after      INTEGER,                                  -- agorot; running balance if the export provides it
   source             TEXT NOT NULL DEFAULT 'scraper',
+  -- Provider's own transaction id (Financy `SK`). NULL for CSV/manual rows. When present it is
+  -- the dedupe key, so re-pulling an overlapping date window never duplicates a line.
+  external_id        TEXT,
   matched_payment_id INTEGER REFERENCES payments(id)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_bank_txn_external
+  ON bank_transactions(bank_account_id, external_id) WHERE external_id IS NOT NULL;
 
 -- invoice_ocr — stage 3. OCR result for an invoice image: raw recognized text and the
 -- fields extracted from it (JSON). Kept in a separate table so existing databases need no

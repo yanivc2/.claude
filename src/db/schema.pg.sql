@@ -132,8 +132,10 @@ CREATE TABLE IF NOT EXISTS bank_accounts (
   bank_name      TEXT NOT NULL DEFAULT 'הפועלים',
   branch         TEXT NOT NULL,
   account_number TEXT NOT NULL,
-  display_name   TEXT NOT NULL
+  display_name   TEXT NOT NULL,
+  financy_account_id TEXT
 );
+ALTER TABLE bank_accounts ADD COLUMN IF NOT EXISTS financy_account_id TEXT;
 
 -- suppliers ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS suppliers (
@@ -241,6 +243,9 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   matched_payment_id INTEGER REFERENCES payments(id)
 );
 ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS balance_after BIGINT;
+ALTER TABLE bank_transactions ADD COLUMN IF NOT EXISTS external_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_bank_txn_external
+  ON bank_transactions(bank_account_id, external_id) WHERE external_id IS NOT NULL;
 
 -- invoice_ocr -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoice_ocr (

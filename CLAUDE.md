@@ -97,6 +97,12 @@ happen only at merge. So:
   (RTL label→value, one day, **no date in the file** — the caller supplies it; default = yesterday), `services/revenueReports.js`
   upserts one row per store/day (`revenue_reports`). Email ingestion: `POST /ingest/revenue-report`
   (mounted BEFORE `currentUser`, guarded by **`REVENUE_INGEST_SECRET`** env — unset = 503).
+- **Open Banking (Financy):** `POST /reconciliation/sync` pulls bank movements straight into
+  `bank_transactions` (same pipeline as the CSV import, then `autoReconcile`). `lib/financy.js`
+  (fetch, **read-only** — payment initiation deliberately not wired) + `lib/financyMap.js` (pure
+  mapper) + `services/bankSync.js`. Needs **`FINANCY_API_KEY`** env (unset ⇒ the UI says "not
+  configured") and a Financy **Starter** plan. Accounts are linked owner-side by branch+account
+  number (הגדרות ← 🏦 "קשר חשבונות בנק"); a re-pull is idempotent via `bank_transactions.external_id`.
 - **Alerts:** `lib/notify.js#notify(html, {kind?,link?})` — fire-and-forget, never throws. Does TWO
   things: pushes to Telegram (no-op without token) **and** records an in-app notification (bell +
   `/notifications`, owner-only) via `services/notifications.js` (HTML→text, first line=title). So
