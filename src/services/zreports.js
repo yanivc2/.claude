@@ -89,13 +89,20 @@ export async function deleteZReport(id, actor, x = getExecutor()) {
 }
 
 /** Recent Z reports, newest first, optionally filtered by store. */
-export async function listZReports({ storeId = null, limit = 40 } = {}, x = getExecutor()) {
-  const base = `SELECT z.*, st.name AS store_name
-                  FROM z_reports z JOIN stores st ON st.id = z.store_id`;
+export async function listZReports({ storeId = null, limit = 40, scope = null } = {}, x = getExecutor()) {
+  // Scoped: a Z report is a store's daily takings. Unscoped, this listed every company's.
+  const sc = scopeWhere(scope, 'st.company_id', 'z.store_id');
+  const where = [];
+  const params = [];
   if (storeId) {
-    return x.many(`${base} WHERE z.store_id = ? ORDER BY z.z_date DESC, z.id DESC LIMIT ?`, [storeId, limit]);
+    where.push('z.store_id = ?');
+    params.push(storeId);
   }
-  return x.many(`${base} ORDER BY z.z_date DESC, z.id DESC LIMIT ?`, [limit]);
+  const sql = `SELECT z.*, st.name AS store_name
+                 FROM z_reports z JOIN stores st ON st.id = z.store_id
+                WHERE 1 = 1${where.length ? ` AND ${where.join(' AND ')}` : ''}${sc.sql}
+                ORDER BY z.z_date DESC, z.id DESC LIMIT ?`;
+  return x.many(sql, [...params, ...sc.params, limit]);
 }
 
 // Cash denominations for the deposit calculator (shekel value + a form-safe key).

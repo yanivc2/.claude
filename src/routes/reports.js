@@ -219,7 +219,7 @@ async function renderProfitability(req, res, extra = {}) {
 // Z reports live on their own tab (form to add + recent records table).
 async function renderZReports(req, res, extra = {}) {
   const zStoreId = req.query.zstore ? Number(req.query.zstore) : null;
-  const zRows = await listZReports({ storeId: zStoreId, limit: 30 });
+  const zRows = await listZReports({ storeId: zStoreId, limit: 30, scope: req.scope });
   const zReports = await Promise.all(
     zRows.map(async (z) => {
       // Reconciliation per the owner's rule: (סה"כ מגירה + הוצאות במזומן) מול סכום ההפקדה.

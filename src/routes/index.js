@@ -238,7 +238,7 @@ router.get('/audit', requirePageAccess('nav_audit'), async (req, res, next) => {
       rangeTotal: checks.reduce((s, c) => s + c.amount, 0),
       events,
       remindersEnabled: config.telegram.enabled,
-      entries: await listRecent(200),
+      entries: await listRecent(200, req.scope),
     });
   } catch (err) {
     next(err);
