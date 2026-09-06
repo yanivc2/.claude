@@ -225,7 +225,8 @@
     <% var bpSuppliers = [...new Set(batchInvoices.map(function(iv){ return iv.supplier_name; }))]; %>
     <h2 style="margin:0 0 .3rem">שיוך לתשלום — <%= bpSuppliers.join(' + ') %> · <%= batchInvoices[0].store_name %></h2>
     <p class="muted" style="margin:0 0 .6rem">בחר את החשבוניות שברצונך לשלם יחד (זיכויים מקזזים) ובחר אמצעי תשלום. ייווצר תשלום אחד וישויך לכולן.<% if (bpSuppliers.length > 1) { %> כולל חברת-אם וחברות-בת.<% } %></p>
-    <form method="post" action="/invoices/pay-batch" class="stack">
+    <% var pv = (typeof payValues !== 'undefined' && payValues) ? payValues : {}; %>
+    <form method="post" action="/invoices/pay-batch" class="stack" onsubmit="return bpValidate(this)">
       <input type="hidden" name="supplier_id" value="<%= batchInvoices[0].supplier_id %>" />
       <input type="hidden" name="store_id" value="<%= batchInvoices[0].store_id %>" />
       <table>
@@ -251,7 +252,7 @@
       </table>
 
       <label style="margin-top:.6rem">אמצעי תשלום</label>
-      <select name="pay_method" id="bp_method">
+      <select name="pay_method" id="bp_method" data-sel="<%= pv.pay_method || 'check' %>">
         <option value="check">צ׳ק</option>
         <option value="transfer">העברה</option>
         <option value="cash">מזומן</option>
@@ -260,32 +261,32 @@
       </select>
       <div class="bpay-row" data-m="check">
         <div class="row">
-          <div><label>מספר צ׳ק</label><input name="check_number" /></div>
-          <div><label>תאריך פירעון</label><input type="date" name="check_due_date" /></div>
+          <div><label>מספר צ׳ק</label><input name="check_number" value="<%= pv.check_number || '' %>" /></div>
+          <div><label>תאריך פירעון</label><input type="date" name="check_due_date" value="<%= pv.check_due_date || '' %>" /></div>
         </div>
       </div>
       <div class="bpay-row" data-m="transfer">
         <div class="row">
-          <div><label>מספר אסמכתה</label><input name="transfer_ref" /></div>
-          <div><label>תאריך פירעון</label><input type="date" name="transfer_date" /></div>
+          <div><label>מספר אסמכתה</label><input name="transfer_ref" value="<%= pv.transfer_ref || '' %>" /></div>
+          <div><label>תאריך פירעון</label><input type="date" name="transfer_date" value="<%= pv.transfer_date || '' %>" /></div>
         </div>
       </div>
       <div class="bpay-row" data-m="cash">
         <div class="row">
-          <div><label>שולם ע"י</label><input name="cash_payer" /></div>
-          <div><label>תאריך תשלום</label><input type="date" name="cash_date" /></div>
+          <div><label>שולם ע"י</label><input name="cash_payer" value="<%= pv.cash_payer || '' %>" /></div>
+          <div><label>תאריך תשלום</label><input type="date" name="cash_date" value="<%= pv.cash_date || '' %>" /></div>
         </div>
       </div>
       <div class="bpay-row" data-m="credit">
         <div class="row">
-          <div><label>4 ספרות אחרונות (לא חובה)</label><input name="card_last4" inputmode="numeric" maxlength="4" pattern="\d{4}" /></div>
-          <div><label>תאריך חיוב</label><input type="date" name="credit_date" /></div>
+          <div><label>4 ספרות אחרונות (לא חובה)</label><input name="card_last4" inputmode="numeric" maxlength="4" pattern="\d{4}" value="<%= pv.card_last4 || '' %>" /></div>
+          <div><label>תאריך חיוב</label><input type="date" name="credit_date" value="<%= pv.credit_date || '' %>" /></div>
         </div>
       </div>
       <div class="bpay-row" data-m="standing_order">
         <div class="row">
-          <div><label>מספר הרשאה / אסמכתא</label><input name="so_ref" /></div>
-          <div><label>תאריך חיוב</label><input type="date" name="so_date" /></div>
+          <div><label>מספר הרשאה / אסמכתא</label><input name="so_ref" value="<%= pv.so_ref || '' %>" /></div>
+          <div><label>תאריך חיוב</label><input type="date" name="so_date" value="<%= pv.so_date || '' %>" /></div>
         </div>
       </div>
       <%# Split payments (R8): leave the amount empty to pay the whole open balance in one payment,
@@ -293,13 +294,14 @@
       <div class="row" style="margin-top:.6rem">
         <div>
           <label>סכום התשלום (₪) — ריק = כל היתרה</label>
-          <input name="pay_amount" inputmode="decimal" placeholder="ריק = היתרה המלאה" />
+          <input name="pay_amount" id="bpAmount" inputmode="decimal" placeholder="ריק = היתרה המלאה" value="<%= pv.pay_amount || '' %>" />
         </div>
         <div>
           <label>יתרה פתוחה במסומנות</label>
           <input id="bpOpen" readonly value="<%= formatIls(0) %>" />
         </div>
       </div>
+      <p id="bpAmountWarn" class="alert alert-error" style="display:none; margin:.4rem 0 0; font-size:13px"></p>
       <div style="margin-top:.8rem" class="actions">
         <button type="submit">צור תשלום לחשבוניות המסומנות</button>
         <button type="submit" name="add_more" value="1" class="secondary">שמור וצור תשלום נוסף לחשבונית</button>
@@ -314,6 +316,7 @@
   <script>
     (function(){
       var sel = document.getElementById('bp_method');
+      if (sel.dataset.sel) sel.value = sel.dataset.sel; // restore the method after a refusal
       function upd(){ document.querySelectorAll('.bpay-row').forEach(function(r){ r.style.display = (r.dataset.m === sel.value) ? 'block' : 'none'; }); }
       sel.addEventListener('change', upd); upd();
       // live net of the checked rows
@@ -332,7 +335,39 @@
         if (openBox) openBox.value = fmt(open);
       }
       checks.forEach(function(c){ c.addEventListener('change', recalc); });
+
+      // Immediate feedback for the same rule the server enforces: you cannot pay more than is
+      // open. The server refuses it too — this only saves the round trip.
+      var amt = document.getElementById('bpAmount');
+      var warn = document.getElementById('bpAmountWarn');
+      function openSum(){ var o=0; checks.forEach(function(c,i){ if(c.checked) o+=opens[i]; }); return o; }
+      function amountAgorot(){
+        var raw = String(amt && amt.value || '').replace(/[^\d.-]/g, '');
+        if (!raw) return null;
+        var n = Number(raw);
+        return isFinite(n) ? Math.round(n * 100) : null;
+      }
+      function checkAmount(){
+        if (!amt || !warn) return true;
+        var a = amountAgorot(), o = openSum();
+        var bad = a != null && a > o;
+        warn.textContent = bad ? ('לא ניתן לשלם מעבר ליתרה — היתרה הפתוחה היא ' + fmt(o)) : '';
+        warn.style.display = bad ? 'block' : 'none';
+        amt.style.borderColor = bad ? 'var(--color-bad, #b3261e)' : '';
+        return !bad;
+      }
+      window.bpValidate = function(){
+        if (!checkAmount()){
+          alert('לא ניתן לשלם מעבר ליתרה. תקן את הסכום.');
+          if (amt) amt.focus();
+          return false;
+        }
+        return true;
+      };
+      if (amt) amt.addEventListener('input', checkAmount);
+      checks.forEach(function(c){ c.addEventListener('change', checkAmount); });
       recalc();
+      checkAmount();
       // Arriving here from "הנפק תשלום לנבחרים" (a ?pick= list) means the user wants to pay, not to
       // create a new invoice — jump straight to this section and the payment-method field so there's
       // no scrolling past the whole new-invoice form.

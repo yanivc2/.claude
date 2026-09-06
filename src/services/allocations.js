@@ -182,18 +182,25 @@ export async function allocateInvoiceToPayments(invoiceId, allocations, actor, x
     if (inv.supplier_status !== 'approved') {
       throw new RuleError('R1', `הספק "${inv.supplier_name}" אינו מאושר — שיוך חסום`, { invoiceId });
     }
-    if (Number(inv.total_amount) <= 0) {
-      throw new RuleError('R8', 'לא ניתן לשייך חשבונית זיכוי לתשלום קיים — צרף אותה לתשלום חדש יחד עם חשבונית המס');
+    // A CREDIT NOTE allocates too, with the sign reversed: its line is negative, so instead of
+    // consuming a payment's balance it ENLARGES what that payment can still cover — a ₪5,000 check
+    // carrying a −₪1,000 credit can absorb ₪6,000 of invoice. A credit is a single document and is
+    // never split across payments: it goes on one payment, whole.
+    const isCredit = Number(inv.total_amount) < 0;
+    if (Number(inv.total_amount) === 0) {
+      throw new RuleError('R8', 'חשבונית בסכום אפס — אין מה לשייך');
     }
 
     let open = (await invoiceAllocation(invoiceId, t)).open;
-    if (open <= 0) throw new RuleError('R8', 'החשבונית כבר משויכת במלואה לתשלומים');
+    // "Still open" flips with the sign: a credit is done when its remaining reaches 0 from below.
+    const stillOpen = () => (isCredit ? open < 0 : open > 0);
+    if (!stillOpen()) throw new RuleError('R8', 'החשבונית כבר משויכת במלואה לתשלומים');
 
     const lines = [];
     let bankAccountId = null;
 
     for (const a of wanted) {
-      if (open <= 0) break;
+      if (!stillOpen()) break;
       const pay = await t.one('SELECT * FROM payments WHERE id = ?', [a.paymentId]);
       if (!pay) throw new NotFoundError(`תשלום ${a.paymentId} לא נמצא`);
       if (pay.status === 'voided') throw new RuleError('R8', `תשלום #${pay.id} מבוטל — לא ניתן לשייך אליו`);
@@ -213,14 +220,20 @@ export async function allocateInvoiceToPayments(invoiceId, allocations, actor, x
       if (already) throw new RuleError('R8', `חשבונית זו כבר משויכת לתשלום #${pay.id}`);
 
       const { unallocated } = await paymentAllocation(pay.id, t);
-      if (unallocated <= 0) {
+      // A credit needs no free balance — it creates some. Only a positive invoice has to fit.
+      if (!isCredit && unallocated <= 0) {
         throw new RuleError('R8', `לתשלום #${pay.id} אין יתרה פנויה לשיוך — כולו כבר משויך לחשבוניות`);
       }
 
-      // Take what was asked, capped by both sides — never over-allocate a payment or an invoice.
-      const asked = Number.isFinite(a.amount) && a.amount > 0 ? Math.floor(a.amount) : Math.min(unallocated, open);
-      const applied = Math.min(asked, unallocated, open);
-      if (applied <= 0) continue;
+      let applied;
+      if (isCredit) {
+        applied = open; // the whole remaining credit, negative, on this one payment
+      } else {
+        // Take what was asked, capped by both sides — never over-allocate a payment or an invoice.
+        const asked = Number.isFinite(a.amount) && a.amount > 0 ? Math.floor(a.amount) : Math.min(unallocated, open);
+        applied = Math.min(asked, unallocated, open);
+        if (applied <= 0) continue;
+      }
 
       await t.run('INSERT INTO payment_lines (payment_id, invoice_id, amount_applied) VALUES (?, ?, ?)', [
         pay.id, invoiceId, applied,

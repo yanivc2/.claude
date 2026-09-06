@@ -240,7 +240,7 @@ test('an on_hold (R3) invoice cannot be allocated — the hold outranks it', asy
   await assert.rejects(() => allocateInvoiceToPayments(inv.id, [{ paymentId: payments[0].id }], ow, db), /מוחזקת/);
 });
 
-test('a credit note is not allocated to an existing payment — it nets on a new one', async () => {
+test('a credit note allocates with the sign reversed — it enlarges what the check can absorb', async () => {
   const db = await freshDb();
   const { ow, store, landlord, payments } = await rentSetup(db, { checks: 1, each: 500000 });
   await createInvoice(
@@ -248,7 +248,15 @@ test('a credit note is not allocated to an existing payment — it nets on a new
     ow, db,
   );
   const cn = await db.one("SELECT * FROM invoices WHERE invoice_number='RENT-C'", []);
-  await assert.rejects(() => allocateInvoiceToPayments(cn.id, [{ paymentId: payments[0].id }], ow, db), /זיכוי/);
+
+  // A ₪5,000 check carrying a −₪1,000 credit can now cover ₪6,000 of invoice.
+  await allocateInvoiceToPayments(cn.id, [{ paymentId: payments[0].id }], ow, db);
+  assert.deepEqual(await paymentAllocation(payments[0].id, db), {
+    amount: 500000, allocated: -100000, unallocated: 600000,
+  });
+  assert.deepEqual(await invoiceAllocation(cn.id, db), { total: -100000, allocated: -100000, open: 0 });
+  // The credit is a single document: it is never split, and never applied twice.
+  await assert.rejects(() => allocateInvoiceToPayments(cn.id, [{ paymentId: payments[0].id }], ow, db), /כבר משויכת במלואה/);
 });
 
 // --- the screens ------------------------------------------------------------------------------
@@ -650,7 +658,7 @@ test('"שמור וצור תשלום נוסף" pays an invoice with three checks,
   }
 });
 
-test('a split payment never takes more than the invoice still owes, and cannot overpay', async () => {
+test('a typed amount over the open balance is REFUSED and the form comes back filled in', async () => {
   const { createApp } = await import('../src/app.js');
   const { createSession } = await import('../src/lib/auth.js');
   const { once } = await import('node:events');
@@ -678,29 +686,112 @@ test('a split payment never takes more than the invoice still owes, and cannot o
       pay_amount: '9999', // way over the ₪1,000 invoice
     });
     body.append('invoice_ids', String(inv.id));
-    await fetch(`${base}/invoices/pay-batch`, {
+    const res = await fetch(`${base}/invoices/pay-batch`, {
       method: 'POST', redirect: 'manual',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
       body,
     });
-    // Capped at the invoice, not the typed amount.
-    const pay = await db.one("SELECT amount FROM payments WHERE check_number='4001'", []);
-    assert.equal(Number(pay.amount), 100000);
-    assert.equal((await invoiceAllocation(inv.id, db)).open, 0);
 
-    // Paying again is refused — there is nothing left open.
-    const body2 = new URLSearchParams({
-      supplier_id: String(sup.id), store_id: String(store.id),
-      pay_method: 'check', check_number: '4002', check_due_date: '2026-03-10', pay_amount: '100',
-    });
-    body2.append('invoice_ids', String(inv.id));
-    const res2 = await fetch(`${base}/invoices/pay-batch`, {
+    assert.equal(res.status, 400, 'refused, not capped');
+    const html = await res.text();
+    assert.match(html, /לא ניתן לשלם מעבר ליתרה/);
+    // Nothing was recorded — the typo cost nothing.
+    assert.equal((await db.many('SELECT id FROM payments', [])).length, 0);
+    assert.deepEqual(await invoiceAllocation(inv.id, db), { total: 100000, allocated: 0, open: 100000 });
+    // …and the form comes back with the same selection and the same typed details to fix.
+    assert.match(html, new RegExp(`value="${inv.id}"[^>]*checked`));
+    assert.match(html, /value="4001"/);
+    assert.match(html, /value="9999"/);
+
+    // Correcting the amount goes through.
+    body.set('pay_amount', '1000');
+    const ok = await fetch(`${base}/invoices/pay-batch`, {
       method: 'POST', redirect: 'manual',
       headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-      body: body2,
+      body,
     });
-    assert.equal(res2.status, 400);
-    assert.match(await res2.text(), /כבר משולמות במלואן/);
+    assert.equal(ok.status, 303);
+    assert.equal((await invoiceAllocation(inv.id, db)).open, 0);
+  } finally {
+    server.close();
+  }
+});
+
+test('a credit note rides on the first split payment and nets the invoice correctly', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק', 'approved')", []);
+  const sup = await db.one("SELECT * FROM suppliers WHERE name='ספק'", []);
+  // ₪15,000 invoice + a −₪1,000 credit = ₪14,000 to pay, split 5,000 + 5,000 + 4,000.
+  await createInvoice(
+    { supplierId: sup.id, storeId: store.id, invoiceNumber: 'CN-INV', invoiceDate: '2026-03-01', amountBeforeVat: 1500000, vatAmount: 0, docType: 'tax_invoice' },
+    ow, db,
+  );
+  await createInvoice(
+    { supplierId: sup.id, storeId: store.id, invoiceNumber: 'CN-CR', invoiceDate: '2026-03-02', amountBeforeVat: -100000, vatAmount: 0, docType: 'credit_note' },
+    ow, db,
+  );
+  const inv = await db.one("SELECT * FROM invoices WHERE invoice_number='CN-INV'", []);
+  const cn = await db.one("SELECT * FROM invoices WHERE invoice_number='CN-CR'", []);
+  await approveInvoiceForPayment(inv.id, ow, db);
+  await approveInvoiceForPayment(cn.id, ow, db);
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+
+  const pay = (checkNumber, amount, addMore) => {
+    const body = new URLSearchParams({
+      supplier_id: String(sup.id), store_id: String(store.id),
+      pay_method: 'check', check_number: checkNumber, check_due_date: '2026-03-10',
+    });
+    body.append('invoice_ids', String(inv.id));
+    body.append('invoice_ids', String(cn.id));
+    if (amount != null) body.set('pay_amount', amount);
+    if (addMore) body.set('add_more', '1');
+    return fetch(`${base}/invoices/pay-batch`, {
+      method: 'POST', redirect: 'manual',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+  };
+
+  try {
+    // The open balance of the selection is the NET, 14,000 — so 15,000 is over it.
+    const over = await pay('5001', '15000', true);
+    assert.equal(over.status, 400);
+    assert.match(await over.text(), /לא ניתן לשלם מעבר ליתרה/);
+
+    // Check 1: ₪5,000. The credit rides along, so this check absorbs ₪6,000 of invoice.
+    let res = await pay('5001', '5000', true);
+    assert.equal(res.status, 303);
+    assert.deepEqual(await invoiceAllocation(cn.id, db), { total: -100000, allocated: -100000, open: 0 });
+    assert.deepEqual(await invoiceAllocation(inv.id, db), { total: 1500000, allocated: 600000, open: 900000 });
+    const p1 = await db.one("SELECT id, amount FROM payments WHERE check_number='5001'", []);
+    assert.deepEqual(await paymentAllocation(p1.id, db), { amount: 500000, allocated: 500000, unallocated: 0 });
+
+    // Check 2: ₪5,000 — the credit is spent, so it is not applied again.
+    res = await pay('5002', '5000', true);
+    assert.equal((await invoiceAllocation(inv.id, db)).open, 400000);
+    assert.equal((await invoiceAllocation(cn.id, db)).allocated, -100000, 'the credit was applied once');
+
+    // Check 3: the closing one, no amount → takes the remaining ₪4,000.
+    res = await pay('5003', null, false);
+    assert.match(res.headers.get('location'), /^\/invoices\?/);
+    assert.equal((await invoiceAllocation(inv.id, db)).open, 0);
+    assert.equal((await db.one('SELECT status FROM invoices WHERE id = ?', [inv.id])).status, 'paid');
+    assert.equal((await db.one('SELECT status FROM invoices WHERE id = ?', [cn.id])).status, 'paid');
+
+    // Three checks totalling the NET, not the face value.
+    const pays = await db.many('SELECT amount FROM payments ORDER BY id', []);
+    assert.deepEqual(pays.map((p) => Number(p.amount)), [500000, 500000, 400000]);
+    assert.equal(pays.reduce((n, p) => n + Number(p.amount), 0), 1400000);
   } finally {
     server.close();
   }

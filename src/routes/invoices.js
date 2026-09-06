@@ -319,25 +319,40 @@ router.post('/pay-batch', async (req, res, next) => {
     if (!split) {
       payment = await createPayment(payInput, req.user);
     } else {
-      if (hasCredit) {
+      if (remaining <= 0) throw new RuleError('R8', 'החשבוניות המסומנות כבר משולמות במלואן');
+      // A typed amount over the open balance is a TYPO, not an instruction: refuse and come back
+      // to the same form so the number can be corrected. Silently capping it would record a
+      // payment the user never meant to make.
+      if (typed != null && typed > remaining) {
         throw new RuleError(
           'R8',
-          'זיכוי חייב להיכלל בתשלום אחד שסוגר את החשבונית. לפיצול לכמה תשלומים — הסר את הזיכוי מהבחירה ' +
-            'ושייך אותו לתשלום שסוגר את היתרה.',
+          `לא ניתן לשלם מעבר ליתרה. היתרה הפתוחה בחשבוניות המסומנות היא ${fromAgorot(remaining)} ₪ ` +
+            `והוזן ${fromAgorot(typed)} ₪. תקן את הסכום ונסה שוב.`,
         );
       }
-      if (remaining <= 0) throw new RuleError('R8', 'החשבוניות המסומנות כבר משולמות במלואן');
-      // Never take more than is still open, even if a larger amount was typed by mistake.
-      const amount = Math.min(typed == null ? remaining : typed, remaining);
+      const amount = typed == null ? remaining : typed;
       if (amount <= 0) throw new RuleError('R8', 'סכום התשלום חייב להיות חיובי');
 
-      // Recorded as money paid to the supplier, then allocated across the selected invoices in
-      // order — exactly the mechanism the rent-checks case uses.
+      // Recorded as money paid to the supplier, then allocated across the selected invoices.
       payment = await createPayment({ ...payInput, invoiceIds: [], supplierId, amount }, req.user);
+
+      // CREDIT NOTES FIRST. A credit's line is negative, so applying it before the invoices
+      // enlarges what this check can absorb: a ₪5,000 check with a −₪1,000 credit covers ₪6,000
+      // of invoice. Applied the other way round the check would fill up and the credit would be
+      // left behind on a later payment, netting wrongly. A credit goes on ONE payment, whole.
+      const ordered = [];
       for (const invId of invoiceIds) {
-        if ((await paymentAllocation(payment.id)).unallocated <= 0) break;
-        if ((await invoiceAllocation(invId)).open <= 0) continue;
-        await allocateInvoiceToPayments(invId, [{ paymentId: payment.id }], req.user);
+        const a = await invoiceAllocation(invId);
+        ordered.push({ invId, credit: a.total < 0, open: a.open });
+      }
+      ordered.sort((p1, p2) => Number(p2.credit) - Number(p1.credit));
+
+      for (const row of ordered) {
+        const a = await invoiceAllocation(row.invId);
+        const done = a.total < 0 ? a.open >= 0 : a.open <= 0;
+        if (done) continue;
+        if (a.total > 0 && (await paymentAllocation(payment.id)).unallocated <= 0) break;
+        await allocateInvoiceToPayments(row.invId, [{ paymentId: payment.id }], req.user);
       }
     }
 
@@ -364,6 +379,8 @@ router.post('/pay-batch', async (req, res, next) => {
     return res.redirect(303, `/invoices?${q.toString()}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
+      // Stay on THIS form with the same selection and the same typed payment details, so a bad
+      // amount is a one-field correction rather than re-entering everything.
       return res.status(400).render('invoices/new', {
         title: 'חשבונית חדשה',
         ...(await formData(req.scope.companyIds)),
@@ -371,6 +388,9 @@ router.post('/pay-batch', async (req, res, next) => {
         warnings: [],
         error: err.message,
         notice: null,
+        openInvoices: await listPayable(req.scope),
+        pickIds: invoiceIds,
+        payValues: b,
         ...(await batchContext(supplierId, storeId)),
       });
     }
