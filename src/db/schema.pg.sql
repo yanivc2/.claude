@@ -214,9 +214,11 @@ CREATE TABLE IF NOT EXISTS payments (
   status          TEXT NOT NULL DEFAULT 'issued'
                   CHECK (status IN ('issued','cleared','voided')),
   cleared_date    TEXT,
+  supplier_id     INTEGER REFERENCES suppliers(id),
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS supplier_id INTEGER REFERENCES suppliers(id);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_payments_account_check
   ON payments(bank_account_id, check_number) WHERE check_number IS NOT NULL AND status <> 'voided';
 

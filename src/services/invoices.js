@@ -393,24 +393,29 @@ export async function getInvoice(id, x = getExecutor()) {
 export async function getInvoiceDetail(id, x = getExecutor()) {
   const row = await x.one(
     `SELECT i.*, s.name AS supplier_name, s.status AS supplier_status,
-            st.name AS store_name, c.name AS company_name
+            st.name AS store_name, c.name AS company_name,
+            ba.id AS derived_bank_account_id
        FROM invoices i
        JOIN suppliers s ON s.id = i.supplier_id
        JOIN stores st ON st.id = i.store_id
        JOIN companies c ON c.id = i.company_id
+       LEFT JOIN bank_accounts ba ON ba.store_id = i.store_id
       WHERE i.id = ?`,
     [id],
   );
   if (!row) throw new NotFoundError(`חשבונית ${id} לא נמצאה`);
-  // Which payment paid this invoice, if any. Includes the method + every identifier field so the
-  // detail view can label it correctly (cash / transfer / credit / batch …), not always "צ׳ק".
-  row.payment = await x.one(
+  // Which payments settled this invoice. Since R8 an invoice can be covered by SEVERAL payments
+  // (an invoice that arrives after the money was paid — e.g. 3 rent checks), so this is a list;
+  // `payment` stays as the first one for the views that show a single identifier.
+  row.payments = await x.many(
     `SELECT p.id, p.method, p.check_number, p.reference, p.batch_number, p.card_last4, p.payer_name,
-            p.payment_date, p.status AS payment_status, p.cleared_date
+            p.payment_date, p.status AS payment_status, p.cleared_date, pl.amount_applied
        FROM payment_lines pl JOIN payments p ON p.id = pl.payment_id
-      WHERE pl.invoice_id = ?`,
+      WHERE pl.invoice_id = ? AND p.status <> 'voided'
+      ORDER BY p.payment_date, p.id`,
     [id],
   );
+  row.payment = row.payments[0] || undefined;
   return row;
 }
 

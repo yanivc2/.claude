@@ -8,6 +8,7 @@ import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { notify } from '../lib/notify.js';
 import { israelToday } from '../lib/loginHours.js';
 import { logAction } from './audit.js';
+import { syncInvoicePaidStatus } from './allocations.js';
 
 const METHODS = ['check', 'cash', 'credit', 'transfer', 'batch', 'standing_order'];
 
@@ -69,9 +70,17 @@ export function earlyPaymentAlerts(rows, paymentDate) {
 }
 
 /**
- * Issue a payment against a set of invoices/credit notes (check/cash/credit/transfer/batch).
- * Enforces: at least one linked approved invoice + the method's identifier; R1 (invoice
- * approved_for_payment AND supplier approved); R5 (amount == sum of applied lines).
+ * Issue a payment (check/cash/credit/transfer/batch), in one of two shapes:
+ *
+ *  • AGAINST INVOICES — pass `invoiceIds`. The amount is the net of those invoices and credit
+ *    notes (never typed by hand), each is consumed whole, and R5 holds: amount == Σ lines.
+ *  • AS AN ADVANCE (R8) — pass `supplierId` + `amount` and no invoices. This is money paid before
+ *    its invoice exists: 12 rent checks handed over up front. The payment carries its supplier so
+ *    the invoice can find it later; the whole amount sits unallocated ("על החשבון") until an
+ *    invoice is attached with allocateInvoiceToPayments.
+ *
+ * Enforces the method's identifier either way; R1 (invoice approved_for_payment AND supplier
+ * approved) and the cash ceiling on both.
  * @returns {object} the created payment with its lines
  */
 export async function createPayment(input, actor, x = getExecutor()) {
@@ -85,12 +94,25 @@ export async function createPayment(input, actor, x = getExecutor()) {
     batchNumber,
     paymentDate,
     invoiceIds = [],
+    supplierId = null,
+    amount: advanceAmount = null,
   } = input;
 
   if (!METHODS.includes(method)) throw new RuleError('VALIDATION', `אמצעי תשלום לא תקין: ${method}`);
   if (!paymentDate) throw new RuleError('VALIDATION', 'תאריך תשלום חובה');
-  if (!Array.isArray(invoiceIds) || invoiceIds.length === 0) {
-    throw new RuleError('CHECK', 'לא ניתן להנפיק תשלום ללא חשבונית מקושרת');
+
+  // An advance replaces the invoices, never joins them: with invoices the amount is DERIVED, and
+  // accepting a typed amount alongside them would be a way to break R5.
+  const isAdvance = !Array.isArray(invoiceIds) || invoiceIds.length === 0;
+  if (isAdvance) {
+    if (!supplierId) {
+      throw new RuleError('R8', 'תשלום על החשבון (ללא חשבונית) — חובה לבחור ספק, אחרת לא נדע למי שולם');
+    }
+    if (!Number.isFinite(Number(advanceAmount)) || Number(advanceAmount) <= 0) {
+      throw new RuleError('R8', 'תשלום על החשבון — חובה סכום חיובי');
+    }
+  } else if (advanceAmount != null) {
+    throw new RuleError('R5', 'כשמצורפות חשבוניות הסכום נגזר מהן — לא ניתן להזין סכום ידני');
   }
 
   // ---- per-method identifier (the "no payment without an identifier" control) --
@@ -138,7 +160,17 @@ export async function createPayment(input, actor, x = getExecutor()) {
     let net = 0;
     const lines = [];
 
-    for (const invId of invoiceIds) {
+    if (isAdvance) {
+      // No lines: the whole amount is on account until an invoice is allocated against it.
+      const sup = await t.one('SELECT id, name, status FROM suppliers WHERE id = ?', [supplierId]);
+      if (!sup) throw new NotFoundError(`ספק ${supplierId} לא נמצא`);
+      if (sup.status !== 'approved') {
+        throw new RuleError('R1', `הספק "${sup.name}" אינו מאושר (status=${sup.status}) — תשלום חסום`);
+      }
+      net = Math.round(Number(advanceAmount));
+    }
+
+    for (const invId of isAdvance ? [] : invoiceIds) {
       const inv = await t.one(
         `SELECT i.*, s.status AS supplier_status, s.name AS supplier_name, s.payment_terms AS supplier_terms,
                 ba.id AS store_bank_account_id
@@ -184,8 +216,8 @@ export async function createPayment(input, actor, x = getExecutor()) {
     const info = await t.run(
       `INSERT INTO payments
          (bank_account_id, method, check_number, reference, payer_name, card_last4, batch_number,
-          payment_date, amount, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'issued', ?)`,
+          payment_date, amount, status, supplier_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'issued', ?, ?)`,
       [
         account.id,
         method,
@@ -196,6 +228,9 @@ export async function createPayment(input, actor, x = getExecutor()) {
         fields.batch_number,
         paymentDate,
         net,
+        // Recorded for an advance (there are no lines to derive it from). For an invoice-backed
+        // payment the lines already carry the supplier, so it stays NULL as before.
+        isAdvance ? supplierId : null,
         actor.id,
       ],
     );
@@ -221,13 +256,15 @@ export async function createPayment(input, actor, x = getExecutor()) {
       }
     }
 
+    // R5: with invoices attached the amount must equal their net exactly. An advance has no lines
+    // yet, so the rule relaxes to "never allocate more than was paid" — Σ lines ≤ amount.
     const sumRow = await t.one('SELECT COALESCE(SUM(amount_applied),0) AS s FROM payment_lines WHERE payment_id = ?', [pid]);
-    if (sumRow.s !== net) {
+    if (isAdvance ? Number(sumRow.s) > net : Number(sumRow.s) !== net) {
       throw new RuleError('R5', `אי-התאמה בין סכום הצ׳ק (${net}) לסכום השורות (${sumRow.s})`);
     }
 
     await logAction(
-      { userId: actor.id, action: 'payment.create', entityType: 'payment', entityId: pid, details: { method, ...fields, amount: net, invoiceIds } },
+      { userId: actor.id, action: 'payment.create', entityType: 'payment', entityId: pid, details: { method, ...fields, amount: net, invoiceIds, advance: isAdvance || undefined, supplierId: isAdvance ? supplierId : undefined } },
       t,
     );
     return pid;
@@ -406,10 +443,13 @@ export async function voidPayment(id, actor, reason = null, x = getExecutor()) {
 
   await tx(async (t) => {
     const lines = await t.many('SELECT invoice_id FROM payment_lines WHERE payment_id = ?', [id]);
-    for (const line of lines) {
-      await t.run("UPDATE invoices SET status = 'approved_for_payment', bank_account_id = NULL WHERE id = ?", [line.invoice_id]);
-    }
+    // Void FIRST, then recompute: an invoice may be covered by several payments now (R8), so
+    // whether it stays 'paid' depends on the allocations that REMAIN live — blindly reverting it
+    // to approved_for_payment would re-open an invoice the other checks still cover.
     await t.run("UPDATE payments SET status = 'voided' WHERE id = ?", [id]);
+    for (const line of lines) {
+      await syncInvoicePaidStatus(line.invoice_id, null, t);
+    }
     await logAction({ userId: actor.id, action: 'payment.void', entityType: 'payment', entityId: id, details: { reason } }, t);
   });
 

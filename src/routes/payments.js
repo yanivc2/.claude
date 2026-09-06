@@ -17,6 +17,8 @@ import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
 import { requirePermission, requireOwner } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
+import { toAgorot } from '../lib/money.js';
+import { listSuppliers } from '../services/suppliers.js';
 
 const router = Router();
 
@@ -120,6 +122,7 @@ router.get('/new', async (req, res, next) => {
       title: 'תשלום חדש',
       payable: await listPayable(req.scope),
       accounts: await scopedAccounts(req.scope),
+      suppliers: await listSuppliers('approved'),
       values: { method },
       preselectId,
       error: null,
@@ -150,6 +153,10 @@ router.post('/', async (req, res, next) => {
         batchNumber: b.batch_number,
         paymentDate: b.payment_date,
         invoiceIds,
+        // Advance (R8): no invoices, but a supplier and a typed amount. The invoice is attached
+        // later from its own page. createPayment refuses an amount when invoices ARE selected.
+        supplierId: invoiceIds.length ? null : Number(b.advance_supplier_id) || null,
+        amount: invoiceIds.length ? null : (b.advance_amount ? toAgorot(b.advance_amount) : null),
       },
       req.user,
     );
@@ -160,6 +167,7 @@ router.post('/', async (req, res, next) => {
         title: 'תשלום חדש',
         payable: await listPayable(req.scope),
         accounts: await scopedAccounts(req.scope),
+        suppliers: await listSuppliers('approved'),
         values: b,
         preselectId: null,
         error: err.message,

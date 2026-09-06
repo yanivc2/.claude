@@ -91,6 +91,63 @@ const groupList = Object.values(groups);
   </div>
 <% }); %>
 
+<div class="card no-collapse">
+  <details data-accordion="advpay">
+    <summary style="cursor:pointer; font-weight:600">💰 תשלום על החשבון (ללא חשבונית עדיין)</summary>
+    <p class="muted" style="font-size:13px; margin-top:.6rem">
+      לכסף ששולם <b>לפני</b> שהתקבלה חשבונית — למשל 12 צ׳קים לשכירות שנמסרו מראש. הסכום נרשם
+      כ"יתרה על החשבון" אצל הספק, וכשתגיע החשבונית (למשל עבור 3 חודשים) משייכים אותה לצ׳קים
+      האלה מדף החשבונית. כל עוד לא שויכה — הכסף מופיע כיתרה פתוחה.
+    </p>
+    <form method="post" action="/payments" onsubmit="return validateAdvance(this)">
+      <div class="row">
+        <div>
+          <label>חשבון בנק *</label>
+          <select name="bank_account_id" required class="js-combo">
+            <% accounts.forEach(function(a){ %><option value="<%= a.id %>"><%= a.display_name %></option><% }); %>
+          </select>
+        </div>
+        <div>
+          <label>ספק *</label>
+          <select name="advance_supplier_id" required class="js-combo">
+            <option value="">— בחר ספק —</option>
+            <% suppliers.forEach(function(sp){ %><option value="<%= sp.id %>"><%= sp.name %></option><% }); %>
+          </select>
+        </div>
+        <div>
+          <label>סכום ששולם (₪) *</label>
+          <input name="advance_amount" inputmode="decimal" required placeholder="5000" />
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>אמצעי תשלום</label>
+          <select name="method" onchange="onMethod(this.form)">
+            <option value="check">צ׳ק</option>
+            <option value="cash">מזומן</option>
+            <option value="credit">אשראי</option>
+            <option value="transfer">העברה</option>
+            <option value="batch">מקבץ</option>
+          </select>
+        </div>
+        <div>
+          <label>תאריך תשלום *</label>
+          <input type="date" name="payment_date" required />
+        </div>
+      </div>
+      <div class="row m-check"><div><label>מספר צ׳ק *</label><input name="check_number" /></div></div>
+      <div class="row m-cash" style="display:none"><div><label>שם המשלם *</label><input name="payer_name" /></div></div>
+      <div class="row m-credit" style="display:none"><div><label>4 ספרות אחרונות *</label><input name="card_last4" maxlength="4" pattern="\d{4}" /></div></div>
+      <div class="row m-transfer" style="display:none"><div><label>מספר אסמכתא *</label><input name="reference" /></div></div>
+      <div class="row m-batch" style="display:none">
+        <div><label>מספר מקבץ *</label><input name="batch_number" /></div>
+        <div><label>מספר אסמכתא *</label><input name="reference" /></div>
+      </div>
+      <div style="margin-top:1rem" class="actions"><button type="submit">רשום תשלום על החשבון</button></div>
+    </form>
+  </details>
+</div>
+
 <a href="/payments" class="btn secondary">חזרה לרשימת הצ׳קים</a>
 
 <script>
@@ -137,7 +194,22 @@ function validateCheck(form){
   }
   return true;
 }
+// The advance form has no invoices: it validates its own amount instead of a selection.
+function validateAdvance(form){
+  const amt = Number(String(form.advance_amount.value).replace(/[^\d.-]/g, ''));
+  if (!(amt > 0)){ alert('הזן סכום חיובי'); return false; }
+  const method = form.querySelector('select[name="method"]').value;
+  if (method === 'cash' && CASH_CEILING > 0 && Math.round(amt*100) > CASH_CEILING){
+    alert('תשלום במזומן מוגבל ל-' + (CASH_CEILING/100).toLocaleString('en-US') + ' ₪ לפי חוק. בחר אמצעי אחר.');
+    return false;
+  }
+  return true;
+}
 // Apply the preselected method (from ?method=) and recalc (for a preselected invoice) on load.
-document.querySelectorAll('form[action="/payments"]').forEach(function(f){ onMethod(f); recalc(f); });
+// recalc() only applies to the invoice forms — the advance form has no .net-display.
+document.querySelectorAll('form[action="/payments"]').forEach(function(f){
+  onMethod(f);
+  if (f.querySelector('.net-display')) recalc(f);
+});
 </script>
 <%- include('../partials/footer') %>

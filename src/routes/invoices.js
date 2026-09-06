@@ -28,6 +28,7 @@ import { createPayment } from '../services/payments.js';
 import { submitRequest, pendingRequestFor } from '../services/changeRequests.js';
 import { userCan } from '../lib/permissions.js';
 import { describeInvoice } from '../lib/changeSummary.js';
+import { invoiceAllocation, openAdvancesForSupplier, allocateInvoiceToPayments, deallocate } from '../services/allocations.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
@@ -457,13 +458,57 @@ router.post('/:id/image', handleInvoiceImage, async (req, res, next) => {
   }
 });
 
+// R8 — attach this invoice to money already paid (open advances of the same supplier/account).
+// Same permission as issuing a payment: it decides which money settles which invoice.
+router.post('/:id/allocate', requirePermission('approve_payment'), async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    await assertInScope('invoice', id, req.scope);
+    const ids = [].concat(req.body.payment_ids || []).map(Number).filter(Boolean);
+    const r = await allocateInvoiceToPayments(id, ids.map((paymentId) => ({ paymentId })), req.user);
+    const msg = r.open > 0
+      ? `שויכו ${(r.applied / 100).toFixed(2)} ₪ — נותרה יתרה של ${(r.open / 100).toFixed(2)} ₪ לתשלום.`
+      : `החשבונית שויכה במלואה ל-${r.lines.length} תשלומים וסומנה כשולמה.`;
+    return res.redirect(303, `/invoices/${id}?alloc=${encodeURIComponent(msg)}`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/invoices/${id}?allocfail=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
+// Undo one allocation — the money goes back on account and the invoice is payable again.
+router.post('/:id/deallocate', requirePermission('approve_payment'), async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    await assertInScope('invoice', id, req.scope);
+    await deallocate(id, Number(req.body.payment_id), req.user);
+    return res.redirect(303, `/invoices/${id}?alloc=${encodeURIComponent('השיוך בוטל — הכסף חזר ליתרה על החשבון.')}`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/invoices/${id}?allocfail=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
     await reconcileR3Hold(id); // self-heal a stale R3 hold before displaying
+    const invoice = await getInvoiceDetail(id);
+    // R8: money already paid to this supplier on this account that no invoice claims yet — what
+    // an invoice arriving after the fact (e.g. 3 months of rent) can be attached to.
+    const alloc = await invoiceAllocation(id);
+    const advances = alloc.open > 0 && invoice.supplier_id && invoice.derived_bank_account_id
+      ? await openAdvancesForSupplier(invoice.supplier_id, invoice.derived_bank_account_id)
+      : [];
     res.render('invoices/show', {
       title: `חשבונית`,
-      invoice: await getInvoiceDetail(id),
+      invoice,
+      alloc,
+      advances,
       ocr: await getOcr(id),
       comparison: await compareToInvoice(id),
       cashPayments: await cashPaymentsForInvoice(id),
@@ -475,8 +520,11 @@ router.get('/:id', async (req, res, next) => {
         : req.query.paid === '1' ? 'החשבונית נוצרה והתשלום נוצר ושויך אליה.'
         : req.query.scanned === '1' ? 'החשבונית נקלטה מהצילום, כולל שורות הפריטים וקטלוג המוצרים.'
         : req.query.scanned === 'attached' ? 'הצילום צורף לחשבונית שכבר הייתה במערכת — לא נוצרה חשבונית כפולה.'
+        : req.query.alloc ? String(req.query.alloc)
         : null,
-      error: req.query.payfail ? `החשבונית נשמרה, אך יצירת הצ׳ק נכשלה: ${req.query.payfail}` : null,
+      error: req.query.payfail ? `החשבונית נשמרה, אך יצירת הצ׳ק נכשלה: ${req.query.payfail}`
+        : req.query.allocfail ? String(req.query.allocfail)
+        : null,
       ocrOpen: req.query.ocr === '1',
     });
   } catch (err) {

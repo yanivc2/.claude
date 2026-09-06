@@ -108,14 +108,66 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
   <% } %>
 </div>
 
-<% if (invoice.payment) { %>
+<% var pays = invoice.payments || (invoice.payment ? [invoice.payment] : []); %>
+<% var al = (typeof alloc !== 'undefined' && alloc) ? alloc : null; %>
+<% if (pays.length) { %>
   <div class="card">
-    <h2 style="margin-top:0">תשלום</h2>
-    <p>שולם ב<a href="/payments/<%= invoice.payment.id %>"><%= paymentIdent(invoice.payment) %></a>
-      מתאריך <%= formatDate(invoice.payment.payment_date) %> —
-      <span class="badge b-<%= invoice.payment.payment_status %>"><%= invoice.payment.payment_status === 'issued' ? 'הונפק' : invoice.payment.payment_status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
-      <% if (invoice.payment.cleared_date) { %> · נפרע ב-<%= formatDate(invoice.payment.cleared_date) %><% } %>
+    <h2 style="margin-top:0"><%= pays.length > 1 ? 'תשלומים' : 'תשלום' %></h2>
+    <% pays.forEach(function(p){ %>
+      <p style="margin:.35rem 0">
+        שולם ב<a href="/payments/<%= p.id %>"><%= paymentIdent(p) %></a>
+        מתאריך <%= formatDate(p.payment_date) %> —
+        <span class="badge b-<%= p.payment_status %>"><%= p.payment_status === 'issued' ? 'הונפק' : p.payment_status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
+        <% if (p.cleared_date) { %> · נפרע ב-<%= formatDate(p.cleared_date) %><% } %>
+        <% if (pays.length > 1 && p.amount_applied != null) { %>
+          · שויך <%= formatIls(p.amount_applied) %>
+        <% } %>
+        <% if (typeof isManager !== 'undefined' && isManager && p.payment_status === 'issued') { %>
+          <form method="post" action="/invoices/<%= invoice.id %>/deallocate" style="display:inline"
+                onsubmit="return confirm('לבטל את שיוך החשבונית לתשלום זה? הכסף יחזור ליתרה על החשבון.')">
+            <input type="hidden" name="payment_id" value="<%= p.id %>" />
+            <button type="submit" class="link-btn" style="font-size:12px">בטל שיוך</button>
+          </form>
+        <% } %>
+      </p>
+    <% }); %>
+    <% if (al && al.allocated > 0 && al.open > 0) { %>
+      <p class="muted" style="font-size:13px; margin-top:.6rem">
+        שויך <%= formatIls(al.allocated) %> מתוך <%= formatIls(al.total) %> —
+        <b>נותרה יתרה לתשלום: <%= formatIls(al.open) %></b>
+      </p>
+    <% } %>
+  </div>
+<% } %>
+
+<%# R8 — an invoice that arrived AFTER the money was paid: attach it to open advances of the
+    same supplier on the same bank account (e.g. 3 months of rent against 3 checks already given). %>
+<% if (typeof advances !== 'undefined' && advances && advances.length) { %>
+  <div class="card">
+    <h2 style="margin-top:0">🔗 שייך לתשלומים שכבר בוצעו</h2>
+    <p class="muted" style="font-size:13px">
+      לספק הזה יש כסף ששולם ועדיין לא שויך לחשבונית.
+      <% if (al) { %>יתרה לתשלום בחשבונית זו: <b><%= formatIls(al.open) %></b>.<% } %>
+      סמן את התשלומים שהחשבונית מכסה — כל תשלום ישויך עד גובה היתרה, לפי סדר התאריכים.
     </p>
+    <form method="post" action="/invoices/<%= invoice.id %>/allocate"
+          onsubmit="return this.querySelectorAll('input[name=payment_ids]:checked').length ? true : (alert('בחר לפחות תשלום אחד'), false)">
+      <table>
+        <thead><tr><th></th><th>תשלום</th><th>תאריך</th><th>סכום</th><th>יתרה על החשבון</th></tr></thead>
+        <tbody>
+          <% advances.forEach(function(p){ %>
+            <tr>
+              <td><input type="checkbox" name="payment_ids" value="<%= p.id %>" style="width:auto" /></td>
+              <td><a href="/payments/<%= p.id %>"><%= paymentIdent(p) %></a></td>
+              <td><%= formatDate(p.payment_date) %></td>
+              <td><%= formatIls(p.amount) %></td>
+              <td><b><%= formatIls(p.unallocated) %></b></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+      <div class="actions" style="margin-top:.8rem"><button type="submit">שייך לחשבונית</button></div>
+    </form>
   </div>
 <% } %>
 

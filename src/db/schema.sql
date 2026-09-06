@@ -227,6 +227,10 @@ CREATE TABLE IF NOT EXISTS payments (
   status          TEXT NOT NULL DEFAULT 'issued'
                   CHECK (status IN ('issued','cleared','voided')),
   cleared_date    TEXT,
+  -- Who the money went to. Normally derivable through payment_lines, but an ADVANCE (a payment
+  -- made before its invoice exists — e.g. 12 rent checks handed over up front) has no lines yet,
+  -- so the supplier has to be recorded on the payment itself.
+  supplier_id     INTEGER REFERENCES suppliers(id),
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );

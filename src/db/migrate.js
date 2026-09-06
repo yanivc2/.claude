@@ -12,6 +12,7 @@ export function migrate(db) {
   migrateUserAuth(db);
   migrateBankBalance(db);
   migrateOpenBankingSync(db);
+  migratePaymentSupplier(db);
   migrateUserCompanies(db);
   migrateDeposits(db);
   migrateZExtras(db);
@@ -297,6 +298,14 @@ function migrateBankBalance(db) {
   if (!hasTable) return;
   const cols = db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name);
   if (!cols.includes('balance_after')) db.exec('ALTER TABLE bank_transactions ADD COLUMN balance_after INTEGER;');
+}
+
+// Advance payments: the supplier a payment went to, needed when a payment has no invoice lines yet.
+function migratePaymentSupplier(db) {
+  const has = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='payments'").get();
+  if (!has) return;
+  const cols = db.prepare('PRAGMA table_info(payments)').all().map((c) => c.name);
+  if (!cols.includes('supplier_id')) db.exec('ALTER TABLE payments ADD COLUMN supplier_id INTEGER REFERENCES suppliers(id);');
 }
 
 // Open-Banking sync (Financy): the provider's account id on bank_accounts, and the provider's own

@@ -170,7 +170,9 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
 **Bank recon** `reconciliation.js` · **Employees** `employees.js` · **Deposits** `deposits.js` ·
 **Settings/org** `settings.js`+`orgs.js`/`users.js` · **Reports** `reports.js` · **Calendar/audit**
 `index.js`+`calendar.js`/`audit.js`/`changeRequests.js`. Business rules R1/R2/R3/R5 live in
-`services/invoices.js`+`payments.js`. Buttons, couplings and "what breaks if you change it" → **INDEX.md**.
+`services/invoices.js`+`payments.js`; **R8 (שיוך) ב-`services/allocations.js`** — מקדמה = תשלום בלי
+שורות (`payments.supplier_id`), וחשבונית שהגיעה אחרי הכסף משויכת אליה; `syncInvoicePaidStatus` הוא
+המקום היחיד שמחליט `paid`. Buttons, couplings and "what breaks if you change it" → **INDEX.md**.
 - **Shared UI:** `partials/header.ejs` (nav + 🌙/☀️ theme toggle → `data-theme`/`nocturne.css` light
   palette), `partials/footer.ejs` (day-first date picker + `js-combo` combobox enhancers — global),
   `partials/_ownerDialogs.ejs` (owner dials — a button + its `<dialog>` must ship together, a test asserts it).
