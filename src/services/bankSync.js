@@ -167,3 +167,78 @@ export async function syncAllLinkedAccounts(opts = {}, actor, x = getExecutor())
     errors,
   };
 }
+
+/**
+ * Import a batch of ALREADY-SCRAPED transactions (israeli-bank-scrapers, pushed by the external
+ * runner) and reconcile them. The runner holds the bank credentials; this app never sees them —
+ * it only receives rows, exactly as it would from a CSV upload.
+ *
+ * Accounts are addressed by their BANK ACCOUNT NUMBER; an account number this app doesn't know is
+ * REPORTED, never guessed at, so a scrape that picks up an extra account (a פק"מ, a dormant one)
+ * can't silently land in the wrong ledger.
+ * @param {{accounts:Array<{accountNumber:string, transactions:Array}>}} payload
+ * @returns {{accounts:number, inserted:number, skipped:number, matched:number, unmapped:string[], results:Array}}
+ */
+export async function importScrapedBatch(payload, actor, x = getExecutor()) {
+  const incoming = Array.isArray(payload?.accounts) ? payload.accounts : [];
+  if (!incoming.length) throw new RuleError('SCRAPER', 'לא התקבלו חשבונות במשיכה');
+
+  const rows = await x.many('SELECT id, account_number, display_name FROM bank_accounts', []);
+  const byNumber = new Map(rows.map((r) => [String(r.account_number).replace(/\D/g, ''), r]));
+
+  const results = [];
+  const unmapped = [];
+  for (const acc of incoming) {
+    const key = String(acc?.accountNumber ?? '').replace(/\D/g, '');
+    const target = key && byNumber.get(key);
+    if (!target) {
+      unmapped.push(String(acc?.accountNumber ?? ''));
+      continue;
+    }
+    const txns = Array.isArray(acc.transactions) ? acc.transactions : [];
+    const { inserted, skipped } = txns.length
+      ? await importTransactions(target.id, txns, 'scraper', actor, x)
+      : { inserted: 0, skipped: 0 };
+
+    let matched = 0;
+    if (inserted > 0) {
+      const rec = await autoReconcile(target.id, actor, x);
+      matched = rec?.matched ?? 0;
+    }
+    results.push({ accountId: target.id, displayName: target.display_name, inserted, skipped, matched });
+  }
+
+  const inserted = results.reduce((n, r) => n + r.inserted, 0);
+  const matched = results.reduce((n, r) => n + r.matched, 0);
+
+  await logAction(
+    {
+      userId: actor?.id ?? null,
+      action: 'bank.scrape_import',
+      entityType: 'bank_account',
+      entityId: null,
+      details: { accounts: results.length, inserted, matched, unmapped: unmapped.length },
+    },
+    x,
+  );
+
+  if (inserted > 0) {
+    const lines = results.filter((r) => r.inserted).map((r) => `• ${r.displayName}: ${r.inserted} חדשות, ${r.matched} הותאמו`);
+    notify(`🏦 <b>משיכה מהבנק (סריקה)</b>\n${lines.join('\n')}`, { kind: 'bank', link: '/reconciliation' });
+  }
+  if (unmapped.length) {
+    notify(
+      `⚠️ <b>חשבונות לא מזוהים במשיכה</b>\nהמספרים ${unmapped.join(', ')} אינם רשומים כחשבון בנק באפליקציה — התנועות שלהם לא נקלטו.`,
+      { kind: 'bank', link: '/settings' },
+    );
+  }
+
+  return {
+    accounts: results.length,
+    inserted,
+    skipped: results.reduce((n, r) => n + r.skipped, 0),
+    matched,
+    unmapped,
+    results,
+  };
+}

@@ -105,6 +105,12 @@ happen only at merge. So:
   number (הגדרות ← 🏦 "קשר חשבונות בנק"); a re-pull is idempotent via `bank_transactions.external_id`.
   Nightly: `GET /ingest/bank-sync` (before the auth gate, guarded by **`CRON_SECRET`** — unset = 503;
   Vercel Cron sends it as a Bearer header), scheduled in `vercel.json` → `crons`.
+- **Bank channel 2 — scraping:** `israeli-bank-scrapers` (optional dep, lazy) via `src/scraper/*` +
+  `lib/scraperMap.js`; run OUTSIDE the app (`scripts/scrape-push.mjs` on GitHub Actions —
+  `.github/workflows/bank-scrape.yml`) because it needs a real Chromium. It POSTs finished rows to
+  `POST /ingest/bank-txns` (also `CRON_SECRET`-guarded) → `importScrapedBatch` → same
+  `importTransactions`+`autoReconcile` pipeline. **Bank credentials live only in the runner's
+  secrets — never in the DB, never on Vercel.** Unknown account numbers are reported, never guessed.
 - **Alerts:** `lib/notify.js#notify(html, {kind?,link?})` — fire-and-forget, never throws. Does TWO
   things: pushes to Telegram (no-op without token) **and** records an in-app notification (bell +
   `/notifications`, owner-only) via `services/notifications.js` (HTML→text, first line=title). So

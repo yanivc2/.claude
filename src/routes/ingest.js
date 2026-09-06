@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, json } from 'express';
 import multer from 'multer';
 import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
@@ -6,7 +6,7 @@ import { parseRevenueReport } from '../lib/revenueReportFile.js';
 import { importRevenueRows } from '../services/revenueReports.js';
 import { notify } from '../lib/notify.js';
 import { israelToday } from '../lib/loginHours.js';
-import { syncAllLinkedAccounts } from '../services/bankSync.js';
+import { syncAllLinkedAccounts, importScrapedBatch } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
 
 /** Yesterday in Israel time — the business day the nightly report covers. */
@@ -96,6 +96,32 @@ router.all('/bank-sync', async (req, res) => {
     return res.status(status).json({ ok: !r.errors.length, ...r });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
+// Scraped-transaction intake — the second bank channel, for accounts Open Banking doesn't cover
+// (or doesn't cover affordably). An EXTERNAL runner (scripts/scrape-push.mjs, on a GitHub Actions
+// cron or any machine with a browser) logs into the bank with israeli-bank-scrapers and POSTs the
+// resulting rows here. Vercel cannot run that scrape itself — a serverless function has no browser.
+//
+//   POST /ingest/bank-txns      (Authorization: Bearer <CRON_SECRET>)
+//   { "accounts": [ { "accountNumber": "412345", "transactions": [ {txnDate, amount, ...} ] } ] }
+//
+// SECURITY: the bank credentials live ONLY on the runner (GitHub Secrets). They are never sent
+// here, never stored in the database, and never reach Vercel — this endpoint receives finished
+// rows, exactly like a CSV upload does. Without CRON_SECRET set it is disabled (503).
+router.post('/bank-txns', json({ limit: '4mb' }), async (req, res) => {
+  try {
+    if (!config.cronSecret) return res.status(503).json({ ok: false, error: 'intake disabled (no CRON_SECRET)' });
+    const bearer = (req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+    const given = String(req.query.key || req.get('x-cron-secret') || bearer || '');
+    if (given !== config.cronSecret) return res.status(401).json({ ok: false, error: 'bad secret' });
+
+    const r = await importScrapedBatch(req.body, null);
+    // Unmapped account numbers are reported, not fatal: the accounts that DID map are committed.
+    return res.status(r.unmapped.length ? 207 : 200).json({ ok: true, ...r });
+  } catch (err) {
+    return res.status(err.rule === 'SCRAPER' ? 400 : 500).json({ ok: false, error: err.message });
   }
 });
 

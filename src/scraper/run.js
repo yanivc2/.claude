@@ -41,8 +41,8 @@ async function main() {
       console.warn(`  ! account ${acc.accountNumber} is not registered in bank_accounts — skipped`);
       continue;
     }
-    const txnRows = acc.transactions.filter((t) => !t.status || t.status === 'completed');
-    const { inserted, skipped } = await importTransactions(bankAccountId, txnRows, 'scraper', null, x);
+    // Rows arrive already filtered to completed + mapped (lib/scraperMap.js).
+    const { inserted, skipped } = await importTransactions(bankAccountId, acc.transactions, 'scraper', null, x);
     totalIn += inserted;
     totalSkip += skipped;
     // eslint-disable-next-line no-console

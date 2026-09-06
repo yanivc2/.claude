@@ -1,0 +1,58 @@
+# Daily bank scrape — the second bank channel (israeli-bank-scrapers).
+#
+# Runs here rather than on Vercel because the scrape drives a real Chromium, which a serverless
+# function has no room for. The bank credentials live only in this repository's Secrets: the runner
+# logs in, scrapes, and POSTs finished rows to /ingest/bank-txns. They never reach the app or Neon.
+#
+# Secrets to set (Settings → Secrets and variables → Actions):
+#   BANK_SCRAPERS  JSON array of {companyId, credentials} — see scripts/scrape-push.mjs
+#   CRON_SECRET    the same value the app has in Vercel
+#   AP_INGEST_URL  https://ap-control.vercel.app   (a Variable is fine, it is not secret)
+name: bank-scrape
+
+on:
+  schedule:
+    # 04:20 UTC ≈ 07:20 Israel — after the bank has posted overnight, offset from the Financy cron.
+    - cron: '20 4 * * *'
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Scrape from this date (YYYY-MM-DD). Empty = the default window.'
+        required: false
+      dry_run:
+        description: 'Scrape and print, POST nothing'
+        type: boolean
+        default: false
+
+# Never let two scrapes overlap: a second login while the first is live can trip a bank's
+# fraud controls, and both would write the same rows.
+concurrency:
+  group: bank-scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # israeli-bank-scrapers is an OPTIONAL dependency of the app — only this runner needs it,
+      # and it pulls its own Chromium (a few hundred MB), so it is installed here, not in the app.
+      - name: Install scraper
+        run: npm install --no-save israeli-bank-scrapers
+
+      - name: Scrape and push
+        env:
+          BANK_SCRAPERS: ${{ secrets.BANK_SCRAPERS }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          AP_INGEST_URL: ${{ vars.AP_INGEST_URL || 'https://ap-control.vercel.app' }}
+          BANK_SCRAPE_DAYS: ${{ vars.BANK_SCRAPE_DAYS || '90' }}
+        run: |
+          node scripts/scrape-push.mjs \
+            ${{ inputs.start_date }} \
+            ${{ inputs.dry_run == true && '--dry-run' || '' }}

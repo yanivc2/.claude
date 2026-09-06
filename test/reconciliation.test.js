@@ -49,19 +49,24 @@ test('CSV parser handles headers, quoted fields and embedded commas', () => {
 });
 
 test('mapScrapedTransaction converts to signed agorot and our shape', () => {
-  const m = mapScrapedTransaction({
-    date: '2026-07-10T00:00:00.000Z',
-    chargedAmount: -1170.5,
-    description: 'צ׳ק',
-    identifier: 5001,
-    status: 'completed',
-  });
+  const m = mapScrapedTransaction(
+    {
+      date: '2026-07-10T00:00:00.000Z',
+      chargedAmount: -1170.5,
+      description: 'צ׳ק',
+      identifier: 5001,
+      status: 'completed',
+    },
+    { companyId: 'hapoalim', accountNumber: '412345' },
+  );
   assert.deepEqual(m, {
     txnDate: '2026-07-10',
     amount: -117050,
     description: 'צ׳ק',
     rawReference: '5001',
     status: 'completed',
+    // Namespaced so a scraped row can never collide with a Financy row on the same account.
+    externalId: 'scr:hapoalim:412345:5001',
   });
 });
 
