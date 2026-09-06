@@ -111,7 +111,7 @@ async function reviewContext(req, draft, extra = {}) {
   return {
     title: 'בדיקת חשבונית שצולמה',
     draft,
-    suppliers: await listSuppliers(),
+    suppliers: await listSuppliers(null, undefined, { scope: req.scope }),
     stores: await storesInScope(req.scope),
     aiEnabled: config.ai.enabled,
     // Creating a supplier from the review screen needs the suppliers-page permission —
@@ -131,7 +131,7 @@ router.get('/', async (req, res, next) => {
   try {
     // Suppliers are offered so the employee can name one BEFORE shooting: that is what lets the
     // supplier's learned profile ("הסקיל") travel with the first extraction instead of a re-run.
-    const suppliers = await listSuppliers();
+    const suppliers = await listSuppliers(null, undefined, { scope: req.scope });
     res.render('scan/capture', {
       title: 'צילום חשבונית',
       stores: await storesInScope(req.scope),
@@ -320,7 +320,7 @@ router.post('/:id/supplier', async (req, res, next) => {
     // Duplicate guard: the same matcher the extraction uses. A tick on the panel's
     // "אשר יצירה בכל זאת" checkbox overrides.
     if (b.supplier_confirm !== '1') {
-      const dup = matchSupplier(name, b.sup_tax_id, await listSuppliers());
+      const dup = matchSupplier(name, b.sup_tax_id, await listSuppliers(null, undefined, { scope: req.scope }));
       if (dup) {
         return renderReview(
           req,

@@ -45,7 +45,7 @@ router.get('/', async (req, res, next) => {
     res.render('products/index', {
       title: 'מוצרים',
       products: await listProducts({ supplierId, q }),
-      suppliers: await listSuppliers(),
+      suppliers: await listSuppliers(null, undefined, { scope: req.scope }),
       supplierId,
       q: q || '',
     });

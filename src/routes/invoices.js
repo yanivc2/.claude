@@ -32,6 +32,7 @@ import { invoiceAllocation, paymentAllocation, openAdvancesForSupplier, allocate
 import { RuleError, AuthError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import { scopeParam, assertInScope, assertStoreAllowed } from '../lib/scopeGuard.js';
+import { scopedStoreList } from '../lib/scope.js';
 
 const router = Router();
 
@@ -44,16 +45,13 @@ function removeUpload(ref) {
   if (ref) void removeStored(ref);
 }
 
+// The pickers on the invoice forms. Takes the FULL req.scope (not just companyIds): the store
+// list has to be filtered on both dimensions, and the supplier list is scoped through
+// supplier_stores. Callers pass req.scope.
 async function formData(scope = null) {
-  const sc = scopeClause(scope, 'c.id');
   return {
-    suppliers: await listSuppliers(),
-    stores: await getExecutor().many(
-      `SELECT st.id, st.name, c.name AS company_name
-         FROM stores st JOIN companies c ON c.id = st.company_id
-        WHERE 1 = 1${sc.sql} ORDER BY c.name, st.name`,
-      [...sc.params],
-    ),
+    suppliers: await listSuppliers(null, undefined, { scope }),
+    stores: await scopedStoreList(scope),
   };
 }
 
@@ -106,7 +104,7 @@ router.get('/', async (req, res, next) => {
     const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
     const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : null;
     const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : null;
-    const { suppliers, stores } = await formData(req.scope.companyIds);
+    const { suppliers, stores } = await formData(req.scope);
     res.render('invoices/index', {
       title: 'חשבוניות',
       invoices: await listInvoices({ status: req.query.status || null, scope: req.scope, supplierId, storeId, q, from, to }),
@@ -146,7 +144,7 @@ router.get('/new', async (req, res, next) => {
     if (req.query.added && !pickIds.length) pickIds = (ctx.batchInvoices || []).map((iv) => iv.id);
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
-      ...(await formData(req.scope.companyIds)),
+      ...(await formData(req.scope)),
       // "שמור והוסף עוד לספק" pre-selects a credit note by default (a charge is usually paired with
       // a credit); the user can still switch the doc type. Only that value is honored from the query.
       values: supplierId ? { supplier_id: supplierId, store_id: storeId || '', doc_type: req.query.doc === 'credit_note' ? 'credit_note' : undefined } : {},
@@ -172,7 +170,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
   const rerender = async (extra) => {
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
-      ...(await formData(req.scope.companyIds)),
+      ...(await formData(req.scope)),
       values: b,
       warnings: [],
       error: null,
@@ -186,7 +184,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
     if (imagePath) removeUpload(imagePath);
     return res.status(400).render('invoices/new', {
       title: 'חשבונית חדשה',
-      ...(await formData(req.scope.companyIds)),
+      ...(await formData(req.scope)),
       values: b,
       warnings: [],
       error: req.uploadError,
@@ -252,7 +250,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
     if (err instanceof RuleError && err.meta?.needsConfirmation) {
       return res.status(200).render('invoices/new', {
         title: 'חשבונית חדשה — אישור אזהרות',
-        ...(await formData(req.scope.companyIds)),
+        ...(await formData(req.scope)),
         values: b,
         warnings: err.meta.warnings,
         error: null,
@@ -389,7 +387,7 @@ router.post('/pay-batch', async (req, res, next) => {
       // amount is a one-field correction rather than re-entering everything.
       return res.status(400).render('invoices/new', {
         title: 'חשבונית חדשה',
-        ...(await formData(req.scope.companyIds)),
+        ...(await formData(req.scope)),
         values: { supplier_id: supplierId, store_id: storeId },
         warnings: [],
         error: err.message,
@@ -449,7 +447,7 @@ router.get('/:id/edit', requirePermission('edit_invoice'), async (req, res, next
   try {
     const invoice = await getInvoiceDetail(Number(req.params.id));
     if (invoice.status === 'paid') return res.redirect(303, `/invoices/${invoice.id}`);
-    res.render('invoices/edit', { title: `עריכת חשבונית #${invoice.id}`, invoice, values: invoiceToValues(invoice), ...(await formData(req.scope.companyIds)), error: null });
+    res.render('invoices/edit', { title: `עריכת חשבונית #${invoice.id}`, invoice, values: invoiceToValues(invoice), ...(await formData(req.scope)), error: null });
   } catch (err) {
     next(err);
   }
@@ -483,7 +481,7 @@ router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, nex
         title: `עריכת חשבונית #${id}`,
         invoice: current,
         values: b,
-        ...(await formData(req.scope.companyIds)),
+        ...(await formData(req.scope)),
         error: null,
         notice: 'בקשת העריכה נשלחה לאישור הבעלים. השינוי יבוצע לאחר אישור.',
       });
@@ -493,7 +491,7 @@ router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, nex
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       const invoice = await getInvoiceDetail(id);
-      return res.status(400).render('invoices/edit', { title: `עריכת חשבונית #${id}`, invoice, values: b, ...(await formData(req.scope.companyIds)), error: err.message });
+      return res.status(400).render('invoices/edit', { title: `עריכת חשבונית #${id}`, invoice, values: b, ...(await formData(req.scope)), error: err.message });
     }
     next(err);
   }

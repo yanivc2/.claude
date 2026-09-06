@@ -17,6 +17,7 @@ import { describeSupplier } from '../lib/changeSummary.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopedStoreList } from '../lib/scope.js';
 import { RuleError, AuthError } from '../lib/errors.js';
+import { assertStoreAllowed } from '../lib/scopeGuard.js';
 
 const router = Router();
 
@@ -26,6 +27,13 @@ const router = Router();
 const storeOptions = (req) => scopedStoreList(req.scope);
 
 // Selected store ids from the supplier form (checkbox group `store_ids`).
+// Every posted store id must be one the caller may access — otherwise a user granted store A
+// could link a supplier to store B (and, through it, see B's data) by editing the checkbox list.
+async function assertStoreIdsAllowed(ids, scope) {
+  for (const id of ids) await assertStoreAllowed(id, scope);
+  return ids;
+}
+
 function storeIdsFrom(body) {
   return [].concat(body.store_ids || []).map(Number).filter(Boolean);
 }
@@ -33,7 +41,7 @@ function storeIdsFrom(body) {
 async function renderList(res, extra = {}) {
   res.render('suppliers/index', {
     title: 'ספקים',
-    suppliers: await listSuppliers(null),
+    suppliers: await listSuppliers(null, undefined, { scope: req.scope }),
     filter: '',
     error: null,
     notice: null,
@@ -45,7 +53,7 @@ router.get('/', async (req, res, next) => {
   try {
     res.render('suppliers/index', {
       title: 'ספקים',
-      suppliers: await listSuppliers(req.query.status || null),
+      suppliers: await listSuppliers(req.query.status || null, undefined, { scope: req.scope }),
       filter: req.query.status || '',
       error: null,
       notice: null,
@@ -61,7 +69,7 @@ router.get('/contacts', async (req, res, next) => {
     const q = req.query.q || '';
     res.render('suppliers/contacts', {
       title: 'אנשי קשר ספקים',
-      suppliers: q ? await searchSuppliers(q) : await listSuppliers(),
+      suppliers: q ? await searchSuppliers(q, req.scope) : await listSuppliers(null, undefined, { scope: req.scope }),
       q,
       notice: null,
       error: null,
@@ -106,7 +114,7 @@ router.post('/', async (req, res, next) => {
         name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
         phone: req.body.phone, email: req.body.email,
         contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
-        storeIds: storeIdsFrom(req.body),
+        storeIds: await assertStoreIdsAllowed(storeIdsFrom(req.body), req.scope),
         ...paymentFields(req.body),
       },
       req.user,
@@ -182,7 +190,7 @@ router.get('/:id/edit', async (req, res, next) => {
       selectedStores: await getSupplierStoreIds(supplier.id),
       // Parent-supplier options for the "חברת-אם (לתשלום מרוכז)" picker: top-level suppliers only
       // (a subsidiary can't itself be a parent), excluding this supplier.
-      parentOptions: (await listSuppliers()).filter((s) => s.id !== supplier.id && s.parent_supplier_id == null),
+      parentOptions: (await listSuppliers(null, undefined, { scope: req.scope })).filter((s) => s.id !== supplier.id && s.parent_supplier_id == null),
       notice: req.query.saved === 'skill' ? 'הסקיל של הספק עודכן.' : null,
       // "הסקיל": what scanning this supplier's invoices has taught the system so far.
       profile,
@@ -201,7 +209,7 @@ router.post('/:id/edit', async (req, res, next) => {
       name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
       phone: req.body.phone, email: req.body.email,
       contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
-      storeIds: storeIdsFrom(req.body),
+      storeIds: await assertStoreIdsAllowed(storeIdsFrom(req.body), req.scope),
       parentSupplierId: req.body.parent_supplier_id ? Number(req.body.parent_supplier_id) : null,
       ...paymentFields(req.body),
     };
@@ -227,7 +235,7 @@ router.post('/:id/edit', async (req, res, next) => {
   } catch (err) {
     if (err instanceof RuleError) {
       const supplier = { ...req.body, id: Number(req.params.id), tax_id: req.body.tax_id, contact_name: req.body.contact_name, contact_phone: req.body.contact_phone, parent_supplier_id: req.body.parent_supplier_id ? Number(req.body.parent_supplier_id) : null };
-      return res.status(400).render('suppliers/edit', { title: 'עריכת ספק', supplier, error: err.message, stores: await storeOptions(req), selectedStores: storeIdsFrom(req.body), parentOptions: (await listSuppliers()).filter((s) => s.id !== Number(req.params.id) && s.parent_supplier_id == null) });
+      return res.status(400).render('suppliers/edit', { title: 'עריכת ספק', supplier, error: err.message, stores: await storeOptions(req), selectedStores: storeIdsFrom(req.body), parentOptions: (await listSuppliers(null, undefined, { scope: req.scope })).filter((s) => s.id !== Number(req.params.id) && s.parent_supplier_id == null) });
     }
     next(err);
   }

@@ -195,3 +195,67 @@ export async function scopedStoreList(scope, x = getExecutor()) {
     params,
   );
 }
+
+/**
+ * Filter rows that are scoped through a STORE LINK TABLE (supplier_stores, employee_stores).
+ *
+ * The rule, shared by suppliers and employees:
+ *   • no links at all  → shared with everyone (what every row was before the link existed, and
+ *     what a group-wide supplier/employee legitimately is). Never hidden.
+ *   • some links       → visible only if at least ONE linked store is inside the caller's scope.
+ *
+ * A row may be linked to several stores in several companies — that is the point: one supplier
+ * delivering to two branches, one employee working at both.
+ *
+ * Returns the rows that pass, each with `stores` attached ([{id, name, company_id, company_name}])
+ * so the screen can show WHICH stores it belongs to.
+ *
+ * @param {Array<{id:number}>} rows
+ * @param {'supplier_stores'|'employee_stores'} table
+ * @param {'supplier_id'|'employee_id'} fk
+ */
+export async function filterByStoreLinks(rows, table, fk, scope, x = getExecutor()) {
+  if (!rows || !rows.length) return rows || [];
+  const { companyIds, storeIds } = normalizeScope(scope);
+
+  let links = [];
+  try {
+    links = await x.many(
+      `SELECT l.${fk} AS owner_id, st.id AS store_id, st.name AS store_name,
+              st.company_id AS company_id, c.name AS company_name
+         FROM ${table} l
+         JOIN stores st ON st.id = l.store_id
+         JOIN companies c ON c.id = st.company_id
+        ORDER BY c.name, st.name`,
+      [],
+    );
+  } catch {
+    // Pre-upgrade database without the link table: behave as "no links" — nothing is hidden.
+    return rows.map((r) => ({ ...r, stores: [] }));
+  }
+
+  const byOwner = new Map();
+  for (const l of links) {
+    const k = Number(l.owner_id);
+    if (!byOwner.has(k)) byOwner.set(k, []);
+    byOwner.get(k).push({
+      id: Number(l.store_id), name: l.store_name,
+      company_id: Number(l.company_id), company_name: l.company_name,
+    });
+  }
+
+  const out = [];
+  for (const r of rows) {
+    const stores = byOwner.get(Number(r.id)) || [];
+    const visible =
+      stores.length === 0 || // unlinked = shared
+      (companyIds == null && storeIds == null) || // owner
+      stores.some(
+        (st) =>
+          (companyIds == null || companyIds.includes(st.company_id)) &&
+          (storeIds == null || storeIds.includes(st.id)),
+      );
+    if (visible) out.push({ ...r, stores });
+  }
+  return out;
+}

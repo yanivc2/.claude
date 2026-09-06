@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS supplier_stores (
 );
 CREATE INDEX IF NOT EXISTS ix_supplier_stores_supplier ON supplier_stores(supplier_id);
 
+
 -- §4 users ----------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -324,6 +325,17 @@ CREATE TABLE IF NOT EXISTS employees (
   created_by  INTEGER REFERENCES users(id),
   created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
+-- §4 employee_stores — which stores an employee works at. Same shape and same rule as
+-- supplier_stores: NO rows = shared with every store (what every employee was before this
+-- existed); rows = visible and usable only in those stores. An employee can be linked to several
+-- stores, in several companies (a delivery driver serving two branches, a bookkeeper for the group).
+CREATE TABLE IF NOT EXISTS employee_stores (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  store_id    INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  UNIQUE (employee_id, store_id)
+);
+CREATE INDEX IF NOT EXISTS ix_employee_stores_employee ON employee_stores(employee_id);
 
 -- z_expenses — drawer expense lines for a Z report (phase 2b). description_type is the "kind":
 -- manual (ידני) / salary (שכר) / advance (מפרעה) / invoice (תשלום חשבונית).

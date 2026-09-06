@@ -2,7 +2,10 @@ import { Router } from 'express';
 import multer from 'multer';
 import {
   listEmployees, createEmployee, deleteEmployee, listEmployeeLedger, employeeTotals, importEmployees,
+  setEmployeeStores,
 } from '../services/employees.js';
+import { scopedStoreList } from '../lib/scope.js';
+import { assertStoreAllowed } from '../lib/scopeGuard.js';
 import { parseEmployeeFile } from '../lib/employeeImport.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
@@ -13,10 +16,32 @@ const staffUpload = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
 }).single('file');
 
+// Posted store ids must be ones the caller may access, or an employee could be linked into a
+// store they cannot see (and would then appear in that store's pickers).
+async function allowedStoreIds(body, scope) {
+  const ids = [...new Set([].concat(body.store_ids || []).map(Number).filter(Boolean))];
+  for (const id of ids) await assertStoreAllowed(id, scope);
+  return ids;
+}
+
+// The summary table joined to the SCOPED employee list: rows the caller may not see are dropped,
+// and each surviving row carries its `stores` so the screen can show where the employee works.
+async function scopedTotals(scope) {
+  const visible = await listEmployees({ includeInactive: true, scope });
+  const byId = new Map(visible.map((e) => [Number(e.id), e]));
+  const rows = await employeeTotals();
+  return rows
+    .filter((r) => byId.has(Number(r.id)))
+    .map((r) => ({ ...r, stores: byId.get(Number(r.id)).stores || [] }));
+}
+
 async function render(req, res, extra = {}) {
   res.render('employees/index', {
     title: 'עובדים ומשכורות',
-    totals: await employeeTotals(),
+    // Scoped: an employee linked to stores is only visible where one of them is in scope; an
+    // employee with no links is shared with every store (see services/employees.js#listEmployees).
+    storeOptions: await scopedStoreList(req.scope),
+    totals: await scopedTotals(req.scope),
     ledger: await listEmployeeLedger(),
     error: null,
     notice: null,
@@ -34,8 +59,30 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    await createEmployee({ firstName: req.body.first_name, lastName: req.body.last_name, phone: req.body.phone }, req.user);
-    await render(req, res, { notice: 'העובד נוסף.' });
+    const storeIds = await allowedStoreIds(req.body, req.scope);
+    const emp = await createEmployee(
+      { firstName: req.body.first_name, lastName: req.body.last_name, phone: req.body.phone },
+      req.user,
+    );
+    if (storeIds.length) await setEmployeeStores(emp.id, storeIds, req.user);
+    await render(req, res, {
+      notice: storeIds.length ? 'העובד נוסף ושויך לחנויות שנבחרו.' : 'העובד נוסף (משויך לכל החנויות).',
+    });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// Assign / copy an employee to stores. Ticking a second store is exactly the "copy to another
+// branch" case: one employee row, working at both, visible in both.
+router.post('/:id/stores', async (req, res, next) => {
+  try {
+    const storeIds = await allowedStoreIds(req.body, req.scope);
+    await setEmployeeStores(Number(req.params.id), storeIds, req.user);
+    await render(req, res, {
+      notice: storeIds.length ? 'שיוך החנויות עודכן.' : 'השיוך נוקה — העובד משויך כעת לכל החנויות.',
+    });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);

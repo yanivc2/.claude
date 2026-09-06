@@ -1,6 +1,7 @@
 import { getExecutor, nowTs } from '../db/adapter.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
+import { filterByStoreLinks } from '../lib/scope.js';
 import { logAction } from './audit.js';
 
 /** Count suppliers awaiting owner approval — feeds the "אישורים" nav badge. Tolerant pre-upgrade. */
@@ -15,10 +16,14 @@ export async function countPendingSuppliers(x = getExecutor()) {
 
 /** List suppliers, optionally filtered by status, ordered by name. Each row gets a `stores`
  *  array ([{id,name}]) of the stores it's assigned to. */
-export async function listSuppliers(status = null, x = getExecutor()) {
+export async function listSuppliers(status = null, x = getExecutor(), { scope = null } = {}) {
   const rows = status
     ? await x.many('SELECT * FROM suppliers WHERE status = ? ORDER BY name', [status])
     : await x.many('SELECT * FROM suppliers ORDER BY name', []);
+  // SCOPED through supplier_stores (lib/scope.js#filterByStoreLinks): a supplier with no store
+  // links is shared with everyone; one with links belongs only to those stores' companies. The
+  // `stores` array it attaches is the same one attachStores used to build.
+  if (scope !== null) return filterByStoreLinks(rows, 'supplier_stores', 'supplier_id', scope, x);
   return attachStores(rows, x);
 }
 
@@ -199,16 +204,18 @@ export async function supplierFamilyIds(supplierId, x = getExecutor()) {
 }
 
 /** Quick supplier search by name / tax id / phone / contact — for the dashboard search box. */
-export async function searchSuppliers(query, x = getExecutor()) {
+export async function searchSuppliers(query, scope = null, x = getExecutor()) {
   const q = (query ?? '').trim();
   if (!q) return [];
   const like = `%${q}%`;
-  return x.many(
+  const rows = await x.many(
     `SELECT * FROM suppliers
       WHERE name LIKE ? OR tax_id LIKE ? OR phone LIKE ? OR contact_name LIKE ? OR contact_phone LIKE ?
       ORDER BY name LIMIT 20`,
     [like, like, like, like, like],
   );
+  // Search is a read of the same data as the list — it has to obey the same separation.
+  return scope === null ? rows : filterByStoreLinks(rows, 'supplier_stores', 'supplier_id', scope, x);
 }
 
 /**

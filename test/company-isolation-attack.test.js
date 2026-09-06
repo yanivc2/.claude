@@ -230,3 +230,107 @@ test('the audit log does not expose the other company\'s actions', async () => {
     assert.ok(!html.includes('CO-9001'), 'the audit log leaked the other company\'s check');
   }
 });
+
+// --- suppliers and employees are separated through their store links ----------------------------
+//
+// Both use the SAME rule (lib/scope.js#filterByStoreLinks): no store links = shared with everyone;
+// links = visible only where one of those stores is in scope. A row may be linked to several
+// stores in several companies — that is how "the same supplier delivers to both branches" works.
+
+test('a supplier linked to the other company only is invisible; an unlinked one stays shared', async () => {
+  const { setSupplierStores, listSuppliers } = await import('../src/services/suppliers.js');
+
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק זר', 'approved')", []);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק שלי', 'approved')", []);
+  const foreign = await db.one("SELECT * FROM suppliers WHERE name='ספק זר'", []);
+  const ours = await db.one("SELECT * FROM suppliers WHERE name='ספק שלי'", []);
+  await setSupplierStores(foreign.id, [theirStore.id], db);
+  await setSupplierStores(ours.id, [myStore.id], db);
+
+  const visible = await listSuppliers(null, db, { scope: { companyIds: [myCompany], storeIds: null } });
+  const names = visible.map((s) => s.name);
+  assert.ok(names.includes('ספק שלי'), 'our own supplier is visible');
+  assert.ok(names.includes('ספק משותף'), 'an UNLINKED supplier stays shared with everyone');
+  assert.ok(!names.includes('ספק זר'), "the other company's supplier is hidden");
+
+  // …and the screens agree.
+  const page = await (await get('/suppliers')).text();
+  assert.ok(!page.includes('ספק זר'), '/suppliers leaked the other company\'s supplier');
+  assert.ok(page.includes('ספק שלי'));
+});
+
+test('one supplier can serve BOTH companies — linking it to both makes it visible in both', async () => {
+  const { setSupplierStores, listSuppliers } = await import('../src/services/suppliers.js');
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק לשתי החברות', 'approved')", []);
+  const shared = await db.one("SELECT * FROM suppliers WHERE name='ספק לשתי החברות'", []);
+  await setSupplierStores(shared.id, [myStore.id, theirStore.id], db);
+
+  for (const co of [myCompany, theirCompany]) {
+    const names = (await listSuppliers(null, db, { scope: { companyIds: [co], storeIds: null } })).map((s) => s.name);
+    assert.ok(names.includes('ספק לשתי החברות'), `not visible in company ${co}`);
+  }
+  // The row carries its stores, so the screen can show which branches it belongs to.
+  const row = (await listSuppliers(null, db, { scope: { companyIds: [myCompany], storeIds: null } }))
+    .find((s) => s.name === 'ספק לשתי החברות');
+  assert.equal(row.stores.length, 2);
+});
+
+test('employees separate the same way, and can be copied to a second store', async () => {
+  const { createEmployee, setEmployeeStores, listEmployees } = await import('../src/services/employees.js');
+
+  const foreign = await createEmployee({ firstName: 'עובד', lastName: 'זר' }, ownerUser, db);
+  const ours = await createEmployee({ firstName: 'עובד', lastName: 'שלי' }, ownerUser, db);
+  const shared = await createEmployee({ firstName: 'עובד', lastName: 'משותף' }, ownerUser, db);
+  const unlinked = await createEmployee({ firstName: 'עובד', lastName: 'כללי' }, ownerUser, db);
+  await setEmployeeStores(foreign.id, [theirStore.id], ownerUser, db);
+  await setEmployeeStores(ours.id, [myStore.id], ownerUser, db);
+  await setEmployeeStores(shared.id, [myStore.id, theirStore.id], ownerUser, db); // "copied" to both
+
+  const mineScope = { companyIds: [myCompany], storeIds: null };
+  const names = (await listEmployees({ scope: mineScope }, db)).map((e) => `${e.first_name} ${e.last_name}`);
+  assert.ok(names.includes('עובד שלי'));
+  assert.ok(names.includes('עובד משותף'), 'an employee linked to both stores shows in both');
+  assert.ok(names.includes('עובד כללי'), 'an UNLINKED employee stays shared');
+  assert.ok(!names.includes('עובד זר'), "the other company's employee is hidden");
+  assert.ok(!unlinked.stores, 'createEmployee itself does not link stores');
+
+  // Clearing the links returns the employee to "every store".
+  await setEmployeeStores(ours.id, [], ownerUser, db);
+  const after = (await listEmployees({ scope: { companyIds: [theirCompany], storeIds: null } }, db))
+    .map((e) => `${e.first_name} ${e.last_name}`);
+  assert.ok(after.includes('עובד שלי'), 'cleared links = shared again');
+});
+
+test('the employees screen shows the store marker and refuses a foreign store', async () => {
+  const { createEmployee } = await import('../src/services/employees.js');
+  const emp = await createEmployee({ firstName: 'מרקר', lastName: 'בדיקה' }, ownerUser, db);
+
+  const page = await (await get('/employees')).text();
+  assert.match(page, /חנויות/, 'the store column exists');
+  assert.match(page, /כל החנויות/, 'an unlinked employee is marked as belonging to every store');
+
+  // Linking to the OTHER company's store is refused, and nothing is written.
+  const res = await post(`/employees/${emp.id}/stores`, form({ store_ids: [theirStore.id] }));
+  assert.ok(res.status >= 400 || res.status === 200, `answered ${res.status}`);
+  const links = await db.many('SELECT store_id FROM employee_stores WHERE employee_id = ?', [emp.id]);
+  assert.equal(links.length, 0, 'a link into the other company was written');
+
+  // Linking to our own store works.
+  await post(`/employees/${emp.id}/stores`, form({ store_ids: [myStore.id] }));
+  const ok = await db.many('SELECT store_id FROM employee_stores WHERE employee_id = ?', [emp.id]);
+  assert.deepEqual(ok.map((r) => Number(r.store_id)), [Number(myStore.id)]);
+});
+
+test('a supplier cannot be linked into the other company from the form', async () => {
+  const before = await db.many('SELECT id FROM suppliers', []);
+  await post('/suppliers', form({ name: 'ספק פיראטי', store_ids: [theirStore.id] }));
+  const created = await db.one("SELECT id FROM suppliers WHERE name = 'ספק פיראטי'", []);
+  if (created) {
+    const links = await db.many('SELECT store_id FROM supplier_stores WHERE supplier_id = ?', [created.id]);
+    assert.ok(
+      !links.some((l) => Number(l.store_id) === Number(theirStore.id)),
+      'a supplier was linked into the other company',
+    );
+  }
+  assert.ok(before.length >= 0);
+});

@@ -17,6 +17,7 @@ export function migrate(db) {
   migrateDeposits(db);
   migrateZExtras(db);
   migrateEmployees(db);
+  migrateEmployeeStores(db);
   migrateZClosings(db);
   migrateInvoiceLineUnits(db);
   migrateSupplierStores(db);
@@ -298,6 +299,60 @@ function migrateBankBalance(db) {
   if (!hasTable) return;
   const cols = db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name);
   if (!cols.includes('balance_after')) db.exec('ALTER TABLE bank_transactions ADD COLUMN balance_after INTEGER;');
+}
+
+// Company/store separation for employees — the SAME model as supplier_stores: a join table, where
+// NO rows means "shared with every store" (what every employee was before this existed). An
+// employee can be linked to several stores across several companies.
+//
+// The backfill writes the links the data already proves: every store an employee actually appears
+// in (register closings, Z expenses, closing expenses). An employee who never appears anywhere
+// keeps no links and therefore stays visible everywhere — nothing disappears on upgrade.
+function migrateEmployeeStores(db) {
+  const tables = new Set(
+    db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r) => r.name),
+  );
+  if (!tables.has('employees') || !tables.has('stores')) return;
+
+  db.exec(`CREATE TABLE IF NOT EXISTS employee_stores (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    store_id    INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    UNIQUE (employee_id, store_id)
+  );`);
+  db.exec('CREATE INDEX IF NOT EXISTS ix_employee_stores_employee ON employee_stores(employee_id);');
+
+  // Only ever backfill an EMPTY table — never re-derive over links the owner has since edited.
+  const existing = db.prepare('SELECT COUNT(*) AS n FROM employee_stores').get();
+  if (Number(existing?.n || 0) > 0) return;
+
+  const pairs = new Set();
+  const note = (rows) => {
+    for (const r of rows) {
+      if (r.employee_id != null && r.store_id != null) pairs.add(`${r.employee_id}:${r.store_id}`);
+    }
+  };
+  if (tables.has('z_closings')) {
+    note(db.prepare('SELECT employee_id, store_id FROM z_closings WHERE employee_id IS NOT NULL AND store_id IS NOT NULL').all());
+  }
+  if (tables.has('z_expenses') && tables.has('z_reports')) {
+    note(db.prepare(
+      `SELECT e.employee_id, z.store_id FROM z_expenses e JOIN z_reports z ON z.id = e.z_report_id
+        WHERE e.employee_id IS NOT NULL AND z.store_id IS NOT NULL`,
+    ).all());
+  }
+  if (tables.has('z_closing_expenses') && tables.has('z_closings')) {
+    note(db.prepare(
+      `SELECT ce.employee_id, zc.store_id FROM z_closing_expenses ce JOIN z_closings zc ON zc.id = ce.closing_id
+        WHERE ce.employee_id IS NOT NULL AND zc.store_id IS NOT NULL`,
+    ).all());
+  }
+
+  const ins = db.prepare('INSERT OR IGNORE INTO employee_stores (employee_id, store_id) VALUES (?, ?)');
+  for (const p of pairs) {
+    const [eid, sid] = p.split(':').map(Number);
+    ins.run(eid, sid);
+  }
 }
 
 // Advance payments: the supplier a payment went to, needed when a payment has no invoice lines yet.

@@ -1,14 +1,49 @@
 import { getExecutor } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { normalizePhone } from '../lib/employeeImport.js';
+import { filterByStoreLinks } from '../lib/scope.js';
 import { logAction } from './audit.js';
 
 // "עובדים ומשכורות" — staff list + a tracking table of advances (מפרעות) and salary lines
 // entered on Z reports. An advance/salary line on a Z references an employee (z_expenses.employee_id).
 
-export async function listEmployees({ includeInactive = false } = {}, x = getExecutor()) {
+/**
+ * Staff list, SCOPED through employee_stores (same rule as suppliers — see
+ * lib/scope.js#filterByStoreLinks): an employee with no store links is shared with everyone; one
+ * with links is visible only where at least one of those stores is in scope. Each row gets a
+ * `stores` array so the screen can show which branches the employee belongs to.
+ */
+export async function listEmployees({ includeInactive = false, scope = null } = {}, x = getExecutor()) {
   const where = includeInactive ? '' : 'WHERE active = 1';
-  return x.many(`SELECT * FROM employees ${where} ORDER BY last_name, first_name`, []);
+  const rows = await x.many(`SELECT * FROM employees ${where} ORDER BY last_name, first_name`, []);
+  return filterByStoreLinks(rows, 'employee_stores', 'employee_id', scope, x);
+}
+
+/** The store ids an employee is linked to ([] = every store). */
+export async function employeeStoreIds(employeeId, x = getExecutor()) {
+  try {
+    const rows = await x.many('SELECT store_id FROM employee_stores WHERE employee_id = ?', [employeeId]);
+    return rows.map((r) => Number(r.store_id));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Replace an employee's store links. `storeIds` must already be validated against the caller's
+ * scope by the route (assertStoreAllowed) — this only writes. An empty list clears the links,
+ * which means "every store" again.
+ */
+export async function setEmployeeStores(employeeId, storeIds, actor, x = getExecutor()) {
+  await getEmployee(employeeId, x);
+  await x.run('DELETE FROM employee_stores WHERE employee_id = ?', [employeeId]);
+  for (const sid of [...new Set((storeIds || []).map(Number).filter(Boolean))]) {
+    await x.run('INSERT INTO employee_stores (employee_id, store_id) VALUES (?, ?)', [employeeId, sid]);
+  }
+  await logAction(
+    { userId: actor?.id ?? null, action: 'employee.set_stores', entityType: 'employee', entityId: employeeId, details: { storeIds } },
+    x,
+  );
 }
 
 export async function getEmployee(id, x = getExecutor()) {

@@ -93,7 +93,7 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       unpaidOnly,
       invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope, unpaidOnly }) : null,
       checkResults: q ? await lookupChecks(q, scope) : null,
-      supplierResults: q ? await searchSuppliers(q) : null,
+      supplierResults: q ? await searchSuppliers(q, req.scope) : null,
       unmatchedCash: await unmatchedCashExpenses(scope, 20, storeId),
       depositsHistory: await listDeposits({ scope, storeId, limit: 20 }),
       zStatus: await zSequenceStatus(scope, storeId),

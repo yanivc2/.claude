@@ -10,6 +10,12 @@
     <div><label class="lbl">שם פרטי *</label><input name="first_name" required /></div>
     <div><label class="lbl">שם משפחה *</label><input name="last_name" required /></div>
     <div><label class="lbl">טלפון</label><input name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="050-0000000" /></div>
+    <% if (typeof storeOptions !== 'undefined' && storeOptions && storeOptions.length > 1) { %>
+      <div style="flex-basis:100%">
+        <label class="lbl">חנויות (ללא סימון = כל החנויות)</label>
+        <%- include('../suppliers/_storepick', { stores: storeOptions, selected: [] }) %>
+      </div>
+    <% } %>
     <div><button type="submit">הוסף עובד</button></div>
   </form>
 
@@ -34,13 +40,31 @@
   <h2 style="margin:0 0 .5rem">עובדים — סיכום</h2>
   <div class="table-scroll">
   <table class="sortable">
-    <thead><tr><th>שם</th><th>טלפון</th><th class="right">מפרעות</th><th class="right">שכר</th><th class="right">רישומים</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
+    <thead><tr><th>שם</th><th>טלפון</th><th>חנויות</th><th class="right">מפרעות</th><th class="right">שכר</th><th class="right">רישומים</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
     <tbody>
-      <% if (!totals || totals.length === 0) { %><tr><td colspan="7" class="muted">אין עובדים. הוסף עובד למעלה.</td></tr><% } %>
+      <% if (!totals || totals.length === 0) { %><tr><td colspan="8" class="muted">אין עובדים. הוסף עובד למעלה.</td></tr><% } %>
       <% (totals || []).forEach(function(e){ %>
         <tr>
           <td><%= e.first_name %> <%= e.last_name %></td>
           <td class="mono"><% if (e.phone) { %><a href="<%= telLink(e.phone) %>"><%= e.phone %></a><% } else { %>—<% } %></td>
+          <%# The store marker: which branches this employee belongs to. No chips = every store. %>
+          <td>
+            <% if (!e.stores || e.stores.length === 0) { %>
+              <span class="badge b-neutral">כל החנויות</span>
+            <% } else { %>
+              <% e.stores.forEach(function(st){ %><span class="badge b-approved"><%= st.name %></span> <% }); %>
+            <% } %>
+            <% if (storeOptions && storeOptions.length) { %>
+              <details style="margin-top:.35rem">
+                <summary class="muted" style="cursor:pointer; font-size:12px">שנה / העתק לחנות</summary>
+                <form method="post" action="/employees/<%= e.id %>/stores" style="margin-top:.4rem">
+                  <%- include('../suppliers/_storepick', { stores: storeOptions, selected: (e.stores || []).map(function(s){ return s.id; }) }) %>
+                  <p class="muted" style="font-size:11px; margin:.3rem 0">ללא סימון = משויך לכל החנויות.</p>
+                  <button type="submit" class="small">שמור שיוך</button>
+                </form>
+              </details>
+            <% } %>
+          </td>
           <td class="right"><%= e.advances ? formatIls(e.advances) : '—' %></td>
           <td class="right"><%= e.salary ? formatIls(e.salary) : '—' %></td>
           <td class="right"><%= e.lines || 0 %></td>
