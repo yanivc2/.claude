@@ -34,6 +34,9 @@
   <% } %>
 </div>
 
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-info"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
 <div class="card">
   <div class="row">
     <div><span class="muted">חשבון בנק</span><br><%= payment.bank_account_name %></div>
@@ -60,6 +63,39 @@
     </tbody>
   </table>
 </div>
+
+<% var al = (typeof alloc !== 'undefined' && alloc) ? alloc : null; %>
+<% if (al && al.unallocated > 0) { %>
+  <div class="card no-print">
+    <h2 style="margin-top:0">💰 יתרה על החשבון: <%= formatIls(al.unallocated) %></h2>
+    <p class="muted" style="font-size:13px">
+      מתוך <%= formatIls(al.amount) %> ששולמו, <%= formatIls(al.allocated) %> שויכו לחשבוניות.
+      היתרה ממתינה לחשבונית — אפשר לשייך אותה כאן, או מדף החשבונית כשהיא תגיע.
+    </p>
+    <% if (typeof openInvoices !== 'undefined' && openInvoices && openInvoices.length) { %>
+      <form method="post" action="/payments/<%= payment.id %>/allocate"
+            onsubmit="return this.querySelectorAll('input[name=invoice_ids]:checked').length ? true : (alert('בחר לפחות חשבונית אחת'), false)">
+        <table>
+          <thead><tr><th></th><th>חשבונית</th><th>ספק</th><th>תאריך</th><th class="right">יתרה לתשלום</th></tr></thead>
+          <tbody>
+            <% openInvoices.forEach(function(i){ %>
+              <tr>
+                <td><input type="checkbox" name="invoice_ids" value="<%= i.id %>" style="width:auto" /></td>
+                <td><a href="/invoices/<%= i.id %>" class="mono"><%= i.invoice_number %></a></td>
+                <td><%= i.supplier_name %></td>
+                <td><%= formatDate(i.invoice_date) %></td>
+                <td class="right"><%= formatIls(i.open) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+        <div class="actions" style="margin-top:.8rem"><button type="submit">שייך חשבוניות לתשלום</button></div>
+      </form>
+    <% } else { %>
+      <p class="muted" style="font-size:13px">אין כרגע חשבוניות פתוחות של ספק זה בחנות הזו.</p>
+    <% } %>
+  </div>
+<% } %>
 
 <!-- שורת פעולות: הדפסה + חזרה לרשימה -->
 <div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">

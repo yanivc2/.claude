@@ -22,6 +22,7 @@
 import { getExecutor, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { logAction } from './audit.js';
+import { supplierFamilyIds } from './suppliers.js';
 
 /** Voided payments hold no money: their lines never count toward an invoice's allocation. */
 const LIVE = "p.status <> 'voided'";
@@ -277,4 +278,59 @@ export async function deallocate(invoiceId, paymentId, actor, x = getExecutor())
     );
     return { invoiceId, paymentId, status };
   });
+}
+
+/**
+ * The mirror of openAdvancesForSupplier: invoices this PAYMENT could still be attached to —
+ * unpaid tax invoices of the payment's own supplier family, on the same bank account, that still
+ * have a balance. Used by the "attach open invoices" panel on the payment page.
+ */
+export async function openInvoicesForPayment(paymentId, x = getExecutor()) {
+  const pay = await x.one('SELECT * FROM payments WHERE id = ?', [paymentId]);
+  if (!pay) throw new NotFoundError(`תשלום ${paymentId} לא נמצא`);
+  if (pay.status === 'voided') return [];
+
+  // Whose payment is it: the supplier recorded on it (an advance) or the one its lines point at.
+  let supplierId = pay.supplier_id ? Number(pay.supplier_id) : null;
+  if (!supplierId) {
+    const via = await x.one(
+      `SELECT i.supplier_id FROM payment_lines pl JOIN invoices i ON i.id = pl.invoice_id
+        WHERE pl.payment_id = ? LIMIT 1`,
+      [paymentId],
+    );
+    supplierId = via ? Number(via.supplier_id) : null;
+  }
+  if (!supplierId) return [];
+
+  const family = await supplierFamilyIds(supplierId, x);
+  const acct = await x.one('SELECT store_id FROM bank_accounts WHERE id = ?', [pay.bank_account_id]);
+  if (!acct) return [];
+
+  const rows = await x.many(
+    `SELECT i.*, s.name AS supplier_name
+       FROM invoices i JOIN suppliers s ON s.id = i.supplier_id
+      WHERE i.store_id = ?
+        AND i.status IN ('recorded', 'approved_for_payment')
+        AND i.total_amount > 0
+        AND i.supplier_id IN (${family.map(() => '?').join(',')})
+      ORDER BY i.invoice_date, i.id`,
+    [acct.store_id, ...family],
+  );
+  if (!rows.length) return [];
+
+  // Subtract what other live payments already cover (an invoice may be partly allocated).
+  const lines = await x.many(
+    `SELECT pl.invoice_id, pl.amount_applied FROM payment_lines pl
+       JOIN payments p ON p.id = pl.payment_id
+      WHERE p.status <> 'voided' AND pl.invoice_id IN (${rows.map(() => '?').join(',')})`,
+    rows.map((r) => r.id),
+  );
+  const allocatedBy = new Map();
+  for (const l of lines) {
+    allocatedBy.set(Number(l.invoice_id), (allocatedBy.get(Number(l.invoice_id)) || 0) + Number(l.amount_applied));
+  }
+
+  return rows
+    .map((r) => ({ ...r, open: Number(r.total_amount) - (allocatedBy.get(Number(r.id)) || 0) }))
+    .filter((r) => r.open > 0);
 }

@@ -338,3 +338,236 @@ test('the new-payment screen offers the on-account form, and it records an advan
     server.close();
   }
 });
+
+// --- one supplier per payment (except a supplier family) ---------------------------------------
+
+async function twoSuppliers(db) {
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  const ba = await accountForStore(db, store.id);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('קוקה קולה', 'approved')", []);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('טרה', 'approved')", []);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('אסם', 'approved')", []);
+  const cola = await db.one("SELECT * FROM suppliers WHERE name='קוקה קולה'", []);
+  const tara = await db.one("SELECT * FROM suppliers WHERE name='טרה'", []);
+  const osem = await db.one("SELECT * FROM suppliers WHERE name='אסם'", []);
+  await db.run('UPDATE suppliers SET parent_supplier_id = ? WHERE id = ?', [cola.id, tara.id]);
+
+  const mk = async (sup, num, amount) => {
+    await createInvoice(
+      { supplierId: sup.id, storeId: store.id, invoiceNumber: num, invoiceDate: '2026-01-10', amountBeforeVat: amount, vatAmount: 0, docType: 'tax_invoice' },
+      ow, db,
+    );
+    const inv = await db.one('SELECT * FROM invoices WHERE invoice_number = ?', [num]);
+    await approveInvoiceForPayment(inv.id, ow, db);
+    return inv;
+  };
+  return { ow, store, ba, cola, tara, osem, mk };
+}
+
+test('one payment cannot cover two unrelated suppliers', async () => {
+  const db = await freshDb();
+  const { ow, ba, cola, osem, mk } = await twoSuppliers(db);
+  const a = await mk(cola, 'C-1', 100000);
+  const b = await mk(osem, 'O-1', 50000);
+
+  await assert.rejects(
+    () => createPayment(
+      { bankAccountId: ba.id, method: 'check', checkNumber: '5500', paymentDate: '2026-01-15', invoiceIds: [a.id, b.id] },
+      ow, db,
+    ),
+    /לספקים שונים/,
+  );
+  // Neither invoice was touched — the whole payment rolled back.
+  for (const inv of [a, b]) {
+    assert.equal((await db.one('SELECT status FROM invoices WHERE id = ?', [inv.id])).status, 'approved_for_payment');
+  }
+});
+
+test('a subsidiary and its parent ARE paid together (טרה under קוקה קולה)', async () => {
+  const db = await freshDb();
+  const { ow, ba, cola, tara, mk } = await twoSuppliers(db);
+  const a = await mk(cola, 'C-2', 100000);
+  const b = await mk(tara, 'T-2', 50000);
+
+  const pay = await createPayment(
+    { bankAccountId: ba.id, method: 'check', checkNumber: '5501', paymentDate: '2026-01-15', invoiceIds: [a.id, b.id] },
+    ow, db,
+  );
+  assert.equal(pay.amount, 150000);
+  assert.equal(pay.lines.length, 2);
+});
+
+test('the order of selection does not matter — parent first or subsidiary first', async () => {
+  const db = await freshDb();
+  const { ow, ba, cola, tara, osem, mk } = await twoSuppliers(db);
+  const t = await mk(tara, 'T-3', 50000);
+  const c = await mk(cola, 'C-3', 100000);
+  const o = await mk(osem, 'O-3', 20000);
+
+  const pay = await createPayment(
+    { bankAccountId: ba.id, method: 'check', checkNumber: '5502', paymentDate: '2026-01-15', invoiceIds: [t.id, c.id] },
+    ow, db,
+  );
+  assert.equal(pay.amount, 150000);
+  // …but a third, unrelated supplier is still refused when the subsidiary was picked first.
+  const t2 = await mk(tara, 'T-4', 10000);
+  await assert.rejects(
+    () => createPayment(
+      { bankAccountId: ba.id, method: 'check', checkNumber: '5503', paymentDate: '2026-01-15', invoiceIds: [t2.id, o.id] },
+      ow, db,
+    ),
+    /לספקים שונים/,
+  );
+});
+
+// --- attaching open invoices from the payment screen -------------------------------------------
+
+test('a payment with money on account offers the supplier\'s open invoices and allocates them', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+  const { openInvoicesForPayment } = await import('../src/services/allocations.js');
+
+  const db = await freshDb();
+  const { ow, store, ba, cola, tara, osem, mk } = await twoSuppliers(db);
+  const c = await mk(cola, 'C-9', 100000);
+  await mk(osem, 'O-9', 70000); // another supplier — must NOT be offered
+  const t = await mk(tara, 'T-9', 30000); // the subsidiary — must be offered
+
+  const adv = await createPayment(
+    { bankAccountId: ba.id, method: 'check', checkNumber: '5600', paymentDate: '2026-01-20', supplierId: cola.id, amount: 130000 },
+    ow, db,
+  );
+
+  const offered = await openInvoicesForPayment(adv.id, db);
+  assert.deepEqual(offered.map((i) => i.invoice_number).sort(), ['C-9', 'T-9'], 'the family only');
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+  try {
+    const page = await (await fetch(`${base}/payments/${adv.id}`, { headers: { cookie } })).text();
+    assert.match(page, /יתרה על החשבון/);
+    assert.match(page, /C-9/);
+    assert.ok(!/O-9/.test(page), "another supplier's invoice is not offered");
+
+    const body = new URLSearchParams();
+    body.append('invoice_ids', String(c.id));
+    body.append('invoice_ids', String(t.id));
+    const res = await fetch(`${base}/payments/${adv.id}/allocate`, {
+      method: 'POST', redirect: 'manual',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    assert.equal(res.status, 303);
+    assert.deepEqual(await paymentAllocation(adv.id, db), { amount: 130000, allocated: 130000, unallocated: 0 });
+    for (const inv of [c, t]) {
+      assert.equal((await db.one('SELECT status FROM invoices WHERE id = ?', [inv.id])).status, 'paid');
+    }
+  } finally {
+    server.close();
+  }
+});
+
+// --- the new-payment screen honours the active store ------------------------------------------
+
+test('/payments/new shows only the active store, and collapses the groups when showing all', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+
+  const db = await freshDb();
+  const ow = await owner(db);
+  const stores = await db.many('SELECT id, name FROM stores ORDER BY id', []);
+  assert.ok(stores.length >= 2);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק', 'approved')", []);
+  const sup = await db.one("SELECT * FROM suppliers WHERE name='ספק'", []);
+
+  // One payable invoice in each of the first two stores.
+  for (const [n, st] of stores.slice(0, 2).entries()) {
+    await createInvoice(
+      // Distinct amounts/dates so the R4 near-duplicate warning doesn't fire between the two.
+      { supplierId: sup.id, storeId: st.id, invoiceNumber: `ST-${n}`, invoiceDate: `2026-0${n + 1}-10`, amountBeforeVat: 10000 + n * 7777, vatAmount: 0, docType: 'tax_invoice' },
+      ow, db,
+    );
+    const inv = await db.one('SELECT id FROM invoices WHERE invoice_number = ?', [`ST-${n}`]);
+    await approveInvoiceForPayment(inv.id, ow, db);
+  }
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+  try {
+    // No active store → both stores' invoices, and the groups start collapsed (no `open`).
+    const all = await (await fetch(`${base}/payments/new`, { headers: { cookie } })).text();
+    assert.match(all, /ST-0/);
+    assert.match(all, /ST-1/);
+    assert.ok(!/<details data-accordion="paygrp" open>/.test(all), 'groups collapsed when showing every store');
+
+    // Switch the active store → only that store's invoices, and its group is open.
+    const withStore = await (await fetch(`${base}/payments/new`, {
+      headers: { cookie: `${cookie}; ap_store=${stores[0].id}` },
+    })).text();
+    assert.match(withStore, /ST-0/);
+    assert.ok(!/ST-1/.test(withStore), 'the other store is filtered out');
+    assert.match(withStore, /<details data-accordion="paygrp" open>/);
+    assert.match(withStore, /החנות הפעילה בלבד/);
+  } finally {
+    server.close();
+  }
+});
+
+test('"save and add another" returns to the form instead of opening the payment', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  const ba = await accountForStore(db, store.id);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('בעל הנכס', 'approved')", []);
+  const landlord = await db.one("SELECT * FROM suppliers WHERE name='בעל הנכס'", []);
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+  try {
+    const post = (checkNumber, addAnother) => {
+      const body = new URLSearchParams({
+        bank_account_id: String(ba.id),
+        advance_supplier_id: String(landlord.id),
+        advance_amount: '5000',
+        method: 'check',
+        check_number: checkNumber,
+        payment_date: '2026-01-01',
+      });
+      if (addAnother) body.set('add_another', '1');
+      return fetch(`${base}/payments`, {
+        method: 'POST', redirect: 'manual',
+        headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+        body,
+      });
+    };
+
+    const again = await post('9101', true);
+    assert.equal(again.status, 303);
+    assert.equal(again.headers.get('location'), '/payments/new?added=1');
+
+    const done = await post('9102', false);
+    assert.match(done.headers.get('location'), /^\/payments\/\d+$/);
+
+    // Both checks were really recorded — 12 rent checks in a row is the point of the button.
+    const n = await db.one("SELECT COUNT(*) AS n FROM payments WHERE supplier_id = ?", [landlord.id]);
+    assert.equal(Number(n.n), 2);
+
+    const form = await (await fetch(`${base}/payments/new?added=1`, { headers: { cookie } })).text();
+    assert.match(form, /התשלום נרשם. אפשר להזין את הבא/);
+  } finally {
+    server.close();
+  }
+});

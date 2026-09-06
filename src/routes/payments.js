@@ -19,6 +19,7 @@ import { requirePermission, requireOwner } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { toAgorot } from '../lib/money.js';
 import { listSuppliers } from '../services/suppliers.js';
+import { paymentAllocation, openInvoicesForPayment, allocateInvoiceToPayments } from '../services/allocations.js';
 
 const router = Router();
 
@@ -118,9 +119,14 @@ router.get('/new', async (req, res, next) => {
     const methods = ['check', 'cash', 'credit', 'transfer', 'batch'];
     const method = methods.includes(req.query.method) ? req.query.method : 'check';
     const preselectId = req.query.invoice ? Number(req.query.invoice) : null;
+    // Honour the active-store context: after switching store the screen shows THAT store only.
+    // With no active store ("all stores") every store is shown, collapsed (see the view).
+    const all = await listPayable(req.scope);
+    const payable = req.activeStoreId ? all.filter((i) => Number(i.store_id) === req.activeStoreId) : all;
     res.render('payments/new', {
       title: 'תשלום חדש',
-      payable: await listPayable(req.scope),
+      payable,
+      addedNotice: req.query.added === '1' ? 'התשלום נרשם. אפשר להזין את הבא.' : null,
       accounts: await scopedAccounts(req.scope),
       suppliers: await listSuppliers('approved'),
       values: { method },
@@ -160,12 +166,15 @@ router.post('/', async (req, res, next) => {
       },
       req.user,
     );
+    // "שמור והוסף עוד תשלום" — stay on the form for the next check instead of opening this one.
+    if (b.add_another) return res.redirect(303, '/payments/new?added=1');
     res.redirect(303, `/payments/${payment.id}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       return res.status(400).render('payments/new', {
         title: 'תשלום חדש',
         payable: await listPayable(req.scope),
+        addedNotice: null,
         accounts: await scopedAccounts(req.scope),
         suppliers: await listSuppliers('approved'),
         values: b,
@@ -179,11 +188,47 @@ router.post('/', async (req, res, next) => {
 
 router.get('/:id', async (req, res, next) => {
   try {
+    const id = Number(req.params.id);
+    const payment = await getPaymentDetail(id);
+    const alloc = await paymentAllocation(id);
+    // R8, the other direction: money still on account here can be attached to open invoices of
+    // the same supplier family without leaving this screen.
+    const openInvoices = alloc.unallocated > 0 && payment.status === 'issued'
+      ? await openInvoicesForPayment(id)
+      : [];
     res.render('payments/show', {
       title: `צ׳ק #${req.params.id}`,
-      payment: await getPaymentDetail(Number(req.params.id)),
+      payment,
+      alloc,
+      openInvoices,
+      notice: req.query.alloc ? String(req.query.alloc) : null,
+      error: req.query.allocfail ? String(req.query.allocfail) : null,
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+// Attach open invoices to THIS payment's remaining balance (the mirror of the invoice screen's
+// panel). Each invoice is allocated in turn, so one check can close several small invoices.
+router.post('/:id/allocate', requirePermission('approve_payment'), async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    await assertInScope('payment', id, req.scope);
+    const invoiceIds = [].concat(req.body.invoice_ids || []).map(Number).filter(Boolean);
+    if (!invoiceIds.length) throw new RuleError('R8', 'לא נבחרו חשבוניות לשיוך');
+    let applied = 0;
+    for (const invId of invoiceIds) {
+      const r = await allocateInvoiceToPayments(invId, [{ paymentId: id }], req.user);
+      applied += r.applied;
+    }
+    const left = (await paymentAllocation(id)).unallocated;
+    const msg = `שויכו ${(applied / 100).toFixed(2)} ₪` + (left > 0 ? ` — נותרה יתרה על החשבון: ${(left / 100).toFixed(2)} ₪.` : ' — התשלום מנוצל במלואו.');
+    return res.redirect(303, `/payments/${id}?alloc=${encodeURIComponent(msg)}`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/payments/${id}?allocfail=${encodeURIComponent(err.message)}`);
+    }
     next(err);
   }
 });

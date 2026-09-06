@@ -8,6 +8,12 @@
 <% if (typeof error !== 'undefined' && error) { %>
   <div class="alert alert-error"><%= error %></div>
 <% } %>
+<% if (typeof addedNotice !== 'undefined' && addedNotice) { %>
+  <div class="alert alert-info"><%= addedNotice %></div>
+<% } %>
+<% if (typeof activeStore !== 'undefined' && activeStore) { %>
+  <p class="muted" style="font-size:13px">מוצגות חשבוניות של החנות הפעילה בלבד: <b><%= activeStore.name %></b>.</p>
+<% } %>
 <% const preId = (typeof preselectId !== 'undefined') ? preselectId : null; %>
 
 <%
@@ -24,9 +30,15 @@ const groupList = Object.values(groups);
   <div class="card muted">אין חשבוניות מאושרות לתשלום. אשר חשבוניות תחילה במסך החשבוניות.</div>
 <% } %>
 
+<%# With no active store every account is listed, so the groups start COLLAPSED — otherwise the
+    screen opens as one long wall of invoices. With an active store there is one group: open it. %>
+<% var openByDefault = (typeof activeStore !== 'undefined' && activeStore) || groupList.length === 1; %>
 <% groupList.forEach(function(g){ %>
-  <div class="card">
-    <h2><%= g.name %></h2>
+  <div class="card no-collapse">
+   <details data-accordion="paygrp" <%= openByDefault ? 'open' : '' %>>
+    <summary style="cursor:pointer; font-weight:600; font-size:1.05rem">
+      <%= g.name %> <span class="muted" style="font-weight:400">(<%= g.rows.length %> חשבוניות)</span>
+    </summary>
     <form method="post" action="/payments" onsubmit="return validateCheck(this)">
       <input type="hidden" name="bank_account_id" value="<%= g.id %>" />
       <table>
@@ -36,7 +48,11 @@ const groupList = Object.values(groups);
         <tbody>
           <% g.rows.forEach(function(i){ %>
             <tr>
-              <td><input type="checkbox" name="invoice_ids" value="<%= i.id %>" data-amount="<%= i.total_amount %>" <%= preId === i.id ? 'checked' : '' %> onchange="recalc(this.form)" style="width:auto"></td>
+              <td><input type="checkbox" class="inv-check" name="invoice_ids" value="<%= i.id %>"
+                         data-amount="<%= i.total_amount %>"
+                         data-fam="<%= i.supplier_parent_id || i.supplier_id %>"
+                         data-supplier="<%= i.supplier_name %>"
+                         <%= preId === i.id ? 'checked' : '' %> onchange="recalc(this.form)" style="width:auto"></td>
               <td><%= i.supplier_name %></td>
               <td class="mono"><%= i.invoice_number %></td>
               <td><%= formatDate(i.invoice_date) %></td>
@@ -65,6 +81,10 @@ const groupList = Object.values(groups);
           <label>נטו לתשלום</label>
           <input class="net-display" readonly value="₪0.00" />
         </div>
+        <div>
+          <label>ספק</label>
+          <input class="fam-hint" readonly value="" placeholder="— בחר חשבונית —" />
+        </div>
       </div>
 
       <div class="row m-check">
@@ -88,6 +108,7 @@ const groupList = Object.values(groups);
         <button type="submit">הנפק תשלום</button>
       </div>
     </form>
+   </details>
   </div>
 <% }); %>
 
@@ -143,7 +164,10 @@ const groupList = Object.values(groups);
         <div><label>מספר מקבץ *</label><input name="batch_number" /></div>
         <div><label>מספר אסמכתא *</label><input name="reference" /></div>
       </div>
-      <div style="margin-top:1rem" class="actions"><button type="submit">רשום תשלום על החשבון</button></div>
+      <div style="margin-top:1rem" class="actions">
+        <button type="submit">רשום תשלום על החשבון</button>
+        <button type="submit" name="add_another" value="1" class="secondary">שמור והוסף עוד תשלום</button>
+      </div>
     </form>
   </details>
 </div>
@@ -158,7 +182,24 @@ function netOf(form){
   form.querySelectorAll('input[name="invoice_ids"]:checked').forEach(function(c){ net += Number(c.dataset.amount); });
   return net;
 }
+// One payment settles ONE supplier (or a supplier family — a subsidiary billed separately but
+// paid with its parent). Once something is ticked, every other family is locked so the mistake
+// can't be made at all; createPayment refuses it server-side regardless.
+function lockFamily(form){
+  const boxes = form.querySelectorAll('.inv-check');
+  let fam = null, name = null;
+  boxes.forEach(function(b){ if (b.checked && fam === null){ fam = b.dataset.fam; name = b.dataset.supplier; } });
+  boxes.forEach(function(b){
+    const other = fam !== null && b.dataset.fam !== fam;
+    b.disabled = other && !b.checked;
+    b.closest('tr').style.opacity = b.disabled ? '.45' : '';
+    b.title = b.disabled ? 'תשלום אחד = ספק אחד. כבר נבחרה חשבונית של ' + name : '';
+  });
+  const hint = form.querySelector('.fam-hint');
+  if (hint) hint.value = fam === null ? '' : name;
+}
 function recalc(form){
+  lockFamily(form);
   const net = netOf(form);
   const disp = form.querySelector('.net-display');
   disp.value = '₪' + (net/100).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});

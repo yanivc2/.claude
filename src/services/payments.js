@@ -9,6 +9,7 @@ import { notify } from '../lib/notify.js';
 import { israelToday } from '../lib/loginHours.js';
 import { logAction } from './audit.js';
 import { syncInvoicePaidStatus } from './allocations.js';
+import { supplierFamilyIds } from './suppliers.js';
 
 const METHODS = ['check', 'cash', 'credit', 'transfer', 'batch', 'standing_order'];
 
@@ -159,6 +160,9 @@ export async function createPayment(input, actor, x = getExecutor()) {
   const paymentId = await tx(async (t) => {
     let net = 0;
     const lines = [];
+    // The supplier family every invoice on this payment must belong to (set by the first one).
+    let family = null;
+    let familyName = null;
 
     if (isAdvance) {
       // No lines: the whole amount is on account until an invoice is allocated against it.
@@ -195,6 +199,20 @@ export async function createPayment(input, actor, x = getExecutor()) {
       }
       if (inv.store_bank_account_id !== account.id) {
         throw new RuleError('ACCOUNT', `חשבונית #${inv.id} משויכת לחשבון בנק אחר — כל החשבוניות בצ׳ק חייבות להיות מאותו חשבון`, { invoiceId: inv.id });
+      }
+      // One payment settles ONE supplier — you cannot hand a supplier a check that also covers
+      // another supplier's invoice. The exception is a supplier FAMILY (a subsidiary and its
+      // parent, e.g. טרה under קוקה קולה), which bills separately but is paid together.
+      if (family === null) {
+        family = new Set(await supplierFamilyIds(inv.supplier_id, t));
+        familyName = inv.supplier_name;
+      } else if (!family.has(Number(inv.supplier_id))) {
+        throw new RuleError(
+          'R1',
+          `לא ניתן לשלם בתשלום אחד לספקים שונים: "${familyName}" ו-"${inv.supplier_name}". ` +
+            'תשלום מרוכז אפשרי רק לספק אחד או לחברת-בת שלו. הנפק תשלום נפרד לכל ספק.',
+          { invoiceId: inv.id },
+        );
       }
 
       net += inv.total_amount; // credit notes are negative
@@ -352,6 +370,8 @@ export async function updatePayment(id, input, actor, x = getExecutor()) {
       const newIds = [...new Set(input.invoiceIds.map(Number).filter(Boolean))];
       let net = 0;
       const lines = [];
+      let family = null;
+      let familyName = null;
       for (const invId of newIds) {
         const inv = await t.one(
           `SELECT i.*, s.status AS supplier_status, s.name AS supplier_name, ba.id AS store_bank_account_id
@@ -364,6 +384,18 @@ export async function updatePayment(id, input, actor, x = getExecutor()) {
         if (!okStatus) throw new RuleError('R1', `חשבונית #${inv.id}: סטטוס "${inv.status}" — לא ניתן לשייך לתשלום`, { invoiceId: inv.id });
         if (inv.supplier_status !== 'approved') throw new RuleError('R1', `הספק "${inv.supplier_name}" אינו מאושר — תשלום חסום`, { invoiceId: inv.id });
         if (inv.store_bank_account_id !== existing.bank_account_id) throw new RuleError('ACCOUNT', `חשבונית #${inv.id} משויכת לחשבון בנק אחר`, { invoiceId: inv.id });
+        // Same one-supplier-family rule as createPayment — a re-target must not smuggle in a
+        // second supplier's invoice.
+        if (family === null) {
+          family = new Set(await supplierFamilyIds(inv.supplier_id, t));
+          familyName = inv.supplier_name;
+        } else if (!family.has(Number(inv.supplier_id))) {
+          throw new RuleError(
+            'R1',
+            `לא ניתן לשלם בתשלום אחד לספקים שונים: "${familyName}" ו-"${inv.supplier_name}".`,
+            { invoiceId: inv.id },
+          );
+        }
         net += inv.total_amount;
         lines.push({ invoiceId: inv.id, amountApplied: inv.total_amount });
       }
@@ -372,11 +404,15 @@ export async function updatePayment(id, input, actor, x = getExecutor()) {
         throw new RuleError('CASH_LIMIT', `תשלום במזומן מוגבל ל-${config.cashCeilingAgorot / 100} ₪ לפי חוק צמצום השימוש במזומן.`);
       }
       // Invoices dropped from this payment revert to unpaid ('recorded'); kept/added become 'paid'.
-      for (const oldId of curIds) if (!newIds.includes(oldId)) await t.run("UPDATE invoices SET status = 'recorded' WHERE id = ?", [oldId]);
       await t.run('DELETE FROM payment_lines WHERE payment_id = ?', [id]);
       for (const l of lines) {
         await t.run('INSERT INTO payment_lines (payment_id, invoice_id, amount_applied) VALUES (?, ?, ?)', [id, l.invoiceId, l.amountApplied]);
-        await t.run("UPDATE invoices SET status = 'paid', bank_account_id = ? WHERE id = ?", [existing.bank_account_id, l.invoiceId]);
+      }
+      // Recompute every invoice this payment touched — dropped ones AND kept ones. Since R8 an
+      // invoice may be covered by other payments too, so "dropped from this check" no longer
+      // means "unpaid": syncInvoicePaidStatus is the only thing allowed to decide that.
+      for (const invId of new Set([...curIds, ...newIds])) {
+        await syncInvoicePaidStatus(invId, existing.bank_account_id, t);
       }
       await t.run(
         `UPDATE payments SET method = ?, check_number = ?, reference = ?, payer_name = ?, card_last4 = ?, batch_number = ?, payment_date = ?, amount = ? WHERE id = ?`,
