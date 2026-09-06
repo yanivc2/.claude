@@ -28,7 +28,11 @@ router.post('/store', async (req, res, next) => {
   try {
     const raw = (req.body.store_id ?? '').toString().trim();
     const dest = safeReturn(req);
-    const done = () => (isFetch(req) ? res.status(204).end() : res.redirect(dest));
+    // 303 See Other, never 302: after a POST, 302 lets the agent re-issue the request as a POST to
+    // the target (307/308 semantics in practice on some clients), which on the "החלף" button meant
+    // the browser never navigated and the app looked frozen. 303 forces a GET. Every other POST in
+    // the app already redirects with 303; this one was the exception.
+    const done = () => (isFetch(req) ? res.status(204).end() : res.redirect(303, dest));
     if (!raw) {
       // Empty selection = clear the context (owner/multi-store → "all stores").
       res.clearCookie('ap_store');

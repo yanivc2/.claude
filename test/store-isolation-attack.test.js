@@ -104,7 +104,7 @@ test('the store picker offers only the granted store, and never the other one', 
 
 test('POST /context/store with an unauthorized store id does not switch the context', async () => {
   const res = await post('/context/store', form({ store_id: theirs.id, return_to: '/' }));
-  assert.ok(res.status === 302 || res.status === 204);
+  assert.ok(res.status === 303 || res.status === 204, `answered ${res.status}`);
   // The cookie is either absent or not set to the foreign store.
   const setCookie = res.headers.get('set-cookie') || '';
   assert.ok(!new RegExp(`ap_store=${theirs.id}\\b`).test(setCookie), 'no cookie for a store we cannot see');
@@ -311,4 +311,37 @@ test('the sibling store\'s bank account cannot fund a payment', async () => {
   }));
   const after = await db.one('SELECT COUNT(*) AS n FROM payments WHERE bank_account_id = ?', [sibAcct.id]);
   assert.equal(Number(after.n), Number(before.n), 'a payment was drawn on a store we cannot access');
+});
+
+// --- the switch's HTTP contract ------------------------------------------------------------------
+
+test('the plain (no-JS) switch answers 303 See Other, never 302', async () => {
+  // 302 on a POST lets the agent re-issue it as a POST to the target. On the installed PWA that
+  // meant clicking "החלף" never navigated and the app looked frozen. 303 forces a GET.
+  const res = await post('/context/store', form({ store_id: mine.id, return_to: '/invoices' }));
+  assert.equal(res.status, 303, 'must be See Other');
+  assert.equal(res.headers.get('location'), '/invoices');
+
+  // Clearing the context takes the same path.
+  const cleared = await post('/context/store', form({ store_id: '', return_to: '/' }));
+  assert.equal(cleared.status, 303);
+
+  // The fetch path (what the header actually uses) still answers 204 with no redirect at all.
+  const viaFetch = await fetch(`${base}/context/store`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { cookie, 'content-type': 'application/x-www-form-urlencoded', 'x-requested-with': 'fetch' },
+    body: form({ store_id: mine.id, return_to: '/invoices' }),
+  });
+  assert.equal(viaFetch.status, 204);
+  assert.equal(viaFetch.headers.get('location'), null, 'no redirect for the fetch path');
+});
+
+test('the switch form routes its button through the fetch path, not a native POST', async () => {
+  const html = await (await get('/')).text();
+  const m = /<form[^>]*action="\/context\/store"[^>]*>/.exec(html);
+  if (m) {
+    assert.match(m[0], /onsubmit=/, 'the form must intercept its own submit');
+    assert.match(m[0], /apAutoSubmit/, 'and go through apAutoSubmit like the select does');
+  }
 });

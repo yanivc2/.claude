@@ -36,7 +36,9 @@ test('POST /context/store sets the ap_store cookie for an authorized store', asy
     headers: { cookie: cookieFor(await owner(db)), 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ store_id: '3', return_to: '/' }),
   });
-  assert.equal(res.status, 302);
+  // 303 See Other, not 302: after a POST, 302 lets the agent re-issue the request as a POST to the
+  // target, which is what left the installed PWA frozen on the "החלף" button.
+  assert.equal(res.status, 303);
   assert.match(res.headers.get('set-cookie') || '', /ap_store=3/);
 });
 

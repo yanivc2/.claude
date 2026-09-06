@@ -103,7 +103,11 @@
           <% } %>
         </strong>
         <% if (availableStores.length > 1) { %>
-          <form method="post" action="/context/store" class="store-banner-switch">
+          <%# The button goes through the SAME fetch path as the select's onchange. A native POST
+              here answered with a redirect is what broke the installed PWA — it never navigated.
+              With JS off the native submit still works: the server answers 303 (see routes/context.js). %>
+          <form method="post" action="/context/store" class="store-banner-switch"
+                onsubmit="if (window.apAutoSubmit) { apAutoSubmit(this); return false; } return true;">
             <input type="hidden" name="return_to" value="<%= path %>">
             <select name="store_id" onchange="apAutoSubmit(this)" aria-label="בחר חנות פעילה">
               <option value="">— כל החנויות —</option>
