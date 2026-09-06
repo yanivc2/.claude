@@ -238,7 +238,12 @@
               <td class="mono"><a href="/invoices/<%= iv.id %>"><%= iv.invoice_number %></a></td>
               <td><%= formatDate(iv.invoice_date) %></td>
               <td><%= iv.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
-              <td class="right <%= iv.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(iv.total_amount) %></td>
+              <td class="right <%= iv.total_amount < 0 ? 'neg' : '' %>">
+                <%= formatIls(iv.total_amount) %>
+                <% if (iv.open_amount != null && iv.open_amount !== iv.total_amount) { %>
+                  <br><span class="muted" style="font-size:12px">נותרו <%= formatIls(iv.open_amount) %></span>
+                <% } %>
+              </td>
             </tr>
           <% }); %>
         </tbody>
@@ -283,7 +288,27 @@
           <div><label>תאריך חיוב</label><input type="date" name="so_date" /></div>
         </div>
       </div>
-      <div style="margin-top:.8rem"><button type="submit">צור תשלום לחשבוניות המסומנות</button></div>
+      <%# Split payments (R8): leave the amount empty to pay the whole open balance in one payment,
+          or type an amount to pay part of it now and the rest on the next check. %>
+      <div class="row" style="margin-top:.6rem">
+        <div>
+          <label>סכום התשלום (₪) — ריק = כל היתרה</label>
+          <input name="pay_amount" inputmode="decimal" placeholder="ריק = היתרה המלאה" />
+        </div>
+        <div>
+          <label>יתרה פתוחה במסומנות</label>
+          <input id="bpOpen" readonly value="<%= formatIls(0) %>" />
+        </div>
+      </div>
+      <div style="margin-top:.8rem" class="actions">
+        <button type="submit">צור תשלום לחשבוניות המסומנות</button>
+        <button type="submit" name="add_more" value="1" class="secondary">שמור וצור תשלום נוסף לחשבונית</button>
+      </div>
+      <p class="muted" style="font-size:12px; margin-top:.5rem">
+        לחשבונית שמשולמת בכמה צ׳קים: הזן את סכום הצ׳ק הראשון ולחץ <b>"שמור וצור תשלום נוסף לחשבונית"</b>.
+        התשלום נקלט, היתרה מתעדכנת, ואפשר להזין את הצ׳ק הבא. בצ׳ק האחרון לחץ
+        <b>"צור תשלום לחשבוניות המסומנות"</b> — ללא סכום הוא סוגר את כל היתרה.
+      </p>
     </form>
   </div>
   <script>
@@ -293,10 +318,19 @@
       sel.addEventListener('change', upd); upd();
       // live net of the checked rows
       var amounts = [<%- batchInvoices.map(function(iv){ return iv.total_amount; }).join(',') %>];
+      // The OPEN balance per row — after a partial payment it is smaller than the face value, and
+      // it is what the next check actually has to cover.
+      var opens = [<%- batchInvoices.map(function(iv){ return (iv.open_amount == null ? iv.total_amount : iv.open_amount); }).join(',') %>];
       var checks = Array.prototype.slice.call(document.querySelectorAll('.bp-check'));
       var net = document.getElementById('bpNet');
+      var openBox = document.getElementById('bpOpen');
       function fmt(ag){ var s = ag<0?'-':''; ag=Math.abs(ag); return '₪'+s+(Math.floor(ag/100)).toLocaleString('en-US')+'.'+String(ag%100).padStart(2,'0'); }
-      function recalc(){ var sum=0; checks.forEach(function(c,i){ if(c.checked) sum+=amounts[i]; }); net.textContent = fmt(sum); }
+      function recalc(){
+        var sum=0, open=0;
+        checks.forEach(function(c,i){ if(c.checked){ sum+=amounts[i]; open+=opens[i]; } });
+        net.textContent = fmt(sum);
+        if (openBox) openBox.value = fmt(open);
+      }
       checks.forEach(function(c){ c.addEventListener('change', recalc); });
       recalc();
       // Arriving here from "הנפק תשלום לנבחרים" (a ?pick= list) means the user wants to pay, not to

@@ -28,7 +28,7 @@ import { createPayment } from '../services/payments.js';
 import { submitRequest, pendingRequestFor } from '../services/changeRequests.js';
 import { userCan } from '../lib/permissions.js';
 import { describeInvoice } from '../lib/changeSummary.js';
-import { invoiceAllocation, openAdvancesForSupplier, allocateInvoiceToPayments, deallocate } from '../services/allocations.js';
+import { invoiceAllocation, paymentAllocation, openAdvancesForSupplier, allocateInvoiceToPayments, deallocate } from '../services/allocations.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
@@ -91,7 +91,11 @@ async function batchContext(supplierId, storeId) {
   // their open invoices in this store can be paid together in one payment.
   const family = new Set(await supplierFamilyIds(sid));
   const payable = await listPayable();
-  return { batchInvoices: payable.filter((i) => family.has(i.supplier_id) && i.store_id === stid) };
+  const rows = payable.filter((i) => family.has(i.supplier_id) && i.store_id === stid);
+  // What is still OPEN on each one (R8): after a partial payment the face value is no longer what
+  // the next check has to cover, and the form's running balance has to say so.
+  for (const r of rows) r.open_amount = (await invoiceAllocation(r.id)).open;
+  return { batchInvoices: rows };
 }
 
 router.get('/', async (req, res, next) => {
@@ -148,7 +152,8 @@ router.get('/new', async (req, res, next) => {
       values: supplierId ? { supplier_id: supplierId, store_id: storeId || '', doc_type: req.query.doc === 'credit_note' ? 'credit_note' : undefined } : {},
       warnings: [],
       error: null,
-      notice: req.query.added ? 'החשבונית נשמרה. אפשר להזין עוד חשבונית לאותו הספק, או לשייך את הכל לתשלום למטה.' : null,
+      notice: req.query.partial ? String(req.query.partial)
+        : req.query.added ? 'החשבונית נשמרה. אפשר להזין עוד חשבונית לאותו הספק, או לשייך את הכל לתשלום למטה.' : null,
       openInvoices,
       pickIds,
       ...ctx,
@@ -293,7 +298,64 @@ router.post('/pay-batch', async (req, res, next) => {
       payInput.paymentDate = b.so_date;
     }
     if (!payInput.paymentDate) payInput.paymentDate = new Date().toISOString().slice(0, 10);
-    const payment = await createPayment(payInput, req.user);
+
+    // SPLIT PAYMENTS (R8): an invoice may need several checks. What is still OPEN on the selection
+    // — not the invoices' face value — is what the next payment can cover, because earlier checks
+    // already took their share.
+    const typed = String(b.pay_amount || '').trim() ? toAgorot(b.pay_amount) : null;
+    let remaining = 0;
+    let faceValue = 0;
+    let hasCredit = false;
+    for (const invId of invoiceIds) {
+      const a = await invoiceAllocation(invId);
+      remaining += a.open;
+      faceValue += a.total;
+      if (a.total < 0) hasCredit = true;
+    }
+    // Split when an amount was typed, or when a previous check already covered part of these.
+    const split = typed != null || remaining !== faceValue;
+
+    let payment;
+    if (!split) {
+      payment = await createPayment(payInput, req.user);
+    } else {
+      if (hasCredit) {
+        throw new RuleError(
+          'R8',
+          'זיכוי חייב להיכלל בתשלום אחד שסוגר את החשבונית. לפיצול לכמה תשלומים — הסר את הזיכוי מהבחירה ' +
+            'ושייך אותו לתשלום שסוגר את היתרה.',
+        );
+      }
+      if (remaining <= 0) throw new RuleError('R8', 'החשבוניות המסומנות כבר משולמות במלואן');
+      // Never take more than is still open, even if a larger amount was typed by mistake.
+      const amount = Math.min(typed == null ? remaining : typed, remaining);
+      if (amount <= 0) throw new RuleError('R8', 'סכום התשלום חייב להיות חיובי');
+
+      // Recorded as money paid to the supplier, then allocated across the selected invoices in
+      // order — exactly the mechanism the rent-checks case uses.
+      payment = await createPayment({ ...payInput, invoiceIds: [], supplierId, amount }, req.user);
+      for (const invId of invoiceIds) {
+        if ((await paymentAllocation(payment.id)).unallocated <= 0) break;
+        if ((await invoiceAllocation(invId)).open <= 0) continue;
+        await allocateInvoiceToPayments(invId, [{ paymentId: payment.id }], req.user);
+      }
+    }
+
+    // "שמור וצור תשלום נוסף לחשבונית": keep the same selection on the form so the next check can
+    // be entered straight away, and say what is still open.
+    if (b.add_more) {
+      let left = 0;
+      for (const invId of invoiceIds) left += (await invoiceAllocation(invId)).open;
+      const q = new URLSearchParams({ supplier: String(supplierId), store: String(storeId), pick: invoiceIds.join(',') });
+      q.set(
+        'partial',
+        left > 0
+          ? `התשלום נקלט. נותרה יתרה של ${(left / 100).toFixed(2)} ₪ — הזן את פרטי התשלום הבא.`
+          : 'התשלום נקלט והחשבוניות סגורות במלואן. אין יתרה לתשלום נוסף.',
+      );
+      return res.redirect(303, `/invoices/new?${q.toString()}`);
+    }
+
     // Stay in the invoices flow (the owner keeps entering invoices); the notice links to the
     // payment and offers "another invoice for the same supplier".
     const q = new URLSearchParams({ paid: String(payment.id) });
@@ -501,7 +563,11 @@ router.get('/:id', async (req, res, next) => {
     // R8: money already paid to this supplier on this account that no invoice claims yet — what
     // an invoice arriving after the fact (e.g. 3 months of rent) can be attached to.
     const alloc = await invoiceAllocation(id);
-    const advances = alloc.open > 0 && invoice.supplier_id && invoice.derived_bank_account_id
+    // Show the panel whenever the invoice still owes money — with the candidates when there are
+    // any, and with an explanation when there are none. Hiding it entirely made the feature
+    // impossible to find: "no advances yet" looked identical to "this screen has no such rubric".
+    const canAllocate = alloc.open > 0 && invoice.status !== 'on_hold' && Boolean(invoice.derived_bank_account_id);
+    const advances = canAllocate && invoice.supplier_id
       ? await openAdvancesForSupplier(invoice.supplier_id, invoice.derived_bank_account_id)
       : [];
     res.render('invoices/show', {
@@ -509,6 +575,7 @@ router.get('/:id', async (req, res, next) => {
       invoice,
       alloc,
       advances,
+      canAllocate,
       ocr: await getOcr(id),
       comparison: await compareToInvoice(id),
       cashPayments: await cashPaymentsForInvoice(id),

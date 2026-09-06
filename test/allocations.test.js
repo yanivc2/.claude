@@ -571,3 +571,168 @@ test('"save and add another" returns to the form instead of opening the payment'
     server.close();
   }
 });
+
+// --- splitting one invoice across several checks, from the new-invoice screen ------------------
+
+test('"שמור וצור תשלום נוסף" pays an invoice with three checks, one at a time', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('בעל הנכס', 'approved')", []);
+  const sup = await db.one("SELECT * FROM suppliers WHERE name='בעל הנכס'", []);
+  await createInvoice(
+    { supplierId: sup.id, storeId: store.id, invoiceNumber: 'SPLIT-1', invoiceDate: '2026-03-01', amountBeforeVat: 1500000, vatAmount: 0, docType: 'tax_invoice' },
+    ow, db,
+  );
+  const inv = await db.one("SELECT * FROM invoices WHERE invoice_number='SPLIT-1'", []);
+  await approveInvoiceForPayment(inv.id, ow, db);
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+
+  const payBatch = (checkNumber, amount, addMore) => {
+    const body = new URLSearchParams({
+      supplier_id: String(sup.id),
+      store_id: String(store.id),
+      pay_method: 'check',
+      check_number: checkNumber,
+      check_due_date: '2026-03-10',
+    });
+    body.append('invoice_ids', String(inv.id));
+    if (amount != null) body.set('pay_amount', amount);
+    if (addMore) body.set('add_more', '1');
+    return fetch(`${base}/invoices/pay-batch`, {
+      method: 'POST', redirect: 'manual',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+  };
+
+  try {
+    // Check 1 of 3 — ₪5,000 of a ₪15,000 invoice, staying on the form.
+    let res = await payBatch('3001', '5000', true);
+    assert.equal(res.status, 303);
+    let loc = res.headers.get('location');
+    assert.match(loc, /^\/invoices\/new\?/);
+    const q1 = new URLSearchParams(loc.split('?')[1]);
+    assert.equal(q1.get('pick'), String(inv.id), 'the same invoice stays selected');
+    assert.match(q1.get('partial'), /10000\.00 ₪/);
+    assert.deepEqual(await invoiceAllocation(inv.id, db), { total: 1500000, allocated: 500000, open: 1000000 });
+    assert.equal((await db.one('SELECT status FROM invoices WHERE id = ?', [inv.id])).status, 'approved_for_payment');
+
+    // Check 2 — another ₪5,000, still on the form.
+    res = await payBatch('3002', '5000', true);
+    const q2 = new URLSearchParams(res.headers.get('location').split('?')[1]);
+    assert.match(q2.get('partial'), /5000\.00 ₪/);
+    assert.equal((await invoiceAllocation(inv.id, db)).open, 500000);
+
+    // Check 3 — the closing one, no amount: it takes the whole remaining balance.
+    res = await payBatch('3003', null, false);
+    assert.match(res.headers.get('location'), /^\/invoices\?/);
+    assert.deepEqual(await invoiceAllocation(inv.id, db), { total: 1500000, allocated: 1500000, open: 0 });
+    assert.equal((await db.one('SELECT status FROM invoices WHERE id = ?', [inv.id])).status, 'paid');
+
+    // Three real checks, each carrying its own share.
+    const pays = await db.many(
+      `SELECT p.check_number, p.amount FROM payments p ORDER BY p.id`,
+      [],
+    );
+    assert.deepEqual(pays.map((p) => p.check_number), ['3001', '3002', '3003']);
+    assert.deepEqual(pays.map((p) => Number(p.amount)), [500000, 500000, 500000]);
+  } finally {
+    server.close();
+  }
+});
+
+test('a split payment never takes more than the invoice still owes, and cannot overpay', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק', 'approved')", []);
+  const sup = await db.one("SELECT * FROM suppliers WHERE name='ספק'", []);
+  await createInvoice(
+    { supplierId: sup.id, storeId: store.id, invoiceNumber: 'SPLIT-2', invoiceDate: '2026-03-01', amountBeforeVat: 100000, vatAmount: 0, docType: 'tax_invoice' },
+    ow, db,
+  );
+  const inv = await db.one("SELECT * FROM invoices WHERE invoice_number='SPLIT-2'", []);
+  await approveInvoiceForPayment(inv.id, ow, db);
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+  try {
+    const body = new URLSearchParams({
+      supplier_id: String(sup.id), store_id: String(store.id),
+      pay_method: 'check', check_number: '4001', check_due_date: '2026-03-10',
+      pay_amount: '9999', // way over the ₪1,000 invoice
+    });
+    body.append('invoice_ids', String(inv.id));
+    await fetch(`${base}/invoices/pay-batch`, {
+      method: 'POST', redirect: 'manual',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    // Capped at the invoice, not the typed amount.
+    const pay = await db.one("SELECT amount FROM payments WHERE check_number='4001'", []);
+    assert.equal(Number(pay.amount), 100000);
+    assert.equal((await invoiceAllocation(inv.id, db)).open, 0);
+
+    // Paying again is refused — there is nothing left open.
+    const body2 = new URLSearchParams({
+      supplier_id: String(sup.id), store_id: String(store.id),
+      pay_method: 'check', check_number: '4002', check_due_date: '2026-03-10', pay_amount: '100',
+    });
+    body2.append('invoice_ids', String(inv.id));
+    const res2 = await fetch(`${base}/invoices/pay-batch`, {
+      method: 'POST', redirect: 'manual',
+      headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body: body2,
+    });
+    assert.equal(res2.status, 400);
+    assert.match(await res2.text(), /כבר משולמות במלואן/);
+  } finally {
+    server.close();
+  }
+});
+
+test('the invoice page always shows the allocation rubric while a balance is open', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+
+  const db = await freshDb();
+  const ow = await owner(db);
+  const store = await firstStore(db);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק', 'approved')", []);
+  const sup = await db.one("SELECT * FROM suppliers WHERE name='ספק'", []);
+  await createInvoice(
+    { supplierId: sup.id, storeId: store.id, invoiceNumber: 'VIS-1', invoiceDate: '2026-03-01', amountBeforeVat: 100000, vatAmount: 0, docType: 'tax_invoice' },
+    ow, db,
+  );
+  const inv = await db.one("SELECT * FROM invoices WHERE invoice_number='VIS-1'", []);
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const cookie = `session=${createSession(ow.id)}`;
+  try {
+    // No advances exist yet — the rubric is still there, explaining itself instead of vanishing.
+    const page = await (await fetch(`${base}/invoices/${inv.id}`, { headers: { cookie } })).text();
+    assert.match(page, /שייך לתשלומים שכבר בוצעו/);
+    assert.match(page, /אין כרגע תשלומים פתוחים/);
+    assert.match(page, /תשלום על החשבון/);
+  } finally {
+    server.close();
+  }
+});
