@@ -15,19 +15,15 @@ import {
 import { submitRequest } from '../services/changeRequests.js';
 import { describeSupplier } from '../lib/changeSummary.js';
 import { getExecutor } from '../db/adapter.js';
+import { scopedStoreList } from '../lib/scope.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 const router = Router();
 
 // Stores available to assign to a supplier (all stores, grouped visually by company in the view).
-async function storeOptions() {
-  return getExecutor().many(
-    `SELECT st.id, st.name, c.name AS company_name
-       FROM stores st JOIN companies c ON c.id = st.company_id
-      ORDER BY c.name, st.name`,
-    [],
-  );
-}
+// Scoped — see lib/scope.js#scopedStoreList. A supplier can only be tied to stores the caller
+// may access; listing every store here also leaked the whole org chart into a checkbox group.
+const storeOptions = (req) => scopedStoreList(req.scope);
 
 // Selected store ids from the supplier form (checkbox group `store_ids`).
 function storeIdsFrom(body) {
@@ -91,7 +87,7 @@ router.post('/:id/contacts', async (req, res, next) => {
 // Query params prefill the form (e.g. /suppliers/new?name=…&tax_id=… from the scan screen).
 router.get('/new', async (req, res, next) => {
   try {
-    res.render('suppliers/new', { title: 'ספק חדש', values: req.query || {}, error: null, stores: await storeOptions(), selectedStores: [] });
+    res.render('suppliers/new', { title: 'ספק חדש', values: req.query || {}, error: null, stores: await storeOptions(req), selectedStores: [] });
   } catch (err) {
     next(err);
   }
@@ -118,7 +114,7 @@ router.post('/', async (req, res, next) => {
     res.redirect(303, `/suppliers?created=${supplier.id}`);
   } catch (err) {
     if (err instanceof RuleError) {
-      return res.status(400).render('suppliers/new', { title: 'ספק חדש', values: req.body, error: err.message, stores: await storeOptions(), selectedStores: storeIdsFrom(req.body) });
+      return res.status(400).render('suppliers/new', { title: 'ספק חדש', values: req.body, error: err.message, stores: await storeOptions(req), selectedStores: storeIdsFrom(req.body) });
     }
     next(err);
   }
@@ -182,7 +178,7 @@ router.get('/:id/edit', async (req, res, next) => {
       title: `עריכת ספק — ${supplier.name}`,
       supplier,
       error: null,
-      stores: await storeOptions(),
+      stores: await storeOptions(req),
       selectedStores: await getSupplierStoreIds(supplier.id),
       // Parent-supplier options for the "חברת-אם (לתשלום מרוכז)" picker: top-level suppliers only
       // (a subsidiary can't itself be a parent), excluding this supplier.
@@ -222,7 +218,7 @@ router.post('/:id/edit', async (req, res, next) => {
         supplier: current,
         error: null,
         notice: 'בקשת העריכה נשלחה לאישור הבעלים. השינוי יבוצע לאחר אישור.',
-        stores: await storeOptions(),
+        stores: await storeOptions(req),
         selectedStores: await getSupplierStoreIds(id),
       });
     }
@@ -231,7 +227,7 @@ router.post('/:id/edit', async (req, res, next) => {
   } catch (err) {
     if (err instanceof RuleError) {
       const supplier = { ...req.body, id: Number(req.params.id), tax_id: req.body.tax_id, contact_name: req.body.contact_name, contact_phone: req.body.contact_phone, parent_supplier_id: req.body.parent_supplier_id ? Number(req.body.parent_supplier_id) : null };
-      return res.status(400).render('suppliers/edit', { title: 'עריכת ספק', supplier, error: err.message, stores: await storeOptions(), selectedStores: storeIdsFrom(req.body), parentOptions: (await listSuppliers()).filter((s) => s.id !== Number(req.params.id) && s.parent_supplier_id == null) });
+      return res.status(400).render('suppliers/edit', { title: 'עריכת ספק', supplier, error: err.message, stores: await storeOptions(req), selectedStores: storeIdsFrom(req.body), parentOptions: (await listSuppliers()).filter((s) => s.id !== Number(req.params.id) && s.parent_supplier_id == null) });
     }
     next(err);
   }

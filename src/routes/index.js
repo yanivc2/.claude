@@ -15,7 +15,7 @@ import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
 import { listRequests, approveRequest, rejectRequest, actionLabel } from '../services/changeRequests.js';
 import { getExecutor } from '../db/adapter.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopedStoreList } from '../lib/scope.js';
 import { config } from '../config.js';
 import { requirePageAccess } from '../middleware/requireOwner.js';
 import { AuthError } from '../lib/errors.js';
@@ -40,10 +40,13 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
     let storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
     const scope = req.scope; // {companyIds, storeIds} — scopeClause tolerates it; scopeWhere adds the store filter
     const cScope = scopeClause(scope, 'id');
-    const sScope = scopeClause(scope, 'company_id');
     const x = getExecutor();
     const companies = await x.many(`SELECT id, name FROM companies WHERE 1 = 1${cScope.sql} ORDER BY name`, [...cScope.params]);
-    const stores = await x.many(`SELECT id, name, company_id FROM stores WHERE 1 = 1${sScope.sql} ORDER BY name`, [...sScope.params]);
+    // Company scope alone used to list every store of a granted company here — including ones the
+    // user holds no per-store grant for. scopedStoreList filters on both dimensions.
+    const stores = (await scopedStoreList(scope, x)).map((s) => ({ id: Number(s.id), name: s.name, company_id: Number(s.company_id) }));
+    // A forged ?store= must not become a filter for a store we cannot see: drop it if unknown.
+    if (storeId && !stores.some((st) => st.id === storeId)) storeId = null;
 
     // בחירת חנות משייכת אותה מיד לחברה שלה. בחירת חברה בלבד: אם יש חנות אחת בחברה
     // היא נבחרת אוטומטית; אם יש שתיים או יותר, מחפשים בכל חנויות החברה (storeId נשאר ריק).

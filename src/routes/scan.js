@@ -15,7 +15,7 @@ import { canViewPage } from '../lib/permissions.js';
 import { readiness } from '../services/supplierProfile.js';
 import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
-import { scopeClause } from '../lib/scope.js';
+import { scopeClause, scopedStoreList } from '../lib/scope.js';
 import { toAgorot } from '../lib/money.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -35,15 +35,8 @@ const router = Router();
 router.param('id', scopeParam('scanDraft'));
 
 /** Stores the caller may file an invoice for (same query the invoice form uses). */
-async function storesInScope(scope = null) {
-  const sc = scopeClause(scope, 'c.id');
-  return getExecutor().many(
-    `SELECT st.id, st.name, c.name AS company_name
-       FROM stores st JOIN companies c ON c.id = st.company_id
-      WHERE 1 = 1${sc.sql} ORDER BY c.name, st.name`,
-    [...sc.params],
-  );
-}
+// Scoped — see lib/scope.js#scopedStoreList (company AND store).
+const storesInScope = (scope = null) => scopedStoreList(scope);
 
 /**
  * Parse the review form into the `edits` object saveDraftEdits/approveDraft consume:
@@ -119,7 +112,7 @@ async function reviewContext(req, draft, extra = {}) {
     title: 'בדיקת חשבונית שצולמה',
     draft,
     suppliers: await listSuppliers(),
-    stores: await storesInScope(req.scope.companyIds),
+    stores: await storesInScope(req.scope),
     aiEnabled: config.ai.enabled,
     // Creating a supplier from the review screen needs the suppliers-page permission —
     // a scan-only employee sees the extracted details read-only instead.
@@ -141,7 +134,7 @@ router.get('/', async (req, res, next) => {
     const suppliers = await listSuppliers();
     res.render('scan/capture', {
       title: 'צילום חשבונית',
-      stores: await storesInScope(req.scope.companyIds),
+      stores: await storesInScope(req.scope),
       suppliers: suppliers.map((sp) => ({ id: sp.id, name: sp.name, ready: readiness(sp.scan_profile).state })),
       aiEnabled: config.ai.enabled,
       maxPages: config.ai.maxScanImages,
@@ -167,7 +160,9 @@ router.post('/upload', handleScanImages, async (req, res, next) => {
     if (!storeId) return res.status(400).json({ error: 'יש לבחור חנות' });
     // Company separation on the way IN: a posted store_id outside the caller's scope is refused
     // (the picker only offers authorized stores, but the request can be forged).
-    const allowed = await storesInScope(req.scope.companyIds);
+    // Scoped on BOTH dimensions: company alone let a user granted one store post a sibling
+    // store's id from the same company.
+    const allowed = await storesInScope(req.scope);
     if (!allowed.some((s) => Number(s.id) === storeId)) {
       for (const ref of refs) await removeStored(ref); // no orphan blobs
       return res.status(403).json({ error: 'אין הרשאה לחנות שנבחרה' });

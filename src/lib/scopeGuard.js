@@ -70,3 +70,18 @@ export function scopeParam(kind) {
     }
   };
 }
+
+/**
+ * Guard a store id that arrived FROM THE REQUEST (a form field, a query parameter) before it is
+ * used to write. The scope machinery filters what a user can SEE; this is what stops them
+ * WRITING into a store they cannot see by editing the form's hidden store_id.
+ *
+ * Refuses (404, so existence isn't leaked) when the id is missing, malformed, or outside scope.
+ * @returns {Promise<number>} the validated store id
+ */
+export async function assertStoreAllowed(storeId, scope, x = getExecutor()) {
+  const id = Number(storeId);
+  if (!Number.isInteger(id) || id <= 0) throw new NotFoundError('חנות לא נמצאה');
+  await assertInScope('store', id, scope, x);
+  return id;
+}

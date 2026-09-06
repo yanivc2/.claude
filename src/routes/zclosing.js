@@ -10,18 +10,27 @@ import { listInvoices } from '../services/invoices.js';
 import { listEmployees } from '../services/employees.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { RuleError } from '../lib/errors.js';
+import { assertStoreAllowed } from '../lib/scopeGuard.js';
+import { normalizeScope } from '../lib/scope.js';
 
 const router = Router();
 
 // Stores the closer may pick — limited to the companies granted to them (owner sees all).
 async function storeOptionsFor(req) {
+  // Company scope is not enough here: a user granted ONE store inside a company must not be
+  // offered — or even shown the name of — the company's other stores. Filter on the store set.
   const sc = scopeClause(req.scope?.companyIds ?? null, 'c.id');
-  return getExecutor().many(
-    `SELECT st.id, st.name, c.name AS company_name
-       FROM stores st JOIN companies c ON c.id = st.company_id
-      WHERE 1 = 1${sc.sql} ORDER BY c.name, st.name`,
-    [...sc.params],
-  );
+  const { storeIds } = normalizeScope(req.scope);
+  let sql = `SELECT st.id, st.name, c.name AS company_name
+               FROM stores st JOIN companies c ON c.id = st.company_id
+              WHERE 1 = 1${sc.sql}`;
+  const params = [...sc.params];
+  if (storeIds != null) {
+    if (!storeIds.length) return [];
+    sql += ` AND st.id IN (${storeIds.map(() => '?').join(',')})`;
+    params.push(...storeIds);
+  }
+  return getExecutor().many(`${sql} ORDER BY c.name, st.name`, params);
 }
 
 // Recent invoices offered as match targets for a cash expense (מס' · ספק · סכום). Scoped, capped.
@@ -94,7 +103,7 @@ async function render(req, res, extra = {}) {
     employeeOptions: await listEmployees(),
     invoiceOptions: await invoicePickOptions(req.scope?.companyIds ?? null),
     startedAt: israelNow(),
-    closings: await listZClosings({ limit: 30 }),
+    closings: await listZClosings({ limit: 30, scope: req.scope }),
     closingExpenses: await recentClosingExpenses(req.scope?.companyIds ?? null, 30),
     error: null,
     notice: null,
@@ -112,6 +121,9 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
+    // store_id is a form field, so it is attacker-controlled: a closer granted one store could
+    // otherwise post another store's id and file a cash count against a register they can't see.
+    if (req.body.store_id) await assertStoreAllowed(req.body.store_id, req.scope);
     await createZClosing(closingInputFrom(req.body), req.user);
     await render(req, res, { notice: 'הסגירה נשמרה. תודה!' });
   } catch (err) {

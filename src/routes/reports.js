@@ -20,6 +20,7 @@ import { listEmployees } from '../services/employees.js';
 import { matchingClosing, CLOSING_DENOMS } from '../services/zclosing.js';
 import { listInvoices } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
+import { scopedStoreList } from '../lib/scope.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
@@ -30,7 +31,7 @@ import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
 import { requirePageAccess, requirePermission } from '../middleware/requireOwner.js';
 import { RuleError, AuthError, NotFoundError } from '../lib/errors.js';
-import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
+import { scopeParam, assertInScope, assertStoreAllowed } from '../lib/scopeGuard.js';
 import { israelToday } from '../lib/loginHours.js';
 
 const router = Router();
@@ -137,7 +138,7 @@ async function renderZReport(req, res, id, extra = {}) {
     title: `עריכת דוח Z ${zr.z_number}`,
     zr,
     store,
-    storeOptions: await storeList(),
+    storeOptions: await storeList(req),
     invoiceOptions: await invoicePickOptions(req.scope.companyIds),
     employeeOptions: await listEmployees(),
     ccBrands: CC_BRANDS,
@@ -191,13 +192,8 @@ function yesterdayInIsrael() {
   return d.toISOString().slice(0, 10);
 }
 
-async function storeList() {
-  return getExecutor().many(
-    `SELECT st.id, st.name, c.name AS company_name
-       FROM stores st JOIN companies c ON c.id = st.company_id ORDER BY c.name, st.name`,
-    [],
-  );
-}
+// Scoped — see lib/scope.js#scopedStoreList. Never list stores the caller cannot access.
+const storeList = (req) => scopedStoreList(req.scope);
 
 async function renderProfitability(req, res, extra = {}) {
   const { from, to, preset } = resolveRange(req);
@@ -210,7 +206,7 @@ async function renderProfitability(req, res, extra = {}) {
     stores,
     totals,
     // "דוח פדיון מידנייט" rubric: the store picker + the most recent imported days.
-    revStores: await storeList(),
+    revStores: await storeList(req),
     revRows: await listRevenue({ limit: 20, scope: req.scope }),
     // The nightly mail lands after 00:30 for the PREVIOUS business day → default to yesterday.
     revDefaultDate: yesterdayInIsrael(),
@@ -249,7 +245,7 @@ async function renderZReports(req, res, extra = {}) {
   );
   res.render('reports/zreports', {
     title: 'דוחות Z',
-    storeOptions: await storeList(),
+    storeOptions: await storeList(req),
     ccBrands: CC_BRANDS,
     zReports,
     unmatchedCount: zReports.filter((z) => z.hasDeposit && !z.depMatched).length,
@@ -529,7 +525,9 @@ router.get('/profitability.csv', async (req, res, next) => {
 router.post('/zreports', async (req, res, next) => {
   const b = req.body;
   try {
-    const storeId = Number(b.store_id);
+    // store_id is attacker-controlled (a form field): validate it before writing a Z report into
+    // a store the caller cannot see.
+    const storeId = await assertStoreAllowed(b.store_id, req.scope);
     // Credit-card report must reconcile to "אשראי מגירה" before the Z can be added.
     const { amounts: ccAmounts, total: ccTotal } = parseCc(b);
     const drawerCredit = toAgorot(b.drawer_credit);
@@ -600,7 +598,9 @@ router.post('/zreports/:id', async (req, res, next) => {
   const id = Number(req.params.id);
   const b = req.body;
   try {
-    const storeId = Number(b.store_id);
+    await assertInScope('zreport', id, req.scope);
+    // …and editing must not MOVE the report into a store outside the caller's grants.
+    const storeId = await assertStoreAllowed(b.store_id, req.scope);
     const { amounts: ccAmounts, total: ccTotal } = parseCc(b);
     const drawerCredit = toAgorot(b.drawer_credit);
     if (ccTotal !== drawerCredit) throw new RuleError('VALIDATION', 'אין התאמה בהכנסות מאשראי');

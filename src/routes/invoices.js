@@ -31,7 +31,7 @@ import { describeInvoice } from '../lib/changeSummary.js';
 import { invoiceAllocation, paymentAllocation, openAdvancesForSupplier, allocateInvoiceToPayments, deallocate } from '../services/allocations.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
-import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
+import { scopeParam, assertInScope, assertStoreAllowed } from '../lib/scopeGuard.js';
 
 const router = Router();
 
@@ -196,6 +196,10 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
   }
 
   try {
+    // The store arrives as a form field, so it is attacker-controlled: validate it against the
+    // caller's grants before anything is written. Without this a user granted store A could post
+    // store B's id and file an invoice — and later a payment — in a store they cannot even see.
+    await assertStoreAllowed(b.store_id, req.scope);
     const input = {
       supplierId: Number(b.supplier_id),
       storeId: Number(b.store_id),
@@ -276,8 +280,10 @@ router.post('/pay-batch', async (req, res, next) => {
     .filter(Boolean);
   try {
     if (invoiceIds.length === 0) throw new RuleError('R', 'לא נבחרו חשבוניות לתשלום');
-    // Company separation: refuse if any selected invoice is outside the caller's scope.
+    // Company/store separation: refuse if any selected invoice — or the store whose bank account
+    // will fund the payment — is outside the caller's scope.
     for (const invId of invoiceIds) await assertInScope('invoice', invId, req.scope);
+    await assertStoreAllowed(storeId, req.scope);
     const ba = await getExecutor().one('SELECT id FROM bank_accounts WHERE store_id = ?', [storeId]);
     const method = (b.pay_method || 'check').trim();
     const payInput = { bankAccountId: ba?.id, method, invoiceIds };
@@ -453,6 +459,9 @@ router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, nex
   const id = Number(req.params.id);
   const b = req.body;
   try {
+    await assertInScope('invoice', id, req.scope);
+    // Editing must not MOVE an invoice into a store the caller cannot see either.
+    await assertStoreAllowed(b.store_id, req.scope);
     const fields = {
       supplierId: Number(b.supplier_id),
       storeId: Number(b.store_id),

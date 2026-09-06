@@ -163,3 +163,35 @@ export async function companyGrantMatrix(x = getExecutor()) {
   }
   return byUser; // Map<userId, Set<companyId>>
 }
+
+/**
+ * The stores a request may see, with company name for grouping — the one list every store picker
+ * should use. Filters on BOTH dimensions: a user granted one store inside a company must not be
+ * offered (or even shown the name of) that company's other stores.
+ *
+ * This exists because the same unscoped `SELECT … FROM stores JOIN companies` was copy-pasted into
+ * several routers, each of which leaked every store in the system into a dropdown.
+ * @param {number[]|null|{companyIds,storeIds}} scope
+ */
+export async function scopedStoreList(scope, x = getExecutor()) {
+  const { companyIds, storeIds } = normalizeScope(scope);
+  const parts = [];
+  const params = [];
+  if (companyIds != null) {
+    if (!companyIds.length) return [];
+    parts.push(`c.id IN (${companyIds.map(() => '?').join(',')})`);
+    params.push(...companyIds);
+  }
+  if (storeIds != null) {
+    if (!storeIds.length) return [];
+    parts.push(`st.id IN (${storeIds.map(() => '?').join(',')})`);
+    params.push(...storeIds);
+  }
+  const where = parts.length ? ` WHERE ${parts.join(' AND ')}` : '';
+  return x.many(
+    `SELECT st.id, st.name, st.company_id, c.name AS company_name
+       FROM stores st JOIN companies c ON c.id = st.company_id${where}
+      ORDER BY c.name, st.name`,
+    params,
+  );
+}

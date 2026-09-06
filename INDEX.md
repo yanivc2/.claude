@@ -167,6 +167,23 @@
 
 ---
 
+## 🔐 הפרדת חנויות — מה בדיוק מגן, ואיפה זה נבדק
+
+**הכפתור "החלף" (חנות פעילה) הוא נוחות, לא הגנה.** הוא רק בוחר *מסנן* מתוך `availableStoresFor(user)`;
+הוא לא יכול להרחיב גישה, וזיוף עוגיית `ap_store` לחנות לא-מורשית פשוט מתעלמים ממנו
+(`middleware/currentUser.js` — הערך נבדק מול הרשימה המורשית). **הגבול האמיתי הוא `req.scope`.**
+
+שלוש שכבות, וכולן חייבות להתקיים:
+1. **רשימות** — `scopeWhere(scope, companyCol, storeCol)` בשירות.
+2. **גישה לפי id** — `assertInScope(kind, id, req.scope)` ב-route (404, לא 403 — לא מדליף קיום).
+3. **🔴 `store_id` שמגיע מהבקשה** — **`assertStoreAllowed(storeId, req.scope)`** (`lib/scopeGuard.js`) *לפני כל כתיבה*. שכבות 1–2 שומרות על מה שרואים; זו שומרת על מה **שכותבים**. בלעדיה משתמש עם הרשאה לחנות א׳ יכול לשלוח `store_id` של חנות ב׳ בטופס ולהכניס לשם חשבונית/דוח/סגירה.
+
+**בוררי חנות — תמיד `scopedStoreList(scope)`** (`lib/scope.js`, מסנן חברה **וגם** חנות ומחזיר `company_id`). אותה שאילתה לא-מסוננת שוכפלה לארבעה routers והדליפה את כל החנויות בארגון לתוך dropdown. אין לכתוב `SELECT … FROM stores JOIN companies` ישירות ב-route.
+
+**`test/store-isolation-attack.test.js`** הוא הבדיקה האדוורסרית (17 מקרים, HTTP אמיתי): משתמש עם הרשאה לחנות **אחת** מנסה לקרוא ולכתוב אצל (א) חנות בחברה אחרת, ו-(ב) **חנות אחות באותה חברה** — המקרה הקשה, שבו כל בדיקות החברה עוברות ורק ממד החנות עוצר. כל route חדש שנוגע ב-`store_id` — הוסף לו מקרה שם.
+
+---
+
 ## 🏦 התאמת בנק — `routes/reconciliation.js`, `services/reconciliation.js`
 
 **מוגן ב-`requirePageAccess('nav_reconciliation')`.** ייבוא CSV/XLSX (Hapoalim, `lib/bankCsv.js`), התאמת תנועות לתשלומים (`bank_transactions.matched_payment_id`) והפקדות (bag=reference). מחיקת תשלום מנתקת התאמות (clean-start עושה זאת).
