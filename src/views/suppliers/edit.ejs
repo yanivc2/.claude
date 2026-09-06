@@ -116,4 +116,31 @@ var sel = (selectedStores || []).map(Number);
     <div class="actions" style="margin-top:.4rem"><button type="submit">שמור הערות</button></div>
   </form>
 </div>
+
+<%# Deleting a supplier. Blocked once it has invoices — removing it would orphan financial history
+    — so the card says so plainly and points at blocking instead, which is the reversible action. %>
+<div class="card no-collapse">
+  <h2 style="margin-top:0">מחיקת ספק</h2>
+  <p class="muted" style="font-size:13px; margin:0 0 .6rem">
+    מחיקה אפשרית רק לספק <b>ללא חשבוניות</b>. לספק שכבר יש לו חשבוניות — מחיקה הייתה מוחקת את
+    ההיסטוריה הכספית שלו, ולכן במקומה יש <b>חסימה</b>: הספק נשאר בהיסטוריה אבל לא ניתן להזין לו
+    חשבוניות או לשלם לו.
+  </p>
+  <div class="actions">
+    <form method="post" action="/suppliers/<%= supplier.id %>/delete"
+          onsubmit="return confirm('למחוק את הספק <%= supplier.name %>? הפעולה בלתי הפיכה.')">
+      <button type="submit" class="danger">מחק ספק</button>
+    </form>
+    <% if (supplier.status !== 'blocked') { %>
+      <form method="post" action="/suppliers/<%= supplier.id %>/block"
+            onsubmit="return confirm('לחסום את <%= supplier.name %>? לא ניתן יהיה להזין לו חשבוניות או לשלם לו.')">
+        <button type="submit" class="secondary">חסום ספק</button>
+      </form>
+    <% } else { %>
+      <form method="post" action="/suppliers/<%= supplier.id %>/approve">
+        <button type="submit" class="secondary">בטל חסימה</button>
+      </form>
+    <% } %>
+  </div>
+</div>
 <%- include('../partials/footer') %>

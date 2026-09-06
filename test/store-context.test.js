@@ -59,3 +59,70 @@ test('a user granted a single store is auto-locked (banner shows locked, no swit
   assert.match(html, /נעול לחנות זו/);
   assert.doesNotMatch(html, /action="\/context\/store"/); // no switch form when locked to one store
 });
+
+// --- the active store must actually FILTER the screens, not just relabel the banner -------------
+//
+// The complaint that produced these: after switching to one store, "צ׳קים בחוץ" still listed every
+// store's checks. For an owner nothing restricts the scope, so a page that ignores the active store
+// simply shows everything — and the picker looks broken.
+
+test('the active store filters צ׳קים בחוץ, its CSV, Z reports and bank reconciliation', async () => {
+  const { createInvoice, approveInvoiceForPayment } = await import('../src/services/invoices.js');
+  const { createPayment } = await import('../src/services/payments.js');
+  const ow = await owner(db);
+  const stores = await db.many('SELECT * FROM stores ORDER BY id', []);
+  const [a, b] = stores;
+  assert.ok(b, 'two stores needed');
+
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק חתך', 'approved')", []);
+  const sup = await db.one("SELECT * FROM suppliers WHERE name='ספק חתך'", []);
+
+  // One open check per store, so each store has something to show.
+  let n = 0;
+  for (const st of [a, b]) {
+    n += 1;
+    const acct = await db.one('SELECT id FROM bank_accounts WHERE store_id = ?', [st.id]);
+    await createInvoice(
+      { supplierId: sup.id, storeId: st.id, invoiceNumber: `CUT-${n}`, invoiceDate: `2026-0${n}-09`, amountBeforeVat: 10000 * n, vatAmount: 0, docType: 'tax_invoice' },
+      ow, db,
+    );
+    const inv = await db.one('SELECT id FROM invoices WHERE invoice_number = ?', [`CUT-${n}`]);
+    await approveInvoiceForPayment(inv.id, ow, db);
+    await createPayment(
+      { bankAccountId: acct.id, method: 'check', checkNumber: `CUT${n}00`, paymentDate: '2026-05-01', invoiceIds: [inv.id] },
+      ow, db,
+    );
+  }
+
+  const bare = cookieFor(ow);
+  const withA = `${bare}; ap_store=${a.id}`;
+  // The page lists bank ACCOUNTS (company + account display name), one per store — so that is what
+  // "seeing another store" actually looks like on screen.
+  // Match on the ACCOUNT NUMBER, not the display name: names contain an apostrophe (ג'וניור) that
+  // EJS escapes to &#39;, so a raw substring match on the name would never hit.
+  const acctA = await db.one('SELECT account_number FROM bank_accounts WHERE store_id = ?', [a.id]);
+  const acctB = await db.one('SELECT account_number FROM bank_accounts WHERE store_id = ?', [b.id]);
+  assert.notEqual(acctA.account_number, acctB.account_number);
+
+  // With no active store the owner sees both stores…
+  const all = await (await get('/reports/outstanding', bare)).text();
+  assert.ok(all.includes(acctA.account_number) && all.includes(acctB.account_number), 'no active store → every store listed');
+
+  // …and with one selected, only that one.
+  const one = await (await get('/reports/outstanding', withA)).text();
+  assert.ok(one.includes(acctA.account_number), 'the active store is shown');
+  assert.ok(!one.includes(acctB.account_number), 'the other store must not be listed');
+
+  // The CSV export mirrors the page.
+  const csv = await (await get('/reports/outstanding.csv', withA)).text();
+  assert.ok(csv.includes(acctA.account_number), 'the export has the active store');
+  assert.ok(!csv.includes(acctB.account_number), 'the export must not carry the other store');
+
+  // An explicit ?store= still wins, so a deliberate cross-store look stays possible.
+  const forced = await (await get(`/reports/outstanding?store=${b.id}`, withA)).text();
+  assert.ok(forced.includes(acctB.account_number), '?store= overrides the active store');
+
+  // Bank reconciliation defaults to the ACTIVE store's account, not simply the first one.
+  const recon = await (await get('/reconciliation', withA)).text();
+  assert.ok(recon.includes(acctA.account_number), 'reconciliation opened on the active store');
+});

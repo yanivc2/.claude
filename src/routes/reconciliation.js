@@ -62,7 +62,11 @@ async function accounts(scope = null) {
 async function resolveAccountId(req) {
   const all = await accounts(req.scope);
   const requested = Number(req.body?.account_id) || Number(req.query.account);
-  return all.some((a) => a.id === requested) ? requested : all[0]?.id;
+  if (all.some((a) => a.id === requested)) return requested;
+  // Nothing valid asked for: default to the ACTIVE store's account rather than the first one in
+  // the list, so switching the active store actually changes what this page shows.
+  const active = req.activeStoreId ? all.find((a) => Number(a.store_id) === Number(req.activeStoreId)) : null;
+  return (active || all[0])?.id;
 }
 
 async function renderPage(req, res, accountId, extra = {}) {

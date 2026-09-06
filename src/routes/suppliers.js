@@ -38,7 +38,7 @@ function storeIdsFrom(body) {
   return [].concat(body.store_ids || []).map(Number).filter(Boolean);
 }
 
-async function renderList(res, extra = {}) {
+async function renderList(req, res, extra = {}) {
   res.render('suppliers/index', {
     title: 'ספקים',
     suppliers: await listSuppliers(null, undefined, { scope: req.scope }),
@@ -134,7 +134,7 @@ router.post('/bulk', async (req, res, next) => {
     const ids = [].concat(req.body.ids || []).map(Number).filter(Boolean);
     const action = req.body.bulk_action;
     if (!ids.length || !['approve', 'block', 'delete'].includes(action)) {
-      return renderList(res, { error: 'בחר פעולה ולפחות ספק אחד.' });
+      return renderList(req, res, { error: 'בחר פעולה ולפחות ספק אחד.' });
     }
     let ok = 0;
     const failures = [];
@@ -149,7 +149,7 @@ router.post('/bulk', async (req, res, next) => {
       }
     }
     const label = { approve: 'אושרו', block: 'נחסמו', delete: 'נמחקו' }[action];
-    return renderList(res, {
+    return renderList(req, res, {
       notice: `${ok} ספקים ${label}.`,
       error: failures.length ? failures.join(' · ') : null,
     });
@@ -252,7 +252,7 @@ router.post('/:id/approve', async (req, res, next) => {
     await approveSupplier(Number(req.params.id), req.user);
     res.redirect(303, safeReturn(req, '/suppliers?status=pending'));
   } catch (err) {
-    if (err instanceof AuthError) return renderList(res, { error: err.message });
+    if (err instanceof AuthError) return renderList(req, res, { error: err.message });
     next(err);
   }
 });
@@ -262,7 +262,7 @@ router.post('/:id/block', async (req, res, next) => {
     await blockSupplier(Number(req.params.id), req.user, req.body.reason || null);
     res.redirect(303, safeReturn(req, '/suppliers'));
   } catch (err) {
-    if (err instanceof AuthError) return renderList(res, { error: err.message });
+    if (err instanceof AuthError) return renderList(req, res, { error: err.message });
     next(err);
   }
 });
@@ -272,7 +272,7 @@ router.post('/:id/delete', async (req, res, next) => {
     await deleteSupplier(Number(req.params.id), req.user);
     res.redirect(303, '/suppliers');
   } catch (err) {
-    if (err instanceof AuthError || err instanceof RuleError) return renderList(res, { error: err.message });
+    if (err instanceof AuthError || err instanceof RuleError) return renderList(req, res, { error: err.message });
     next(err);
   }
 });

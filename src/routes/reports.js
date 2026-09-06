@@ -218,7 +218,8 @@ async function renderProfitability(req, res, extra = {}) {
 
 // Z reports live on their own tab (form to add + recent records table).
 async function renderZReports(req, res, extra = {}) {
-  const zStoreId = req.query.zstore ? Number(req.query.zstore) : null;
+  // Default to the active store, like the other screens. ?zstore= still overrides it.
+  const zStoreId = req.query.zstore ? Number(req.query.zstore) : (req.activeStoreId || null);
   const zRows = await listZReports({ storeId: zStoreId, limit: 30, scope: req.scope });
   const zReports = await Promise.all(
     zRows.map(async (z) => {
@@ -348,7 +349,11 @@ function parseOutstandingCut(q) {
 router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res, next) => {
   try {
     const c = parseOutstandingCut(req.query);
-    const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to };
+    // Honour the active-store context, like the other screens do. Without it, switching the active
+    // store changed the header banner but this page still listed every store — the picker looked
+    // broken. `?store=` still wins, so a deliberate cross-store look is one click away.
+    const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
+    const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to, storeId };
     const { accounts, totalOutstanding } = await outstandingChecks(req.scope, cutArg);
     const detailAccountId = req.query.account ? Number(req.query.account) : null;
     // Scope guard: only show detail for an account the user is allowed to see.
@@ -377,6 +382,8 @@ router.get('/outstanding-detail.csv', async (req, res, next) => {
     const accountId = Number(req.query.account);
     const c = parseOutstandingCut(req.query);
     const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to };
+    // NOTE: no store cut here — this is the authorization check for ?account=, and narrowing it to
+    // the active store would 404 a legitimate account the user simply isn't "standing on".
     const { accounts } = await outstandingChecks(req.scope);
     if (!accounts.some((a) => a.id === accountId)) { res.status(404).send('not found'); return; }
     const rows = (await outstandingCheckDetail(accountId, cutArg)).map((r) => [
@@ -409,7 +416,9 @@ function sendCsv(res, filename, headers, rows) {
 // CSV export — "צ׳קים בחוץ"
 router.get('/outstanding.csv', async (req, res, next) => {
   try {
-    const { accounts } = await outstandingChecks(req.scope);
+    // The export mirrors what the page shows, active store included.
+    const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
+    const { accounts } = await outstandingChecks(req.scope, { storeId });
     const rows = accounts.map((a) => [a.company_name, a.store_name, a.display_name, a.outstanding_count, fromAgorot(a.outstanding)]);
     sendCsv(res, 'outstanding-checks.csv', ['חברה', 'חנות', 'חשבון', 'מס׳ צ׳קים פתוחים', 'סכום בחוץ'], rows);
   } catch (err) {
