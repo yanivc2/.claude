@@ -49,9 +49,23 @@ async function render(req, res, extra = {}) {
   });
 }
 
+// POST/Redirect/GET: every action below redirects here with a short code instead of rendering in
+// place. Rendering worked, but it left the browser parked on a POST-only URL — a reload or a PWA
+// restore then issued a GET to e.g. /employees/54/stores and hit the "not found" page, with the
+// save already done. The notice has to survive the redirect, so it travels as a code.
+const NOTICES = {
+  added: 'העובד נוסף (משויך לכל החנויות).',
+  'added-stores': 'העובד נוסף ושויך לחנויות שנבחרו.',
+  stores: 'שיוך החנויות עודכן.',
+  'stores-cleared': 'השיוך נוקה — העובד משויך כעת לכל החנויות.',
+  imported: 'הייבוא הושלם.',
+  deleted: 'העובד נמחק.',
+  deactivated: 'העובד הועבר ללא-פעיל (יש לו רישומים).',
+};
+
 router.get('/', async (req, res, next) => {
   try {
-    await render(req, res);
+    await render(req, res, { notice: NOTICES[req.query.saved] || null });
   } catch (err) {
     next(err);
   }
@@ -65,9 +79,7 @@ router.post('/', async (req, res, next) => {
       req.user,
     );
     if (storeIds.length) await setEmployeeStores(emp.id, storeIds, req.user);
-    await render(req, res, {
-      notice: storeIds.length ? 'העובד נוסף ושויך לחנויות שנבחרו.' : 'העובד נוסף (משויך לכל החנויות).',
-    });
+    return res.redirect(303, `/employees?saved=${storeIds.length ? 'added-stores' : 'added'}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -80,9 +92,7 @@ router.post('/:id/stores', async (req, res, next) => {
   try {
     const storeIds = await allowedStoreIds(req.body, assignmentScope(req));
     await setEmployeeStores(Number(req.params.id), storeIds, req.user);
-    await render(req, res, {
-      notice: storeIds.length ? 'שיוך החנויות עודכן.' : 'השיוך נוקה — העובד משויך כעת לכל החנויות.',
-    });
+    return res.redirect(303, `/employees?saved=${storeIds.length ? 'stores' : 'stores-cleared'}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
@@ -118,7 +128,7 @@ router.post('/import', (req, res, next) => {
 router.post('/:id/delete', async (req, res, next) => {
   try {
     const r = await deleteEmployee(Number(req.params.id), req.user);
-    await render(req, res, { notice: r.deactivated ? 'העובד הועבר ללא-פעיל (יש לו רישומים).' : 'העובד נמחק.' });
+    return res.redirect(303, `/employees?saved=${r.deactivated ? 'deactivated' : 'deleted'}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);

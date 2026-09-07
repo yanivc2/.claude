@@ -27,11 +27,12 @@ import ingestRoutes from './routes/ingest.js';
 import { isScanEnabled } from './services/appSettings.js';
 import { depositStatus } from './services/deposits.js';
 import { requiresAllocationNumber, zeroVatNeedsCheck } from './services/invoices.js';
+import { actionUrlFallback } from './middleware/actionUrlFallback.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-30·141';
+const BUILD_VERSION = '2026-08-30·142';
 
 export function createApp() {
   const app = express();
@@ -151,6 +152,11 @@ export function createApp() {
   // Default-deny firewall for restricted roles (e.g. the register-closer). Runs before every
   // route so no detail/CSV/settings path can be reached outside a role's granted pages.
   app.use(enforcePageScope);
+  // A GET to a POST-only action URL lands on the page it belongs to, not on the error page. The
+  // EARLY copy only catches literal action paths that a param route would otherwise swallow
+  // (/invoices/pay-batch under /invoices/:id); everything else is caught after the routers, so the
+  // permission guards answer first. See middleware/actionUrlFallback.js.
+  app.use(actionUrlFallback(app, 'early'));
 
   app.use('/', authRoutes);
   app.use('/', legalRoutes);
@@ -179,6 +185,8 @@ export function createApp() {
   app.use('/employees', requirePageAccess('nav_employees'), employeeRoutes);
   app.use('/notifications', notificationRoutes); // in-app alert stream (owner-only, enforced inside)
   app.use('/settings', settingsRoutes);
+
+  app.use(actionUrlFallback(app, 'late'));
 
   // Unmatched route -> friendly page (instead of Express's raw "Cannot GET/POST ...").
   app.use((req, res) => {

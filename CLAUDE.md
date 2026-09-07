@@ -256,4 +256,8 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   Identical in SQL and identically planned by Postgres, but pg-mem throws "Not supported: lookups on
   joins" for `… AND <joined table's indexed id> IN (…)` — the exact shape every store picker and
   account list produces. Reverting turns `TEST_PG=1` red on /audit, /zclosing, /reconciliation, /reports/*.
+- **POST handler = redirect (303), never `render` in place.** Rendering leaves the browser parked on
+  a POST-only URL, and the next reload/PWA restore GETs it and hits the error page with the action
+  already done. `middleware/actionUrlFallback.js` is the safety net (a GET to an action URL → 303 to
+  the nearest ancestor page, swept by `test/action-url-fallback.test.js`), not a licence to skip PRG.
 - Badge classes: `b-approved/paid/cleared/on_hold/blocked/voided/neutral` (no `b-warn`; use `b-on_hold`).

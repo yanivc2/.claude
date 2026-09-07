@@ -43,6 +43,22 @@ function storeIdsFrom(body) {
   return [].concat(body.store_ids || []).map(Number).filter(Boolean);
 }
 
+// Turn the redirect's query back into the sentence the owner should see.
+function noticeFrom(q) {
+  if (q.zero !== undefined) {
+    const on = Number(q.zero) || 0;
+    const off = Number(q.zeroOff) || 0;
+    return `${on} ספקים מסומנים כ"עסקאות בשיעור אפס"${off ? ` · ${off} ללא סימון` : ''}.`;
+  }
+  if (q.linked !== undefined) {
+    const n = Number(q.linked) || 0;
+    return n
+      ? `${n} ספקים שויכו לחנויות. ספק שלא סומן לו כלום נשאר משותף לכל החנויות.`
+      : 'לא נבחרה אף חנות — שום שיוך לא השתנה.';
+  }
+  return null;
+}
+
 async function renderList(req, res, extra = {}) {
   res.render('suppliers/index', {
     title: 'ספקים',
@@ -65,7 +81,9 @@ router.get('/', async (req, res, next) => {
       storeSuggestions: await supplierStoreSuggestions(assignmentScope(req)),
       filter: req.query.status || '',
       error: null,
-      notice: null,
+      // The notice travels through the redirect as a count (POST/Redirect/GET), so a reload of the
+      // list is harmless and the browser is never left on a URL that only answers POST.
+      notice: noticeFrom(req.query),
     });
   } catch (err) {
     next(err);
@@ -188,9 +206,9 @@ router.post('/zero-rated', requireOwner, async (req, res, next) => {
     const off = offered.filter((id) => !chosen.has(id));
     await setSuppliersZeroRated(on, true, req.user);
     await setSuppliersZeroRated(off, false, req.user);
-    return renderList(req, res, {
-      notice: `${on.length} ספקים מסומנים כ"עסקאות בשיעור אפס"${off.length ? ` · ${off.length} ללא סימון` : ''}.`,
-    });
+    // POST/Redirect/GET — never leave the browser parked on a POST-only URL (see
+    // middleware/actionUrlFallback.js for what that cost before).
+    return res.redirect(303, `/suppliers?zero=${on.length}&zeroOff=${off.length}`);
   } catch (err) {
     next(err);
   }
@@ -213,11 +231,7 @@ router.post('/assign-stores', requireOwner, async (req, res, next) => {
       await setSupplierStores(sid, ids); // (supplierId, storeIds, executor) — no actor arg
       linked += 1;
     }
-    return renderList(req, res, {
-      notice: linked
-        ? `${linked} ספקים שויכו לחנויות. ספק שלא סומן לו כלום נשאר משותף לכל החנויות.`
-        : 'לא נבחרה אף חנות — שום שיוך לא השתנה.',
-    });
+    return res.redirect(303, `/suppliers?linked=${linked}`);
   } catch (err) {
     next(err);
   }
