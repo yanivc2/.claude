@@ -1,6 +1,13 @@
-// The counter (מבצע הספירה) is asked ONCE, at the top of the closing form, and every register in
-// "איזון קופות" inherits it — the same name used to be typed twice, in two rubrics, and the two
-// could disagree. Cash-expense "שם" is likewise a pick from the employee list, not free text.
+// ONE RULE FOR EVERY "who" FIELD: a person's name is PICKED from the staff list, never typed.
+//
+// A typed name matched nothing, so the row was unattributable and the same person appeared under
+// three spellings. This suite pins the rule everywhere it applies:
+//   • סגירת Z — the counter (מבצע הספירה) is asked once, at the top, and every register in
+//     "איזון קופות" inherits it (it used to be typed twice, in two rubrics, and could disagree);
+//   • cash-expense "שם" on the Z-closing form AND the Z-report form;
+//   • "שם המשלם" / "שולם ע\"י" on a cash payment.
+// Everywhere: a name saved before the change (or an employee since removed) stays selectable and
+// is flagged, and with no employees at all the form falls back to free text rather than locking up.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -10,6 +17,9 @@ import { createSession } from '../src/lib/auth.js';
 import { createZClosing, getZClosing, updateZClosing } from '../src/services/zclosing.js';
 import { createEmployee } from '../src/services/employees.js';
 import { createZReport } from '../src/services/zreports.js';
+import { createInvoice, approveInvoiceForPayment } from '../src/services/invoices.js';
+import { createPayment } from '../src/services/payments.js';
+import { accountForStore } from './helpers.js';
 
 const base = (store, overrides = {}) => ({
   employeeFirst: 'רון', employeeLast: 'לוי', storeId: store.id, zNumber: '910',
@@ -155,6 +165,48 @@ test('the Z-report form uses the same employee picker for a cash expense name', 
       assert.ok(!/<input name="payer_name"/.test(html), `${path}: no free-text payer input`);
       assert.ok(html.includes('איתי ברק'), `${path}: the employee is offered by name`);
     }
+  } finally {
+    server.close();
+  }
+});
+
+// Cash PAYMENTS carry the same idea: "שם המשלם" / "שולם ע\"י" is the member of staff who handed
+// over the money, so it is picked from the staff list too — one rule for every name field.
+test('cash payment forms pick "שם המשלם" from the staff list, and keep a legacy typed name', async () => {
+  const x = await freshDb();
+  const o = await owner(x);
+  const store = await firstStore(x);
+  const acct = await accountForStore(x, store.id);
+  await createEmployee({ firstName: 'שירה', lastName: 'אבידן', phone: '050-7778889' }, o, x);
+
+  // A payment recorded BEFORE this change carries a free-text payer that is not an employee.
+  await x.run("INSERT INTO suppliers (name, status) VALUES ('ספק מזומן', 'approved')", []);
+  const sup = await x.one("SELECT * FROM suppliers WHERE name='ספק מזומן'", []);
+  await createInvoice(
+    { supplierId: sup.id, storeId: store.id, invoiceNumber: 'CASH-1', invoiceDate: '2026-08-02', amountBeforeVat: 5000, vatAmount: 0, docType: 'tax_invoice' },
+    o, x,
+  );
+  const inv = await x.one("SELECT id FROM invoices WHERE invoice_number='CASH-1'", []);
+  await approveInvoiceForPayment(inv.id, o, x);
+  const pay = await createPayment(
+    { bankAccountId: acct.id, method: 'cash', payerName: 'מישהו ישן', paymentDate: '2026-08-03', invoiceIds: [inv.id] },
+    o, x,
+  );
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  try {
+    const root = `http://127.0.0.1:${server.address().port}`;
+    const headers = { cookie: `session=${encodeURIComponent(createSession(o.id))}` };
+
+    const newHtml = await (await fetch(`${root}/payments/new`, { headers })).text();
+    assert.ok(!/<input name="payer_name"/.test(newHtml), 'no free-text payer input on /payments/new');
+    assert.ok(newHtml.includes('שירה אבידן'), 'the staff list is offered');
+
+    const editHtml = await (await fetch(`${root}/payments/${pay.id}/edit`, { headers })).text();
+    assert.ok(!/<input name="payer_name"/.test(editHtml), 'no free-text payer input on the edit form');
+    assert.ok(editHtml.includes('מישהו ישן'), 'the legacy name is still selectable, not blanked');
+    assert.ok(editHtml.includes('לא ברשימת העובדים'), 'and it is flagged as no longer on staff');
   } finally {
     server.close();
   }

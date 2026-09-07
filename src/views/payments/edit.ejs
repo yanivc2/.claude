@@ -36,7 +36,25 @@
     <div class="pe-row" data-m="check"><label>מספר צ׳ק</label><input name="check_number" value="<%= payment.check_number || '' %>" /></div>
     <div class="pe-row" data-m="transfer"><label>מספר אסמכתה</label><input name="reference" value="<%= payment.method === 'transfer' || payment.method === 'standing_order' || payment.method === 'batch' ? (payment.reference || '') : '' %>" data-ref /></div>
     <div class="pe-row" data-m="standing_order"><label>מספר הרשאה / אסמכתא</label><input name="reference" data-ref /></div>
-    <div class="pe-row" data-m="cash"><label>שולם ע"י</label><input name="payer_name" value="<%= payment.payer_name || '' %>" /></div>
+    <%# "שולם ע\"י" is a pick from the staff list, same rule as /payments/new — a name saved before
+        that (or an employee since removed) stays available as its own option so an edit never
+        silently blanks it. %>
+    <div class="pe-row" data-m="cash"><label>שולם ע"י</label>
+      <% var pEmps = (typeof employeeOptions !== 'undefined' && employeeOptions) ? employeeOptions : [];
+         var pSel = payment.payer_name || '';
+         var pFound = pEmps.some(function(e){ return e.first_name + ' ' + e.last_name === pSel; }); %>
+      <% if (!pEmps.length) { %>
+        <input name="payer_name" value="<%= pSel %>" />
+      <% } else { %>
+        <select name="payer_name" class="js-combo">
+          <option value="">— בחר עובד —</option>
+          <% pEmps.forEach(function(emp){ var full = emp.first_name + ' ' + emp.last_name; %>
+            <option value="<%= full %>" <%= full === pSel ? 'selected' : '' %>><%= full %></option>
+          <% }); %>
+          <% if (pSel && !pFound) { %><option value="<%= pSel %>" selected><%= pSel %> (לא ברשימת העובדים)</option><% } %>
+        </select>
+      <% } %>
+    </div>
     <div class="pe-row" data-m="credit"><label>4 ספרות אחרונות (לא חובה)</label><input name="card_last4" inputmode="numeric" maxlength="4" pattern="\d{4}" value="<%= payment.card_last4 || '' %>" /></div>
     <div class="pe-row" data-m="batch">
       <div class="row">

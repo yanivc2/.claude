@@ -19,6 +19,7 @@ import { requirePermission, requireOwner } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { toAgorot } from '../lib/money.js';
 import { listSuppliers } from '../services/suppliers.js';
+import { listEmployees } from '../services/employees.js';
 import { paymentAllocation, openInvoicesForPayment, allocateInvoiceToPayments } from '../services/allocations.js';
 
 const router = Router();
@@ -129,6 +130,8 @@ router.get('/new', async (req, res, next) => {
       addedNotice: req.query.added === '1' ? 'התשלום נרשם. אפשר להזין את הבא.' : null,
       accounts: await scopedAccounts(req.scope),
       suppliers: await listSuppliers('approved', undefined, { scope: req.scope }),
+      // "שם המשלם" on a cash payment is picked from the staff list, never typed — see the view.
+      employeeOptions: await listEmployees({ scope: req.scope }),
       values: { method },
       preselectId,
       error: null,
@@ -177,6 +180,7 @@ router.post('/', async (req, res, next) => {
         addedNotice: null,
         accounts: await scopedAccounts(req.scope),
         suppliers: await listSuppliers('approved', undefined, { scope: req.scope }),
+        employeeOptions: await listEmployees({ scope: req.scope }),
         values: b,
         preselectId: null,
         error: err.message,
@@ -257,7 +261,7 @@ async function retargetData(payment) {
 router.get('/:id/edit', requireOwner, async (req, res, next) => {
   try {
     const payment = await getPaymentDetail(Number(req.params.id));
-    res.render('payments/edit', { title: `עריכת תשלום #${payment.id}`, payment, ...(await retargetData(payment)), error: null });
+    res.render('payments/edit', { title: `עריכת תשלום #${payment.id}`, payment, employeeOptions: await listEmployees({ scope: req.scope }), ...(await retargetData(payment)), error: null });
   } catch (err) {
     next(err);
   }
@@ -282,7 +286,7 @@ router.post('/:id/edit', requireOwner, async (req, res, next) => {
   } catch (err) {
     if (err instanceof RuleError) {
       const payment = await getPaymentDetail(id);
-      return res.status(400).render('payments/edit', { title: `עריכת תשלום #${id}`, payment, ...(await retargetData(payment)), error: err.message });
+      return res.status(400).render('payments/edit', { title: `עריכת תשלום #${id}`, payment, employeeOptions: await listEmployees({ scope: req.scope }), ...(await retargetData(payment)), error: err.message });
     }
     next(err);
   }

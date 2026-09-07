@@ -1,4 +1,25 @@
 <%- include('../partials/header') %>
+<%
+  // "שם המשלם" on a cash payment is the member of staff who handed over the money — picked from
+  // the staff list, never typed. A typed name matched nothing and made the payment unattributable
+  // (the same rule as the cash-expense "שם" on the Z forms). A value saved before this change, or
+  // one that is no longer an employee, is re-added as an option so nothing is lost.
+  function payerEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function payerField(sel){
+    var emps = (typeof employeeOptions !== 'undefined' && employeeOptions) ? employeeOptions : [];
+    if (!emps.length) return '<input name="payer_name" value="' + payerEsc(sel) + '" autocomplete="off">';
+    var found = false;
+    var h = '<select name="payer_name" class="js-combo"><option value="">— בחר עובד —</option>';
+    emps.forEach(function(emp){
+      var full = emp.first_name + ' ' + emp.last_name;
+      if (full === sel) found = true;
+      h += '<option value="' + payerEsc(full) + '"' + (full === sel ? ' selected' : '') + '>' + payerEsc(full) + '</option>';
+    });
+    if (sel && !found) h += '<option value="' + payerEsc(sel) + '" selected>' + payerEsc(sel) + ' (לא ברשימת העובדים)</option>';
+    return h + '</select>';
+  }
+  var payerValue = (typeof values !== 'undefined' && values && values.payer_name) ? values.payer_name : '';
+%>
 <h1>תשלום חדש</h1>
 <p class="muted">
   בחר חשבוניות לתשלום (כולל זיכויים) מאותו חשבון בנק, בחר אמצעי תשלום, הזן את המזהה שלו ותאריך.
@@ -91,7 +112,7 @@ const groupList = Object.values(groups);
         <div><label>מספר צ׳ק *</label><input name="check_number" /></div>
       </div>
       <div class="row m-cash" style="display:none">
-        <div><label>שם המשלם *</label><input name="payer_name" /></div>
+        <div><label>שם המשלם *</label><%- payerField(payerValue) %></div>
       </div>
       <div class="row m-credit" style="display:none">
         <div><label>4 ספרות אחרונות של האשראי *</label><input name="card_last4" maxlength="4" pattern="\d{4}" /></div>
@@ -157,7 +178,7 @@ const groupList = Object.values(groups);
         </div>
       </div>
       <div class="row m-check"><div><label>מספר צ׳ק *</label><input name="check_number" /></div></div>
-      <div class="row m-cash" style="display:none"><div><label>שם המשלם *</label><input name="payer_name" /></div></div>
+      <div class="row m-cash" style="display:none"><div><label>שם המשלם *</label><%- payerField(payerValue) %></div></div>
       <div class="row m-credit" style="display:none"><div><label>4 ספרות אחרונות *</label><input name="card_last4" maxlength="4" pattern="\d{4}" /></div></div>
       <div class="row m-transfer" style="display:none"><div><label>מספר אסמכתא *</label><input name="reference" /></div></div>
       <div class="row m-batch" style="display:none">
@@ -222,7 +243,9 @@ function onMethod(form){
     if (!row) return;
     var active = (m === method);
     row.style.display = active ? '' : 'none';
-    row.querySelectorAll('input').forEach(function(inp){ inp.disabled = !active; });
+    // `select` too, not just `input`: the cash "שם המשלם" is a picker now, and a hidden <select>
+    // still posts its value — the whole point of disabling is that a hidden row submits nothing.
+    row.querySelectorAll('input, select').forEach(function(inp){ inp.disabled = !active; });
   });
 }
 function validateCheck(form){
