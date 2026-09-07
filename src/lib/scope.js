@@ -126,7 +126,14 @@ export function scopeClause(companyIds, colExpr) {
   if (companyIds == null) return { sql: '', params: [] };
   if (companyIds.length === 0) return { sql: ` AND 1 = 0`, params: [] };
   const ph = companyIds.map(() => '?').join(',');
-  return { sql: ` AND ${colExpr} IN (${ph})`, params: [...companyIds] };
+  // ⚠️ `NOT (x NOT IN (…))`, not the obvious `x IN (…)` — do NOT "simplify" this back.
+  // The two are identical in SQL (a NULL x is excluded either way, and the list never holds
+  // NULLs), and Postgres plans them the same. But pg-mem — the Postgres dialect the test suite
+  // runs against — throws "Not supported: lookups on joins" for `… AND <joined table's indexed
+  // id> IN (…)`, which is precisely the shape this emits for `st.id` / `ba.store_id` on every
+  // scoped store picker and account list. The double-negation defeats its index-lookup path.
+  // Reverting this turns TEST_PG=1 red on /audit, /zclosing, /reconciliation and /reports/*.
+  return { sql: ` AND NOT (${colExpr} NOT IN (${ph}))`, params: [...companyIds] };
 }
 
 // Accept either the historical `companyIds` shape (array / null) or the full req.scope object
@@ -258,4 +265,38 @@ export async function filterByStoreLinks(rows, table, fk, scope, x = getExecutor
     if (visible) out.push({ ...r, stores });
   }
   return out;
+}
+
+/**
+ * The store a request may look at — the HERMETIC lock behind "חנות פעילה".
+ *
+ * When an active store is selected it WINS over anything the request asks for: a `?store=`,
+ * `?zstore=` or `?account=` pointing elsewhere is ignored, not honoured. Choosing a branch means
+ * the whole app is that branch until you switch it; "כל החנויות" is the only way to see across.
+ *
+ * This is deliberately stronger than "default to the active store": a default still let a stale
+ * link, a bookmark or a leftover picker value show another branch's money on a screen whose banner
+ * said otherwise — which is exactly how a page ends up showing מידנייט while the banner says גוניור.
+ *
+ * @param {{activeStoreId?:number|null}} req
+ * @param {number|string|null} requested the store the request asked for (query/body), if any
+ * @returns {number|null} the store to filter by, or null for "every store I'm allowed to see"
+ */
+export function effectiveStoreId(req, requested = null) {
+  if (req?.activeStoreId) return Number(req.activeStoreId);
+  const n = Number(requested);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+/**
+ * The ONE documented exception to the active-store lock: the scope to use when a screen is
+ * ASSIGNING a row to a branch rather than showing that branch's data.
+ *
+ * "העתק לחנות" (linking a supplier or an employee to another store) is a management grant — it
+ * reveals nothing but a store name the user is already granted, and refusing it while a branch is
+ * active would make copying impossible without switching back and forth. Everything else uses the
+ * narrowed `req.scope`. Never reach for this to build a LIST, a total, or a detail page.
+ */
+export function assignmentScope(req) {
+  return req?.grantedScope ?? req?.scope ?? null;
 }

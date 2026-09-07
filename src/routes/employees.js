@@ -4,7 +4,7 @@ import {
   listEmployees, createEmployee, deleteEmployee, listEmployeeLedger, employeeTotals, importEmployees,
   setEmployeeStores,
 } from '../services/employees.js';
-import { scopedStoreList } from '../lib/scope.js';
+import { scopedStoreList, assignmentScope } from '../lib/scope.js';
 import { assertStoreAllowed } from '../lib/scopeGuard.js';
 import { parseEmployeeFile } from '../lib/employeeImport.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -40,7 +40,7 @@ async function render(req, res, extra = {}) {
     title: 'עובדים ומשכורות',
     // Scoped: an employee linked to stores is only visible where one of them is in scope; an
     // employee with no links is shared with every store (see services/employees.js#listEmployees).
-    storeOptions: await scopedStoreList(req.scope),
+    storeOptions: await scopedStoreList(assignmentScope(req)),
     totals: await scopedTotals(req.scope),
     ledger: await listEmployeeLedger(),
     error: null,
@@ -59,7 +59,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const storeIds = await allowedStoreIds(req.body, req.scope);
+    const storeIds = await allowedStoreIds(req.body, assignmentScope(req));
     const emp = await createEmployee(
       { firstName: req.body.first_name, lastName: req.body.last_name, phone: req.body.phone },
       req.user,
@@ -78,7 +78,7 @@ router.post('/', async (req, res, next) => {
 // branch" case: one employee row, working at both, visible in both.
 router.post('/:id/stores', async (req, res, next) => {
   try {
-    const storeIds = await allowedStoreIds(req.body, req.scope);
+    const storeIds = await allowedStoreIds(req.body, assignmentScope(req));
     await setEmployeeStores(Number(req.params.id), storeIds, req.user);
     await render(req, res, {
       notice: storeIds.length ? 'שיוך החנויות עודכן.' : 'השיוך נוקה — העובד משויך כעת לכל החנויות.',

@@ -103,6 +103,34 @@ export async function currentUser(req, res, next) {
     }
     req.activeStoreId = activeStore ? Number(activeStore.id) : null;
     res.locals.activeStore = activeStore; // {id,name,company_id,company_name} or null = all
+
+    // 🔒 נעילה הרמטית — the ONE place a chosen branch locks the whole request.
+    //
+    // Choosing a store in the header banner does not merely *default* a picker: it narrows
+    // `req.scope` itself to that store (and to its company) for the rest of the request. Every
+    // consumer of the scope — scopeWhere/scopeClause in every list service, scopedStoreList in
+    // every store picker, filterByStoreLinks for suppliers/employees, assertInScope for by-id
+    // pages and assertStoreAllowed for writes — therefore enforces the lock with no per-page
+    // code, and a page written tomorrow inherits it the moment it uses the scope.
+    //
+    // Why here and not per route: the same "default to the active store" was patched route by
+    // route and a screen was still found showing another branch's bank account while the banner
+    // said otherwise. A default is opt-in and forgettable; narrowing the scope is opt-out and
+    // visible. "כל החנויות" (no active store) is the only way to look across branches.
+    //
+    // The UNNARROWED grants stay reachable as `req.grantedScope` for the two things that are
+    // legitimately cross-store: the active-store picker itself (via res.locals.availableStores)
+    // and assigning a supplier/employee to another branch ("העתק לחנות") — a management grant,
+    // never a view of another branch's money.
+    req.grantedScope = req.scope;
+    if (req.activeStoreId) {
+      req.scope = {
+        companyIds: activeStore ? [Number(activeStore.company_id)] : companyIds,
+        storeIds: [req.activeStoreId],
+        all: false,
+        activeStoreId: req.activeStoreId,
+      };
+    }
     return next();
   } catch (err) {
     return next(err);

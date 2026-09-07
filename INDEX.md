@@ -27,7 +27,7 @@
 | 8 | **DB חי = Postgres (Neon); אין apply-schema אוטומטי** | `api/index.js` `connectDb()` | אחרי שינוי סכימה הבעלים **חייב** ללחוץ הגדרות → "עדכן מסד נתונים". אין לי גישה ל-DB החי — deploy לא נוגע בשורות קיימות. |
 | 9 | **workflow דחיפה** | `apnew/main` = מה ש-Vercel מפרסם | `git push apnew ap-control-split:main` + mirror `git push origin ap-control-split`. `fetch apnew main && rebase` לפני כל דחיפה. אף פעם לא לדרוס commit של סשן אחר. |
 | 10 | **סכימה נבחרת מפורשות ב-SELECT** | הרבה services בוחרים רשימת עמודות מפורשת (`getUser`/`listUsers`) | עמודה חדשה שלא נוספה ל-SELECT → `undefined` בתצוגה למרות שהיא במסד. |
-| 11 | **הקשר "חנות פעילה" + הרשאה פר-חנות** | `middleware/currentUser.js` (קובע `req.activeStoreId`, `req.scope.storeIds`, `res.locals.activeStore/availableStores`), `lib/scope.js` (`authorizedStoreIds`/`availableStoresFor`/`setUserStores`), `routes/context.js` (`POST /context/store`, cookie `ap_store`), טבלת `user_stores`. | הבורר בבאנר (`header.ejs`) חייב את `/context` ב-`OPEN_PATHS` אחרת תפקיד מוגבל חסום. `authorizedStoreIds`: אין grants → כל חנויות החברות המורשות (תאימות לאחור). `authorizedCompanyIds` מאחד גם חברות-דרך-חנויות. טפסי יצירה (חשבונית/סגירה) ננעלים ל-`activeStore`. |
+| 11 | **הקשר "חנות פעילה" + הרשאה פר-חנות** | `middleware/currentUser.js` (קובע `req.activeStoreId`, **מצמצם את `req.scope` לחנות הפעילה** ושומר את ההרשאות המלאות ב-`req.grantedScope`, `res.locals.activeStore/availableStores`), `lib/scope.js` (`authorizedStoreIds`/`availableStoresFor`/`setUserStores`/`effectiveStoreId`/`assignmentScope`), `routes/context.js` (`POST /context/store`, cookie `ap_store`), טבלת `user_stores`. | 🔒 **הצמצום הוא הנעילה ההרמטית — מקום אחד, כל הדפים** (ראו "נעילה הרמטית" למטה): כל `scopeWhere`/`scopedStoreList`/`assertInScope`/`assertStoreAllowed` יורש אותו, כולל דפים עתידיים. `res.locals.availableStores` נשאר **לא-מצומצם** אחרת אי אפשר להחליף חנות. הבורר בבאנר (`header.ejs`) חייב את `/context` ב-`OPEN_PATHS` אחרת תפקיד מוגבל חסום. `authorizedStoreIds`: אין grants → כל חנויות החברות המורשות (תאימות לאחור). טפסי יצירה (חשבונית/סגירה) ננעלים ל-`activeStore`. |
 
 ---
 
@@ -175,11 +175,33 @@
 לכך שהלחיצה על "החלף" פשוט לא ניווטה — האפליקציה נראתה תקועה. ה-select תמיד עבר דרך fetch (204,
 בלי redirect בכלל) והכפתור לא — לכן זה קרה רק בכפתור. שני התיקונים מכוסים בטסטים; אל תחזיר ל-302.
 
-**החנות הפעילה חייבת גם *לסנן* את המסכים, לא רק להחליף כותרת.** לבעלים אין הגבלת סקופ, ולכן דף
-שמתעלם מ-`req.activeStoreId` פשוט מציג הכל — והבורר נראה שבור. מכבדים אותה: לוח בקרה, חשבוניות,
-תשלומים, **צ׳קים בחוץ (+CSV)**, **דוחות Z** (`?zstore=`) ו**התאמת בנק** (ברירת המחדל לחשבון היא
-חשבון החנות הפעילה, לא הראשון ברשימה). בכולם `?store=`/`?zstore=`/`?account=` מפורש **גובר**, כדי
-שמבט חוצה-חנויות יישאר בהישג לחיצה. מכוסה ב-`test/store-context.test.js`.
+### 🔒 נעילה הרמטית — כלל אחד לכל דף ולכל תצוגה, גם לדפים שעוד לא נכתבו
+
+**בחירת סניף מצמצמת את `req.scope` עצמו — היא לא "ברירת מחדל" של בורר.** זה קורה במקום **אחד**:
+`middleware/currentUser.js`, אחרי חישוב `activeStore` — `req.scope` הופך ל-`{companyIds:[חברת
+החנות], storeIds:[החנות], activeStoreId}`. מכאן כל צרכני הסקופ אוכפים את הנעילה **בלי שורת קוד
+בדף**: `scopeWhere`/`scopeClause` בכל שירות-רשימה, `scopedStoreList` בכל בורר חנות,
+`filterByStoreLinks` לספקים/עובדים, `assertInScope` לדפי-id ו-`assertStoreAllowed` לכל כתיבה.
+**דף חדש יורש את הנעילה ברגע שהוא משתמש בסקופ** — וזה בדיוק מה שנדרש: "כלל לכל דף, גם עתידי".
+
+- **פרמטר חוצה-סניף לא מכובד, מתעלמים ממנו.** `?store=`/`?zstore=`/`?account=` שמצביע על סניף
+  אחר לא מציג אותו — קישור ישן, סימנייה או בורר שנשאר על ערך קודם לא יכולים להעלות כסף של סניף
+  אחר על מסך שהבאנר שלו אומר אחרת. `lib/scope.js#effectiveStoreId(req, requested)` הוא הביטוי
+  המפורש של זה בדפים שמקבלים פרמטר חנות. **"כל החנויות" (ניקוי הבורר) היא הדרך היחידה להסתכל
+  רוחבית.**
+- **דף-id של סניף אחר = 404**, לא רק "לא ברשימה" (`assertInScope`).
+- **החריג היחיד — `lib/scope.js#assignmentScope(req)`** (מחזיר את `req.grantedScope`, ההרשאות
+  הלא-מצומצמות): בוררי **שיוך** ספק/עובד לחנות ("העתק לחנות"). זו הרשאה ניהולית שחושפת רק שם
+  חנות שהמשתמש כבר מורשה לה — לא נתונים של סניף אחר. **אין להשתמש בו לרשימה, לסיכום או לדף
+  פרטים.** דפי `/settings` (ניהול הארגון — שם *יוצרים* את הסניפים) ו-`/notifications` מחוץ
+  לכלל במפורש, ראו `EXEMPT` בטסט.
+- **הבדיקה נגזרת מהאפליקציה, לא מרשימה ידנית:** `test/active-store-lock.test.js` הולך על
+  `app._router.stack`, אוסף **כל** route של GET, וסורק את כולם עם סניף אחד נבחר — כל סימן של
+  סניף אחר (מספר חשבון בנק, מספר חשבונית, שם ספק, שם עובד) = כישלון. דף שייווסף מחר מכוסה
+  אוטומטית ברגע שהוא נטען. אם הנעילה מבוטלת הטסט נופל על `/audit`, `/suppliers`, `/reconciliation`
+  ועוד — נבדק.
+
+מכוסה גם ב-`test/store-context.test.js` (הבאנר, הנעילה האוטומטית לחנות יחידה, והסינון בפועל).
 
 **הכפתור "החלף" (חנות פעילה) הוא נוחות, לא הגנה.** הוא רק בוחר *מסנן* מתוך `availableStoresFor(user)`;
 הוא לא יכול להרחיב גישה, וזיוף עוגיית `ap_store` לחנות לא-מורשית פשוט מתעלמים ממנו
@@ -189,6 +211,13 @@
 1. **רשימות** — `scopeWhere(scope, companyCol, storeCol)` בשירות.
 2. **גישה לפי id** — `assertInScope(kind, id, req.scope)` ב-route (404, לא 403 — לא מדליף קיום).
 3. **🔴 `store_id` שמגיע מהבקשה** — **`assertStoreAllowed(storeId, req.scope)`** (`lib/scopeGuard.js`) *לפני כל כתיבה*. שכבות 1–2 שומרות על מה שרואים; זו שומרת על מה **שכותבים**. בלעדיה משתמש עם הרשאה לחנות א׳ יכול לשלוח `store_id` של חנות ב׳ בטופס ולהכניס לשם חשבונית/דוח/סגירה.
+
+**🔴 `scopeClause` פולט `AND NOT (col NOT IN (…))` ולא `AND col IN (…)` — אל "תפשטו" בחזרה.**
+שקול לחלוטין ב-SQL (NULL נופל בשני המקרים, והרשימה לעולם לא מכילה NULL) ו-Postgres מתכנן אותו
+דבר, אבל **pg-mem** (הדיאלקט שהטסטים רצים מולו ב-`TEST_PG=1`) זורק "Not supported: lookups on
+joins" על `… AND <id מאונדקס של טבלה ב-JOIN> IN (…)` — בדיוק הצורה שנוצרת ל-`st.id`/`ba.store_id`
+בכל בורר חנות ורשימת חשבונות. חזרה ל-`IN` מאדימה את `TEST_PG=1` ב-`/audit`, `/zclosing`,
+`/reconciliation` ו-`/reports/*`.
 
 **בוררי חנות — תמיד `scopedStoreList(scope)`** (`lib/scope.js`, מסנן חברה **וגם** חנות ומחזיר `company_id`). אותה שאילתה לא-מסוננת שוכפלה לארבעה routers והדליפה את כל החנויות בארגון לתוך dropdown. אין לכתוב `SELECT … FROM stores JOIN companies` ישירות ב-route.
 

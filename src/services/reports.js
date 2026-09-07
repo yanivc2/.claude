@@ -28,25 +28,29 @@ function dueDateCut({ month = null, months = null, from = null, to = null } = {}
 
 export async function outstandingChecks(scope = null, cut = {}, x = getExecutor()) {
   const { storeId = null } = cut;
-  const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
   // Optional due-date cut: single month, a list of months, or a from/to range.
   const dc = dueDateCut(cut);
   let accounts = await x.many(
-    `SELECT ba.id, ba.display_name, st.id AS store_id, c.name AS company_name, st.name AS store_name,
+    `SELECT ba.id, ba.display_name, ba.company_id AS company_id, st.id AS store_id,
+            c.name AS company_name, st.name AS store_name,
             COALESCE(SUM(CASE WHEN p.status = 'issued'${dc.cond} THEN p.amount ELSE 0 END), 0) AS outstanding,
             COUNT(CASE WHEN p.status = 'issued'${dc.cond} THEN 1 END) AS outstanding_count
        FROM bank_accounts ba
        JOIN companies c ON c.id = ba.company_id
        JOIN stores st ON st.id = ba.store_id
        LEFT JOIN payments p ON p.bank_account_id = ba.id
-      WHERE 1 = 1${sc.sql}
-      GROUP BY ba.id, ba.display_name, st.id, c.name, st.name
+      GROUP BY ba.id, ba.display_name, ba.company_id, st.id, c.name, st.name
       ORDER BY c.name, st.name`,
-    [...dc.params, ...dc.params, ...sc.params],
+    [...dc.params, ...dc.params],
   );
 
-  // Optional store cut (active-store context). Post-filtered in JS on the per-store rows — pg-mem
-  // can't put a joined column in this GROUP BY query's WHERE, and real Postgres/SQLite match here.
+  // The scope + the optional store cut (active-store context) are applied in JS on the per-account
+  // rows, not in the WHERE: pg-mem refuses a lookup on a joined column inside this aggregation
+  // ("lookups on joins"), and one row per bank account is a handful either way. The rows carry
+  // company_id/store_id for exactly this.
+  const { companyIds, storeIds } = normalizeScope(scope);
+  if (companyIds != null) accounts = accounts.filter((a) => companyIds.includes(Number(a.company_id)));
+  if (storeIds != null) accounts = accounts.filter((a) => storeIds.includes(Number(a.store_id)));
   if (storeId) accounts = accounts.filter((a) => Number(a.store_id) === Number(storeId));
 
   const totalOutstanding = accounts.reduce((sum, a) => sum + a.outstanding, 0);

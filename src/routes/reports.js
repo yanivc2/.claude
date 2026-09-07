@@ -20,7 +20,7 @@ import { listEmployees } from '../services/employees.js';
 import { matchingClosing, CLOSING_DENOMS } from '../services/zclosing.js';
 import { listInvoices } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
-import { scopedStoreList } from '../lib/scope.js';
+import { scopedStoreList, effectiveStoreId } from '../lib/scope.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
@@ -219,7 +219,7 @@ async function renderProfitability(req, res, extra = {}) {
 // Z reports live on their own tab (form to add + recent records table).
 async function renderZReports(req, res, extra = {}) {
   // Default to the active store, like the other screens. ?zstore= still overrides it.
-  const zStoreId = req.query.zstore ? Number(req.query.zstore) : (req.activeStoreId || null);
+  const zStoreId = effectiveStoreId(req, req.query.zstore);
   const zRows = await listZReports({ storeId: zStoreId, limit: 30, scope: req.scope });
   const zReports = await Promise.all(
     zRows.map(async (z) => {
@@ -352,7 +352,7 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
     // Honour the active-store context, like the other screens do. Without it, switching the active
     // store changed the header banner but this page still listed every store — the picker looked
     // broken. `?store=` still wins, so a deliberate cross-store look is one click away.
-    const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
+    const storeId = effectiveStoreId(req, req.query.store);
     const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to, storeId };
     const { accounts, totalOutstanding } = await outstandingChecks(req.scope, cutArg);
     const detailAccountId = req.query.account ? Number(req.query.account) : null;
@@ -417,7 +417,7 @@ function sendCsv(res, filename, headers, rows) {
 router.get('/outstanding.csv', async (req, res, next) => {
   try {
     // The export mirrors what the page shows, active store included.
-    const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
+    const storeId = effectiveStoreId(req, req.query.store);
     const { accounts } = await outstandingChecks(req.scope, { storeId });
     const rows = accounts.map((a) => [a.company_name, a.store_name, a.display_name, a.outstanding_count, fromAgorot(a.outstanding)]);
     sendCsv(res, 'outstanding-checks.csv', ['חברה', 'חנות', 'חשבון', 'מס׳ צ׳קים פתוחים', 'סכום בחוץ'], rows);

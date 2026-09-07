@@ -15,7 +15,7 @@ import {
 import { submitRequest } from '../services/changeRequests.js';
 import { describeSupplier } from '../lib/changeSummary.js';
 import { getExecutor } from '../db/adapter.js';
-import { scopedStoreList } from '../lib/scope.js';
+import { scopedStoreList, assignmentScope } from '../lib/scope.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { assertStoreAllowed } from '../lib/scopeGuard.js';
 
@@ -24,7 +24,7 @@ const router = Router();
 // Stores available to assign to a supplier (all stores, grouped visually by company in the view).
 // Scoped — see lib/scope.js#scopedStoreList. A supplier can only be tied to stores the caller
 // may access; listing every store here also leaked the whole org chart into a checkbox group.
-const storeOptions = (req) => scopedStoreList(req.scope);
+const storeOptions = (req) => scopedStoreList(assignmentScope(req));
 
 // Selected store ids from the supplier form (checkbox group `store_ids`).
 // Every posted store id must be one the caller may access — otherwise a user granted store A
@@ -114,7 +114,7 @@ router.post('/', async (req, res, next) => {
         name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
         phone: req.body.phone, email: req.body.email,
         contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
-        storeIds: await assertStoreIdsAllowed(storeIdsFrom(req.body), req.scope),
+        storeIds: await assertStoreIdsAllowed(storeIdsFrom(req.body), assignmentScope(req)),
         ...paymentFields(req.body),
       },
       req.user,
@@ -209,7 +209,7 @@ router.post('/:id/edit', async (req, res, next) => {
       name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
       phone: req.body.phone, email: req.body.email,
       contactName: req.body.contact_name, contactPhone: req.body.contact_phone,
-      storeIds: await assertStoreIdsAllowed(storeIdsFrom(req.body), req.scope),
+      storeIds: await assertStoreIdsAllowed(storeIdsFrom(req.body), assignmentScope(req)),
       parentSupplierId: req.body.parent_supplier_id ? Number(req.body.parent_supplier_id) : null,
       ...paymentFields(req.body),
     };

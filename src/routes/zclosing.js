@@ -3,7 +3,6 @@ import {
   createZClosing, listZClosings, getZClosing, updateZClosing, deleteZClosing,
   listClosingExpenses, recentClosingExpenses, CLOSING_DENOMS, israelNow,
 } from '../services/zclosing.js';
-import { getExecutor } from '../db/adapter.js';
 import { scopeClause } from '../lib/scope.js';
 import { toAgorot } from '../lib/money.js';
 import { listInvoices } from '../services/invoices.js';
@@ -11,27 +10,14 @@ import { listEmployees } from '../services/employees.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { RuleError } from '../lib/errors.js';
 import { assertStoreAllowed } from '../lib/scopeGuard.js';
-import { normalizeScope } from '../lib/scope.js';
+import { scopedStoreList } from '../lib/scope.js';
 
 const router = Router();
 
-// Stores the closer may pick — limited to the companies granted to them (owner sees all).
-async function storeOptionsFor(req) {
-  // Company scope is not enough here: a user granted ONE store inside a company must not be
-  // offered — or even shown the name of — the company's other stores. Filter on the store set.
-  const sc = scopeClause(req.scope?.companyIds ?? null, 'c.id');
-  const { storeIds } = normalizeScope(req.scope);
-  let sql = `SELECT st.id, st.name, c.name AS company_name
-               FROM stores st JOIN companies c ON c.id = st.company_id
-              WHERE 1 = 1${sc.sql}`;
-  const params = [...sc.params];
-  if (storeIds != null) {
-    if (!storeIds.length) return [];
-    sql += ` AND st.id IN (${storeIds.map(() => '?').join(',')})`;
-    params.push(...storeIds);
-  }
-  return getExecutor().many(`${sql} ORDER BY c.name, st.name`, params);
-}
+// Stores the closer may pick — the shared, doubly-scoped picker query (company AND store), so a
+// user granted ONE store inside a company is never offered (or even shown the name of) its
+// siblings, and a selected active store narrows it to that branch alone. See lib/scope.js.
+const storeOptionsFor = (req) => scopedStoreList(req.scope);
 
 // Recent invoices offered as match targets for a cash expense (מס' · ספק · סכום). Scoped, capped.
 async function invoicePickOptions(scope) {

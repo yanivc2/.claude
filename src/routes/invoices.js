@@ -32,7 +32,7 @@ import { invoiceAllocation, paymentAllocation, openAdvancesForSupplier, allocate
 import { RuleError, AuthError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import { scopeParam, assertInScope, assertStoreAllowed } from '../lib/scopeGuard.js';
-import { scopedStoreList } from '../lib/scope.js';
+import { scopedStoreList, effectiveStoreId } from '../lib/scope.js';
 
 const router = Router();
 
@@ -101,7 +101,7 @@ router.get('/', async (req, res, next) => {
     const q = (req.query.q || '').trim();
     const supplierId = req.query.supplier ? Number(req.query.supplier) : null;
     // Default to the active-store context unless an explicit ?store= overrides it.
-    const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
+    const storeId = effectiveStoreId(req, req.query.store);
     const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : null;
     const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : null;
     const { suppliers, stores } = await formData(req.scope);

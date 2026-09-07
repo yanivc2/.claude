@@ -118,11 +118,17 @@ test('the active store filters צ׳קים בחוץ, its CSV, Z reports and bank 
   assert.ok(csv.includes(acctA.account_number), 'the export has the active store');
   assert.ok(!csv.includes(acctB.account_number), 'the export must not carry the other store');
 
-  // An explicit ?store= still wins, so a deliberate cross-store look stays possible.
+  // 🔒 The lock is HERMETIC: an explicit ?store= pointing at another branch is ignored, not
+  // honoured. A stale link or a bookmark must never put another branch's money on a screen whose
+  // banner says otherwise — switching the active store is the only way to look elsewhere.
   const forced = await (await get(`/reports/outstanding?store=${b.id}`, withA)).text();
-  assert.ok(forced.includes(acctB.account_number), '?store= overrides the active store');
+  assert.ok(!forced.includes(acctB.account_number), '?store= must NOT override the active store');
+  assert.ok(forced.includes(acctA.account_number), 'the active store is what is shown');
 
-  // Bank reconciliation defaults to the ACTIVE store's account, not simply the first one.
+  // Bank reconciliation opens on the ACTIVE store's account — and cannot be pointed elsewhere.
   const recon = await (await get('/reconciliation', withA)).text();
   assert.ok(recon.includes(acctA.account_number), 'reconciliation opened on the active store');
+  assert.ok(!recon.includes(acctB.account_number), 'the other store is not even in the picker');
+  const reconForced = await (await get(`/reconciliation?account=${(await db.one('SELECT id FROM bank_accounts WHERE store_id = ?', [b.id])).id}`, withA)).text();
+  assert.ok(!reconForced.includes(acctB.account_number), '?account= cannot reach another branch');
 });

@@ -13,7 +13,7 @@ import { listPayable } from '../services/invoices.js';
 import { listDeposits } from '../services/deposits.js';
 import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js';
 import { getExecutor } from '../db/adapter.js';
-import { scopeClause, scopeWhere } from '../lib/scope.js';
+import { scopeClause, scopeWhere, effectiveStoreId } from '../lib/scope.js';
 import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
 import { requirePermission, requireOwner } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -42,7 +42,7 @@ router.get('/', async (req, res, next) => {
   try {
     const companyId = req.query.company ? Number(req.query.company) : null;
     // Default to the active-store context unless an explicit ?store= overrides it.
-    const storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
+    const storeId = effectiveStoreId(req, req.query.store);
     const scope = req.scope;
     const cScope = scopeClause(scope, 'id');
     const sScope = scopeClause(scope, 'st.company_id');

@@ -15,7 +15,7 @@ import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
 import { listRequests, approveRequest, rejectRequest, actionLabel } from '../services/changeRequests.js';
 import { getExecutor } from '../db/adapter.js';
-import { scopeClause, scopedStoreList } from '../lib/scope.js';
+import { scopeClause, scopedStoreList, effectiveStoreId } from '../lib/scope.js';
 import { config } from '../config.js';
 import { requirePageAccess } from '../middleware/requireOwner.js';
 import { AuthError } from '../lib/errors.js';
@@ -37,7 +37,7 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
     const unpaidOnly = req.query.unpaid === '1';
     let companyId = req.query.company ? Number(req.query.company) : null;
     // Default the dashboard to the active-store context unless an explicit ?store= is given.
-    let storeId = req.query.store ? Number(req.query.store) : (req.activeStoreId || null);
+    let storeId = effectiveStoreId(req, req.query.store);
     const scope = req.scope; // {companyIds, storeIds} — scopeClause tolerates it; scopeWhere adds the store filter
     const cScope = scopeClause(scope, 'id');
     const x = getExecutor();

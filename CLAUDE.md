@@ -159,10 +159,19 @@ happen only at merge. So:
     store_id}` per kind (`SCOPE_OF`) and refuse (404) out-of-company **or** out-of-store; `scope` may be a
     companyIds array (company-only, back-compat) or the req.scope object (company+store). A null-store row
     stays visible within the company. Routes pass `req.scope`.
-- Active-store context ("חנות פעילה"): `availableStoresFor`, `setUserStores`. `currentUser` sets
-  `req.activeStoreId` + `res.locals.activeStore/availableStores` from the `ap_store` cookie (validated;
-  auto-locks when one store). `POST /context/store` (`routes/context.js`, `/context` ∈ `OPEN_PATHS`)
-  switches it; header banner shows it; new invoice/zclosing forms lock to it. Table `user_stores` (schema ×3).
+- **🔒 נעילה הרמטית — active store = a rule for EVERY page, present and future.** `currentUser`
+  sets `req.activeStoreId` from the `ap_store` cookie (validated against `availableStoresFor`;
+  auto-locks when one store) and then **narrows `req.scope` itself** to `{companyIds:[that store's
+  company], storeIds:[that store]}`. That is the whole enforcement: every `scopeWhere`/`scopeClause`/
+  `scopedStoreList`/`filterByStoreLinks`/`assertInScope`/`assertStoreAllowed` inherits it with no
+  per-page code, so **a new page is locked the moment it uses the scope**. A cross-store
+  `?store=`/`?zstore=`/`?account=` is **ignored, not honoured** (`effectiveStoreId(req, requested)`);
+  clearing the picker ("כל החנויות") is the only cross-branch view. Unnarrowed grants stay on
+  `req.grantedScope` — reach them ONLY via `assignmentScope(req)`, for the supplier/employee
+  "העתק לחנות" pickers. `POST /context/store` (`routes/context.js`, `/context` ∈ `OPEN_PATHS`)
+  switches it; `res.locals.availableStores` must stay unnarrowed. Table `user_stores` (schema ×3).
+  Guarded by **`test/active-store-lock.test.js`**, which derives the route list from
+  `app._router.stack` and sweeps every GET route — a new page cannot silently opt out.
 - Login flow: `routes/auth.js` — checks `loginAllowedNow` (403 outside window), pushes a Telegram
   notice on every login. Forced-change + temp-password onboarding: `routes/account.js` (change form),
   `routes/settings.js` (invite builds WhatsApp msg + temp password), `services/users.js`
@@ -240,4 +249,8 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   `payments_method_check`); to add a CHECK value, update the inline CREATE **and** append an ALTER.
 - The custom date picker (`partials/footer.ejs`) enhances `input[type=date]` only — `type=time`/`month`
   stay native.
+- **`scopeClause` emits `AND NOT (col NOT IN (…))`, not `AND col IN (…)` — do not "simplify" it.**
+  Identical in SQL and identically planned by Postgres, but pg-mem throws "Not supported: lookups on
+  joins" for `… AND <joined table's indexed id> IN (…)` — the exact shape every store picker and
+  account list produces. Reverting turns `TEST_PG=1` red on /audit, /zclosing, /reconciliation, /reports/*.
 - Badge classes: `b-approved/paid/cleared/on_hold/blocked/voided/neutral` (no `b-warn`; use `b-on_hold`).
