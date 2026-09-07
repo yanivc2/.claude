@@ -13,10 +13,20 @@ const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toSt
 // R4 duplicate-warning window: same supplier + same total within this many days.
 const DUP_WINDOW_DAYS = Number(process.env.DUP_WINDOW_DAYS ?? 30);
 
-// R3 allocation-number threshold: tax invoice with amount_before_vat over this
-// (in agorot) and no allocation number is soft-blocked. 5,000 ILS from 1.6.2026 (§10.2).
+// R3 allocation-number threshold. The law states the headline figure as a NET amount — 5,000 ₪
+// from 1.6.2026 (§10.2) — but the Tax Authority's own Q&A says the operative criterion is the
+// **VAT** derived from it ("הקריטריון לבקשת מספר הקצאה … הוא סכום המע"מ הנגזר מהסכום שנקבע בחוק").
+// For a wholly standard-rated invoice the two are the same test (5,000 × 18% = 900). They diverge
+// on an invoice carrying a zero-rated or exempt component — fresh unprocessed fruit and vegetables
+// are zero-rated under §30(א)(13) of the VAT Law — which can be far above the net figure while its
+// VAT stays under the VAT figure, and then NO allocation number is required. So the net number is
+// kept for wording/display and the VAT number is what R3 actually tests.
 const ALLOCATION_THRESHOLD_AGOROT = Number(
   process.env.ALLOCATION_THRESHOLD_AGOROT ?? 5000 * 100,
+);
+const VAT_RATE = Number(process.env.VAT_RATE ?? 0.18);
+const ALLOCATION_VAT_THRESHOLD_AGOROT = Number(
+  process.env.ALLOCATION_VAT_THRESHOLD_AGOROT ?? Math.round(ALLOCATION_THRESHOLD_AGOROT * VAT_RATE),
 );
 
 export const config = {
@@ -30,13 +40,14 @@ export const config = {
   maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 10 * 1024 * 1024),
   projectRoot,
   // Israeli VAT rate (18% since 1.1.2025). Used for auto-calc on invoice entry.
-  vatRate: Number(process.env.VAT_RATE ?? 0.18),
+  vatRate: VAT_RATE,
   // Cash-payment ceiling (חוק צמצום השימוש במזומן). Business-to-business cash is capped at
   // 6,000 ₪ per transaction. Configurable via CASH_CEILING (in ILS). 0 disables the check.
   cashCeilingAgorot: Number(process.env.CASH_CEILING ?? 6000) * 100,
   rules: {
     dupWindowDays: DUP_WINDOW_DAYS,
     allocationThresholdAgorot: ALLOCATION_THRESHOLD_AGOROT,
+    allocationVatThresholdAgorot: ALLOCATION_VAT_THRESHOLD_AGOROT,
     // R7 reconciliation: a bank debit matches an open check within this many days
     // of the payment_date. Checks can take weeks to clear, so the default is generous.
     reconcileWindowDays: Number(process.env.RECONCILE_WINDOW_DAYS ?? 60),

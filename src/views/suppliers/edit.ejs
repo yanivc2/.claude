@@ -60,6 +60,14 @@ var sel = (selectedStores || []).map(Number);
       <input name="payment_terms_other" value="<%= ptCustom || '' %>" placeholder="לדוגמה: שוטף 60, 50% מקדמה" />
     </div>
 
+    <div style="margin-top:.6rem">
+      <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer">
+        <input type="checkbox" name="zero_rated" value="1" <%= Number(supplier.zero_rated) ? 'checked' : '' %> style="width:auto;min-height:0" />
+        <span>עסקאות בשיעור אפס (פירות וירקות טריים)</span>
+      </label>
+      <small class="muted">מכירת פירות וירקות טריים שלא עברו עיבוד היא <strong>מס בשיעור אפס</strong> לפי §30(א)(13) לחוק מע"מ, ולכן החשבונית נושאת מע"מ 0 ו<strong>אינה חייבת מספר הקצאה</strong> בשום סכום. הסימון לא משנה את הבדיקה עצמה (היא תמיד לפי המע"מ שעל החשבונית) — הוא רק מונע את התזכורת "חשבונית מס גדולה בלי מע"מ" על ספק שזה מצבו הרגיל.</small>
+    </div>
+
     <h3 style="margin:1rem 0 .2rem">חנויות משויכות</h3>
     <%- include('_storepick', { stores: stores, selected: sel }) %>
 

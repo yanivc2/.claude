@@ -81,7 +81,7 @@ export async function setSupplierStores(supplierId, storeIds = [], x = getExecut
  * recording invoices against it, but payment is blocked until an owner approves (R1/R6).
  */
 export async function createSupplier(
-  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null, storeIds = null },
+  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null, zeroRated = false, storeIds = null },
   actor,
   x = getExecutor(),
 ) {
@@ -89,8 +89,8 @@ export async function createSupplier(
   if (!trimmed) throw new RuleError('VALIDATION', 'שם ספק חובה');
 
   const info = await x.run(
-    `INSERT INTO suppliers (name, tax_id, status, notes, phone, email, contact_name, contact_phone, payment_method, payment_terms)
-     VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO suppliers (name, tax_id, status, notes, phone, email, contact_name, contact_phone, payment_method, payment_terms, zero_rated)
+     VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       trimmed,
       taxId?.trim() || null,
@@ -101,6 +101,7 @@ export async function createSupplier(
       contactPhone?.trim() || null,
       paymentMethod?.trim() || null,
       paymentTerms?.trim() || null,
+      zeroRated ? 1 : 0,
     ],
   );
 
@@ -138,7 +139,7 @@ export async function updateSupplierContacts(
 /** Update a supplier's full details (name / tax id / notes / contacts). */
 export async function updateSupplier(
   id,
-  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null, storeIds = null, parentSupplierId = undefined },
+  { name, taxId = null, notes = null, phone = null, email = null, contactName = null, contactPhone = null, paymentMethod = null, paymentTerms = null, zeroRated = false, storeIds = null, parentSupplierId = undefined },
   actor,
   x = getExecutor(),
 ) {
@@ -148,7 +149,7 @@ export async function updateSupplier(
   const parentId = parentSupplierId === undefined ? undefined : await validateParent(id, parentSupplierId, x);
   await x.run(
     `UPDATE suppliers SET name = ?, tax_id = ?, notes = ?, phone = ?, email = ?, contact_name = ?, contact_phone = ?,
-            payment_method = ?, payment_terms = ?${parentId === undefined ? '' : ', parent_supplier_id = ?'}
+            payment_method = ?, payment_terms = ?, zero_rated = ?${parentId === undefined ? '' : ', parent_supplier_id = ?'}
      WHERE id = ?`,
     [
       trimmed,
@@ -160,6 +161,7 @@ export async function updateSupplier(
       contactPhone?.trim() || null,
       paymentMethod?.trim() || null,
       paymentTerms?.trim() || null,
+      zeroRated ? 1 : 0,
       ...(parentId === undefined ? [] : [parentId]),
       id,
     ],

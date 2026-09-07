@@ -153,6 +153,9 @@ CREATE TABLE IF NOT EXISTS suppliers (
   contact_phone  TEXT,
   payment_method TEXT,
   payment_terms  TEXT,
+  -- עסקאות בשיעור אפס (§30(א)(13)) — ספק פירות וירקות טריים. משתיק אזהרת-הזנה בלבד; R3 עצמו
+  -- נבדק תמיד לפי המע"מ בפועל שעל החשבונית.
+  zero_rated     INTEGER NOT NULL DEFAULT 0,
   scan_profile   TEXT,  -- "הסקיל": מבנה החשבונית של הספק, נלמד מהסריקות שלו (JSON)
   parent_supplier_id INTEGER REFERENCES suppliers(id)  -- תשלום מרוכז: חברת-בת מצביעה לחברת-האם
 );
@@ -161,6 +164,7 @@ ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_method TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS payment_terms  TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS scan_profile   TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS parent_supplier_id INTEGER REFERENCES suppliers(id);
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS zero_rated INTEGER NOT NULL DEFAULT 0;
 
 -- Which stores a supplier serves (many-to-many). stores is defined above, so the FK validates.
 CREATE TABLE IF NOT EXISTS supplier_stores (

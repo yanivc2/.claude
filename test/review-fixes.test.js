@@ -13,6 +13,7 @@ import { israelToday } from '../src/lib/loginHours.js';
 import { config } from '../src/config.js';
 
 const THRESH = config.rules.allocationThresholdAgorot; // 5,000 ₪ default
+const VAT = (net) => Math.round(net * config.vatRate);  // R3 tests the VAT, not the net
 const CEIL = config.cashCeilingAgorot; // 6,000 ₪ default
 
 async function base() {
@@ -35,7 +36,9 @@ test('R3: editing a plain tax invoice above the allocation threshold places the 
   assert.equal((await getInvoice(invoice.id, db)).status, 'recorded');
 
   // Edit the amount up over the threshold, still no allocation → must become on_hold (R3).
-  await updateInvoice(invoice.id, { amountBeforeVat: THRESH + 100000, vatAmount: 0 }, own, db);
+  // A normal 18% invoice: its VAT is what R3 tests, so give it one (vatAmount: 0 would mean a
+  // zero-rated invoice, which legitimately needs no allocation number — see requiresAllocationNumber).
+  await updateInvoice(invoice.id, { amountBeforeVat: THRESH + 100000, vatAmount: VAT(THRESH + 100000) }, own, db);
   const held = await getInvoice(invoice.id, db);
   assert.equal(held.status, 'on_hold');
   assert.ok(String(held.hold_reason).startsWith('R3'));
@@ -45,7 +48,7 @@ test('R3: adding an allocation number on edit clears a stale R3 hold', async () 
   const { db, own, sec, st, sup } = await base();
   // Over threshold, no allocation → created on_hold (R3).
   const { invoice } = await createInvoice(
-    { supplierId: sup.id, storeId: st.id, invoiceNumber: 'E2', invoiceDate: '2026-07-01', amountBeforeVat: THRESH + 100000, vatAmount: 0, docType: 'tax_invoice' },
+    { supplierId: sup.id, storeId: st.id, invoiceNumber: 'E2', invoiceDate: '2026-07-01', amountBeforeVat: THRESH + 100000, vatAmount: VAT(THRESH + 100000), docType: 'tax_invoice' },
     sec, db,
   );
   assert.equal((await getInvoice(invoice.id, db)).status, 'on_hold');

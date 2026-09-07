@@ -104,7 +104,14 @@ router.get('/new', async (req, res, next) => {
 // Payment fields from the form: method code + terms, where "other" swaps in the free-text value.
 function paymentFields(body) {
   const terms = body.payment_terms === 'other' ? (body.payment_terms_other || '').trim() : (body.payment_terms || '').trim();
-  return { paymentMethod: (body.payment_method || '').trim() || null, paymentTerms: terms || null };
+  return {
+    paymentMethod: (body.payment_method || '').trim() || null,
+    paymentTerms: terms || null,
+    // "עסקאות בשיעור אפס" — fresh produce (§30(א)(13)). It does NOT bypass R3, which is always
+    // computed from the VAT actually on the invoice; it only silences the review-time
+    // "big tax invoice with no VAT — was it forgotten?" check for this supplier.
+    zeroRated: !!body.zero_rated,
+  };
 }
 
 router.post('/', async (req, res, next) => {

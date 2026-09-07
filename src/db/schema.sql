@@ -52,6 +52,10 @@ CREATE TABLE IF NOT EXISTS suppliers (
   contact_phone  TEXT,
   payment_method TEXT,   -- העברה / צק / מזומן / אשראי / הו"ק (transfer/check/cash/credit/standing_order)
   payment_terms  TEXT,   -- מיידי / דחוי 14 / 30 / 45 / טקסט חופשי
+  -- עסקאות בשיעור אפס (§30(א)(13)) — ספק פירות וירקות טריים. אינו משנה את R3 (שנבדק לפי המע"מ
+  -- בפועל שעל החשבונית), רק משתיק את אזהרת "חשבונית מס גדולה בלי מע"מ — שכחת להזין?" שאחרת
+  -- הייתה נורית על כל חשבונית של הספק הזה.
+  zero_rated     INTEGER NOT NULL DEFAULT 0,
   -- "הסקיל של הספק": what this supplier's invoices LOOK LIKE, learned from its own scans —
   -- which column holds the product code and what shape it is, whether there is a כ.בודד column,
   -- whether an allocation number is ever printed, the date format, and what humans keep

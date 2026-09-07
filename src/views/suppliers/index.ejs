@@ -59,7 +59,7 @@
             <% } else { %><span class="muted">—</span><% } %>
           </td>
           <td class="mono hide-sm"><%= s.tax_id || '—' %></td>
-          <td><span class="badge b-<%= s.status %>"><%= s.status === 'pending' ? 'ממתין' : s.status === 'approved' ? 'מאושר' : 'חסום' %></span></td>
+          <td><span class="badge b-<%= s.status %>"><%= s.status === 'pending' ? 'ממתין' : s.status === 'approved' ? 'מאושר' : 'חסום' %></span><% if (Number(s.zero_rated)) { %> <span class="badge b-neutral" title="עסקאות בשיעור אפס (§30(א)(13)) — חשבוניות ללא מע\"מ, ללא חובת מספר הקצאה">מע"מ 0%</span><% } %></td>
           <td onclick="event.stopPropagation()">
             <% if (s.phone || s.email) { %>
               <details class="menu">

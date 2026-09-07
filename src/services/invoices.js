@@ -18,11 +18,70 @@ function addDaysIso(iso, days) {
 /**
  * Record a new invoice (or credit note). Enforces the entry-time control rules:
  *   R2 — duplicate detection (allocation_number is a hard block; supplier+number is a soft warning)
- *   R3 — tax invoice over the allocation threshold with no allocation number => soft block (on_hold)
+ *   R3 — tax invoice whose VAT is over the allocation threshold with no allocation number =>
+ *        soft block (on_hold). Tests the VAT, not the net — see requiresAllocationNumber().
  *   R4 — same supplier + same total within the duplicate window => soft warning
  *
  * @returns {{invoice: object, warnings: Array<{code:string,message:string}>}}
  */
+/**
+ * R3 — does this document legally need a מספר הקצאה (allocation number)?
+ *
+ * ⚠️ The test is the **VAT amount**, not the amount before VAT. The law states the figure as a net
+ * amount (5,000 ₪ from 1.6.2026) but the Tax Authority's Q&A is explicit that the operative
+ * criterion is the VAT derived from it — 900 ₪ — and that on a MIXED invoice it stays the VAT
+ * amount "regardless of whether it contains exempt transactions or zero-rated items". For an
+ * ordinary 18% invoice the two tests are identical (5,000 × 18% = 900), so this changes nothing
+ * for a normal supplier. It changes everything for a supplier whose goods are zero-rated:
+ *
+ *   **fresh, unprocessed fruit and vegetables are zero-rated under §30(א)(13) of the VAT Law**
+ *   (cleaning, sorting, packing, ripening, storing and chilling are explicitly NOT processing).
+ *
+ * A ₪20,000 produce invoice therefore carries ₪0 VAT and needs no allocation number at any amount,
+ * while the same supplier's mixed invoice needs one as soon as ITS standard-rated part passes the
+ * VAT figure. Testing the net amount soft-blocked every produce invoice for a number that does not
+ * exist and cannot be obtained.
+ *
+ * This is the ONLY place the rule is expressed — create, update, approve, the self-heal and the
+ * view all call it, so the four copies that used to drift apart cannot.
+ *
+ * @param {{docType?:string, doc_type?:string, allocationNumber?:string|null, allocation_number?:string|null,
+ *          vatAmount?:number, vat_amount?:number}} inv
+ */
+export function requiresAllocationNumber(inv) {
+  const docType = inv.docType ?? inv.doc_type;
+  const alloc = inv.allocationNumber ?? inv.allocation_number;
+  const vat = Number(inv.vatAmount ?? inv.vat_amount ?? 0);
+  return docType === 'tax_invoice' && !alloc && Math.abs(vat) > config.rules.allocationVatThresholdAgorot;
+}
+
+/**
+ * The safety net R3 gave up when it moved off the net amount: a tax invoice big enough to have
+ * needed an allocation number, carrying (almost) no VAT, is one of two things —
+ *   • a legitimately zero-rated supply (fresh produce, §30(א)(13)): no allocation number exists,
+ *     none is required, and R3 correctly stays silent; or
+ *   • somebody forgot to type the VAT, in which case the invoice DOES need one and now sails
+ *     through unheld.
+ * The numbers cannot tell them apart, so the invoice page asks — and stays quiet for a supplier the
+ * owner has marked "עסקאות בשיעור אפס", so a produce supplier never nags. Deliberately NOT a
+ * save-time confirmation: this is a review-time sanity check, not a duplicate risk, and gating fast
+ * data entry on it would be worse than the old false block it replaces.
+ */
+export function zeroVatNeedsCheck(inv) {
+  if (!inv || Number(inv.supplier_zero_rated)) return false;
+  const docType = inv.docType ?? inv.doc_type;
+  const alloc = inv.allocationNumber ?? inv.allocation_number;
+  if (docType !== 'tax_invoice' || alloc) return false;
+  const net = Math.abs(Number(inv.amountBeforeVat ?? inv.amount_before_vat ?? 0));
+  const vat = Math.abs(Number(inv.vatAmount ?? inv.vat_amount ?? 0));
+  return net > config.rules.allocationThresholdAgorot && vat <= config.rules.allocationVatThresholdAgorot;
+}
+
+/** The R3 hold text — one wording, so a re-evaluation never writes a different one. */
+export function r3HoldReason() {
+  return `R3: חשבונית מס עם מע"מ מעל ${config.rules.allocationVatThresholdAgorot / 100} ₪ (מעל ${config.rules.allocationThresholdAgorot / 100} ₪ לפני מע"מ) ללא מספר הקצאה — חסום לתשלום עד השלמת הקצאה או עקיפת בעלים`;
+}
+
 export async function createInvoice(input, actor, x = getExecutor()) {
   const {
     supplierId,
@@ -109,15 +168,10 @@ export async function createInvoice(input, actor, x = getExecutor()) {
     });
   }
 
-  // ---- R3: tax invoice over threshold with no allocation => soft block --------
-  const r3Triggered =
-    docType === 'tax_invoice' &&
-    !alloc &&
-    Math.abs(beforeVat) > config.rules.allocationThresholdAgorot;
+  // ---- R3: tax invoice whose VAT is over the threshold, with no allocation => soft block ------
+  const r3Triggered = requiresAllocationNumber({ docType, allocationNumber: alloc, vatAmount: vat });
   const status = r3Triggered ? 'on_hold' : 'recorded';
-  const holdReason = r3Triggered
-    ? `R3: חשבונית מס מעל ${config.rules.allocationThresholdAgorot / 100} ₪ ללא מספר הקצאה — חסום לתשלום עד השלמת הקצאה או עקיפת בעלים`
-    : null;
+  const holdReason = r3Triggered ? r3HoldReason() : null;
 
   const info = await x.run(
     `INSERT INTO invoices
@@ -174,11 +228,7 @@ export async function approveInvoiceForPayment(id, actor, x = getExecutor()) {
   }
   if (invoice.status === 'approved_for_payment') return invoice;
 
-  const r3Blocks =
-    invoice.status === 'on_hold' ||
-    (invoice.doc_type === 'tax_invoice' &&
-      !invoice.allocation_number &&
-      Math.abs(invoice.amount_before_vat) > config.rules.allocationThresholdAgorot);
+  const r3Blocks = invoice.status === 'on_hold' || requiresAllocationNumber(invoice);
 
   if (r3Blocks && !userCan(actor, 'hold_invoice')) {
     throw new AuthError(
@@ -244,11 +294,7 @@ export async function reconcileR3Hold(id, x = getExecutor()) {
   const inv = await getInvoice(id, x);
   if (inv.status !== 'on_hold') return inv;
   if (typeof inv.hold_reason !== 'string' || !inv.hold_reason.startsWith('R3')) return inv;
-  const stillR3 =
-    inv.doc_type === 'tax_invoice' &&
-    !inv.allocation_number &&
-    Math.abs(inv.amount_before_vat) > config.rules.allocationThresholdAgorot;
-  if (stillR3) return inv;
+  if (requiresAllocationNumber(inv)) return inv;
   await x.run("UPDATE invoices SET status = 'recorded', hold_reason = NULL WHERE id = ?", [id]);
   return getInvoice(id, x);
 }
@@ -339,15 +385,13 @@ export async function updateInvoice(id, input, actor, x = getExecutor()) {
   // edit that newly pushes a plain 'recorded' invoice over the threshold must place the hold, or
   // an edit-up would silently bypass R3. Manual owner holds (reason not starting with "R3") and
   // deliberate states (approved_for_payment / paid) are never touched here.
-  const stillR3 =
-    docType === 'tax_invoice' && !alloc && Math.abs(beforeVat) > config.rules.allocationThresholdAgorot;
+  const stillR3 = requiresAllocationNumber({ docType, allocationNumber: alloc, vatAmount: vat });
   const isR3Hold =
     invoice.status === 'on_hold' && typeof invoice.hold_reason === 'string' && invoice.hold_reason.startsWith('R3');
   if (isR3Hold && !stillR3) {
     await x.run("UPDATE invoices SET status = 'recorded', hold_reason = NULL WHERE id = ?", [id]);
   } else if (stillR3 && invoice.status === 'recorded') {
-    const r3Reason = `R3: חשבונית מס מעל ${config.rules.allocationThresholdAgorot / 100} ₪ ללא מספר הקצאה — חסום לתשלום עד השלמת הקצאה או עקיפת בעלים`;
-    await x.run("UPDATE invoices SET status = 'on_hold', hold_reason = ? WHERE id = ?", [r3Reason, id]);
+    await x.run("UPDATE invoices SET status = 'on_hold', hold_reason = ? WHERE id = ?", [r3HoldReason(), id]);
   }
 
   await logAction(
@@ -392,7 +436,7 @@ export async function getInvoice(id, x = getExecutor()) {
 /** Invoice with joined supplier / store / company names, for detail views. */
 export async function getInvoiceDetail(id, x = getExecutor()) {
   const row = await x.one(
-    `SELECT i.*, s.name AS supplier_name, s.status AS supplier_status,
+    `SELECT i.*, s.name AS supplier_name, s.status AS supplier_status, s.zero_rated AS supplier_zero_rated,
             st.name AS store_name, c.name AS company_name,
             ba.id AS derived_bank_account_id
        FROM invoices i

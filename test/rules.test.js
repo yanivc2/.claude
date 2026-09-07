@@ -100,7 +100,7 @@ test('R3 resolved by adding an allocation number clears the hold', async () => {
   const sec = await secretary(db);
   const sup = await createSupplier({ name: 'ספק' }, sec, db);
   const { invoice } = await createInvoice(
-    baseInvoice(db, sup.id, st.id, { amountBeforeVat: toAgorot('6000') }),
+    baseInvoice(db, sup.id, st.id, { amountBeforeVat: toAgorot('6000'), vatAmount: toAgorot('1080') }),
     sec,
     db,
   );

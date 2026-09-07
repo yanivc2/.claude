@@ -9,10 +9,13 @@ function statusLabel(s){
 var imgIsPdf = invoice.image_path && /\.pdf$/i.test(invoice.image_path);
 var ocrData = (typeof ocr !== 'undefined') ? ocr : null;
 var cmp = (typeof comparison !== 'undefined') ? comparison : null;
-// R3: a tax invoice above the allocation threshold with no allocation number needs one.
-var requiresAllocation = invoice.doc_type === 'tax_invoice'
-  && Math.abs(invoice.amount_before_vat) > allocationThresholdAgorot
-  && !invoice.allocation_number;
+// R3, from the ONE predicate in services/invoices.js — never re-derived here. It tests the VAT,
+// not the amount before VAT: a zero-rated invoice (fresh produce, §30(א)(13)) needs no allocation
+// number at any amount, and this banner used to demand one that cannot exist.
+var requiresAllocation = requiresAllocationNumber(invoice);
+// …and the other side of the same coin: a big tax invoice with no VAT. Either the VAT was
+// forgotten (then an allocation number IS needed) or the supply is zero-rated. Ask once.
+var checkZeroVat = zeroVatNeedsCheck(invoice);
 var ex = (ocrData && ocrData.extracted) || {};
 var canApprove = (typeof can === 'function') && can('approve_payment');
 var canHold = (typeof can === 'function') && can('hold_invoice');
@@ -62,7 +65,8 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <% if (invoice.status === 'on_hold' && invoice.hold_reason) { %><div class="alert alert-warn"><strong>מוחזק:</strong> <%= invoice.hold_reason %></div><% } %>
 <% if (payReq) { %><div class="alert alert-info">בקשת אישור תשלום ממתינה<% if (isManager) { %> — אפשר לאשר בכפתור למטה<% } else { %> לאישור מנהל/בעלים<% } %>.</div><% } %>
-<% if (requiresAllocation) { %><div class="alert alert-error"><strong>נדרש מספר הקצאה</strong> — חשבונית מס מעל <%= formatIls(allocationThresholdAgorot) %> ללא מספר הקצאה. הזן מספר הקצאה בכפתור למטה.</div><% } %>
+<% if (checkZeroVat) { %><div class="alert alert-warn"><strong>חשבונית מס ללא מע"מ</strong> — מעל <%= formatIls(allocationThresholdAgorot) %> לפני מע"מ אך המע"מ <%= formatIls(Math.abs(invoice.vat_amount || 0)) %>. אם המע"מ נשכח — תקן אותו (אז יידרש מספר הקצאה). אם זו עסקה בשיעור אפס (פירות וירקות טריים, §30(א)(13)) — סמן את הספק כ"עסקאות בשיעור אפס" בכרטיס הספק וההודעה תיעלם.</div><% } %>
+<% if (requiresAllocation) { %><div class="alert alert-error"><strong>נדרש מספר הקצאה</strong> — חשבונית מס עם מע"מ מעל <%= formatIls(allocationVatThresholdAgorot) %> ללא מספר הקצאה. הזן מספר הקצאה בכפתור למטה.</div><% } %>
 
 <% if (typeof cashPayments !== 'undefined' && cashPayments && cashPayments.length) { %>
   <div class="alert alert-ok">

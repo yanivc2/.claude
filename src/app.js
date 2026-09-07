@@ -26,6 +26,7 @@ import notificationRoutes from './routes/notifications.js';
 import ingestRoutes from './routes/ingest.js';
 import { isScanEnabled } from './services/appSettings.js';
 import { depositStatus } from './services/deposits.js';
+import { requiresAllocationNumber, zeroVatNeedsCheck } from './services/invoices.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -115,6 +116,11 @@ export function createApp() {
     res.locals.vatRate = config.vatRate;
     res.locals.cashCeilingAgorot = config.cashCeilingAgorot;
     res.locals.allocationThresholdAgorot = config.rules.allocationThresholdAgorot;
+    res.locals.allocationVatThresholdAgorot = config.rules.allocationVatThresholdAgorot;
+    // The R3 predicate itself, so a view never re-implements it (and never re-implements it
+    // WRONG — testing the net amount flags every zero-rated invoice). See services/invoices.js.
+    res.locals.requiresAllocationNumber = requiresAllocationNumber;
+    res.locals.zeroVatNeedsCheck = zeroVatNeedsCheck;
     res.locals.methodLabel = (m) =>
       ({ check: 'צ׳ק', cash: 'מזומן', credit: 'אשראי', transfer: 'העברה', batch: 'מקבץ', standing_order: 'הו"ק' }[m] || m || 'צ׳ק');
     res.locals.paymentIdent = (p) => {

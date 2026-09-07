@@ -129,7 +129,7 @@ test('an on_hold (R3) invoice is blocked from payment; a recorded one is payable
   const sup = await approveSupplier((await createSupplier({ name: 'ספק R1' }, sec, db)).id, await owner(db), db);
   // Tax invoice over the allocation threshold with no allocation number -> auto on_hold (R3).
   const { invoice } = await createInvoice(
-    { supplierId: sup.id, storeId: st.id, invoiceNumber: 'R1x', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('9000'), vatAmount: 0, docType: 'tax_invoice' },
+    { supplierId: sup.id, storeId: st.id, invoiceNumber: 'R1x', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('9000'), vatAmount: toAgorot('1620'), docType: 'tax_invoice' },
     sec,
     db,
   );
