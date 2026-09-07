@@ -26,6 +26,26 @@
     var s = sel || 'manual';
     return opts.map(function(o){ return '<option value="'+o[0]+'"'+(s===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('');
   }
+  // "שם" on a cash expense is an EMPLOYEE, chosen from the list — never free text (a typed name
+  // matched nothing and made the row unattributable). Same rule as the Z-closing form. A saved
+  // name that is no longer an employee is re-added as an option so an old row never loses it.
+  function cxPayerOptsFor(sel, extra){
+    var h = '<option value="">— בחר עובד —</option>';
+    var found = false;
+    (typeof employeeOptions !== 'undefined' ? employeeOptions : []).forEach(function(emp){
+      var full = emp.first_name + ' ' + emp.last_name;
+      if (full === sel) found = true;
+      h += '<option value="' + cxEsc(full) + '" data-emp="' + emp.id + '"' + (full === sel ? ' selected' : '') + '>' + cxEsc(full) + '</option>';
+    });
+    if (extra && sel && !found) h += '<option value="' + cxEsc(sel) + '" selected>' + cxEsc(sel) + ' (לא ברשימת העובדים)</option>';
+    return h;
+  }
+  function cxPayerField(sel){
+    if (!(typeof employeeOptions !== 'undefined' ? employeeOptions : []).length) {
+      return '<input name="payer_name" value="' + cxEsc(sel) + '" autocomplete="off">';
+    }
+    return '<select name="payer_name" class="cx-payer js-combo">' + cxPayerOptsFor(sel, true) + '</select>';
+  }
 %>
 <form method="post" action="<%= action %>" class="stack" data-zform>
   <label>חנות</label>
@@ -71,7 +91,7 @@
         <div class="cx-row">
           <div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(e.description_type) %></select></div>
           <div class="cx-field"><label>תאריך</label><input type="date" name="expense_date" value="<%= e.expense_date || '' %>" /></div>
-          <div class="cx-field"><label>שם</label><input name="payer_name" value="<%= e.payer_name || '' %>" autocomplete="off" /></div>
+          <div class="cx-field"><label>שם</label><%- cxPayerField(e.payer_name || '') %></div>
           <div class="cx-field cx-details"><label>פרטים</label>
             <input name="purpose" class="cx-purpose" value="<%= e.purpose || '' %>" placeholder="עבור" autocomplete="off" />
             <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(e.employee_id) %></select>
@@ -84,7 +104,7 @@
       <div class="cx-row">
         <div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></div>
         <div class="cx-field"><label>תאריך</label><input type="date" name="expense_date" /></div>
-        <div class="cx-field"><label>שם</label><input name="payer_name" autocomplete="off" /></div>
+        <div class="cx-field"><label>שם</label><%- cxPayerField('') %></div>
         <div class="cx-field cx-details"><label>פרטים</label>
           <input name="purpose" class="cx-purpose" placeholder="עבור" autocomplete="off" />
           <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(null) %></select>
@@ -182,20 +202,31 @@
   var CX_INV_OPTS = <%- JSON.stringify(cxInvOptsFor(null)) %>;
   var CX_EMP_OPTS = <%- JSON.stringify(cxEmpOptsFor(null)) %>;
   var CX_KIND_OPTS = <%- JSON.stringify(cxKindOptsFor(null)) %>;
-  // Show only the detail control that matches the row's kind (purpose / employee / invoice).
+  var CX_PAYER_FIELD = <%- JSON.stringify(cxPayerField('')) %>;
+  // "שם" IS the employee picker now, so the שכר/מפרעה employee select would be the same person
+  // chosen twice. It stays in the DOM (a hidden select still posts) and is driven from the name —
+  // the server contract (payer_name + expense_employee_id) is unchanged.
+  function syncPayerEmployee(row){
+    var payer = row.querySelector('.cx-payer'), emp = row.querySelector('.cx-emp');
+    if (!payer || !emp) return;
+    var opt = payer.options[payer.selectedIndex];
+    emp.value = (opt && opt.getAttribute('data-emp')) || '';
+  }
+  // Show only the detail control that matches the row's kind (purpose / invoice).
   function applyKind(row){
     var kind = (row.querySelector('.cx-kind') || {}).value || 'manual';
     var p = row.querySelector('.cx-purpose'), emp = row.querySelector('.cx-emp'), inv = row.querySelector('.cx-inv');
     if (p) p.hidden = (kind !== 'manual');
-    if (emp) emp.hidden = !(kind === 'salary' || kind === 'advance');
+    if (emp) emp.hidden = true;
     if (inv) inv.hidden = (kind !== 'invoice');
+    syncPayerEmployee(row);
   }
   function addRow(){
     var row = document.createElement('div');
     row.className = 'cx-row';
     row.innerHTML = '<div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></div>'
       + '<div class="cx-field"><label>תאריך</label><input type="date" name="expense_date"></div>'
-      + '<div class="cx-field"><label>שם</label><input name="payer_name" autocomplete="off"></div>'
+      + '<div class="cx-field"><label>שם</label>' + CX_PAYER_FIELD + '</div>'
       + '<div class="cx-field cx-details"><label>פרטים</label><input name="purpose" class="cx-purpose" placeholder="עבור" autocomplete="off">'
       +   '<select name="expense_employee_id" class="cx-emp">' + CX_EMP_OPTS + '</select>'
       +   '<select name="expense_invoice_id" class="cx-inv">' + CX_INV_OPTS + '</select></div>'
@@ -204,21 +235,26 @@
     body.appendChild(row);
     applyKind(row);
     if (window.apEnhanceDates) window.apEnhanceDates(row);
+    if (window.apEnhanceCombos) window.apEnhanceCombos(row); // …and its searchable name picker
+  }
+  // A combobox pick fires `change`, not `input`, so the "spawn the next blank row" rule needs both.
+  function maybeAddRow(target){
+    var rows = body.querySelectorAll('.cx-row');
+    var last = rows[rows.length - 1];
+    if (!last.contains(target)) return;
+    var filled = Array.prototype.some.call(last.querySelectorAll('input, .cx-payer'), function(i){
+      return i.classList.contains('combo-input') ? false : String(i.value || '').trim() !== '';
+    });
+    if (filled) addRow();
   }
   // Initialize kind-toggle for the server-rendered rows, and react to kind changes.
   body.querySelectorAll('.cx-row').forEach(applyKind);
   body.addEventListener('change', function(e){
-    if (e.target && e.target.classList.contains('cx-kind')) applyKind(e.target.closest('.cx-row'));
+    if (!e.target || !e.target.classList) return;
+    if (e.target.classList.contains('cx-kind')) applyKind(e.target.closest('.cx-row'));
+    if (e.target.classList.contains('cx-payer')) { syncPayerEmployee(e.target.closest('.cx-row')); maybeAddRow(e.target); }
   });
-  body.addEventListener('input', function(e){
-    recalcCx();
-    var rows = body.querySelectorAll('.cx-row');
-    var last = rows[rows.length - 1];
-    if (last.contains(e.target)) {
-      var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
-      if (filled) addRow();
-    }
-  });
+  body.addEventListener('input', function(e){ recalcCx(); maybeAddRow(e.target); });
 
   form.addEventListener('submit', function(e){
     if (drawerSum() <= 0){ e.preventDefault(); alert('סה"כ מגירה חובה — הזן לפחות רכיב מגירה אחד.'); return; }

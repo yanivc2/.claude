@@ -9,6 +9,7 @@ import { createApp } from '../src/app.js';
 import { createSession } from '../src/lib/auth.js';
 import { createZClosing, getZClosing, updateZClosing } from '../src/services/zclosing.js';
 import { createEmployee } from '../src/services/employees.js';
+import { createZReport } from '../src/services/zreports.js';
 
 const base = (store, overrides = {}) => ({
   employeeFirst: 'רון', employeeLast: 'לוי', storeId: store.id, zNumber: '910',
@@ -126,6 +127,34 @@ test('with no employees at all the closing form still works (free-text fallback)
     assert.ok(html.includes('name="employee_first"'), 'falls back to typing the counter');
     assert.ok(/<input name="payer_name"/.test(html), 'and to typing the expense name');
     assert.ok(!/name="reg_first\[\]"/.test(html), 'still never asks for a name per register');
+  } finally {
+    server.close();
+  }
+});
+
+// The Z REPORT form (`views/reports/_zform.ejs`) carries the same cash-expenses rubric, so it
+// follows the same rule — otherwise "שם" means a picked employee on one page and free text on the
+// other, and the same expense reads differently depending on where it was entered.
+test('the Z-report form uses the same employee picker for a cash expense name', async () => {
+  const x = await freshDb();
+  const o = await owner(x);
+  const store = await firstStore(x);
+  await createEmployee({ firstName: 'איתי', lastName: 'ברק', phone: '050-4445556' }, o, x);
+  const zr = await createZReport(
+    { storeId: store.id, zNumber: '960', zDate: '2026-08-20', dailyTotal: 100000, drawerCash: 100000 },
+    o, x,
+  );
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  try {
+    const root = `http://127.0.0.1:${server.address().port}`;
+    const headers = { cookie: `session=${encodeURIComponent(createSession(o.id))}` };
+    for (const path of ['/reports/zreports', `/reports/zreports/${zr.id}`]) {
+      const html = await (await fetch(root + path, { headers })).text();
+      assert.ok(html.includes('class="cx-payer js-combo"'), `${path}: the payer field is the employee picker`);
+      assert.ok(!/<input name="payer_name"/.test(html), `${path}: no free-text payer input`);
+      assert.ok(html.includes('איתי ברק'), `${path}: the employee is offered by name`);
+    }
   } finally {
     server.close();
   }
