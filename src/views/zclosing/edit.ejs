@@ -21,6 +21,23 @@
     var s = sel || 'manual';
     return opts.map(function(o){ return '<option value="'+o[0]+'"'+(s===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('');
   }
+  // "שם" on a cash expense is an EMPLOYEE, chosen from the list — never free text. A saved name
+  // that is no longer an employee is re-added as an option so editing an old row never drops it.
+  function cxPayerOptsFor(sel, extra){
+    var h = '<option value="">— בחר עובד —</option>';
+    var found = false;
+    (typeof employeeOptions !== 'undefined' ? employeeOptions : []).forEach(function(emp){
+      var full = emp.first_name + ' ' + emp.last_name;
+      if (full === sel) found = true;
+      h += '<option value="' + cxEsc(full) + '" data-emp="' + emp.id + '"' + (full === sel ? ' selected' : '') + '>' + cxEsc(full) + '</option>';
+    });
+    if (extra && sel && !found) h += '<option value="' + cxEsc(sel) + '" selected>' + cxEsc(sel) + ' (לא ברשימת העובדים)</option>';
+    return h;
+  }
+  function cxPayerField(sel){
+    if (!(employeeOptions || []).length) return '<input name="payer_name" value="' + cxEsc(sel) + '">';
+    return '<select name="payer_name" class="cx-payer js-combo">' + cxPayerOptsFor(sel, true) + '</select>';
+  }
   var stOpts = storeOptions || [];
   var empOpts = employeeOptions || [];
   var exRows = expenses || [];
@@ -106,7 +123,7 @@
             <tr>
               <td><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(e.description_type) %></select></td>
               <td><input type="date" name="expense_date" value="<%= e.expense_date || '' %>" /></td>
-              <td><input name="payer_name" value="<%= e.payer_name || '' %>" /></td>
+              <td><%- cxPayerField(e.payer_name || '') %></td>
               <td>
                 <input name="purpose" class="cx-purpose" value="<%= e.purpose || '' %>" placeholder="עבור" />
                 <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(e.employee_id) %></select>
@@ -119,7 +136,7 @@
           <tr>
             <td><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></td>
             <td><input type="date" name="expense_date" /></td>
-            <td><input name="payer_name" /></td>
+            <td><%- cxPayerField('') %></td>
             <td>
               <input name="purpose" class="cx-purpose" placeholder="עבור" />
               <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(null) %></select>
@@ -192,12 +209,23 @@
   var CX_INV_OPTS = <%- JSON.stringify(cxInvOptsFor(null)) %>;
   var CX_EMP_OPTS = <%- JSON.stringify(cxEmpOptsFor(null)) %>;
   var CX_KIND_OPTS = <%- JSON.stringify(cxKindOptsFor(null)) %>;
+  var CX_PAYER_FIELD = <%- JSON.stringify(cxPayerField('')) %>;
+  // The שכר/מפרעה employee select would be the same person chosen twice now that "שם" IS the
+  // employee picker. It stays in the DOM (hidden selects still post) and is driven from the name,
+  // so the server contract (payer_name + expense_employee_id) is unchanged.
+  function syncPayerEmployee(row){
+    var payer = row.querySelector('.cx-payer'), emp = row.querySelector('.cx-emp');
+    if (!payer || !emp) return;
+    var opt = payer.options[payer.selectedIndex];
+    emp.value = (opt && opt.getAttribute('data-emp')) || '';
+  }
   function applyKind(row){
     var kind = (row.querySelector('.cx-kind') || {}).value || 'manual';
     var p = row.querySelector('.cx-purpose'), emp = row.querySelector('.cx-emp'), inv = row.querySelector('.cx-inv');
     if (p) p.hidden = (kind !== 'manual');
-    if (emp) emp.hidden = !(kind === 'salary' || kind === 'advance');
+    if (emp) emp.hidden = true;
     if (inv) inv.hidden = (kind !== 'invoice');
+    syncPayerEmployee(row);
   }
   window.cxDel = function(btn){
     var rows = body.querySelectorAll('tr');
@@ -209,7 +237,7 @@
     var tr = document.createElement('tr');
     tr.innerHTML = '<td><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></td>'
       + '<td><input type="date" name="expense_date"></td>'
-      + '<td><input name="payer_name"></td>'
+      + '<td>' + CX_PAYER_FIELD + '</td>'
       + '<td><input name="purpose" class="cx-purpose" placeholder="עבור">'
       +   '<select name="expense_employee_id" class="cx-emp">' + CX_EMP_OPTS + '</select>'
       +   '<select name="expense_invoice_id" class="cx-inv" style="max-width:240px">' + CX_INV_OPTS + '</select></td>'
@@ -217,20 +245,25 @@
       + '<td><button type="button" class="danger small" onclick="cxDel(this)">✕</button></td>';
     body.appendChild(tr);
     applyKind(tr);
+    if (window.apEnhanceDates) window.apEnhanceDates(tr);
+    if (window.apEnhanceCombos) window.apEnhanceCombos(tr);
+  }
+  function maybeAddRow(target){
+    var rows = body.querySelectorAll('tr');
+    var last = rows[rows.length - 1];
+    if (!last.contains(target)) return;
+    var filled = Array.prototype.some.call(last.querySelectorAll('input, .cx-payer'), function(i){
+      return i.classList.contains('combo-input') ? false : String(i.value || '').trim() !== '';
+    });
+    if (filled) addRow();
   }
   body.querySelectorAll('tr').forEach(applyKind);
   body.addEventListener('change', function(e){
-    if (e.target && e.target.classList.contains('cx-kind')) applyKind(e.target.closest('tr'));
+    if (!e.target || !e.target.classList) return;
+    if (e.target.classList.contains('cx-kind')) applyKind(e.target.closest('tr'));
+    if (e.target.classList.contains('cx-payer')) { syncPayerEmployee(e.target.closest('tr')); maybeAddRow(e.target); }
   });
-  body.addEventListener('input', function(e){
-    recalc();
-    var rows = body.querySelectorAll('tr');
-    var last = rows[rows.length - 1];
-    if (last.contains(e.target)) {
-      var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
-      if (filled) addRow();
-    }
-  });
+  body.addEventListener('input', function(e){ recalc(); maybeAddRow(e.target); });
   recalc();
 })();
 </script>
@@ -273,9 +306,14 @@
     div.style.cssText = 'background:var(--color-surface);border:1px solid var(--color-line);border-radius:var(--radius-md);margin:.5rem 0;padding:.7rem';
     var regNum = String(preset.register || Math.min(n, 3));
     div.innerHTML =
-      '<div class="row">'
-      + '<div><label>שם פרטי</label><input name="reg_first[]" autocomplete="off" value="'+esc(preset.first)+'"></div>'
-      + '<div><label>שם משפחה</label><input name="reg_last[]" autocomplete="off" value="'+esc(preset.last)+'"></div>'
+      // The counter is the closing's employee (chosen at the top) — no per-register name field any
+      // more. A closing saved BEFORE this change may carry its own counter name; it is shown and
+      // round-tripped in hidden fields so re-saving never erases it. New blocks post nothing and
+      // the server stamps the closing's employee onto them.
+      '<div class="reg-counter muted" style="margin:0 0 .4rem">נספר ע"י: <strong>' + (esc(((preset.first||'') + ' ' + (preset.last||'')).trim()) || '—') + '</strong></div>'
+      + '<input type="hidden" name="reg_first[]" value="'+esc(preset.first)+'">'
+      + '<input type="hidden" name="reg_last[]" value="'+esc(preset.last)+'">'
+      + '<div class="row">'
       + '<div><label>קופה</label><select name="reg_number[]"><option value="1">קופה 1</option><option value="2">קופה 2</option><option value="3">קופה 3</option></select></div>'
       + '<div><label>חנות</label><select name="reg_store[]">' + storeOptsHtml(preset.storeId) + '</select></div>'
       + '</div>'
@@ -287,7 +325,29 @@
     list.appendChild(div);
     div.addEventListener('input', function(e){ if (e.target.classList && e.target.classList.contains('rc-cnt')) recalcBlock(div); });
     recalcBlock(div);
+    showCounter();
   };
+
+  // Blocks with no name of their own echo whoever is selected as the closing's counter.
+  function counterName(){
+    var sel = document.querySelector('select[name="employee_id"]');
+    if (sel) return sel.selectedIndex > 0 ? sel.options[sel.selectedIndex].text.trim() : '';
+    var f = document.querySelector('input[name="employee_first"]'), l = document.querySelector('input[name="employee_last"]');
+    return (((f && f.value) || '') + ' ' + ((l && l.value) || '')).trim();
+  }
+  function showCounter(){
+    var name = counterName().trim();
+    list.querySelectorAll('.reg-block').forEach(function(b){
+      var own = ((b.querySelector('input[name="reg_first[]"]') || {}).value || '') + ' ' + ((b.querySelector('input[name="reg_last[]"]') || {}).value || '');
+      var el = b.querySelector('.reg-counter strong');
+      if (el && !own.trim()) el.textContent = name || '—';
+    });
+  }
+  ['select[name="employee_id"]', 'input[name="employee_first"]', 'input[name="employee_last"]'].forEach(function(q){
+    var el = document.querySelector(q);
+    if (el) { el.addEventListener('change', showCounter); el.addEventListener('input', showCounter); }
+  });
+
   if (SAVED.length) SAVED.forEach(function(r){ regAdd(r); });
   else regAdd();
 })();

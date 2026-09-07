@@ -21,6 +21,20 @@
     var s = sel || 'manual';
     return opts.map(function(o){ return '<option value="'+o[0]+'"'+(s===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('');
   }
+  // "שם" on a cash expense is an EMPLOYEE, chosen from the list — never free text (a typed name
+  // matched nothing and made the row unattributable). `extra` re-adds a legacy saved name that is
+  // no longer an employee, so editing an old row never silently drops it.
+  function cxPayerOptsFor(sel, extra){
+    var h = '<option value="">— בחר עובד —</option>';
+    var found = false;
+    (typeof employeeOptions !== 'undefined' ? employeeOptions : []).forEach(function(emp){
+      var full = emp.first_name + ' ' + emp.last_name;
+      if (full === sel) found = true;
+      h += '<option value="' + cxEsc(full) + '" data-emp="' + emp.id + '"' + (full === sel ? ' selected' : '') + '>' + cxEsc(full) + '</option>';
+    });
+    if (extra && sel && !found) h += '<option value="' + cxEsc(sel) + '" selected>' + cxEsc(sel) + ' (לא ברשימת העובדים)</option>';
+    return h;
+  }
   var stOpts = storeOptions || [];
   var empOpts = employeeOptions || [];
 %>
@@ -35,28 +49,30 @@
     <input type="hidden" name="started_at" value="<%= startedAt %>" />
     <p class="muted" style="margin:0 0 .6rem">תחילת ספירה: <strong><%= startedAt %></strong> · שעון ישראל</p>
 
-    <details class="card collapse-card" style="background:var(--color-surface-2);margin:0 0 1rem">
-      <summary>איזון קופות (ספירת מזומן בכל קופה לפני ה-Z)</summary>
-      <p class="muted" style="margin:.5rem 0 .6rem">ספור את המזומן בכל קופה. אפשר להוסיף קופה נוספת. הספירה נשמרת עם הסגירה ואינה משפיעה על טבלת המגירה למטה.</p>
-      <div id="reg-list"></div>
-      <button type="button" class="btn btn-secondary small" onclick="regAdd()">➕ הוסף קופה</button>
-    </details>
-
+    <%# The counter is asked ONCE, first, and every register in "איזון קופות" inherits it. %>
     <% if (empOpts.length) { %>
       <div>
         <label>עובד (מבצע הספירה)</label>
-        <select name="employee_id" required>
+        <select name="employee_id" id="counter-emp" class="js-combo" required>
           <option value="">בחר עובד…</option>
           <% empOpts.forEach(function(emp){ %><option value="<%= emp.id %>"><%= emp.first_name %> <%= emp.last_name %></option><% }); %>
         </select>
       </div>
     <% } else { %>
       <div class="row">
-        <div><label>שם פרטי</label><input name="employee_first" required autocomplete="off" /></div>
-        <div><label>שם משפחה</label><input name="employee_last" required autocomplete="off" /></div>
+        <div><label>שם פרטי</label><input name="employee_first" id="counter-first" required autocomplete="off" /></div>
+        <div><label>שם משפחה</label><input name="employee_last" id="counter-last" required autocomplete="off" /></div>
       </div>
       <small class="muted">לבחירה מרשימת עובדים — הוסף עובדים בדף "עובדים ומשכורות".</small>
     <% } %>
+
+    <details class="card collapse-card" style="background:var(--color-surface-2);margin:0 0 1rem">
+      <summary>איזון קופות (ספירת מזומן בכל קופה לפני ה-Z)</summary>
+      <p class="muted" style="margin:.5rem 0 .6rem">ספור את המזומן בכל קופה. אפשר להוסיף קופה נוספת. הספירה נשמרת עם הסגירה ואינה משפיעה על טבלת המגירה למטה. <strong>הסופר הוא העובד שנבחר למעלה</strong> — אין צורך להזין שם שוב.</p>
+      <div id="reg-list"></div>
+      <button type="button" class="btn btn-secondary small" onclick="regAdd()">➕ הוסף קופה</button>
+    </details>
+
     <div class="row">
       <div>
         <label>חנות</label>
@@ -105,7 +121,10 @@
       <div class="cx-row">
         <div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></div>
         <div class="cx-field"><label>תאריך</label><input type="date" name="expense_date" /></div>
-        <div class="cx-field"><label>שם</label><input name="payer_name" autocomplete="off" /></div>
+        <div class="cx-field"><label>שם</label>
+          <% if (empOpts.length) { %><select name="payer_name" class="cx-payer js-combo"><%- cxPayerOptsFor(null, false) %></select>
+          <% } else { %><input name="payer_name" autocomplete="off" /><% } %>
+        </div>
         <div class="cx-field cx-details"><label>פרטים</label>
           <input name="purpose" class="cx-purpose" placeholder="עבור" autocomplete="off" />
           <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(null) %></select>
@@ -216,12 +235,23 @@
   var CX_INV_OPTS = <%- JSON.stringify(cxInvOptsFor(null)) %>;
   var CX_EMP_OPTS = <%- JSON.stringify(cxEmpOptsFor(null)) %>;
   var CX_KIND_OPTS = <%- JSON.stringify(cxKindOptsFor(null)) %>;
+  var CX_PAYER_FIELD = <%- JSON.stringify(empOpts.length ? ('<select name="payer_name" class="cx-payer js-combo">' + cxPayerOptsFor(null, false) + '</select>') : '<input name="payer_name" autocomplete="off">') %>;
+  // "שם" is the employee picker, so the old separate שכר/מפרעה employee select would be the same
+  // person chosen twice. It stays in the DOM (hidden selects still post) and is driven from the
+  // name — the server contract (payer_name + expense_employee_id) is unchanged.
+  function syncPayerEmployee(row){
+    var payer = row.querySelector('.cx-payer'), emp = row.querySelector('.cx-emp');
+    if (!payer || !emp) return;
+    var opt = payer.options[payer.selectedIndex];
+    emp.value = (opt && opt.getAttribute('data-emp')) || '';
+  }
   function applyKind(row){
     var kind = (row.querySelector('.cx-kind') || {}).value || 'manual';
     var p = row.querySelector('.cx-purpose'), emp = row.querySelector('.cx-emp'), inv = row.querySelector('.cx-inv');
     if (p) p.hidden = (kind !== 'manual');
-    if (emp) emp.hidden = !(kind === 'salary' || kind === 'advance');
+    if (emp) emp.hidden = true;
     if (inv) inv.hidden = (kind !== 'invoice');
+    syncPayerEmployee(row);
   }
   window.cxDel = function(btn){
     var rows = body.querySelectorAll('.cx-row');
@@ -234,7 +264,7 @@
     row.className = 'cx-row';
     row.innerHTML = '<div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></div>'
       + '<div class="cx-field"><label>תאריך</label><input type="date" name="expense_date"></div>'
-      + '<div class="cx-field"><label>שם</label><input name="payer_name" autocomplete="off"></div>'
+      + '<div class="cx-field"><label>שם</label>' + CX_PAYER_FIELD + '</div>'
       + '<div class="cx-field cx-details"><label>פרטים</label><input name="purpose" class="cx-purpose" placeholder="עבור" autocomplete="off">'
       +   '<select name="expense_employee_id" class="cx-emp">' + CX_EMP_OPTS + '</select>'
       +   '<select name="expense_invoice_id" class="cx-inv">' + CX_INV_OPTS + '</select></div>'
@@ -243,20 +273,27 @@
     body.appendChild(row);
     applyKind(row);
     if (window.apEnhanceDates) window.apEnhanceDates(row); // enhance the new row's date input
+    if (window.apEnhanceCombos) window.apEnhanceCombos(row); // …and its searchable name picker
   }
   body.querySelectorAll('.cx-row').forEach(applyKind);
   body.addEventListener('change', function(e){
-    if (e.target && e.target.classList.contains('cx-kind')) applyKind(e.target.closest('.cx-row'));
-  });
-  body.addEventListener('input', function(e){
-    recalc();
-    var rows = body.querySelectorAll('.cx-row');
-    var last = rows[rows.length - 1];
-    if (last.contains(e.target)) {
-      var filled = Array.prototype.some.call(last.querySelectorAll('input'), function(i){ return i.value.trim() !== ''; });
-      if (filled) addRow();
+    if (!e.target || !e.target.classList) return;
+    if (e.target.classList.contains('cx-kind')) applyKind(e.target.closest('.cx-row'));
+    if (e.target.classList.contains('cx-payer')) {
+      syncPayerEmployee(e.target.closest('.cx-row'));
+      maybeAddRow(e.target);
     }
   });
+  function maybeAddRow(target){
+    var rows = body.querySelectorAll('.cx-row');
+    var last = rows[rows.length - 1];
+    if (!last.contains(target)) return;
+    var filled = Array.prototype.some.call(last.querySelectorAll('input, .cx-payer'), function(i){
+      return i.classList.contains('combo-input') ? false : String(i.value || '').trim() !== '';
+    });
+    if (filled) addRow();
+  }
+  body.addEventListener('input', function(e){ recalc(); maybeAddRow(e.target); });
   recalc();
 })();
 </script>
@@ -293,9 +330,8 @@
     div.className = 'reg-block';
     div.style.cssText = 'background:var(--color-surface);border:1px solid var(--color-line);border-radius:var(--radius-md);margin:.5rem 0;padding:.7rem';
     div.innerHTML =
-      '<div class="row">'
-      + '<div><label>שם פרטי</label><input name="reg_first[]" autocomplete="off"></div>'
-      + '<div><label>שם משפחה</label><input name="reg_last[]" autocomplete="off"></div>'
+      '<div class="reg-counter muted" style="margin:0 0 .4rem">נספר ע"י: <strong>—</strong></div>'
+      + '<div class="row">'
       + '<div><label>קופה</label><select name="reg_number[]"><option value="1">קופה 1</option><option value="2">קופה 2</option><option value="3">קופה 3</option></select></div>'
       + '<div><label>חנות</label><select name="reg_store[]">' + storeOptsHtml() + '</select></div>'
       + '</div>'
@@ -306,7 +342,26 @@
     var sel = div.querySelector('select[name="reg_number[]"]'); if (sel) sel.value = String(Math.min(n, 3));
     list.appendChild(div);
     div.addEventListener('input', function(e){ if (e.target.classList && e.target.classList.contains('rc-cnt')) recalcBlock(div); });
+    showCounter();
   };
+
+  // The counter is chosen ONCE at the top of the form; every register block just echoes it, so the
+  // same name is never typed twice (and the server stamps it onto each saved register).
+  function counterName(){
+    var sel = document.getElementById('counter-emp');
+    if (sel) return sel.selectedIndex > 0 ? sel.options[sel.selectedIndex].text.trim() : '';
+    var f = document.getElementById('counter-first'), l = document.getElementById('counter-last');
+    return ((f && f.value) || '').trim() + ' ' + ((l && l.value) || '').trim();
+  }
+  function showCounter(){
+    var name = counterName().trim();
+    list.querySelectorAll('.reg-counter strong').forEach(function(el){ el.textContent = name || '—'; });
+  }
+  ['counter-emp', 'counter-first', 'counter-last'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) { el.addEventListener('change', showCounter); el.addEventListener('input', showCounter); }
+  });
+
   regAdd(); // start with one register
 })();
 </script>

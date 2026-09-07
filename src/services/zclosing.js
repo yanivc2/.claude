@@ -64,9 +64,14 @@ function normalizeExpenses(rows) {
     .filter((r) => r.amount > 0 || r.payerName || r.purpose || r.invoiceId || r.employeeId);
 }
 
-// Per-register cash balancing counted before the Z. Each register: who counted it, which register
-// (קופה), which store, and a denomination breakdown → total (all agorot, computed server-side).
-// Independent of the main drawer count. Empty registers are dropped.
+// Per-register cash balancing counted before the Z. Each register: which register (קופה), which
+// store, and a denomination breakdown → total (all agorot, computed server-side). Independent of
+// the main drawer count. Empty registers are dropped.
+//
+// The COUNTER is the closing's employee — the form no longer asks for a name per register (it was
+// the same person typed twice). `first`/`last` stay on the row because saved closings carry them
+// and they are what any display reads; `stampRegisterCounter` fills them in from the closing's
+// employee once it is resolved, and a legacy row that already has its own name keeps it.
 function normalizeRegisters(rows) {
   return (rows || [])
     .map((r) => {
@@ -87,6 +92,11 @@ function normalizeRegisters(rows) {
       };
     })
     .filter((r) => r.first || r.last || r.register || r.total > 0);
+}
+
+/** Give every register the closing's counter, unless it carries a name of its own (legacy rows). */
+function stampRegisterCounter(registers, names) {
+  return registers.map((r) => (r.first || r.last ? r : { ...r, first: names.first, last: names.last }));
 }
 
 // Validate + recompute a closing's fields from raw input. Totals are always derived server-side
@@ -148,13 +158,14 @@ async function insertExpenses(t, closingId, expenses) {
 export async function createZClosing(input, actor, x = getExecutor()) {
   const { first, last, employeeId, zNumber, drawerCash, storeId, breakdown, totalCash, expenses, totalExpenses, registers, grandTotal } = computeClosing(input);
   const names = await resolveEmployeeNames(employeeId, first, last, x);
+  const regs = stampRegisterCounter(registers, names);
 
   const info = await tx(async (t) => {
     const r = await t.run(
       `INSERT INTO z_closings
          (employee_first, employee_last, employee_id, store_id, z_number, drawer_cash, started_at, ended_at, breakdown, total_cash, expenses, total_expenses, grand_total, registers, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [names.first, names.last, employeeId, storeId, zNumber, drawerCash, input.startedAt || null, israelNow(), JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, JSON.stringify(registers), actor?.id ?? null],
+      [names.first, names.last, employeeId, storeId, zNumber, drawerCash, input.startedAt || null, israelNow(), JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, JSON.stringify(regs), actor?.id ?? null],
     );
     await insertExpenses(t, r.lastInsertRowid, expenses);
     return r;
@@ -300,11 +311,12 @@ export async function updateZClosing(id, input, actor, x = getExecutor()) {
   await getZClosing(id, x);
   const { first, last, employeeId, zNumber, drawerCash, storeId, breakdown, totalCash, expenses, totalExpenses, registers, grandTotal } = computeClosing(input);
   const names = await resolveEmployeeNames(employeeId, first, last, x);
+  const regs = stampRegisterCounter(registers, names);
   await tx(async (t) => {
     await t.run(
       `UPDATE z_closings SET employee_first = ?, employee_last = ?, employee_id = ?, store_id = ?, z_number = ?, drawer_cash = ?,
          breakdown = ?, total_cash = ?, expenses = ?, total_expenses = ?, grand_total = ?, registers = ? WHERE id = ?`,
-      [names.first, names.last, employeeId, storeId, zNumber, drawerCash, JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, JSON.stringify(registers), id],
+      [names.first, names.last, employeeId, storeId, zNumber, drawerCash, JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, JSON.stringify(regs), id],
     );
     await t.run('DELETE FROM z_closing_expenses WHERE closing_id = ?', [id]);
     await insertExpenses(t, id, expenses);

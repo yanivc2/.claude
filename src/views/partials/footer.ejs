@@ -335,6 +335,7 @@
       }, 150); });
     }
     function enhanceAll(root){ (root || document).querySelectorAll('select.js-combo').forEach(enhance); }
+    window.apEnhanceCombos = enhanceAll; // so dynamically-added rows (e.g. Z-closing expenses) get the combobox
     document.addEventListener('DOMContentLoaded', function(){ enhanceAll(); });
     document.addEventListener('click', function(e){ document.querySelectorAll('.combo-pop').forEach(function(p){ if (!p.parentNode.contains(e.target)) p.hidden = true; }); });
     document.addEventListener('submit', function(e){
