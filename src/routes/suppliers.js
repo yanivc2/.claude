@@ -13,6 +13,8 @@ import {
   getSupplierStoreIds,
   zeroRatedCandidates,
   setSuppliersZeroRated,
+  supplierStoreSuggestions,
+  setSupplierStores,
 } from '../services/suppliers.js';
 import { submitRequest } from '../services/changeRequests.js';
 import { describeSupplier } from '../lib/changeSummary.js';
@@ -46,6 +48,7 @@ async function renderList(req, res, extra = {}) {
     title: 'ספקים',
     suppliers: await listSuppliers(null, undefined, { scope: req.scope }),
     zeroCandidates: await zeroRatedCandidates(req.scope),
+    storeSuggestions: await supplierStoreSuggestions(assignmentScope(req)),
     filter: '',
     error: null,
     notice: null,
@@ -59,6 +62,7 @@ router.get('/', async (req, res, next) => {
       title: 'ספקים',
       suppliers: await listSuppliers(req.query.status || null, undefined, { scope: req.scope }),
       zeroCandidates: await zeroRatedCandidates(req.scope),
+      storeSuggestions: await supplierStoreSuggestions(assignmentScope(req)),
       filter: req.query.status || '',
       error: null,
       notice: null,
@@ -186,6 +190,33 @@ router.post('/zero-rated', requireOwner, async (req, res, next) => {
     await setSuppliersZeroRated(off, false, req.user);
     return renderList(req, res, {
       notice: `${on.length} ספקים מסומנים כ"עסקאות בשיעור אפס"${off.length ? ` · ${off.length} ללא סימון` : ''}.`,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Assign unlinked suppliers to the stores their invoices say they serve. Owner only, and through
+// the ASSIGNMENT scope (the unnarrowed grants) like every other "copy to branch" picker — the
+// active-store lock must not stop the owner assigning a supplier to the branch it actually serves.
+// Each posted store id is still validated, so a forged one cannot create a link out of scope.
+router.post('/assign-stores', requireOwner, async (req, res, next) => {
+  try {
+    const offered = [].concat(req.body.offered || []).map(Number).filter(Boolean);
+    let linked = 0;
+    for (const sid of offered) {
+      const ids = await assertStoreIdsAllowed(
+        [].concat(req.body[`stores_${sid}`] || []).map(Number).filter(Boolean),
+        assignmentScope(req),
+      );
+      if (!ids.length) continue; // left blank = leave it shared with every store
+      await setSupplierStores(sid, ids); // (supplierId, storeIds, executor) — no actor arg
+      linked += 1;
+    }
+    return renderList(req, res, {
+      notice: linked
+        ? `${linked} ספקים שויכו לחנויות. ספק שלא סומן לו כלום נשאר משותף לכל החנויות.`
+        : 'לא נבחרה אף חנות — שום שיוך לא השתנה.',
     });
   } catch (err) {
     next(err);

@@ -1,7 +1,7 @@
 import { getExecutor, nowTs } from '../db/adapter.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
-import { filterByStoreLinks } from '../lib/scope.js';
+import { filterByStoreLinks, scopedStoreList } from '../lib/scope.js';
 import { logAction } from './audit.js';
 
 /** Count suppliers awaiting owner approval — feeds the "אישורים" nav badge. Tolerant pre-upgrade. */
@@ -333,4 +333,53 @@ export async function zeroRatedCandidates(scope = null, x = getExecutor()) {
     })
     .filter((c) => c.zero_rated || c.suggested || c.nameHint)
     .sort((a, b) => (b.suggested - a.suggested) || (b.invoices - a.invoices) || a.name.localeCompare(b.name, 'he'));
+}
+
+/**
+ * Which stores a supplier ACTUALLY buys for, measured from the invoices it has filed.
+ *
+ * Why this exists: `filterByStoreLinks` deliberately treats a supplier with no `supplier_stores`
+ * row as shared with every store — never hidden, so nothing vanished when the link table was
+ * introduced. The consequence is that until a supplier is assigned, choosing a branch does not
+ * narrow the supplier list at all, and the screen looks like it is leaking other branches' data
+ * when it is only showing unassigned ones. The fix is to assign them — and the invoices already
+ * say where each supplier delivers, so nobody has to remember.
+ *
+ * Only suppliers with NO links are offered (assigning an already-assigned supplier is a decision
+ * someone made). A supplier that invoiced two branches gets both — one supplier, two branches, as
+ * the link table was designed for.
+ *
+ * Two flat queries + a JS join: pg-mem refuses a GROUP BY over a join, and this is a small list.
+ *
+ * @param scope the ASSIGNMENT scope (unnarrowed grants) — this is a management action, like the
+ *              "העתק לחנות" pickers, so it must see every store the user may assign to.
+ * @returns {Promise<Array<{id,name,invoices,stores:Array<{id,name,company_name,n}>}>>}
+ */
+export async function supplierStoreSuggestions(scope = null, x = getExecutor()) {
+  const suppliers = (await listSuppliers(null, x, { scope })).filter((s) => !(s.stores || []).length);
+  if (!suppliers.length) return [];
+
+  const allowed = await scopedStoreList(scope, x);
+  const byStore = new Map(allowed.map((st) => [Number(st.id), st]));
+  const counts = await x.many(
+    'SELECT supplier_id, store_id, COUNT(*) AS n FROM invoices GROUP BY supplier_id, store_id',
+    [],
+  );
+
+  const bySupplier = new Map();
+  for (const r of counts) {
+    const st = byStore.get(Number(r.store_id));
+    if (!st) continue; // a store outside the caller's grants is never named back to them
+    const k = Number(r.supplier_id);
+    if (!bySupplier.has(k)) bySupplier.set(k, []);
+    bySupplier.get(k).push({ id: st.id, name: st.name, company_name: st.company_name, n: Number(r.n) });
+  }
+
+  return suppliers
+    .map((s) => {
+      const stores = (bySupplier.get(Number(s.id)) || []).sort((a, b) => b.n - a.n);
+      return { id: Number(s.id), name: s.name, stores, invoices: stores.reduce((t, st) => t + st.n, 0) };
+    })
+    .filter((c) => c.stores.length)   // nothing to infer for a supplier that never invoiced
+    .sort((a, b) => b.invoices - a.invoices || a.name.localeCompare(b.name, 'he'));
 }

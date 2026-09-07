@@ -70,6 +70,53 @@
   </details>
 <% } %>
 
+
+<%# למה רואים ספקים שנראים "של חנות אחרת": ספק בלי שיוך לחנות הוא משותף לכולן ולכן אף פעם לא
+    מוסתר (זו הייתה החלטה מכוונת — כלום לא נעלם כשנוסף השיוך). התוצאה היא שעד שמשייכים, בחירת
+    סניף לא מצמצמת את רשימת הספקים. החשבוניות כבר יודעות לאן כל ספק מוביל, אז מציעים לפי הן. %>
+<% var ss = (typeof storeSuggestions !== 'undefined' && storeSuggestions) ? storeSuggestions : []; %>
+<% if (ss.length && currentUser && currentUser.role === 'owner') { %>
+  <details class="card no-print collapse-card">
+    <summary>שיוך ספקים לחנויות — <%= ss.length %> ספקים ללא שיוך (מופיעים בכל החנויות)</summary>
+    <p class="muted" style="margin:.6rem 0">
+      ספק <strong>ללא שיוך לחנות משותף לכל החנויות</strong> ולכן מופיע גם כשנבחרה חנות פעילה — הוא
+      לא "ספק של חנות אחרת", הוא פשוט עדיין לא שויך. ההצעה למטה נגזרת <strong>מהחשבוניות שהספק
+      הגיש בפועל</strong>: לצד כל חנות מופיע כמה חשבוניות הוא הגיש לה. ספק שמוביל לשני סניפים —
+      סמן את שניהם, זה בדיוק מה שהשיוך נועד לו. ספק שתשאיר בלי סימון יישאר משותף לכולן.
+    </p>
+    <form method="post" action="/suppliers/assign-stores">
+      <div class="table-scroll">
+        <table class="no-enhance">
+          <thead><tr><th>ספק</th><th class="right">חשבוניות</th><th>חנויות לפי החשבוניות</th></tr></thead>
+          <tbody>
+            <% ss.forEach(function(c){ %>
+              <tr>
+                <td>
+                  <input type="hidden" name="offered" value="<%= c.id %>" />
+                  <a href="/suppliers/<%= c.id %>/edit"><%= c.name %></a>
+                </td>
+                <td class="right mono"><%= c.invoices %></td>
+                <td>
+                  <% c.stores.forEach(function(st){ %>
+                    <label style="display:inline-flex;align-items:center;gap:.35rem;margin:0 0 .3rem 1rem;cursor:pointer">
+                      <input type="checkbox" name="stores_<%= c.id %>" value="<%= st.id %>" checked style="width:auto;min-height:0" />
+                      <span><%= st.name %> <span class="muted">(<%= st.n %>)</span></span>
+                    </label>
+                  <% }); %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <div class="actions" style="margin-top:.6rem">
+        <button type="submit">🏪 שייך לפי החשבוניות</button>
+        <span class="muted">ספק שכל תיבותיו ריקות יישאר משותף לכל החנויות.</span>
+      </div>
+    </form>
+  </details>
+<% } %>
+
 <form method="post" action="/suppliers/bulk">
   <div class="card no-print" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap">
     <strong>פעולה על הנבחרים:</strong>
@@ -104,7 +151,7 @@
           <td>
             <% if (s.stores && s.stores.length) { %>
               <% s.stores.forEach(function(st){ %><span class="badge b-neutral" style="margin:1px"><%= st.name %></span><% }); %>
-            <% } else { %><span class="muted">—</span><% } %>
+            <% } else { %><span class="badge b-neutral" title="ספק ללא שיוך לחנות — משותף לכל החנויות ולכן מופיע גם כשנבחרה חנות פעילה">כל החנויות</span><% } %>
           </td>
           <td class="mono hide-sm"><%= s.tax_id || '—' %></td>
           <td><span class="badge b-<%= s.status %>"><%= s.status === 'pending' ? 'ממתין' : s.status === 'approved' ? 'מאושר' : 'חסום' %></span><% if (Number(s.zero_rated)) { %> <span class="badge b-neutral" title="עסקאות בשיעור אפס (§30(א)(13)) — חשבוניות ללא מע\"מ, ללא חובת מספר הקצאה">מע"מ 0%</span><% } %></td>
