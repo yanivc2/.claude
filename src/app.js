@@ -31,7 +31,7 @@ import { requiresAllocationNumber, zeroVatNeedsCheck } from './services/invoices
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-30·139';
+const BUILD_VERSION = '2026-08-30·140';
 
 export function createApp() {
   const app = express();

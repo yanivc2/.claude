@@ -11,6 +11,8 @@ import {
   blockSupplier,
   deleteSupplier,
   getSupplierStoreIds,
+  zeroRatedCandidates,
+  setSuppliersZeroRated,
 } from '../services/suppliers.js';
 import { submitRequest } from '../services/changeRequests.js';
 import { describeSupplier } from '../lib/changeSummary.js';
@@ -18,6 +20,7 @@ import { getExecutor } from '../db/adapter.js';
 import { scopedStoreList, assignmentScope } from '../lib/scope.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { assertStoreAllowed } from '../lib/scopeGuard.js';
+import { requireOwner } from '../middleware/requireOwner.js';
 
 const router = Router();
 
@@ -42,6 +45,7 @@ async function renderList(req, res, extra = {}) {
   res.render('suppliers/index', {
     title: 'ספקים',
     suppliers: await listSuppliers(null, undefined, { scope: req.scope }),
+    zeroCandidates: await zeroRatedCandidates(req.scope),
     filter: '',
     error: null,
     notice: null,
@@ -54,6 +58,7 @@ router.get('/', async (req, res, next) => {
     res.render('suppliers/index', {
       title: 'ספקים',
       suppliers: await listSuppliers(req.query.status || null, undefined, { scope: req.scope }),
+      zeroCandidates: await zeroRatedCandidates(req.scope),
       filter: req.query.status || '',
       error: null,
       notice: null,
@@ -140,7 +145,7 @@ router.post('/bulk', async (req, res, next) => {
   try {
     const ids = [].concat(req.body.ids || []).map(Number).filter(Boolean);
     const action = req.body.bulk_action;
-    if (!ids.length || !['approve', 'block', 'delete'].includes(action)) {
+    if (!ids.length || !['approve', 'block', 'delete', 'zero_rated', 'zero_rated_off'].includes(action)) {
       return renderList(req, res, { error: 'בחר פעולה ולפחות ספק אחד.' });
     }
     let ok = 0;
@@ -149,16 +154,38 @@ router.post('/bulk', async (req, res, next) => {
       try {
         if (action === 'approve') await approveSupplier(id, req.user);
         else if (action === 'block') await blockSupplier(id, req.user, null);
+        else if (action === 'zero_rated') await setSuppliersZeroRated([id], true, req.user);
+        else if (action === 'zero_rated_off') await setSuppliersZeroRated([id], false, req.user);
         else await deleteSupplier(id, req.user);
         ok += 1;
       } catch (e) {
         failures.push(`#${id}: ${e.message}`);
       }
     }
-    const label = { approve: 'אושרו', block: 'נחסמו', delete: 'נמחקו' }[action];
+    const label = { approve: 'אושרו', block: 'נחסמו', delete: 'נמחקו', zero_rated: 'סומנו כעסקאות בשיעור אפס', zero_rated_off: 'הסימון "בשיעור אפס" הוסר מהם' }[action];
     return renderList(req, res, {
       notice: `${ok} ספקים ${label}.`,
       error: failures.length ? failures.join(' · ') : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Mark the produce suppliers in one go, from the candidate rubric. Owner only: it changes how the
+// allocation-number reminder behaves, which is a tax-facing decision, and it is the owner who knows
+// which supplier actually sells fresh produce. The ticked ids are the WHOLE answer — anything the
+// rubric offered and the owner left unticked is cleared, so unmarking works from the same screen.
+router.post('/zero-rated', requireOwner, async (req, res, next) => {
+  try {
+    const offered = [].concat(req.body.offered || []).map(Number).filter(Boolean);
+    const chosen = new Set([].concat(req.body.zero_ids || []).map(Number).filter(Boolean));
+    const on = offered.filter((id) => chosen.has(id));
+    const off = offered.filter((id) => !chosen.has(id));
+    await setSuppliersZeroRated(on, true, req.user);
+    await setSuppliersZeroRated(off, false, req.user);
+    return renderList(req, res, {
+      notice: `${on.length} ספקים מסומנים כ"עסקאות בשיעור אפס"${off.length ? ` · ${off.length} ללא סימון` : ''}.`,
     });
   } catch (err) {
     next(err);

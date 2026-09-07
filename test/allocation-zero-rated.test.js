@@ -18,7 +18,10 @@ import {
   createInvoice, updateInvoice, getInvoice, requiresAllocationNumber, zeroVatNeedsCheck,
   approveInvoiceForPayment, getInvoiceDetail,
 } from '../src/services/invoices.js';
-import { createSupplier, approveSupplier, updateSupplier, getSupplier } from '../src/services/suppliers.js';
+import {
+  createSupplier, approveSupplier, updateSupplier, getSupplier,
+  zeroRatedCandidates, setSuppliersZeroRated,
+} from '../src/services/suppliers.js';
 
 const NET = config.rules.allocationThresholdAgorot;      // 5,000 ₪
 const VATT = config.rules.allocationVatThresholdAgorot;  // 900 ₪
@@ -140,4 +143,63 @@ test('the reminder is silent below the net figure, and once an allocation number
     inv(sup, store, { invoiceNumber: 'S-2', amountBeforeVat: 2000000, vatAmount: 0, allocationNumber: '123456789' }), sec, db,
   );
   assert.equal(zeroVatNeedsCheck(await getInvoiceDetail(withAlloc.id, db)), false);
+});
+
+// --- finding them without guessing --------------------------------------------------------------
+//
+// The owner should not have to open thirty supplier cards to find the greengrocers. A produce
+// supplier is visible in the data it already filed: every one of its tax invoices carries no VAT.
+// That measurement is the only thing that pre-ticks a row; a suggestive NAME is shown as a hint and
+// never marks anybody, because "פירות" in a name is not evidence of anything.
+test('produce suppliers are found from their own invoices, not from their names', async () => {
+  const { db, own, sec, store } = await ctx();
+  const mk = async (name) => approveSupplier((await createSupplier({ name }, sec, db)).id, own, db);
+  const greengrocer = await mk('ירקן השוק');
+  const mixed = await mk('מרכז הפירות בע"מ');   // suggestive name, but real VAT on its invoices
+  const plain = await mk('חשמל ותאורה');
+
+  let n = 0;
+  const file = async (sup, netAgorot, vatAgorot) => {
+    n += 1;
+    await createInvoice(
+      { supplierId: sup.id, storeId: store.id, invoiceNumber: `F-${n}`, invoiceDate: `2026-0${(n % 9) + 1}-0${(n % 8) + 1}`,
+        amountBeforeVat: netAgorot, vatAmount: vatAgorot, docType: 'tax_invoice' },
+      sec, db,
+    );
+  };
+  await file(greengrocer, 800000, 0);
+  await file(greengrocer, 1200000, 0);
+  await file(mixed, 700000, vatOn(700000));
+  await file(plain, 300000, vatOn(300000));
+
+  const cands = await zeroRatedCandidates(null, db);
+  const by = (name) => cands.find((c) => c.name === name);
+
+  assert.ok(by('ירקן השוק')?.suggested, 'every tax invoice VAT-free → pre-ticked');
+  assert.equal(by('ירקן השוק').invoices, 2);
+  assert.equal(by('ירקן השוק').zeroVat, 2);
+
+  const m = by('מרכז הפירות בע"מ');
+  assert.ok(m, 'a suggestive name still surfaces for a human to judge');
+  assert.equal(m.suggested, false, 'but a name never marks anybody — its invoices carry VAT');
+  assert.equal(m.nameHint, true);
+
+  assert.equal(by('חשמל ותאורה'), undefined, 'an ordinary supplier is not even listed');
+});
+
+test('bulk marking sets and clears the flag, and the list reflects it', async () => {
+  const { db, own, sec, store } = await ctx();
+  const sup = await approveSupplier((await createSupplier({ name: 'ירקות הגליל' }, sec, db)).id, own, db);
+  await createInvoice(
+    { supplierId: sup.id, storeId: store.id, invoiceNumber: 'G-1', invoiceDate: '2026-04-01',
+      amountBeforeVat: 900000, vatAmount: 0, docType: 'tax_invoice' },
+    sec, db,
+  );
+
+  await setSuppliersZeroRated([sup.id], true, own, db);
+  assert.equal(Number((await getSupplier(sup.id, db)).zero_rated), 1);
+  assert.equal((await zeroRatedCandidates(null, db)).find((c) => c.id === sup.id).zero_rated, 1);
+
+  await setSuppliersZeroRated([sup.id], false, own, db);
+  assert.equal(Number((await getSupplier(sup.id, db)).zero_rated), 0);
 });

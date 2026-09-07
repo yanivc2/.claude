@@ -270,3 +270,67 @@ function requireOwner(actor) {
     throw new AuthError('אישור/חסימת/מחיקת ספק — נדרשת הרשאת ניהול ספקים (R6)');
   }
 }
+
+// ── ספקים בשיעור אפס (§30(א)(13)) ──────────────────────────────────────────────────────────────
+
+/** Set/clear the zero-rated flag on several suppliers at once (owner action). */
+export async function setSuppliersZeroRated(ids, on, actor, x = getExecutor()) {
+  const list = [...new Set((ids || []).map(Number).filter(Boolean))];
+  for (const id of list) {
+    await x.run('UPDATE suppliers SET zero_rated = ? WHERE id = ?', [on ? 1 : 0, id]);
+    await logAction(
+      { userId: actor?.id ?? null, action: on ? 'supplier.zero_rated_on' : 'supplier.zero_rated_off', entityType: 'supplier', entityId: id },
+      x,
+    );
+  }
+  return list.length;
+}
+
+// A weak hint only — a name never marks anybody by itself. It is here so a supplier with no
+// invoices yet still surfaces in the list for a human to judge.
+const PRODUCE_WORDS = ['פירות', 'ירקות', 'ירקן', 'תוצרת', 'חקלא', 'פרדס', 'מטע', 'משתלה', 'בוסתן'];
+
+/**
+ * Which suppliers look like zero-rated (fresh produce) suppliers — from THEIR OWN INVOICES, not
+ * from their names. For each supplier: how many tax invoices it has, and how many of those carried
+ * no VAT. A supplier whose every tax invoice is VAT-free is what a produce supplier looks like in
+ * the data; that is the only thing that pre-ticks a row. The name hint is shown but never decides.
+ *
+ * Deliberately two simple queries + a JS join: pg-mem (the Postgres dialect the tests run against)
+ * refuses a GROUP BY over a join, and this is a handful of rows either way.
+ *
+ * @returns {Promise<Array<{id, name, zero_rated, invoices, zeroVat, share, nameHint, suggested}>>}
+ */
+export async function zeroRatedCandidates(scope = null, x = getExecutor()) {
+  const suppliers = await listSuppliers(null, x, { scope });
+  const rows = await x.many(
+    `SELECT supplier_id,
+            COUNT(*) AS n,
+            SUM(CASE WHEN vat_amount = 0 THEN 1 ELSE 0 END) AS nz
+       FROM invoices
+      WHERE doc_type = 'tax_invoice'
+      GROUP BY supplier_id`,
+    [],
+  );
+  const byId = new Map(rows.map((r) => [Number(r.supplier_id), { n: Number(r.n), nz: Number(r.nz) }]));
+
+  return suppliers
+    .map((s) => {
+      const agg = byId.get(Number(s.id)) || { n: 0, nz: 0 };
+      const share = agg.n ? agg.nz / agg.n : 0;
+      const nameHint = PRODUCE_WORDS.some((w) => String(s.name || '').includes(w));
+      return {
+        id: Number(s.id),
+        name: s.name,
+        zero_rated: Number(s.zero_rated) ? 1 : 0,
+        invoices: agg.n,
+        zeroVat: agg.nz,
+        share,
+        nameHint,
+        // Measured, not assumed: every tax invoice this supplier ever filed carried no VAT.
+        suggested: agg.n >= 1 && agg.nz === agg.n,
+      };
+    })
+    .filter((c) => c.zero_rated || c.suggested || c.nameHint)
+    .sort((a, b) => (b.suggested - a.suggested) || (b.invoices - a.invoices) || a.name.localeCompare(b.name, 'he'));
+}

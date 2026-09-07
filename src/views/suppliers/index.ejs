@@ -24,6 +24,52 @@
 
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 
+
+<%# ספקי פירות וירקות — מזוהים מהחשבוניות שלהם עצמם, לא מהשם. חשבונית של ירקן נושאת מע"מ 0
+    (§30(א)(13)), ולכן ספק שכל חשבוניות המס שלו ללא מע"מ הוא בדיוק מה שאנחנו מחפשים. השם הוא
+    רמז בלבד ולעולם לא מסמן לבד. %>
+<% var zc = (typeof zeroCandidates !== 'undefined' && zeroCandidates) ? zeroCandidates : []; %>
+<% if (zc.length && currentUser && currentUser.role === 'owner') { %>
+  <details class="card no-print collapse-card" <%= zc.some(function(c){ return c.suggested && !c.zero_rated; }) ? 'open' : '' %>>
+    <summary>ספקים בשיעור אפס (פירות וירקות) — <%= zc.filter(function(c){ return c.zero_rated; }).length %> מסומנים · <%= zc.length %> מועמדים</summary>
+    <p class="muted" style="margin:.6rem 0">
+      מכירת פירות וירקות טריים שלא עברו עיבוד היא <strong>מס בשיעור אפס</strong> (§30(א)(13) לחוק מע"מ),
+      ולכן חשבוניות הספק נושאות מע"מ 0 ו<strong>אינן חייבות מספר הקצאה בשום סכום</strong>.
+      הסימון <strong>אינו משנה את הבדיקה</strong> — היא תמיד לפי המע"מ שעל החשבונית בפועל, כך שחשבונית
+      מעורבת של אותו ספק עדיין תיחסם. הוא רק מכבה את התזכורת "חשבונית מס גדולה בלי מע"מ" עבורו.
+    </p>
+    <form method="post" action="/suppliers/zero-rated">
+      <div class="table-scroll">
+        <table class="no-enhance">
+          <thead><tr><th style="width:2rem"></th><th>ספק</th><th class="right">חשבוניות מס</th><th class="right">מהן ללא מע"מ</th><th>ראיה</th></tr></thead>
+          <tbody>
+            <% zc.forEach(function(c){ %>
+              <tr>
+                <td>
+                  <input type="hidden" name="offered" value="<%= c.id %>" />
+                  <input type="checkbox" name="zero_ids" value="<%= c.id %>" <%= (c.zero_rated || c.suggested) ? 'checked' : '' %> />
+                </td>
+                <td><a href="/suppliers/<%= c.id %>/edit"><%= c.name %></a><% if (c.zero_rated) { %> <span class="badge b-neutral">מסומן</span><% } %></td>
+                <td class="right mono"><%= c.invoices %></td>
+                <td class="right mono"><%= c.zeroVat %></td>
+                <td class="muted">
+                  <% if (c.suggested) { %>כל חשבוניות המס שלו ללא מע"מ<% }
+                     else if (c.invoices) { %><%= Math.round(c.share * 100) %>% מחשבוניותיו ללא מע"מ<% }
+                     else { %>אין עדיין חשבוניות<% } %><% if (c.nameHint) { %> · השם רומז על תוצרת חקלאית<% } %>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <div class="actions" style="margin-top:.6rem">
+        <button type="submit">💾 שמור סימון</button>
+        <span class="muted">מה שמסומן — יסומן; מה שלא — הסימון יוסר ממנו.</span>
+      </div>
+    </form>
+  </details>
+<% } %>
+
 <form method="post" action="/suppliers/bulk">
   <div class="card no-print" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap">
     <strong>פעולה על הנבחרים:</strong>
@@ -31,6 +77,8 @@
       <option value="approve">אשר</option>
       <option value="block">חסום</option>
       <option value="delete">מחק</option>
+      <option value="zero_rated">סמן: עסקאות בשיעור אפס</option>
+      <option value="zero_rated_off">בטל: עסקאות בשיעור אפס</option>
     </select>
     <button type="submit" onclick="return confirm('לבצע את הפעולה על הספקים הנבחרים?')">בצע</button>
     <span class="muted">סמן שורות עם התיבות. אישור/חסימה/מחיקה — פעולות בעלים. מחיקה רק לספק ללא חשבוניות.</span>
