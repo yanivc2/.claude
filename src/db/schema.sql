@@ -615,3 +615,48 @@ CREATE TABLE IF NOT EXISTS salary_payments (
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
 CREATE INDEX IF NOT EXISTS ix_salary_payments_store ON salary_payments(store_id, due_date);
+
+-- §4 bank_transfers — "העברות בנקאיות": the REQUEST to make a transfer, raised in the app BEFORE
+-- anyone touches the bank, and the audit trail that follows it.
+--
+-- WHY A REQUEST AND NOT A RECORD: software cannot stop somebody logging into the bank and moving
+-- money. What it can do is make an unrecorded transfer impossible to HIDE. So the flow is inverted
+-- — the secretary raises the request here, the owner approves it here, and only then is the
+-- transfer made; every outgoing movement the bank later reports that has no request behind it is
+-- an alarm (services/transfers.js#untrackedTransfers).
+--
+-- Almost nothing is typed. The invoices are TICKED, and the amount, supplier, store and bank
+-- account are all derived from them — so the request cannot be for an amount nobody owes, and the
+-- owner's approval is of a specific payee and a specific sum rather than of a screenshot.
+--
+-- opened_at is the enforcement anchor: it is stamped in Israel time when the request is raised, and
+-- compared against the bank's own date for the movement. A request created AFTER the money already
+-- moved is back-filling, and says so on the page.
+CREATE TABLE IF NOT EXISTS bank_transfers (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id        INTEGER NOT NULL REFERENCES stores(id),
+  bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
+  supplier_id     INTEGER REFERENCES suppliers(id),
+  amount          INTEGER NOT NULL,                    -- agorot, derived from the linked invoices
+  status          TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending','approved','executed','rejected','cancelled')),
+  opened_at       TEXT NOT NULL,                       -- Israel time the request was raised
+  opened_by       INTEGER NOT NULL REFERENCES users(id),
+  approved_at     TEXT,
+  approved_by     INTEGER REFERENCES users(id),
+  rejected_reason TEXT,
+  executed_at     TEXT,                                -- when the transfer was actually made
+  reference       TEXT,                                -- the bank's אסמכתה — the only typed field
+  payment_id      INTEGER REFERENCES payments(id),     -- the payments row created on execute
+  note            TEXT,
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_bank_transfers_store ON bank_transfers(store_id, status);
+
+-- Which unpaid invoices this transfer pays. The amount is their sum; nothing is typed.
+CREATE TABLE IF NOT EXISTS bank_transfer_lines (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  transfer_id INTEGER NOT NULL REFERENCES bank_transfers(id) ON DELETE CASCADE,
+  invoice_id  INTEGER NOT NULL REFERENCES invoices(id),
+  UNIQUE (transfer_id, invoice_id)
+);

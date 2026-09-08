@@ -110,6 +110,9 @@ router.all('/bank-sync', async (req, res) => {
 // weeks would hear nothing — so it also runs nightly. Idempotent through payments.void_alerted, so
 // a quiet night sends nothing at all.
 //
+// It also runs the transfer watch, for the same reason: an undocumented transfer is only visible
+// once the bank reports it, and nothing a user does would look.
+//
 //   GET /ingest/voided-checks        (Authorization: Bearer <CRON_SECRET>)
 //   GET /ingest/voided-checks?key=<CRON_SECRET>
 router.all('/voided-checks', async (req, res) => {
@@ -120,9 +123,11 @@ router.all('/voided-checks', async (req, res) => {
     if (given !== config.cronSecret) return res.status(401).json({ ok: false, error: 'bad secret' });
 
     const { alertOnVoidedChecks, alertOnExpiredNotCollected } = await import('../services/voidedChecks.js');
+    const { alertOnUntrackedTransfers } = await import('../services/transfers.js');
     const problems = await alertOnVoidedChecks();
     const expired = await alertOnExpiredNotCollected();
-    return res.json({ ok: true, problems, expired });
+    const untracked = await alertOnUntrackedTransfers();
+    return res.json({ ok: true, problems, expired, untracked });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err.message });
   }

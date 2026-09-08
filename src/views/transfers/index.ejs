@@ -1,0 +1,164 @@
+<%- include('../partials/header') %>
+<div class="toolbar"><h1>העברות בנקאיות</h1></div>
+
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+<% if (!ready) { %>
+  <div class="alert alert-warn">
+    <strong>נדרש עדכון מסד נתונים.</strong> טבלאות ההעברות עדיין לא קיימות.
+    היכנס ל<a href="/settings">הגדרות</a> ולחץ <strong>"עדכן מסד נתונים"</strong>, ואז רענן.
+  </div>
+<% } else { %>
+
+<%# THE ENFORCEMENT. Everything else on this page is procedure; this rubric is the bank's own
+    statement saying money left without a request behind it. It is shown first and in red. %>
+<% if (untracked.length) { %>
+  <div class="card" style="border:2px solid var(--color-danger, #c0392b); background:rgba(192,57,43,.06)">
+    <h2 style="margin:0 0 .3rem; color:var(--color-danger, #c0392b)">🔴 העברות בבנק ללא תיעוד (<%= untracked.length %>)</h2>
+    <p class="muted" style="margin:0 0 .5rem">תנועות יוצאות שאין מאחוריהן בקשת העברה. כל אחת מהן נשלחה גם בפוש.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>תאריך</th><th class="right">סכום</th><th>חנות</th><th>חשבון</th><th>תיאור</th><th>אסמכתה</th></tr></thead>
+        <tbody>
+          <% untracked.forEach(function(t){ %>
+            <tr>
+              <td class="mono"><%= formatDate(t.txn_date) %></td>
+              <td class="right neg"><%= formatIls(t.amount) %></td>
+              <td><%= t.store_name %></td>
+              <td><%= t.account_name %></td>
+              <td><%= t.description || '' %></td>
+              <td class="mono"><%= t.raw_reference || '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <p class="muted" style="margin:.5rem 0 0">מטפלים בזה ב<a href="/reconciliation">התאמת בנק</a> — התאמה לתשלום קיים מסירה את השורה מכאן.</p>
+  </div>
+<% } %>
+
+<%# The request. Nothing about the money is typed: the invoices are ticked and everything else is
+    derived from them, so the owner approves a payee and a sum rather than a screenshot. %>
+<details class="card no-print collapse-card" <%= invoiceOptions.length ? 'open' : '' %>>
+  <summary>בקשת העברה חדשה</summary>
+  <p class="muted" style="margin:.6rem 0">
+    בחר את החשבוניות שההעברה משלמת — <strong>הסכום, הספק, החנות והחשבון נגזרים מהן</strong> ואין מה להקליד.
+    מוצגות רק חשבוניות <strong>מאושרות לתשלום שטרם שולמו</strong>, של ספק מאושר, מהחנויות שלך.
+    <strong>אין לבצע את ההעברה בבנק לפני שהבקשה אושרה.</strong>
+  </p>
+  <% if (!invoiceOptions.length) { %>
+    <p class="muted">אין כרגע חשבוניות מאושרות לתשלום. אשר חשבונית ב<a href="/invoices">חשבוניות</a> תחילה.</p>
+  <% } else { %>
+    <form method="post" action="/transfers">
+      <div class="table-scroll">
+        <table class="no-enhance">
+          <thead><tr><th style="width:2rem"></th><th>ספק</th><th>חשבונית</th><th>תאריך</th><th>חנות</th><th class="right">סכום</th></tr></thead>
+          <tbody>
+            <% invoiceOptions.forEach(function(i){ %>
+              <tr>
+                <td><input type="checkbox" name="invoice_ids" value="<%= i.id %>" /></td>
+                <td><%= i.supplier_name %></td>
+                <td class="mono"><a href="/invoices/<%= i.id %>"><%= i.invoice_number %></a></td>
+                <td class="mono"><%= formatDate(i.invoice_date) %></td>
+                <td><%= i.store_name %></td>
+                <td class="right"><%= formatIls(i.total_amount) %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <div class="row" style="margin-top:.6rem">
+        <div><label>הערה (לא חובה)</label><input name="note" autocomplete="off" /></div>
+      </div>
+      <div class="actions" style="margin-top:.6rem">
+        <button type="submit">צור בקשת העברה</button>
+        <span class="muted">העברה אחת = ספק אחד וחנות אחת.</span>
+      </div>
+    </form>
+  <% } %>
+</details>
+
+<div class="card">
+  <h2 style="margin:0 0 .5rem">בקשות</h2>
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr><th>תאריך פתיחה</th><th>עבור</th><th>חשבוניות</th><th class="right">סכום</th><th>אסמכתה</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr>
+      </thead>
+      <tbody>
+        <% if (!transfers.length) { %><tr><td colspan="7" class="muted">אין בקשות העברה.</td></tr><% } %>
+        <% transfers.forEach(function(t){ %>
+          <tr id="t<%= t.id %>">
+            <td class="mono"><%= String(t.opened_at || '').slice(0,16) %><br /><span class="muted" style="font-size:11px"><%= t.opened_by_name || '' %></span></td>
+            <td><%= t.supplier_name || '—' %><br /><span class="muted" style="font-size:11px"><%= t.store_name %></span></td>
+            <td>
+              <% t.invoices.forEach(function(i){ %><a class="badge b-neutral" href="/invoices/<%= i.id %>"><%= i.invoice_number %></a> <% }); %>
+            </td>
+            <td class="right"><strong><%= formatIls(t.amount) %></strong></td>
+            <td class="mono"><%= t.reference || '—' %></td>
+            <td>
+              <span class="badge <%= (statuses[t.displayStatus] || {}).badge || 'b-neutral' %>"><%= statusLabel(t.displayStatus) %></span>
+              <% if (t.approved_by_name) { %><br /><span class="muted" style="font-size:11px">אושר ע"י <%= t.approved_by_name %></span><% } %>
+              <% if (t.rejected_reason) { %><br /><span class="muted" style="font-size:11px"><%= t.rejected_reason %></span><% } %>
+            </td>
+            <td class="no-print">
+              <% if (t.status === 'pending' && currentUser.role === 'owner') { %>
+                <%# The owner's one action, taken BEFORE the money moves — the invoice is one click
+                    away in the column to the right, which is what replaces the WhatsApp photo. %>
+                <form method="post" action="/transfers/<%= t.id %>/approve" style="display:inline">
+                  <button class="small" type="submit">אשר</button>
+                </form>
+                <details class="menu" style="display:inline-block">
+                  <summary class="btn btn-secondary small">דחה</summary>
+                  <div class="menu-panel" style="min-width:200px;padding:8px">
+                    <form method="post" action="/transfers/<%= t.id %>/reject">
+                      <input name="reason" placeholder="סיבה" />
+                      <button class="danger small btn-block" type="submit" style="margin-top:6px">דחה בקשה</button>
+                    </form>
+                  </div>
+                </details>
+              <% } %>
+              <% if (t.status === 'approved') { %>
+                <%# The only typed field in the whole flow. "נפרע" is never typed — it arrives from
+                    the bank matching the payment this creates. %>
+                <details>
+                  <summary class="muted" style="cursor:pointer;font-size:12px">בוצע — רשום אסמכתה</summary>
+                  <form method="post" action="/transfers/<%= t.id %>/execute" style="margin-top:.35rem">
+                    <input name="reference" placeholder="מספר אסמכתה מהבנק" required />
+                    <input type="date" name="payment_date" style="margin-top:.3rem" />
+                    <button class="small" type="submit" style="margin-top:.3rem">רשום ביצוע</button>
+                  </form>
+                </details>
+              <% } %>
+              <% if (t.status === 'pending' || t.status === 'approved') { %>
+                <form method="post" action="/transfers/<%= t.id %>/cancel" style="display:inline" onsubmit="return confirm('לבטל את הבקשה?')">
+                  <button class="btn btn-secondary small" type="submit">בטל</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<% if (currentUser.role === 'owner') { %>
+  <details class="card collapse-card">
+    <summary>מעקב אחר העברות ללא תיעוד<%= watchFrom ? ' — פעיל מ-' + watchFrom : ' — כבוי' %></summary>
+    <p class="muted" style="margin:.6rem 0">
+      מרגע שתאריך זה נקבע, <strong>כל תנועה יוצאת בדף הבנק שאין מאחוריה בקשת העברה</strong> תישלח אליך
+      בפוש ותופיע למעלה באדום. <strong>הכלל צופה קדימה בלבד</strong> — תנועות לפני התאריך לא נבדקות,
+      כדי שהתראה לא תירה על היסטוריה. צ׳קים לא נכללים: הם נעקבים לפי מספר הצ׳ק בדף שלהם.
+    </p>
+    <form method="post" action="/transfers/watch" class="actions">
+      <div><label>מעקב מתאריך</label><input type="date" name="watch_from" value="<%= watchFrom || watchDefault %>" /></div>
+      <div><button type="submit">שמור</button></div>
+      <span class="muted">להשארת המעקב כבוי — נקה את השדה ושמור.</span>
+    </form>
+  </details>
+<% } %>
+
+<% } %>
+<%- include('../partials/footer') %>

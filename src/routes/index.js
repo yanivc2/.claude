@@ -101,6 +101,14 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       notDepositedCount: (await declaredNotDeposited({ scope, storeId })).length,
       openChecksCount,
       voidedInBank: await voidedChecksSeenInBank(scope, storeId),
+      // An outgoing transfer the bank reported with no request behind it (services/transfers.js).
+      // Tolerant: the table arrives with a schema upgrade the owner runs by hand.
+      untrackedTransfers: await (async () => {
+        try {
+          const { untrackedTransfers } = await import('../services/transfers.js');
+          return await untrackedTransfers({ scope });
+        } catch { return []; }
+      })(),
     });
   } catch (err) {
     next(err);

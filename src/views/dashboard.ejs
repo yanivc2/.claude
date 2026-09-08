@@ -1,6 +1,26 @@
 <%- include('partials/header') %>
 <h1>לוח בקרה</h1>
 
+<% if (typeof untrackedTransfers !== 'undefined' && untrackedTransfers && untrackedTransfers.length) { %>
+  <div class="card" style="border:2px solid var(--color-danger, #c0392b); background:rgba(192,57,43,.06)">
+    <h2 style="margin:0 0 .3rem; color:var(--color-danger, #c0392b)">🔴 העברה בבנק ללא תיעוד (<%= untrackedTransfers.length %>)</h2>
+    <p class="muted" style="margin:0 0 .4rem">כסף יצא מהחשבון ואין מאחוריו בקשת העברה מאושרת. פירוט וטיפול ב<a href="/transfers">העברות בנקאיות</a>.</p>
+    <table>
+      <thead><tr><th>תאריך</th><th class="right">סכום</th><th>חנות</th><th>תיאור</th></tr></thead>
+      <tbody>
+        <% untrackedTransfers.slice(0, 8).forEach(function(t){ %>
+          <tr>
+            <td class="mono"><%= formatDate(t.txn_date) %></td>
+            <td class="right neg"><%= formatIls(t.amount) %></td>
+            <td><%= t.store_name %></td>
+            <td><%= t.description || '' %></td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+
 <% if (typeof voidedInBank !== 'undefined' && voidedInBank && voidedInBank.count) { %>
   <div class="card" style="border:2px solid var(--color-danger, #c0392b); background:rgba(192,57,43,.06)">
     <h2 style="margin:0 0 .3rem; color:var(--color-danger, #c0392b)">🔴 צ׳ק שבוטל נפרע (<%= voidedInBank.count %>)</h2>

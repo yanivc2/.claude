@@ -620,3 +620,32 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_link_payment_id INTEGER REFER
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_link_invoice_id INTEGER REFERENCES invoices(id);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_cash_expense_id INTEGER;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_alerted TEXT;
+
+-- §4 bank_transfers — "העברות בנקאיות" (see schema.sql for the story and why it is a REQUEST).
+CREATE TABLE IF NOT EXISTS bank_transfers (
+  id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id        INTEGER NOT NULL REFERENCES stores(id),
+  bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
+  supplier_id     INTEGER REFERENCES suppliers(id),
+  amount          INTEGER NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'pending'
+                  CHECK (status IN ('pending','approved','executed','rejected','cancelled')),
+  opened_at       TEXT NOT NULL,
+  opened_by       INTEGER NOT NULL REFERENCES users(id),
+  approved_at     TEXT,
+  approved_by     INTEGER REFERENCES users(id),
+  rejected_reason TEXT,
+  executed_at     TEXT,
+  reference       TEXT,
+  payment_id      INTEGER REFERENCES payments(id),
+  note            TEXT,
+  created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+);
+CREATE INDEX IF NOT EXISTS ix_bank_transfers_store ON bank_transfers(store_id, status);
+
+CREATE TABLE IF NOT EXISTS bank_transfer_lines (
+  id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  transfer_id INTEGER NOT NULL REFERENCES bank_transfers(id) ON DELETE CASCADE,
+  invoice_id  INTEGER NOT NULL REFERENCES invoices(id),
+  UNIQUE (transfer_id, invoice_id)
+);

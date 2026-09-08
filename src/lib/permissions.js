@@ -26,6 +26,7 @@ export const PERMISSIONS = [
   { key: 'nav_profitability', label: 'רווחיות', group: 'עמודים', icon: '💰', desc: 'דוח רווח גולמי ומרווח.' },
   { key: 'nav_audit', label: 'יומן', group: 'עמודים', icon: '📅', desc: 'לוח שנה, תזכורות ולוג פעולות.' },
   { key: 'nav_employees', label: 'עובדים ומשכורות', group: 'עמודים', icon: '👥', desc: 'עובדים, תשלומי שכר ומעקב מפרעות/שכר מדוחות Z.' },
+  { key: 'nav_transfers', label: 'העברות בנקאיות', group: 'עמודים', icon: '🏦', desc: 'בקשות העברה, אישור הבעלים ומעקב אחר העברות ללא תיעוד.' },
   { key: 'nav_voided_checks', label: 'צ׳קים מבוטלים', group: 'עמודים', icon: '🚫', desc: 'מעקב אחר צ׳קים שבוטלו — צ׳ק נשאר בר-פירעון חצי שנה.' },
   { key: 'nav_zclosing', label: 'סגירת Z', group: 'עמודים', icon: '🔒', desc: 'ספירת קופה. לעובד קופה — סמן רק את זה כדי לנעול אותו לדף זה בלבד.' },
   { key: 'nav_scan', label: 'צילום חשבוניות', group: 'עמודים', icon: '📷', desc: 'צילום חשבוניות בנייד, עיבוד אוטומטי ואישור קליטה.' },
@@ -45,7 +46,7 @@ export const ROLE_PRESETS = [
   {
     key: 'store_manager', label: 'מנהל חנות', icon: '👔',
     desc: 'כמו מזכירה + אישור תשלומים, ניהול ספקים ורווחיות.',
-    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'nav_outstanding', 'nav_profitability', 'nav_reconciliation', 'nav_scan', 'nav_products', 'nav_employees', 'nav_voided_checks', 'hold_invoice', 'approve_payment', 'manage_suppliers', 'edit_invoice', 'manage_deposits', 'import_bank'],
+    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_suppliers', 'nav_outstanding', 'nav_profitability', 'nav_reconciliation', 'nav_scan', 'nav_products', 'nav_employees', 'nav_voided_checks', 'nav_transfers', 'hold_invoice', 'approve_payment', 'manage_suppliers', 'edit_invoice', 'manage_deposits', 'import_bank'],
   },
   {
     key: 'cashier', label: 'עובד קופה', icon: '🔒',
@@ -60,7 +61,7 @@ export const ROLE_PRESETS = [
   {
     key: 'viewer', label: 'צפייה בלבד', icon: '👁️',
     desc: 'רואה את כל הדפים, ללא הרשאות פעולה.',
-    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_outstanding', 'nav_reconciliation', 'nav_suppliers', 'nav_profitability', 'nav_audit', 'nav_employees', 'nav_voided_checks'],
+    perms: ['nav_dashboard', 'nav_invoices', 'nav_payments', 'nav_zreports', 'nav_outstanding', 'nav_reconciliation', 'nav_suppliers', 'nav_profitability', 'nav_audit', 'nav_employees', 'nav_voided_checks', 'nav_transfers'],
   },
 ];
 
@@ -77,6 +78,7 @@ export const NAV_PAGES = [
   { key: 'nav_profitability', path: '/reports/profitability' },
   { key: 'nav_audit', path: '/audit' },
   { key: 'nav_employees', path: '/employees' },
+  { key: 'nav_transfers', path: '/transfers' },
   { key: 'nav_voided_checks', path: '/voided-checks' },
   { key: 'nav_zclosing', path: '/zclosing' },
   { key: 'nav_scan', path: '/scan' },
@@ -98,6 +100,7 @@ export const NAV_ALLOW = {
   nav_profitability: ['/reports/profitability'],
   nav_audit: ['/audit'],
   nav_employees: ['/employees'],
+  nav_transfers: ['/transfers'],
   nav_voided_checks: ['/voided-checks'],
   nav_zclosing: ['/zclosing'],
   nav_scan: ['/scan'],

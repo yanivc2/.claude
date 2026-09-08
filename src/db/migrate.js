@@ -29,6 +29,7 @@ export function migrate(db) {
   migrateNotifications(db);
   migrateRevenueReports(db);
   migrateVoidedChecks(db); // after payments/employees/z_closings exist
+  migrateBankTransfers(db);
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -396,6 +397,46 @@ function migrateUserAuth(db) {
   if (!cols.includes('login_start')) db.exec('ALTER TABLE users ADD COLUMN login_start TEXT;');
   if (!cols.includes('login_end')) db.exec('ALTER TABLE users ADD COLUMN login_end TEXT;');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;');
+}
+
+// "העברות בנקאיות" — the transfer REQUEST raised before the money moves (see schema.sql).
+function migrateBankTransfers(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  if (!has('payments') || !has('invoices') || !has('stores')) return;
+  if (!has('bank_transfers')) {
+    db.exec(`
+      CREATE TABLE bank_transfers (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        store_id        INTEGER NOT NULL REFERENCES stores(id),
+        bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
+        supplier_id     INTEGER REFERENCES suppliers(id),
+        amount          INTEGER NOT NULL,
+        status          TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (status IN ('pending','approved','executed','rejected','cancelled')),
+        opened_at       TEXT NOT NULL,
+        opened_by       INTEGER NOT NULL REFERENCES users(id),
+        approved_at     TEXT,
+        approved_by     INTEGER REFERENCES users(id),
+        rejected_reason TEXT,
+        executed_at     TEXT,
+        reference       TEXT,
+        payment_id      INTEGER REFERENCES payments(id),
+        note            TEXT,
+        created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+      );
+      CREATE INDEX IF NOT EXISTS ix_bank_transfers_store ON bank_transfers(store_id, status);
+    `);
+  }
+  if (!has('bank_transfer_lines')) {
+    db.exec(`
+      CREATE TABLE bank_transfer_lines (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        transfer_id INTEGER NOT NULL REFERENCES bank_transfers(id) ON DELETE CASCADE,
+        invoice_id  INTEGER NOT NULL REFERENCES invoices(id),
+        UNIQUE (transfer_id, invoice_id)
+      );
+    `);
+  }
 }
 
 // ביטול צ'ק with a reason (see schema.sql) + the salary-payment table behind "עובדים ומשכורות".
