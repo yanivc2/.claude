@@ -31,6 +31,7 @@ export function migrate(db) {
   migrateVoidedChecks(db); // after payments/employees/z_closings exist
   migrateBankTransfers(db);
   migrateSupplierBank(db);
+  migrateEmployeeAdvances(db); // after employees/stores/salary_payments exist
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -623,4 +624,44 @@ function migratePaymentsMethods(db) {
   });
   run();
   db.pragma('foreign_keys = ON');
+}
+
+// מפרעות והלוואות לעובד + ההחזרים שלהן (ראה schema.sql).
+function migrateEmployeeAdvances(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  if (!has('employees') || !has('stores')) return;
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS employee_advances (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      employee_id   INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      store_id      INTEGER NOT NULL REFERENCES stores(id),
+      kind          TEXT NOT NULL DEFAULT 'advance' CHECK (kind IN ('advance','loan')),
+      issued_date   TEXT NOT NULL,
+      amount        INTEGER NOT NULL,
+      method        TEXT,
+      reference     TEXT,
+      note          TEXT,
+      z_expense_id  INTEGER UNIQUE,
+      created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+      created_by    INTEGER REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS ix_employee_advances ON employee_advances(employee_id, issued_date);
+    CREATE INDEX IF NOT EXISTS ix_employee_advances_store ON employee_advances(store_id);
+  `);
+  // ההחזרים מצביעים גם על תשלום שכר, אז הטבלה נוצרת רק אחרי שהוא קיים.
+  if (!has('salary_payments')) return;
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS employee_advance_repayments (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      advance_id        INTEGER NOT NULL REFERENCES employee_advances(id) ON DELETE CASCADE,
+      repaid_date       TEXT NOT NULL,
+      amount            INTEGER NOT NULL,
+      source            TEXT NOT NULL DEFAULT 'salary' CHECK (source IN ('salary','cash','other')),
+      salary_payment_id INTEGER REFERENCES salary_payments(id),
+      note              TEXT,
+      created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+      created_by        INTEGER REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS ix_advance_repayments ON employee_advance_repayments(advance_id, repaid_date);
+  `);
 }

@@ -197,6 +197,202 @@
   </div>
 </div>
 
+<%# מפרעות והלוואות — הספר של "כמה העובד חייב". מפרעה שיצאה מהקופה משוקפת לכאן מדוח ה-Z
+    (ולכן מסומנת "מ-Z" ואי אפשר למחוק אותה כאן); מפרעה שניתנה בהעברה/צ׳ק/מהכיס נרשמת ידנית.
+    יתרה = סכום פחות ההחזרים, ולכן היא לא יכולה להתנתק מהשורות. %>
+<% var advReady = (typeof advancesReady !== 'undefined') ? advancesReady : false; %>
+<% var advs = (typeof advances !== 'undefined' && advances) ? advances : []; %>
+<% var balances = (typeof advanceBalances !== 'undefined' && advanceBalances) ? advanceBalances : []; %>
+<div class="card">
+  <div class="toolbar" style="align-items:center;margin:0 0 .4rem">
+    <h2 style="margin:0">מפרעות והלוואות</h2>
+    <% if (balances.length) { %>
+      <span class="badge b-on_hold">חוב פתוח: <%= formatIls(balances.reduce(function(n,b){return n+b.balance;},0)) %></span>
+    <% } %>
+  </div>
+
+  <% if (!advReady) { %>
+    <div class="alert alert-warn">נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים") כדי להשתמש במעקב המפרעות.</div>
+  <% } else { %>
+    <p class="muted" style="margin:0 0 .5rem">
+      מפרעה שיצאה מהקופה נמשכת לכאן מדוח ה-Z לבד. מפרעה שניתנה אחרת — הוסף אותה כאן.
+      <strong>כל החזר שנרשם מוריד את היתרה</strong>, וכשהיא מתאפסת המפרעה נסגרת.
+    </p>
+
+    <% if (balances.length) { %>
+      <div class="table-scroll" style="margin-bottom:.6rem">
+        <table>
+          <thead><tr><th>עובד</th><th class="right">חוב פתוח</th><th class="right">מפרעות פתוחות</th></tr></thead>
+          <tbody>
+            <% balances.forEach(function(b){ %>
+              <tr>
+                <td><%= b.first_name %> <%= b.last_name %></td>
+                <td class="right"><strong><%= formatIls(b.balance) %></strong></td>
+                <td class="right"><%= b.open %></td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+
+    <div class="table-scroll">
+      <table class="sortable">
+        <thead><tr>
+          <th>תאריך</th><th>עובד</th><th>סוג</th><th>ניתן ב</th><th>חנות</th>
+          <th class="right">סכום</th><th class="right">הוחזר</th><th class="right">יתרה</th><th>סטטוס</th><th></th>
+        </tr></thead>
+        <tbody>
+          <% if (!advs.length) { %><tr><td colspan="10" class="muted">אין מפרעות פתוחות או סגורות.</td></tr><% } %>
+          <% advs.forEach(function(a){ %>
+            <tr>
+              <td><%= formatDate(a.issued_date) %></td>
+              <td><%= a.first_name %> <%= a.last_name %></td>
+              <td><span class="badge <%= a.kind === 'loan' ? 'b-neutral' : 'b-on_hold' %>"><%= kindLabel(a.kind) %></span></td>
+              <td>
+                <%= methodLabel(a.method) %>
+                <% if (a.reference) { %><span class="muted mono"><%= a.reference %></span><% } %>
+                <% if (a.fromZ) { %><br><span class="badge b-neutral">מדוח Z</span><% } %>
+              </td>
+              <td><%= a.store_name %></td>
+              <td class="right"><%= formatIls(a.amount) %></td>
+              <td class="right"><%= a.repaid ? formatIls(a.repaid) : '—' %></td>
+              <td class="right"><strong><%= formatIls(a.balance) %></strong></td>
+              <td>
+                <% if (a.status === 'repaid') { %><span class="badge b-approved">הוחזר</span>
+                <% } else if (a.status === 'partial') { %><span class="badge b-on_hold">הוחזר חלקית</span>
+                <% } else { %><span class="badge b-blocked">פתוח</span><% } %>
+              </td>
+              <td style="white-space:nowrap">
+                <% if (a.balance > 0) { %>
+                  <button type="button" class="btn-sm" onclick="document.getElementById('repay-<%= a.id %>').showModal()">רשום החזר</button>
+                <% } %>
+                <% if (!a.fromZ && !a.repayments.length) { %>
+                  <form method="post" action="/employees/advances/<%= a.id %>/delete" style="display:inline"
+                        onsubmit="return confirm('למחוק את המפרעה?');">
+                    <button type="submit" class="btn-sm danger">מחק</button>
+                  </form>
+                <% } %>
+              </td>
+            </tr>
+            <% if (a.repayments.length) { %>
+              <tr>
+                <td colspan="10" style="padding-top:0">
+                  <details>
+                    <summary class="muted" style="cursor:pointer;font-size:12px">החזרים (<%= a.repayments.length %>)</summary>
+                    <table style="margin-top:.3rem">
+                      <thead><tr><th>תאריך</th><th>מקור</th><th>אסמכתה</th><th class="right">סכום</th><th>נרשם ע״י</th><th></th></tr></thead>
+                      <tbody>
+                        <% a.repayments.forEach(function(r){ %>
+                          <tr>
+                            <td><%= formatDate(r.repaid_date) %></td>
+                            <td><%= repaySourceLabel(r.source) %></td>
+                            <td class="mono"><%= r.salary_reference || r.note || '—' %></td>
+                            <td class="right"><%= formatIls(r.amount) %></td>
+                            <td class="muted"><%= r.created_by_name || '—' %></td>
+                            <td>
+                              <form method="post" action="/employees/advances/<%= a.id %>/repay/<%= r.id %>/delete" style="display:inline"
+                                    onsubmit="return confirm('לבטל את ההחזר הזה? היתרה תחזור.');">
+                                <button type="submit" class="btn-sm danger">בטל</button>
+                              </form>
+                            </td>
+                          </tr>
+                        <% }); %>
+                      </tbody>
+                    </table>
+                  </details>
+                </td>
+              </tr>
+            <% } %>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+
+    <%# חלון רישום החזר — אחד לכל מפרעה פתוחה. כפתור והדיאלוג שלו נשלחים תמיד יחד (יש טסט). %>
+    <% advs.filter(function(a){ return a.balance > 0; }).forEach(function(a){ %>
+      <dialog id="repay-<%= a.id %>">
+        <form method="post" action="/employees/advances/<%= a.id %>/repay">
+          <h3 style="margin:0 0 .4rem">רישום החזר — <%= a.first_name %> <%= a.last_name %></h3>
+          <p class="muted" style="margin:0 0 .6rem">יתרה נוכחית: <strong><%= formatIls(a.balance) %></strong>. החזר גדול מהיתרה יידחה.</p>
+          <div class="row">
+            <div><label>תאריך</label><input type="date" name="repaid_date" value="<%= todayIso %>" required /></div>
+            <div><label>סכום (₪)</label><input name="amount" inputmode="decimal" required /></div>
+            <div>
+              <label>מקור</label>
+              <select name="source">
+                <% repaySources.forEach(function(o){ %><option value="<%= o.value %>"><%= o.label %></option><% }); %>
+              </select>
+            </div>
+          </div>
+          <div class="row" style="margin-top:.5rem">
+            <div>
+              <label>מתוך תשלום שכר (לא חובה)</label>
+              <select name="salary_payment_id" class="js-combo">
+                <option value="">— ללא שיוך —</option>
+                <% ((salaryByEmployee || {})[a.employee_id] || []).forEach(function(sp){ %>
+                  <option value="<%= sp.id %>"><%= formatDate(sp.due_date) %> · <%= formatIls(sp.amount) %><%= sp.reference ? ' · ' + sp.reference : '' %></option>
+                <% }); %>
+              </select>
+            </div>
+            <div><label>הערה</label><input name="note" autocomplete="off" /></div>
+          </div>
+          <div class="actions" style="margin-top:.6rem">
+            <button type="submit">שמור החזר</button>
+            <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
+          </div>
+        </form>
+      </dialog>
+    <% }); %>
+
+    <details class="collapse-card" style="margin-top:.7rem">
+      <summary style="cursor:pointer"><strong>הוספת מפרעה / הלוואה</strong></summary>
+      <form method="post" action="/employees/advances" style="margin-top:.5rem">
+        <div class="row">
+          <div>
+            <label>חנות</label>
+            <select name="store_id" class="js-combo" required>
+              <% (storeOptions || []).forEach(function(st){ %>
+                <option value="<%= st.id %>" <%= (typeof salaryStoreId !== 'undefined' && Number(salaryStoreId) === Number(st.id)) ? 'selected' : '' %>><%= st.name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div>
+            <label>עובד</label>
+            <select name="employee_id" class="js-combo" required>
+              <option value="">— בחר עובד —</option>
+              <% (totals || []).filter(function(e){ return e.active; }).forEach(function(e){ %>
+                <option value="<%= e.id %>"><%= e.first_name %> <%= e.last_name %></option>
+              <% }); %>
+            </select>
+          </div>
+          <div>
+            <label>סוג</label>
+            <select name="kind">
+              <% (advanceKinds || []).forEach(function(k){ %><option value="<%= k.value %>"><%= k.label %></option><% }); %>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:.5rem">
+          <div><label>תאריך</label><input type="date" name="issued_date" value="<%= todayIso %>" required /></div>
+          <div><label>סכום (₪)</label><input name="amount" inputmode="decimal" required /></div>
+          <div>
+            <label>ניתן ב</label>
+            <select name="method">
+              <% (advanceMethods || []).forEach(function(m){ %><option value="<%= m.value %>"><%= m.label %></option><% }); %>
+            </select>
+          </div>
+          <div><label>אסמכתה</label><input name="reference" autocomplete="off" placeholder="מספר צ׳ק / אסמכתה" /></div>
+        </div>
+        <div class="row" style="margin-top:.5rem">
+          <div><label>הערה</label><input name="note" autocomplete="off" /></div>
+        </div>
+        <div class="actions" style="margin-top:.6rem"><button type="submit">שמור מפרעה</button></div>
+      </form>
+    </details>
+  <% } %>
+</div>
+
 <div class="card">
   <h2 style="margin:0 0 .5rem">מעקב מפרעות ושכר</h2>
   <p class="muted" style="margin:0 0 .5rem">כל מפרעה או תשלום שכר שהוזן בדוח Z עבור עובד — מוצג כאן לפי תאריך.</p>

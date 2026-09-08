@@ -732,3 +732,45 @@ CREATE INDEX IF NOT EXISTS ix_supplier_bank_accounts ON supplier_bank_accounts(s
 CREATE UNIQUE INDEX IF NOT EXISTS ux_supplier_bank_account
   ON supplier_bank_accounts(supplier_id, COALESCE(store_id, 0));
 
+-- §5 מפרעות והלוואות לעובד, והחזריהן.
+--
+-- הרובריקה הישנה ידעה לקרוא רק שורות מפרעה שהוזנו בדוח Z — כלומר כסף שיצא מהקופה. אבל מפרעה
+-- שניתנה בהעברה, בצ׳ק או מהכיס לא הופיעה בשום מקום, והחזר לא היה לו איפה להירשם בכלל: הסכום
+-- פשוט נשאר שם לנצח כאילו העובד עדיין חייב אותו.
+--
+-- לכן זה הספר היחיד של "כמה העובד חייב". מפרעה שכן יצאה מ-Z **משוקפת לכאן** לפי `z_expense_id`
+-- (services/employees.js#syncZAdvances) — הסכום שלה נשאר בבעלות ה-Z ואי אפשר לערוך אותו מכאן,
+-- אבל אפשר לרשום עליה החזרים בדיוק כמו על כל מפרעה אחרת. יתרה = סכום פחות סך ההחזרים.
+CREATE TABLE IF NOT EXISTS employee_advances (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id   INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  store_id      INTEGER NOT NULL REFERENCES stores(id),
+  kind          TEXT NOT NULL DEFAULT 'advance' CHECK (kind IN ('advance','loan')),
+  issued_date   TEXT NOT NULL,
+  amount        INTEGER NOT NULL,
+  method        TEXT,      -- cash / check / transfer / register
+  reference     TEXT,      -- מספר צ׳ק / אסמכתה
+  note          TEXT,
+  -- שורת ה-Z שממנה שוקפה השורה. NULL = נרשמה ידנית כאן. UNIQUE כדי שסנכרון חוזר לא יכפיל.
+  z_expense_id  INTEGER UNIQUE,
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  created_by    INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS ix_employee_advances ON employee_advances(employee_id, issued_date);
+CREATE INDEX IF NOT EXISTS ix_employee_advances_store ON employee_advances(store_id);
+
+-- החזר אחד. מפרעה מוחזרת בדרך כלל בכמה פעימות מהשכר, ולכן זו טבלה ולא עמודת "הוחזר".
+CREATE TABLE IF NOT EXISTS employee_advance_repayments (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  advance_id        INTEGER NOT NULL REFERENCES employee_advances(id) ON DELETE CASCADE,
+  repaid_date       TEXT NOT NULL,
+  amount            INTEGER NOT NULL,
+  source            TEXT NOT NULL DEFAULT 'salary' CHECK (source IN ('salary','cash','other')),
+  salary_payment_id INTEGER REFERENCES salary_payments(id),  -- מאיזה תשלום שכר נוכה
+  note              TEXT,
+  created_at        TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  created_by        INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS ix_advance_repayments ON employee_advance_repayments(advance_id, repaid_date);
+
+

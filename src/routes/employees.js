@@ -10,8 +10,14 @@ import {
   cashExpenseCandidates, SALARY_METHODS,
 } from '../services/salaryPayments.js';
 import { salaryPaymentsReady } from '../services/voidedChecks.js';
+import {
+  listAdvances, openBalances, createAdvance, repayAdvance, deleteRepayment, deleteAdvance,
+  getAdvance, syncZAdvances, advancesReady, salaryOptionsFor,
+  ADVANCE_KINDS, ADVANCE_METHODS, REPAY_SOURCES, kindLabel, methodLabel, repaySourceLabel,
+} from '../services/employeeAdvances.js';
 import { toAgorot } from '../lib/money.js';
 import { assertStoreAllowed } from '../lib/scopeGuard.js';
+import { israelToday } from '../lib/loginHours.js';
 import { parseEmployeeFile } from '../lib/employeeImport.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
@@ -41,6 +47,28 @@ async function scopedTotals(scope) {
     .map((r) => ({ ...r, stores: byId.get(Number(r.id)).stores || [] }));
 }
 
+
+// מפרעות/הלוואות: מסונכרן מ-Z ואז נקרא. מחזיר בלוק ריק אם הסכימה עדיין לא עודכנה, כדי שהדף
+// יגיד "נדרש עדכון מסד נתונים" במקום למות על "no such table: employee_advances".
+async function advancesBlock(req, storeId) {
+  const ready = await advancesReady();
+  if (!ready) return { advancesReady: false, advances: [], advanceBalances: [], advanceKinds: ADVANCE_KINDS, advanceMethods: ADVANCE_METHODS, repaySources: REPAY_SOURCES, kindLabel, methodLabel, repaySourceLabel, salaryByEmployee: {} };
+  await syncZAdvances();
+  const advances = await listAdvances({ storeId, scope: req.scope });
+  // בורר תשלומי השכר בחלון ההחזר — רק לעובדים שיש להם יתרה פתוחה, כדי לא לשלוף לכל השורות.
+  const salaryByEmployee = {};
+  for (const empId of new Set(advances.filter((a) => a.balance > 0).map((a) => Number(a.employee_id)))) {
+    salaryByEmployee[empId] = await salaryOptionsFor(empId);
+  }
+  return {
+    advancesReady: true,
+    advances,
+    advanceBalances: await openBalances({ storeId, scope: req.scope }),
+    advanceKinds: ADVANCE_KINDS, advanceMethods: ADVANCE_METHODS, repaySources: REPAY_SOURCES,
+    kindLabel, methodLabel, repaySourceLabel, salaryByEmployee,
+  };
+}
+
 async function render(req, res, extra = {}) {
   // The wage rubric is per store: the picker offers only THIS branch's employees, and the rows
   // shown are this branch's. With no active store the owner sees every branch they may see.
@@ -55,6 +83,11 @@ async function render(req, res, extra = {}) {
     salaryMethods: SALARY_METHODS,
     cashCandidates: salaryReady ? await cashExpenseCandidates({ storeId, scope: req.scope }) : [],
     salaryStoreId: storeId,
+    // ברירת המחדל של כל שדה תאריך — שעון ישראל, לא UTC (ראה CLAUDE.md).
+    todayIso: israelToday(),
+    // מפרעות והלוואות. הסנכרון מ-Z רץ כאן כי אחרת מפרעה שנרשמה בקופה אתמול לא הייתה ניתנת
+    // להחזר היום — היא פשוט לא הייתה קיימת בספר הזה. אידמפוטנטי (ראה syncZAdvances).
+    ...(await advancesBlock(req, storeId)),
     // Scoped: an employee linked to stores is only visible where one of them is in scope; an
     // employee with no links is shared with every store (see services/employees.js#listEmployees).
     storeOptions: await scopedStoreList(assignmentScope(req)),
@@ -82,11 +115,19 @@ const NOTICES = {
   'salary-deleted': 'תשלום השכר נמחק.',
   cashed: 'הצ׳ק סומן כנפרט והותאם להוצאת המזומן. הצ׳ק בוטל ונמצא במעקב ב"צ׳קים מבוטלים".',
   uncashed: 'ההתאמה בוטלה. הצ׳ק שבוטל נשאר במעקב.',
+  advance: 'המפרעה נרשמה.',
+  'advance-deleted': 'המפרעה נמחקה.',
+  repaid: 'ההחזר נרשם והיתרה עודכנה.',
+  'repaid-closed': 'ההחזר נרשם — המפרעה הוחזרה במלואה.',
+  'repay-deleted': 'ההחזר בוטל והיתרה חזרה.',
 };
 
 router.get('/', async (req, res, next) => {
   try {
-    await render(req, res, { notice: NOTICES[req.query.saved] || null });
+    await render(req, res, {
+      notice: NOTICES[req.query.saved] || null,
+      error: req.query.err ? String(req.query.err) : null,
+    });
   } catch (err) {
     next(err);
   }
@@ -178,6 +219,88 @@ router.post('/salary/:id/delete', async (req, res, next) => {
 
 // Bulk import from an Excel/CSV staff list (name + phone). Existing employees (matched by phone)
 // are skipped so the list never gains duplicates.
+
+// ── מפרעות והלוואות ────────────────────────────────────────────────────────────────────────────
+// מפרעה שלא יצאה מהקופה (העברה / צ׳ק / מהכיס) נרשמת כאן, וההחזר ממנה נרשם עליה עד שהיתרה נסגרת.
+// ראה services/employeeAdvances.js.
+router.post('/advances', async (req, res, next) => {
+  try {
+    const storeId = await assertStoreAllowed(req.body.store_id, req.scope);
+    await createAdvance(
+      {
+        storeId,
+        employeeId: req.body.employee_id,
+        kind: req.body.kind,
+        issuedDate: req.body.issued_date,
+        amount: toAgorot(req.body.amount),
+        method: req.body.method,
+        reference: req.body.reference,
+        note: req.body.note,
+      },
+      req.user,
+    );
+    return res.redirect(303, '/employees?saved=advance');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/employees?err=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
+router.post('/advances/:id/repay', async (req, res, next) => {
+  try {
+    // המפרעה חייבת להיות בחנות שהמשתמש רשאי לה — אחרת אפשר היה לסגור חוב של סניף אחר.
+    const advance = await getAdvance(Number(req.params.id));
+    await assertStoreAllowed(advance.store_id, req.scope);
+    const out = await repayAdvance(
+      advance.id,
+      {
+        repaidDate: req.body.repaid_date,
+        amount: toAgorot(req.body.amount),
+        source: req.body.source,
+        salaryPaymentId: req.body.salary_payment_id,
+        note: req.body.note,
+      },
+      req.user,
+    );
+    return res.redirect(303, `/employees?saved=${out.closed ? 'repaid-closed' : 'repaid'}`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/employees?err=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
+router.post('/advances/:id/repay/:repaymentId/delete', async (req, res, next) => {
+  try {
+    const advance = await getAdvance(Number(req.params.id));
+    await assertStoreAllowed(advance.store_id, req.scope);
+    await deleteRepayment(Number(req.params.repaymentId), req.user);
+    return res.redirect(303, '/employees?saved=repay-deleted');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/employees?err=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
+router.post('/advances/:id/delete', async (req, res, next) => {
+  try {
+    const advance = await getAdvance(Number(req.params.id));
+    await assertStoreAllowed(advance.store_id, req.scope);
+    await deleteAdvance(advance.id, req.user);
+    return res.redirect(303, '/employees?saved=advance-deleted');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/employees?err=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
 router.post('/import', (req, res, next) => {
   staffUpload(req, res, async (uploadErr) => {
     try {
