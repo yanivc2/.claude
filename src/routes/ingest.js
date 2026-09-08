@@ -123,11 +123,12 @@ router.all('/voided-checks', async (req, res) => {
     if (given !== config.cronSecret) return res.status(401).json({ ok: false, error: 'bad secret' });
 
     const { alertOnVoidedChecks, alertOnExpiredNotCollected } = await import('../services/voidedChecks.js');
-    const { alertOnUntrackedTransfers } = await import('../services/transfers.js');
+    const { alertOnUntrackedTransfers, alertOnTransferProblems } = await import('../services/transfers.js');
     const problems = await alertOnVoidedChecks();
     const expired = await alertOnExpiredNotCollected();
     const untracked = await alertOnUntrackedTransfers();
-    return res.json({ ok: true, problems, expired, untracked });
+    const transfers = await alertOnTransferProblems();
+    return res.json({ ok: true, problems, expired, untracked, transfers });
   } catch (err) {
     return res.status(500).json({ ok: false, error: err.message });
   }

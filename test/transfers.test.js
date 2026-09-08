@@ -197,3 +197,137 @@ test('a request raised after the money already moved is flagged as back-filled',
   assert.equal(backfilled({ opened_at: '2026-06-09 09:00:00' }, '2026-06-10'), false);
   assert.equal(backfilled({ opened_at: '2026-06-10 23:00:00' }, '2026-06-10'), false, 'same day is fine');
 });
+
+// --- an approval must not outlive what it approved ------------------------------------------------
+//
+// An approval is a standing licence to release money in the bank. Three things can quietly make it
+// wrong, and none of them involves anybody editing this request:
+//   • it simply sits open for weeks (expired);
+//   • the substance changes under it — most dangerously THE SUPPLIER'S BANK ACCOUNT (stale);
+//   • the bank moves a different sum than the one approved (mismatch).
+// All three are recomputed, never stored, so they cannot go out of date.
+
+test('an approval lapses after the TTL, and executing on it is refused', async () => {
+  const { db, ow, sec, invoice } = await world();
+  const { config } = await import('../src/config.js');
+  const { approvalExpired } = await import('../src/services/transfers.js');
+  const t = await createTransfer({ invoiceIds: [(await invoice()).id] }, sec, db);
+  await approveTransfer(t.id, ow, db);
+
+  const fresh = await db.one('SELECT * FROM bank_transfers WHERE id = ?', [t.id]);
+  assert.equal(approvalExpired(fresh), false);
+
+  // Back-date the approval past the window.
+  const old = new Date(Date.now() - (config.rules.transferApprovalTtlDays + 2) * 86400000);
+  const stamp = `${old.toISOString().slice(0, 10)} ${old.toISOString().slice(11, 19)}`;
+  await db.run('UPDATE bank_transfers SET approved_at = ? WHERE id = ?', [stamp, t.id]);
+
+  const lapsed = await db.one('SELECT * FROM bank_transfers WHERE id = ?', [t.id]);
+  assert.equal(approvalExpired(lapsed), true);
+  await assert.rejects(() => executeTransfer(t.id, { reference: 'X' }, sec, db), /האישור פג/);
+
+  const row = (await listTransfers({ scope: null }, db))[0];
+  assert.equal(row.displayStatus, 'expired');
+  assert.equal(row.needsReapproval, true);
+
+  // Re-approving is a fresh decision on today's facts, and unblocks it.
+  await approveTransfer(t.id, ow, db);
+  const done = await executeTransfer(t.id, { reference: 'OK-1', paymentDate: '2026-06-01' }, sec, db);
+  assert.equal(done.status, 'executed');
+});
+
+test('🔴 changing the supplier bank account AFTER approval voids the approval', async () => {
+  const { db, ow, sec, invoice } = await world();
+  const { setSupplierBank } = await import('../src/services/suppliers.js');
+  const inv = await invoice();
+  const t = await createTransfer({ invoiceIds: [inv.id] }, sec, db);
+  await setSupplierBank(inv.supplier_id, { bankName: 'הפועלים', bankBranch: '428', bankAccount: '111111' }, ow, db);
+  await approveTransfer(t.id, ow, db);
+
+  // Approved against account 111111. Somebody now "updates" it — the classic supplier-bank fraud.
+  await setSupplierBank(inv.supplier_id, { bankName: 'הפועלים', bankBranch: '428', bankAccount: '999999' }, ow, db);
+
+  await assert.rejects(
+    () => executeTransfer(t.id, { reference: 'X' }, sec, db),
+    /השתנו אחרי האישור/,
+    'the approval was of a different destination — it cannot carry over',
+  );
+  const row = (await listTransfers({ scope: null }, db))[0];
+  assert.equal(row.displayStatus, 'stale');
+  assert.equal(row.needsReapproval, true);
+
+  // Re-approving takes a fresh fingerprint of the CURRENT account, and then it may go.
+  await approveTransfer(t.id, ow, db);
+  const ok = await executeTransfer(t.id, { reference: 'OK-2', paymentDate: '2026-06-01' }, sec, db);
+  assert.equal(ok.status, 'executed');
+});
+
+test('a request whose invoice set is unchanged stays approved — the check is not trigger-happy', async () => {
+  const { db, ow, sec, invoice } = await world();
+  const t = await createTransfer({ invoiceIds: [(await invoice()).id] }, sec, db);
+  await approveTransfer(t.id, ow, db);
+  const row = (await listTransfers({ scope: null }, db))[0];
+  assert.equal(row.displayStatus, 'approved');
+  assert.equal(row.needsReapproval, false);
+});
+
+test('🔴 the bank moving a different sum than the one approved is flagged, not quietly cleared', async () => {
+  const { db, ow, sec, acct, invoice } = await world();
+  const inv = await invoice({ amount: 100000 });
+  const t = await createTransfer({ invoiceIds: [inv.id] }, sec, db);
+  await approveTransfer(t.id, ow, db);
+  await executeTransfer(t.id, { reference: 'ASM-9', paymentDate: '2026-06-01' }, sec, db);
+  const paymentId = (await db.one('SELECT payment_id FROM bank_transfers WHERE id = ?', [t.id])).payment_id;
+
+  // The bank paid ₪950 against a ₪1,000 request — a partial release, or a fee at source.
+  await db.run(
+    `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, source, matched_payment_id)
+     VALUES (?, '2026-06-02', ?, 'העברה', 'csv', ?)`,
+    [acct.id, -95000, paymentId],
+  );
+  await db.run("UPDATE payments SET status = 'cleared' WHERE id = ?", [paymentId]);
+
+  const row = (await listTransfers({ scope: null }, db))[0];
+  assert.equal(row.amountMismatch, true);
+  assert.equal(row.displayStatus, 'mismatch', 'the mismatch outranks "נפרע" — it needs a human');
+  assert.equal(row.bankAmount, -95000);
+});
+
+test('the exact amount clears normally — no false alarm', async () => {
+  const { db, ow, sec, acct, invoice } = await world();
+  const inv = await invoice({ amount: 100000 });
+  const t = await createTransfer({ invoiceIds: [inv.id] }, sec, db);
+  await approveTransfer(t.id, ow, db);
+  await executeTransfer(t.id, { reference: 'ASM-10', paymentDate: '2026-06-01' }, sec, db);
+  const paymentId = (await db.one('SELECT payment_id FROM bank_transfers WHERE id = ?', [t.id])).payment_id;
+  const amount = (await db.one('SELECT amount FROM bank_transfers WHERE id = ?', [t.id])).amount;
+
+  await db.run(
+    `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, source, matched_payment_id)
+     VALUES (?, '2026-06-02', ?, 'העברה', 'csv', ?)`,
+    [acct.id, -amount, paymentId],
+  );
+  await db.run("UPDATE payments SET status = 'cleared' WHERE id = ?", [paymentId]);
+
+  const row = (await listTransfers({ scope: null }, db))[0];
+  assert.equal(row.amountMismatch, false);
+  assert.equal(row.displayStatus, 'cleared');
+});
+
+test('each problem is pushed once, and re-approval re-arms the alert', async () => {
+  const { db, ow, sec, invoice } = await world();
+  const { alertOnTransferProblems } = await import('../src/services/transfers.js');
+  const { config } = await import('../src/config.js');
+  const t = await createTransfer({ invoiceIds: [(await invoice()).id] }, sec, db);
+  await approveTransfer(t.id, ow, db);
+  const old = new Date(Date.now() - (config.rules.transferApprovalTtlDays + 2) * 86400000);
+  await db.run('UPDATE bank_transfers SET approved_at = ? WHERE id = ?',
+    [`${old.toISOString().slice(0, 10)} ${old.toISOString().slice(11, 19)}`, t.id]);
+
+  assert.equal(await alertOnTransferProblems(db), 1);
+  assert.equal(await alertOnTransferProblems(db), 0, 'idempotent — a quiet night says nothing');
+
+  // Re-approving clears the marker, so a NEW problem on the same request can still be reported.
+  await approveTransfer(t.id, ow, db);
+  assert.equal((await db.one('SELECT alerted FROM bank_transfers WHERE id = ?', [t.id])).alerted, null);
+});

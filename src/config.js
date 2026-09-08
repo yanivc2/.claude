@@ -48,6 +48,10 @@ export const config = {
     dupWindowDays: DUP_WINDOW_DAYS,
     allocationThresholdAgorot: ALLOCATION_THRESHOLD_AGOROT,
     allocationVatThresholdAgorot: ALLOCATION_VAT_THRESHOLD_AGOROT,
+    // An approval to release a batch is a standing licence to move money. It should not sit open
+    // for weeks: a batch is normally released the same day or the next. After this many days the
+    // approval lapses and has to be given again.
+    transferApprovalTtlDays: Number(process.env.TRANSFER_APPROVAL_TTL_DAYS ?? 7),
     // R7 reconciliation: a bank debit matches an open check within this many days
     // of the payment_date. Checks can take weeks to clear, so the default is generous.
     reconcileWindowDays: Number(process.env.RECONCILE_WINDOW_DAYS ?? 60),

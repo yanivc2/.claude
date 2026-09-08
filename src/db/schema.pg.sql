@@ -644,6 +644,11 @@ CREATE TABLE IF NOT EXISTS bank_transfers (
   executed_at     TEXT,
   reference       TEXT,
   payment_id      INTEGER REFERENCES payments(id),
+  -- What was approved, fingerprinted. An approval is of a SPECIFIC payee, sum and destination —
+  -- if any of them changes afterwards the approval is no longer about the thing being released,
+  -- so it is void rather than silently carried over. See services/transfers.js#substanceOf.
+  approved_fingerprint TEXT,
+  alerted         TEXT,                                -- last alert kind sent, so a sweep stays quiet
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
@@ -674,3 +679,6 @@ ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_account TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_holder TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_updated_at TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_updated_by INTEGER REFERENCES users(id);
+
+ALTER TABLE bank_transfers ADD COLUMN IF NOT EXISTS approved_fingerprint TEXT;
+ALTER TABLE bank_transfers ADD COLUMN IF NOT EXISTS alerted TEXT;

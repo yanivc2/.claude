@@ -8,6 +8,7 @@ import { requireOwner } from '../middleware/requireOwner.js';
 import { effectiveStoreId } from '../lib/scope.js';
 import { assertInScope } from '../lib/scopeGuard.js';
 import { RuleError, AuthError } from '../lib/errors.js';
+import { config } from '../config.js';
 
 // "העברות בנקאיות" — see services/transfers.js for why this is a REQUEST raised before the bank,
 // and why the enforcement is detection (an untracked movement alarms) rather than a lock.
@@ -34,6 +35,7 @@ async function render(req, res, extra = {}) {
     untracked: ready ? await untrackedTransfers({ scope: req.scope }) : [],
     watchFrom: ready ? await getWatchFrom() : null,
     watchDefault: watchDefault(),
+    approvalTtlDays: config.rules.transferApprovalTtlDays,
     statuses: TRANSFER_STATUS,
     statusLabel,
     notice: NOTICES[req.query.done] || null,

@@ -456,6 +456,11 @@ function migrateBankTransfers(db) {
       CREATE INDEX IF NOT EXISTS ix_bank_transfers_store ON bank_transfers(store_id, status);
     `);
   }
+  {
+    const cols = db.prepare('PRAGMA table_info(bank_transfers)').all().map((c) => c.name);
+    if (!cols.includes('approved_fingerprint')) db.exec('ALTER TABLE bank_transfers ADD COLUMN approved_fingerprint TEXT;');
+    if (!cols.includes('alerted')) db.exec('ALTER TABLE bank_transfers ADD COLUMN alerted TEXT;');
+  }
   if (!has('bank_transfer_lines')) {
     db.exec(`
       CREATE TABLE bank_transfer_lines (

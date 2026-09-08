@@ -37,6 +37,7 @@ import { israelToday } from '../lib/loginHours.js';
 import { israelNow } from './zclosing.js';
 import { notify } from '../lib/notify.js';
 import { getSetting, setSetting } from './appSettings.js';
+import { config } from '../config.js';
 import { logAction } from './audit.js';
 
 /** From which date an unrecorded transfer is an alarm. Set when the owner turns the watch on. */
@@ -49,6 +50,11 @@ export const TRANSFER_STATUS = {
   cleared: { label: 'נפרע', badge: 'b-cleared' },
   rejected: { label: 'נדחה', badge: 'b-blocked' },
   cancelled: { label: 'בוטל', badge: 'b-voided' },
+  // Three display-only states. None of them is ever written to the column: each is a fact about
+  // the request that stopped being true, and recomputing it is what keeps it honest.
+  expired: { label: 'האישור פג — נדרש אישור מחדש', badge: 'b-on_hold' },
+  stale: { label: '🔴 השתנה אחרי האישור — האישור בטל', badge: 'b-blocked' },
+  mismatch: { label: '🔴 הסכום בבנק שונה מהמבוקש', badge: 'b-blocked' },
 };
 export const statusLabel = (k) => (TRANSFER_STATUS[k] || {}).label || k;
 
@@ -66,6 +72,44 @@ export async function setWatchFrom(date, actor, x = getExecutor()) {
   await setSetting(WATCH_FROM_KEY, iso || null, x);
   await logAction({ userId: actor?.id ?? null, action: 'transfer.watch_from', entityType: 'setting', entityId: null, details: { date: iso } }, x);
   return iso || null;
+}
+
+/**
+ * WHAT WAS APPROVED, as a string. The owner approves a specific payee, a specific sum, a specific
+ * set of invoices and a specific destination account — so the approval must not survive a change to
+ * any of them.
+ *
+ * This is deliberately not "lock the row for editing". The substance can change without anybody
+ * editing the request at all: an invoice amount is corrected, or — the case that matters —
+ * SOMEBODY CHANGES THE SUPPLIER'S BANK ACCOUNT AFTER THE APPROVAL. That is precisely the fraud the
+ * destination field exists for, and a lock on this table would not have caught it. Comparing the
+ * fingerprint does.
+ */
+export function substanceOf(transfer, invoiceIds, bank) {
+  return JSON.stringify({
+    amount: Number(transfer.amount),
+    supplier: Number(transfer.supplier_id) || null,
+    store: Number(transfer.store_id),
+    invoices: [...invoiceIds].map(Number).sort((a, b) => a - b),
+    account: [bank?.bank_name, bank?.bank_branch, bank?.bank_account, bank?.bank_holder].map((v) => v ?? '').join('|'),
+  });
+}
+
+async function currentSubstance(transfer, x) {
+  const lines = await x.many('SELECT invoice_id FROM bank_transfer_lines WHERE transfer_id = ?', [transfer.id]);
+  let bank = null;
+  try {
+    bank = await x.one('SELECT bank_name, bank_branch, bank_account, bank_holder FROM suppliers WHERE id = ?', [transfer.supplier_id]);
+  } catch { bank = null; }
+  return substanceOf(transfer, lines.map((l) => l.invoice_id), bank);
+}
+
+/** Has an approval lapsed? An open approval is a standing licence to release money in the bank. */
+export function approvalExpired(transfer, now = new Date()) {
+  if (transfer.status !== 'approved' || !transfer.approved_at) return false;
+  const when = new Date(String(transfer.approved_at).replace(' ', 'T') + 'Z');
+  if (Number.isNaN(when.getTime())) return false;
+  return (now.getTime() - when.getTime()) / 86400000 > config.rules.transferApprovalTtlDays;
 }
 
 /** Is the schema new enough? (The owner upgrades the live DB by hand — see voidedChecks.js.) */
@@ -175,8 +219,16 @@ export async function getTransfer(id, x = getExecutor()) {
 /** The owner's one action. Approving a specific payee and a specific sum, before the money moves. */
 export async function approveTransfer(id, actor, x = getExecutor()) {
   const t = await getTransfer(id, x);
-  if (t.status !== 'pending') throw new RuleError('R', `לא ניתן לאשר בקשה בסטטוס "${statusLabel(t.status)}"`);
-  await x.run("UPDATE bank_transfers SET status = 'approved', approved_at = ?, approved_by = ? WHERE id = ?", [israelNow(), actor?.id ?? null, id]);
+  // 'approved' is allowed too — that is re-approving one whose approval lapsed or whose substance
+  // changed. Re-approval is a fresh decision on the CURRENT facts, so it takes a fresh fingerprint.
+  if (t.status !== 'pending' && t.status !== 'approved') {
+    throw new RuleError('R', `לא ניתן לאשר בקשה בסטטוס "${statusLabel(t.status)}"`);
+  }
+  const fingerprint = await currentSubstance(t, x);
+  await x.run(
+    "UPDATE bank_transfers SET status = 'approved', approved_at = ?, approved_by = ?, approved_fingerprint = ?, alerted = NULL WHERE id = ?",
+    [israelNow(), actor?.id ?? null, fingerprint, id],
+  );
   await logAction({ userId: actor?.id ?? null, action: 'transfer.approve', entityType: 'bank_transfer', entityId: id }, x);
   return getTransfer(id, x);
 }
@@ -209,6 +261,14 @@ export async function executeTransfer(id, { reference, paymentDate = null }, act
     throw new RuleError('R', t.status === 'pending'
       ? 'הבקשה ממתינה לאישור הבעלים — אשר כאן לפני שאתה משחרר את המקבץ בבנק'
       : `לא ניתן לבצע בקשה בסטטוס "${statusLabel(t.status)}"`);
+  }
+  if (approvalExpired(t)) {
+    throw new RuleError('R', `האישור פג (מעל ${config.rules.transferApprovalTtlDays} ימים) — יש לאשר מחדש לפני שחרור המקבץ`);
+  }
+  // The approval was of a specific payee, sum and destination. If any of them changed since — most
+  // dangerously the supplier's bank account — the approval is not about this transfer any more.
+  if (t.approved_fingerprint && (await currentSubstance(t, x)) !== t.approved_fingerprint) {
+    throw new RuleError('R', 'פרטי ההעברה השתנו אחרי האישור (סכום / חשבוניות / חשבון הספק) — האישור בטל, יש לאשר מחדש');
   }
   const ref = (reference || '').toString().trim();
   if (!ref) throw new RuleError('VALIDATION', 'יש להזין את מספר האסמכתה מהבנק');
@@ -280,12 +340,50 @@ export async function listTransfers({ scope = null, limit = 200 } = {}, x = getE
   } catch { banks = []; } // pre-upgrade database
   const bankById = new Map(banks.map((b) => [Number(b.id), b]));
 
+  // The invoice ids per request, so the fingerprint can be recomputed without a query per row.
+  const invIds = new Map();
+  for (const l of lines) {
+    const k = Number(l.transfer_id);
+    if (!invIds.has(k)) invIds.set(k, []);
+    invIds.get(k).push(Number(l.id));
+  }
+  // What the bank actually paid against each executed request — the amount-mismatch check.
+  let paid = [];
+  try {
+    paid = await x.many(
+      `SELECT t.id AS transfer_id, bt.amount AS bank_amount, bt.txn_date
+         FROM bank_transfers t
+         JOIN bank_transactions bt ON bt.matched_payment_id = t.payment_id
+        WHERE t.payment_id IS NOT NULL`,
+      [],
+    );
+  } catch { paid = []; }
+  const paidBy = new Map(paid.map((p) => [Number(p.transfer_id), p]));
+
   return rows.map((r) => {
     const bank = bankById.get(Number(r.supplier_id)) || null;
+    const hit = paidBy.get(Number(r.id)) || null;
+    // The bank moved a different sum than the one approved. Not a rounding nicety: it is either a
+    // partial release, a fee taken at source, or a batch that was edited in the bank after the
+    // briefing — and all three deserve a human look rather than a quiet "cleared".
+    const amountMismatch = !!hit && Math.abs(Number(hit.bank_amount)) !== Number(r.amount);
+    const expired = approvalExpired(r);
+    const stale = r.status === 'approved' && !!r.approved_fingerprint
+      && substanceOf(r, invIds.get(Number(r.id)) || [], bank) !== r.approved_fingerprint;
+
+    let displayStatus = r.status;
+    if (amountMismatch) displayStatus = 'mismatch';
+    else if (r.status === 'executed' && r.payment_status === 'cleared') displayStatus = 'cleared';
+    else if (stale) displayStatus = 'stale';
+    else if (expired) displayStatus = 'expired';
+
     return {
       ...r,
       invoices: byTransfer.get(Number(r.id)) || [],
-      displayStatus: r.status === 'executed' && r.payment_status === 'cleared' ? 'cleared' : r.status,
+      displayStatus,
+      needsReapproval: stale || expired,
+      amountMismatch,
+      bankAmount: hit ? Number(hit.bank_amount) : null,
       bank,
       bankMissing: !bank || !bank.bank_account,
       bankChangedRecently: bank ? bankChangedRecently(bank) : false,
@@ -363,6 +461,38 @@ export async function alertOnUntrackedTransfers(x = getExecutor()) {
     sent += 1;
   }
   if (sent) await setSetting(KEY, [...seen].join(','), x);
+  return sent;
+}
+
+/**
+ * Push (and record in-app) the three things a request can silently become: an approval that lapsed,
+ * an approval whose substance changed under it, and a bank movement for a different sum than the
+ * one approved. Idempotent through `bank_transfers.alerted`, so a nightly run is quiet unless
+ * something actually changed.
+ */
+export async function alertOnTransferProblems(x = getExecutor()) {
+  let rows = [];
+  try {
+    rows = await listTransfers({ scope: null }, x);
+  } catch { return 0; } // pre-upgrade database
+  let sent = 0;
+  for (const r of rows) {
+    const kind = r.amountMismatch ? 'mismatch' : r.displayStatus === 'stale' ? 'stale' : r.displayStatus === 'expired' ? 'expired' : null;
+    if (!kind || r.alerted === kind) continue;
+    const money = `${Number(r.amount) / 100} ₪`;
+    const who = `${r.supplier_name || ''} · ${r.store_name}`;
+    let text;
+    if (kind === 'mismatch') {
+      text = `🔴 סכום שונה בבנק\nבקשה על ${money} — בבנק יצאו ${Math.abs(r.bankAmount) / 100} ₪\n${who}\nבדוק לפני שסוגרים את החשבונית.`;
+    } else if (kind === 'stale') {
+      text = `🔴 פרטי העברה השתנו אחרי האישור\n${money} · ${who}\nהאישור בטל (סכום / חשבוניות / חשבון הספק השתנו). יש לאשר מחדש.`;
+    } else {
+      text = `⏳ אישור העברה פג\n${money} · ${who}\nעברו מעל ${config.rules.transferApprovalTtlDays} ימים מהאישור ולא שוחרר בבנק — יש לאשר מחדש או לבטל.`;
+    }
+    notify(text, { kind: 'transfer', link: `/transfers#t${r.id}` });
+    await x.run('UPDATE bank_transfers SET alerted = ? WHERE id = ?', [kind, r.id]);
+    sent += 1;
+  }
   return sent;
 }
 

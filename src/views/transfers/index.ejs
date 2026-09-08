@@ -46,6 +46,7 @@
     בחר את החשבוניות שההעברה משלמת — <strong>הסכום, הספק, החנות והחשבון נגזרים מהן</strong> ואין מה להקליד.
     מוצגות רק חשבוניות <strong>מאושרות לתשלום שטרם שולמו</strong>, של ספק מאושר, מהחנויות שלך.
     <strong>פתחי את הבקשה כאן לפני שאת בונה את המקבץ בבנק</strong> — האישור בבנק נעשה מולה.
+    האישור תקף <strong><%= approvalTtlDays %> ימים</strong>, ומתבטל אם משהו בבקשה משתנה אחריו.
   </p>
   <% if (!invoiceOptions.length) { %>
     <p class="muted">אין כרגע חשבוניות מאושרות לתשלום. אשר חשבונית ב<a href="/invoices">חשבוניות</a> תחילה.</p>
@@ -114,16 +115,19 @@
             <td class="mono"><%= t.reference || '—' %></td>
             <td>
               <span class="badge <%= (statuses[t.displayStatus] || {}).badge || 'b-neutral' %>"><%= statusLabel(t.displayStatus) %></span>
+              <% if (t.amountMismatch) { %>
+                <br /><span class="muted" style="font-size:11px">בבנק: <%= formatIls(Math.abs(t.bankAmount)) %> · במבוקש: <%= formatIls(t.amount) %></span>
+              <% } %>
               <% if (t.approved_by_name) { %><br /><span class="muted" style="font-size:11px">אושר ע"י <%= t.approved_by_name %></span><% } %>
               <% if (t.rejected_reason) { %><br /><span class="muted" style="font-size:11px"><%= t.rejected_reason %></span><% } %>
             </td>
             <td class="no-print">
-              <% if (t.status === 'pending' && currentUser.role === 'owner') { %>
+              <% if ((t.status === 'pending' || t.needsReapproval) && currentUser.role === 'owner') { %>
                 <%# The owner's one action, taken BEFORE the money moves — the invoice is one click
                     away in the column to the right, which is what replaces the WhatsApp photo. %>
                 <form method="post" action="/transfers/<%= t.id %>/approve" style="display:inline"
                       onsubmit="return <%= t.bankChangedRecently ? "confirm('פרטי הבנק של הספק שונו לאחרונה. אימתת את השינוי טלפונית מול הספק? לאשר בכל זאת?')" : (t.bankMissing ? "confirm('אין פרטי בנק לספק. לאשר בכל זאת?')" : 'true') %>;">
-                  <button class="small" type="submit">אשר</button>
+                  <button class="small" type="submit"><%= t.needsReapproval ? 'אשר מחדש' : 'אשר' %></button>
                 </form>
                 <details class="menu" style="display:inline-block">
                   <summary class="btn btn-secondary small">דחה</summary>
@@ -135,7 +139,7 @@
                   </div>
                 </details>
               <% } %>
-              <% if (t.status === 'approved') { %>
+              <% if (t.status === 'approved' && !t.needsReapproval) { %>
                 <%# The only typed field in the whole flow. "נפרע" is never typed — it arrives from
                     the bank matching the payment this creates. %>
                 <details>

@@ -190,8 +190,9 @@ export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
     await alertOnExpiredNotCollected(x);
     // …and the transfer watch: a fresh statement is exactly when an undocumented transfer becomes
     // visible, so this is the first moment it can be reported (services/transfers.js).
-    const { alertOnUntrackedTransfers } = await import('./transfers.js');
+    const { alertOnUntrackedTransfers, alertOnTransferProblems } = await import('./transfers.js');
     await alertOnUntrackedTransfers(x);
+    await alertOnTransferProblems(x);
   } catch { /* an alert must never fail a reconcile */ }
 
   await logAction(

@@ -655,7 +655,12 @@ CREATE TABLE IF NOT EXISTS bank_transfers (
   rejected_reason TEXT,
   executed_at     TEXT,                                -- when the transfer was actually made
   reference       TEXT,                                -- the bank's אסמכתה — the only typed field
-  payment_id      INTEGER REFERENCES payments(id),     -- the payments row created on execute
+  payment_id      INTEGER REFERENCES payments(id),
+  -- What was approved, fingerprinted. An approval is of a SPECIFIC payee, sum and destination —
+  -- if any of them changes afterwards the approval is no longer about the thing being released,
+  -- so it is void rather than silently carried over. See services/transfers.js#substanceOf.
+  approved_fingerprint TEXT,
+  alerted         TEXT,                                -- last alert kind sent, so a sweep stays quiet     -- the payments row created on execute
   note            TEXT,
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
