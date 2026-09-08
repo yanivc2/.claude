@@ -30,6 +30,7 @@ export function migrate(db) {
   migrateRevenueReports(db);
   migrateVoidedChecks(db); // after payments/employees/z_closings exist
   migrateBankTransfers(db);
+  migrateSupplierBank(db);
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -397,6 +398,34 @@ function migrateUserAuth(db) {
   if (!cols.includes('login_start')) db.exec('ALTER TABLE users ADD COLUMN login_start TEXT;');
   if (!cols.includes('login_end')) db.exec('ALTER TABLE users ADD COLUMN login_end TEXT;');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;');
+}
+
+// פרטי בנק של ספק — the destination a transfer is allowed to go to, and the history of changes
+// to it. See schema.sql for the fraud this exists for.
+function migrateSupplierBank(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  if (!has('suppliers')) return;
+  const cols = db.prepare('PRAGMA table_info(suppliers)').all().map((c) => c.name);
+  for (const [col, ddl] of [
+    ['bank_name', 'TEXT'], ['bank_branch', 'TEXT'], ['bank_account', 'TEXT'], ['bank_holder', 'TEXT'],
+    ['bank_updated_at', 'TEXT'], ['bank_updated_by', 'INTEGER REFERENCES users(id)'],
+  ]) {
+    if (!cols.includes(col)) db.exec(`ALTER TABLE suppliers ADD COLUMN ${col} ${ddl};`);
+  }
+  if (!has('supplier_bank_changes')) {
+    db.exec(`
+      CREATE TABLE supplier_bank_changes (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        supplier_id   INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+        old_bank      TEXT, old_branch TEXT, old_account TEXT, old_holder TEXT,
+        new_bank      TEXT, new_branch TEXT, new_account TEXT, new_holder TEXT,
+        changed_at    TEXT NOT NULL,
+        changed_by    INTEGER REFERENCES users(id),
+        note          TEXT
+      );
+      CREATE INDEX IF NOT EXISTS ix_supplier_bank_changes ON supplier_bank_changes(supplier_id, changed_at);
+    `);
+  }
 }
 
 // "העברות בנקאיות" — the transfer REQUEST raised before the money moves (see schema.sql).

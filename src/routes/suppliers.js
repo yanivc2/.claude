@@ -15,6 +15,8 @@ import {
   setSuppliersZeroRated,
   supplierStoreSuggestions,
   setSupplierStores,
+  setSupplierBank,
+  supplierBankHistory,
 } from '../services/suppliers.js';
 import { submitRequest } from '../services/changeRequests.js';
 import { describeSupplier } from '../lib/changeSummary.js';
@@ -214,6 +216,32 @@ router.post('/zero-rated', requireOwner, async (req, res, next) => {
   }
 });
 
+// פרטי בנק של ספק — where a transfer to them may go. Owner only, and every change is kept and
+// pushed: a real invoice paid into a quietly changed account is the fraud this guards against.
+// See services/suppliers.js#setSupplierBank.
+router.post('/:id/bank', requireOwner, async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    await setSupplierBank(
+      id,
+      {
+        bankName: req.body.bank_name,
+        bankBranch: req.body.bank_branch,
+        bankAccount: req.body.bank_account,
+        bankHolder: req.body.bank_holder,
+        note: req.body.bank_note,
+      },
+      req.user,
+    );
+    return res.redirect(303, `/suppliers/${id}/edit?bank=1`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/suppliers/${id}/edit?bankerr=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
 // Assign unlinked suppliers to the stores their invoices say they serve. Owner only, and through
 // the ASSIGNMENT scope (the unnarrowed grants) like every other "copy to branch" picker — the
 // active-store lock must not stop the owner assigning a supplier to the branch it actually serves.
@@ -270,7 +298,11 @@ router.get('/:id/edit', async (req, res, next) => {
       // Parent-supplier options for the "חברת-אם (לתשלום מרוכז)" picker: top-level suppliers only
       // (a subsidiary can't itself be a parent), excluding this supplier.
       parentOptions: (await listSuppliers(null, undefined, { scope: req.scope })).filter((s) => s.id !== supplier.id && s.parent_supplier_id == null),
-      notice: req.query.saved === 'skill' ? 'הסקיל של הספק עודכן.' : null,
+      bankHistory: await supplierBankHistory(supplier.id),
+      notice: req.query.bank
+        ? 'פרטי הבנק נשמרו. השינוי תועד ונשלחה התראה.'
+        : req.query.saved === 'skill' ? 'הסקיל של הספק עודכן.' : null,
+      bankError: req.query.bankerr ? String(req.query.bankerr) : null,
       // "הסקיל": what scanning this supplier's invoices has taught the system so far.
       profile,
       readiness: readiness(profile),

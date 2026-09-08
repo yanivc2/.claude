@@ -56,6 +56,14 @@ CREATE TABLE IF NOT EXISTS suppliers (
   -- בפועל שעל החשבונית), רק משתיק את אזהרת "חשבונית מס גדולה בלי מע"מ — שכחת להזין?" שאחרת
   -- הייתה נורית על כל חשבונית של הספק הזה.
   zero_rated     INTEGER NOT NULL DEFAULT 0,
+  -- Where a transfer to this supplier may go. Owner-only; every change is kept in
+  -- supplier_bank_changes and shown at the moment a transfer to them is approved.
+  bank_name      TEXT,
+  bank_branch    TEXT,
+  bank_account   TEXT,
+  bank_holder    TEXT,   -- שם בעל החשבון — must match the supplier, or it is a red flag
+  bank_updated_at TEXT,
+  bank_updated_by INTEGER REFERENCES users(id),
   -- "הסקיל של הספק": what this supplier's invoices LOOK LIKE, learned from its own scans —
   -- which column holds the product code and what shape it is, whether there is a כ.בודד column,
   -- whether an allocation number is ever printed, the date format, and what humans keep
@@ -660,3 +668,22 @@ CREATE TABLE IF NOT EXISTS bank_transfer_lines (
   invoice_id  INTEGER NOT NULL REFERENCES invoices(id),
   UNIQUE (transfer_id, invoice_id)
 );
+
+-- §4 פרטי בנק של ספק — where a transfer to this supplier is allowed to go.
+--
+-- THE FRAUD THIS EXISTS FOR: the dangerous transfer is not one for a fake invoice. It is a REAL
+-- invoice, a real amount, correctly approved — paid into an account that was quietly changed. An
+-- email from "the supplier" saying their bank details changed is the most common way a business
+-- this size loses money, and nothing about the invoice looks wrong. So the destination is held
+-- here, changing it is an owner-only act, every change is kept, and a transfer to a supplier whose
+-- details changed recently says so at the moment of approval.
+CREATE TABLE IF NOT EXISTS supplier_bank_changes (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier_id   INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  old_bank      TEXT, old_branch TEXT, old_account TEXT, old_holder TEXT,
+  new_bank      TEXT, new_branch TEXT, new_account TEXT, new_holder TEXT,
+  changed_at    TEXT NOT NULL,
+  changed_by    INTEGER REFERENCES users(id),
+  note          TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_supplier_bank_changes ON supplier_bank_changes(supplier_id, changed_at);

@@ -45,7 +45,7 @@
   <p class="muted" style="margin:.6rem 0">
     בחר את החשבוניות שההעברה משלמת — <strong>הסכום, הספק, החנות והחשבון נגזרים מהן</strong> ואין מה להקליד.
     מוצגות רק חשבוניות <strong>מאושרות לתשלום שטרם שולמו</strong>, של ספק מאושר, מהחנויות שלך.
-    <strong>אין לבצע את ההעברה בבנק לפני שהבקשה אושרה.</strong>
+    <strong>פתחי את הבקשה כאן לפני שאת בונה את המקבץ בבנק</strong> — האישור בבנק נעשה מולה.
   </p>
   <% if (!invoiceOptions.length) { %>
     <p class="muted">אין כרגע חשבוניות מאושרות לתשלום. אשר חשבונית ב<a href="/invoices">חשבוניות</a> תחילה.</p>
@@ -91,7 +91,22 @@
         <% transfers.forEach(function(t){ %>
           <tr id="t<%= t.id %>">
             <td class="mono"><%= String(t.opened_at || '').slice(0,16) %><br /><span class="muted" style="font-size:11px"><%= t.opened_by_name || '' %></span></td>
-            <td><%= t.supplier_name || '—' %><br /><span class="muted" style="font-size:11px"><%= t.store_name %></span></td>
+            <td>
+              <%= t.supplier_name || '—' %><br /><span class="muted" style="font-size:11px"><%= t.store_name %></span>
+              <%# THE BRIEFING. This is what the owner compares against the bank screen before
+                  approving there. A real invoice paid into a changed account is the fraud that
+                  actually costs money, so the destination — and any recent change to it — sits
+                  next to the approve button rather than three clicks away. %>
+              <% if (t.bankMissing) { %>
+                <br /><span class="badge b-on_hold" title="אין פרטי בנק לספק — הגדר אותם בכרטיס הספק לפני אישור">⚠️ אין פרטי בנק</span>
+              <% } else { %>
+                <br /><span class="mono" style="font-size:11px"><%= t.bank.bank_name || '' %> <%= t.bank.bank_branch || '' %> · <%= t.bank.bank_account %></span>
+                <% if (t.bank.bank_holder) { %><br /><span class="muted" style="font-size:11px">ע"ש <%= t.bank.bank_holder %></span><% } %>
+                <% if (t.bankChangedRecently) { %>
+                  <br /><span class="badge b-blocked" title="פרטי הבנק שונו ב-<%= String(t.bank.bank_updated_at).slice(0,10) %>">🔴 פרטי הבנק שונו לאחרונה</span>
+                <% } %>
+              <% } %>
+            </td>
             <td>
               <% t.invoices.forEach(function(i){ %><a class="badge b-neutral" href="/invoices/<%= i.id %>"><%= i.invoice_number %></a> <% }); %>
             </td>
@@ -106,7 +121,8 @@
               <% if (t.status === 'pending' && currentUser.role === 'owner') { %>
                 <%# The owner's one action, taken BEFORE the money moves — the invoice is one click
                     away in the column to the right, which is what replaces the WhatsApp photo. %>
-                <form method="post" action="/transfers/<%= t.id %>/approve" style="display:inline">
+                <form method="post" action="/transfers/<%= t.id %>/approve" style="display:inline"
+                      onsubmit="return <%= t.bankChangedRecently ? "confirm('פרטי הבנק של הספק שונו לאחרונה. אימתת את השינוי טלפונית מול הספק? לאשר בכל זאת?')" : (t.bankMissing ? "confirm('אין פרטי בנק לספק. לאשר בכל זאת?')" : 'true') %>;">
                   <button class="small" type="submit">אשר</button>
                 </form>
                 <details class="menu" style="display:inline-block">
@@ -123,7 +139,7 @@
                 <%# The only typed field in the whole flow. "נפרע" is never typed — it arrives from
                     the bank matching the payment this creates. %>
                 <details>
-                  <summary class="muted" style="cursor:pointer;font-size:12px">בוצע — רשום אסמכתה</summary>
+                  <summary class="muted" style="cursor:pointer;font-size:12px">אושר בבנק — רשום אסמכתה</summary>
                   <form method="post" action="/transfers/<%= t.id %>/execute" style="margin-top:.35rem">
                     <input name="reference" placeholder="מספר אסמכתה מהבנק" required />
                     <input type="date" name="payment_date" style="margin-top:.3rem" />

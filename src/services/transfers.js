@@ -4,19 +4,26 @@
 // and the owner approves by comparing the photo to the movement. The approval happens after the
 // money has gone, and it happens outside the system.
 //
-// WHAT SOFTWARE CAN AND CANNOT DO. Nothing here can stop somebody logging into the bank — the bank
-// does not ask us. So this is not built as a lock. It is built so that an unrecorded transfer is
-// impossible to HIDE, which is the achievable version of the same goal:
+// WHERE THE REAL CONTROL ALREADY IS. The bank itself enforces dual authorisation: the secretary
+// signs in with her own credentials and builds the batch, and NOTHING MOVES until the owner
+// approves it in the bank. So she cannot pay anyone on her own, and this page is not trying to
+// re-invent that lock — it would be a worse copy of a control that already works.
 //
-//   1. THE ONLY LEGITIMATE PATH is a request raised here first. It is ticked, not typed: the
-//      invoices are chosen and the amount, supplier, store and account are derived from them — so
-//      a request can never be for money nobody is owed, and the owner approves a specific payee and
-//      a specific sum instead of a screenshot.
-//   2. THE OWNER APPROVES BEFORE THE MONEY MOVES, from the request itself, with the invoice one
-//      click away. That is what replaces WhatsApp.
-//   3. EVERY OUTGOING MOVEMENT THE BANK REPORTS WITHOUT A REQUEST BEHIND IT IS AN ALARM — push and
-//      in-app (untrackedTransfers). This is the enforcement. It cannot be argued with, because it
-//      is the bank's own statement.
+// What is missing is everything AROUND that approval. Today it is made in the bank's screen with a
+// WhatsApp photo as the only context: which invoice is this, was it already paid, is this even the
+// supplier's account. That is the gap this page fills — it is the BRIEFING for an approval that
+// happens elsewhere, plus the record that the approval was made:
+//
+//   1. The request is ticked, not typed: the invoices are chosen and the amount, supplier, store
+//      and account are derived from them, so a request can never be for money nobody is owed.
+//   2. The owner approves HERE, against the invoice and the supplier's known destination account —
+//      that is what replaces the photo — and then approves in the bank knowing what he is looking
+//      at. **The destination is the point**: a real invoice paid into a changed account is how a
+//      business this size actually loses money (services/suppliers.js#setSupplierBank).
+//   3. Every outgoing movement the bank reports with no request behind it is still an alarm. Not
+//      because she could have paid alone — she could not — but because an approval given in the
+//      bank without a request here means the briefing was skipped, and that is exactly the state
+//      this page exists to prevent.
 //   4. `opened_at` vs the bank's date catches BACK-FILLING: a request raised after the movement
 //      already appeared is recorded and shown as such.
 //
@@ -37,8 +44,8 @@ export const WATCH_FROM_KEY = 'transfer_watch_from';
 
 export const TRANSFER_STATUS = {
   pending: { label: 'ממתין לאישור', badge: 'b-on_hold' },
-  approved: { label: 'אושר — ניתן לבצע', badge: 'b-approved' },
-  executed: { label: 'בוצע — ממתין לפירעון', badge: 'b-neutral' },
+  approved: { label: 'אושר — אפשר לאשר בבנק', badge: 'b-approved' },
+  executed: { label: 'אושר בבנק — ממתין לפירעון', badge: 'b-neutral' },
   cleared: { label: 'נפרע', badge: 'b-cleared' },
   rejected: { label: 'נדחה', badge: 'b-blocked' },
   cancelled: { label: 'בוטל', badge: 'b-voided' },
@@ -200,7 +207,7 @@ export async function executeTransfer(id, { reference, paymentDate = null }, act
   const t = await getTransfer(id, x);
   if (t.status !== 'approved') {
     throw new RuleError('R', t.status === 'pending'
-      ? 'הבקשה ממתינה לאישור הבעלים — אין לבצע העברה לפני אישור'
+      ? 'הבקשה ממתינה לאישור הבעלים — אשר כאן לפני שאתה משחרר את המקבץ בבנק'
       : `לא ניתן לבצע בקשה בסטטוס "${statusLabel(t.status)}"`);
   }
   const ref = (reference || '').toString().trim();
@@ -263,11 +270,28 @@ export async function listTransfers({ scope = null, limit = 200 } = {}, x = getE
     if (!byTransfer.has(k)) byTransfer.set(k, []);
     byTransfer.get(k).push(l);
   }
-  return rows.map((r) => ({
-    ...r,
-    invoices: byTransfer.get(Number(r.id)) || [],
-    displayStatus: r.status === 'executed' && r.payment_status === 'cleared' ? 'cleared' : r.status,
-  }));
+  // The supplier's destination account, carried onto every row — this is what the owner compares
+  // against the bank screen when approving, and the recent-change warning is the alarm that
+  // matters most (see services/suppliers.js#setSupplierBank).
+  const { bankChangedRecently, BANK_CHANGE_WARN_DAYS } = await import('./suppliers.js');
+  let banks = [];
+  try {
+    banks = await x.many('SELECT id, bank_name, bank_branch, bank_account, bank_holder, bank_updated_at FROM suppliers', []);
+  } catch { banks = []; } // pre-upgrade database
+  const bankById = new Map(banks.map((b) => [Number(b.id), b]));
+
+  return rows.map((r) => {
+    const bank = bankById.get(Number(r.supplier_id)) || null;
+    return {
+      ...r,
+      invoices: byTransfer.get(Number(r.id)) || [],
+      displayStatus: r.status === 'executed' && r.payment_status === 'cleared' ? 'cleared' : r.status,
+      bank,
+      bankMissing: !bank || !bank.bank_account,
+      bankChangedRecently: bank ? bankChangedRecently(bank) : false,
+      bankWarnDays: BANK_CHANGE_WARN_DAYS,
+    };
+  });
 }
 
 // ── the enforcement ────────────────────────────────────────────────────────────────────────────

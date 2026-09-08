@@ -156,6 +156,12 @@ CREATE TABLE IF NOT EXISTS suppliers (
   -- עסקאות בשיעור אפס (§30(א)(13)) — ספק פירות וירקות טריים. משתיק אזהרת-הזנה בלבד; R3 עצמו
   -- נבדק תמיד לפי המע"מ בפועל שעל החשבונית.
   zero_rated     INTEGER NOT NULL DEFAULT 0,
+  bank_name      TEXT,
+  bank_branch    TEXT,
+  bank_account   TEXT,
+  bank_holder    TEXT,
+  bank_updated_at TEXT,
+  bank_updated_by INTEGER REFERENCES users(id),
   scan_profile   TEXT,  -- "הסקיל": מבנה החשבונית של הספק, נלמד מהסריקות שלו (JSON)
   parent_supplier_id INTEGER REFERENCES suppliers(id)  -- תשלום מרוכז: חברת-בת מצביעה לחברת-האם
 );
@@ -649,3 +655,22 @@ CREATE TABLE IF NOT EXISTS bank_transfer_lines (
   invoice_id  INTEGER NOT NULL REFERENCES invoices(id),
   UNIQUE (transfer_id, invoice_id)
 );
+
+-- §4 פרטי בנק של ספק — see schema.sql for the fraud this exists for.
+CREATE TABLE IF NOT EXISTS supplier_bank_changes (
+  id            INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  supplier_id   INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  old_bank      TEXT, old_branch TEXT, old_account TEXT, old_holder TEXT,
+  new_bank      TEXT, new_branch TEXT, new_account TEXT, new_holder TEXT,
+  changed_at    TEXT NOT NULL,
+  changed_by    INTEGER REFERENCES users(id),
+  note          TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_supplier_bank_changes ON supplier_bank_changes(supplier_id, changed_at);
+
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_name TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_branch TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_account TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_holder TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_updated_at TEXT;
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_updated_by INTEGER REFERENCES users(id);

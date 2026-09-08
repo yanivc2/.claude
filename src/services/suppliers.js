@@ -383,3 +383,98 @@ export async function supplierStoreSuggestions(scope = null, x = getExecutor()) 
     .filter((c) => c.stores.length)   // nothing to infer for a supplier that never invoiced
     .sort((a, b) => b.invoices - a.invoices || a.name.localeCompare(b.name, 'he'));
 }
+
+// ── פרטי בנק של ספק ────────────────────────────────────────────────────────────────────────────
+//
+// THE FRAUD THIS GUARDS: the dangerous transfer is not one for a fake invoice. It is a REAL invoice,
+// a real amount, correctly approved — paid into an account that was quietly changed. An email from
+// "the supplier" announcing new bank details is how a business this size actually loses money, and
+// nothing about the invoice looks wrong at all.
+//
+// So: the destination lives on the supplier, changing it is an OWNER act, every change is kept with
+// who and when, and a transfer to a supplier whose details changed recently says so at the moment
+// of approval (see services/transfers.js). The window is deliberately generous — a fraudster's
+// change and the payment it targets are usually days apart, not minutes.
+export const BANK_CHANGE_WARN_DAYS = 60;
+
+const BANK_FIELDS = ['bank_name', 'bank_branch', 'bank_account', 'bank_holder'];
+const clean = (v) => (v ?? '').toString().trim() || null;
+
+/**
+ * Set (or change) where transfers to this supplier go. Owner only.
+ *
+ * A change is never silent: the previous values are written to supplier_bank_changes and the owner
+ * is pushed a notice, so a change made by somebody with a stolen session is visible even if nobody
+ * happened to be looking at the supplier card.
+ */
+export async function setSupplierBank(id, details, actor, x = getExecutor()) {
+  if (!userCan(actor, 'manage_suppliers') && actor?.role !== 'owner') {
+    throw new AuthError('שינוי פרטי בנק של ספק — בעלים בלבד');
+  }
+  const supplier = await getSupplier(id, x);
+  const next = {
+    bank_name: clean(details.bankName),
+    bank_branch: clean(details.bankBranch),
+    bank_account: clean(details.bankAccount),
+    bank_holder: clean(details.bankHolder),
+  };
+  const changed = BANK_FIELDS.some((f) => (supplier[f] ?? null) !== next[f]);
+  if (!changed) return supplier;
+
+  const now = nowTs();
+  await x.run(
+    `INSERT INTO supplier_bank_changes
+       (supplier_id, old_bank, old_branch, old_account, old_holder,
+        new_bank, new_branch, new_account, new_holder, changed_at, changed_by, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      id, supplier.bank_name, supplier.bank_branch, supplier.bank_account, supplier.bank_holder,
+      next.bank_name, next.bank_branch, next.bank_account, next.bank_holder,
+      now, actor?.id ?? null, clean(details.note),
+    ],
+  );
+  await x.run(
+    `UPDATE suppliers SET bank_name = ?, bank_branch = ?, bank_account = ?, bank_holder = ?,
+            bank_updated_at = ?, bank_updated_by = ? WHERE id = ?`,
+    [next.bank_name, next.bank_branch, next.bank_account, next.bank_holder, now, actor?.id ?? null, id],
+  );
+  await logAction(
+    { userId: actor?.id ?? null, action: 'supplier.bank_change', entityType: 'supplier', entityId: id,
+      details: { from: supplier.bank_account, to: next.bank_account } },
+    x,
+  );
+
+  const { notify } = await import('../lib/notify.js');
+  const had = supplier.bank_account || supplier.bank_name;
+  notify(
+    had
+      ? `⚠️ פרטי הבנק של ספק שונו\n${supplier.name}\nמ: ${supplier.bank_account || '—'} · ל: ${next.bank_account || '—'}\nאם לא ביקשת את השינוי — בדוק מיד מול הספק בטלפון, לא במייל.`
+      : `🏦 נקבעו פרטי בנק לספק\n${supplier.name}\nחשבון: ${next.bank_account || '—'} · ${next.bank_name || ''} ${next.bank_branch || ''}`,
+    { kind: 'supplier_bank', link: `/suppliers/${id}/edit` },
+  );
+  return getSupplier(id, x);
+}
+
+/** The change history for one supplier, newest first — what the card shows under the details. */
+export async function supplierBankHistory(id, x = getExecutor()) {
+  try {
+    return await x.many(
+      `SELECT c.*, u.name AS changed_by_name
+         FROM supplier_bank_changes c
+         LEFT JOIN users u ON u.id = c.changed_by
+        WHERE c.supplier_id = ?
+        ORDER BY c.changed_at DESC, c.id DESC`,
+      [id],
+    );
+  } catch {
+    return []; // pre-upgrade database
+  }
+}
+
+/** Has this supplier's destination changed within the warning window? */
+export function bankChangedRecently(supplier, days = BANK_CHANGE_WARN_DAYS, now = new Date()) {
+  if (!supplier?.bank_updated_at) return false;
+  const when = new Date(String(supplier.bank_updated_at).replace(' ', 'T') + 'Z');
+  if (Number.isNaN(when.getTime())) return false;
+  return (now.getTime() - when.getTime()) / 86400000 <= days;
+}
