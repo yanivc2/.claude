@@ -117,6 +117,8 @@ const routes = [
   ['page', '/suppliers'], ['page', '/suppliers/contacts'], ['page', '/suppliers/new'], ['page', `/suppliers/${sup.id}/edit`],
   // employees
   ['page', '/employees'],
+  // voided checks (צ׳קים מבוטלים)
+  ['page', '/voided-checks'],
   // settings
   ['page', '/settings'], ['page', '/settings/guide'], ['asset', '/settings/backup'],
   // products (hidden from nav, mounted)

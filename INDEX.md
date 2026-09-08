@@ -167,6 +167,23 @@
 | עריכה/מחיקה | `GET /zclosing/:id`, `POST /zclosing/:id[/delete]` (owner) | `updateZClosing`,`deleteZClosing` | — | — |
 | "הוצאות מזומן אחרונות" / "סגירות אחרונות" (מתקפלים) | `views/zclosing/index.ejs` (client-only) | `<details class="collapse-card" data-accordion="recent-z">` + סקריפט accordion inline | שני קלפים מתקפלים, סגורים כברירת מחדל; פתיחת אחד סוגרת את השני (קבוצת `recent-z`). תצוגה בלבד — לא נשמר. | הסקריפט תלוי ב-`data-accordion` על שני ה-`<details>`; להשאיר אותם באותה קבוצה. `.collapse-card` מוגדר ב-`nocturne.css`. |
 
+
+---
+
+## 🚫 צ׳קים מבוטלים + תשלומי שכר — `routes/voidedChecks.js`, `services/voidedChecks.js`, `services/salaryPayments.js`
+
+**🔴 ביטול צ׳ק במערכת אינו מבטל אותו בבנק.** צ׳ק נשאר בר-פירעון **182 יום** (`CHECK_LIFE_DAYS`) מתאריך הפירעון, ולכן צ׳ק שבוטל נשאר במעקב עד שהוא בטוח. זו כל הסיבה לקיומו של הדף.
+
+| כפתור/פיצ'ר | route | wiring | מה עושה / מקושר | אם מוחקים/משנים |
+|---|---|---|---|---|
+| **דף צ׳קים מבוטלים** (רובריקה לכל חנות) | `GET /voided-checks` (`nav_voided_checks`) | `listVoidedChecks({scope})` | עמודות: תאריך ביטול · מספר צ׳ק · עבור · לתאריך · סכום · סיבת ביטול · בוטל ע"י · **סטטוס**. "עבור" נגזר מ-`payment_lines` (ספק·חשבונית) או מ-`salary_payments` (שכר·עובד). קיבוץ לפי `bank_accounts.store_id`. | הדף קריא-בלבד: צ׳ק מגיע לכאן ע"י ביטול עם סיבה בדף התשלום, ויוצא מרשימת הסיכון לפי הלוח. |
+| **סיבת ביטול — נבחרת, לא מוקלדת** | `POST /payments/:id/void` (`void_reason`) | `payments.js#voidPaymentWithReason` → `payments.void_reason/voided_at/voided_by/void_link_*` | ארבע סיבות, לכל אחת מעקב משלה: **לא נאסף** (בטוח רק אחרי 182 יום) · **נפרע במזומן עבור שכר** (חובה התאמה להוצאת מזומן) · **שינוי אמצעי תשלום** (חובה קישור לתשלום החדש) · **ביטול שורה בתוכנה** (חובה קישור לשורה). | טקסט חופשי לא ניתן למעקב — לכן הסיבה היא enum ב-CHECK constraint (סכימה ×3+migrate). `voidPayment` הישן עדיין עובד (ביטול בלי סיבה) ופשוט אין לו מעקב. |
+| **עמודת הסטטוס** | `voidedChecks.js#checkStatus(row, today)` | טהורה — נבדקת ישירות | `cashed` (🔴 נפרע אחרי הביטול — גובר על הכל) · `unmatched`/`unlinked` (המעקב שהסיבה דורשת לא בוצע) · `live` (עדיין בר-פירעון, עם התאריך) · `expired` (עבר תוקף — בטוח). | זו העמודה החשובה בדף. שינוי הסדר משנה איזו בעיה מוצגת. |
+| **זיהוי "נפרע אחרי הביטול"** | בכל `autoReconcile` (ייבוא דף חשבון / התאמה אוטומטית / `POST /reconciliation/sync`) | `listVoidedChecks` + `reconciliation.js#voidedCheckHits` | שתי ראיות: `matched_payment_id` מפורש, **או** חיוב לא-מותאם באותו חשבון, באותו סכום, שנושא את מספר הצ׳ק. שתיהן מיושמות גם ב-`listVoidedChecks` כדי שהדף וההתראה לא יסתרו. | סכום שונה או חשבון שונה = **לא** אותו צ׳ק (נבדק). |
+| **התראות** | `alertOnVoidedChecks` + `alertOnExpiredNotCollected` (נקראות מ-`autoReconcile`) | `lib/notify.js` (טלגרם + פעמון) | פוש על: צ׳ק שבוטל ונפרע · "נפרע במזומן עבור שכר" בלי התאמה · חסר קישור · ו"לא נאסף" שהגיע ל-182 יום. **אידמפוטנטי** דרך `payments.void_alerted` (הסטטוס האחרון שנשלח), כך שהרצה חוזרת שקטה עד ששינוי אמיתי קרה. | `try/catch` סביב הקריאה — התראה לא מפילה התאמה. איפוס `void_alerted` ב-`voidPaymentWithReason` מאפשר התראה מחדש אחרי ביטול-מחדש. |
+| **באנר אדום בלוח הבקרה** | `GET /` | `voidedChecksSeenInBank(scope, storeId)` → `views/dashboard.ejs` | "🔴 צ׳ק שבוטל נפרע" עם **קישור לצ׳ק** וקישור לדף צ׳קים מבוטלים. | תלוי ב-`h.payment.id` מ-`voidedCheckHits`. |
+| **רובריקת תשלומי שכר** | `GET /employees`, `POST /employees/salary` | `salaryPayments.js#createSalaryPayment` → `salary_payments` | עמודות: שם העובד · שולם ב (צ׳ק/מזומן/העברה/מקבץ) · מס׳ אסמכתה · לתאריך · סכום ₪. בורר העובדים מציע **רק עובדי החנות** (עובד ללא שיוך = משותף). התאריך נכתב גם ידנית (8/9/26) דרך בורר-התאריך הגלובלי. צ׳ק/העברה/מקבץ **חייבים אסמכתה**; מזומן לא. | `store_id` מהבקשה עובר `assertStoreAllowed`. "הוספת עובד" הפכה ל-`<details>` **מצומצם כברירת מחדל** — הרובריקה היומיומית למעלה. |
+| **"הצ׳ק נפרט" — התאמה למזומן** | `POST /employees/salary/:id/cashed` | `salaryPayments.js#markCashed` → `voidPaymentWithReason('cashed_for_salary')` | העובד פרט את צ׳ק השכר בקופה: הכסף יצא מהקופה (הוצאת מזומן בסגירת Z), ולכן הצ׳ק **חייב להתבטל** — אחרת ייפרע בבנק וישולם אותו שכר פעמיים. ההתאמה מציעה הוצאות מזומן **פנויות** בלבד; הוצאה שכבר שויכה לא מוצעת שוב, ושיוך כפול נחסם. | **סדר קריטי:** מבטלים קודם ואז מסמנים. `voidPayment` פותח טרנזקציה משלו — עטיפה ב-`tx()` נוספת זורקת "cannot start a transaction within a transaction", וגם ביטול שנדחה היה משאיר את שורת השכר מסומנת מול צ׳ק חי. |
 ---
 
 ## 🏢 ספקים — `routes/suppliers.js`, `services/suppliers.js`, `views/suppliers/*`

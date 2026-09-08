@@ -45,6 +45,7 @@
           <a href="/notifications" class="<%= path.startsWith('/notifications') ? 'active' : '' %>"><span class="mi-ic">🔔</span>התראות<% if (typeof unreadNotifications !== 'undefined' && unreadNotifications > 0) { %> <span class="tag tag-accent"><%= unreadNotifications %></span><% } %></a>
         <% } %>
         <% if (nav('nav_employees')) { %><a href="/employees" class="<%= path.startsWith('/employees') ? 'active' : '' %>"><span class="mi-ic">👥</span>עובדים ומשכורות</a><% } %>
+        <% if (nav('nav_voided_checks')) { %><a href="/voided-checks" class="<%= path.startsWith('/voided-checks') ? 'active' : '' %>"><span class="mi-ic">🚫</span>צ׳קים מבוטלים</a><% } %>
         <% if (nav('nav_audit')) { %><a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>"><span class="mi-ic">📅</span>יומן</a><% } %>
         <% if (typeof can === 'function' && can('settings')) { %>
           <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>

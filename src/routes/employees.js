@@ -4,7 +4,12 @@ import {
   listEmployees, createEmployee, deleteEmployee, listEmployeeLedger, employeeTotals, importEmployees,
   setEmployeeStores,
 } from '../services/employees.js';
-import { scopedStoreList, assignmentScope } from '../lib/scope.js';
+import { scopedStoreList, assignmentScope, effectiveStoreId } from '../lib/scope.js';
+import {
+  listSalaryPayments, createSalaryPayment, deleteSalaryPayment, markCashed, unmatchCashed,
+  cashExpenseCandidates, SALARY_METHODS,
+} from '../services/salaryPayments.js';
+import { toAgorot } from '../lib/money.js';
 import { assertStoreAllowed } from '../lib/scopeGuard.js';
 import { parseEmployeeFile } from '../lib/employeeImport.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -36,8 +41,15 @@ async function scopedTotals(scope) {
 }
 
 async function render(req, res, extra = {}) {
+  // The wage rubric is per store: the picker offers only THIS branch's employees, and the rows
+  // shown are this branch's. With no active store the owner sees every branch they may see.
+  const storeId = effectiveStoreId(req, req.query.store);
   res.render('employees/index', {
     title: 'עובדים ומשכורות',
+    salaryRows: await listSalaryPayments({ storeId, scope: req.scope }),
+    salaryMethods: SALARY_METHODS,
+    cashCandidates: await cashExpenseCandidates({ storeId, scope: req.scope }),
+    salaryStoreId: storeId,
     // Scoped: an employee linked to stores is only visible where one of them is in scope; an
     // employee with no links is shared with every store (see services/employees.js#listEmployees).
     storeOptions: await scopedStoreList(assignmentScope(req)),
@@ -61,6 +73,10 @@ const NOTICES = {
   imported: 'הייבוא הושלם.',
   deleted: 'העובד נמחק.',
   deactivated: 'העובד הועבר ללא-פעיל (יש לו רישומים).',
+  salary: 'תשלום השכר נרשם.',
+  'salary-deleted': 'תשלום השכר נמחק.',
+  cashed: 'הצ׳ק סומן כנפרט והותאם להוצאת המזומן. הצ׳ק בוטל ונמצא במעקב ב"צ׳קים מבוטלים".',
+  uncashed: 'ההתאמה בוטלה. הצ׳ק שבוטל נשאר במעקב.',
 };
 
 router.get('/', async (req, res, next) => {
@@ -95,6 +111,62 @@ router.post('/:id/stores', async (req, res, next) => {
     return res.redirect(303, `/employees?saved=${storeIds.length ? 'stores' : 'stores-cleared'}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// --- תשלומי שכר -------------------------------------------------------------------------------
+// Recording HOW a wage was paid, and the one case that is not just bookkeeping: an employee who
+// cashes the wage check at the till. See services/salaryPayments.js.
+
+router.post('/salary', async (req, res, next) => {
+  try {
+    const storeId = await assertStoreAllowed(req.body.store_id, req.scope);
+    await createSalaryPayment(
+      {
+        storeId,
+        employeeId: req.body.employee_id,
+        method: req.body.method,
+        reference: req.body.reference,
+        dueDate: req.body.due_date,
+        amount: toAgorot(req.body.amount || '0'),
+      },
+      req.user,
+    );
+    return res.redirect(303, '/employees?saved=salary');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+// "הצ׳ק נפרט" — tie the wage row to the Z-closing cash expense that paid it out at the till, and
+// void the underlying check so the same wage is not paid twice.
+router.post('/salary/:id/cashed', async (req, res, next) => {
+  try {
+    await markCashed(Number(req.params.id), Number(req.body.cash_expense_id), req.user);
+    return res.redirect(303, '/employees?saved=cashed');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/salary/:id/uncashed', async (req, res, next) => {
+  try {
+    await unmatchCashed(Number(req.params.id), req.user);
+    return res.redirect(303, '/employees?saved=uncashed');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/salary/:id/delete', async (req, res, next) => {
+  try {
+    await deleteSalaryPayment(Number(req.params.id), req.user);
+    return res.redirect(303, '/employees?saved=salary-deleted');
+  } catch (err) {
     next(err);
   }
 });

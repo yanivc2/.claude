@@ -1,3 +1,4 @@
+import { israelNow } from './zclosing.js';
 import { getExecutor, tx } from '../db/adapter.js';
 import { config } from '../config.js';
 import { NotFoundError, RuleError, AuthError } from '../lib/errors.js';
@@ -461,6 +462,47 @@ export async function markIssued(id, actor, x = getExecutor()) {
 }
 
 /** Void a check. Reverts its invoices back to approved_for_payment. Owner-only. */
+/**
+ * Void a check WITH the structured reason the צ'קים מבוטלים page is built on.
+ *
+ * The reason is asked for, not typed, because each one carries a different follow-up and the page
+ * cannot chase what it cannot classify (see services/voidedChecks.js):
+ *   not_collected     — safe only once six months have passed since the check's date;
+ *   cashed_for_salary — must be matched to the Z-closing cash expense that paid it at the till;
+ *   method_changed    — must link to the payment that replaced it;
+ *   row_cancelled     — must link to the row it belonged to.
+ *
+ * `reason` may be omitted for a plain void (an older caller, or a correction with nothing to
+ * follow up); the check then still appears on the page, with no reason-specific chase.
+ *
+ * @param {{reason?:string, cashExpenseId?:number, linkPaymentId?:number, linkInvoiceId?:number, note?:string}} details
+ */
+export async function voidPaymentWithReason(id, details, actor, x = getExecutor()) {
+  const { VOID_REASON_VALUES } = await import('./voidedChecks.js');
+  const reason = details?.reason || null;
+  if (reason && !VOID_REASON_VALUES.includes(reason)) {
+    throw new RuleError('VALIDATION', 'סיבת ביטול לא תקינה');
+  }
+  const payment = await voidPayment(id, actor, details?.note || reason, x);
+  await x.run(
+    `UPDATE payments
+        SET void_reason = ?, voided_at = ?, voided_by = ?,
+            void_cash_expense_id = ?, void_link_payment_id = ?, void_link_invoice_id = ?,
+            void_alerted = NULL
+      WHERE id = ?`,
+    [
+      reason,
+      israelNow(),
+      actor?.id ?? null,
+      details?.cashExpenseId ? Number(details.cashExpenseId) : null,
+      details?.linkPaymentId ? Number(details.linkPaymentId) : null,
+      details?.linkInvoiceId ? Number(details.linkInvoiceId) : null,
+      id,
+    ],
+  );
+  return getPaymentDetail(id, x);
+}
+
 export async function voidPayment(id, actor, reason = null, x = getExecutor()) {
   if (!userCan(actor, 'void_payment')) throw new AuthError('ביטול צ׳ק — נדרשת הרשאת ביטול תשלום');
   const payment = await x.one('SELECT * FROM payments WHERE id = ?', [id]);
@@ -482,7 +524,10 @@ export async function voidPayment(id, actor, reason = null, x = getExecutor()) {
     // Void FIRST, then recompute: an invoice may be covered by several payments now (R8), so
     // whether it stays 'paid' depends on the allocations that REMAIN live — blindly reverting it
     // to approved_for_payment would re-open an invoice the other checks still cover.
-    await t.run("UPDATE payments SET status = 'voided' WHERE id = ?", [id]);
+    await t.run(
+      "UPDATE payments SET status = 'voided', voided_at = COALESCE(voided_at, ?), voided_by = COALESCE(voided_by, ?) WHERE id = ?",
+      [israelNow(), actor?.id ?? null, id],
+    );
     for (const line of lines) {
       await syncInvoicePaidStatus(line.invoice_id, null, t);
     }

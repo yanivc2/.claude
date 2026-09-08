@@ -3,14 +3,17 @@
 
 <% if (typeof voidedInBank !== 'undefined' && voidedInBank && voidedInBank.count) { %>
   <div class="card" style="border:2px solid var(--color-danger, #c0392b); background:rgba(192,57,43,.06)">
-    <h2 style="margin:0 0 .3rem; color:var(--color-danger, #c0392b)">⚠️ צ׳ק מבוטל הופיע בדף הבנק (<%= voidedInBank.count %>)</h2>
-    <p class="muted" style="margin:0 0 .4rem">הכסף עבר למרות שהצ׳ק סומן כמבוטל — יש לבדוק (ביטול שגוי / stop-payment / הנפקה מחדש).</p>
+    <h2 style="margin:0 0 .3rem; color:var(--color-danger, #c0392b)">🔴 צ׳ק שבוטל נפרע (<%= voidedInBank.count %>)</h2>
+    <p class="muted" style="margin:0 0 .4rem">
+      הכסף עבר למרות שהצ׳ק סומן כמבוטל — יש לבדוק (ביטול שגוי / stop-payment / הנפקה מחדש).
+      ביטול במערכת אינו מבטל בבנק: צ׳ק נשאר בר-פירעון כחצי שנה. ראה <a href="/voided-checks">צ׳קים מבוטלים</a>.
+    </p>
     <table>
       <thead><tr><th>צ׳ק / אסמכתא</th><th class="right">סכום</th><th>תאריך בבנק</th><th>תיאור</th></tr></thead>
       <tbody>
         <% voidedInBank.rows.forEach(function(h){ %>
           <tr>
-            <td class="mono"><%= h.payment.check_number || h.payment.reference || h.payment.batch_number || '—' %></td>
+            <td class="mono"><a href="/payments/<%= h.payment.id %>"><%= h.payment.check_number || h.payment.reference || h.payment.batch_number || '—' %></a></td>
             <td class="right neg"><%= formatIls(h.txn.amount) %></td>
             <td><%= formatDate(h.txn.txn_date) %></td>
             <td><%= h.txn.description || '' %></td>

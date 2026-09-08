@@ -1,3 +1,4 @@
+import { addDaysIso } from '../lib/loginHours.js';
 import { getExecutor, tx } from '../db/adapter.js';
 import { config } from '../config.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
@@ -8,12 +9,6 @@ import { logAction } from './audit.js';
 
 // R7 — reconcile a bank debit against an open (issued) check. Matches on same account + same
 // amount + payment_date within reconcileWindowDays of the transaction date + debit direction.
-
-function addDaysIso(iso, days) {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 /**
  * Open checks that could correspond to a given (debit) transaction.
@@ -186,6 +181,14 @@ export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
     );
     notify(`⚠️ <b>צ׳ק מבוטל הופיע בדף הבנק</b>\n${lines.join('\n')}\nהכסף עבר — יש לבדוק (ביטול שגוי / stop-payment / הנפקה מחדש).`);
   }
+  // …and the standing sweep over every voided check: the six-month clock, the missing cash match,
+  // the missing link. Idempotent (payments.void_alerted), so re-running a reconcile stays quiet
+  // unless something actually changed. See services/voidedChecks.js.
+  try {
+    const { alertOnVoidedChecks, alertOnExpiredNotCollected } = await import('./voidedChecks.js');
+    await alertOnVoidedChecks(x);
+    await alertOnExpiredNotCollected(x);
+  } catch { /* an alert must never fail a reconcile */ }
 
   await logAction(
     { userId: actor?.id ?? null, action: 'reconcile.auto', entityType: 'bank_account', entityId: bankAccountId, details: { matched, ambiguous, unmatched, voidedSeen: voidedSeen.length } },

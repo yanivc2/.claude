@@ -183,6 +183,7 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
 **Dashboard** `index.js` · **Invoices** `invoices.js` · **Payments** `payments.js` · **Z-reports**
 `reports.js`+`zreports.js` · **Register closing (סגירת Z)** `zclosing.js` · **Suppliers** `suppliers.js` ·
 **Bank recon** `reconciliation.js` · **Employees** `employees.js` · **Deposits** `deposits.js` ·
+**Voided checks + salary** `voidedChecks.js`+`salaryPayments.js` ·
 **Settings/org** `settings.js`+`orgs.js`/`users.js` · **Reports** `reports.js` · **Calendar/audit**
 `index.js`+`calendar.js`/`audit.js`/`changeRequests.js`. Business rules R1/R2/R3/R5 live in
 `services/invoices.js`+`payments.js`; **R3 נבדק לפי סכום המע"מ ולא לפי הנטו** — ביטוי יחיד

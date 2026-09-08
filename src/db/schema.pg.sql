@@ -219,6 +219,14 @@ CREATE TABLE IF NOT EXISTS payments (
                   CHECK (status IN ('issued','cleared','voided')),
   cleared_date    TEXT,
   supplier_id     INTEGER REFERENCES suppliers(id),
+  void_reason        TEXT
+                     CHECK (void_reason IS NULL OR void_reason IN ('not_collected','cashed_for_salary','method_changed','row_cancelled')),
+  voided_at          TEXT,
+  voided_by          INTEGER REFERENCES users(id),
+  void_link_payment_id INTEGER REFERENCES payments(id),
+  void_link_invoice_id INTEGER REFERENCES invoices(id),
+  void_cash_expense_id INTEGER,
+  void_alerted       TEXT,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
@@ -585,3 +593,30 @@ SELECT DISTINCT employee_id, store_id FROM (
 ) src
 WHERE NOT EXISTS (SELECT 1 FROM employee_stores)
 ON CONFLICT DO NOTHING;
+
+-- §4 salary_payments — how each employee's wage was actually paid (see schema.sql for the story).
+CREATE TABLE IF NOT EXISTS salary_payments (
+  id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  store_id        INTEGER NOT NULL REFERENCES stores(id),
+  employee_id     INTEGER NOT NULL REFERENCES employees(id),
+  method          TEXT NOT NULL DEFAULT 'check'
+                  CHECK (method IN ('check','cash','transfer','batch')),
+  reference       TEXT,
+  due_date        TEXT NOT NULL,
+  amount          INTEGER NOT NULL,
+  cashed          INTEGER NOT NULL DEFAULT 0,
+  cash_expense_id INTEGER,
+  payment_id      INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+  created_by      INTEGER NOT NULL REFERENCES users(id),
+  created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
+);
+CREATE INDEX IF NOT EXISTS ix_salary_payments_store ON salary_payments(store_id, due_date);
+
+-- migrations for existing databases (idempotent)
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_reason TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS voided_at TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS voided_by INTEGER REFERENCES users(id);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_link_payment_id INTEGER REFERENCES payments(id);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_link_invoice_id INTEGER REFERENCES invoices(id);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_cash_expense_id INTEGER;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_alerted TEXT;

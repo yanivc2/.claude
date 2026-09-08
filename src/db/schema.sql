@@ -236,6 +236,17 @@ CREATE TABLE IF NOT EXISTS payments (
   -- made before its invoice exists — e.g. 12 rent checks handed over up front) has no lines yet,
   -- so the supplier has to be recorded on the payment itself.
   supplier_id     INTEGER REFERENCES suppliers(id),
+  -- ביטול צ'ק — why, when and by whom, plus the link the reason demands. A voided check is not
+  -- forgotten: it stays cashable for six months, so "צ'קים מבוטלים" tracks it until it is safe.
+  void_reason        TEXT
+                     CHECK (void_reason IS NULL OR void_reason IN ('not_collected','cashed_for_salary','method_changed','row_cancelled')),
+  voided_at          TEXT,
+  voided_by          INTEGER REFERENCES users(id),
+  void_link_payment_id INTEGER REFERENCES payments(id),      -- שינוי אמצעי תשלום → התשלום החדש
+  void_link_invoice_id INTEGER REFERENCES invoices(id),      -- ביטול שורה בתוכנה → השורה שבוטלה
+  void_cash_expense_id INTEGER REFERENCES z_closing_expenses(id) ON DELETE SET NULL, -- נפרע במזומן
+  -- Alerts already sent, so a nightly/reconcile sweep does not push the same thing every time.
+  void_alerted       TEXT,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
@@ -577,3 +588,30 @@ CREATE TABLE IF NOT EXISTS supplier_catalog (
 CREATE INDEX IF NOT EXISTS ix_supplier_catalog_supplier ON supplier_catalog(supplier_id);
 CREATE INDEX IF NOT EXISTS ix_supplier_catalog_name ON supplier_catalog(supplier_id, name_norm);
 CREATE INDEX IF NOT EXISTS ix_supplier_catalog_sku ON supplier_catalog(supplier_id, sku);
+
+-- §4 salary_payments — how each employee's WAGE was actually paid. Distinct from a supplier
+-- payment (no supplier, no invoice): who, by what means, its identifier, the date it is FOR, and
+-- how much. Entered on the עובדים ומשכורות page, per store.
+--
+-- The interesting case is a wage CHECK the employee cashes at the till instead of at the bank
+-- ("פורט את הצק"): the money leaves the register, so it shows up as a cash expense on a Z closing,
+-- and the check itself must be voided or it will look outstanding forever. cash_expense_id is that
+-- match, and payment_id links the row to the actual check when one was issued through /payments.
+CREATE TABLE IF NOT EXISTS salary_payments (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id        INTEGER NOT NULL REFERENCES stores(id),
+  employee_id     INTEGER NOT NULL REFERENCES employees(id),
+  method          TEXT NOT NULL DEFAULT 'check'
+                  CHECK (method IN ('check','cash','transfer','batch')),
+  reference       TEXT,                                    -- מס' אסמכתה / מספר צ'ק
+  due_date        TEXT NOT NULL,                           -- "לתאריך" — ISO YYYY-MM-DD
+  amount          INTEGER NOT NULL,                        -- agorot
+  -- The wage check was cashed from the register. Set together with cash_expense_id when the
+  -- owner matches it to the Z-closing cash expense that paid it out.
+  cashed          INTEGER NOT NULL DEFAULT 0,
+  cash_expense_id INTEGER REFERENCES z_closing_expenses(id) ON DELETE SET NULL,
+  payment_id      INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+  created_by      INTEGER NOT NULL REFERENCES users(id),
+  created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+);
+CREATE INDEX IF NOT EXISTS ix_salary_payments_store ON salary_payments(store_id, due_date);

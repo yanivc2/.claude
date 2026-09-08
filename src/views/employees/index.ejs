@@ -4,9 +4,117 @@
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
-<div class="card no-print">
-  <h2 style="margin:0 0 .5rem">הוספת עובד</h2>
-  <form method="post" action="/employees" class="actions" style="gap:.6rem;align-items:flex-end;flex-wrap:wrap">
+<%
+  var sRows = (typeof salaryRows !== 'undefined' && salaryRows) ? salaryRows : [];
+  var sMethods = (typeof salaryMethods !== 'undefined' && salaryMethods) ? salaryMethods : [];
+  var sCash = (typeof cashCandidates !== 'undefined' && cashCandidates) ? cashCandidates : [];
+  var sStoreId = (typeof salaryStoreId !== 'undefined') ? salaryStoreId : null;
+  var mLabel = function (m) { for (var i = 0; i < sMethods.length; i++) if (sMethods[i].value === m) return sMethods[i].label; return m; };
+  // The employee picker offers THIS branch's staff only: an employee linked to other stores is not
+  // ours to pay, and an unlinked one is shared with every branch (lib/scope.js#filterByStoreLinks).
+  var payable = (totals || []).filter(function (e) {
+    if (!sStoreId) return true;
+    if (!e.stores || !e.stores.length) return true;
+    return e.stores.some(function (st) { return Number(st.id) === Number(sStoreId); });
+  });
+%>
+<div class="card">
+  <h2 style="margin:0 0 .5rem">תשלומי שכר</h2>
+  <p class="muted" style="margin:0 0 .6rem">
+    איך שולם השכר בפועל — לכל עובד, אמצעי, אסמכתה, התאריך שעבורו שולם והסכום.
+    <% if (sStoreId) { %>מוצגים תשלומי החנות הפעילה בלבד.<% } else { %>בחר חנות פעילה בבאנר כדי לצמצם לסניף אחד.<% } %>
+  </p>
+
+  <form method="post" action="/employees/salary" class="stack">
+    <% if (sStoreId) { %><input type="hidden" name="store_id" value="<%= sStoreId %>" /><% } %>
+    <div class="table-scroll">
+      <table class="no-enhance">
+        <thead><tr><th>שם העובד</th><th>שולם ב</th><th>מס׳ אסמכתה</th><th>לתאריך</th><th class="right">סכום (₪)</th><th></th></tr></thead>
+        <tbody>
+          <tr>
+            <td>
+              <% if (!sStoreId) { %>
+                <select name="store_id" class="js-combo" required style="margin-bottom:.3rem">
+                  <option value="">בחר חנות…</option>
+                  <% (storeOptions || []).forEach(function(st){ %><option value="<%= st.id %>"><%= st.name %></option><% }); %>
+                </select>
+              <% } %>
+              <select name="employee_id" class="js-combo" required>
+                <option value="">בחר עובד…</option>
+                <% payable.forEach(function(e){ %><option value="<%= e.id %>"><%= e.first_name %> <%= e.last_name %></option><% }); %>
+              </select>
+              <% if (!payable.length) { %><small class="muted">אין עובדים משויכים לחנות זו.</small><% } %>
+            </td>
+            <td>
+              <select name="method" required>
+                <% sMethods.forEach(function(m){ %><option value="<%= m.value %>"><%= m.label %></option><% }); %>
+              </select>
+            </td>
+            <td><input name="reference" autocomplete="off" placeholder="מספר צ׳ק / אסמכתה" /></td>
+            <%# The global day-first picker makes this typable as 8/9/26 (partials/footer.ejs). %>
+            <td><input type="date" name="due_date" required /></td>
+            <td><div style="display:flex;align-items:center;gap:.3rem"><input name="amount" inputmode="decimal" placeholder="0.00" required style="max-width:130px" /><span class="muted">₪</span></div></td>
+            <td><button type="submit" class="small">הוסף</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </form>
+
+  <% if (sRows.length) { %>
+    <div class="table-scroll" style="margin-top:.8rem">
+      <table>
+        <thead><tr><th>שם העובד</th><th>שולם ב</th><th>מס׳ אסמכתה</th><th>לתאריך</th><th class="right">סכום</th><th>נפרט בקופה</th><th class="no-print" data-nosort></th></tr></thead>
+        <tbody>
+          <% sRows.forEach(function(r){ %>
+            <tr>
+              <td><%= r.first_name %> <%= r.last_name %><% if (!sStoreId) { %> <span class="badge b-neutral"><%= r.store_name %></span><% } %></td>
+              <td><%= mLabel(r.method) %></td>
+              <td class="mono"><%= r.reference || '—' %></td>
+              <td class="mono"><%= formatDate(r.due_date) %></td>
+              <td class="right"><%= formatIls(r.amount) %></td>
+              <td>
+                <% if (Number(r.cashed)) { %>
+                  <span class="badge b-approved">הותאם להוצאת מזומן</span>
+                  <form method="post" action="/employees/salary/<%= r.id %>/uncashed" style="display:inline" onsubmit="return confirm('לבטל את ההתאמה? הצ׳ק שבוטל יישאר במעקב.')">
+                    <button class="btn btn-secondary small" type="submit">בטל התאמה</button>
+                  </form>
+                <% } else if (r.method === 'check') { %>
+                  <%# The employee cashed the wage check at the till: matching it to the Z-closing
+                      cash expense that paid it out also VOIDS the check, so the same wage is not
+                      paid twice (services/salaryPayments.js#markCashed). %>
+                  <details>
+                    <summary class="muted" style="cursor:pointer;font-size:12px">סמן כנפרט + התאם למזומן</summary>
+                    <form method="post" action="/employees/salary/<%= r.id %>/cashed" style="margin-top:.35rem">
+                      <select name="cash_expense_id" class="js-combo" required>
+                        <option value="">בחר הוצאת מזומן מסגירת Z…</option>
+                        <% sCash.forEach(function(c){ %>
+                          <option value="<%= c.id %>"><%= formatDate(c.expense_date) %> · <%= c.payer_name || c.purpose || 'הוצאה' %> · <%= formatIls(c.amount) %><%= c.z_number ? ' · Z ' + c.z_number : '' %></option>
+                        <% }); %>
+                      </select>
+                      <% if (!sCash.length) { %><small class="muted">אין הוצאות מזומן פנויות בסגירות ה-Z.</small><% } %>
+                      <button type="submit" class="small" style="margin-top:.3rem">התאם ובטל את הצ׳ק</button>
+                    </form>
+                  </details>
+                <% } else { %><span class="muted">—</span><% } %>
+              </td>
+              <td class="no-print">
+                <form method="post" action="/employees/salary/<%= r.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את רישום התשלום?')">
+                  <button class="danger small" type="submit">מחק</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<%# Collapsed by default: adding an employee is occasional, recording a wage payment is daily. %>
+<details class="card no-print collapse-card">
+  <summary>הוספת עובד</summary>
+  <form method="post" action="/employees" class="actions" style="gap:.6rem;align-items:flex-end;flex-wrap:wrap;margin-top:.8rem">
     <div><label class="lbl">שם פרטי *</label><input name="first_name" required /></div>
     <div><label class="lbl">שם משפחה *</label><input name="last_name" required /></div>
     <div><label class="lbl">טלפון</label><input name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="050-0000000" /></div>
@@ -34,7 +142,7 @@
       </form>
     </div>
   </details>
-</div>
+</details>
 
 <div class="card">
   <h2 style="margin:0 0 .5rem">עובדים — סיכום</h2>

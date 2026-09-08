@@ -5,6 +5,7 @@ import {
   markCleared,
   markIssued,
   voidPayment,
+  voidPaymentWithReason,
   getPaymentDetail,
   getCheckPrintData,
   listPayments,
@@ -20,6 +21,7 @@ import { RuleError, AuthError } from '../lib/errors.js';
 import { toAgorot } from '../lib/money.js';
 import { listSuppliers } from '../services/suppliers.js';
 import { listEmployees } from '../services/employees.js';
+import { VOID_REASONS } from '../services/voidedChecks.js';
 import { paymentAllocation, openInvoicesForPayment, allocateInvoiceToPayments } from '../services/allocations.js';
 
 const router = Router();
@@ -205,6 +207,7 @@ router.get('/:id', async (req, res, next) => {
       payment,
       alloc,
       openInvoices,
+      voidReasons: VOID_REASONS,
       notice: req.query.alloc ? String(req.query.alloc) : null,
       error: req.query.allocfail ? String(req.query.allocfail) : null,
     });
@@ -322,7 +325,13 @@ router.post('/:id/unclear', async (req, res, next) => {
 
 router.post('/:id/void', async (req, res, next) => {
   try {
-    await voidPayment(Number(req.params.id), req.user, req.body.reason || null);
+    // A void now carries its structured reason (see services/voidedChecks.js). An old form or a
+    // caller that sends none still voids — it just has no follow-up to chase.
+    await voidPaymentWithReason(
+      Number(req.params.id),
+      { reason: req.body.void_reason || null, note: req.body.reason || null },
+      req.user,
+    );
     res.redirect(303, req.get('referer') || `/payments/${req.params.id}`);
   } catch (err) {
     next(err);

@@ -1,0 +1,58 @@
+<%- include('../partials/header') %>
+<div class="toolbar"><h1>צ׳קים מבוטלים</h1></div>
+
+<div class="card">
+  <p class="muted" style="margin:0">
+    <strong>ביטול צ׳ק במערכת לא מבטל אותו בבנק.</strong> צ׳ק נשאר בר-פירעון <strong><%= checkLifeDays %> ימים</strong>
+    (כחצי שנה) מתאריך הפירעון שלו, ולכן כל צ׳ק שבוטל נשאר כאן במעקב עד שהוא בטוח.
+    עמודת <strong>הסטטוס</strong> עונה על שאלה אחת: האם עדיין אפשר לפרוע אותו — והאם הוא נפרע.
+  </p>
+</div>
+
+<% if (!groups.length) { %>
+  <div class="card"><p class="muted" style="margin:0">אין צ׳קים מבוטלים.</p></div>
+<% } %>
+
+<% groups.forEach(function(g){ %>
+  <%
+    var alarms = g.rows.filter(function(r){ return r.status.alarm; }).length;
+    var live = g.rows.filter(function(r){ return r.status.key === 'live'; }).length;
+  %>
+  <details class="card collapse-card" data-accordion="voided" <%= alarms ? 'open' : '' %>>
+    <summary>
+      <%= g.storeName %> · <span class="muted"><%= g.companyName %></span>
+      — <%= g.rows.length %> צ׳קים<% if (alarms) { %> · <span class="badge b-blocked"><%= alarms %> דורשים טיפול</span><% } %><% if (live) { %> · <span class="badge b-neutral"><%= live %> עדיין בר-פירעון</span><% } %>
+    </summary>
+    <div class="table-scroll" style="margin-top:.8rem">
+      <table>
+        <thead>
+          <tr>
+            <th>תאריך ביטול</th><th>מספר צ׳ק</th><th>עבור</th><th>לתאריך</th>
+            <th class="right">סכום</th><th>סיבת ביטול</th><th>בוטל ע"י</th><th>סטטוס</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% g.rows.forEach(function(r){ %>
+            <tr>
+              <td class="mono"><%= r.voided_at ? formatDate(String(r.voided_at).slice(0,10)) : '—' %></td>
+              <td class="mono"><a href="/payments/<%= r.id %>"><%= r.check_number || '—' %></a></td>
+              <td><%= r.for_text %></td>
+              <td class="mono"><%= formatDate(r.payment_date) %></td>
+              <td class="right"><%= formatIls(r.amount) %></td>
+              <td>
+                <%= voidReasonLabel(r.void_reason) %>
+                <%# The follow-up each reason demands, as a link once it exists. %>
+                <% if (r.void_link_payment_id) { %><a class="badge b-neutral" href="/payments/<%= r.void_link_payment_id %>">התשלום החדש</a><% } %>
+                <% if (r.void_link_invoice_id) { %><a class="badge b-neutral" href="/invoices/<%= r.void_link_invoice_id %>">השורה שבוטלה</a><% } %>
+                <% if (r.void_cash_expense_id) { %><span class="badge b-approved" title="הותאם להוצאת מזומן בסגירת Z">הותאם למזומן</span><% } %>
+              </td>
+              <td><%= r.voided_by_name || '—' %></td>
+              <td><span class="badge <%= r.status.badge %>"><%= r.status.label %></span></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </details>
+<% }); %>
+<%- include('../partials/footer') %>

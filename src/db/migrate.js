@@ -28,6 +28,7 @@ export function migrate(db) {
   migrateUserStores(db);
   migrateNotifications(db);
   migrateRevenueReports(db);
+  migrateVoidedChecks(db); // after payments/employees/z_closings exist
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -395,6 +396,45 @@ function migrateUserAuth(db) {
   if (!cols.includes('login_start')) db.exec('ALTER TABLE users ADD COLUMN login_start TEXT;');
   if (!cols.includes('login_end')) db.exec('ALTER TABLE users ADD COLUMN login_end TEXT;');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_users_username ON users(username) WHERE username IS NOT NULL;');
+}
+
+// ביטול צ'ק with a reason (see schema.sql) + the salary-payment table behind "עובדים ומשכורות".
+function migrateVoidedChecks(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  if (has('payments')) {
+    const cols = db.prepare('PRAGMA table_info(payments)').all().map((c) => c.name);
+    for (const [col, ddl] of [
+      ['void_reason', 'TEXT'],
+      ['voided_at', 'TEXT'],
+      ['voided_by', 'INTEGER REFERENCES users(id)'],
+      ['void_link_payment_id', 'INTEGER REFERENCES payments(id)'],
+      ['void_link_invoice_id', 'INTEGER REFERENCES invoices(id)'],
+      ['void_cash_expense_id', 'INTEGER'],
+      ['void_alerted', 'TEXT'],
+    ]) {
+      if (!cols.includes(col)) db.exec(`ALTER TABLE payments ADD COLUMN ${col} ${ddl};`);
+    }
+  }
+  if (!has('salary_payments') && has('employees') && has('stores')) {
+    db.exec(`
+      CREATE TABLE salary_payments (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        store_id        INTEGER NOT NULL REFERENCES stores(id),
+        employee_id     INTEGER NOT NULL REFERENCES employees(id),
+        method          TEXT NOT NULL DEFAULT 'check'
+                        CHECK (method IN ('check','cash','transfer','batch')),
+        reference       TEXT,
+        due_date        TEXT NOT NULL,
+        amount          INTEGER NOT NULL,
+        cashed          INTEGER NOT NULL DEFAULT 0,
+        cash_expense_id INTEGER,
+        payment_id      INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+        created_by      INTEGER NOT NULL REFERENCES users(id),
+        created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
+      );
+      CREATE INDEX IF NOT EXISTS ix_salary_payments_store ON salary_payments(store_id, due_date);
+    `);
+  }
 }
 
 // Adds supplier contact columns (phone/email/contact_name/contact_phone) to older databases.

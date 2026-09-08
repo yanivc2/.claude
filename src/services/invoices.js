@@ -1,3 +1,4 @@
+import { addDaysIso } from '../lib/loginHours.js';
 import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
@@ -8,12 +9,6 @@ import { logAction } from './audit.js';
 
 const DOC_TYPES = ['tax_invoice', 'tax_invoice_receipt', 'credit_note'];
 
-/** Add `days` (may be negative) to an ISO 'YYYY-MM-DD' date, returning ISO. Portable across DBs. */
-function addDaysIso(iso, days) {
-  const d = new Date(`${iso}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().slice(0, 10);
-}
 
 /**
  * Record a new invoice (or credit note). Enforces the entry-time control rules:

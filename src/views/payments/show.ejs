@@ -23,10 +23,20 @@
         <% } %>
         <% if (currentUser.role === 'owner') { %>
           <div class="menu-sep"></div>
+          <%# The reason is CHOSEN, not typed: each one carries its own follow-up on the
+              "צ׳קים מבוטלים" page (a six-month clock, a required cash match, a required link),
+              and free text cannot be chased. See services/voidedChecks.js. %>
           <form method="post" action="/payments/<%= payment.id %>/void" style="padding:8px 12px" onsubmit="return confirm('לבטל את הצ׳ק? החשבוניות יחזרו לסטטוס מאושר לתשלום.')">
             <label class="lbl" style="color:var(--color-bad)">ביטול צ׳ק (בעלים)</label>
-            <input name="reason" placeholder="סיבת ביטול" />
+            <select name="void_reason" required>
+              <option value="">בחר סיבת ביטול…</option>
+              <% (typeof voidReasons !== 'undefined' ? voidReasons : []).forEach(function(r){ %>
+                <option value="<%= r.value %>" title="<%= r.hint %>"><%= r.label %></option>
+              <% }); %>
+            </select>
+            <input name="reason" placeholder="הערה (לא חובה)" style="margin-top:6px" />
             <button class="btn btn-secondary btn-sm btn-block" type="submit" style="margin-top:6px;color:var(--color-bad)">בטל צ׳ק</button>
+            <small class="muted" style="display:block;margin-top:4px">הצ׳ק יעבור למעקב ב<a href="/voided-checks">צ׳קים מבוטלים</a> — הוא נשאר בר-פירעון חצי שנה.</small>
           </form>
         <% } %>
       </div>

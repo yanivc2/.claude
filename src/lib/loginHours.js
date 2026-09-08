@@ -46,3 +46,14 @@ export function loginAllowedNow(user, now = new Date()) {
   if (within) return { allowed: true };
   return { allowed: false, hhmm, window: `${user.login_start}–${user.login_end}` };
 }
+
+/**
+ * Add `days` (may be negative) to an ISO 'YYYY-MM-DD' date, returning ISO. Portable across both
+ * dialects (the arithmetic is done in JS, never in SQL). Lives here with the other date helpers
+ * because three services had grown their own identical copy.
+ */
+export function addDaysIso(iso, days) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
