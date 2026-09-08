@@ -15,7 +15,10 @@ import {
   setSuppliersZeroRated,
   supplierStoreSuggestions,
   setSupplierStores,
-  setSupplierBank,
+  setSupplierBankAccount,
+  verifySupplierBankAccount,
+  deleteSupplierBankAccount,
+  listSupplierBankAccounts,
   supplierBankHistory,
 } from '../services/suppliers.js';
 import { submitRequest } from '../services/changeRequests.js';
@@ -23,6 +26,7 @@ import { describeSupplier } from '../lib/changeSummary.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopedStoreList, assignmentScope } from '../lib/scope.js';
 import { RuleError, AuthError } from '../lib/errors.js';
+import { BANKS } from '../lib/banks.js';
 import { assertStoreAllowed } from '../lib/scopeGuard.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 
@@ -216,24 +220,56 @@ router.post('/zero-rated', requireOwner, async (req, res, next) => {
   }
 });
 
-// פרטי בנק של ספק — where a transfer to them may go. Owner only, and every change is kept and
-// pushed: a real invoice paid into a quietly changed account is the fraud this guards against.
-// See services/suppliers.js#setSupplierBank.
+// פרטי בנק של ספק — לאן מותר להעביר אליו כסף. בעלים בלבד, כל שינוי נשמר ונשלח בפוש: חשבונית
+// אמיתית שמשולמת לחשבון שהוחלף בשקט היא ההונאה שהמסך הזה קיים בשבילה.
+// שורה לכל חנות (store_id ריק = ברירת מחדל) — ראה services/suppliers.js#supplierBankFor.
 router.post('/:id/bank', requireOwner, async (req, res, next) => {
   const id = Number(req.params.id);
   try {
-    await setSupplierBank(
+    const saved = await setSupplierBankAccount(
       id,
       {
-        bankName: req.body.bank_name,
+        storeId: req.body.store_id || null,
+        bankCode: req.body.bank_code,
         bankBranch: req.body.bank_branch,
         bankAccount: req.body.bank_account,
         bankHolder: req.body.bank_holder,
+        holderTaxId: req.body.holder_tax_id,
+        iban: req.body.iban,
         note: req.body.bank_note,
       },
       req.user,
     );
-    return res.redirect(303, `/suppliers/${id}/edit?bank=1`);
+    // אזהרות (שם מוטב שלא תואם וכד') נשמרות ומוצגות — הן לא חוסמות שמירה, ראה lib/banks.js.
+    const warn = (saved?.warnings || []).join(' · ');
+    return res.redirect(303, `/suppliers/${id}/edit?bank=1${warn ? `&bankwarn=${encodeURIComponent(warn)}` : ''}`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/suppliers/${id}/edit?bankerr=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
+// "אומת טלפונית" — מי אימת ומתי. ראה services/suppliers.js#verifySupplierBankAccount.
+router.post('/:id/bank/:accountId/verify', requireOwner, async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    await verifySupplierBankAccount(Number(req.params.accountId), req.body.verify_note, req.user);
+    return res.redirect(303, `/suppliers/${id}/edit?bankverified=1`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/suppliers/${id}/edit?bankerr=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
+router.post('/:id/bank/:accountId/delete', requireOwner, async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    await deleteSupplierBankAccount(Number(req.params.accountId), req.user);
+    return res.redirect(303, `/suppliers/${id}/edit?bankdeleted=1`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       return res.redirect(303, `/suppliers/${id}/edit?bankerr=${encodeURIComponent(err.message)}`);
@@ -299,10 +335,17 @@ router.get('/:id/edit', async (req, res, next) => {
       // (a subsidiary can't itself be a parent), excluding this supplier.
       parentOptions: (await listSuppliers(null, undefined, { scope: req.scope })).filter((s) => s.id !== supplier.id && s.parent_supplier_id == null),
       bankHistory: await supplierBankHistory(supplier.id),
+      bankAccounts: await listSupplierBankAccounts(supplier.id),
+      banks: BANKS,
+      // הבורר מציע רק חנויות שבתחום ההרשאה של המשתמש, כמו כל בורר חנות בתוכנה.
+      bankStores: await storeOptions(req),
       notice: req.query.bank
         ? 'פרטי הבנק נשמרו. השינוי תועד ונשלחה התראה.'
+        : req.query.bankverified ? 'החשבון סומן כמאומת טלפונית.'
+        : req.query.bankdeleted ? 'חשבון הבנק נמחק. המחיקה תועדה.'
         : req.query.saved === 'skill' ? 'הסקיל של הספק עודכן.' : null,
       bankError: req.query.bankerr ? String(req.query.bankerr) : null,
+      bankWarning: req.query.bankwarn ? String(req.query.bankwarn) : null,
       // "הסקיל": what scanning this supplier's invoices has taught the system so far.
       profile,
       readiness: readiness(profile),

@@ -2,6 +2,7 @@ import { getExecutor, nowTs } from '../db/adapter.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
 import { filterByStoreLinks, scopedStoreList } from '../lib/scope.js';
+import { validateBankDetails, guessBankCode } from '../lib/banks.js';
 import { logAction } from './audit.js';
 
 /** Count suppliers awaiting owner approval — feeds the "אישורים" nav badge. Tolerant pre-upgrade. */
@@ -401,67 +402,196 @@ const BANK_FIELDS = ['bank_name', 'bank_branch', 'bank_account', 'bank_holder'];
 const clean = (v) => (v ?? '').toString().trim() || null;
 
 /**
- * Set (or change) where transfers to this supplier go. Owner only.
+ * החשבון שאליו מותר להעביר כסף לספק זה, עבור חנות מסוימת.
  *
- * A change is never silent: the previous values are written to supplier_bank_changes and the owner
- * is pushed a notice, so a change made by somebody with a stolen session is visible even if nobody
- * happened to be looking at the supplier card.
+ * זו ההכרעה היחידה בקוד לשאלה "לאן הכסף הולך", ולכן גם המסך, גם טביעת האצבע של ההעברה
+ * (services/transfers.js#substanceOf) וגם הבדיקה לפני הביצוע קוראים לה — אחרת המסך היה יכול
+ * להראות חשבון אחד והכסף ללכת לאחר.
+ *
+ * הכלל: חשבון ייעודי לחנות גובר על חשבון ברירת המחדל של הספק. אין אף אחד מהם → null.
  */
-export async function setSupplierBank(id, details, actor, x = getExecutor()) {
+export async function supplierBankFor(supplierId, storeId = null, x = getExecutor()) {
+  let rows;
+  try {
+    rows = await x.many('SELECT * FROM supplier_bank_accounts WHERE supplier_id = ?', [Number(supplierId)]);
+  } catch {
+    return null; // מסד לפני העדכון
+  }
+  const forStore = storeId ? rows.find((r) => Number(r.store_id) === Number(storeId)) : null;
+  const fallback = rows.find((r) => r.store_id == null) || null;
+  const hit = forStore || fallback;
+  if (!hit) return null;
+  return { ...hit, resolved_from: forStore ? 'store' : 'default' };
+}
+
+/** כל חשבונות הספק — שורת ברירת המחדל ראשונה, אחריה החנויות לפי שם. */
+export async function listSupplierBankAccounts(supplierId, x = getExecutor()) {
+  let rows;
+  try {
+    rows = await x.many(
+      `SELECT a.*, st.name AS store_name, u.name AS verified_by_name
+         FROM supplier_bank_accounts a
+         LEFT JOIN stores st ON st.id = a.store_id
+         LEFT JOIN users u ON u.id = a.verified_by
+        WHERE a.supplier_id = ?`,
+      [Number(supplierId)],
+    );
+  } catch {
+    return []; // מסד לפני העדכון
+  }
+  return rows
+    .map((r) => ({
+      ...r,
+      // רשומה שהועברה מהמבנה הישן נושאת שם בנק בלי קוד. מציעים קוד — לא כותבים אותו בשקט.
+      suggested_bank_code: !r.bank_code && r.bank_name ? guessBankCode(r.bank_name) : null,
+      changedRecently: bankChangedRecently(r),
+    }))
+    .sort((a, b) => {
+      if ((a.store_id == null) !== (b.store_id == null)) return a.store_id == null ? -1 : 1;
+      return String(a.store_name || '').localeCompare(String(b.store_name || ''), 'he');
+    });
+}
+
+const EXTRA_FIELDS = ['bank_code', 'holder_tax_id', 'iban'];
+const extraJson = (row) => JSON.stringify(Object.fromEntries(EXTRA_FIELDS.map((f) => [f, row?.[f] ?? null])));
+
+/**
+ * קביעה או שינוי של חשבון בנק לספק (לחנות מסוימת, או ברירת המחדל). בעלים בלבד.
+ *
+ * שינוי לעולם אינו שקט: הערכים הקודמים נכתבים ל-supplier_bank_changes ונשלח פוש, כדי ששינוי
+ * שנעשה עם סשן גנוב יהיה גלוי גם אם איש לא הסתכל על כרטיס הספק באותו רגע. **כל שינוי מאפס את
+ * האימות הטלפוני** — חשבון שאומת ואז הוחלף אינו חשבון מאומת.
+ *
+ * @param {{storeId?, bankCode?, bankBranch?, bankAccount?, bankHolder?, holderTaxId?, iban?, note?}} details
+ */
+export async function setSupplierBankAccount(supplierId, details, actor, x = getExecutor()) {
   if (!userCan(actor, 'manage_suppliers') && actor?.role !== 'owner') {
     throw new AuthError('שינוי פרטי בנק של ספק — בעלים בלבד');
   }
-  const supplier = await getSupplier(id, x);
-  const next = {
-    bank_name: clean(details.bankName),
-    bank_branch: clean(details.bankBranch),
-    bank_account: clean(details.bankAccount),
-    bank_holder: clean(details.bankHolder),
-  };
-  const changed = BANK_FIELDS.some((f) => (supplier[f] ?? null) !== next[f]);
-  if (!changed) return supplier;
+  const supplier = await getSupplier(supplierId, x);
+  const storeId = Number(details.storeId) || null;
+  if (storeId) {
+    const st = await x.one('SELECT id FROM stores WHERE id = ?', [storeId]);
+    if (!st) throw new NotFoundError(`חנות ${storeId} לא נמצאה`);
+  }
+
+  const { value, errors, warnings } = validateBankDetails(details, { supplierName: supplier.name });
+  if (errors.length) throw new RuleError('VALIDATION', errors.join(' · '));
+
+  const existing = (await x.many(
+    'SELECT * FROM supplier_bank_accounts WHERE supplier_id = ?', [Number(supplierId)],
+  )).find((r) => (r.store_id == null ? null : Number(r.store_id)) === storeId) || null;
+
+  const FIELDS = ['bank_code', 'bank_name', 'bank_branch', 'bank_account', 'bank_holder', 'holder_tax_id', 'iban'];
+  const changed = FIELDS.some((f) => (existing?.[f] ?? null) !== (value[f] ?? null));
+  if (existing && !changed) return existing;
 
   const now = nowTs();
+  if (existing) {
+    await x.run(
+      `UPDATE supplier_bank_accounts
+          SET bank_code = ?, bank_name = ?, bank_branch = ?, bank_account = ?, bank_holder = ?,
+              holder_tax_id = ?, iban = ?, updated_at = ?, updated_by = ?,
+              verified_at = NULL, verified_by = NULL, verified_note = NULL
+        WHERE id = ?`,
+      [value.bank_code, value.bank_name, value.bank_branch, value.bank_account, value.bank_holder,
+        value.holder_tax_id, value.iban, now, actor?.id ?? null, existing.id],
+    );
+  } else {
+    await x.run(
+      `INSERT INTO supplier_bank_accounts
+         (supplier_id, store_id, bank_code, bank_name, bank_branch, bank_account, bank_holder,
+          holder_tax_id, iban, updated_at, updated_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [Number(supplierId), storeId, value.bank_code, value.bank_name, value.bank_branch,
+        value.bank_account, value.bank_holder, value.holder_tax_id, value.iban, now, actor?.id ?? null],
+    );
+  }
+
   await x.run(
     `INSERT INTO supplier_bank_changes
-       (supplier_id, old_bank, old_branch, old_account, old_holder,
-        new_bank, new_branch, new_account, new_holder, changed_at, changed_by, note)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (supplier_id, store_id, old_bank, old_branch, old_account, old_holder,
+        new_bank, new_branch, new_account, new_holder, old_extra, new_extra, changed_at, changed_by, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      id, supplier.bank_name, supplier.bank_branch, supplier.bank_account, supplier.bank_holder,
-      next.bank_name, next.bank_branch, next.bank_account, next.bank_holder,
-      now, actor?.id ?? null, clean(details.note),
+      Number(supplierId), storeId,
+      existing?.bank_name ?? null, existing?.bank_branch ?? null, existing?.bank_account ?? null, existing?.bank_holder ?? null,
+      value.bank_name, value.bank_branch, value.bank_account, value.bank_holder,
+      extraJson(existing), extraJson(value),
+      now, actor?.id ?? null, (details.note ?? '').toString().trim() || null,
     ],
   );
-  await x.run(
-    `UPDATE suppliers SET bank_name = ?, bank_branch = ?, bank_account = ?, bank_holder = ?,
-            bank_updated_at = ?, bank_updated_by = ? WHERE id = ?`,
-    [next.bank_name, next.bank_branch, next.bank_account, next.bank_holder, now, actor?.id ?? null, id],
-  );
   await logAction(
-    { userId: actor?.id ?? null, action: 'supplier.bank_change', entityType: 'supplier', entityId: id,
-      details: { from: supplier.bank_account, to: next.bank_account } },
+    { userId: actor?.id ?? null, action: 'supplier.bank_change', entityType: 'supplier', entityId: Number(supplierId),
+      details: { storeId, from: existing?.bank_account ?? null, to: value.bank_account } },
     x,
   );
 
+  const where = storeId ? ` (חנות ${storeId})` : '';
   const { notify } = await import('../lib/notify.js');
-  const had = supplier.bank_account || supplier.bank_name;
   notify(
-    had
-      ? `⚠️ פרטי הבנק של ספק שונו\n${supplier.name}\nמ: ${supplier.bank_account || '—'} · ל: ${next.bank_account || '—'}\nאם לא ביקשת את השינוי — בדוק מיד מול הספק בטלפון, לא במייל.`
-      : `🏦 נקבעו פרטי בנק לספק\n${supplier.name}\nחשבון: ${next.bank_account || '—'} · ${next.bank_name || ''} ${next.bank_branch || ''}`,
-    { kind: 'supplier_bank', link: `/suppliers/${id}/edit` },
+    existing
+      ? `⚠️ פרטי הבנק של ספק שונו\n${supplier.name}${where}\nמ: ${existing.bank_account || '—'} · ל: ${value.bank_account || '—'}\nאם לא ביקשת את השינוי — בדוק מיד מול הספק בטלפון, לא במייל.`
+      : `🏦 נקבעו פרטי בנק לספק\n${supplier.name}${where}\nחשבון: ${value.bank_account || '—'} · ${value.bank_name || ''} ${value.bank_branch || ''}`,
+    { kind: 'supplier_bank', link: `/suppliers/${supplierId}/edit` },
   );
-  return getSupplier(id, x);
+
+  const saved = await x.one('SELECT * FROM supplier_bank_accounts WHERE supplier_id = ? AND id = ?',
+    [Number(supplierId), existing ? existing.id : (await x.one(
+      'SELECT MAX(id) AS id FROM supplier_bank_accounts WHERE supplier_id = ?', [Number(supplierId)]))?.id]);
+  return { ...saved, warnings };
+}
+
+/**
+ * "אומת טלפונית" — הבעלים מאשר שדיבר עם הספק ווידא את החשבון.
+ *
+ * זה לא קישוט: ההגנה היחידה מפני מייל שמודיע על החלפת חשבון היא שיחה למספר שכבר היה לך, ולכן
+ * מי אימת ומתי צריכים להיות רשומים ולא בזיכרון. כל שינוי בפרטים מאפס את החותמת.
+ */
+export async function verifySupplierBankAccount(accountId, note, actor, x = getExecutor()) {
+  if (actor?.role !== 'owner') throw new AuthError('אימות חשבון בנק — בעלים בלבד');
+  const row = await x.one('SELECT * FROM supplier_bank_accounts WHERE id = ?', [Number(accountId)]);
+  if (!row) throw new NotFoundError('חשבון הבנק לא נמצא');
+  await x.run(
+    'UPDATE supplier_bank_accounts SET verified_at = ?, verified_by = ?, verified_note = ? WHERE id = ?',
+    [nowTs(), actor?.id ?? null, (note ?? '').toString().trim() || null, Number(accountId)],
+  );
+  await logAction(
+    { userId: actor?.id ?? null, action: 'supplier.bank_verify', entityType: 'supplier', entityId: Number(row.supplier_id),
+      details: { accountId: Number(accountId) } },
+    x,
+  );
+  return x.one('SELECT * FROM supplier_bank_accounts WHERE id = ?', [Number(accountId)]);
+}
+
+/** מחיקת חשבון. מתועדת בהיסטוריה כמו כל שינוי — חשבון שנעלם הוא שינוי יעד לכל דבר. */
+export async function deleteSupplierBankAccount(accountId, actor, x = getExecutor()) {
+  if (actor?.role !== 'owner') throw new AuthError('מחיקת חשבון בנק — בעלים בלבד');
+  const row = await x.one('SELECT * FROM supplier_bank_accounts WHERE id = ?', [Number(accountId)]);
+  if (!row) throw new NotFoundError('חשבון הבנק לא נמצא');
+  await x.run('DELETE FROM supplier_bank_accounts WHERE id = ?', [Number(accountId)]);
+  await x.run(
+    `INSERT INTO supplier_bank_changes
+       (supplier_id, store_id, old_bank, old_branch, old_account, old_holder, old_extra, new_extra, changed_at, changed_by, note)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [row.supplier_id, row.store_id, row.bank_name, row.bank_branch, row.bank_account, row.bank_holder,
+      extraJson(row), extraJson(null), nowTs(), actor?.id ?? null, 'החשבון נמחק'],
+  );
+  await logAction(
+    { userId: actor?.id ?? null, action: 'supplier.bank_delete', entityType: 'supplier', entityId: Number(row.supplier_id),
+      details: { accountId: Number(accountId) } },
+    x,
+  );
 }
 
 /** The change history for one supplier, newest first — what the card shows under the details. */
 export async function supplierBankHistory(id, x = getExecutor()) {
   try {
     return await x.many(
-      `SELECT c.*, u.name AS changed_by_name
+      `SELECT c.*, u.name AS changed_by_name, st.name AS store_name
          FROM supplier_bank_changes c
          LEFT JOIN users u ON u.id = c.changed_by
+         LEFT JOIN stores st ON st.id = c.store_id
         WHERE c.supplier_id = ?
         ORDER BY c.changed_at DESC, c.id DESC`,
       [id],
@@ -471,10 +601,14 @@ export async function supplierBankHistory(id, x = getExecutor()) {
   }
 }
 
-/** Has this supplier's destination changed within the warning window? */
-export function bankChangedRecently(supplier, days = BANK_CHANGE_WARN_DAYS, now = new Date()) {
-  if (!supplier?.bank_updated_at) return false;
-  const when = new Date(String(supplier.bank_updated_at).replace(' ', 'T') + 'Z');
+/**
+ * האם היעד השתנה בתוך חלון האזהרה? מקבל שורת חשבון (supplier_bank_accounts). `bank_updated_at`
+ * נתמך כדי שרשומה במבנה הישן, שעדיין מגיעה ממסד לפני העדכון, לא תיפול בשקט.
+ */
+export function bankChangedRecently(account, days = BANK_CHANGE_WARN_DAYS, now = new Date()) {
+  const stamp = account?.updated_at ?? account?.bank_updated_at;
+  if (!stamp) return false;
+  const when = new Date(String(stamp).replace(' ', 'T') + 'Z');
   if (Number.isNaN(when.getTime())) return false;
   return (now.getTime() - when.getTime()) / 86400000 <= days;
 }

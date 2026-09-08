@@ -249,6 +249,10 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
 - **`x.run('INSERT…')` auto-appends `RETURNING id`** (`db/adapter.js`) — on a table whose PK isn't
   `id` (e.g. `app_settings.key`, `invoice_ocr.invoice_id`) the PG insert crashes. Add an explicit
   `RETURNING <pk>` to the SQL.
+- **אינדקס ייחודי *חלקי* על עמודה אחת שובר את pg-mem בשקט.** `CREATE UNIQUE INDEX … ON t(a)
+  WHERE b IS NULL` נלקח שם כאילו הוא מלא, ולכן `SELECT … WHERE a = ?` מחזיר **שורה אחת** ושאר
+  השורות פשוט נעלמות — רק תחת `TEST_PG=1`, בלי שגיאה. הביטוי `UNIQUE (a, COALESCE(b, 0))` מבטא
+  בדיוק את אותו כלל באינדקס אחד ועובד נכון בשני הניבים (`supplier_bank_accounts`).
 - pg-mem names inline CHECK constraints differently than real PG (`t_constraint_1` vs
   `payments_method_check`); to add a CHECK value, update the inline CREATE **and** append an ALTER.
 - The custom date picker (`partials/footer.ejs`) enhances `input[type=date]` only — `type=time`/`month`

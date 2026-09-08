@@ -97,47 +97,122 @@ var sel = (selectedStores || []).map(Number);
     measurement by hand would make the whole thing untrustworthy. %>
 <% var rd = typeof readiness !== 'undefined' ? readiness : { state: 'new', label: '' }; %>
 
-<%# פרטי בנק — where a transfer to this supplier may go. Owner only.
-    The fraud this guards against is not a fake invoice: it is a REAL invoice, correctly approved,
-    paid into an account somebody quietly changed. So the destination lives here, every change is
-    kept with who and when, and the transfers page warns when a payee's details changed recently. %>
+<%# פרטי בנק — לאן מותר להעביר כסף לספק הזה. בעלים בלבד.
+    ההונאה שזה שומר מפניה איננה חשבונית מזויפת: זו חשבונית אמיתית, מאושרת כדין, שמשולמת לחשבון
+    שמישהו החליף בשקט. לכן היעד יושב כאן, כל שינוי נשמר עם מי ומתי, האימות הטלפוני מתועד ומתאפס
+    בכל שינוי, ומסך ההעברות מזהיר ברגע האישור אם היעד השתנה לאחרונה.
+    שורה לכל חנות; שורה בלי חנות = ברירת המחדל לכל החנויות. %>
 <% var isOwnerB = currentUser && currentUser.role === 'owner'; %>
 <% if (isOwnerB) { %>
+  <% var accounts = (typeof bankAccounts !== 'undefined' && bankAccounts) ? bankAccounts : []; %>
+  <% var bankList = (typeof banks !== 'undefined' && banks) ? banks : []; %>
+  <% var bStores = (typeof bankStores !== 'undefined' && bankStores) ? bankStores : []; %>
   <div class="card">
     <h2 style="margin:0 0 .4rem">🏦 פרטי בנק להעברה</h2>
     <% if (typeof bankError !== 'undefined' && bankError) { %><div class="alert alert-error"><%= bankError %></div><% } %>
+    <% if (typeof bankWarning !== 'undefined' && bankWarning) { %><div class="alert alert-warn">⚠️ <%= bankWarning %></div><% } %>
     <p class="muted" style="margin:0 0 .6rem">
       לכאן יועברו כספים לספק זה. <strong>שינוי פרטים כאן הוא פעולת בעלים, מתועד ונשלח בפוש.</strong>
       ההעברה הכי מסוכנת היא חשבונית אמיתית שמשולמת לחשבון שהוחלף — לכן אם קיבלת הודעה על שינוי חשבון,
       <strong>אמת אותה בטלפון לספק, לא במייל שממנו הגיעה.</strong>
     </p>
-    <form method="post" action="/suppliers/<%= supplier.id %>/bank">
+
+    <% if (accounts.length) { %>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>חנות</th><th>בנק</th><th>סניף</th><th>חשבון</th><th>בעל החשבון</th><th>אימות</th><th></th></tr></thead>
+          <tbody>
+            <% accounts.forEach(function(a){ %>
+              <tr>
+                <td><%= a.store_id ? (a.store_name || ('חנות ' + a.store_id)) : 'ברירת מחדל (כל החנויות)' %></td>
+                <td>
+                  <%= a.bank_name || '—' %>
+                  <% if (a.bank_code) { %><span class="muted mono">(<%= a.bank_code %>)</span><% } %>
+                  <% if (!a.bank_code) { %>
+                    <br><span class="badge b-on_hold">אין קוד בנק</span>
+                    <% if (a.suggested_bank_code) { %>
+                      <span class="muted" style="font-size:11px">— כנראה <%= a.suggested_bank_code %>, בחר ואשר למטה</span>
+                    <% } %>
+                  <% } %>
+                </td>
+                <td class="mono"><%= a.bank_branch || '—' %></td>
+                <td class="mono"><%= a.bank_account || '—' %></td>
+                <td>
+                  <%= a.bank_holder || '—' %>
+                  <% if (a.holder_tax_id) { %><br><span class="muted mono"><%= a.holder_tax_id %></span><% } %>
+                </td>
+                <td>
+                  <% if (a.verified_at) { %>
+                    <span class="badge b-approved">אומת</span>
+                    <span class="muted" style="font-size:11px"><%= String(a.verified_at).slice(0,10) %><%= a.verified_by_name ? ' · ' + a.verified_by_name : '' %></span>
+                  <% } else { %>
+                    <span class="badge b-on_hold">לא אומת</span>
+                  <% } %>
+                  <% if (a.changedRecently) { %><br><span class="badge b-blocked">שונה לאחרונה</span><% } %>
+                </td>
+                <td style="white-space:nowrap">
+                  <form method="post" action="/suppliers/<%= supplier.id %>/bank/<%= a.id %>/verify" style="display:inline"
+                        onsubmit="return confirm('לאשר שאימתת את החשבון הזה בשיחת טלפון לספק, למספר שכבר היה ברשותך?');">
+                    <input type="hidden" name="verify_note" value="אומת טלפונית" />
+                    <button type="submit" class="btn-sm">אמת</button>
+                  </form>
+                  <form method="post" action="/suppliers/<%= supplier.id %>/bank/<%= a.id %>/delete" style="display:inline"
+                        onsubmit="return confirm('למחוק את חשבון הבנק הזה?');">
+                    <button type="submit" class="btn-sm danger">מחק</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } else { %>
+      <p class="muted">אין עדיין חשבון בנק לספק זה.</p>
+    <% } %>
+
+    <form method="post" action="/suppliers/<%= supplier.id %>/bank" style="margin-top:.8rem">
       <div class="row">
-        <div><label>בנק</label><input name="bank_name" value="<%= supplier.bank_name || '' %>" autocomplete="off" /></div>
-        <div><label>סניף</label><input name="bank_branch" value="<%= supplier.bank_branch || '' %>" autocomplete="off" /></div>
-        <div><label>מספר חשבון</label><input name="bank_account" value="<%= supplier.bank_account || '' %>" autocomplete="off" /></div>
+        <div>
+          <label>חנות</label>
+          <select name="store_id" class="js-combo">
+            <option value="">ברירת מחדל — כל החנויות</option>
+            <% bStores.forEach(function(st){ %><option value="<%= st.id %>"><%= st.name %></option><% }); %>
+          </select>
+        </div>
+        <div>
+          <label>בנק</label>
+          <select name="bank_code" class="js-combo">
+            <option value="">— בחר בנק —</option>
+            <% bankList.forEach(function(b){ %>
+              <option value="<%= b.code %>"><%= b.code %> — <%= b.name %></option>
+            <% }); %>
+          </select>
+        </div>
+        <div><label>סניף</label><input name="bank_branch" inputmode="numeric" maxlength="3" autocomplete="off" placeholder="עד 3 ספרות" /></div>
+        <div><label>מספר חשבון</label><input name="bank_account" inputmode="numeric" autocomplete="off" /></div>
       </div>
       <div class="row" style="margin-top:.5rem">
-        <div><label>שם בעל החשבון</label><input name="bank_holder" value="<%= supplier.bank_holder || '' %>" autocomplete="off" placeholder="חייב להתאים לשם הספק" /></div>
+        <div><label>שם בעל החשבון</label><input name="bank_holder" autocomplete="off" placeholder="חייב להתאים לשם הספק" /></div>
+        <div><label>ח״פ / ת״ז של המוטב</label><input name="holder_tax_id" inputmode="numeric" maxlength="9" autocomplete="off" placeholder="9 ספרות (לא חובה)" /></div>
+        <div><label>IBAN</label><input name="iban" autocomplete="off" placeholder="IL… (לא חובה)" /></div>
         <div><label>הערה לשינוי</label><input name="bank_note" autocomplete="off" placeholder="למשל: אומת טלפונית מול רו״ח" /></div>
       </div>
       <div class="actions" style="margin-top:.6rem"><button type="submit">שמור פרטי בנק</button></div>
     </form>
-    <% if (supplier.bank_updated_at) { %>
-      <p class="muted" style="margin:.5rem 0 0">עודכן לאחרונה: <strong><%= String(supplier.bank_updated_at).slice(0,16) %></strong></p>
-    <% } %>
+
     <% var bh = (typeof bankHistory !== 'undefined' && bankHistory) ? bankHistory : []; %>
     <% if (bh.length) { %>
       <details style="margin-top:.6rem">
         <summary class="muted" style="cursor:pointer;font-size:12px">היסטוריית שינויים (<%= bh.length %>)</summary>
         <div class="table-scroll" style="margin-top:.4rem">
           <table>
-            <thead><tr><th>מתי</th><th>מי</th><th>מחשבון</th><th>לחשבון</th><th>הערה</th></tr></thead>
+            <thead><tr><th>מתי</th><th>מי</th><th>חנות</th><th>מחשבון</th><th>לחשבון</th><th>הערה</th></tr></thead>
             <tbody>
               <% bh.forEach(function(c){ %>
                 <tr>
                   <td class="mono"><%= String(c.changed_at).slice(0,16) %></td>
                   <td><%= c.changed_by_name || '—' %></td>
+                  <td><%= c.store_id ? (c.store_name || ('חנות ' + c.store_id)) : 'ברירת מחדל' %></td>
                   <td class="mono"><%= c.old_account || '—' %></td>
                   <td class="mono"><%= c.new_account || '—' %></td>
                   <td class="muted"><%= c.note || '' %></td>

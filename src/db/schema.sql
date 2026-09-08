@@ -687,8 +687,48 @@ CREATE TABLE IF NOT EXISTS supplier_bank_changes (
   supplier_id   INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
   old_bank      TEXT, old_branch TEXT, old_account TEXT, old_holder TEXT,
   new_bank      TEXT, new_branch TEXT, new_account TEXT, new_holder TEXT,
+  store_id      INTEGER REFERENCES stores(id),   -- לאיזו חנות שייך החשבון שהשתנה (NULL = ברירת מחדל)
+  old_extra     TEXT, new_extra TEXT,               -- JSON: קוד בנק / ח״פ מוטב / IBAN
   changed_at    TEXT NOT NULL,
   changed_by    INTEGER REFERENCES users(id),
   note          TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_supplier_bank_changes ON supplier_bank_changes(supplier_id, changed_at);
+
+-- §5 חשבונות הבנק של הספק — שורה לכל (ספק, חנות). זו הכתובת שאליה מותר להעביר כסף.
+--
+-- למה טבלה ולא ארבע עמודות על `suppliers` (מה שהיה כאן קודם):
+--   • ספק אחד יכול לקבל תשלום לחשבון שונה לכל חברה/חנות. עמודה אחת מכריחה בחירה שגויה.
+--   • הכתובת צריכה קוד בנק, מזהה מוטב ו-IBAN — שדות שמאפשרים אימות, לא רק תצוגה.
+--   • כל שורה נושאת מתי אומתה טלפונית ועל ידי מי. זו ההגנה האמיתית מפני "החלפנו חשבון" במייל.
+--
+-- store_id NULL = חשבון ברירת המחדל של הספק, תקף לכל חנות שאין לה חשבון משלה. חנות עם שורה
+-- משלה גוברת. הבחירה הזו נעשית ב-services/suppliers.js#supplierBankFor — מקום אחד, כדי
+-- שהטביעה של ההעברה (services/transfers.js#substanceOf) והמסך יראו בדיוק את אותו חשבון.
+CREATE TABLE IF NOT EXISTS supplier_bank_accounts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  supplier_id   INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  store_id      INTEGER REFERENCES stores(id) ON DELETE CASCADE,  -- NULL = ברירת מחדל
+  bank_code     TEXT,     -- קוד בנק דו-ספרתי (lib/banks.js). זה מה שמזהה בנק, לא השם.
+  bank_name     TEXT,     -- נגזר מהקוד; נשמר כדי שתצוגה והיסטוריה לא ישתנו אם הרשימה תתעדכן
+  bank_branch   TEXT,     -- עד 3 ספרות
+  bank_account  TEXT,
+  bank_holder   TEXT,     -- שם בעל החשבון — חייב להתאים לספק, אחרת זה דגל אדום
+  holder_tax_id TEXT,     -- ח״פ / ת״ז של המוטב, עם ספרת ביקורת
+  iban          TEXT,
+  verified_at   TEXT,     -- אומת טלפונית מול הספק — התיעוד שמבדיל בין "נרשם" ל"נבדק"
+  verified_by   INTEGER REFERENCES users(id),
+  verified_note TEXT,
+  updated_at    TEXT,
+  updated_by    INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS ix_supplier_bank_accounts ON supplier_bank_accounts(supplier_id, store_id);
+-- שורה אחת לכל (ספק, חנות), ושורת ברירת-מחדל אחת. UNIQUE רגיל לא מספיק כי NULL אינו שווה
+-- לעצמו — אפשר היה ליצור שתי ברירות מחדל ולא לדעת לאיזו מהן הכסף הולך. COALESCE(store_id, 0)
+-- הופך את "אין חנות" לערך אחד ממשי, ולכן אינדקס אחד מבטא את שני הכללים.
+-- 🔴 לא להחליף באינדקס ייחודי חלקי (`... ON (supplier_id) WHERE store_id IS NULL`): pg-mem
+-- מתייחס אליו כאילו הוא מלא ומחזיר שורה אחת בלבד ל-`WHERE supplier_id = ?` — החשבון של החנות
+-- פשוט נעלם, בשקט, רק תחת TEST_PG.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_supplier_bank_account
+  ON supplier_bank_accounts(supplier_id, COALESCE(store_id, 0));
+

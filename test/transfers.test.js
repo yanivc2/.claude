@@ -238,14 +238,14 @@ test('an approval lapses after the TTL, and executing on it is refused', async (
 
 test('🔴 changing the supplier bank account AFTER approval voids the approval', async () => {
   const { db, ow, sec, invoice } = await world();
-  const { setSupplierBank } = await import('../src/services/suppliers.js');
+  const { setSupplierBankAccount } = await import('../src/services/suppliers.js');
   const inv = await invoice();
   const t = await createTransfer({ invoiceIds: [inv.id] }, sec, db);
-  await setSupplierBank(inv.supplier_id, { bankName: 'הפועלים', bankBranch: '428', bankAccount: '111111' }, ow, db);
+  await setSupplierBankAccount(inv.supplier_id, { bankCode: '12', bankBranch: '428', bankAccount: '111111' }, ow, db);
   await approveTransfer(t.id, ow, db);
 
   // Approved against account 111111. Somebody now "updates" it — the classic supplier-bank fraud.
-  await setSupplierBank(inv.supplier_id, { bankName: 'הפועלים', bankBranch: '428', bankAccount: '999999' }, ow, db);
+  await setSupplierBankAccount(inv.supplier_id, { bankCode: '12', bankBranch: '428', bankAccount: '999999' }, ow, db);
 
   await assert.rejects(
     () => executeTransfer(t.id, { reference: 'X' }, sec, db),
@@ -330,4 +330,30 @@ test('each problem is pushed once, and re-approval re-arms the alert', async () 
   // Re-approving clears the marker, so a NEW problem on the same request can still be reported.
   await approveTransfer(t.id, ow, db);
   assert.equal((await db.one('SELECT alerted FROM bank_transfers WHERE id = ?', [t.id])).alerted, null);
+});
+
+test('🔴 the fingerprint follows the account the STORE actually pays from', async () => {
+  const { db, ow, sec, store, invoice } = await world();
+  const { setSupplierBankAccount } = await import('../src/services/suppliers.js');
+  const inv = await invoice({ amount: 120000 });
+  // A default account and a different one for this store. The store's is the one that pays.
+  await setSupplierBankAccount(inv.supplier_id, { bankCode: '12', bankBranch: '428', bankAccount: '111111' }, ow, db);
+  await setSupplierBankAccount(inv.supplier_id, { storeId: store.id, bankCode: '10', bankBranch: '900', bankAccount: '222222' }, ow, db);
+
+  const t = await createTransfer({ invoiceIds: [inv.id] }, sec, db);
+  let row = (await listTransfers({ scope: null }, db)).find((r) => Number(r.id) === Number(t.id));
+  assert.equal(row.bank.bank_account, '222222', 'the store account, not the supplier default');
+  assert.equal(row.bankForStore, true);
+
+  await approveTransfer(t.id, ow, db);
+  // Changing the DEFAULT account must not disturb an approval that pays from the store account.
+  await setSupplierBankAccount(inv.supplier_id, { bankCode: '12', bankBranch: '428', bankAccount: '333333' }, ow, db);
+  row = (await listTransfers({ scope: null }, db)).find((r) => Number(r.id) === Number(t.id));
+  assert.equal(row.needsReapproval, false, 'a change to an account this transfer does not use is not a change');
+
+  // Changing only the BANK CODE of the paying account is a destination change and voids it.
+  await setSupplierBankAccount(inv.supplier_id, { storeId: store.id, bankCode: '20', bankBranch: '900', bankAccount: '222222' }, ow, db);
+  row = (await listTransfers({ scope: null }, db)).find((r) => Number(r.id) === Number(t.id));
+  assert.equal(row.displayStatus, 'stale', 'a different bank with the same account number is a different destination');
+  await assert.rejects(() => executeTransfer(t.id, { reference: 'Z9' }, ow, db), /השתנו אחרי האישור/);
 });

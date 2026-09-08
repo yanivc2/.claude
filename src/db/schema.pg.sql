@@ -667,11 +667,37 @@ CREATE TABLE IF NOT EXISTS supplier_bank_changes (
   supplier_id   INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
   old_bank      TEXT, old_branch TEXT, old_account TEXT, old_holder TEXT,
   new_bank      TEXT, new_branch TEXT, new_account TEXT, new_holder TEXT,
+  store_id      INTEGER REFERENCES stores(id),
+  old_extra     TEXT, new_extra TEXT,
   changed_at    TEXT NOT NULL,
   changed_by    INTEGER REFERENCES users(id),
   note          TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_supplier_bank_changes ON supplier_bank_changes(supplier_id, changed_at);
+
+-- §5 חשבונות הבנק של הספק — see schema.sql for why this is a table and not columns on suppliers.
+CREATE TABLE IF NOT EXISTS supplier_bank_accounts (
+  id            INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  supplier_id   INTEGER NOT NULL REFERENCES suppliers(id) ON DELETE CASCADE,
+  store_id      INTEGER REFERENCES stores(id) ON DELETE CASCADE,
+  bank_code     TEXT,
+  bank_name     TEXT,
+  bank_branch   TEXT,
+  bank_account  TEXT,
+  bank_holder   TEXT,
+  holder_tax_id TEXT,
+  iban          TEXT,
+  verified_at   TEXT,
+  verified_by   INTEGER REFERENCES users(id),
+  verified_note TEXT,
+  updated_at    TEXT,
+  updated_by    INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS ix_supplier_bank_accounts ON supplier_bank_accounts(supplier_id, store_id);
+-- ראה schema.sql: אינדקס אחד עם COALESCE, לא שני אינדקסים חלקיים (pg-mem שובר את החלקיים).
+CREATE UNIQUE INDEX IF NOT EXISTS ux_supplier_bank_account
+  ON supplier_bank_accounts(supplier_id, COALESCE(store_id, 0));
+
 
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_name TEXT;
 ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_branch TEXT;
@@ -682,3 +708,17 @@ ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS bank_updated_by INTEGER REFERENCE
 
 ALTER TABLE bank_transfers ADD COLUMN IF NOT EXISTS approved_fingerprint TEXT;
 ALTER TABLE bank_transfers ADD COLUMN IF NOT EXISTS alerted TEXT;
+
+ALTER TABLE supplier_bank_changes ADD COLUMN IF NOT EXISTS store_id INTEGER REFERENCES stores(id);
+ALTER TABLE supplier_bank_changes ADD COLUMN IF NOT EXISTS old_extra TEXT;
+ALTER TABLE supplier_bank_changes ADD COLUMN IF NOT EXISTS new_extra TEXT;
+
+-- העברת פרטי הבנק שכבר נשמרו על suppliers אל שורת ברירת המחדל בטבלה החדשה.
+-- אידמפוטנטי (NOT IN), ולכן רץ בשקט בכל לחיצה על "עדכן מסד נתונים" ולא מכפיל שורות.
+-- קוד הבנק נשאר ריק בכוונה: היה רק שם חופשי, והבעלים צריך לאשר מהרשימה מה הבנק בפועל.
+INSERT INTO supplier_bank_accounts
+       (supplier_id, store_id, bank_name, bank_branch, bank_account, bank_holder, updated_at, updated_by)
+SELECT s.id, NULL, s.bank_name, s.bank_branch, s.bank_account, s.bank_holder, s.bank_updated_at, s.bank_updated_by
+  FROM suppliers s
+ WHERE (s.bank_account IS NOT NULL OR s.bank_name IS NOT NULL)
+   AND s.id NOT IN (SELECT supplier_id FROM supplier_bank_accounts WHERE store_id IS NULL);

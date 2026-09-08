@@ -91,16 +91,17 @@ export function substanceOf(transfer, invoiceIds, bank) {
     supplier: Number(transfer.supplier_id) || null,
     store: Number(transfer.store_id),
     invoices: [...invoiceIds].map(Number).sort((a, b) => a - b),
-    account: [bank?.bank_name, bank?.bank_branch, bank?.bank_account, bank?.bank_holder].map((v) => v ?? '').join('|'),
+    // כל מה שמזהה את היעד, כולל קוד הבנק, מזהה המוטב ו-IBAN. שינוי באחד מהם הוא שינוי יעד.
+    account: [bank?.bank_code, bank?.bank_name, bank?.bank_branch, bank?.bank_account,
+      bank?.bank_holder, bank?.holder_tax_id, bank?.iban].map((v) => v ?? '').join('|'),
   });
 }
 
 async function currentSubstance(transfer, x) {
   const lines = await x.many('SELECT invoice_id FROM bank_transfer_lines WHERE transfer_id = ?', [transfer.id]);
-  let bank = null;
-  try {
-    bank = await x.one('SELECT bank_name, bank_branch, bank_account, bank_holder FROM suppliers WHERE id = ?', [transfer.supplier_id]);
-  } catch { bank = null; }
+  // אותה הכרעה שהמסך עושה — supplierBankFor, ולא שאילתה מקבילה. חשבון ייעודי לחנות גובר.
+  const { supplierBankFor } = await import('./suppliers.js');
+  const bank = await supplierBankFor(transfer.supplier_id, transfer.store_id, x);
   return substanceOf(transfer, lines.map((l) => l.invoice_id), bank);
 }
 
@@ -334,11 +335,18 @@ export async function listTransfers({ scope = null, limit = 200 } = {}, x = getE
   // against the bank screen when approving, and the recent-change warning is the alarm that
   // matters most (see services/suppliers.js#setSupplierBank).
   const { bankChangedRecently, BANK_CHANGE_WARN_DAYS } = await import('./suppliers.js');
-  let banks = [];
+  let accounts = [];
   try {
-    banks = await x.many('SELECT id, bank_name, bank_branch, bank_account, bank_holder, bank_updated_at FROM suppliers', []);
-  } catch { banks = []; } // pre-upgrade database
-  const bankById = new Map(banks.map((b) => [Number(b.id), b]));
+    accounts = await x.many('SELECT * FROM supplier_bank_accounts', []);
+  } catch { accounts = []; } // pre-upgrade database
+  // אותה הכרעה כמו supplierBankFor, מחושבת פעם אחת לכל השורות: חשבון החנות גובר על ברירת המחדל.
+  const resolveBank = (supplierId, storeId) => {
+    const mine = accounts.filter((a) => Number(a.supplier_id) === Number(supplierId));
+    const forStore = mine.find((a) => Number(a.store_id) === Number(storeId));
+    const fallback = mine.find((a) => a.store_id == null) || null;
+    const hit = forStore || fallback;
+    return hit ? { ...hit, resolved_from: forStore ? 'store' : 'default' } : null;
+  };
 
   // The invoice ids per request, so the fingerprint can be recomputed without a query per row.
   const invIds = new Map();
@@ -361,7 +369,7 @@ export async function listTransfers({ scope = null, limit = 200 } = {}, x = getE
   const paidBy = new Map(paid.map((p) => [Number(p.transfer_id), p]));
 
   return rows.map((r) => {
-    const bank = bankById.get(Number(r.supplier_id)) || null;
+    const bank = resolveBank(r.supplier_id, r.store_id);
     const hit = paidBy.get(Number(r.id)) || null;
     // The bank moved a different sum than the one approved. Not a rounding nicety: it is either a
     // partial release, a fee taken at source, or a batch that was edited in the bank after the
@@ -385,8 +393,11 @@ export async function listTransfers({ scope = null, limit = 200 } = {}, x = getE
       amountMismatch,
       bankAmount: hit ? Number(hit.bank_amount) : null,
       bank,
-      bankMissing: !bank || !bank.bank_account,
+      // "חסר" הוא לא רק היעדר שורה: חשבון בלי קוד בנק או בלי סניף אי אפשר להעביר אליו.
+      bankMissing: !bank || !bank.bank_account || !bank.bank_branch || !bank.bank_code,
       bankChangedRecently: bank ? bankChangedRecently(bank) : false,
+      bankVerifiedAt: bank?.verified_at ?? null,
+      bankForStore: bank?.resolved_from === 'store',
       bankWarnDays: BANK_CHANGE_WARN_DAYS,
     };
   });
