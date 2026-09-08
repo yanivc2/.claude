@@ -99,6 +99,35 @@ router.all('/bank-sync', async (req, res) => {
   }
 });
 
+// Nightly voided-check sweep — the clock the "צ׳קים מבוטלים" page runs on.
+//
+// Voiding a check in the software does not void it at the bank: it stays presentable for six months
+// (services/voidedChecks.js). Two of the four void reasons therefore have a deadline rather than a
+// state, and neither can be noticed by anything a user does:
+//   • "לא נאסף" becomes safe on a DATE — nothing happens in the app that day;
+//   • "נפרע במזומן עבור שכר" left unmatched, and a missing link, only get worse with time.
+// The same sweep runs after every bank reconcile, but a group that has not imported a statement in
+// weeks would hear nothing — so it also runs nightly. Idempotent through payments.void_alerted, so
+// a quiet night sends nothing at all.
+//
+//   GET /ingest/voided-checks        (Authorization: Bearer <CRON_SECRET>)
+//   GET /ingest/voided-checks?key=<CRON_SECRET>
+router.all('/voided-checks', async (req, res) => {
+  try {
+    if (!config.cronSecret) return res.status(503).json({ ok: false, error: 'sweep disabled (no CRON_SECRET)' });
+    const bearer = (req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+    const given = String(req.query.key || req.get('x-cron-secret') || bearer || '');
+    if (given !== config.cronSecret) return res.status(401).json({ ok: false, error: 'bad secret' });
+
+    const { alertOnVoidedChecks, alertOnExpiredNotCollected } = await import('../services/voidedChecks.js');
+    const problems = await alertOnVoidedChecks();
+    const expired = await alertOnExpiredNotCollected();
+    return res.json({ ok: true, problems, expired });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Scraped-transaction intake — the second bank channel, for accounts Open Banking doesn't cover
 // (or doesn't cover affordably). An EXTERNAL runner (scripts/scrape-push.mjs, on a GitHub Actions
 // cron or any machine with a browser) logs into the bank with israeli-bank-scrapers and POSTs the

@@ -21,7 +21,7 @@ import { RuleError, AuthError } from '../lib/errors.js';
 import { toAgorot } from '../lib/money.js';
 import { listSuppliers } from '../services/suppliers.js';
 import { listEmployees } from '../services/employees.js';
-import { VOID_REASONS } from '../services/voidedChecks.js';
+import { VOID_REASONS, voidLinkOptions } from '../services/voidedChecks.js';
 import { paymentAllocation, openInvoicesForPayment, allocateInvoiceToPayments } from '../services/allocations.js';
 
 const router = Router();
@@ -208,6 +208,9 @@ router.get('/:id', async (req, res, next) => {
       alloc,
       openInvoices,
       voidReasons: VOID_REASONS,
+      // What a void may be linked to — derived from this check's own invoices/supplier, so the
+      // picker cannot offer an unrelated row. See services/voidedChecks.js#voidLinkOptions.
+      voidLinks: payment.status === 'issued' ? await voidLinkOptions(Number(req.params.id)) : { payments: [], invoices: [] },
       notice: req.query.alloc ? String(req.query.alloc) : null,
       error: req.query.allocfail ? String(req.query.allocfail) : null,
     });
@@ -327,9 +330,20 @@ router.post('/:id/void', async (req, res, next) => {
   try {
     // A void now carries its structured reason (see services/voidedChecks.js). An old form or a
     // caller that sends none still voids — it just has no follow-up to chase.
+    // A forged link id must not tie this void to another company's row: the picker only offers
+    // rows from this check, but the id comes back through the form like any other.
+    const linkPaymentId = Number(req.body.link_payment_id) || null;
+    const linkInvoiceId = Number(req.body.link_invoice_id) || null;
+    if (linkPaymentId) await assertInScope('payment', linkPaymentId, req.scope);
+    if (linkInvoiceId) await assertInScope('invoice', linkInvoiceId, req.scope);
     await voidPaymentWithReason(
       Number(req.params.id),
-      { reason: req.body.void_reason || null, note: req.body.reason || null },
+      {
+        reason: req.body.void_reason || null,
+        note: req.body.reason || null,
+        linkPaymentId,
+        linkInvoiceId,
+      },
       req.user,
     );
     res.redirect(303, req.get('referer') || `/payments/${req.params.id}`);

@@ -205,3 +205,160 @@ test('a wage payment needs an employee, a real date, a positive amount and an id
   const ok = await createSalaryPayment({ ...base, method: 'cash', reference: '' }, ow, db);
   assert.equal(ok.method, 'cash');
 });
+
+// --- the link each reason demands ---------------------------------------------------------------
+//
+// The order below is the real one, and it is why the link is attached AFTER the void: while the
+// check still pays the invoice, the invoice is 'paid' and a replacement payment is refused. So
+// "שינוי אמצעי תשלום" is always void → re-issue → link, from the צ'קים מבוטלים page.
+
+test('a replacement cannot even be recorded before the void — hence post-void linking', async () => {
+  const { db, ow, acct, check } = await world();
+  const p = await check('7010', '2026-03-01', 40000);
+  const line = await db.one('SELECT invoice_id FROM payment_lines WHERE payment_id = ?', [p.id]);
+  await assert.rejects(
+    () => createPayment(
+      { bankAccountId: acct.id, method: 'transfer', reference: 'TR-9', paymentDate: '2026-03-05', invoiceIds: [line.invoice_id] },
+      ow, db,
+    ),
+    /paid/,
+    'the invoice is still paid by the check being replaced',
+  );
+});
+
+test('void → re-issue → link clears the "ללא קישור" status', async () => {
+  const { db, ow, acct, check } = await world();
+  const p = await check('7020', '2026-03-01', 40000);
+  const line = await db.one('SELECT invoice_id FROM payment_lines WHERE payment_id = ?', [p.id]);
+
+  await voidPaymentWithReason(p.id, { reason: 'method_changed' }, ow, db);
+  let row = (await listVoidedChecks({ scope: null }, db))[0].rows.find((r) => r.check_number === '7020');
+  assert.equal(row.status.key, 'unlinked', 'until it is linked, the page chases it');
+
+  // Now the invoice is open again, so the replacement can be recorded…
+  await approveInvoiceForPayment(line.invoice_id, ow, db);
+  const replacement = await createPayment(
+    { bankAccountId: acct.id, method: 'transfer', reference: 'TR-20', paymentDate: '2026-03-06', invoiceIds: [line.invoice_id] },
+    ow, db,
+  );
+  // …and only now can it be offered as the link.
+  const { voidLinkOptions, setVoidLink } = await import('../src/services/voidedChecks.js');
+  const opts = await voidLinkOptions(p.id, db);
+  assert.ok(opts.payments.map((r) => Number(r.id)).includes(replacement.id));
+  assert.ok(!opts.payments.map((r) => Number(r.id)).includes(p.id), 'never the check being voided');
+
+  await setVoidLink(p.id, { linkPaymentId: replacement.id }, ow, db);
+  row = (await listVoidedChecks({ scope: null }, db))[0].rows.find((r) => r.check_number === '7020');
+  assert.equal(Number(row.void_link_payment_id), replacement.id);
+  // No longer an alarm. Which of 'live'/'expired' it lands on depends only on the calendar.
+  assert.ok(!row.status.alarm, 'linked → no longer chased');
+  assert.ok(['live', 'expired'].includes(row.status.key));
+});
+
+test('ביטול שורה בתוכנה links to the invoice the check paid — available at void time', async () => {
+  const { db, ow, check } = await world();
+  const p = await check('7021', '2026-03-01', 30000);
+  const line = await db.one('SELECT invoice_id FROM payment_lines WHERE payment_id = ?', [p.id]);
+  const { voidLinkOptions } = await import('../src/services/voidedChecks.js');
+  const opts = await voidLinkOptions(p.id, db);
+  assert.deepEqual(opts.invoices.map((i) => Number(i.id)), [Number(line.invoice_id)]);
+
+  await voidPaymentWithReason(p.id, { reason: 'row_cancelled', linkInvoiceId: line.invoice_id }, ow, db);
+  const row = (await listVoidedChecks({ scope: null }, db))[0].rows.find((r) => r.check_number === '7021');
+  assert.equal(Number(row.void_link_invoice_id), Number(line.invoice_id));
+  assert.ok(!row.status.alarm, 'linked at void time → never chased');
+});
+
+test('a link is refused on a live check, and needs something to point at', async () => {
+  const { db, ow, check } = await world();
+  const p = await check('7022');
+  const { setVoidLink } = await import('../src/services/voidedChecks.js');
+  await assert.rejects(() => setVoidLink(p.id, { linkInvoiceId: 1 }, ow, db), /צ׳ק מבוטל/);
+  await voidPaymentWithReason(p.id, { reason: 'row_cancelled' }, ow, db);
+  await assert.rejects(() => setVoidLink(p.id, {}, ow, db), /לבחור תשלום או חשבונית/);
+});
+
+// --- the nightly sweep --------------------------------------------------------------------------
+//
+// Two of the four reasons have a DEADLINE rather than a state: "לא נאסף" becomes safe on a date,
+// and an unmatched/unlinked one only gets worse with time. Nothing a user does would notice either,
+// so the sweep also runs on a cron (GET /ingest/voided-checks, guarded by CRON_SECRET).
+
+test('the cron endpoint is disabled without a secret, refuses a wrong one, and sweeps with it', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { config } = await import('../src/config.js');
+  const { once } = await import('node:events');
+  const saved = config.cronSecret;
+  const { db, ow, check } = await world();
+  const p = await check('7030', '2026-03-01', 20000);
+  await voidPaymentWithReason(p.id, { reason: 'cashed_for_salary' }, ow, db); // owes a match
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    config.cronSecret = null;
+    assert.equal((await fetch(`${base}/ingest/voided-checks`)).status, 503, 'disabled by default, never open');
+
+    config.cronSecret = 'cr0n';
+    assert.equal((await fetch(`${base}/ingest/voided-checks?key=nope`)).status, 401);
+
+    const res = await fetch(`${base}/ingest/voided-checks`, { headers: { authorization: 'Bearer cr0n' } });
+    assert.equal(res.status, 200);
+    const got = await res.json();
+    assert.equal(got.ok, true);
+    assert.equal(got.problems, 1, 'the unmatched salary void was reported');
+
+    // …and a second run is silent: void_alerted remembers what was already said.
+    const again = await (await fetch(`${base}/ingest/voided-checks?key=cr0n`)).json();
+    assert.equal(again.problems, 0, 'idempotent — a quiet night sends nothing');
+  } finally {
+    config.cronSecret = saved;
+    server.close();
+  }
+});
+
+test('a "לא נאסף" check is announced once it passes six months, and only once', async () => {
+  const { db, ow, check } = await world();
+  const { alertOnExpiredNotCollected } = await import('../src/services/voidedChecks.js');
+
+  const old = await check('7040', '2025-01-01', 15000);   // long past six months
+  const fresh = await check('7041', '2026-09-01', 15000); // still live
+  await voidPaymentWithReason(old.id, { reason: 'not_collected' }, ow, db);
+  await voidPaymentWithReason(fresh.id, { reason: 'not_collected' }, ow, db);
+
+  assert.equal(await alertOnExpiredNotCollected(db), 1, 'only the expired one');
+  assert.equal(await alertOnExpiredNotCollected(db), 0, 'and never twice');
+  const row = await db.one('SELECT void_alerted FROM payments WHERE id = ?', [old.id]);
+  assert.equal(row.void_alerted, 'expired');
+});
+
+test('before the owner runs the DB upgrade, both pages say so instead of erroring', async () => {
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+  const { db, ow } = await world();
+
+  // Simulate a live database that has the deploy but not yet the upgrade: the columns and the
+  // table are simply absent. (SQLite only — the production case is Postgres, but the code path is
+  // the same probe, and pg-mem cannot drop a column with a dependent index.)
+  if (process.env.TEST_PG === '1') return;
+  await db.run('DROP TABLE salary_payments', []);
+  await db.run('ALTER TABLE payments DROP COLUMN void_reason', []);
+
+  const server = createApp().listen(0);
+  await once(server, 'listening');
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const headers = { cookie: `session=${encodeURIComponent(createSession(ow.id))}` };
+  try {
+    for (const path of ['/voided-checks', '/employees']) {
+      const res = await fetch(base + path, { headers });
+      const html = await res.text();
+      assert.equal(res.status, 200, `${path} must render, not 500`);
+      assert.ok(html.includes('נדרש עדכון מסד נתונים'), `${path} tells the owner what to do`);
+      assert.ok(!html.includes('does not exist'), `${path} never shows the raw SQL error`);
+    }
+  } finally {
+    server.close();
+  }
+});

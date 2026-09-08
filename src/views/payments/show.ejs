@@ -34,10 +34,54 @@
                 <option value="<%= r.value %>" title="<%= r.hint %>"><%= r.label %></option>
               <% }); %>
             </select>
+            <%# The link each reason demands. Only the relevant one is shown, and both are disabled
+                while hidden so a stale value is never posted. Options come from THIS check's own
+                invoices and their live payments (services/voidedChecks.js#voidLinkOptions). %>
+            <% var vl = (typeof voidLinks !== 'undefined' && voidLinks) ? voidLinks : { payments: [], invoices: [] }; %>
+            <div class="vd-link" data-for="method_changed" hidden style="margin-top:6px">
+              <label class="lbl">התשלום החדש</label>
+              <select name="link_payment_id" class="js-combo" disabled>
+                <option value="">— בחר תשלום —</option>
+                <% vl.payments.forEach(function(p){ %>
+                  <option value="<%= p.id %>">#<%= p.id %> · <%= methodLabel(p.method) %> <%= p.check_number || p.reference || p.batch_number || '' %> · <%= formatDate(p.payment_date) %> · <%= formatIls(p.amount) %></option>
+                <% }); %>
+              </select>
+              <% if (!vl.payments.length) { %><small class="muted">אין תשלום חלופי — רשום אותו קודם ואז בטל.</small><% } %>
+            </div>
+            <div class="vd-link" data-for="row_cancelled" hidden style="margin-top:6px">
+              <label class="lbl">השורה שבוטלה</label>
+              <select name="link_invoice_id" class="js-combo" disabled>
+                <option value="">— בחר חשבונית —</option>
+                <% vl.invoices.forEach(function(i){ %>
+                  <option value="<%= i.id %>">#<%= i.id %> · <%= i.supplier_name %> · <%= i.invoice_number %> · <%= formatIls(i.total_amount) %></option>
+                <% }); %>
+              </select>
+              <% if (!vl.invoices.length) { %><small class="muted">לצ׳ק זה אין שורות חשבונית מקושרות.</small><% } %>
+            </div>
+            <div class="vd-link" data-for="cashed_for_salary" hidden style="margin-top:6px">
+              <small class="muted">ההתאמה להוצאת המזומן נעשית בדף <a href="/employees">עובדים ומשכורות</a>, ברובריקת תשלומי שכר ("סמן כנפרט").</small>
+            </div>
             <input name="reason" placeholder="הערה (לא חובה)" style="margin-top:6px" />
             <button class="btn btn-secondary btn-sm btn-block" type="submit" style="margin-top:6px;color:var(--color-bad)">בטל צ׳ק</button>
             <small class="muted" style="display:block;margin-top:4px">הצ׳ק יעבור למעקב ב<a href="/voided-checks">צ׳קים מבוטלים</a> — הוא נשאר בר-פירעון חצי שנה.</small>
           </form>
+          <script>
+          (function(){
+            var form = document.currentScript.previousElementSibling;
+            var sel = form && form.querySelector('select[name="void_reason"]');
+            if (!sel) return;
+            function apply(){
+              form.querySelectorAll('.vd-link').forEach(function(box){
+                var on = box.dataset.for === sel.value;
+                box.hidden = !on;
+                // A hidden <select> still posts; disabling it is what keeps a stale link out.
+                box.querySelectorAll('select').forEach(function(s){ s.disabled = !on; });
+              });
+            }
+            sel.addEventListener('change', apply);
+            apply();
+          })();
+          </script>
         <% } %>
       </div>
     </details>

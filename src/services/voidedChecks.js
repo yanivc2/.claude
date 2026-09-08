@@ -18,6 +18,7 @@
 //   • ביטול שורה בתוכנה            — a data-entry correction. Links to the row it belonged to.
 //     (row_cancelled)
 import { getExecutor } from '../db/adapter.js';
+import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeWhere } from '../lib/scope.js';
 import { addDaysIso, israelToday } from '../lib/loginHours.js';
 import { notify } from '../lib/notify.js';
@@ -246,4 +247,121 @@ export async function alertOnExpiredNotCollected(x = getExecutor()) {
 export async function cashedVoidedChecks({ scope = null } = {}, x = getExecutor()) {
   const groups = await listVoidedChecks({ scope }, x);
   return groups.flatMap((g) => g.rows).filter((r) => r.status.key === 'cashed');
+}
+
+/**
+ * What a void can be LINKED to, for the two reasons that demand a link.
+ *
+ * Both lists are derived from the check itself rather than typed, so the link cannot point at an
+ * unrelated row (and, since every candidate comes from this check's own invoices/supplier, it
+ * cannot cross a company either — the route still re-checks, but there is nothing to forge here).
+ *
+ *   • שינוי אמצעי תשלום → the LIVE payments that cover the same invoices, or any other live
+ *     payment to the same supplier. That is what "re-issued by another means" looks like.
+ *   • ביטול שורה בתוכנה → the invoices this check paid. Those are the rows a correction cancels.
+ *
+ * @returns {Promise<{payments: Array, invoices: Array}>}
+ */
+export async function voidLinkOptions(paymentId, x = getExecutor()) {
+  const pay = await x.one('SELECT * FROM payments WHERE id = ?', [paymentId]);
+  if (!pay) return { payments: [], invoices: [] };
+
+  const invoices = await x.many(
+    `SELECT i.id, i.invoice_number, i.invoice_date, i.total_amount, i.doc_type, s.name AS supplier_name
+       FROM payment_lines pl
+       JOIN invoices i ON i.id = pl.invoice_id
+       JOIN suppliers s ON s.id = i.supplier_id
+      WHERE pl.payment_id = ?
+      ORDER BY i.invoice_date DESC`,
+    [paymentId],
+  );
+
+  // Live payments that cover any of the same invoices — the replacement, whatever its method.
+  const invIds = invoices.map((i) => Number(i.id));
+  let siblings = [];
+  if (invIds.length) {
+    siblings = await x.many(
+      `SELECT DISTINCT p.id, p.method, p.check_number, p.reference, p.batch_number,
+              p.payment_date, p.amount, p.status
+         FROM payment_lines pl
+         JOIN payments p ON p.id = pl.payment_id
+        WHERE pl.invoice_id IN (${invIds.map(() => '?').join(',')})
+          AND p.id <> ? AND p.status <> 'voided'
+        ORDER BY p.payment_date DESC`,
+      [...invIds, paymentId],
+    );
+  }
+  // …plus other live payments to the same supplier (an advance re-issued, which has no lines yet).
+  if (pay.supplier_id) {
+    const bySupplier = await x.many(
+      `SELECT p.id, p.method, p.check_number, p.reference, p.batch_number, p.payment_date, p.amount, p.status
+         FROM payments p
+        WHERE p.supplier_id = ? AND p.id <> ? AND p.status <> 'voided'
+        ORDER BY p.payment_date DESC`,
+      [pay.supplier_id, paymentId],
+    );
+    const seen = new Set(siblings.map((r) => Number(r.id)));
+    for (const r of bySupplier) if (!seen.has(Number(r.id))) siblings.push(r);
+  }
+  return { payments: siblings.slice(0, 40), invoices };
+}
+
+/**
+ * Attach the link a void still owes, AFTER the fact.
+ *
+ * This is the normal order, not an afterthought: you cannot record the replacement payment while
+ * the invoice is still paid by the check, so "שינוי אמצעי תשלום" is really void → re-issue → link.
+ * The at-void picker can only offer a replacement that already exists; this is where the rest are
+ * closed, from the צ'קים מבוטלים page, and it is what turns "ללא קישור" into a tracked row.
+ *
+ * Re-links are allowed (a wrong pick is a mis-click, not a fact), and `void_alerted` is cleared so
+ * the row is re-evaluated on the next sweep rather than staying silent on a stale verdict.
+ */
+export async function setVoidLink(paymentId, { linkPaymentId = null, linkInvoiceId = null }, actor, x = getExecutor()) {
+  const pay = await x.one("SELECT id, status FROM payments WHERE id = ?", [paymentId]);
+  if (!pay) throw new NotFoundError(`תשלום ${paymentId} לא נמצא`);
+  if (pay.status !== 'voided') throw new RuleError('R', 'הקישור נשמר רק לצ׳ק מבוטל');
+  if (!linkPaymentId && !linkInvoiceId) throw new RuleError('VALIDATION', 'יש לבחור תשלום או חשבונית לקישור');
+  await x.run(
+    `UPDATE payments
+        SET void_link_payment_id = COALESCE(?, void_link_payment_id),
+            void_link_invoice_id = COALESCE(?, void_link_invoice_id),
+            void_alerted = NULL
+      WHERE id = ?`,
+    [linkPaymentId ? Number(linkPaymentId) : null, linkInvoiceId ? Number(linkInvoiceId) : null, paymentId],
+  );
+  const { logAction } = await import('./audit.js');
+  await logAction(
+    { userId: actor?.id ?? null, action: 'payment.void_link', entityType: 'payment', entityId: paymentId, details: { linkPaymentId, linkInvoiceId } },
+    x,
+  );
+  return x.one('SELECT * FROM payments WHERE id = ?', [paymentId]);
+}
+
+/**
+ * Is the database new enough for this feature?
+ *
+ * The owner upgrades the live Postgres by hand (הגדרות ← "עדכן מסד נתונים"), so between a deploy
+ * and that click the columns simply are not there — and the page answered with a raw
+ * "column p.voided_by does not exist" error screen. The same tolerance already guards the
+ * supplier/employee store links (lib/scope.js#filterByStoreLinks): probe, and degrade to a sentence
+ * that says what to do instead of an error.
+ */
+export async function voidedChecksReady(x = getExecutor()) {
+  try {
+    await x.many('SELECT void_reason FROM payments LIMIT 1', []);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Same probe for the wage rubric — its table arrives in the same upgrade. */
+export async function salaryPaymentsReady(x = getExecutor()) {
+  try {
+    await x.many('SELECT id FROM salary_payments LIMIT 1', []);
+    return true;
+  } catch {
+    return false;
+  }
 }

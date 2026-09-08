@@ -1,5 +1,12 @@
 <%- include('../partials/header') %>
 <div class="toolbar"><h1>צ׳קים מבוטלים</h1></div>
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof needsUpgrade !== 'undefined' && needsUpgrade) { %>
+  <div class="alert alert-warn">
+    <strong>נדרש עדכון מסד נתונים.</strong> הדף הזה משתמש בעמודות חדשות שעדיין לא קיימות במסד.
+    היכנס ל<a href="/settings">הגדרות</a> ולחץ <strong>"עדכן מסד נתונים"</strong>, ואז רענן.
+  </div>
+<% } %>
 
 <div class="card">
   <p class="muted" style="margin:0">
@@ -45,6 +52,33 @@
                 <% if (r.void_link_payment_id) { %><a class="badge b-neutral" href="/payments/<%= r.void_link_payment_id %>">התשלום החדש</a><% } %>
                 <% if (r.void_link_invoice_id) { %><a class="badge b-neutral" href="/invoices/<%= r.void_link_invoice_id %>">השורה שבוטלה</a><% } %>
                 <% if (r.void_cash_expense_id) { %><span class="badge b-approved" title="הותאם להוצאת מזומן בסגירת Z">הותאם למזומן</span><% } %>
+                <%# The link is attached HERE, after the fact: the replacement payment can only be
+                    recorded once the check is voided, so at void time there was nothing to pick. %>
+                <% if (r.linkOptions) { %>
+                  <details style="margin-top:.3rem">
+                    <summary class="muted" style="cursor:pointer;font-size:12px">הוסף קישור</summary>
+                    <form method="post" action="/voided-checks/<%= r.id %>/link" style="margin-top:.35rem">
+                      <% if (r.void_reason === 'method_changed') { %>
+                        <select name="link_payment_id" class="js-combo" required>
+                          <option value="">— בחר את התשלום החדש —</option>
+                          <% r.linkOptions.payments.forEach(function(p){ %>
+                            <option value="<%= p.id %>">#<%= p.id %> · <%= methodLabel(p.method) %> <%= p.check_number || p.reference || p.batch_number || '' %> · <%= formatDate(p.payment_date) %> · <%= formatIls(p.amount) %></option>
+                          <% }); %>
+                        </select>
+                        <% if (!r.linkOptions.payments.length) { %><small class="muted">רשום קודם את התשלום החלופי, ואז חזור לכאן.</small><% } %>
+                      <% } else { %>
+                        <select name="link_invoice_id" class="js-combo" required>
+                          <option value="">— בחר את השורה שבוטלה —</option>
+                          <% r.linkOptions.invoices.forEach(function(i){ %>
+                            <option value="<%= i.id %>">#<%= i.id %> · <%= i.supplier_name %> · <%= i.invoice_number %> · <%= formatIls(i.total_amount) %></option>
+                          <% }); %>
+                        </select>
+                        <% if (!r.linkOptions.invoices.length) { %><small class="muted">לצ׳ק זה אין שורות חשבונית מקושרות.</small><% } %>
+                      <% } %>
+                      <button type="submit" class="small" style="margin-top:.3rem">שמור קישור</button>
+                    </form>
+                  </details>
+                <% } %>
               </td>
               <td><%= r.voided_by_name || '—' %></td>
               <td><span class="badge <%= r.status.badge %>"><%= r.status.label %></span></td>

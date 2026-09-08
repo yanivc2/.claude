@@ -16,6 +16,10 @@
     {
       "path": "/ingest/bank-sync",
       "schedule": "0 4 * * *"
+    },
+    {
+      "path": "/ingest/voided-checks",
+      "schedule": "30 5 * * *"
     }
   ]
 }

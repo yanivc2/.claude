@@ -9,6 +9,7 @@ import {
   listSalaryPayments, createSalaryPayment, deleteSalaryPayment, markCashed, unmatchCashed,
   cashExpenseCandidates, SALARY_METHODS,
 } from '../services/salaryPayments.js';
+import { salaryPaymentsReady } from '../services/voidedChecks.js';
 import { toAgorot } from '../lib/money.js';
 import { assertStoreAllowed } from '../lib/scopeGuard.js';
 import { parseEmployeeFile } from '../lib/employeeImport.js';
@@ -44,11 +45,15 @@ async function render(req, res, extra = {}) {
   // The wage rubric is per store: the picker offers only THIS branch's employees, and the rows
   // shown are this branch's. With no active store the owner sees every branch they may see.
   const storeId = effectiveStoreId(req, req.query.store);
+  // The wage table arrives with a schema upgrade the owner runs by hand. Until then the rubric says
+  // so instead of the page dying on "no such table: salary_payments".
+  const salaryReady = await salaryPaymentsReady();
   res.render('employees/index', {
     title: 'עובדים ומשכורות',
-    salaryRows: await listSalaryPayments({ storeId, scope: req.scope }),
+    salaryReady,
+    salaryRows: salaryReady ? await listSalaryPayments({ storeId, scope: req.scope }) : [],
     salaryMethods: SALARY_METHODS,
-    cashCandidates: await cashExpenseCandidates({ storeId, scope: req.scope }),
+    cashCandidates: salaryReady ? await cashExpenseCandidates({ storeId, scope: req.scope }) : [],
     salaryStoreId: storeId,
     // Scoped: an employee linked to stores is only visible where one of them is in scope; an
     // employee with no links is shared with every store (see services/employees.js#listEmployees).

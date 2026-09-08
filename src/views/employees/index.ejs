@@ -20,6 +20,12 @@
 %>
 <div class="card">
   <h2 style="margin:0 0 .5rem">תשלומי שכר</h2>
+  <% if (typeof salaryReady !== 'undefined' && !salaryReady) { %>
+    <div class="alert alert-warn">
+      <strong>נדרש עדכון מסד נתונים.</strong> טבלת תשלומי השכר עדיין לא קיימת במסד.
+      היכנס ל<a href="/settings">הגדרות</a> ולחץ <strong>"עדכן מסד נתונים"</strong>, ואז רענן.
+    </div>
+  <% } else { %>
   <p class="muted" style="margin:0 0 .6rem">
     איך שולם השכר בפועל — לכל עובד, אמצעי, אסמכתה, התאריך שעבורו שולם והסכום.
     <% if (sStoreId) { %>מוצגים תשלומי החנות הפעילה בלבד.<% } else { %>בחר חנות פעילה בבאנר כדי לצמצם לסניף אחד.<% } %>
@@ -108,6 +114,7 @@
         </tbody>
       </table>
     </div>
+  <% } %>
   <% } %>
 </div>
 
