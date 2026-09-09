@@ -140,13 +140,19 @@
   <div class="zdep-grid">
     <div><label>מספר שקית הפקדה</label><input name="dep_bag" value="<%= dp ? (dp.bag_number || '') : '' %>" /></div>
     <div><label>סכום הפקדה (₪)</label><input name="dep_amount" inputmode="decimal" placeholder="0.00" value="<%= dp ? sh(dp.amount) : '' %>" /></div>
-    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">הפקדה − (מגירה + הוצאות)</small></div>
+    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">הפקדה − (מזומן מגירה + הוצאות במזומן)</small></div>
   </div>
   <label style="display:flex;align-items:center;gap:8px;margin-top:.6rem">
     <input type="checkbox" name="dep_deposited" value="1" style="width:auto;min-height:0" <%= dp && dp.deposited ? 'checked' : '' %> /> הופקד לבנק
   </label>
 
-  <div style="margin-top:.8rem"><button type="submit"><%= submitLabel %></button></div>
+  <%# שמירה דביקה. הכפתור היה בתחתית טופס ארוך (מגירה · אשראי · הוצאות · הפקדה), חלקו בתוך
+      אקורדיונים מקופלים — מי שמילא את החלק העליון לא ראה אותו בלי לגלול עד הסוף, ולא היה ברור
+      שיש בכלל מה ללחוץ. עכשיו הוא צמוד לתחתית המסך כל עוד הטופס פתוח. %>
+  <div class="zform-save">
+    <button type="submit"><%= submitLabel %></button>
+    <span class="muted" id="zform_save_hint">הנתונים נשמרים רק בלחיצה על הכפתור.</span>
+  </div>
 </form>
 
 <script>
@@ -161,11 +167,14 @@
   var creditEl = form.querySelector('#drawer_credit');
   var depAmtEl = form.querySelector('input[name="dep_amount"]');
   var depReconEl = form.querySelector('#dep_recon');
-  // חוסר/יתרה = סכום הפקדה − (סה"כ מגירה + סה"כ הוצאות במזומן). הפקדה קטנה → חוסר (− אדום).
+  // חוסר/יתרה = סכום הפקדה − (מזומן מדוח מגירה + סה"כ הוצאות במזומן). הפקדה קטנה → חוסר (− אדום).
+  // 🔴 מזומן בלבד, לא סה"כ המגירה: להפקדת מזומן אין קשר לאשראי/צ׳קים/הקפה/תווי קניה, והשוואה
+  // מול הסה"כ הראתה "חוסר" בגובה הכנסות האשראי בכל יום. חייב להישאר זהה ל-routes/reports.js#base.
+  function drawerCash(){ return num(form.querySelector('input[name="drawer_cash"]')); }
   function recalcDepRecon(){
     if (!depReconEl) return;
     if (!depAmtEl || depAmtEl.value.trim() === '') { depReconEl.value = '—'; depReconEl.style.color = ''; return; }
-    var diff = num(depAmtEl) - (drawerSum() + cxSum());
+    var diff = num(depAmtEl) - (drawerCash() + cxSum());
     if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--ok)'; }
     else if (diff > 0) { depReconEl.value = 'יתרה ' + fmt(diff); depReconEl.style.color = 'var(--ok)'; }
     else { depReconEl.value = 'חוסר ' + fmt(-diff); depReconEl.style.color = 'var(--bad)'; }

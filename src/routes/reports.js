@@ -9,7 +9,7 @@ import {
 } from '../services/reports.js';
 import {
   createZReport, updateZReport, deleteZReport, listZReports, missingZNumbers, getZReport,
-  listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES,
+  listExpenses, expensesTotal, deleteExpense, getExpense, EXPENSE_TYPES, depositDiff,
   replaceExpenses, setZReportImage, setManagerBreakdown,
   setDeposit, cashReconciliation, DENOMS,
   setCreditCards, ccReconciliation, CC_BRANDS,
@@ -113,7 +113,7 @@ async function alertIfUnmatched(req, id) {
 }
 
 // WhatsApp status for a Z in the "רשומות Z אחרונות" list, per the owner's rule:
-// depDiff = סכום ההפקדה − (סה"כ מגירה + הוצאות במזומן).
+// depDiff = סכום ההפקדה − (מזומן מדוח מגירה + הוצאות במזומן).
 // 0 → תואם; deposit < base (depDiff<0) → חוסר; deposit > base (depDiff>0) → יתרה.
 function zDepositWhatsappText(zr, depDiff) {
   const head = `זד מס ${zr.z_number} מתאריך : ${zr.z_date}`;
@@ -223,12 +223,16 @@ async function renderZReports(req, res, extra = {}) {
   const zRows = await listZReports({ storeId: zStoreId, limit: 30, scope: req.scope });
   const zReports = await Promise.all(
     zRows.map(async (z) => {
-      // Reconciliation per the owner's rule: (סה"כ מגירה + הוצאות במזומן) מול סכום ההפקדה.
+      // התאמת ההפקדה לפי הכלל של הבעלים: (מזומן מדוח מגירה + הוצאות במזומן) מול סכום ההפקדה.
+      //
+      // 🔴 הבסיס הוא `drawer_cash` ולא `drawer_total`. הפקדת מזומן לבנק אין לה שום קשר לאשראי,
+      // לצ׳קים, להקפה או לתווי קניה — ולכן השוואה מול סה"כ המגירה הציגה "חוסר" ענק בכל יום שבו
+      // היו הכנסות מאשראי, כלומר כמעט תמיד. המזומן שיצא כהוצאה מהקופה מתווסף חזרה, כי הוא היה
+      // חלק מאותו מזומן ופשוט לא הגיע לשקית.
       const expenses = await expensesTotal(z.id);
       const dep = await depositForZ(z.id);
       const deposit = dep ? Number(dep.amount) || 0 : 0;
-      const base = (z.drawer_total || 0) + expenses;
-      const depDiff = deposit - base; // סכום הפקדה − (מגירה + הוצאות): <0 חוסר · >0 יתרה · 0 תואם
+      const depDiff = depositDiff(z, expenses, deposit); // <0 חוסר · >0 יתרה · 0 תואם
       const hasDeposit = !!dep;
       const depMatched = hasDeposit && depDiff === 0;
       const waText = zDepositWhatsappText(z, depDiff);

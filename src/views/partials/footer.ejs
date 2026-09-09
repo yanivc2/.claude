@@ -69,10 +69,19 @@
   // data-nosort is skipped. Amounts (₪, thousands, sign) and dates sort numerically.
   (function () {
     function cellValue(td) {
-      var t = (td ? td.textContent : '').trim();
+      // data-sort wins when a cell wants to sort by something other than what it shows.
+      var explicit = td && td.getAttribute ? td.getAttribute('data-sort') : null;
+      var t = (explicit !== null && explicit !== undefined ? explicit : (td ? td.textContent : '')).trim();
       var num = t.replace(/[₪,\s]/g, '').replace(/[−–—]/g, '-');
       if (/^-?\d+(\.\d+)?$/.test(num)) return { n: parseFloat(num), s: t };
       if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return { n: Date.parse(t), s: t };
+      // res.locals.formatDate renders DD/MM/YY — without this every date column sorted as a
+      // string, i.e. by day-of-month, which looks sorted and isn't.
+      var d = t.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+      if (d) {
+        var yr = Number(d[3]);
+        return { n: Date.UTC(yr < 100 ? 2000 + yr : yr, Number(d[2]) - 1, Number(d[1])), s: t };
+      }
       return { n: null, s: t };
     }
     function sortTable(table, colIdx, asc) {
@@ -473,18 +482,52 @@
       anchor.parentNode.insertBefore(tools, anchor);
 
       var rows = dataRows(table.tBodies[0]);
+
+      // Per-column filter row, for <table class="filterable"> only. It lives INSIDE this enhancer
+      // on purpose: the free-text search above already owns row visibility, and a second mechanism
+      // that hid rows on its own would fight it (one sets style.display, the other .hidden, and an
+      // empty box would no longer reveal what the other had hidden). One decision, both inputs.
+      var colInputs = [];
+      if (table.classList.contains('filterable') && table.tHead.rows.length === 1) {
+        var ths = table.tHead.rows[0].cells;
+        var frow = table.tHead.insertRow();
+        frow.className = 'filter-row no-print';
+        Array.prototype.forEach.call(ths, function (th, idx) {
+          var cell = frow.insertCell();
+          // A column of buttons/forms has no text to filter on, and neither has one marked no-sort.
+          if (th.hasAttribute('data-nofilter') || th.hasAttribute('data-nosort')) { colInputs[idx] = null; return; }
+          var inp = document.createElement('input');
+          inp.type = 'search'; inp.autocomplete = 'off'; inp.placeholder = 'סנן…';
+          inp.setAttribute('aria-label', 'סינון ' + (th.textContent || '').replace(/[\s▲▼]+$/, '').trim());
+          cell.appendChild(inp);
+          colInputs[idx] = inp;
+        });
+      }
+
       function filter() {
         var toks = norm(search.value).split(' ').filter(Boolean);
+        var active = toks.length > 0;
+        var cols = colInputs.map(function (inp) {
+          var q = inp ? norm(inp.value) : '';
+          if (q) active = true;
+          return q;
+        });
         var shown = 0;
         rows.forEach(function (r) {
           var hay = norm(r.textContent);
-          var ok = toks.every(function (t) { return hay.indexOf(t) !== -1; });
+          var ok = toks.every(function (t) { return hay.indexOf(t) !== -1; })
+            && cols.every(function (q, idx) {
+              if (!q) return true;
+              var td = r.cells[idx];
+              return !!td && norm(td.textContent).indexOf(q) !== -1;
+            });
           r.style.display = ok ? '' : 'none';
           if (ok) shown++;
         });
-        count.textContent = toks.length ? (shown + ' / ' + rows.length) : '';
+        count.textContent = active ? (shown + ' / ' + rows.length) : '';
       }
       search.addEventListener('input', filter);
+      colInputs.forEach(function (inp) { if (inp) inp.addEventListener('input', filter); });
       xls.addEventListener('click', function () { exportExcel(table, baseName(table)); });
       csv.addEventListener('click', function () { exportCsv(table, baseName(table)); });
       pdf.addEventListener('click', function () { exportPdf(table, baseName(table)); });

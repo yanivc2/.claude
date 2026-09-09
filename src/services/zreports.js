@@ -334,6 +334,29 @@ export async function cashPaymentsForInvoice(invoiceId, x = getExecutor()) {
   );
 }
 
+/**
+ * הבסיס שאליו משווים הצהרת הפקדה: **מזומן מדוח המגירה + הוצאות המזומן**.
+ *
+ * 🔴 `drawer_cash`, לא `drawer_total`. הפקדת מזומן לבנק אין לה שום קשר לאשראי, לצ׳קים, להקפה או
+ * לתווי קניה — השוואה מול סה"כ המגירה הראתה "חוסר" בגובה הכנסות האשראי בכל יום שבו היו כאלה,
+ * כלומר כמעט תמיד. ההוצאות מתווספות חזרה כי אותו מזומן נכנס לקופה ופשוט יצא ממנה לפני השקית.
+ *
+ * זו הנוסחה של הבעלים, והיא מופיעה **פעמיים**: כאן (הרשימה והוואטסאפ) וב-`views/reports/_zform.ejs`
+ * (החישוב החי בזמן ההקלדה). השתיים חייבות להישאר זהות — `test/zdeposit-base.test.js` נועל את זו.
+ *
+ * @param {{drawer_cash?: number}} zr שורת ה-Z
+ * @param {number} expenses סך הוצאות המזומן באגורות
+ * @returns {number} אגורות
+ */
+export function depositBase(zr, expenses = 0) {
+  return (Number(zr?.drawer_cash) || 0) + (Number(expenses) || 0);
+}
+
+/** ההפרש שמוצג כ"חוסר / יתרה": <0 חוסר · >0 יתרה · 0 תואם. */
+export function depositDiff(zr, expenses, depositAmount) {
+  return (Number(depositAmount) || 0) - depositBase(zr, expenses);
+}
+
 export async function expensesTotal(zReportId, x = getExecutor()) {
   const row = await x.one('SELECT COALESCE(SUM(amount),0) AS s FROM z_expenses WHERE z_report_id = ?', [zReportId]);
   return row.s;

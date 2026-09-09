@@ -44,9 +44,11 @@
       <button type="submit">התאמה אוטומטית</button>
     </form>
   </div>
-  <table>
+  <%# מיון A-Z + שורת סינון לכל עמודה (המשפרים הגלובליים ב-partials/footer.ejs). עמודת ההתאמה
+      היא טפסים, לא טקסט — אין מה למיין או לסנן לפיה. %>
+  <table class="sortable filterable">
     <thead>
-      <tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>התאמה</th></tr>
+      <tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th data-nosort data-nofilter>התאמה</th></tr>
     </thead>
     <tbody>
       <% if (classified.length === 0) { %>
