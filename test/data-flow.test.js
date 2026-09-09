@@ -12,7 +12,7 @@ import { createZClosing } from '../src/services/zclosing.js';
 import { createEmployee, listEmployees, listEmployeeLedger } from '../src/services/employees.js';
 import { importTransactions } from '../src/services/bankTransactions.js';
 import { autoReconcile } from '../src/services/reconciliation.js';
-import { upsertDepositForZ, listDeposits, declaredNotDeposited, zReportsWithoutDeposit } from '../src/services/deposits.js';
+import { replaceDepositsForZ, listDeposits, declaredNotDeposited, zReportsWithoutDeposit } from '../src/services/deposits.js';
 import { dashboardStats, profitability, outstandingChecks, lastReconciliationFor, invoiceLookup } from '../src/services/reports.js';
 
 // Cross-page data-flow map: data entered at one source must surface at every destination that reads
@@ -56,7 +56,7 @@ before(async () => {
 
   // Z report B: gets a declared (not-yet-deposited) deposit
   zB = (await createZReport({ storeId: store.id, zNumber: '901', zDate: '2026-08-16', dailyTotal: 400000, drawerCash: 400000 }, ow, db)).id;
-  await upsertDepositForZ(zB, { storeId: store.id, depositDate: '2026-08-17', bagNumber: 'BAG-77', amount: 400000, deposited: false }, ow, db);
+  await replaceDepositsForZ(zB, [{ bagNumber: 'BAG-77', amount: 400000, deposited: false }], { storeId: store.id, depositDate: '2026-08-17' }, ow, db);
 
   // register closing with an unmatched cash expense
   await createZClosing({ employeeFirst: 'משה', employeeLast: 'כהן', zNumber: '950', drawerCash: 20000, storeId: store.id, counts: {}, registers: [], expenses: [{ kind: 'manual', expenseDate: '2026-08-18', payerName: 'ספק ירקות', purpose: 'ירקות', amount: 8000 }] }, ow, db);

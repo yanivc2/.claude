@@ -1050,3 +1050,39 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
 .zform-save button { min-width: 160px; }
 .zform-save .muted { font-size: 12px; }
 @media print { .zform-save { position: static; } }
+
+/* ── טופס ה-Z: שתי רובריקות זו לצד זו (views/reports/_zform.ejs) ───────────────────────────────
+   הוצאות במזומן מימין, הכנסות מאשראי משמאל. כל רובריקה היא <details> — הכותרת כולה היא הכפתור
+   (שטח לחיצה גדול, נגיש במקלדת), ולא אייקון עגול קטן לצדה. */
+.zpanels { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: var(--space-3); margin: 1.1rem 0 .4rem; }
+.zpanel { border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-2); }
+.zpanel > summary {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-3); cursor: pointer; list-style: none; font-weight: 600;
+  border-radius: var(--radius-md);
+}
+.zpanel > summary::-webkit-details-marker { display: none; }
+.zpanel > summary::after { content: '▾'; margin-inline-start: auto; color: var(--color-muted); transition: transform .15s; }
+.zpanel[open] > summary::after { transform: rotate(180deg); }
+.zpanel > summary:hover { background: var(--color-surface-3, var(--color-surface)); }
+.zpanel > summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+.zpanel-title { font-size: 14px; }
+.zpanel-sum { font-variant-numeric: tabular-nums; color: var(--color-muted); font-size: 13px; }
+.zpanel-body { padding: 0 var(--space-3) var(--space-3); }
+.zsum-table { width: 100%; }
+.zsum-table td, .zsum-table th { padding: 4px 6px; font-size: 13px; }
+
+/* חלון הזנת ההוצאות — רחב, כי שורת ההזנה נושאת שישה פקדים. */
+.cx-dialog { width: min(920px, 94vw); }
+
+/* שורת שקית הפקדה — הפקדה אחת מתפצלת לפעמים לכמה שקיות. */
+.dep-row { display: flex; align-items: flex-end; gap: var(--space-3); margin-bottom: var(--space-2); flex-wrap: wrap; }
+.dep-field { flex: 1 1 180px; min-width: 140px; }
+.dep-check { display: flex; align-items: center; gap: 6px; white-space: nowrap; padding-bottom: 8px; }
+.dep-check input { width: auto; min-height: 0; }
+
+@media (max-width: 760px) {
+  .zpanels { grid-template-columns: 1fr; }   /* אחת מתחת לשנייה בנייד */
+  .dep-row { flex-direction: column; align-items: stretch; }
+  .dep-row .dep-del { align-self: flex-start; }
+}

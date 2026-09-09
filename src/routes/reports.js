@@ -15,7 +15,7 @@ import {
   setCreditCards, ccReconciliation, CC_BRANDS,
   zReconciliationStatus,
 } from '../services/zreports.js';
-import { createDeposit, listDeposits, setDeposited, setDepositBag, deleteDeposit, depositTotalForZ, upsertDepositForZ, depositForZ, declaredNotDeposited, zReportsWithoutDeposit } from '../services/deposits.js';
+import { createDeposit, listDeposits, setDeposited, setDepositBag, deleteDeposit, depositTotalForZ, depositForZ, depositsForZ, replaceDepositsForZ, declaredNotDeposited, zReportsWithoutDeposit } from '../services/deposits.js';
 import { listEmployees } from '../services/employees.js';
 import { matchingClosing, CLOSING_DENOMS } from '../services/zclosing.js';
 import { listInvoices } from '../services/invoices.js';
@@ -88,6 +88,24 @@ function parseExpenseRows(b) {
   }));
 }
 
+// שקיות ההפקדה של אותו Z. הפקדה אחת מתפצלת לפעמים לכמה שקיות, ולכן זו רשימה ולא שדה יחיד.
+// `dep_id` נשלח לכל שורה כדי ששורה קיימת תעודכן במקומה ולא תימחק-ותיווצר — ראה
+// services/deposits.js#replaceDepositsForZ (שורה שהותאמה בבנק לא נמחקת).
+function parseDepositRows(b) {
+  const ids = [].concat(b.dep_id || []);
+  const bags = [].concat(b.dep_bag || []);
+  const amounts = [].concat(b.dep_amount || []);
+  // צ׳קבוקס לא נשלח כשהוא כבוי, ולכן הוא מגיע כרשימת האינדקסים שסומנו ולא כמערך מקביל.
+  const deposited = new Set([].concat(b.dep_deposited || []).map(String));
+  const n = Math.max(bags.length, amounts.length, ids.length);
+  return Array.from({ length: n }, (_, i) => ({
+    id: ids[i] || null,
+    bagNumber: bags[i] ?? null,
+    amount: amounts[i] != null && String(amounts[i]).trim() !== '' ? toAgorot(amounts[i]) : 0,
+    deposited: deposited.has(String(i)),
+  }));
+}
+
 // Recent invoices offered as match targets for a cash expense (מס' · ספק · סכום). Scoped, capped.
 async function invoicePickOptions(scope) {
   const rows = await listInvoices({ scope });
@@ -143,6 +161,7 @@ async function renderZReport(req, res, id, extra = {}) {
     employeeOptions: await listEmployees({ scope: req.scope }),
     ccBrands: CC_BRANDS,
     dep: await depositForZ(id),
+    deps: await depositsForZ(id),
     expenses: await listExpenses(id),
     closingDenoms: CLOSING_DENOMS,
     closing,
@@ -230,8 +249,10 @@ async function renderZReports(req, res, extra = {}) {
       // היו הכנסות מאשראי, כלומר כמעט תמיד. המזומן שיצא כהוצאה מהקופה מתווסף חזרה, כי הוא היה
       // חלק מאותו מזומן ופשוט לא הגיע לשקית.
       const expenses = await expensesTotal(z.id);
-      const dep = await depositForZ(z.id);
-      const deposit = dep ? Number(dep.amount) || 0 : 0;
+      // כל השקיות, לא הראשונה: הפקדה מפוצלת שנספרה חלקית נראית כמו חוסר שלא קיים.
+      const bags = await depositsForZ(z.id);
+      const dep = bags[0] || null;
+      const deposit = bags.reduce((n, d) => n + (Number(d.amount) || 0), 0);
       const depDiff = depositDiff(z, expenses, deposit); // <0 חוסר · >0 יתרה · 0 תואם
       const hasDeposit = !!dep;
       const depMatched = hasDeposit && depDiff === 0;
@@ -569,19 +590,7 @@ router.post('/zreports', async (req, res, next) => {
     }
     // Optional deposit declaration entered on the same form — reuses the Z's store + date,
     // and links back to the Z it was declared on.
-    if ((b.dep_bag || '').trim() || (b.dep_amount || '').trim()) {
-      await createDeposit(
-        {
-          storeId,
-          zReportId: created.id,
-          depositDate: b.z_date,
-          bagNumber: b.dep_bag,
-          amount: toAgorot(b.dep_amount || '0'),
-          deposited: b.dep_deposited === '1' || b.dep_deposited === 'on',
-        },
-        req.user,
-      );
-    }
+    await replaceDepositsForZ(created.id, parseDepositRows(b), { storeId, depositDate: b.z_date }, req.user);
     // §2a: every time Z reports are entered, remind about any gap in the sequence.
     try {
       const missing = await missingZNumbers(storeId);
@@ -634,17 +643,7 @@ router.post('/zreports/:id', async (req, res, next) => {
     );
     await setCreditCards(id, { amounts: ccAmounts }, req.user);
     await replaceExpenses(id, parseExpenseRows(b), req.user);
-    await upsertDepositForZ(
-      id,
-      {
-        storeId,
-        depositDate: b.z_date,
-        bagNumber: b.dep_bag,
-        amount: toAgorot(b.dep_amount || '0'),
-        deposited: b.dep_deposited === '1' || b.dep_deposited === 'on',
-      },
-      req.user,
-    );
+    await replaceDepositsForZ(id, parseDepositRows(b), { storeId, depositDate: b.z_date }, req.user);
     // Push on edit (§ owner request), plus the cash-gap alert if one opened up.
     notify(`✏️ <b>עודכן דוח Z ${b.z_number}</b>\n${zUrl(req, id)}`);
     try {

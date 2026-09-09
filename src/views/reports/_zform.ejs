@@ -78,14 +78,55 @@
     <div></div>
     <div><label>סה"כ הוצאות במזומן</label><input id="drawer_expenses_total" readonly value="₪0.00" /><small class="muted">מתוך פירוט "הוצאות במזומן" למטה</small></div>
   </div>
-  <div class="toolbar" style="margin:1.1rem 0 .2rem">
-    <div style="display:flex;align-items:center;gap:.6rem">
-      <h3 style="margin:0">הוצאות במזומן (לא חובה)</h3>
-      <button type="button" class="round-btn" title="פירוט הוצאות" onclick="var p=document.getElementById('cx-panel');p.hidden=!p.hidden;">🧾</button>
-    </div>
+  <%# שתי הרובריקות זו לצד זו — הוצאות במזומן מימין, הכנסות מאשראי משמאל.
+      כל רובריקה היא <details>, כלומר **הכותרת כולה היא הכפתור** ולא אייקון עגול לצדה: שטח לחיצה
+      גדול, עובד במקלדת, ומצב פתוח/סגור הוא של הדפדפן ולא של onclick משלנו. %>
+  <div class="zpanels">
+    <details class="zpanel no-collapse" id="cx-panel" <%= exRows.length ? 'open' : '' %>>
+      <summary>
+        <span class="zpanel-title">הוצאות במזומן <span class="muted">(לא חובה)</span></span>
+        <span class="zpanel-sum" id="cx_sum_badge">₪0.00</span>
+      </summary>
+      <div class="zpanel-body">
+        <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן.</p>
+        <%# סיכום בלבד, באותה צורה של טבלת האשראי. ההזנה עצמה בחלון — שורה של שישה פקדים אינה
+            נקראת בתוך כרטיס צר, ורוב הימים אין בכלל הוצאות. %>
+        <table class="zsum-table no-enhance">
+          <thead><tr><th>עבור</th><th class="right">סכום (₪)</th></tr></thead>
+          <tbody id="cx-summary"></tbody>
+          <tfoot><tr><th>סה"כ</th><th class="right" id="cx_total_disp">₪0.00</th></tr></tfoot>
+        </table>
+        <div class="actions" style="margin-top:.5rem">
+          <button type="button" onclick="document.getElementById('cx-dialog').showModal()">✏️ הזנת הוצאות במזומן</button>
+        </div>
+      </div>
+    </details>
+
+    <details class="zpanel no-collapse" id="cc-panel">
+      <summary>
+        <span class="zpanel-title">הכנסות מאשראי</span>
+        <span class="zpanel-sum" id="cc_sum_badge">₪0.00</span>
+      </summary>
+      <div class="zpanel-body">
+    <p class="muted" style="margin:0 0 .4rem">דוח כרטיסי אשראי — הסה"כ חייב להיות שווה ל"אשראי מגירה" כדי לשמור.</p>
+    <table class="no-enhance" style="max-width:420px">
+      <thead><tr><th>חברה</th><th class="right">סה"כ (₪)</th></tr></thead>
+      <tbody>
+        <% ccBrands.forEach(function(b){ %>
+          <tr><td><%= b.label %></td><td><input name="cc_<%= b.key %>" class="cc" inputmode="decimal" value="<%= sh(z['cc_' + b.key]) %>" /></td></tr>
+        <% }); %>
+      </tbody>
+      <tfoot><tr><th>סה"כ</th><th class="right" id="cc_total_disp">₪0.00</th></tr></tfoot>
+    </table>
+    <p class="muted" id="cc_match_msg" style="margin:.3rem 0 0"></p>
+      </div>
+    </details>
   </div>
-  <div id="cx-panel" <%= exRows.length ? '' : 'hidden' %>>
-    <p class="muted" style="margin:0 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · חשבונית. שכר/מפרעה משויכים לעובד; סוג 'חשבונית' משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
+
+  <%# חלון ההזנה. הוא בתוך הטופס, ולכן השורות נשלחות כרגיל — <dialog> אינו מוציא את התוכן מה-form. %>
+  <dialog id="cx-dialog" class="cx-dialog">
+    <h3 tabindex="-1" autofocus style="margin:0 0 .3rem;outline:none">הוצאות במזומן</h3>
+    <p class="muted" style="margin:0 0 .6rem">בחר <strong>סוג</strong>: ידני · שכר · מפרעה · חשבונית. שכר/מפרעה משויכים לעובד; סוג 'חשבונית' משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
     <div id="cx-body" class="cx-list">
       <% exRows.forEach(function(e){ %>
         <div class="cx-row">
@@ -114,37 +155,39 @@
         <button type="button" class="btn btn-secondary small cx-del" onclick="cxDel(this)">✕ הסר</button>
       </div>
     </div>
-  </div>
-
-  <div style="display:flex;align-items:center;gap:.6rem;margin:.9rem 0 .4rem">
-    <span style="font-weight:600">הכנסות מאשראי</span>
-    <button type="button" class="round-btn" title="דוח כרטיסי אשראי" onclick="var p=document.getElementById('cc-panel');p.hidden=!p.hidden;">💳</button>
-  </div>
-
-  <div id="cc-panel" hidden>
-    <p class="muted" style="margin:0 0 .4rem">דוח כרטיסי אשראי — הסה"כ חייב להיות שווה ל"אשראי מגירה" כדי לשמור.</p>
-    <table style="max-width:420px">
-      <thead><tr><th>חברה</th><th class="right">סה"כ (₪)</th></tr></thead>
-      <tbody>
-        <% ccBrands.forEach(function(b){ %>
-          <tr><td><%= b.label %></td><td><input name="cc_<%= b.key %>" class="cc" inputmode="decimal" value="<%= sh(z['cc_' + b.key]) %>" /></td></tr>
-        <% }); %>
-      </tbody>
-      <tfoot><tr><th>סה"כ</th><th class="right" id="cc_total_disp">₪0.00</th></tr></tfoot>
-    </table>
-    <p class="muted" id="cc_match_msg" style="margin:.3rem 0 0"></p>
-  </div>
+    <div class="actions" style="margin-top:.7rem">
+      <button type="button" onclick="this.closest('dialog').close()">סיום</button>
+    </div>
+  </dialog>
 
   <h3 style="margin:1.1rem 0 .2rem">הצהרה על הפקדה (לא חובה)</h3>
-  <p class="muted" style="margin:0 0 .4rem">אם הפקדת מזומן לבנק — הזן פרטי הפקדה. החנות והתאריך נלקחים מדוח ה-Z שלמעלה.</p>
-  <div class="zdep-grid">
-    <div><label>מספר שקית הפקדה</label><input name="dep_bag" value="<%= dp ? (dp.bag_number || '') : '' %>" /></div>
-    <div><label>סכום הפקדה (₪)</label><input name="dep_amount" inputmode="decimal" placeholder="0.00" value="<%= dp ? sh(dp.amount) : '' %>" /></div>
+  <p class="muted" style="margin:0 0 .4rem">
+    אם הפקדת מזומן לבנק — הזן פרטי הפקדה. החנות והתאריך נלקחים מדוח ה-Z שלמעלה.
+    <strong>הפקדה שהתפצלה לכמה שקיות</strong> — הוסף שורה לכל שקית; הסכומים נסכמים.
+  </p>
+  <%# שורה לכל שקית. `dep_id` נשלח כדי ששורה קיימת תעודכן במקומה ולא תימחק-ותיווצר —
+      שורה שכבר הותאמה לתנועת בנק אינה נמחקת בכלל (services/deposits.js#replaceDepositsForZ). %>
+  <div id="dep-bags">
+    <% var bags = (typeof deps !== 'undefined' && deps && deps.length) ? deps : (dp ? [dp] : [null]); %>
+    <% bags.forEach(function(d, i){ %>
+      <div class="dep-row">
+        <input type="hidden" name="dep_id" value="<%= d ? d.id : '' %>" />
+        <div class="dep-field"><label>מספר שקית הפקדה</label><input name="dep_bag" value="<%= d ? (d.bag_number || '') : '' %>" /></div>
+        <div class="dep-field"><label>סכום הפקדה (₪)</label><input name="dep_amount" class="dep-amt" inputmode="decimal" placeholder="0.00" value="<%= d ? sh(d.amount) : '' %>" /></div>
+        <label class="dep-check">
+          <input type="checkbox" name="dep_deposited" value="<%= i %>" <%= d && d.deposited ? 'checked' : '' %> /> הופקד לבנק
+        </label>
+        <button type="button" class="btn btn-secondary small dep-del" onclick="depDel(this)">✕ הסר</button>
+      </div>
+    <% }); %>
+  </div>
+  <div class="actions" style="margin-top:.5rem">
+    <button type="button" class="btn btn-secondary" onclick="depAdd()">➕ הוספת שקית הפקדה</button>
+  </div>
+  <div class="zdep-grid" style="margin-top:.7rem">
+    <div><label>סה"כ הופקד</label><input id="dep_total" readonly value="₪0.00" /><small class="muted">סכום כל השקיות</small></div>
     <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">הפקדה − (מזומן מגירה + הוצאות במזומן)</small></div>
   </div>
-  <label style="display:flex;align-items:center;gap:8px;margin-top:.6rem">
-    <input type="checkbox" name="dep_deposited" value="1" style="width:auto;min-height:0" <%= dp && dp.deposited ? 'checked' : '' %> /> הופקד לבנק
-  </label>
 
   <%# שמירה דביקה. הכפתור היה בתחתית טופס ארוך (מגירה · אשראי · הוצאות · הפקדה), חלקו בתוך
       אקורדיונים מקופלים — מי שמילא את החלק העליון לא ראה אותו בלי לגלול עד הסוף, ולא היה ברור
@@ -165,16 +208,23 @@
   function ccSum(){ var s=0; form.querySelectorAll('input.cc').forEach(function(i){ s+=num(i); }); return s; }
   function cxSum(){ var s=0; form.querySelectorAll('.cx-amt').forEach(function(i){ s+=num(i); }); return s; }
   var creditEl = form.querySelector('#drawer_credit');
-  var depAmtEl = form.querySelector('input[name="dep_amount"]');
+  var depBags = document.getElementById('dep-bags');
   var depReconEl = form.querySelector('#dep_recon');
+  // סכום כל השקיות. הפקדה מפוצלת שנספרה חלקית נראית כמו חוסר שלא קיים.
+  function depSum(){ var t=0; depBags.querySelectorAll('.dep-amt').forEach(function(i){ t+=num(i); }); return t; }
+  function depDeclared(){
+    return Array.prototype.some.call(depBags.querySelectorAll('.dep-amt'), function(i){ return i.value.trim() !== ''; });
+  }
   // חוסר/יתרה = סכום הפקדה − (מזומן מדוח מגירה + סה"כ הוצאות במזומן). הפקדה קטנה → חוסר (− אדום).
   // 🔴 מזומן בלבד, לא סה"כ המגירה: להפקדת מזומן אין קשר לאשראי/צ׳קים/הקפה/תווי קניה, והשוואה
   // מול הסה"כ הראתה "חוסר" בגובה הכנסות האשראי בכל יום. חייב להישאר זהה ל-routes/reports.js#base.
   function drawerCash(){ return num(form.querySelector('input[name="drawer_cash"]')); }
   function recalcDepRecon(){
     if (!depReconEl) return;
-    if (!depAmtEl || depAmtEl.value.trim() === '') { depReconEl.value = '—'; depReconEl.style.color = ''; return; }
-    var diff = num(depAmtEl) - (drawerCash() + cxSum());
+    var totalEl = document.getElementById('dep_total');
+    if (totalEl) totalEl.value = fmt(depSum());
+    if (!depDeclared()) { depReconEl.value = '—'; depReconEl.style.color = ''; return; }
+    var diff = depSum() - (drawerCash() + cxSum());
     if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--ok)'; }
     else if (diff > 0) { depReconEl.value = 'יתרה ' + fmt(diff); depReconEl.style.color = 'var(--ok)'; }
     else { depReconEl.value = 'חוסר ' + fmt(-diff); depReconEl.style.color = 'var(--bad)'; }
@@ -183,22 +233,94 @@
   function ccMatches(){ return Math.round(ccSum()*100) === Math.round(num(creditEl)*100); }
   function recalcCc(){
     form.querySelector('#cc_total_disp').textContent = fmt(ccSum());
+    var ccBadge = document.getElementById('cc_sum_badge');
+    if (ccBadge) ccBadge.textContent = fmt(ccSum());
     var msg = form.querySelector('#cc_match_msg');
     if (ccMatches()) { msg.textContent = 'תואם לאשראי מגירה ✓'; msg.style.color = 'var(--ok)'; }
     else { msg.textContent = 'אין התאמה בהכנסות מאשראי — אשראי מגירה ' + fmt(num(creditEl)); msg.style.color = 'var(--bad)'; }
   }
   form.querySelectorAll('input.dr').forEach(function(i){ i.addEventListener('input', function(){ recalcDrawer(); recalcCc(); recalcDepRecon(); }); });
   form.querySelectorAll('input.cc').forEach(function(i){ i.addEventListener('input', recalcCc); });
-  if (depAmtEl) depAmtEl.addEventListener('input', recalcDepRecon);
+  depBags.addEventListener('input', recalcDepRecon);
+  depBags.addEventListener('change', recalcDepRecon);
+
+  // שקית נוספת. הצ׳קבוקס "הופקד לבנק" נושא את מספר השורה כערך, כי צ׳קבוקס כבוי אינו נשלח כלל
+  // ולכן אי אפשר להסתמך על מערך מקביל — ראה routes/reports.js#parseDepositRows.
+  function depReindex(){
+    Array.prototype.forEach.call(depBags.querySelectorAll('.dep-row'), function(row, i){
+      var cb = row.querySelector('input[name="dep_deposited"]');
+      if (cb) cb.value = String(i);
+    });
+  }
+  window.depAdd = function(){
+    var row = document.createElement('div');
+    row.className = 'dep-row';
+    row.innerHTML = '<input type="hidden" name="dep_id" value="">'
+      + '<div class="dep-field"><label>מספר שקית הפקדה</label><input name="dep_bag"></div>'
+      + '<div class="dep-field"><label>סכום הפקדה (₪)</label><input name="dep_amount" class="dep-amt" inputmode="decimal" placeholder="0.00"></div>'
+      + '<label class="dep-check"><input type="checkbox" name="dep_deposited" value=""> הופקד לבנק</label>'
+      + '<button type="button" class="btn btn-secondary small dep-del" onclick="depDel(this)">✕ הסר</button>';
+    depBags.appendChild(row);
+    depReindex();
+    row.querySelector('input[name="dep_bag"]').focus();
+  };
+  window.depDel = function(btn){
+    var rows = depBags.querySelectorAll('.dep-row');
+    // השורה האחרונה מתרוקנת ולא נמחקת: שדה dep_id ריק הוא מה שאומר לשרת "אין הצהרה".
+    if (rows.length > 1) btn.closest('.dep-row').remove();
+    else btn.closest('.dep-row').querySelectorAll('input').forEach(function(i){
+      if (i.type === 'checkbox') i.checked = false; else if (i.name !== 'dep_id') i.value = '';
+    });
+    depReindex();
+    recalcDepRecon();
+  };
+  depReindex();
   recalcDrawer(); recalcCc();
   // Show the credit-card panel up-front when there's credit to reconcile (or a mismatch).
-  if (num(creditEl) > 0 || ccSum() > 0) document.getElementById('cc-panel').hidden = false;
+  if (num(creditEl) > 0 || ccSum() > 0) document.getElementById('cc-panel').open = true;
 
   // Cash-expenses table: live total + auto-add a fresh row when the last one is filled.
   var body = document.getElementById('cx-body');
+  // הסיכום נבנה מהשורות שבחלון ההזנה ולא מהשרת: שורה שהוקלדה ועדיין לא נשמרה חייבת להופיע,
+  // אחרת הרובריקה מציגה מספר אחר ממה שיישמר בעוד רגע.
+  var cxSummary = document.getElementById('cx-summary');
+  function cxRowLabel(row){
+    var kind = (row.querySelector('.cx-kind') || {}).value || 'manual';
+    var payer = row.querySelector('.cx-payer');
+    // רק כשבאמת נבחר מישהו: לאופציה הריקה יש טקסט ("— בחר עובד —") שהיה דולף לתווית.
+    var name = (payer && payer.value)
+      ? (payer.options ? (payer.options[payer.selectedIndex] || {}).text : payer.value) : '';
+    var purpose = (row.querySelector('.cx-purpose') || {}).value || '';
+    if (kind === 'invoice') {
+      var inv = row.querySelector('.cx-inv');
+      var t = inv && inv.options[inv.selectedIndex] ? inv.options[inv.selectedIndex].text : '';
+      return t && t.trim() ? t : 'חשבונית';
+    }
+    var label = [String(name || '').trim(), String(purpose || '').trim()].filter(Boolean).join(' · ');
+    if (label) return label;
+    return kind === 'salary' ? 'שכר' : kind === 'advance' ? 'מפרעה' : 'הוצאה';
+  }
   function recalcCx(){
-    var t=0; body.querySelectorAll('.cx-amt').forEach(function(i){ t+=num(i); });
+    var t=0, shown=0;
+    if (cxSummary) cxSummary.innerHTML = '';
+    body.querySelectorAll('.cx-row').forEach(function(row){
+      var amt = num(row.querySelector('.cx-amt'));
+      t += amt;
+      if (!cxSummary || !amt) return;                       // שורה ריקה אינה הוצאה
+      var tr = document.createElement('tr');
+      var td1 = document.createElement('td'); td1.textContent = cxRowLabel(row);
+      var td2 = document.createElement('td'); td2.className = 'right'; td2.textContent = fmt(amt);
+      tr.appendChild(td1); tr.appendChild(td2); cxSummary.appendChild(tr);
+      shown += 1;
+    });
+    if (cxSummary && !shown) {
+      var tr0 = document.createElement('tr');
+      var td0 = document.createElement('td'); td0.colSpan = 2; td0.className = 'muted'; td0.textContent = 'אין הוצאות במזומן.';
+      tr0.appendChild(td0); cxSummary.appendChild(tr0);
+    }
     var el = document.getElementById('drawer_expenses_total'); if (el) el.value = fmt(t);
+    var disp = document.getElementById('cx_total_disp'); if (disp) disp.textContent = fmt(t);
+    var badge = document.getElementById('cx_sum_badge'); if (badge) badge.textContent = fmt(t);
     recalcDepRecon();
   }
   recalcCx();
@@ -269,7 +391,7 @@
     if (drawerSum() <= 0){ e.preventDefault(); alert('סה"כ מגירה חובה — הזן לפחות רכיב מגירה אחד.'); return; }
     if (!ccMatches()){
       e.preventDefault();
-      document.getElementById('cc-panel').hidden = false;
+      document.getElementById('cc-panel').open = true;   // <details>, לא hidden
       recalcCc();
       alert('אין התאמה בהכנסות מאשראי');
     }

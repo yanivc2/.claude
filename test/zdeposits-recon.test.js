@@ -6,7 +6,7 @@ import {
   unmatchedCashExpenses, zSequenceStatus,
 } from '../src/services/zreports.js';
 import { createZClosing } from '../src/services/zclosing.js';
-import { createDeposit, listDeposits, upsertDepositForZ, depositForZ } from '../src/services/deposits.js';
+import { createDeposit, listDeposits, replaceDepositsForZ, depositForZ, depositsForZ } from '../src/services/deposits.js';
 import { reconcileDeposits } from '../src/services/reconciliation.js';
 import { importTransactions } from '../src/services/bankTransactions.js';
 import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
@@ -134,14 +134,14 @@ test('updateZReport edits fields, recomputes drawer_total and stamps updated_at'
   assert.ok(after.updated_at); // stamped
 });
 
-test('upsertDepositForZ updates the linked deposit in place (edit form)', async () => {
+test('replaceDepositsForZ updates the linked deposit in place (edit form)', async () => {
   const db = await freshDb();
   const ow = await owner(db);
   const store = await firstStore(db);
   const z = await createZReport({ storeId: store.id, zNumber: '501', zDate: '2026-08-05', drawerCash: 10000 }, ow, db);
   await createDeposit({ storeId: store.id, zReportId: z.id, depositDate: '2026-08-05', bagNumber: 'B1', amount: 10000 }, ow, db);
 
-  await upsertDepositForZ(z.id, { storeId: store.id, depositDate: '2026-08-05', bagNumber: 'B1', amount: 22200, deposited: true }, ow, db);
+  await replaceDepositsForZ(z.id, [{ id: (await depositsForZ(z.id, db))[0]?.id ?? null, bagNumber: 'B1', amount: 22200, deposited: true }], { storeId: store.id, depositDate: '2026-08-05' }, ow, db);
   const d = await depositForZ(z.id, db);
   assert.equal(d.amount, 22200);
   assert.equal(d.deposited, 1);

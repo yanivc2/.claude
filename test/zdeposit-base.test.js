@@ -45,7 +45,9 @@ test('🔴 the live calculation in the form uses the same two inputs as the serv
   const form = fs.readFileSync(path.join(process.cwd(), 'src/views/reports/_zform.ejs'), 'utf8');
   assert.match(form, /function drawerCash\(\)\s*{\s*return num\(form\.querySelector\('input\[name="drawer_cash"\]'\)\)/,
     'the form must read the CASH field, not sum every drawer input');
-  assert.match(form, /num\(depAmtEl\) - \(drawerCash\(\) \+ cxSum\(\)\)/,
-    'deposit − (cash + cash expenses)');
+  assert.match(form, /depSum\(\) - \(drawerCash\(\) \+ cxSum\(\)\)/,
+    'deposit − (cash + cash expenses); depSum() totals every bag, since a deposit may be split');
+  assert.match(form, /function depSum\(\)[\s\S]{0,200}\.dep-amt/,
+    'the deposit side sums ALL bag rows, not the first input');
   assert.ok(!/num\(depAmtEl\) - \(drawerSum\(\)/.test(form), 'drawerSum() is the whole drawer — that was the bug');
 });

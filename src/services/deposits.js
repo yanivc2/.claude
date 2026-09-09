@@ -47,19 +47,75 @@ export async function listDeposits({ storeId = null, scope = null, limit = 30 } 
  * With nothing declared (no bag and no amount) it's a no-op. Preserves any bank-reconciliation
  * fields on an existing row (only bag/amount/deposited/date are touched).
  */
-export async function upsertDepositForZ(zReportId, { storeId, depositDate, bagNumber = null, amount = 0, deposited = false }, actor, x = getExecutor()) {
-  const bag = (bagNumber && String(bagNumber).trim()) || null;
-  const existing = await x.one('SELECT id FROM deposits WHERE z_report_id = ? ORDER BY id LIMIT 1', [zReportId]);
-  if (!bag && !amount) return existing ? existing.id : null; // nothing declared
-  if (existing) {
-    await x.run(
-      'UPDATE deposits SET store_id = ?, deposit_date = ?, bag_number = ?, amount = ?, deposited = ? WHERE id = ?',
-      [Number(storeId), depositDate, bag, amount, deposited ? 1 : 0, existing.id],
-    );
-    await logAction({ userId: actor.id, action: 'deposit.update', entityType: 'deposit', entityId: existing.id, details: { amount } }, x);
-    return existing.id;
+
+/**
+ * כל שקיות ההפקדה של דוח Z, לפי סדר הזנתן.
+ *
+ * הפקדה אחת יכולה להתפצל לכמה שקיות — לפעמים פשוט אין מקום בשקית אחת. הטבלה תמכה בזה מאז ומתמיד
+ * (אין UNIQUE על z_report_id); מה שלא תמך זה הטופס, שהכיר שקית אחת בלבד.
+ */
+export async function depositsForZ(zReportId, x = getExecutor()) {
+  return x.many('SELECT * FROM deposits WHERE z_report_id = ? ORDER BY id', [Number(zReportId)]);
+}
+
+/**
+ * מחליף את שקיות ההפקדה של דוח Z במה שהטופס שלח. מקביל ל-`replaceExpenses`, עם הבדל אחד מהותי:
+ *
+ * 🔴 **שורה שכבר הותאמה לתנועת בנק אינה נמחקת.** `matched_txn_id` הוא עובדה שקרתה — הבנק דיווח על
+ * ההפקדה הזו — ומחיקה שלה כאן הייתה מוחקת גם את ההתאמה ואת `recon_diff`, ומחזירה את התנועה למצב
+ * "לא מותאמת" בלי שאיש התכוון. לכן שורות מזוהות ב-id ומעודכנות במקום, ולא נמחקות-ונוצרות מחדש.
+ *
+ * @param {Array<{id?: number|null, bagNumber?: string|null, amount?: number, deposited?: boolean}>} rows
+ * @returns {Promise<{kept:number, created:number, removed:number, locked:number}>}
+ */
+export async function replaceDepositsForZ(zReportId, rows, { storeId, depositDate }, actor, x = getExecutor()) {
+  const zid = Number(zReportId);
+  const existing = await depositsForZ(zid, x);
+  const byId = new Map(existing.map((d) => [Number(d.id), d]));
+
+  const clean = (rows || [])
+    .map((r) => ({
+      id: Number(r.id) || null,
+      bag: (r.bagNumber ?? '').toString().trim() || null,
+      amount: Math.round(Number(r.amount) || 0),
+      deposited: !!r.deposited,
+    }))
+    // שורה ריקה לגמרי היא פשוט שורה שלא מולאה — לא הצהרה, ולא שגיאה.
+    .filter((r) => r.bag || r.amount || r.id);
+
+  let kept = 0; let created = 0; let removed = 0; let locked = 0;
+  const seen = new Set();
+
+  for (const r of clean) {
+    const hit = r.id ? byId.get(r.id) : null;
+    if (hit) {
+      seen.add(Number(hit.id));
+      // שורה קיימת שרוקנה = בקשה למחוק אותה, ונטפל בה יחד עם השאר למטה.
+      if (!r.bag && !r.amount) continue;
+      await x.run(
+        'UPDATE deposits SET store_id = ?, deposit_date = ?, bag_number = ?, amount = ?, deposited = ? WHERE id = ?',
+        [Number(storeId), depositDate, r.bag, r.amount, r.deposited ? 1 : 0, hit.id],
+      );
+      kept += 1;
+      await logAction({ userId: actor.id, action: 'deposit.update', entityType: 'deposit', entityId: hit.id, details: { amount: r.amount } }, x);
+    } else if (r.bag || r.amount) {
+      await createDeposit(
+        { storeId, zReportId: zid, depositDate, bagNumber: r.bag, amount: r.amount, deposited: r.deposited },
+        actor, x,
+      );
+      created += 1;
+    }
   }
-  return createDeposit({ storeId, zReportId, depositDate, bagNumber: bag, amount, deposited }, actor, x);
+
+  for (const d of existing) {
+    const stillThere = clean.some((r) => r.id === Number(d.id) && (r.bag || r.amount));
+    if (stillThere) continue;
+    if (d.matched_txn_id) { locked += 1; continue; } // הותאמה בבנק — לא נוגעים
+    await x.run('DELETE FROM deposits WHERE id = ?', [d.id]);
+    await logAction({ userId: actor.id, action: 'deposit.delete', entityType: 'deposit', entityId: d.id }, x);
+    removed += 1;
+  }
+  return { kept, created, removed, locked };
 }
 
 /** The (first) deposit declaration linked to a Z report, or null. */
