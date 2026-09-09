@@ -234,10 +234,30 @@
       if (!canType) { input.readOnly = true; input.setAttribute('inputmode', 'none'); }
       if (!input.placeholder) input.placeholder = mode === 'month' ? 'בחר חודש' : mode === 'week' ? 'בחר שבוע' : (canType ? 'הקלד או בחר · יום/חודש/שנה' : 'בחר תאריך');
       input.value = iso ? label(iso, mode) : '';
-      var dp = makePicker(hidden, input, mode, autosubmit); wrap.appendChild(dp.el);
+      // אותה תקלה של רשימת הבורר: absolute נחתך בידי כל אב עם overflow, ובשורת טבלה
+      // (`.table-scroll`) הלוח נחתך. נתלה על <body> וממוקם מול השדה.
+      var dp = makePicker(hidden, input, mode, autosubmit);
+      document.body.appendChild(dp.el);
+      dp.el.__dpInput = input;
+      function placeDp(){
+        var host = window.apPopupHost(input);
+        if (dp.el.parentNode !== host) host.appendChild(dp.el);
+        var r = input.getBoundingClientRect();
+        var el = dp.el, h = el.offsetHeight || 330;
+        var w = el.offsetWidth || 300;
+        var below = window.innerHeight - r.bottom;
+        var up = below < h + 12 && r.top > below;
+        el.style.left = Math.max(8, Math.min(
+          (document.documentElement.dir === 'rtl' ? r.right - w : r.left), window.innerWidth - w - 8)) + 'px';
+        if (up) { el.style.top = ''; el.style.bottom = (window.innerHeight - r.top + 6) + 'px'; }
+        else { el.style.bottom = ''; el.style.top = (r.bottom + 6) + 'px'; }
+      }
+      dp.place = placeDp;
+      window.addEventListener('scroll', function(){ if (!dp.el.hidden) placeDp(); }, true);
+      window.addEventListener('resize', function(){ if (!dp.el.hidden) placeDp(); });
       function toggle(e){ e.preventDefault(); input.blur();
         document.querySelectorAll('.dp-pop').forEach(function(p){ if (p !== dp.el) p.hidden = true; });
-        if (dp.el.hidden) dp.open(); else dp.el.hidden = true; }
+        if (dp.el.hidden) { dp.open(); placeDp(); } else dp.el.hidden = true; }
       if (canType) {
         // Parse what was typed → commit to the hidden ISO + canonical DD/MM/YYYY display.
         function commitTyped(){
@@ -249,7 +269,7 @@
         }
         input.addEventListener('focus', function(){
           document.querySelectorAll('.dp-pop').forEach(function(p){ if (p !== dp.el) p.hidden = true; });
-          dp.open();
+          dp.open(); placeDp();
         });
         input.addEventListener('keydown', function(e){ if (e.key === 'Enter') { if (commitTyped()) dp.el.hidden = true; } });
         // Delay so a click on a calendar day (which blurs the input) commits first.
@@ -264,7 +284,12 @@
 
     document.addEventListener('DOMContentLoaded', function(){ enhanceAll(); });
     document.addEventListener('click', function(e){
-      document.querySelectorAll('.dp-pop').forEach(function(p){ if (!p.parentNode.contains(e.target)) p.hidden = true; });
+      // הלוח כבר אינו ילד של .dp-wrap, ולכן הבדיקה היא מולו ומול השדה שפתח אותו.
+      document.querySelectorAll('.dp-pop').forEach(function(p){
+        if (p.contains(e.target) || p.__dpInput === e.target) return;
+        if (p.__dpInput && p.__dpInput.parentNode && p.__dpInput.parentNode.contains(e.target)) return;
+        p.hidden = true;
+      });
     });
     // Enforce "required" for enhanced date fields (readonly inputs skip native required validation).
     document.addEventListener('submit', function(e){
@@ -280,6 +305,16 @@
   </script>
 
   <script>
+  // ── היכן נתלית רשימה צפה ────────────────────────────────────────────────────────────────────
+  // רשימה שנתלית על <body> נחתכת בידי אבות עם overflow — ולכן היא לא יושבת בתוך השדה. אבל
+  // <dialog> מודאלי מוצג ב-top layer, ואלמנט שיושב על <body> מצויר **מתחתיו** ולא ניתן ללחיצה
+  // בשום z-index. לכן ההורה נקבע ברגע הפתיחה: הדיאלוג הפתוח שמכיל את השדה, אחרת <body>.
+  // (overflow על <dialog> אינו חותך צאצא position:fixed, ולכן זה בטוח.)
+  window.apPopupHost = function (el) {
+    var d = el && el.closest ? el.closest('dialog[open]') : null;
+    return d || document.body;
+  };
+
   // Searchable combobox: enhance any <select class="js-combo"> into a type-to-filter field. Users
   // key part of a name (or a few letters, in order) and pick from the similar matches. The original
   // <select> stays the submitted control (hidden), so the server contract is unchanged.
@@ -311,8 +346,39 @@
       var cur = opts.filter(function(o){ return o.v !== '' && o.v === sel.value; })[0];
       if (cur) input.value = cur.t;
       wrap.insertBefore(input, sel);
-      var pop = document.createElement('div'); pop.className = 'combo-pop'; pop.hidden = true; wrap.appendChild(pop);
+      var pop = document.createElement('div'); pop.className = 'combo-pop'; pop.hidden = true;
+      // 🔴 הרשימה נתלית על <body> וממוקמת ב-position:fixed, ולא בתוך .combo.
+      // אלמנט absolute נחתך בידי כל אב עם overflow שאינו visible — ובטבלה (`.table-scroll`,
+      // overflow:auto) הרשימה נחתכה בגבול הגלילה ונראתה שבורה. fixed מול getBoundingClientRect
+      // אינו תלוי באבות בכלל.
+      document.body.appendChild(pop);
+      function place(){
+        var host = window.apPopupHost(input);
+        if (pop.parentNode !== host) host.appendChild(pop);
+        var r = input.getBoundingClientRect();
+        var below = window.innerHeight - r.bottom;
+        var wanted = Math.min(300, pop.scrollHeight || 300);
+        // אין מקום למטה אך יש למעלה → נפתחת כלפי מעלה במקום להיחתך בתחתית המסך.
+        var up = below < Math.min(wanted, 160) && r.top > below;
+        // רוחב: לפחות כרוחב השדה, אבל לא צר מכדי לקרוא בו שם. בטבלה צרה בנייד השדה יוצא
+        // ברוחב 33px, ורשימה ברוחב הזה חסרת תועלת. גם לא רחב מהמסך.
+        var w = Math.min(Math.max(r.width, 240), window.innerWidth - 16);
+        pop.style.width = w + 'px';
+        pop.style.insetInlineStart = '';
+        // הצמדה לקצה השדה, ואם היא גולשת מהמסך — נדחפת פנימה במקום לצאת ממנו.
+        var left = document.dir === 'rtl' || document.documentElement.dir === 'rtl' ? r.right - w : r.left;
+        pop.style.left = Math.max(8, Math.min(left, window.innerWidth - w - 8)) + 'px';
+        pop.style.maxHeight = Math.max(120, (up ? r.top : below) - 12) + 'px';
+        if (up) { pop.style.top = ''; pop.style.bottom = (window.innerHeight - r.top + 4) + 'px'; }
+        else { pop.style.bottom = ''; pop.style.top = (r.bottom + 4) + 'px'; }
+      }
+      function closePop(){ pop.hidden = true; }
+      // גלילה או שינוי גודל מזיזים את השדה — הרשימה חייבת לזוז איתו. capture, כדי לתפוס גם
+      // גלילה של מיכל פנימי (למשל .table-scroll) ולא רק של החלון.
+      window.addEventListener('scroll', function(){ if (!pop.hidden) place(); }, true);
+      window.addEventListener('resize', function(){ if (!pop.hidden) place(); });
 
+      pop.__comboInput = input;
       var shown = [], activeIdx = -1;
       function setVal(o){ sel.value = o.v; input.value = o.t; sel.dispatchEvent(new Event('change', { bubbles: true })); }
       function paint(){ Array.prototype.forEach.call(pop.children, function(c){ if (c.dataset.i != null) c.classList.toggle('active', +c.dataset.i === activeIdx); });
@@ -323,7 +389,7 @@
         pop.innerHTML = shown.length
           ? shown.map(function(o, i){ return '<div class="combo-opt" data-i="' + i + '">' + esc(o.t) + '</div>'; }).join('')
           : '<div class="combo-empty">אין תוצאות</div>';
-        pop.hidden = false; paint();
+        pop.hidden = false; place(); paint();
       }
       input.addEventListener('focus', function(){ render(input.value === (cur && cur.t) ? '' : input.value); });
       input.addEventListener('input', function(){ sel.value = ''; render(input.value); });
@@ -346,7 +412,16 @@
     function enhanceAll(root){ (root || document).querySelectorAll('select.js-combo').forEach(enhance); }
     window.apEnhanceCombos = enhanceAll; // so dynamically-added rows (e.g. Z-closing expenses) get the combobox
     document.addEventListener('DOMContentLoaded', function(){ enhanceAll(); });
-    document.addEventListener('click', function(e){ document.querySelectorAll('.combo-pop').forEach(function(p){ if (!p.parentNode.contains(e.target)) p.hidden = true; }); });
+    // הרשימה כבר אינה ילדה של .combo (היא על <body>), ולכן הבדיקה היא מול הרשימה עצמה
+    // ומול השדה שפתח אותה — אחרת כל לחיצה, כולל בחירה מהרשימה, הייתה סוגרת אותה.
+    document.addEventListener('click', function(e){
+      document.querySelectorAll('.combo-pop').forEach(function(p){
+        if (p.contains(e.target)) return;
+        if (p.__comboInput && p.__comboInput.contains && p.__comboInput.contains(e.target)) return;
+        if (p.__comboInput === e.target) return;
+        p.hidden = true;
+      });
+    });
     document.addEventListener('submit', function(e){
       var wraps = e.target.querySelectorAll ? e.target.querySelectorAll('.combo[data-req="1"]') : [];
       for (var i = 0; i < wraps.length; i++) {

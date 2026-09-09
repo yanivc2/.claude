@@ -35,17 +35,21 @@
     <% if (sStoreId) { %><input type="hidden" name="store_id" value="<%= sStoreId %>" /><% } %>
     <div class="table-scroll">
       <table class="no-enhance">
-        <thead><tr><th>שם העובד</th><th>שולם ב</th><th>מס׳ אסמכתה</th><th>לתאריך</th><th class="right">סכום (₪)</th><th></th></tr></thead>
+        <%# בורר החנות מקבל עמודה משלו. קודם הוא ישב באותו תא של שם העובד, ונראה כמו שתי רובריקות
+            "שם העובד" זו מעל זו — שתיהן "הקלד לחיפוש…", ואי אפשר היה לדעת מה כל אחת. %>
+        <thead><tr><% if (!sStoreId) { %><th>חנות</th><% } %><th>שם העובד</th><th>שולם ב</th><th>מס׳ אסמכתה</th><th>לתאריך</th><th class="right">סכום (₪)</th><th></th></tr></thead>
         <tbody>
           <tr>
-            <td>
-              <% if (!sStoreId) { %>
-                <select name="store_id" class="js-combo" required style="margin-bottom:.3rem">
+            <% if (!sStoreId) { %>
+              <td>
+                <select name="store_id" class="js-combo" required data-combo-ph="בחר חנות…">
                   <option value="">בחר חנות…</option>
                   <% (storeOptions || []).forEach(function(st){ %><option value="<%= st.id %>"><%= st.name %></option><% }); %>
                 </select>
-              <% } %>
-              <select name="employee_id" class="js-combo" required>
+              </td>
+            <% } %>
+            <td>
+              <select name="employee_id" class="js-combo" required data-combo-ph="בחר עובד…">
                 <option value="">בחר עובד…</option>
                 <% payable.forEach(function(e){ %><option value="<%= e.id %>"><%= e.first_name %> <%= e.last_name %></option><% }); %>
               </select>

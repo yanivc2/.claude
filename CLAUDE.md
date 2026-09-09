@@ -255,6 +255,12 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   בדיוק את אותו כלל באינדקס אחד ועובד נכון בשני הניבים (`supplier_bank_accounts`).
 - pg-mem names inline CHECK constraints differently than real PG (`t_constraint_1` vs
   `payments_method_check`); to add a CHECK value, update the inline CREATE **and** append an ALTER.
+- **רשימות צפות (`.combo-pop`, `.dp-pop`) הן `position: fixed` ונתלות דרך `apPopupHost` — לא
+  `absolute`, ולא קבוע על `<body>`.** `absolute` נחתך בידי כל אב עם `overflow` (רשימה בתוך
+  `.table-scroll` פשוט נגזרת), ו-`fixed` על `<body>` נקבר **מתחת** ל-`<dialog>` מודאלי (top layer,
+  שום z-index לא עוזר) ואינו ניתן ללחיצה. לכן ההורה נבחר ברגע הפתיחה: דיאלוג פתוח שמכיל את השדה,
+  אחרת `<body>`, והמיקום מחושב מול `getBoundingClientRect` + מאזין `scroll` ב-capture.
+  `test/popup-anchoring.test.js`.
 - The custom date picker (`partials/footer.ejs`) enhances `input[type=date]` only — `type=time`/`month`
   stay native.
 - **`scopeClause` emits `AND NOT (col NOT IN (…))`, not `AND col IN (…)` — do not "simplify" it.**

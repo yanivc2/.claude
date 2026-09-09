@@ -429,9 +429,10 @@ input.input-hl-yellow:hover:not(:focus-visible) { border-color: #ffdd33; }
 
 /* ---- searchable combobox (type-to-filter <select>, e.g. supplier name search) ---- */
 .combo { position: relative; display: block; }
+/* fixed, ולא absolute: הרשימה יושבת על <body> וממוקמת מול getBoundingClientRect של השדה.
+   absolute נחתך בידי כל אב עם overflow — ובתוך .table-scroll הרשימה פשוט נחתכה. */
 .combo-pop {
-  position: absolute; z-index: 60; top: calc(100% + 4px); inset-inline-start: 0; width: 100%;
-  max-height: 300px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  position: fixed; z-index: 1200; max-height: 300px; overflow-y: auto; -webkit-overflow-scrolling: touch;
   background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg); padding: 4px;
 }
@@ -441,8 +442,9 @@ input.input-hl-yellow:hover:not(:focus-visible) { border-color: #ffdd33; }
 
 /* ---- custom day-first date picker (replaces the native month/year wheel) ---- */
 .dp-wrap { position: relative; display: block; }
+/* fixed ולא absolute — ראה .combo-pop: absolute נחתך בידי כל אב עם overflow. */
 .dp-pop {
-  position: absolute; z-index: 60; top: calc(100% + 6px); inset-inline-start: 0; width: min(300px, 88vw);
+  position: fixed; z-index: 1200; width: min(300px, 88vw);
   background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg); padding: 10px;
 }
