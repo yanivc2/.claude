@@ -1086,3 +1086,20 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
   .dep-row { flex-direction: column; align-items: stretch; }
   .dep-row .dep-del { align-self: flex-start; }
 }
+
+/* "מעוקבת לתשלום" — חשבונית שמחכה לטיפול של הספק. כתום, כדי שלא יתבלבל עם האדום של R3/מוחזקת
+   (בעיה שלנו מול הספק, לא חסימה של הכלל העסקי). */
+tr.row-tracked td { background: color-mix(in srgb, #f59e0b 12%, transparent); }
+tr.row-tracked:hover td { background: color-mix(in srgb, #f59e0b 18%, transparent); }
+.badge.b-tracked { background: color-mix(in srgb, #f59e0b 22%, transparent); color: #fbbf24; }
+.tracked-note { display: flex; gap: 6px; align-items: center; }
+.tracked-note input { min-width: 0; width: 100%; }
+/* פעולה בת תו אחד. שלוש פעולות במילים הרחיבו את הטבלה מעבר לכרטיס — המשמעות עברה ל-title/aria. */
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; font-size: 15px; line-height: 1;
+  border: 1px solid var(--color-line); border-radius: var(--radius-sm);
+  background: var(--color-surface-2); color: inherit; cursor: pointer; text-decoration: none;
+}
+.icon-btn:hover { background: var(--color-surface); }
+.is-disabled { opacity: .45; pointer-events: none; }

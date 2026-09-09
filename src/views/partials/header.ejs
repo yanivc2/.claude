@@ -32,22 +32,23 @@
         <% function nav(key){ return typeof canView !== 'function' || canView(key); } %>
         <% if (nav('nav_dashboard')) { %><a href="/" class="<%= path === '/' ? 'active' : '' %>"><span class="mi-ic">🏠</span>לוח בקרה</a><% } %>
         <% if (nav('nav_invoices')) { %><a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>"><span class="mi-ic">🧾</span>חשבוניות</a><% } %>
-        <% if (nav('nav_scan')) { %><a href="/scan" class="<%= path.startsWith('/scan') ? 'active' : '' %>"><span class="mi-ic"><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? '📷' : '🔒' %></span>צילום חשבוניות<% if (!(typeof scanEnabled !== 'undefined' && scanEnabled)) { %> <span class="tag" style="font-size:10px">נעול</span><% } %></a><% } %>
+        <% if (nav('nav_tracked_invoices')) { %><a href="/tracked-invoices" class="<%= path.startsWith('/tracked-invoices') ? 'active' : '' %>"><span class="mi-ic">🟠</span>מעוקבות לתשלום</a><% } %>
         <% if (nav('nav_payments')) { %><a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>"><span class="mi-ic">💳</span>מרקורים</a><% } %>
         <% if (nav('nav_zreports')) { %><a href="/reports/zreports" class="<%= path.startsWith('/reports/zreports') ? 'active' : '' %>"><span class="mi-ic">📊</span>דוחות Z</a><% } %>
         <% if (nav('nav_zclosing')) { %><a href="/zclosing" class="<%= path.startsWith('/zclosing') ? 'active' : '' %>"><span class="mi-ic">🔒</span>סגירת Z</a><% } %>
         <% if (nav('nav_outstanding')) { %><a href="/reports/outstanding" class="<%= path === '/reports/outstanding' ? 'active' : '' %>"><span class="mi-ic">📤</span>צ׳קים בחוץ</a><% } %>
         <% if (nav('nav_reconciliation')) { %><a href="/reconciliation" class="<%= path.startsWith('/reconciliation') ? 'active' : '' %>"><span class="mi-ic">🏦</span>התאמת בנק</a><% } %>
+        <% if (nav('nav_transfers')) { %><a href="/transfers" class="<%= path.startsWith('/transfers') ? 'active' : '' %>"><span class="mi-ic">🏦</span>העברות בנקאיות</a><% } %>
+        <% if (nav('nav_voided_checks')) { %><a href="/voided-checks" class="<%= path.startsWith('/voided-checks') ? 'active' : '' %>"><span class="mi-ic">🚫</span>צ׳קים מבוטלים</a><% } %>
+        <% if (nav('nav_audit')) { %><a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>"><span class="mi-ic">📅</span>יומן</a><% } %>
         <% if (nav('nav_suppliers')) { %><a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>"><span class="mi-ic">🏢</span>ספקים</a><% } %>
+        <% if (nav('nav_employees')) { %><a href="/employees" class="<%= path.startsWith('/employees') ? 'active' : '' %>"><span class="mi-ic">👥</span>עובדים ומשכורות</a><% } %>
         <% if (nav('nav_profitability')) { %><a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>"><span class="mi-ic">💰</span>רווחיות</a><% } %>
         <% if (currentUser.role === 'owner') { %>
           <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>"><span class="mi-ic">✅</span>אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="tag tag-accent"><%= pendingApprovals %></span><% } %></a>
           <a href="/notifications" class="<%= path.startsWith('/notifications') ? 'active' : '' %>"><span class="mi-ic">🔔</span>התראות<% if (typeof unreadNotifications !== 'undefined' && unreadNotifications > 0) { %> <span class="tag tag-accent"><%= unreadNotifications %></span><% } %></a>
         <% } %>
-        <% if (nav('nav_employees')) { %><a href="/employees" class="<%= path.startsWith('/employees') ? 'active' : '' %>"><span class="mi-ic">👥</span>עובדים ומשכורות</a><% } %>
-        <% if (nav('nav_transfers')) { %><a href="/transfers" class="<%= path.startsWith('/transfers') ? 'active' : '' %>"><span class="mi-ic">🏦</span>העברות בנקאיות</a><% } %>
-        <% if (nav('nav_voided_checks')) { %><a href="/voided-checks" class="<%= path.startsWith('/voided-checks') ? 'active' : '' %>"><span class="mi-ic">🚫</span>צ׳קים מבוטלים</a><% } %>
-        <% if (nav('nav_audit')) { %><a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>"><span class="mi-ic">📅</span>יומן</a><% } %>
+        <% if (nav('nav_scan')) { %><a href="/scan" class="<%= path.startsWith('/scan') ? 'active' : '' %>"><span class="mi-ic"><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? '📷' : '🔒' %></span>צילום חשבוניות<% if (!(typeof scanEnabled !== 'undefined' && scanEnabled)) { %> <span class="tag" style="font-size:10px">נעול</span><% } %></a><% } %>
         <% if (typeof can === 'function' && can('settings')) { %>
           <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>
         <% } %>

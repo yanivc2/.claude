@@ -241,6 +241,18 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
         return res.redirect(303, `/invoices/${invoice.id}?payfail=${encodeURIComponent(payErr.message || 'שגיאה')}`);
       }
     }
+    // "עקב תשלום" — נשמרת כרגיל, ובנוסף מסומנת כמעוקבת: היא תופיע בדף המעוקבות (שם מזינים את
+    // ההסבר ושולחים לספק) והשורה שלה בדף החשבוניות תיצבע כתום. ראה services/trackedInvoices.js.
+    if (b.action === 'track') {
+      try {
+        const { trackInvoice } = await import('../services/trackedInvoices.js');
+        await trackInvoice(invoice.id, {}, req.user);
+        return res.redirect(303, '/tracked-invoices');
+      } catch {
+        // הסכימה עוד לא עודכנה — החשבונית כבר נשמרה, ולכן לא מפילים את הבקשה.
+        return res.redirect(303, `/invoices/${invoice.id}?trackfail=1`);
+      }
+    }
     // "שמור והוסף עוד לספק" — reopen the form for the same supplier/store to keep entering.
     if (b.action === 'add_another') {
       return res.redirect(303, `/invoices/new?supplier=${invoice.supplier_id}&store=${invoice.store_id}&added=1&doc=credit_note`);

@@ -1,0 +1,88 @@
+<%- include('../partials/header', { title: title }) %>
+<h1>🟠 חשבוניות מעוקבות לתשלום</h1>
+
+<% if (needsUpgrade) { %>
+  <div class="card"><div class="alert alert-warn">נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים") כדי להשתמש בדף הזה.</div></div>
+<% } else { %>
+  <% if (notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+  <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+
+  <%# חיפוש בראש הדף — צמצום השרת. הסינון לכל עמודה בטבלה עצמה הוא כלי אחר: הוא עובד על מה
+      שכבר מוצג, בלי סבב לשרת. השניים משלימים ולא מתחרים. %>
+  <form class="card" method="get" action="/tracked-invoices">
+    <h2 style="margin:0 0 .5rem">חיפוש</h2>
+    <div class="row">
+      <div><label>ספק</label><input name="supplier" value="<%= filters.supplier %>" autocomplete="off" placeholder="שם הספק" /></div>
+      <%# inputmode="numeric" — בנייד נפתחת מקלדת מספרים לשדות שהם מספר, ולא מקלדת מלאה. %>
+      <div><label>מספר חשבונית</label><input name="number" value="<%= filters.number %>" inputmode="numeric" autocomplete="off" /></div>
+      <div><label>סכום (₪)</label><input name="amount" value="<%= filters.amount %>" inputmode="decimal" autocomplete="off" placeholder="סכום מדויק" /></div>
+    </div>
+    <div class="row" style="margin-top:.5rem">
+      <div><label>מתאריך</label><input type="date" name="from" value="<%= filters.from %>" /></div>
+      <div><label>עד תאריך</label><input type="date" name="to" value="<%= filters.to %>" /></div>
+    </div>
+    <div class="actions" style="margin-top:.6rem">
+      <button type="submit">חפש</button>
+      <% if (filtered) { %><a class="btn btn-secondary" href="/tracked-invoices">נקה חיפוש</a><% } %>
+    </div>
+  </form>
+
+  <div class="card">
+    <div class="toolbar" style="align-items:center;margin:0 0 .4rem">
+      <h2 style="margin:0">מעוקבות (<%= rows.length %>)</h2>
+    </div>
+    <p class="muted" style="margin:0 0 .5rem">
+      חשבוניות שמחכות לטיפול של הספק. <strong>שחרור מעיקוב מוציא אותן מהדף הזה</strong> — ההסבר נשמר גם אחרי.
+    </p>
+    <div class="table-scroll">
+      <%# אותן עמודות של דף החשבוניות, עם שתי החלפות: במקום "חנות" — סטטוס; במקום "שולם" — הסבר. %>
+      <table class="sortable filterable line-grid">
+        <thead>
+          <tr>
+            <th>מספר חשבונית</th><th>סטטוס</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th>
+            <th>הסבר / פירוט</th><th data-nosort data-nofilter>שליחה לספק</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!rows.length) { %>
+            <tr><td colspan="7" class="muted"><%= filtered ? 'אין חשבוניות מעוקבות שתואמות לחיפוש.' : 'אין חשבוניות מעוקבות.' %></td></tr>
+          <% } %>
+          <% rows.forEach(function(r){ %>
+            <tr class="row-tracked">
+              <td data-label="מספר חשבונית"><a href="/invoices/<%= r.id %>" class="mono"><%= r.invoice_number %></a></td>
+              <td data-label="סטטוס"><span class="badge <%= r.statusInfo.badge %>"><%= r.statusInfo.label %></span></td>
+              <td data-label="תאריך" data-sort="<%= r.invoice_date %>"><%= formatDate(r.invoice_date) %></td>
+              <td data-label="סכום" class="right"><%= formatIls(r.total_amount) %></td>
+              <td data-label="ספק"><%= r.supplier_name || '—' %></td>
+              <td data-label="הסבר / פירוט">
+                <form method="post" action="/tracked-invoices/<%= r.id %>/note" class="tracked-note">
+                  <input name="note" value="<%= r.tracked_note || '' %>" placeholder="למשל: מחכים לזיכוי על 3 ארגזים שלא סופקו" autocomplete="off" />
+                  <button type="submit" class="btn-sm">שמור</button>
+                </form>
+                <% if (r.tracked_at) { %>
+                  <span class="muted" style="font-size:11px">עוקב מ-<%= formatDate(r.tracked_at.slice(0,10)) %><%= r.tracked_by_name ? ' · ' + r.tracked_by_name : '' %></span>
+                <% } %>
+              </td>
+              <td data-label="שליחה לספק" style="white-space:nowrap">
+                <%# ההודעה נגזרת ממה שהוזן (services/trackedInvoices.js#trackedMessage) — לא מוקלדת שוב. %>
+                <%# אייקונים ולא מילים: שלוש פעולות במילים הרחיבו את הטבלה מעבר לרוחב הכרטיס
+                    ונחתכו. ה-title נושא את המשמעות, ו-aria-label מוסר אותה לקורא מסך. %>
+                <a class="icon-btn" href="<%= r.waHref %>" target="_blank" rel="noopener"
+                   aria-label="שליחה בוואטסאפ לספק"
+                   title="<%= r.supplier_phone || r.supplier_contact_phone ? 'וואטסאפ לספק' : 'אין טלפון לספק — וואטסאפ יבקש לבחור איש קשר' %>">💬</a>
+                <a class="icon-btn <%= r.supplier_email ? '' : 'is-disabled' %>" href="<%= r.mailHref %>"
+                   aria-label="שליחה במייל לספק"
+                   title="<%= r.supplier_email || 'אין מייל לספק — הוסף אותו בכרטיס הספק' %>">✉️</a>
+                <form method="post" action="/tracked-invoices/<%= r.id %>/release" style="display:inline"
+                      onsubmit="return confirm('לשחרר את החשבונית מעיקוב? היא לא תופיע יותר בדף הזה.');">
+                  <button type="submit" class="icon-btn" aria-label="שחרור מעיקוב" title="שחרור מעיקוב — החשבונית תיעלם מהדף">✓</button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>

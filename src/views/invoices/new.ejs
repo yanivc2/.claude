@@ -214,6 +214,9 @@
     <div style="margin-top:1rem; flex-wrap:wrap" class="actions">
       <button type="submit" name="action" value="save"><%= warnings && warnings.length ? 'אשר ושמור בכל זאת' : 'שמור חשבונית' %></button>
       <button type="submit" name="action" value="add_another" class="btn secondary"><%= warnings && warnings.length ? 'אשר, שמור והוסף עוד' : 'שמור והוסף עוד לספק' %></button>
+      <%# "עקב תשלום" — שומר, ומסמן את החשבונית כמחכה לטיפול של הספק (זיכוי, כמות, מסמך).
+          היא תופיע בדף "מעוקבות לתשלום" ובשורה כתומה בדף החשבוניות. %>
+      <button type="submit" name="action" value="track" class="btn btn-track">🟠 עקב תשלום</button>
       <a href="/invoices" class="btn secondary">ביטול</a>
     </div>
     <p class="muted" style="margin:.4rem 0 0">"שמור והוסף עוד לספק" — שומר ופותח טופס ריק לאותו ספק/חנות, כדי להזין עוד חשבוניות (כולל זיכוי) ואז לשייך את כולן לתשלום למטה.</p>

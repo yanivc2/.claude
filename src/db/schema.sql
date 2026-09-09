@@ -213,6 +213,14 @@ CREATE TABLE IF NOT EXISTS invoices (
   status             TEXT NOT NULL DEFAULT 'recorded'
                      CHECK (status IN ('recorded','approved_for_payment','on_hold','paid')),
   hold_reason        TEXT,                                    -- why on_hold (e.g. R3)
+  -- "מעוקבת לתשלום" — החשבונית מחכה לטיפול של הספק (זיכוי, תיקון, מסמך חסר) לפני שסוגרים אותה.
+  -- דגל נפרד ולא ערך ב-status בכוונה: `on_hold` מנוהל אוטומטית ע"י R3 (updateInvoice מדליק/מכבה
+  -- אותו לפי המע"מ) ותשלום מנקה אותו — כלומר עריכה או תשלום היו מוחקים את המעקב בשקט. הדגל הזה
+  -- נדלק ונכבה רק בידיים, ולכן הוא שורד עריכה ואפשר לעקוב גם אחרי חשבונית שכבר שולמה.
+  tracked_for_payment INTEGER NOT NULL DEFAULT 0,
+  tracked_note        TEXT,                                   -- ההסבר/פירוט שנשלח לספק
+  tracked_at          TEXT,
+  tracked_by          INTEGER REFERENCES users(id),
   created_by         INTEGER NOT NULL REFERENCES users(id),
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
@@ -223,6 +231,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_invoices_allocation
 -- Secondary dedup signal: same supplier + same invoice number.
 CREATE INDEX IF NOT EXISTS ix_invoices_supplier_number
   ON invoices(supplier_id, invoice_number);
+CREATE INDEX IF NOT EXISTS ix_invoices_tracked ON invoices(tracked_for_payment);
 
 -- §4 payments — checks and other methods (cash / credit / transfer / batch) ------
 CREATE TABLE IF NOT EXISTS payments (

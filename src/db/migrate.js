@@ -32,6 +32,7 @@ export function migrate(db) {
   migrateBankTransfers(db);
   migrateSupplierBank(db);
   migrateEmployeeAdvances(db); // after employees/stores/salary_payments exist
+  migrateTrackedInvoices(db);
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -664,4 +665,20 @@ function migrateEmployeeAdvances(db) {
     );
     CREATE INDEX IF NOT EXISTS ix_advance_repayments ON employee_advance_repayments(advance_id, repaid_date);
   `);
+}
+
+// "מעוקבת לתשלום" — דגל ידני על חשבונית שמחכה לטיפול של הספק (ראה schema.sql).
+function migrateTrackedInvoices(db) {
+  const has = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='invoices'").get();
+  if (!has) return;
+  const cols = db.prepare('PRAGMA table_info(invoices)').all().map((c) => c.name);
+  for (const [col, ddl] of [
+    ['tracked_for_payment', 'INTEGER NOT NULL DEFAULT 0'],
+    ['tracked_note', 'TEXT'],
+    ['tracked_at', 'TEXT'],
+    ['tracked_by', 'INTEGER REFERENCES users(id)'],
+  ]) {
+    if (!cols.includes(col)) db.exec(`ALTER TABLE invoices ADD COLUMN ${col} ${ddl};`);
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS ix_invoices_tracked ON invoices(tracked_for_payment);');
 }

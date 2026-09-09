@@ -118,7 +118,7 @@ const routes = [
   // employees
   ['page', '/employees'],
   // voided checks (צ׳קים מבוטלים) + bank transfers (העברות בנקאיות)
-  ['page', '/voided-checks'], ['page', '/transfers'],
+  ['page', '/voided-checks'], ['page', '/transfers'], ['page', '/tracked-invoices'],
   // settings
   ['page', '/settings'], ['page', '/settings/guide'], ['asset', '/settings/backup'],
   // products (hidden from nav, mounted)
