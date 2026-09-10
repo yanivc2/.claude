@@ -1,0 +1,170 @@
+<%
+  // ── טבלת "תשלום במזומן ללא התאמה" — פרשל אחד, שני דפים ─────────────────────────
+  // 🔴 לוח הבקרה ודף המרקורים הציגו שתי טבלאות שונות לאותו דבר, וזה בדיוק מה שמבלבל:
+  // אותה שורת כסף נראתה אחרת בכל דף. כאן היא נראית אותו דבר בשניהם, על אותם כפתורים.
+  //
+  // locals: `rows` (הוצאות ללא התאמה, עם `candidates`/`petty`), `settled` (שסומנו כטופלו),
+  //         `settleOk` (האם עמודות ה"טופל" קיימות במסד), `returnTo` (לאן לחזור אחרי POST).
+  var _rows = (typeof rows !== 'undefined' && rows) ? rows : [];
+  var _settled = (typeof settled !== 'undefined' && settled) ? settled : [];
+  var _settleOk = (typeof settleOk !== 'undefined') ? settleOk : true;
+  var _returnTo = (typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/';
+  // "נשמר בסגירת Z על ידי X" — מי עמד בקופה. זה מה שהופך שורה למאותרת מול אדם.
+  function _by(e) {
+    var n = ((e.by_first || '') + ' ' + (e.by_last || '')).trim();
+    var src = e.source === 'zclosing' ? ('סגירת Z' + (n ? ' · ' + n : '')) : 'דוח Z';
+    // שם החנות נדרש כשהטבלה חוצה חנויות (דף המרקורים ב"כל החנויות"); בלעדיו אי אפשר לדעת
+    // לאיזו קופה שייכת השורה. כשיש חנות פעילה אחת הוא פשוט חוזר על מה שכבר ידוע.
+    return (e.store_name ? e.store_name + ' · ' : '') + src;
+  }
+%>
+  <% if (typeof cashErr !== 'undefined' && cashErr) { %>
+    <div class="alert alert-warn" style="margin:0 0 .6rem"><%= cashErr %></div>
+  <% } %>
+  <%# הכפתור מופיע רק כשהעמודה קיימת במסד; אחרת אומרים במפורש מה חסר, ולא מציגים כפתור שייכשל. %>
+  <% if (!_settleOk && rows && rows.length) { %>
+    <p class="muted" style="margin:0 0 .6rem; font-size:12px">
+      כדי לסמן הוצאה כטופלה (פריטה שנאספה) — הגדרות ← "עדכן מסד נתונים".
+    </p>
+  <% } %>
+  <table>
+    <thead><tr><th>Z</th><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th><th class="no-print" data-nosort data-noexport>פעולה</th></tr></thead>
+    <tbody>
+      <% if (!rows || rows.length === 0) { %><tr><td colspan="6" class="muted">אין הוצאות מזומן ללא התאמה.</td></tr><% } %>
+      <% (rows || []).forEach(function(e){ %>
+        <tr>
+          <td>
+            <a href="<%= e.source === 'zclosing' ? '/zclosing/' + e.ref_id : '/reports/zreports/' + e.ref_id %>">Z <%= e.z_number %></a>
+            <%# מי עמד בקופה. בלי זה שורת כסף אינה מאותרת מול אדם, ואי אפשר לשאול אף אחד עליה. %>
+            <div class="muted" style="font-size:11px"><%= _by(e) %></div>
+          </td>
+          <%# תאריך ההוצאה + שעת השמירה בפועל (UTC במסד → israelStamp), כמו בטבלת הוצאות המזומן. %>
+          <td data-sort="<%= e.created_at || e.expense_date || '' %>">
+            <%= formatDate(e.expense_date) %>
+            <% if (e.created_at && israelStamp(e.created_at)) { %>
+              <div class="muted" style="font-size:11px" title="שעת השמירה במערכת">נשמר <%= israelStamp(e.created_at) %></div>
+            <% } %>
+          </td>
+          <td>
+            <%= e.payer_name || '—' %>
+            <%# שכר/מפרעה מטופלים בדף עובדים, ולכן השורה אומרת את הסוג ואת שם העובד — אחרת
+                "תשלום מזומן ללא התאמה" מציג סכום בלי לומר מה צריך לעשות איתו. %>
+            <% var _emp = ((e.emp_first || '') + ' ' + (e.emp_last || '')).trim(); %>
+            <%# רק כשהשם המלא מוסיף מידע: "אורית" מול "אורית כהן" הוא אותו אדם, ו-"אורית · אורית כהן" הוא רעש. %>
+            <% var _p = (e.payer_name || '').trim(); %>
+            <% if (_emp && _p && !_emp.includes(_p) && !_p.includes(_emp)) { %><span class="muted" style="font-size:12px">· <%= _emp %></span>
+            <% } else if (_emp && !_p) { %><%= _emp %><% } %>
+          </td>
+          <td>
+            <% if (e.description_type === 'salary' || e.description_type === 'advance') { %>
+              <a href="/employees"><span class="badge b-on_hold"><%= e.description_type === 'salary' ? 'שכר' : 'מפרעה' %></span></a>
+            <% } %>
+            <%= e.purpose || (e.description_type === 'salary' ? 'שכר במזומן' : e.description_type === 'advance' ? 'מפרעה במזומן' : '—') %>
+          </td>
+          <td class="right"><%= formatIls(e.amount) %></td>
+          <td class="no-print">
+            <%# הכפתור נגזר מהסוג שנקלט, כי לכל סוג יש דרך יציאה אחרת:
+                פריטה  → נאספת חזרה לקופה, לעולם לא תקבל חשבונית → "טופל".
+                שכר/מפרעה → הצ׳ק שהוזן בדף עובדים ומשכורות → התאמה שגם מבטלת את הצ׳ק.
+                כל השאר → חשבונית. %>
+            <% if (e.petty) { %>
+              <% if (_settleOk) { %>
+                <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline">
+                  <input type="hidden" name="return_to" value="<%= _returnTo %>" />
+                  <button type="submit" class="btn btn-secondary small" title="פריטה שנאספה — סמן כטופל">✓ טופל</button>
+                </form>
+              <% } %>
+            <% } else { var _isSal = (e.description_type === 'salary' || e.description_type === 'advance'); %>
+              <button type="button" class="btn btn-secondary small"
+                      onclick="document.getElementById('cxm-<%= e.source %>-<%= e.id %>').showModal()">
+                🔗 התאם<% if (_isSal) { %><span class="cx-btn-long"> לצ׳ק שכר</span><% } %>
+              </button>
+              <dialog id="cxm-<%= e.source %>-<%= e.id %>" style="max-width:560px; width:92vw">
+                <h3 tabindex="-1" autofocus style="margin:0 0 .2rem"><%= _isSal ? 'התאמה לצ׳ק שכר' : 'התאמה לחשבונית' %></h3>
+                <p class="muted" style="margin:0 0 .6rem; font-size:12px">
+                  <%= e.payer_name || '' %><%= e.purpose ? ' · ' + e.purpose : '' %> · <strong><%= formatIls(e.amount) %></strong>
+                  · <%= formatDate(e.expense_date) %>
+                  <br /><%= _isSal ? 'הצ׳ק שיותאם יבוטל, אחרת ייפרע בבנק וישולם אותו שכר פעמיים.' : 'הרשימה מתחילה בחשבוניות באותו סכום.' %>
+                </p>
+                <% if (!e.candidates || !e.candidates.length) { %>
+                  <p class="muted" style="margin:0 0 .6rem">
+                    <%= _isSal ? 'אין צ׳קי שכר פתוחים להתאמה. הזן אותם בדף עובדים ומשכורות.' : 'אין חשבוניות פתוחות לתשלום.' %>
+                  </p>
+                  <div class="actions"><a class="btn btn-secondary" href="<%= _isSal ? '/employees' : '/invoices' %>">פתח את הדף</a>
+                    <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">סגור</button></div>
+                <% } else { var _same = e.candidates.filter(function(c){ return c.sameAmount; }); %>
+                  <%# 🔴 מועמד בסכום זהה נבחר מראש. בלי זה הבורר נפתח ריק ("הקלד לחיפוש"), וכל הערך
+                      של "אותו סכום קודם" מתבטל — המשתמש עדיין צריך לחפש ידנית את מה שכבר נמצא לו. %>
+                  <p class="muted" style="margin:0 0 .5rem; font-size:12px">
+                    <% if (_same.length === 1) { %>נמצאה התאמה אחת בדיוק באותו סכום — כבר נבחרה. לחץ "התאם" לאישור.
+                    <% } else if (_same.length > 1) { %>נמצאו <%= _same.length %> באותו סכום (★) — הראשונה נבחרה.
+                    <% } else { %>אין <%= _isSal ? 'צ׳ק' : 'חשבונית' %> בסכום זהה — בחר מהרשימה.<% } %>
+                  </p>
+                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/<%= _isSal ? 'match-salary' : 'match-invoice' %>">
+                    <select name="<%= _isSal ? 'salary_payment_id' : 'invoice_id' %>" class="js-combo" required style="width:100%">
+                      <option value=""></option>
+                      <% e.candidates.forEach(function(c, ci){ %>
+                        <option value="<%= c.id %>" <%= (ci === 0 && c.sameAmount) ? 'selected' : '' %>>
+                          <%= c.sameAmount ? '★ ' : '' %><%= formatIls(_isSal ? c.amount : c.total_amount) %>
+                          · <%= _isSal ? ((c.first_name || '') + ' ' + (c.last_name || '')).trim() : ('#' + (c.invoice_number || c.id) + ' · ' + (c.supplier_name || '')) %>
+                          · <%= formatDate(_isSal ? c.due_date : c.invoice_date) %>
+                        </option>
+                      <% }); %>
+                    </select>
+                    <div class="actions" style="margin-top:.7rem">
+                      <button type="submit">התאם</button>
+                      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">ביטול</button>
+                    </div>
+                  </form>
+                <% } %>
+              </dialog>
+            <% } %>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+  <%# סימון שאי אפשר לבטל הוא מחיקה. השורות שסומנו נשארות כאן, מתחת, ונשלפות חזרה בלחיצה. %>
+  <% var _settled = (typeof settled !== 'undefined' && settled) ? settled : []; %>
+  <% if (_settled.length) { %>
+    <details style="margin-top:.6rem">
+      <summary class="muted" style="font-size:12px; cursor:pointer">סומנו כטופלו (<%= _settled.length %>)</summary>
+      <div class="table-scroll" style="margin-top:.4rem">
+        <table class="no-enhance">
+          <thead><tr><th>Z</th><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th><th>סומן</th><th class="no-print"></th></tr></thead>
+          <tbody>
+            <% _settled.forEach(function(e){ %>
+              <tr>
+                <td class="mono">
+                  Z <%= e.z_number %>
+                  <div class="muted" style="font-size:11px"><%= _by(e) %></div>
+                </td>
+                <td>
+                  <%= formatDate(e.expense_date) %>
+                  <% if (e.created_at && israelStamp(e.created_at)) { %>
+                    <div class="muted" style="font-size:11px">נשמר <%= israelStamp(e.created_at) %></div>
+                  <% } %>
+                </td>
+                <td><%= e.payer_name || '—' %></td>
+                <td><%= e.purpose || '—' %></td>
+                <td class="right"><%= formatIls(e.amount) %></td>
+                <%# מי סימן ומתי — סימון ידני הוא החלטה של אדם, ולכן הוא נושא שם. %>
+                <td class="muted" style="font-size:12px">
+                  <%= israelStamp(e.settled_at) %>
+                  <% if (e.settled_by_name) { %><div><%= e.settled_by_name %></div><% } %>
+                </td>
+                <td class="no-print">
+                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline">
+                  <input type="hidden" name="return_to" value="<%= _returnTo %>" />
+                    <input type="hidden" name="undo" value="1" />
+                    <input type="hidden" name="return_to" value="<%= _returnTo %>" />
+                    <button type="submit" class="btn btn-secondary small" title="החזר לרשימת ההוצאות ללא התאמה">↩ בטל סימון</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  <% } %>

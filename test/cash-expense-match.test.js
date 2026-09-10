@@ -132,12 +132,18 @@ test('🔴 מזהה מבקשה לא נוגע בשורה של חנות אחרת',
 });
 
 test('הלוח מציג כפתור לפי סוג ואת כרטיס ההתראות', () => {
-  const v = readFileSync(new URL('../src/views/dashboard.ejs', import.meta.url), 'utf8');
+  // הטבלה עברה לפרשל משותף — לוח הבקרה ומרקורים מציגים את **אותה** טבלה.
+  const v = readFileSync(new URL('../src/views/partials/_unmatchedCash.ejs', import.meta.url), 'utf8');
   assert.match(v, /e\.petty/, 'פריטה מקבלת מסלול משלה');
   assert.match(v, /match-invoice/);
   assert.match(v, /match-salary/);
-  assert.match(v, /התראות מזומן/);
-  assert.match(v, /card no-collapse/, 'כרטיס אזהרה לא נסגר מאחורי אקורדיון');
+  for (const page of ['dashboard', 'payments/index']) {
+    const t = readFileSync(new URL(`../src/views/${page}.ejs`, import.meta.url), 'utf8');
+    assert.match(t, /_unmatchedCash/, `${page}: אותה טבלה`);
+  }
+  const dash = readFileSync(new URL('../src/views/dashboard.ejs', import.meta.url), 'utf8');
+  assert.match(dash, /התראות מזומן/);
+  assert.match(dash, /card no-collapse/, 'כרטיס אזהרה לא נסגר מאחורי אקורדיון');
   // נמדד בנייד: "התאם לצ׳ק שכר" נשבר לשלוש שורות בעמודת פעולה ברוחב 55px (כפתור בגובה 72px).
   // הכיתוב המלא נשאר בדסקטופ ונחתך מתחת ל-700px — הכפתור חזר לשורה אחת בגובה 42px.
   assert.match(v, /cx-btn-long/, 'הכיתוב הארוך מסומן כך שאפשר לחתוך אותו בנייד');

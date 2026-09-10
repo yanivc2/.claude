@@ -52,35 +52,33 @@
         </tr>
       <% }); %>
     </tbody>
+    <%# סה"כ ההפקדות שבטבלה. שורת tfoot ולא שורה ב-tbody, אחרת המיון והחיפוש הגלובליים
+        (partials/footer.ejs) מתייחסים אליה כאל שורת נתונים ומסתירים/ממיינים אותה. %>
+    <% var _depSum = (deposits || []).reduce(function(n, d){ return n + (Number(d.amount) || 0); }, 0); %>
+    <tfoot>
+      <tr>
+        <th>סה"כ</th>
+        <th class="right"><%= formatIls(_depSum) %></th>
+        <th colspan="5" class="muted" style="font-weight:400"><%= (deposits || []).length %> הצהרות</th>
+      </tr>
+    </tfoot>
   </table>
   </div>
 </details>
 
-<%# הוצאות מזומן מהקופה — כל מה שיצא מהמגירה, חנות אחר חנות. אותה טבלה של "הוצאות מזומן
-    אחרונות" בדף סגירת Z, אבל חתוכה לפי חנות ומשני מקומות ההזנה: סגירת הקופה וטופס דוח ה-Z. %>
-<% var _cash = (typeof cashByStore !== 'undefined' && cashByStore) ? cashByStore : []; %>
-<% var _cashCount = _cash.reduce(function(n, g){ return n + g.rows.length; }, 0); %>
+<%# תשלום במזומן ללא התאמה — **אותה טבלה בדיוק** של לוח הבקרה (partials/_unmatchedCash.ejs).
+    קודם ישבה כאן טבלה שנייה ושונה לאותו דבר, ואותה שורת כסף נראתה אחרת בכל דף. %>
 <details class="card collapse" style="margin-top:1rem">
-  <summary><span class="caret">▸</span> הוצאות מזומן מהקופה <span class="muted">(<%= _cashCount %>)</span></summary>
-  <% if (!_cash.length) { %>
-    <p class="muted" style="margin:.8rem 0 0">אין הוצאות מזומן עדיין.</p>
-  <% } else { %>
-    <% _cash.forEach(function(g){ %>
-      <div style="margin-top:1rem">
-        <h3 style="margin:0 0 .3rem; font-size:15px">
-          <%= g.store_name %>
-          <span class="muted" style="font-weight:400; font-size:12px">
-            · <%= g.rows.length %> הוצאות · <%= formatIls(g.total) %>
-            <%# כששני המקורות פעילים הסכום המשולב עלול להכפיל הוצאה שהוזנה בשניהם — לכן הפירוק. %>
-            <% if (g.totalClosing && g.totalReport) { %>
-              (סגירת Z <%= formatIls(g.totalClosing) %> · דוח Z <%= formatIls(g.totalReport) %>)
-            <% } %>
-          </span>
-        </h3>
-        <%- include('../partials/_cashExpenses', { rows: g.rows, hideStore: true }) %>
-      </div>
-    <% }); %>
-  <% } %>
+  <summary>
+    <span class="caret">▸</span> תשלום במזומן ללא התאמה
+    <span class="muted">(<%= (unmatchedCash || []).length %>)</span>
+  </summary>
+  <div style="margin-top:.8rem">
+    <%- include('../partials/_unmatchedCash', {
+          rows: unmatchedCash, settled: (typeof settledCash !== 'undefined' ? settledCash : []),
+          settleOk: (typeof cashSettleReady !== 'undefined') && cashSettleReady, returnTo: '/payments',
+        }) %>
+  </div>
 </details>
 
 <details class="card collapse" style="margin-top:1rem">

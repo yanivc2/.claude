@@ -296,6 +296,21 @@ async function cashExpenseScope(source, id, x) {
 }
 
 /**
+ * מצרף לכל שורה את מועמדי ההתאמה שלה, כדי שהכפתור ייפתח על רשימה מוכנה ולא ידרוש סבב נוסף.
+ * ביטוי אחד לשני הדפים (לוח הבקרה ומרקורים) — שכפול היה מאפשר לשניים להיפרד בשקט.
+ */
+export async function withMatchCandidates(rows, scope = null, storeId = null, x = getExecutor()) {
+  return Promise.all((rows || []).map(async (r) => ({
+    ...r,
+    petty: isPettyExpense(r),
+    candidates: isPettyExpense(r) ? []
+      : (r.description_type === 'salary' || r.description_type === 'advance')
+        ? await salaryMatchCandidates(r.amount, scope, storeId, 40, x)
+        : await invoiceMatchCandidates(r.amount, scope, storeId, 40, x),
+  })));
+}
+
+/**
  * בדיקת הסקופ של שורת הוצאה — הביטוי היחיד שלה, כדי שכל פעולה על הוצאת מזומן תיבדק אותו דבר.
  * מזהה שמגיע מהבקשה לא ייגע בשורה של חברה/חנות אחרת; 404 מסתיר גם את עצם קיומה.
  * @returns {Promise<{company_id:number|null, store_id:number|null}>}
@@ -371,9 +386,10 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
   const rows = await x.many(
     `SELECT * FROM (
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
-              z.store_id AS store_id,
+              e.created_at, z.store_id AS store_id, st.name AS store_name,
               z.z_number, 'zreport' AS source, z.id AS ref_id,
-              emp.first_name AS emp_first, emp.last_name AS emp_last
+              emp.first_name AS emp_first, emp.last_name AS emp_last,
+              NULL AS by_first, NULL AS by_last
          FROM z_expenses e
          JOIN z_reports z ON z.id = e.z_report_id
          JOIN stores st ON st.id = z.store_id
@@ -381,9 +397,10 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
         WHERE e.invoice_id IS NULL AND e.amount > 0${settledSql}${scR.sql}${stR}
        UNION ALL
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
-              zc.store_id AS store_id,
+              e.created_at, zc.store_id AS store_id, st.name AS store_name,
               zc.z_number, 'zclosing' AS source, zc.id AS ref_id,
-              emp.first_name AS emp_first, emp.last_name AS emp_last
+              emp.first_name AS emp_first, emp.last_name AS emp_last,
+              zc.employee_first AS by_first, zc.employee_last AS by_last
          FROM z_closing_expenses e
          JOIN z_closings zc ON zc.id = e.closing_id
          JOIN stores st ON st.id = zc.store_id
@@ -544,17 +561,21 @@ export async function settledCashExpenses(scope = null, limit = 30, storeId = nu
   return x.many(
     `SELECT * FROM (
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
-              e.settled_at, z.z_number, 'zreport' AS source, z.id AS ref_id
+              e.settled_at, e.created_at, st.name AS store_name, z.z_number, 'zreport' AS source, z.id AS ref_id,
+              u.name AS settled_by_name, NULL AS by_first, NULL AS by_last
          FROM z_expenses e
          JOIN z_reports z ON z.id = e.z_report_id
          JOIN stores st ON st.id = z.store_id
+         LEFT JOIN users u ON u.id = e.settled_by
         WHERE e.settled_at IS NOT NULL${scR.sql}${stR}
        UNION ALL
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
-              e.settled_at, zc.z_number, 'zclosing' AS source, zc.id AS ref_id
+              e.settled_at, e.created_at, st.name AS store_name, zc.z_number, 'zclosing' AS source, zc.id AS ref_id,
+              u.name AS settled_by_name, zc.employee_first AS by_first, zc.employee_last AS by_last
          FROM z_closing_expenses e
          JOIN z_closings zc ON zc.id = e.closing_id
          JOIN stores st ON st.id = zc.store_id
+         LEFT JOIN users u ON u.id = e.settled_by
         WHERE e.settled_at IS NOT NULL${scC.sql}${stC}
      ) u
      ORDER BY u.settled_at DESC, u.id DESC LIMIT ?`,

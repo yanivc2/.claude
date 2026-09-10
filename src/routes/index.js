@@ -9,8 +9,7 @@ import {
 import { lookupChecks } from '../services/payments.js';
 import {
   unmatchedCashExpenses, zSequenceStatus, setCashExpenseSettled, cashSettleReady, settledCashExpenses,
-  isPettyExpense, invoiceMatchCandidates, salaryMatchCandidates, matchCashExpenseToInvoice,
-  assertCashExpenseInScope,
+  matchCashExpenseToInvoice, assertCashExpenseInScope, withMatchCandidates,
 } from '../services/zreports.js';
 import { markCashed } from '../services/salaryPayments.js';
 import { listNotifications } from '../services/notifications.js';
@@ -100,19 +99,7 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope, unpaidOnly }) : null,
       checkResults: q ? await lookupChecks(q, scope) : null,
       supplierResults: q ? await searchSuppliers(q, req.scope) : null,
-      unmatchedCash: await (async () => {
-        // כל שורה נושאת את המועמדים שלה, כדי שהכפתור ייפתח על רשימה מוכנה ולא ידרוש סבב נוסף.
-        // "אותו סכום קודם" הוא מה שהופך את הבחירה למיידית (services/zreports.js).
-        const rows = await unmatchedCashExpenses(scope, 20, storeId);
-        return Promise.all(rows.map(async (r) => ({
-          ...r,
-          petty: isPettyExpense(r),
-          candidates: isPettyExpense(r) ? []
-            : (r.description_type === 'salary' || r.description_type === 'advance')
-              ? await salaryMatchCandidates(r.amount, scope, storeId, 40)
-              : await invoiceMatchCandidates(r.amount, scope, storeId, 40),
-        })));
-      })(),
+      unmatchedCash: await withMatchCandidates(await unmatchedCashExpenses(scope, 20, storeId), scope, storeId),
       cashSettleReady: await cashSettleReady(),
       // 🔴 ההתראות על תנועות מזומן מוצגות **בלוח הבקרה עצמו**, לא רק בפעמון: אלה בדיוק
       // האירועים שהבעלים ביקש לראות (התאמת מזומן, וצ׳ק שכר שנפרע לפני התאמה), והפעמון נקרא

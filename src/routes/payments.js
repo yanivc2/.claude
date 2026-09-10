@@ -12,7 +12,8 @@ import {
 } from '../services/payments.js';
 import { listPayable } from '../services/invoices.js';
 import { listDeposits } from '../services/deposits.js';
-import { cashExpensesByStore } from '../services/zclosing.js';
+import { unmatchedCashExpenses, settledCashExpenses, cashSettleReady, withMatchCandidates } from '../services/zreports.js';
+
 import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopeWhere, effectiveStoreId } from '../lib/scope.js';
@@ -64,8 +65,12 @@ router.get('/', async (req, res, next) => {
       title: 'מרקורים',
       payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope }),
       deposits: await listDeposits({ storeId, scope, limit: 50 }),
-      // "הוצאות מזומן מהקופה" — מקובץ לפי חנות, משני מקומות ההזנה (services/zclosing.js).
-      cashByStore: await cashExpensesByStore(scope, 200),
+      // אותה טבלה בדיוק של לוח הבקרה — partials/_unmatchedCash.ejs. שתי טבלאות שונות לאותו
+      // דבר היו מבלבלות: אותה שורת כסף נראתה אחרת בכל דף.
+      unmatchedCash: await withMatchCandidates(await unmatchedCashExpenses(scope, 50, storeId), scope, storeId),
+      settledCash: await settledCashExpenses(scope, 30, storeId),
+      cashSettleReady: await cashSettleReady(),
+      cashErr: req.query.cashErr ? String(req.query.cashErr) : null,
       filter: req.query.status || '',
       companyId,
       storeId,
