@@ -108,6 +108,31 @@ test('parseXlsx snaps Excel float drift (2231.9299999999998) back to 2 decimals'
   assert.equal(rows[1].balanceAfter, toAgorot('2231.93'));
 });
 
+// 🔴 היצואן של דף הבנק כותב מספרים כפי ש-Java מדפיסה double, ופעם ככה ופעם ככה: אסמכתא אחת
+// יורדת כתא מספרי (`<v>31557.0</v>`) והשנייה כמחרוזת משותפת (`2.16630374E8`). שני המסלולים חייבים
+// להגיע לספרות — אחרת ההתאמה למספר הצ׳ק נכשלת בשקט. אלה ערכים אמיתיים מדף בנק.
+test('אסמכתא בכתיב מדעי מגיעה בספרות — גם כתא מספרי וגם כמחרוזת משותפת', () => {
+  const si = ['תאריך', 'הפעולה', 'אסמכתא', 'חובה', 'שיק', 'עמלת שטרי כסף', '2.16630374E8'];
+  const ss =
+    `<?xml version="1.0"?><sst count="${si.length}" uniqueCount="${si.length}">` +
+    si.map((t) => `<si><t>${t}</t></si>`).join('') + `</sst>`;
+  const sh =
+    `<?xml version="1.0"?><worksheet><sheetData>` +
+    `<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c><c r="D1" t="s"><v>3</v></c></row>` +
+    `<row r="2"><c r="A2"><v>46236</v></c><c r="B2" t="s"><v>4</v></c><c r="C2"><v>31557.0</v></c><c r="D2"><v>6459.69</v></c></row>` +
+    `<row r="3"><c r="A3"><v>46236</v></c><c r="B3" t="s"><v>5</v></c><c r="C3" t="s"><v>6</v></c><c r="D3"><v>31.21</v></c></row>` +
+    `</sheetData></worksheet>`;
+  const rows = normalizeBankRows(parseXlsx(zip([
+    ['[Content_Types].xml', '<?xml version="1.0"?><Types/>'],
+    ['xl/sharedStrings.xml', ss],
+    ['xl/worksheets/sheet1.xml', sh],
+  ])));
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].rawReference, '31557');      // תא מספרי
+  assert.equal(rows[1].rawReference, '216630374');  // מחרוזת משותפת
+  assert.equal(rows[0].amount, -toAgorot('6459.69'));
+});
+
 test('parseXlsx throws a Hebrew error when no header row is present', () => {
   const bad = zip([
     ['xl/sharedStrings.xml', `<?xml version="1.0"?><sst><si><t>x</t></si></sst>`],

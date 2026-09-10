@@ -52,7 +52,9 @@
     ולכן ההתאמה מולה נכשלת בשקט. לכן ההצעה כאן היא לתקן את הנתון, לא להסתיר אותו בעיצוב. %>
 <% var odd = (typeof oddRefs !== 'undefined') ? oddRefs : null; %>
 <% if (odd && odd.count && typeof can === 'function' && can('import_bank')) { %>
-  <div class="card" style="border-color:var(--color-warn)">
+  <%# 🔴 no-collapse: כל כרטיס עם <h2> הוא אקורדיון, ופתיחת "ייבואים אחרונים" סוגרת את כל השאר —
+      כלומר הכרטיס הזה נסגר בדיוק כשהמשתמש מסתכל על הבעיה שהוא מתאר. אזהרה עם פעולה לא נסגרת. %>
+  <div class="card no-collapse" style="border-color:var(--color-warn)">
     <h2 style="margin:0 0 .4rem">🔢 מספרי אסמכתא בכתיב מדעי</h2>
     <p style="margin:0 0 .5rem">
       ל-<strong><%= odd.count %></strong> תנועות בחשבון הזה נשמרה האסמכתא כפי שקובץ הבנק כתב אותה
@@ -62,7 +64,7 @@
     <form method="post" action="/reconciliation/refs/normalize" class="actions" data-busy>
       <input type="hidden" name="account_id" value="<%= accountId %>" />
       <button type="submit">כתוב אותן בספרות</button>
-      <span class="muted" style="font-size:12px">אותו מספר בדיוק, כתיב קריא. סכומים, תאריכים והתאמות קיימות לא משתנים.</span>
+      <span class="muted" style="font-size:12px">אותו מספר בדיוק, כתיב קריא. סכומים, תאריכים והתאמות קיימות לא משתנים.<br />אחרי זה כדאי ללחוץ "התאמה אוטומטית" — צ׳קים שלא נמצאו לפי מספר עשויים להימצא עכשיו.</span>
     </form>
   </div>
 <% } %>

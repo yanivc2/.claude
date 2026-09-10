@@ -331,7 +331,8 @@ router.post('/refs/normalize', requirePermission('import_bank'), async (req, res
     const r = await normalizeStoredReferences(accountId, req.user);
     return renderPage(req, res, accountId, {
       notice: r.fixed
-        ? `${r.fixed} מספרי אסמכתא נכתבו מחדש בספרות.`
+        ? `${r.fixed} מספרי אסמכתא נכתבו מחדש בספרות. לחץ עכשיו "התאמה אוטומטית" — צ׳ק שלא נמצא קודם `
+          + `לפי מספר האסמכתא עשוי להימצא עכשיו.`
         : 'לא נמצאו אסמכתאות שדורשות תיקון.',
     });
   } catch (err) {

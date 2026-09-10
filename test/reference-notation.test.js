@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { plainNumber, isOddNumberText } from '../src/lib/numText.js';
 import { normalizeBankRows, normalizeReference } from '../src/lib/bankCsv.js';
@@ -165,4 +166,16 @@ test('שם קובץ מקולקל שנשמר במסד מוצג מפוענח בר�
   );
   const imps = await listImports({ accountId: acc.id }, x);
   assert.equal(imps[0].file_name, good);
+});
+
+// 🔴 נמדד בדפדפן: בלי `no-collapse`, פתיחת רובריקת "ייבואים אחרונים" מכווצת את כל שאר הכרטיסים
+// בדף — כולל האזהרה הזו — והמצב נשמר ב-localStorage. כלומר הכפתור שמתקן את הבעיה נעלם בדיוק
+// כשהמשתמש מסתכל על הבעיה. אזהרה שנושאת פעולה לא תהיה ניתנת לכיווץ.
+test('כרטיס האזהרה על האסמכתאות אינו ניתן לכיווץ', () => {
+  const ejs = readFileSync(new URL('../src/views/reconciliation/index.ejs', import.meta.url), 'utf8');
+  const i = ejs.indexOf('מספרי אסמכתא בכתיב מדעי');
+  assert.ok(i > 0, 'הכרטיס קיים בתצוגה');
+  const cardTag = ejs.lastIndexOf('<div class=', i);
+  assert.match(ejs.slice(cardTag, i), /class="card no-collapse"/);
+  assert.match(ejs.slice(i, i + 1200), /action="\/reconciliation\/refs\/normalize"/);
 });
