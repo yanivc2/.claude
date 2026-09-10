@@ -76,6 +76,44 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
  * "עדיין לא יובאו קבצים" מול חשבון מלא בתנועות, וזה בדיוק אותו שקר בתצוגה שהוא אמור למנוע.
  * המשתמש צריך לדעת שהוא צריך ללחוץ "עדכן מסד נתונים", לא לחשוב שהמידע נעלם.
  */
+/**
+ * "ניקוי לפי קובץ" — אילו תנועות בחשבון הזה הגיעו מהקובץ הזה.
+ *
+ * המצב שזה פותר: קובץ שהועלה לחשבון הלא נכון **לפני** שמעקב הייבוא היה קיים. אין לשורות סימון
+ * קובץ, והן נראות בדיוק כמו כל תנועה אחרת — 1,157 שורות שאי אפשר לברור ביניהן ביד. אבל הקובץ
+ * עצמו עדיין אצל הבעלים, והוא הסימן המדויק: מעלים אותו שוב, ומוצאים את השורות שהוא הביא.
+ *
+ * ההתאמה היא **אותה שקילות בדיוק** שהייבוא משתמש בה כדי לזהות כפילות
+ * (תאריך + סכום + תיאור + אסמכתה), ולכן שורה שהקובץ יצר תימצא, ושורה שלא — לא.
+ * כל שורה בקובץ תופסת לכל היותר תנועה אחת, כדי ששתי שורות זהות בקובץ לא ימחקו שלוש תנועות.
+ *
+ * @returns {Promise<{ids:number[], matched:number[], rows:Array}>}
+ */
+export async function matchRowsToTransactions(bankAccountId, rows, x = getExecutor()) {
+  const txns = await x.many(
+    'SELECT id, txn_date, amount, description, raw_reference, matched_payment_id FROM bank_transactions WHERE bank_account_id = ?',
+    [Number(bankAccountId)],
+  );
+  const key = (d, a, desc, ref) => [d, Number(a), (desc ?? '') || '', (ref ?? '') || ''].join('|');
+  const pool = new Map();
+  for (const t of txns) {
+    const k = key(t.txn_date, t.amount, t.description, t.raw_reference);
+    if (!pool.has(k)) pool.set(k, []);
+    pool.get(k).push(t);
+  }
+  const hits = [];
+  for (const r of rows || []) {
+    if (!r || !r.txnDate || !Number.isFinite(r.amount)) continue;
+    const bucket = pool.get(key(r.txnDate, r.amount, r.description ?? null, r.rawReference ?? null));
+    if (bucket && bucket.length) hits.push(bucket.shift());   // כל שורה תופסת תנועה אחת בלבד
+  }
+  return {
+    ids: hits.filter((t) => t.matched_payment_id == null).map((t) => Number(t.id)),
+    matched: hits.filter((t) => t.matched_payment_id != null).map((t) => Number(t.id)),
+    rows: hits,
+  };
+}
+
 export async function importsReady(x = getExecutor()) {
   try {
     await x.many('SELECT id FROM bank_imports LIMIT 1', []);

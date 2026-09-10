@@ -16,6 +16,7 @@ import {
   importsReady,
   untrackedSummary,
   deleteTransactions,
+  matchRowsToTransactions,
   getImport,
   deleteImport,
   listUnmatched,
@@ -82,6 +83,7 @@ async function renderPage(req, res, accountId, extra = {}) {
     title: 'התאמת בנק',
     accounts: await accounts(req.scope),
     accountId,
+    purge: null,
     importsReady: await importsReady(),
     imports: accountId ? await listImports({ accountId }) : [],
     untracked: accountId ? await untrackedSummary(accountId) : null,
@@ -261,6 +263,41 @@ router.post('/unmatch', async (req, res, next) => {
     if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
     next(err);
   }
+});
+
+// "ניקוי לפי קובץ" — הדרך לנקות קובץ שהועלה לחשבון הלא נכון לפני שמעקב הייבוא היה קיים.
+// לשורות אין סימון קובץ ואי אפשר לברור ביניהן ביד; הקובץ עצמו הוא הסימן. מעלים אותו שוב,
+// מוצאים את התנועות שהוא הביא, **מציגים מה יימחק**, ורק אז מוחקים.
+router.post('/purge-preview', requirePermission('import_bank'), (req, res, next) => {
+  csvUpload(req, res, async (uploadErr) => {
+    const accountId = await resolveAccountId(req);
+    try {
+      if (uploadErr) throw new RuleError('CSV', 'העלאת הקובץ נכשלה');
+      if (!req.file) throw new RuleError('CSV', 'לא נבחר קובץ');
+      let mapped;
+      try {
+        const rows = looksLikeXlsx(req.file) ? parseXlsx(req.file.buffer) : parseCsv(decodeBuffer(req.file.buffer));
+        mapped = normalizeBankRows(rows);
+      } catch (e) {
+        throw new RuleError('CSV', e.message);
+      }
+      if (!mapped.length) throw new RuleError('CSV', 'לא נמצאו תנועות בקובץ');
+      const hit = await matchRowsToTransactions(accountId, mapped);
+      return renderPage(req, res, accountId, {
+        purge: {
+          fileName: req.file.originalname || null,
+          fileRows: mapped.length,
+          ids: hit.ids,
+          matchedCount: hit.matched.length,
+          rows: hit.rows.slice(0, 12),
+          total: hit.rows.reduce((n, r) => n + Number(r.amount || 0), 0),
+        },
+      });
+    } catch (err) {
+      if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+      next(err);
+    }
+  });
 });
 
 // מחיקה מרובה — הדרך לנקות שורות זרות שקדמו למעקב הייבוא ואין להן קובץ לבטל.

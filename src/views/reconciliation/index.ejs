@@ -42,10 +42,54 @@
     <div class="actions" style="margin-top:var(--space-4)">
       <button type="button" onclick="document.getElementById('csvDlg').showModal()">📄 ייבוא CSV / Excel</button>
       <button type="button" class="btn-secondary" onclick="document.getElementById('txnDlg').showModal()">➕ הוספת תנועה ידנית</button>
+      <button type="button" class="btn-secondary" onclick="document.getElementById('purgeDlg').showModal()">🧹 ניקוי לפי קובץ</button>
       <span class="muted" style="font-size:12px">קובץ פעולות בחשבון מהבנק (CSV או Excel), או תנועה בודדת בהזנה ידנית.</span>
     </div>
   <% } %>
 </div>
+
+<% var pg = (typeof purge !== 'undefined') ? purge : null; %>
+<% if (pg) { %>
+  <div class="card" style="border-color:var(--color-bad)">
+    <h2 style="margin:0 0 .4rem">🧹 ניקוי לפי קובץ<%= pg.fileName ? ' — ' + pg.fileName : '' %></h2>
+    <% if (!pg.ids.length && !pg.matchedCount) { %>
+      <div class="alert alert-warn" style="margin:0">
+        <strong>לא נמצאה אף תנועה מהקובץ הזה בחשבון הזה.</strong>
+        ייתכן שהקובץ הועלה לחשבון אחר — בחר אותו למעלה ונסה שוב, או שהשורות כבר נמחקו.
+      </div>
+    <% } else { %>
+      <p style="margin:0 0 .5rem">
+        נמצאו <strong><%= pg.ids.length + pg.matchedCount %></strong> תנועות מתוך <%= pg.fileRows %> שורות בקובץ.
+        <strong><%= pg.ids.length %></strong> יימחקו<% if (pg.matchedCount) { %>,
+        ו-<strong><%= pg.matchedCount %></strong> <span class="badge b-on_hold">מותאמות לצ׳ק — יידלגו</span>
+        (בטל את ההתאמה קודם אם צריך למחוק גם אותן)<% } %>.
+      </p>
+      <div class="table-scroll">
+        <table class="no-enhance">
+          <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th></tr></thead>
+          <tbody>
+            <% pg.rows.forEach(function(r){ %>
+              <tr><td><%= formatDate(r.txn_date) %></td><td class="right <%= r.amount < 0 ? 'neg' : '' %>"><%= formatIls(r.amount) %></td>
+                  <td><%= r.description || '' %></td><td class="mono"><%= r.raw_reference || '—' %></td></tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+      <% if (pg.ids.length + pg.matchedCount > pg.rows.length) { %>
+        <p class="muted" style="margin:.3rem 0 0">מוצגות <%= pg.rows.length %> הראשונות מתוך <%= pg.ids.length + pg.matchedCount %>.</p>
+      <% } %>
+      <% if (pg.ids.length) { %>
+        <form method="post" action="/reconciliation/txns/delete" style="margin-top:.6rem"
+              onsubmit="return confirm('למחוק <%= pg.ids.length %> תנועות שהגיעו מהקובץ הזה? הפעולה אינה הפיכה.');">
+          <input type="hidden" name="account_id" value="<%= accountId %>" />
+          <% pg.ids.forEach(function(id){ %><input type="hidden" name="txn_ids" value="<%= id %>" /><% }); %>
+          <button type="submit" class="danger">🗑️ מחק <%= pg.ids.length %> תנועות</button>
+          <a class="btn btn-secondary" href="/reconciliation?account=<%= accountId %>">ביטול</a>
+        </form>
+      <% } %>
+    <% } %>
+  </div>
+<% } %>
 
 <%# מה הועלה לחשבון הזה. בלי הרובריקה הזו אין שום דרך לדעת מה נכנס, מתי, ועל ידי מי — ולכן גם
     אין דרך לבטל קובץ שנחת בחשבון של חנות אחרת. %>
@@ -269,6 +313,30 @@
   })();
   </script>
 </div>
+
+<%# "ניקוי לפי קובץ" — קובץ שהועלה לחשבון הלא נכון לפני שמעקב הייבוא היה קיים. לשורות אין סימון
+    קובץ ואי אפשר לברור ביניהן ביד; הקובץ עצמו הוא הסימן המדויק. %>
+<dialog id="purgeDlg" class="dlg wide">
+  <div class="dlg-head">
+    <strong>ניקוי לפי קובץ</strong>
+    <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
+  </div>
+  <p class="muted" style="font-size:13px">
+    העלית קובץ לחשבון הלא נכון? העלה אותו כאן <strong>שוב</strong> — נמצא את התנועות שהוא הביא
+    <strong>לחשבון הזה</strong>, נראה לך בדיוק מה יימחק, ורק אז נמחק. הקובץ עצמו לא נשמר ולא מיובא.
+    <br>ההתאמה היא לפי תאריך + סכום + תיאור + אסמכתה — אותה שקילות שהייבוא משתמש בה לזיהוי כפילות.
+  </p>
+  <form method="post" action="/reconciliation/purge-preview" enctype="multipart/form-data">
+    <input type="hidden" name="account_id" value="<%= accountId %>" />
+    <div class="row">
+      <div><label>קובץ שהועלה בטעות</label><input type="file" name="csv" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" required /></div>
+    </div>
+    <div class="actions" style="margin-top:.6rem">
+      <button type="submit">בדוק מה יימחק</button>
+      <button type="button" class="btn-secondary" onclick="this.closest('dialog').close()">ביטול</button>
+    </div>
+  </form>
+</dialog>
 
 <!-- מודל ייבוא CSV / Excel -->
 <dialog id="csvDlg" class="dlg wide">
