@@ -52,6 +52,15 @@
 <% var imps = (typeof imports !== 'undefined' && imports) ? imports : []; %>
 <div class="card">
   <h2 style="margin:0 0 .4rem">ייבואים אחרונים לחשבון זה</h2>
+  <%# 🔴 לפני שהבעלים לחץ "עדכן מסד נתונים" הטבלה עוד לא קיימת, וה-catch המגן היה מציג "לא יובאו
+      קבצים" — כלומר בדיוק אותו שקר בתצוגה שהרובריקה הזו נועדה לתקן. אומרים מה באמת חסר. %>
+  <% if (typeof importsReady !== 'undefined' && !importsReady) { %>
+    <div class="alert alert-warn" style="margin:0">
+      <strong>נדרש עדכון מסד נתונים.</strong> מעקב הייבוא עדיין לא קיים במסד, ולכן אי אפשר להציג
+      מה הועלה. היכנס ל<a href="/settings">הגדרות</a> ולחץ <strong>"עדכן מסד נתונים"</strong>, ואז רענן את הדף.
+      <br><span class="muted" style="font-size:12px">התנועות עצמן לא נפגעו — רק רשימת הייבואים אינה זמינה.</span>
+    </div>
+  <% } else { %>
   <%# תנועות שהועלו לפני שהמעקב קיים אין להן ייבוא מזוהה. לומר את זה — עדיף על "לא יובאו קבצים"
       מול חשבון שמלא בתנועות. %>
   <% var untr = (typeof untracked !== 'undefined') ? untracked : null; %>
@@ -105,6 +114,7 @@
         </tbody>
       </table>
     </div>
+  <% } %>
   <% } %>
 </div>
 

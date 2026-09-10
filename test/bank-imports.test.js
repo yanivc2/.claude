@@ -170,3 +170,20 @@ test('bulk delete refuses an empty selection instead of doing nothing quietly', 
   const { deleteTransactions } = await import('../src/services/bankTransactions.js');
   await assert.rejects(() => deleteTransactions([], acct.id, ow, db), /לא נבחרו/);
 });
+
+test('🔴 before the DB upgrade the page says so — it must not claim "no files imported"', async () => {
+  const { importsReady } = await import('../src/services/bankTransactions.js');
+  const { db } = await world();
+  assert.equal(await importsReady(db), true, 'a fresh schema has it');
+
+  // The tolerant catch that protects a pre-upgrade DB turns "no table" into "no rows". Without a
+  // probe the rubric then shows "עדיין לא יובאו קבצים" over an account full of transactions —
+  // exactly the display lie the rubric exists to fix. The view branches on this flag.
+  const view = (await import('node:fs')).readFileSync(
+    (await import('node:path')).join(process.cwd(), 'src/views/reconciliation/index.ejs'), 'utf8',
+  );
+  assert.match(view, /typeof importsReady !== 'undefined' && !importsReady/);
+  assert.match(view, /נדרש עדכון מסד נתונים/);
+  assert.ok(view.indexOf('נדרש עדכון מסד נתונים') < view.indexOf('עדיין לא יובאו קבצים לחשבון הזה'),
+    'the upgrade notice takes precedence over the empty-state text');
+});

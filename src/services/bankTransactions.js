@@ -70,6 +70,23 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
 }
 
 /**
+ * האם `bank_imports` ו-`bank_transactions.import_id` כבר קיימים במסד?
+ *
+ * 🔴 בלי הבדיקה הזו, ה-`catch` שמגן על מסד לפני עדכון הופך "אין טבלה" ל"אין נתונים" — הדף מציג
+ * "עדיין לא יובאו קבצים" מול חשבון מלא בתנועות, וזה בדיוק אותו שקר בתצוגה שהוא אמור למנוע.
+ * המשתמש צריך לדעת שהוא צריך ללחוץ "עדכן מסד נתונים", לא לחשוב שהמידע נעלם.
+ */
+export async function importsReady(x = getExecutor()) {
+  try {
+    await x.many('SELECT id FROM bank_imports LIMIT 1', []);
+    await x.many('SELECT import_id FROM bank_transactions LIMIT 1', []);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * ההעלאות האחרונות לחשבון, כל אחת עם כמה משורותיה עדיין קיימות וכמה מהן כבר הותאמו לצ׳ק.
  * זה מה שעונה על "האם הקובץ נשמר ומוכן להתאמה" — ועל "מה בעצם העליתי לכאן".
  */

@@ -245,6 +245,11 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   logs**. `multer`'s own limit is irrelevant. A large upload must be split client-side; the
   catalog import is the worked example (`src/public/catalog-upload.js` reads the file in the
   browser and posts ~2,000 rows per request).
+- **🔴 `catch` שמגן על מסד לפני עדכון חייב להגיע עם probe שאומר זאת בקול.** בלעדיו "אין טבלה"
+  נראה בדיוק כמו "אין נתונים": הדף מציג מצב-ריק שקרי ("עדיין לא יובאו קבצים" מול חשבון מלא
+  בתנועות), והמשתמש מסיק שהמידע נעלם במקום ללחוץ "עדכן מסד נתונים". דפוס: `xxxReady()` שמריץ
+  `SELECT` על העמודה/טבלה החדשה, והתצוגה מסתעפת עליו — `voidedChecksReady`, `salaryPaymentsReady`,
+  `transfersReady`, `advancesReady`, `trackedReady`, `importsReady`.
 - `x.one` returns **undefined** (not null) when no row — assert with `!row`, not `=== null`.
 - **`x.run('INSERT…')` auto-appends `RETURNING id`** (`db/adapter.js`) — on a table whose PK isn't
   `id` (e.g. `app_settings.key`, `invoice_ocr.invoice_id`) the PG insert crashes. Add an explicit

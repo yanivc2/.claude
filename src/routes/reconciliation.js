@@ -13,6 +13,7 @@ import { requirePermission } from '../middleware/requireOwner.js';
 import {
   importTransactions,
   listImports,
+  importsReady,
   untrackedSummary,
   deleteTransactions,
   getImport,
@@ -81,6 +82,7 @@ async function renderPage(req, res, accountId, extra = {}) {
     title: 'התאמת בנק',
     accounts: await accounts(req.scope),
     accountId,
+    importsReady: await importsReady(),
     imports: accountId ? await listImports({ accountId }) : [],
     untracked: accountId ? await untrackedSummary(accountId) : null,
     classified,
