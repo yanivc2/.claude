@@ -1109,3 +1109,10 @@ tr.row-tracked:hover td { background: color-mix(in srgb, #f59e0b 18%, transparen
 /* "הוסף / החסר שטרות" (public/count-adjust.js) — עדכון ספירה קיימת בלי לחשב בראש. */
 .count-adjust-bar { margin: 0 0 .4rem; gap: var(--space-2); }
 .count-adjust-dlg { width: min(460px, 94vw); }
+
+/* כפתור הפעולה ב"תשלום במזומן ללא התאמה": בנייד עמודת הפעולה מצטמצמת לכ-55px, והתווית
+   "התאם לצ׳ק שכר" נשברה לשלוש שורות בתוך כפתור בגובה 72px. הכיתוב המלא נשאר בדסקטופ; בנייד
+   נשאר "התאם" (השורה ממילא נושאת תג "שכר", והדיאלוג אומר במפורש למה מתאימים). */
+@media (max-width: 700px) {
+  .cx-btn-long { display: none; }
+}

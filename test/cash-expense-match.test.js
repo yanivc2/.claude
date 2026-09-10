@@ -138,6 +138,11 @@ test('הלוח מציג כפתור לפי סוג ואת כרטיס ההתראו�
   assert.match(v, /match-salary/);
   assert.match(v, /התראות מזומן/);
   assert.match(v, /card no-collapse/, 'כרטיס אזהרה לא נסגר מאחורי אקורדיון');
+  // נמדד בנייד: "התאם לצ׳ק שכר" נשבר לשלוש שורות בעמודת פעולה ברוחב 55px (כפתור בגובה 72px).
+  // הכיתוב המלא נשאר בדסקטופ ונחתך מתחת ל-700px — הכפתור חזר לשורה אחת בגובה 42px.
+  assert.match(v, /cx-btn-long/, 'הכיתוב הארוך מסומן כך שאפשר לחתוך אותו בנייד');
+  const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
+  assert.match(css, /\.cx-btn-long\s*\{\s*display:\s*none/, 'ה-CSS שמסתיר אותו בנייד קיים');
   for (const f of ['zclosing/index', 'zclosing/edit', 'reports/_zform']) {
     const t = readFileSync(new URL(`../src/views/${f}.ejs`, import.meta.url), 'utf8');
     assert.match(t, /\['petty','פריטה'\]/, `${f}: סוג פריטה קיים בבורר`);

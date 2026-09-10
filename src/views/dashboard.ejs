@@ -321,7 +321,7 @@
             <% } else { var _isSal = (e.description_type === 'salary' || e.description_type === 'advance'); %>
               <button type="button" class="btn btn-secondary small"
                       onclick="document.getElementById('cxm-<%= e.source %>-<%= e.id %>').showModal()">
-                <%= _isSal ? '🔗 התאם לצ׳ק שכר' : '🔗 התאמה' %>
+                🔗 התאם<% if (_isSal) { %><span class="cx-btn-long"> לצ׳ק שכר</span><% } %>
               </button>
               <dialog id="cxm-<%= e.source %>-<%= e.id %>" style="max-width:560px; width:92vw">
                 <h3 tabindex="-1" autofocus style="margin:0 0 .2rem"><%= _isSal ? 'התאמה לצ׳ק שכר' : 'התאמה לחשבונית' %></h3>
