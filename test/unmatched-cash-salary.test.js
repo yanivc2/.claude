@@ -104,3 +104,70 @@ test('שם העובד זמין לתצוגה', async () => {
   const r = (await unmatchedCashExpenses(null, 20, null, x)).find((v) => v.description_type === 'salary');
   assert.equal(`${r.emp_first} ${r.emp_last}`, 'אורית כהן');
 });
+
+// ── ביטול ההסתרה לפי סכום + סימון ידני ────────────────────────────────────────
+import { setCashExpenseSettled, settledCashExpenses, cashSettleReady } from '../src/services/zreports.js';
+
+test('🔴 תשלום מזומן באותו סכום כבר אינו מעלים הוצאה', async () => {
+  const x = await freshDb();
+  const user = await owner(x);
+  const store = await firstStore(x);
+  const acc = await accountForStore(x, store.id);
+  const { expenseId } = await seedClosingExpense(x, store.id, user, { kind: 'manual', amount: 30000 });
+  await x.run(
+    `UPDATE z_closing_expenses SET purpose = 'פריטה' WHERE id = ?`, [expenseId]);
+
+  // תשלום מזומן ישן לגמרי, באותו סכום — בעבר הוא היה מעלים את ההוצאה בשקט.
+  await x.run(
+    `INSERT INTO payments (bank_account_id, method, payer_name, amount, payment_date, status, created_by)
+     VALUES (?, 'cash', 'מישהו אחר', 30000, '2026-01-01', 'issued', ?)`, [acc.id, user.id]);
+
+  const rows = await unmatchedCashExpenses(null, 20, null, x);
+  assert.ok(rows.some((r) => Number(r.id) === Number(expenseId)),
+    'שורה יוצאת מהרשימה רק בדרך מפורשת — לא בגלל סכום זהה במקרה');
+});
+
+test('סימון "טופל" מוריד מהרשימה, וביטול הסימון מחזיר', async () => {
+  const x = await freshDb();
+  const user = await owner(x);
+  const store = await firstStore(x);
+  const { expenseId } = await seedClosingExpense(x, store.id, user, { kind: 'manual', amount: 30000 });
+
+  assert.equal(await cashSettleReady(x), true);
+  assert.ok((await unmatchedCashExpenses(null, 20, null, x)).some((r) => Number(r.id) === Number(expenseId)));
+
+  await setCashExpenseSettled('zclosing', expenseId, true, user, null, x);
+  assert.ok(!(await unmatchedCashExpenses(null, 20, null, x)).some((r) => Number(r.id) === Number(expenseId)));
+
+  // הפיך — והשורה נשמרת, לא נמחקת
+  const settled = await settledCashExpenses(null, 30, null, x);
+  const mine = settled.find((r) => Number(r.id) === Number(expenseId) && r.source === 'zclosing');
+  assert.ok(mine, 'השורה מופיעה ברשימת "סומנו כטופלו"');
+  assert.ok(mine.settled_at, 'נשמרה חותמת זמן');
+
+  await setCashExpenseSettled('zclosing', expenseId, false, user, null, x);
+  assert.ok((await unmatchedCashExpenses(null, 20, null, x)).some((r) => Number(r.id) === Number(expenseId)),
+    'ביטול הסימון מחזיר את השורה');
+  assert.equal((await settledCashExpenses(null, 30, null, x)).length, 0);
+});
+
+test('🔴 סימון מכבד את הפרדת החנויות — מזהה מבקשה לא יגע בשורה של חנות אחרת', async () => {
+  const x = await freshDb();
+  const user = await owner(x);
+  const stores = await x.many('SELECT * FROM stores ORDER BY id', []);
+  if (stores.length < 2) return; // הזרע לא כולל שתי חנויות
+  const { expenseId } = await seedClosingExpense(x, stores[1].id, user, { kind: 'manual', amount: 30000 });
+
+  await assert.rejects(
+    () => setCashExpenseSettled('zclosing', expenseId, true, user, { companyIds: null, storeIds: [stores[0].id] }, x),
+    /לא נמצאה/,
+  );
+  // ובלי סקופ — עובר
+  await setCashExpenseSettled('zclosing', expenseId, true, user, { companyIds: null, storeIds: [stores[1].id] }, x);
+});
+
+test('מקור לא מוכר נדחה', async () => {
+  const x = await freshDb();
+  const user = await owner(x);
+  await assert.rejects(() => setCashExpenseSettled('../etc', 1, true, user, null, x), /מקור הוצאה לא מוכר/);
+});

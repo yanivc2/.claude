@@ -1,6 +1,6 @@
 import { getExecutor, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
-import { scopeClause, scopeWhere } from '../lib/scope.js';
+import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
 import { logAction } from './audit.js';
 
 // Daily register (Z) close (priority 2). daily_total ("יומי Z") feeds the profitability report;
@@ -257,6 +257,84 @@ export async function listExpenses(zReportId, x = getExecutor()) {
  * Cash expenses not yet matched to an invoice ("תשלום במזומן ללא התאמה") — for the dashboard.
  * Only real lines (a positive amount) are surfaced. Scoped to the caller's companies.
  */
+/**
+ * האם עמודות ה"טופל" כבר קיימות במסד?
+ *
+ * 🔴 בלי הבדיקה הזו הדשבורד נופל בין הדפלוי לבין הרגע שבו הבעלים לוחץ "עדכן מסד נתונים":
+ * `WHERE e.settled_at IS NULL` על עמודה שאינה קיימת היא שגיאת SQL, לא רשימה ריקה. עם הבדיקה
+ * הדף עובד בשני המצבים, והכפתור פשוט לא מוצג עד שהעמודה קיימת (ראה CLAUDE.md — כל `catch`
+ * שמכסה על סכימה חסרה חייב להגיע עם probe שאומר זאת בקול).
+ */
+export async function cashSettleReady(x = getExecutor()) {
+  try {
+    await x.many('SELECT settled_at FROM z_expenses LIMIT 1', []);
+    await x.many('SELECT settled_at FROM z_closing_expenses LIMIT 1', []);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const SETTLE_TABLE = { zreport: 'z_expenses', zclosing: 'z_closing_expenses' };
+
+/** החברה והחנות של שורת הוצאה, לפי מקורה — לבדיקת סקופ לפני כתיבה. */
+async function cashExpenseScope(source, id, x) {
+  if (source === 'zclosing') {
+    return x.one(
+      `SELECT st.company_id AS company_id, zc.store_id AS store_id
+         FROM z_closing_expenses e JOIN z_closings zc ON zc.id = e.closing_id
+         LEFT JOIN stores st ON st.id = zc.store_id WHERE e.id = ?`,
+      [Number(id)],
+    );
+  }
+  return x.one(
+    `SELECT st.company_id AS company_id, z.store_id AS store_id
+       FROM z_expenses e JOIN z_reports z ON z.id = e.z_report_id
+       LEFT JOIN stores st ON st.id = z.store_id WHERE e.id = ?`,
+    [Number(id)],
+  );
+}
+
+/**
+ * סימון הוצאת מזומן כ"טופלה" — וביטול הסימון.
+ *
+ * זו דרך היציאה של הוצאה שלא תקבל חשבונית ולא קישור אוטומטי: פריטה שנאספה חזרה לקופה. הסימון
+ * הוא של אדם, נושא את מי ומתי, והפיך — המערכת לעולם אינה מנחשת שהוצאה טופלה.
+ *
+ * @param {'zreport'|'zclosing'} source
+ * @param {boolean} settled  true = טופל, false = ביטול הסימון
+ */
+export async function setCashExpenseSettled(source, id, settled, actor, scope = null, x = getExecutor()) {
+  const table = SETTLE_TABLE[source];
+  if (!table) throw new RuleError('VALIDATION', 'מקור הוצאה לא מוכר');
+  if (!(await cashSettleReady(x))) {
+    throw new RuleError('SCHEMA', 'נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים") לפני סימון הוצאות כטופלות.');
+  }
+  const row = await cashExpenseScope(source, id, x);
+  if (!row) throw new NotFoundError(`הוצאת מזומן ${id} לא נמצאה`);
+  // אותה בדיקה כמו בכל כתיבה אחרת: מזהה מהבקשה לא יגע בשורה של חברה/חנות אחרת.
+  const { companyIds, storeIds } = normalizeScope(scope);
+  const outOfCompany = companyIds != null && row.company_id != null && !companyIds.includes(Number(row.company_id));
+  const outOfStore = storeIds != null && row.store_id != null && !storeIds.includes(Number(row.store_id));
+  if (outOfCompany || outOfStore) throw new NotFoundError(`הוצאת מזומן ${id} לא נמצאה`);
+
+  await x.run(
+    `UPDATE ${table} SET settled_at = ?, settled_by = ? WHERE id = ?`,
+    [settled ? israelNowStamp() : null, settled ? (actor?.id ?? null) : null, Number(id)],
+  );
+  await logAction(
+    { userId: actor?.id ?? null, action: settled ? 'cash_expense.settle' : 'cash_expense.unsettle',
+      entityType: 'cash_expense', entityId: Number(id), details: { source } },
+    x,
+  );
+  return { source, id: Number(id), settled };
+}
+
+/** חותמת זמן לשמירה, באותו פורמט של `created_at` (UTC — התצוגה ממירה דרך israelStamp). */
+function israelNowStamp() {
+  return new Date().toISOString().slice(0, 19).replace('T', ' ');
+}
+
 export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = null, x = getExecutor()) {
   // Cash expenses live in TWO subsystems and both must surface here:
   //   • z_expenses      — the older "דוח Z" flow  (z_reports)
@@ -277,6 +355,9 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
   const stC = storeId ? ' AND zc.store_id = ?' : '';
   const stRp = storeId ? [storeId] : [];
   const stCp = storeId ? [storeId] : [];
+  // סינון ה"טופל" נכנס לשאילתה רק כשהעמודה קיימת — בין הדפלוי ללחיצה על "עדכן מסד נתונים"
+  // התנאי הזה היה שגיאת SQL שמפילה את כל הדשבורד. ראה cashSettleReady.
+  const settledSql = (await cashSettleReady(x)) ? ' AND e.settled_at IS NULL' : '';
   const rows = await x.many(
     `SELECT * FROM (
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
@@ -287,7 +368,7 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
          JOIN z_reports z ON z.id = e.z_report_id
          JOIN stores st ON st.id = z.store_id
          LEFT JOIN employees emp ON emp.id = e.employee_id
-        WHERE e.invoice_id IS NULL AND e.amount > 0${scR.sql}${stR}
+        WHERE e.invoice_id IS NULL AND e.amount > 0${settledSql}${scR.sql}${stR}
        UNION ALL
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
               zc.store_id AS store_id,
@@ -297,7 +378,7 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
          JOIN z_closings zc ON zc.id = e.closing_id
          JOIN stores st ON st.id = zc.store_id
          LEFT JOIN employees emp ON emp.id = e.employee_id
-        WHERE e.invoice_id IS NULL AND e.amount > 0${scC.sql}${stC}
+        WHERE e.invoice_id IS NULL AND e.amount > 0${settledSql}${scC.sql}${stC}
      ) u
      ORDER BY u.expense_date DESC, u.id DESC`,
     [...scR.params, ...stRp, ...scC.params, ...stCp],
@@ -325,30 +406,50 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
   await collect('SELECT void_cash_expense_id FROM payments WHERE void_cash_expense_id IS NOT NULL', 'zclosing');
   await collect('SELECT z_expense_id FROM employee_advances WHERE z_expense_id IS NOT NULL', 'zreport');
 
-  // "תשלום מזומן = מטופל": a register cash expense that already has a matching cash PAYMENT (same
-  // store + same amount, non-voided) is considered reconciled — drop it from the "unmatched" list.
-  // We consume one payment per expense so N payments clear N same-store/amount expenses (no more).
-  const cashPays = await x.many(
-    `SELECT p.amount AS amount, ba.store_id AS store_id
-       FROM payments p JOIN bank_accounts ba ON ba.id = p.bank_account_id
-      WHERE p.method = 'cash' AND p.status <> 'voided'`,
-    [],
-  );
-  const payCount = new Map(); // `${store}|${amount}` -> available payments
-  for (const p of cashPays) {
-    const k = `${Number(p.store_id)}|${Number(p.amount)}`;
-    payCount.set(k, (payCount.get(k) || 0) + 1);
-  }
+  // 🔴 אין כאן יותר הסתרה לפי "חנות + סכום זהה". היה כאן כלל שאמר: אם קיים תשלום־מזומן כלשהו
+  // באותה חנות ובאותו סכום, ההוצאה "מטופלת" ואינה מוצגת. הכלל הזה לא הסתכל על תאריך, על שם ולא
+  // על סיבה — נמדד: תשלום מינואר העלים הוצאה מספטמבר. הוא הסתיר בשקט בדיוק את מה שהרשימה נועדה
+  // לתפוס, ולכן הוא בוטל. שורה יוצאת מהרשימה רק בדרך **מפורשת**: שיוך לחשבונית, קישור שכר/מפרעה,
+  // או סימון "טופל" ביד (`settled_at`).
   const out = [];
   for (const r of rows) {
     if (linkedKeys.has(`${r.source}|${Number(r.id)}`)) continue; // שכר/מפרעה שכבר נקשרו
-    const k = `${Number(r.store_id)}|${Number(r.amount)}`;
-    const avail = payCount.get(k) || 0;
-    if (avail > 0) { payCount.set(k, avail - 1); continue; } // matched by a cash payment → skip
     out.push(r);
     if (out.length >= limit) break;
   }
   return out;
+}
+
+/**
+ * ההוצאות שכבר סומנו "טופל" — כדי שהסימון יהיה **הפיך**. סימון שאי אפשר לבטל הוא מחיקה, ופה
+ * מדובר בשורת כסף אמיתית: היא נשארת במסד, יורדת מרשימת המטלות, ונשלפת חזרה בלחיצה.
+ * אין כאן `linkedKeys` — שורה שסומנה ביד סומנה, בלי קשר לקישורים אחרים.
+ */
+export async function settledCashExpenses(scope = null, limit = 30, storeId = null, x = getExecutor()) {
+  if (!(await cashSettleReady(x))) return [];
+  const scR = scopeWhere(scope, 'st.company_id', 'z.store_id');
+  const scC = scopeWhere(scope, 'st.company_id', 'zc.store_id');
+  const stR = storeId ? ' AND z.store_id = ?' : '';
+  const stC = storeId ? ' AND zc.store_id = ?' : '';
+  return x.many(
+    `SELECT * FROM (
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
+              e.settled_at, z.z_number, 'zreport' AS source, z.id AS ref_id
+         FROM z_expenses e
+         JOIN z_reports z ON z.id = e.z_report_id
+         JOIN stores st ON st.id = z.store_id
+        WHERE e.settled_at IS NOT NULL${scR.sql}${stR}
+       UNION ALL
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
+              e.settled_at, zc.z_number, 'zclosing' AS source, zc.id AS ref_id
+         FROM z_closing_expenses e
+         JOIN z_closings zc ON zc.id = e.closing_id
+         JOIN stores st ON st.id = zc.store_id
+        WHERE e.settled_at IS NOT NULL${scC.sql}${stC}
+     ) u
+     ORDER BY u.settled_at DESC, u.id DESC LIMIT ?`,
+    [...scR.params, ...(storeId ? [storeId] : []), ...scC.params, ...(storeId ? [storeId] : []), limit],
+  );
 }
 
 /**

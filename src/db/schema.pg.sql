@@ -352,6 +352,8 @@ CREATE TABLE IF NOT EXISTS z_expenses (
   employee_name    TEXT,
   amount           BIGINT NOT NULL DEFAULT 0,
   image_path       TEXT,
+  settled_at       TEXT,                              -- "טופל" ידני (פריטה שנאספה) — ראה schema.sql
+  settled_by       INTEGER REFERENCES users(id),
   created_at       TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
 
@@ -561,6 +563,8 @@ CREATE TABLE IF NOT EXISTS z_closing_expenses (
   employee_id      INTEGER REFERENCES employees(id),
   invoice_id       INTEGER REFERENCES invoices(id),
   amount           BIGINT NOT NULL DEFAULT 0,
+  settled_at       TEXT,                              -- ראה z_expenses.settled_at
+  settled_by       INTEGER REFERENCES users(id),
   created_at       TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
 CREATE INDEX IF NOT EXISTS ix_z_closing_expenses_closing ON z_closing_expenses(closing_id);
@@ -783,3 +787,10 @@ SELECT s.id, NULL, s.bank_name, s.bank_branch, s.bank_account, s.bank_holder, s.
   FROM suppliers s
  WHERE (s.bank_account IS NOT NULL OR s.bank_name IS NOT NULL)
    AND s.id NOT IN (SELECT supplier_id FROM supplier_bank_accounts WHERE store_id IS NULL);
+
+-- "טופל" ידני על הוצאת מזומן: מה שמוציא פריטה שנאספה מ"תשלום במזומן ללא התאמה". סימון מפורש
+-- של אדם, הפיך — המערכת אינה מנחשת. שתי הטבלאות, כי המזומן יוצא מהקופה בשני מסלולי הזנה.
+ALTER TABLE z_expenses         ADD COLUMN IF NOT EXISTS settled_at TEXT;
+ALTER TABLE z_expenses         ADD COLUMN IF NOT EXISTS settled_by INTEGER REFERENCES users(id);
+ALTER TABLE z_closing_expenses ADD COLUMN IF NOT EXISTS settled_at TEXT;
+ALTER TABLE z_closing_expenses ADD COLUMN IF NOT EXISTS settled_by INTEGER REFERENCES users(id);

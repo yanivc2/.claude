@@ -403,6 +403,10 @@ CREATE TABLE IF NOT EXISTS z_expenses (
   amount           INTEGER NOT NULL DEFAULT 0,
   invoice_id       INTEGER REFERENCES invoices(id),  -- optional: cash expense matched to an invoice
   image_path       TEXT,
+  -- "טופל" ידני: הוצאה שלא תקבל חשבונית ולא קישור אוטומטי (פריטה שנאספה חזרה לקופה). זה מה
+  -- שמוציא אותה מ"תשלום במזומן ללא התאמה" — סימון מפורש של אדם, הפיך, ולא ניחוש של המערכת.
+  settled_at       TEXT,
+  settled_by       INTEGER REFERENCES users(id),
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
 
@@ -457,6 +461,8 @@ CREATE TABLE IF NOT EXISTS z_closing_expenses (
   employee_id      INTEGER REFERENCES employees(id),  -- salary/advance → which employee
   invoice_id       INTEGER REFERENCES invoices(id),   -- invoice → cash expense matched to an invoice
   amount           INTEGER NOT NULL DEFAULT 0,
+  settled_at       TEXT,                              -- ראה z_expenses.settled_at
+  settled_by       INTEGER REFERENCES users(id),
   created_at       TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );
 CREATE INDEX IF NOT EXISTS ix_z_closing_expenses_closing ON z_closing_expenses(closing_id);

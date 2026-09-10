@@ -34,6 +34,7 @@ export function migrate(db) {
   migrateEmployeeAdvances(db); // after employees/stores/salary_payments exist
   migrateTrackedInvoices(db);
   migrateBankImports(db);
+  migrateSettledCashExpenses(db);
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -705,4 +706,16 @@ function migrateBankImports(db) {
   const cols = db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name);
   if (!cols.includes('import_id')) db.exec('ALTER TABLE bank_transactions ADD COLUMN import_id INTEGER REFERENCES bank_imports(id);');
   db.exec('CREATE INDEX IF NOT EXISTS ix_bank_txn_import ON bank_transactions(import_id);');
+}
+
+// "טופל" ידני על הוצאת מזומן — פריטה שנאספה חזרה לקופה לא תקבל חשבונית לעולם, ולכן היא זקוקה
+// לדרך יציאה מפורשת מ"תשלום במזומן ללא התאמה". שתי הטבלאות, כי המזומן יוצא בשני מסלולי הזנה.
+function migrateSettledCashExpenses(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  for (const table of ['z_expenses', 'z_closing_expenses']) {
+    if (!has(table)) continue;
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (!cols.includes('settled_at')) db.exec(`ALTER TABLE ${table} ADD COLUMN settled_at TEXT;`);
+    if (!cols.includes('settled_by')) db.exec(`ALTER TABLE ${table} ADD COLUMN settled_by INTEGER REFERENCES users(id);`);
+  }
 }

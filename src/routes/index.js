@@ -7,7 +7,7 @@ import {
   outstandingChecksInRange,
 } from '../services/reports.js';
 import { lookupChecks } from '../services/payments.js';
-import { unmatchedCashExpenses, zSequenceStatus } from '../services/zreports.js';
+import { unmatchedCashExpenses, zSequenceStatus, setCashExpenseSettled, cashSettleReady, settledCashExpenses } from '../services/zreports.js';
 import { listDeposits, zReportsWithoutDeposit, declaredNotDeposited } from '../services/deposits.js';
 import { voidedChecksSeenInBank } from '../services/reconciliation.js';
 import { searchSuppliers, listSuppliers } from '../services/suppliers.js';
@@ -18,7 +18,7 @@ import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopedStoreList, effectiveStoreId } from '../lib/scope.js';
 import { config } from '../config.js';
 import { requirePageAccess } from '../middleware/requireOwner.js';
-import { AuthError } from '../lib/errors.js';
+import { AuthError, RuleError, NotFoundError } from '../lib/errors.js';
 
 function ymd(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -95,6 +95,9 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       checkResults: q ? await lookupChecks(q, scope) : null,
       supplierResults: q ? await searchSuppliers(q, req.scope) : null,
       unmatchedCash: await unmatchedCashExpenses(scope, 20, storeId),
+      cashSettleReady: await cashSettleReady(),
+      settledCash: await settledCashExpenses(scope, 30, storeId),
+      cashErr: req.query.cashErr ? String(req.query.cashErr) : null,
       depositsHistory: await listDeposits({ scope, storeId, limit: 20 }),
       zStatus: await zSequenceStatus(scope, storeId),
       zNoDepositCount: (await zReportsWithoutDeposit({ scope, storeId })).length,
@@ -138,6 +141,21 @@ router.get('/approvals', ownerOnly, async (req, res, next) => {
       error: null,
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+// סימון הוצאת מזומן כ"טופלה" — דרך היציאה של פריטה שנאספה חזרה לקופה. אין לה חשבונית ואין לה
+// קישור אוטומטי, ובלי הסימון הזה היא נשארת ב"תשלום במזומן ללא התאמה" לנצח.
+// PRG: כל POST מסתיים ב-303 חזרה ללוח הבקרה (ראה CLAUDE.md).
+router.post('/cash-expenses/:source/:id/settle', async (req, res, next) => {
+  try {
+    await setCashExpenseSettled(req.params.source, Number(req.params.id), req.body.undo !== '1', req.user, req.scope);
+    return res.redirect(303, req.body.return_to || '/');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof NotFoundError) {
+      return res.redirect(303, '/?cashErr=' + encodeURIComponent(err.message));
+    }
     next(err);
   }
 });

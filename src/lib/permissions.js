@@ -92,7 +92,7 @@ const NAV_KEYS = new Set(NAV_PAGES.map((p) => p.key));
 // (enforcePageScope) so a restricted role — e.g. a register-closer with only nav_zclosing —
 // can reach ONLY these paths and nothing else (all detail/action/CSV routes included).
 export const NAV_ALLOW = {
-  nav_dashboard: ['/', '/reports/lookup'],
+  nav_dashboard: ['/', '/reports/lookup', '/cash-expenses'],
   nav_invoices: ['/invoices'],
   nav_payments: ['/payments', '/reports/deposits'],
   nav_zreports: ['/reports/zreports', '/reports/deposits', '/reports/zexpenses'],

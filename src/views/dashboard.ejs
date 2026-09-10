@@ -243,10 +243,20 @@
 
 <div class="card">
   <h2 style="margin:0 0 .5rem">תשלום במזומן ללא התאמה<% if (unmatchedCash && unmatchedCash.length) { %> <span class="badge b-on_hold" title="יש תשלומי מזומן שדורשים התאמה לחשבונית"><%= unmatchedCash.length %> לטיפול</span><% } %></h2>
+  <% if (typeof cashErr !== 'undefined' && cashErr) { %>
+    <div class="alert alert-warn" style="margin:0 0 .6rem"><%= cashErr %></div>
+  <% } %>
+  <%# הכפתור מופיע רק כשהעמודה קיימת במסד; אחרת אומרים במפורש מה חסר, ולא מציגים כפתור שייכשל. %>
+  <% var _settleOk = (typeof cashSettleReady !== 'undefined') && cashSettleReady; %>
+  <% if (!_settleOk && unmatchedCash && unmatchedCash.length) { %>
+    <p class="muted" style="margin:0 0 .6rem; font-size:12px">
+      כדי לסמן הוצאה כטופלה (פריטה שנאספה) — הגדרות ← "עדכן מסד נתונים".
+    </p>
+  <% } %>
   <table>
-    <thead><tr><th>Z</th><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th></tr></thead>
+    <thead><tr><th>Z</th><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th><% if (_settleOk) { %><th class="no-print" data-nosort data-noexport>טופל</th><% } %></tr></thead>
     <tbody>
-      <% if (!unmatchedCash || unmatchedCash.length === 0) { %><tr><td colspan="5" class="muted">אין הוצאות מזומן ללא התאמה.</td></tr><% } %>
+      <% if (!unmatchedCash || unmatchedCash.length === 0) { %><tr><td colspan="<%= _settleOk ? 6 : 5 %>" class="muted">אין הוצאות מזומן ללא התאמה.</td></tr><% } %>
       <% (unmatchedCash || []).forEach(function(e){ %>
         <tr>
           <td><a href="<%= e.source === 'zclosing' ? '/zclosing/' + e.ref_id : '/reports/zreports/' + e.ref_id %>">Z <%= e.z_number %></a></td>
@@ -268,10 +278,49 @@
             <%= e.purpose || (e.description_type === 'salary' ? 'שכר במזומן' : e.description_type === 'advance' ? 'מפרעה במזומן' : '—') %>
           </td>
           <td class="right"><%= formatIls(e.amount) %></td>
+          <% if (_settleOk) { %>
+            <td class="no-print">
+              <%# "פריטה" נאספת חזרה לקופה ולעולם לא תקבל חשבונית — הסימון הזה הוא דרך היציאה
+                  היחידה שלה מהרשימה. סימון של אדם, הפיך, ולא ניחוש של המערכת. %>
+              <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline">
+                <button type="submit" class="btn btn-secondary small" title="סמן כטופל — השורה תרד מהרשימה">✓ טופל</button>
+              </form>
+            </td>
+          <% } %>
         </tr>
       <% }); %>
     </tbody>
   </table>
+  <%# סימון שאי אפשר לבטל הוא מחיקה. השורות שסומנו נשארות כאן, מתחת, ונשלפות חזרה בלחיצה. %>
+  <% var _settled = (typeof settledCash !== 'undefined' && settledCash) ? settledCash : []; %>
+  <% if (_settled.length) { %>
+    <details style="margin-top:.6rem">
+      <summary class="muted" style="font-size:12px; cursor:pointer">סומנו כטופלו (<%= _settled.length %>)</summary>
+      <div class="table-scroll" style="margin-top:.4rem">
+        <table class="no-enhance">
+          <thead><tr><th>Z</th><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th><th>סומן</th><th class="no-print"></th></tr></thead>
+          <tbody>
+            <% _settled.forEach(function(e){ %>
+              <tr>
+                <td class="mono">Z <%= e.z_number %></td>
+                <td><%= formatDate(e.expense_date) %></td>
+                <td><%= e.payer_name || '—' %></td>
+                <td><%= e.purpose || '—' %></td>
+                <td class="right"><%= formatIls(e.amount) %></td>
+                <td class="muted" style="font-size:12px"><%= israelStamp(e.settled_at) %></td>
+                <td class="no-print">
+                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline">
+                    <input type="hidden" name="undo" value="1" />
+                    <button type="submit" class="btn btn-secondary small" title="החזר לרשימת ההוצאות ללא התאמה">↩ בטל סימון</button>
+                  </form>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    </details>
+  <% } %>
 </div>
 
 <div class="card">
