@@ -12,6 +12,7 @@ import {
 } from '../services/payments.js';
 import { listPayable } from '../services/invoices.js';
 import { listDeposits } from '../services/deposits.js';
+import { cashExpensesByStore } from '../services/zclosing.js';
 import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopeWhere, effectiveStoreId } from '../lib/scope.js';
@@ -63,6 +64,8 @@ router.get('/', async (req, res, next) => {
       title: 'מרקורים',
       payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope }),
       deposits: await listDeposits({ storeId, scope, limit: 50 }),
+      // "הוצאות מזומן מהקופה" — מקובץ לפי חנות, משני מקומות ההזנה (services/zclosing.js).
+      cashByStore: await cashExpensesByStore(scope, 200),
       filter: req.query.status || '',
       companyId,
       storeId,

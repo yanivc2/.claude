@@ -269,6 +269,82 @@ export async function recentClosingExpenses(scope = null, limit = 30, x = getExe
 }
 
 /**
+ * "הוצאות מזומן מהקופה" — כל מה שיצא מהמגירה, מכל **שני** מקומות ההזנה, מקובץ לפי חנות.
+ *
+ * 🔴 המזומן יוצא מהקופה בשני מסלולים נפרדים, ולכן רובריקה שמראה רק אחד מהם משקרת בשם שלה:
+ *   • `z_closing_expenses` — הוזן בסגירת הקופה (`/zclosing`)
+ *   • `z_expenses`         — הוזן בטופס דוח ה-Z (`/reports/zreports`)
+ * שתי הטבלאות אינן קשורות זו לזו (ל-`z_closings` אין הפניה ל-`z_reports`), ולכן השורות
+ * **אינן מסוכמות יחד** — כל שורה נושאת את מקורה, והקורא רואה מאיפה היא באה.
+ *
+ * שתי שאילתות ומיזוג ב-JS ולא `UNION` — pg-mem מועד על צירופים מורכבים, וזו רשימה חסומה.
+ *
+ * @param {object|number[]|null} scope  req.scope (חברה + חנות)
+ * @returns {Promise<Array<{store_id:number|null, store_name:string, rows:Array}>>} מקובץ לפי חנות
+ */
+export async function cashExpensesByStore(scope = null, limit = 200, x = getExecutor()) {
+  const sc = scopeWhere(scope, 'st.company_id', 'st.id');
+  const closing = await x.many(
+    `SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.description_type, e.amount,
+            e.invoice_id, e.created_at, i.invoice_number, s.name AS invoice_supplier,
+            emp.first_name AS emp_first, emp.last_name AS emp_last,
+            zc.id AS closing_id, zc.z_number, st.id AS store_id, st.name AS store_name
+       FROM z_closing_expenses e
+       JOIN z_closings zc ON zc.id = e.closing_id
+       LEFT JOIN stores st ON st.id = zc.store_id
+       LEFT JOIN invoices i ON i.id = e.invoice_id
+       LEFT JOIN suppliers s ON s.id = i.supplier_id
+       LEFT JOIN employees emp ON emp.id = e.employee_id
+      WHERE e.amount > 0${sc.sql}
+      ORDER BY e.expense_date DESC, e.id DESC LIMIT ?`,
+    [...sc.params, limit],
+  );
+  const report = await x.many(
+    `SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.description_type, e.amount,
+            e.invoice_id, e.created_at, i.invoice_number, s.name AS invoice_supplier,
+            emp.first_name AS emp_first, emp.last_name AS emp_last,
+            zr.id AS z_report_id, zr.z_number, st.id AS store_id, st.name AS store_name
+       FROM z_expenses e
+       JOIN z_reports zr ON zr.id = e.z_report_id
+       LEFT JOIN stores st ON st.id = zr.store_id
+       LEFT JOIN invoices i ON i.id = e.invoice_id
+       LEFT JOIN suppliers s ON s.id = i.supplier_id
+       LEFT JOIN employees emp ON emp.id = e.employee_id
+      WHERE e.amount > 0${sc.sql}
+      ORDER BY e.expense_date DESC, e.id DESC LIMIT ?`,
+    [...sc.params, limit],
+  );
+
+  const all = [
+    ...closing.map((r) => ({ ...r, source: 'closing' })),
+    ...report.map((r) => ({ ...r, source: 'zreport' })),
+  ];
+  // מיון אחיד: לפי תאריך ההוצאה, ובתוך אותו יום לפי שעת השמירה — כך שהחדש ביותר למעלה.
+  all.sort((a, b) =>
+    String(b.expense_date || '').localeCompare(String(a.expense_date || '')) ||
+    String(b.created_at || '').localeCompare(String(a.created_at || '')));
+
+  const byStore = new Map();
+  for (const r of all) {
+    const key = r.store_id == null ? 'none' : Number(r.store_id);
+    if (!byStore.has(key)) {
+      byStore.set(key, {
+        store_id: r.store_id ?? null, store_name: r.store_name || 'ללא חנות',
+        rows: [], total: 0, totalClosing: 0, totalReport: 0,
+      });
+    }
+    const g = byStore.get(key);
+    g.rows.push(r);
+    const amt = Number(r.amount) || 0;
+    g.total += amt;
+    // 🔴 פירוק לפי מקור, ולא רק סכום אחד: אותה הוצאה יכולה להיות מוזנת גם בסגירה וגם בטופס
+    // ה-Z, ואז סכום אחד מכפיל אותה בשקט. כשיש שורות משני המקורות התצוגה אומרת את שניהם.
+    if (r.source === 'closing') g.totalClosing += amt; else g.totalReport += amt;
+  }
+  return [...byStore.values()].sort((a, b) => String(a.store_name).localeCompare(String(b.store_name), 'he'));
+}
+
+/**
  * Match a register-closing cash expense to an invoice → the invoice reads "שולם במזומן". Returns the
  * expense's company_id so the caller can scope-check it. Idempotent per (expense).
  */

@@ -57,3 +57,28 @@ export function addDaysIso(iso, days) {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
+
+/**
+ * חותמת שמירה כפי שמשתמש בישראל קורא אותה: `created_at` נשמר ב-**UTC** בשני הניבים
+ * (SQLite `strftime('now')`, Postgres `to_char(now(), …)` על חיבור שה-timezone שלו UTC),
+ * ולכן הצגתו כמות שהיא מזיזה כל שעת פעולה בשעתיים-שלוש אחורה — ובדיוק בשדה שנועד לענות על
+ * "מתי זה הוזן".
+ *
+ * @param {string|null|undefined} stored  'YYYY-MM-DD HH:MM:SS' (או ISO) ב-UTC
+ * @returns {string} 'DD/MM/YY HH:MM' בשעון ישראל, או '' אם אין ערך/לא נפרס
+ */
+export function israelStamp(stored) {
+  const s = String(stored ?? '').trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/.exec(s);
+  if (!m) return '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+  if (Number.isNaN(d.getTime())) return '';
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Jerusalem',
+      year: '2-digit', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hour12: false,
+    }).formatToParts(d).map((x) => [x.type, x.value]),
+  );
+  return `${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`;
+}

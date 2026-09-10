@@ -5,6 +5,9 @@
   var _cxKindLabel = { manual: 'ידני', salary: 'שכר', advance: 'מפרעה', invoice: 'חשבונית' };
   var _matchable = (typeof matchable !== 'undefined' && matchable);
   var _matchInvoices = (typeof matchInvoices !== 'undefined' && matchInvoices) ? matchInvoices : [];
+  // `hideStore` — הקורא כבר מקבץ לפי חנות (רובריקת "הוצאות מזומן מהקופה"), ואז שם החנות בכל
+  // שורה הוא רעש שחוזר על עצמו מול הכותרת שמעליו. מספר ה-Z נשאר: הוא מזהה את השורה.
+  var _hideStore = (typeof hideStore !== 'undefined' && hideStore);
 %>
 <div class="table-scroll">
   <table class="sortable">
@@ -20,16 +23,31 @@
           // it; everyone else gets a plain, non-clickable row (no dead link, no 403).
           var _canOpenClosing = (typeof currentUser !== 'undefined' && currentUser
             && currentUser.role === 'owner' && e.closing_id);
-          var _rowHref = (!_matchable && _canOpenClosing) ? ('/zclosing/' + e.closing_id) : null;
+          // שורה שהוזנה בטופס דוח ה-Z מובילה לדוח שלה; שורה של סגירה מובילה לסגירה (בעלים בלבד,
+          // כי GET /zclosing/:id הוא requireOwner). כך כל שורה ניתנת לאימות מול המקור שלה.
+          var _rowHref = _matchable ? null
+            : (_canOpenClosing ? ('/zclosing/' + e.closing_id)
+              : (e.z_report_id ? ('/reports/zreports/' + e.z_report_id) : null));
         %>
         <tr<% if (_rowHref) { %> class="cx-recent-row" data-href="<%= _rowHref %>" title="פתח את סגירת ה-Z לעריכה"<% } %>>
           <td>
-            <% if (e.store_name || e.z_number) { %>
-              <div class="muted" style="font-size:12px"><%= e.store_name || '' %><%= (e.store_name && e.z_number) ? ' · ' : '' %><%= e.z_number ? 'Z ' + e.z_number : '' %></div>
+            <% var _st = _hideStore ? '' : (e.store_name || ''); %>
+            <% if (_st || e.z_number) { %>
+              <div class="muted" style="font-size:12px"><%= _st %><%= (_st && e.z_number) ? ' · ' : '' %><%= e.z_number ? 'Z ' + e.z_number : '' %></div>
             <% } %>
             <%= _cxKindLabel[e.description_type] || 'ידני' %>
+            <% if (e.source) { %>
+              <span class="muted" style="font-size:11px">· <%= e.source === 'closing' ? 'סגירת Z' : 'דוח Z' %></span>
+            <% } %>
           </td>
-          <td class="mono"><%= formatDate(e.expense_date) %></td>
+          <%# תאריך ההוצאה + שעת השמירה בפועל. `created_at` נשמר ב-UTC, ולכן הוא עובר דרך
+              israelStamp — הצגתו כמות שהיא הייתה מזיזה כל פעולה ב-2-3 שעות אחורה. %>
+          <td class="mono" data-sort="<%= e.created_at || e.expense_date || '' %>">
+            <%= formatDate(e.expense_date) %>
+            <% if (e.created_at && israelStamp(e.created_at)) { %>
+              <div class="muted" style="font-size:11px" title="שעת השמירה במערכת">נשמר <%= israelStamp(e.created_at) %></div>
+            <% } %>
+          </td>
           <td><%= e.payer_name || '—' %></td>
           <td>
             <% if (e.description_type === 'invoice' && e.invoice_id) { %>

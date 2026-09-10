@@ -31,11 +31,12 @@ import { isScanEnabled } from './services/appSettings.js';
 import { depositStatus } from './services/deposits.js';
 import { requiresAllocationNumber, zeroVatNeedsCheck } from './services/invoices.js';
 import { actionUrlFallback } from './middleware/actionUrlFallback.js';
+import { israelStamp } from './lib/loginHours.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-08-30·161';
+const BUILD_VERSION = '2026-08-30·162';
 
 export function createApp() {
   const app = express();
@@ -102,6 +103,9 @@ export function createApp() {
       const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d));
       return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : String(d);
     };
+    // חותמת שמירה בשעון ישראל. `created_at`/`imported_at` נשמרים ב-UTC בשני הניבים, ולכן
+    // הצגתם כמות שהם מזיזה כל שעת פעולה ב-2-3 שעות אחורה. ראה lib/loginHours.js.
+    res.locals.israelStamp = israelStamp;
     // 'YYYY-MM-DD HH:MM:SS' (or ISO) -> 'DD/MM/YY HH:MM'. Leaves non-timestamps untouched.
     res.locals.formatDateTime = (d) => {
       if (!d) return '';

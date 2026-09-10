@@ -90,6 +90,9 @@ happen only at merge. So:
 - **Israel time:** `lib/loginHours.js#israelClock()`/`israelToday()` (→`'YYYY-MM-DD'`) and
   `services/zclosing.js#israelNow()` use `Intl.DateTimeFormat(..., { timeZone: 'Asia/Jerusalem' })`.
   Use `israelToday()` for any "today" default (e.g. `markCleared`), never `new Date().toISOString()`.
+  🔴 **`created_at`/`imported_at` נשמרים ב-UTC** בשני הניבים (`strftime('now')` / `to_char(now(), …)`) — הצגתם
+  כמות שהם מזיזה כל שעת פעולה 2-3 שעות אחורה. להצגה: **`israelStamp(stored)`** (`lib/loginHours.js`, חשוף
+  כ-`res.locals.israelStamp`).
 - **דוח פדיון (revenue reports):** the nightly per-store sales+credit report is the **systematic
   sales source** for profitability (Z reports are irregular). `lib/revenueReportFile.js` parses it
   (+ **`lib/xlsRead.js`** for the legacy OLE2/BIFF `.xls` the POS actually emits — NOT xlsx). Two

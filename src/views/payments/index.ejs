@@ -56,6 +56,33 @@
   </div>
 </details>
 
+<%# הוצאות מזומן מהקופה — כל מה שיצא מהמגירה, חנות אחר חנות. אותה טבלה של "הוצאות מזומן
+    אחרונות" בדף סגירת Z, אבל חתוכה לפי חנות ומשני מקומות ההזנה: סגירת הקופה וטופס דוח ה-Z. %>
+<% var _cash = (typeof cashByStore !== 'undefined' && cashByStore) ? cashByStore : []; %>
+<% var _cashCount = _cash.reduce(function(n, g){ return n + g.rows.length; }, 0); %>
+<details class="card collapse" style="margin-top:1rem">
+  <summary><span class="caret">▸</span> הוצאות מזומן מהקופה <span class="muted">(<%= _cashCount %>)</span></summary>
+  <% if (!_cash.length) { %>
+    <p class="muted" style="margin:.8rem 0 0">אין הוצאות מזומן עדיין.</p>
+  <% } else { %>
+    <% _cash.forEach(function(g){ %>
+      <div style="margin-top:1rem">
+        <h3 style="margin:0 0 .3rem; font-size:15px">
+          <%= g.store_name %>
+          <span class="muted" style="font-weight:400; font-size:12px">
+            · <%= g.rows.length %> הוצאות · <%= formatIls(g.total) %>
+            <%# כששני המקורות פעילים הסכום המשולב עלול להכפיל הוצאה שהוזנה בשניהם — לכן הפירוק. %>
+            <% if (g.totalClosing && g.totalReport) { %>
+              (סגירת Z <%= formatIls(g.totalClosing) %> · דוח Z <%= formatIls(g.totalReport) %>)
+            <% } %>
+          </span>
+        </h3>
+        <%- include('../partials/_cashExpenses', { rows: g.rows, hideStore: true }) %>
+      </div>
+    <% }); %>
+  <% } %>
+</details>
+
 <details class="card collapse" style="margin-top:1rem">
   <summary><span class="caret">▸</span> צ׳קים <span class="muted">(<%= payments.length %>)</span></summary>
 <p class="muted no-print" style="margin:.6rem 0 .2rem">לחיצה על כותרת עמודה ממיינת · שורת הסינון מתחת לכותרות מסננת לפי עמודה.</p>

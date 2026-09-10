@@ -167,7 +167,8 @@
         <tbody>
           <% imps.forEach(function(im){ %>
             <tr>
-              <td data-label="מתי" data-sort="<%= im.imported_at %>"><%= String(im.imported_at).slice(0,16) %></td>
+              <%# `imported_at` נשמר ב-UTC — חיתוך המחרוזת הראה שעה מוקדמת ב-2-3 שעות מהשעה שבה הקובץ באמת הועלה. %>
+              <td data-label="מתי" data-sort="<%= im.imported_at %>"><%= israelStamp(im.imported_at) || String(im.imported_at).slice(0,16) %></td>
               <td data-label="קובץ" title="<%= im.file_name || '' %>" style="word-break:break-word; min-width:12ch"><%= im.file_name || '—' %></td>
               <td data-label="מקור" class="muted"><%= im.source === 'csv' ? 'קובץ' : im.source === 'financy' ? 'משיכה מהבנק' : im.source === 'scraper' ? 'סריקה' : im.source %></td>
               <td data-label="נשמרו" class="right"><strong><%= im.inserted %></strong></td>
