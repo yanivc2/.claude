@@ -68,16 +68,22 @@ test('register-closing (סגירת Z) cash expenses also surface as unmatched on
     expenses: [
       { kind: 'manual', payerName: 'תיו', purpose: 'ציוד משרדי', amount: 9000 },         // unmatched → surfaces
       { kind: 'invoice', payerName: 'טרטאה', amount: 97900, invoiceId: inv.id },          // matched → hidden
-      { kind: 'salary', payerName: 'עובד', amount: 500 },                                 // payroll → hidden
+      // 🔴 השורה הזו נבדקה כאן פעם כ"payroll → hidden". זה היה שגוי: שכר שיצא במזומן מהקופה ולא
+      // נקשר לשום רישום שכר הוא בדיוק תשלום מזומן ללא התאמה. ההחרגה לפי סוג הוחלפה בסינון לפי
+      // הקישור עצמו (services/zreports.js#unmatchedCashExpenses) — ראה test/unmatched-cash-salary.test.js.
+      { kind: 'salary', payerName: 'עובד', amount: 500 },                                 // לא נקשר → מופיע
     ],
   }, ow, db);
 
   const un = await unmatchedCashExpenses(null, 30, null, db);
   const mine = un.filter((r) => r.source === 'zclosing');
-  assert.equal(mine.length, 1);                 // only the manual, unmatched line
-  assert.equal(mine[0].payer_name, 'תיו');
-  assert.equal(mine[0].ref_id, closingId);      // links back to the register closing
-  assert.equal(mine[0].z_number, '2162');
+  assert.equal(mine.length, 2);                 // המנואלי + השכר שלא נקשר; החשבונית מוסתרת
+  assert.ok(!mine.some((r) => r.payer_name === 'טרטאה'), 'שורה ששויכה לחשבונית אינה מופיעה');
+  const manual = mine.find((r) => r.payer_name === 'תיו');
+  assert.ok(manual);
+  assert.equal(manual.ref_id, closingId);       // links back to the register closing
+  assert.equal(manual.z_number, '2162');
+  assert.ok(mine.some((r) => r.description_type === 'salary' && r.payer_name === 'עובד'));
 });
 
 test('deposit declared on a Z links back to it (שיוך ל-Z)', async () => {

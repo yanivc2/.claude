@@ -262,9 +262,14 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
   //   • z_expenses      — the older "דוח Z" flow  (z_reports)
   //   • z_closing_expenses — the "סגירת Z" register-closing flow (z_closings)
   // The register-closer enters cash expenses in "סגירת Z", so those land in z_closing_expenses; a
-  // dashboard that read only z_expenses showed nothing. UNION both, keeping only real cash lines
-  // (positive, not yet matched to an invoice, not salary/advance — those are payroll, tracked on
-  // the employees page). `source` tells the view which detail page to link to.
+  // dashboard that read only z_expenses showed nothing. UNION both, keeping every real cash line
+  // (positive, not yet matched to an invoice). `source` tells the view which detail page to link to.
+  //
+  // 🔴 שכר ומפרעה **אינם מוחרגים**. הם הוחרגו כאן פעם ("זה שכר, זה מנוהל בדף עובדים"), אבל
+  // "מנוהל בדף עובדים" אינו "הותאם": שכר שיצא במזומן מהקופה ולא נקשר לשום רישום שכר הוא בדיוק
+  // תשלום מזומן ללא התאמה — הכסף יצא, ואף שורה לא אומרת עבור מה. ההחרגה הגורפת הסתירה אותו
+  // לגמרי, ולכן הוא לא הופיע גם כשבאמת לא בוצעה התאמה. במקום החרגה לפי סוג, מסננים לפי
+  // **הקישור עצמו** — ראה `linkedKeys` למטה.
   const scR = scopeWhere(scope, 'st.company_id', 'z.store_id'); // z_reports side
   const scC = scopeWhere(scope, 'st.company_id', 'zc.store_id'); // z_closings side
   // Active-store context: filter both sides by the store (z_reports.store_id / z_closings.store_id).
@@ -274,25 +279,51 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
   const stCp = storeId ? [storeId] : [];
   const rows = await x.many(
     `SELECT * FROM (
-       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, z.store_id AS store_id,
-              z.z_number, 'zreport' AS source, z.id AS ref_id
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
+              z.store_id AS store_id,
+              z.z_number, 'zreport' AS source, z.id AS ref_id,
+              emp.first_name AS emp_first, emp.last_name AS emp_last
          FROM z_expenses e
          JOIN z_reports z ON z.id = e.z_report_id
          JOIN stores st ON st.id = z.store_id
-        WHERE e.invoice_id IS NULL AND e.amount > 0
-          AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scR.sql}${stR}
+         LEFT JOIN employees emp ON emp.id = e.employee_id
+        WHERE e.invoice_id IS NULL AND e.amount > 0${scR.sql}${stR}
        UNION ALL
-       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, zc.store_id AS store_id,
-              zc.z_number, 'zclosing' AS source, zc.id AS ref_id
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
+              zc.store_id AS store_id,
+              zc.z_number, 'zclosing' AS source, zc.id AS ref_id,
+              emp.first_name AS emp_first, emp.last_name AS emp_last
          FROM z_closing_expenses e
          JOIN z_closings zc ON zc.id = e.closing_id
          JOIN stores st ON st.id = zc.store_id
-        WHERE e.invoice_id IS NULL AND e.amount > 0
-          AND (e.description_type IS NULL OR e.description_type NOT IN ('salary','advance'))${scC.sql}${stC}
+         LEFT JOIN employees emp ON emp.id = e.employee_id
+        WHERE e.invoice_id IS NULL AND e.amount > 0${scC.sql}${stC}
      ) u
      ORDER BY u.expense_date DESC, u.id DESC`,
     [...scR.params, ...stRp, ...scC.params, ...stCp],
   );
+
+  // מה **באמת** נחשב "הותאם" עבור שורת שכר/מפרעה — שלושת הקישורים שכבר קיימים במסד:
+  //   • `salary_payments.cash_expense_id`  → הוצאת סגירת-Z ששילמה שכר ("הצ׳ק נפרט")
+  //   • `payments.void_cash_expense_id`    → צ׳ק מבוטל שנפרע במזומן מול אותה הוצאה
+  //   • `employee_advances.z_expense_id`   → מפרעה מדוח Z, משוקפת אוטומטית לספר המפרעות
+  // 🔴 המפתח הוא `source|id` ולא `id` לבדו: שתי הטבלאות הן שני מרחבי מזהים נפרדים, ו-id 7
+  // בסגירה אינו id 7 בדוח. בלי זה שורה אחת הייתה מסתירה שורה אחרת לגמרי.
+  //
+  // טבלה שעדיין לא קיימת (מסד לפני עדכון) נספרת כ"אין קישורים" — כלומר השורה **תוצג**. זה
+  // הכיוון הבטוח ברשימת מטלות: להראות משהו שכבר טופל עדיף על להסתיר משהו שלא.
+  const linkedKeys = new Set();
+  const collect = async (sql, prefix) => {
+    try {
+      for (const r of await x.many(sql, [])) {
+        const v = Object.values(r)[0];
+        if (v != null) linkedKeys.add(`${prefix}|${Number(v)}`);
+      }
+    } catch { /* טבלה שטרם נוצרה */ }
+  };
+  await collect('SELECT cash_expense_id FROM salary_payments WHERE cash_expense_id IS NOT NULL', 'zclosing');
+  await collect('SELECT void_cash_expense_id FROM payments WHERE void_cash_expense_id IS NOT NULL', 'zclosing');
+  await collect('SELECT z_expense_id FROM employee_advances WHERE z_expense_id IS NOT NULL', 'zreport');
 
   // "תשלום מזומן = מטופל": a register cash expense that already has a matching cash PAYMENT (same
   // store + same amount, non-voided) is considered reconciled — drop it from the "unmatched" list.
@@ -310,6 +341,7 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
   }
   const out = [];
   for (const r of rows) {
+    if (linkedKeys.has(`${r.source}|${Number(r.id)}`)) continue; // שכר/מפרעה שכבר נקשרו
     const k = `${Number(r.store_id)}|${Number(r.amount)}`;
     const avail = payCount.get(k) || 0;
     if (avail > 0) { payCount.set(k, avail - 1); continue; } // matched by a cash payment → skip

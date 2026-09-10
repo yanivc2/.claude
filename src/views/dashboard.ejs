@@ -251,8 +251,22 @@
         <tr>
           <td><a href="<%= e.source === 'zclosing' ? '/zclosing/' + e.ref_id : '/reports/zreports/' + e.ref_id %>">Z <%= e.z_number %></a></td>
           <td><%= formatDate(e.expense_date) %></td>
-          <td><%= e.payer_name || '—' %></td>
-          <td><%= e.purpose || '—' %></td>
+          <td>
+            <%= e.payer_name || '—' %>
+            <%# שכר/מפרעה מטופלים בדף עובדים, ולכן השורה אומרת את הסוג ואת שם העובד — אחרת
+                "תשלום מזומן ללא התאמה" מציג סכום בלי לומר מה צריך לעשות איתו. %>
+            <% var _emp = ((e.emp_first || '') + ' ' + (e.emp_last || '')).trim(); %>
+            <%# רק כשהשם המלא מוסיף מידע: "אורית" מול "אורית כהן" הוא אותו אדם, ו-"אורית · אורית כהן" הוא רעש. %>
+            <% var _p = (e.payer_name || '').trim(); %>
+            <% if (_emp && _p && !_emp.includes(_p) && !_p.includes(_emp)) { %><span class="muted" style="font-size:12px">· <%= _emp %></span>
+            <% } else if (_emp && !_p) { %><%= _emp %><% } %>
+          </td>
+          <td>
+            <% if (e.description_type === 'salary' || e.description_type === 'advance') { %>
+              <a href="/employees"><span class="badge b-on_hold"><%= e.description_type === 'salary' ? 'שכר' : 'מפרעה' %></span></a>
+            <% } %>
+            <%= e.purpose || (e.description_type === 'salary' ? 'שכר במזומן' : e.description_type === 'advance' ? 'מפרעה במזומן' : '—') %>
+          </td>
           <td class="right"><%= formatIls(e.amount) %></td>
         </tr>
       <% }); %>
