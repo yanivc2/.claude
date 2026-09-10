@@ -13,6 +13,8 @@ import { requirePermission } from '../middleware/requireOwner.js';
 import {
   importTransactions,
   listImports,
+  untrackedSummary,
+  deleteTransactions,
   getImport,
   deleteImport,
   listUnmatched,
@@ -80,6 +82,7 @@ async function renderPage(req, res, accountId, extra = {}) {
     accounts: await accounts(req.scope),
     accountId,
     imports: accountId ? await listImports({ accountId }) : [],
+    untracked: accountId ? await untrackedSummary(accountId) : null,
     classified,
     transactions: accountId ? await listTransactions(accountId) : [],
     // Open-Banking sync is offered only when the key is configured AND this account is linked.
@@ -254,6 +257,22 @@ router.post('/unmatch', async (req, res, next) => {
     await renderPage(req, res, accountId, { notice: 'ההתאמה בוטלה, הצ׳ק חזר לסטטוס פתוח.' });
   } catch (err) {
     if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+// מחיקה מרובה — הדרך לנקות שורות זרות שקדמו למעקב הייבוא ואין להן קובץ לבטל.
+router.post('/txns/delete', requirePermission('import_bank'), async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  try {
+    const ids = [].concat(req.body.txn_ids || []).map(Number).filter(Boolean);
+    const r = await deleteTransactions(ids, accountId, req.user);
+    return renderPage(req, res, accountId, {
+      notice: `נמחקו ${r.deleted} תנועות`
+        + `${r.skippedMatched ? `. ${r.skippedMatched} דולגו כי הן מותאמות לצ׳ק — בטל את ההתאמה קודם.` : '.'}`,
+    });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return renderPage(req, res, accountId, { error: err.message });
     next(err);
   }
 });

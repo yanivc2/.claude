@@ -52,8 +52,19 @@
 <% var imps = (typeof imports !== 'undefined' && imports) ? imports : []; %>
 <div class="card">
   <h2 style="margin:0 0 .4rem">ייבואים אחרונים לחשבון זה</h2>
+  <%# תנועות שהועלו לפני שהמעקב קיים אין להן ייבוא מזוהה. לומר את זה — עדיף על "לא יובאו קבצים"
+      מול חשבון שמלא בתנועות. %>
+  <% var untr = (typeof untracked !== 'undefined') ? untracked : null; %>
+  <% if (untr) { %>
+    <div class="alert alert-info" style="margin:0 0 .6rem">
+      <strong><%= untr.count %> תנועות בחשבון הזה הועלו לפני שמעקב הייבוא נוסף</strong>
+      <% if (untr.from) { %>(<%= formatDate(untr.from) %>–<%= formatDate(untr.to) %>)<% } %>,
+      ולכן אי אפשר לשייך אותן לקובץ מסוים. למחיקה שלהן — סמן אותן בטבלת "כל התנועות בחשבון" למטה
+      (אפשר לסנן לפי תיאור/אסמכתה/תאריך) ולחץ "מחק נבחרות".
+    </div>
+  <% } %>
   <% if (!imps.length) { %>
-    <p class="muted" style="margin:0">עדיין לא יובאו קבצים לחשבון הזה.</p>
+    <p class="muted" style="margin:0"><%= untr ? 'אין ייבואים מלווים במעקב לחשבון הזה — כל קובץ שתעלה מעכשיו יופיע כאן.' : 'עדיין לא יובאו קבצים לחשבון הזה.' %></p>
   <% } else { %>
     <p class="muted" style="margin:0 0 .5rem">
       כל שורה היא העלאה אחת. <strong>"נשמר ומוכן להתאמה"</strong> = השורות קיימות וממתינות ל"התאמה אוטומטית".
@@ -156,8 +167,20 @@
 
 <div class="card">
   <h2>כל התנועות בחשבון</h2>
-  <table class="sortable">
-    <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th><th>סטטוס</th><th data-nosort class="no-print">פעולות</th></tr></thead>
+  <%# בחירה מרובה + מחיקה. יחד עם הסינון לכל עמודה זה מה שמנקה שורות זרות שהועלו לחשבון הלא
+      נכון — כולל כאלה שקדמו למעקב הייבוא ואין להן קובץ לבטל. %>
+  <%# 🔴 הטופס עומד בפני עצמו ו**אינו עוטף את הטבלה**: לשורות יש טפסים משלהן (ערוך / מחק / בטל
+      התאמה), ו-HTML אינו מרשה טופס בתוך טופס — הדפדפן משטח אותם, שדות ה-account_id שלהם נדבקים
+      לטופס החיצוני, וכפתורי השורה מתחילים לשלוח אותו. תיבות הסימון מקושרות דרך `form="bulk-del"`,
+      וזה בדיוק מה שהתכונה הזו קיימת בשבילה. %>
+  <form method="post" action="/reconciliation/txns/delete" id="bulk-del" class="actions no-print" style="margin:0 0 .4rem"
+        onsubmit="var n=document.querySelectorAll('.txn-pick:checked').length; if(!n){alert('לא נבחרו תנועות.');return false;} return confirm('למחוק '+n+' תנועות? תנועה שכבר הותאמה לצ׳ק תדולג.');">
+    <input type="hidden" name="account_id" value="<%= accountId %>" />
+    <button type="submit" class="btn-sm danger">🗑️ מחק נבחרות</button>
+    <span class="muted" style="font-size:12px">סמן שורות (או את הכותרת לבחירת הכל) — שורה שכבר הותאמה לצ׳ק תדולג.</span>
+  </form>
+  <table class="sortable filterable">
+    <thead><tr><th data-nosort data-nofilter class="no-print"><input type="checkbox" id="txn-all" style="width:auto;min-height:0" title="בחר הכל" /></th><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th><th>סטטוס</th><th data-nosort data-nofilter class="no-print">פעולות</th></tr></thead>
     <tbody>
       <% if (transactions.length === 0) { %>
         <tr><td colspan="7" class="muted">
@@ -169,7 +192,12 @@
       <% } %>
       <% transactions.forEach(function(t){ %>
         <tr>
-          <td><%= formatDate(t.txn_date) %></td>
+          <td class="no-print">
+            <% if (!t.matched_payment_id) { %>
+              <input type="checkbox" class="txn-pick" name="txn_ids" value="<%= t.id %>" form="bulk-del" style="width:auto;min-height:0" />
+            <% } %>
+          </td>
+          <td data-sort="<%= t.txn_date %>"><%= formatDate(t.txn_date) %></td>
           <td class="right <%= t.amount < 0 ? 'neg' : '' %>"><%= formatIls(t.amount) %></td>
           <td><%= t.description || '' %></td>
           <td class="mono"><%= t.raw_reference || '—' %></td>
@@ -216,6 +244,20 @@
       <% }); %>
     </tbody>
   </table>
+  <script>
+  (function(){
+    // "בחר הכל" מסמן רק שורות שנראות — כלומר אחרי הסינון, וזה כל העניין: מסננים לשורות הזרות
+    // ומסמנים אותן יחד. שורה שכבר הותאמה לצ׳ק אין לה תיבה בכלל.
+    var all = document.getElementById("txn-all");
+    if (!all) return;
+    all.addEventListener("change", function(){
+      document.querySelectorAll(".txn-pick").forEach(function(cb){
+        var tr = cb.closest("tr");
+        if (tr && tr.style.display !== "none") cb.checked = all.checked;
+      });
+    });
+  })();
+  </script>
 </div>
 
 <!-- מודל ייבוא CSV / Excel -->

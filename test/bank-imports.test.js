@@ -110,3 +110,63 @@ test('the list is per account — another store\'s uploads are not shown here', 
     assert.deepEqual(mine.map((i) => i.file_name), ['mine.csv']);
   }
 });
+
+test('rows imported before the tracking existed are reported, not hidden', async () => {
+  const { db, ow, acct } = await world();
+  const { untrackedSummary } = await import('../src/services/bankTransactions.js');
+  assert.equal(await untrackedSummary(acct.id, db), null, 'nothing there → nothing to say');
+
+  // a row with no import_id is what every pre-upgrade transaction looks like
+  await db.run(`INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, source)
+                VALUES (?, '2026-08-01', -5000, 'ישן', 'csv')`, [acct.id]);
+  await importTransactions(acct.id, ROWS, 'csv', ow, db, { fileName: 'new.csv' });
+
+  const u = await untrackedSummary(acct.id, db);
+  assert.equal(u.count, 1, 'only the untracked one');
+  assert.equal(u.from, '2026-08-01');
+  // The page must not claim "no files imported" while the account is full of transactions.
+  assert.ok(u.count > 0);
+});
+
+test('bulk delete removes the picked rows, and skips ones matched to a check', async () => {
+  const { db, ow, store, acct } = await world();
+  const { deleteTransactions } = await import('../src/services/bankTransactions.js');
+  const sup = await approveSupplier((await createSupplier({ name: 'טרה' }, ow, db)).id, ow, db);
+  await createInvoice({ supplierId: sup.id, storeId: store.id, invoiceNumber: 'INV-9', invoiceDate: '2026-08-20',
+    amountBeforeVat: 100000, vatAmount: 18000, docType: 'tax_invoice', allocationNumber: '111222333' }, ow, db);
+  const inv = await db.one("SELECT * FROM invoices WHERE invoice_number = 'INV-9'", []);
+  await approveInvoiceForPayment(inv.id, ow, db);
+  const pay = await createPayment({ bankAccountId: acct.id, method: 'check', checkNumber: '1001',
+    paymentDate: '2026-09-01', invoiceIds: [inv.id] }, ow, db);
+
+  await importTransactions(acct.id, ROWS, 'csv', ow, db, { fileName: 'x.csv' });
+  const all = await db.many('SELECT id, raw_reference FROM bank_transactions ORDER BY id', []);
+  const matchedTxn = all.find((t) => t.raw_reference === '1001');
+  await confirmMatch(matchedTxn.id, pay.id, ow, db);
+
+  const r = await deleteTransactions(all.map((t) => t.id), acct.id, ow, db);
+  assert.equal(r.deleted, 1, 'the free row went');
+  assert.equal(r.skippedMatched, 1, 'the matched one was skipped, not silently detached');
+  const left = await db.many('SELECT id FROM bank_transactions', []);
+  assert.equal(left.length, 1);
+  assert.equal(Number(left[0].id), Number(matchedTxn.id));
+});
+
+test('🔒 bulk delete cannot reach another account by a forged id', async () => {
+  const { db, ow, acct } = await world();
+  const { deleteTransactions } = await import('../src/services/bankTransactions.js');
+  const other = await db.one('SELECT * FROM bank_accounts WHERE id <> ? LIMIT 1', [acct.id]);
+  if (!other) return;
+  await importTransactions(other.id, ROWS, 'csv', ow, db, { fileName: 'theirs.csv' });
+  const theirs = await db.many('SELECT id FROM bank_transactions', []);
+
+  const r = await deleteTransactions(theirs.map((t) => t.id), acct.id, ow, db);
+  assert.equal(r.deleted, 0, 'ids belonging to another account are simply not there');
+  assert.equal((await db.many('SELECT id FROM bank_transactions', [])).length, theirs.length);
+});
+
+test('bulk delete refuses an empty selection instead of doing nothing quietly', async () => {
+  const { db, ow, acct } = await world();
+  const { deleteTransactions } = await import('../src/services/bankTransactions.js');
+  await assert.rejects(() => deleteTransactions([], acct.id, ow, db), /לא נבחרו/);
+});

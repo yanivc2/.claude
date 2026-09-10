@@ -89,8 +89,21 @@
       <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required value="<%= sh(closing.drawer_cash) %>" /></div>
     </div>
 
-    <details class="card collapse-card" style="background:var(--color-surface-2);margin:1rem 0 0">
-      <summary>איזון קופות (ספירת מזומן בכל קופה לפני ה-Z)</summary>
+    <%# 🔴 פתוחה כשיש בתוכה ספירה, והסיכום נאמר בכותרת. קודם היא הייתה מקופלת תמיד וללא שום סימן
+        שיש בה משהו — הבעלים פתח סגירה שמורה, ראה רצועה סגורה, והסיק שאיזון הקופות לא נשמר.
+        הנתונים היו שם כל הזמן. רובריקה שמסתירה תוכן בלי לומר שהוא קיים היא שקר בתצוגה. %>
+    <%
+      var savedRegs = [];
+      try { savedRegs = JSON.parse(closing.registers || '[]') || []; } catch (e) { savedRegs = []; }
+      var regTotal = savedRegs.reduce(function(n, r){ return n + (Number(r.total) || 0); }, 0);
+    %>
+    <details class="card collapse-card" style="background:var(--color-surface-2);margin:1rem 0 0" <%= savedRegs.length ? 'open' : '' %>>
+      <summary>
+        איזון קופות (ספירת מזומן בכל קופה לפני ה-Z)
+        <% if (savedRegs.length) { %>
+          <span class="badge b-approved"><%= savedRegs.length %> <%= savedRegs.length === 1 ? 'קופה' : 'קופות' %> · <%= formatIls(regTotal) %></span>
+        <% } %>
+      </summary>
       <p class="muted" style="margin:.5rem 0 .6rem">ספור את המזומן בכל קופה. אפשר להוסיף קופה נוספת. הספירה נשמרת עם הסגירה ואינה משפיעה על טבלת המגירה למטה.</p>
       <div id="reg-list"></div>
       <button type="button" class="btn btn-secondary small" onclick="regAdd()">➕ הוסף קופה</button>

@@ -103,6 +103,60 @@ export async function listImports({ accountId = null, limit = 20 } = {}, x = get
   });
 }
 
+/**
+ * התנועות בחשבון שאין להן ייבוא מזוהה — כל מה שהועלה **לפני** שהמעקב הזה קיים.
+ *
+ * בלי זה הרובריקה אומרת "עדיין לא יובאו קבצים" מול חשבון שמלא בתנועות, וזה פשוט לא נכון. אי
+ * אפשר לשחזר לאיזה קובץ הן שייכות — הנתון הזה לא נשמר אז — ולכן הן מוצגות כקבוצה אחת עם טווח
+ * תאריכים, ולא כ"ייבוא" שאפשר לבטל בלחיצה: מחיקה גורפת שלהן הייתה מוחקת גם תנועות אמיתיות.
+ */
+/**
+ * מחיקת כמה תנועות בבת אחת — הכלי לניקוי שורות שהועלו לחשבון הלא נכון, כולל כאלה שקדמו למעקב
+ * הייבוא ואין להן קובץ לבטל.
+ *
+ * 🔴 שורה מותאמת אינה נמחקת: היא מדולגת ונספרת. מחיקה שקטה שלה הייתה מנתקת צ׳ק מההתאמה שלו.
+ * הקורא מקבל את המספר ואומר אותו למשתמש.
+ *
+ * @param {number[]} ids
+ * @returns {Promise<{deleted:number, skippedMatched:number}>}
+ */
+export async function deleteTransactions(ids, accountId, actor, x = getExecutor()) {
+  const wanted = [...new Set((ids || []).map(Number).filter(Boolean))];
+  if (!wanted.length) throw new RuleError('VALIDATION', 'לא נבחרו תנועות');
+  // כל השורות נשלפות ומסוננות לחשבון הזה — מזהה מזויף לא ימחק תנועה של חשבון אחר.
+  const rows = await x.many('SELECT id, matched_payment_id FROM bank_transactions WHERE bank_account_id = ?', [Number(accountId)]);
+  const mine = rows.filter((r) => wanted.includes(Number(r.id)));
+  const free = mine.filter((r) => r.matched_payment_id == null);
+  for (const r of free) await x.run('DELETE FROM bank_transactions WHERE id = ?', [r.id]);
+  await logAction(
+    { userId: actor?.id ?? null, action: 'bank.txn_bulk_delete', entityType: 'bank_account', entityId: Number(accountId),
+      details: { deleted: free.length, skippedMatched: mine.length - free.length } },
+    x,
+  );
+  return { deleted: free.length, skippedMatched: mine.length - free.length };
+}
+
+export async function untrackedSummary(accountId, x = getExecutor()) {
+  let rows;
+  try {
+    rows = await x.many(
+      'SELECT txn_date, source, matched_payment_id FROM bank_transactions WHERE bank_account_id = ? AND import_id IS NULL',
+      [Number(accountId)],
+    );
+  } catch {
+    return null;
+  }
+  if (!rows.length) return null;
+  const dates = rows.map((r) => r.txn_date).filter(Boolean).sort();
+  return {
+    count: rows.length,
+    matched: rows.filter((r) => r.matched_payment_id != null).length,
+    from: dates[0] || null,
+    to: dates[dates.length - 1] || null,
+    sources: [...new Set(rows.map((r) => r.source))].join(', '),
+  };
+}
+
 export async function getImport(id, x = getExecutor()) {
   const row = await x.one('SELECT * FROM bank_imports WHERE id = ?', [Number(id)]);
   if (!row) throw new NotFoundError(`ייבוא ${id} לא נמצא`);
