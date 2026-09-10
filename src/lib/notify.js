@@ -86,10 +86,10 @@ function toPlain(html) {
  * @param {{kind?:string, link?:string}} [opts]
  */
 export function notify(text, opts = {}) {
-  void sendTelegram(text); // Telegram (no-op if unconfigured); never rejects
+  const tg = sendTelegram(text); // Telegram (no-op if unconfigured); never rejects
   // In-app copy: first line → title, remainder → body. Dynamic import keeps this lib free of a
   // static dependency on the service/DB layer (and avoids any import cycle).
-  (async () => {
+  const inApp = (async () => {
     try {
       const plain = toPlain(text);
       if (!plain) return;
@@ -98,4 +98,9 @@ export function notify(text, opts = {}) {
       await recordNotification({ kind: opts.kind || 'alert', title, body: rest.join('\n').trim() || null, link: opts.link || null });
     } catch { /* best-effort */ }
   })();
+  // 🔴 מוחזר promise, ועדיין לא זורק. הקוראים הוותיקים מתעלמים ממנו ומתנהגים כמו קודם
+  // (fire-and-forget), אבל התראה שאסור לאבד **חייבת** להיות מומתנת: על serverless הפונקציה
+  // עלולה לקפוא ברגע שהתשובה נשלחה, ואז ה-IIFE שרושם את ההתראה פשוט לא מסיים — הבעלים לא
+  // מקבל כלום ואיש אינו יודע. לכן מסלולי ההתאמה עושים `await notify(...)`.
+  return Promise.allSettled([tg, inApp]).then(() => undefined);
 }

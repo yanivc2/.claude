@@ -35,6 +35,7 @@ export function migrate(db) {
   migrateTrackedInvoices(db);
   migrateBankImports(db);
   migrateSettledCashExpenses(db);
+  migrateSalaryCashMatch(db);
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -718,4 +719,15 @@ function migrateSettledCashExpenses(db) {
     if (!cols.includes('settled_at')) db.exec(`ALTER TABLE ${table} ADD COLUMN settled_at TEXT;`);
     if (!cols.includes('settled_by')) db.exec(`ALTER TABLE ${table} ADD COLUMN settled_by INTEGER REFERENCES users(id);`);
   }
+}
+
+// התאמת שכר להוצאה שהוזנה בטופס דוח ה-Z, ודגל התראה על צ׳ק שנפרע לפני התאמה.
+function migrateSalaryCashMatch(db) {
+  const has = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='salary_payments'").get();
+  if (!has) return;
+  const cols = db.prepare('PRAGMA table_info(salary_payments)').all().map((c) => c.name);
+  if (!cols.includes('cash_z_expense_id')) {
+    db.exec('ALTER TABLE salary_payments ADD COLUMN cash_z_expense_id INTEGER REFERENCES z_expenses(id) ON DELETE SET NULL;');
+  }
+  if (!cols.includes('cleared_alerted')) db.exec('ALTER TABLE salary_payments ADD COLUMN cleared_alerted TEXT;');
 }

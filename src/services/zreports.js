@@ -296,6 +296,22 @@ async function cashExpenseScope(source, id, x) {
 }
 
 /**
+ * בדיקת הסקופ של שורת הוצאה — הביטוי היחיד שלה, כדי שכל פעולה על הוצאת מזומן תיבדק אותו דבר.
+ * מזהה שמגיע מהבקשה לא ייגע בשורה של חברה/חנות אחרת; 404 מסתיר גם את עצם קיומה.
+ * @returns {Promise<{company_id:number|null, store_id:number|null}>}
+ */
+export async function assertCashExpenseInScope(source, id, scope = null, x = getExecutor()) {
+  if (!SETTLE_TABLE[source]) throw new RuleError('VALIDATION', 'מקור הוצאה לא מוכר');
+  const row = await cashExpenseScope(source, id, x);
+  if (!row) throw new NotFoundError(`הוצאת מזומן ${id} לא נמצאה`);
+  const { companyIds, storeIds } = normalizeScope(scope);
+  const outOfCompany = companyIds != null && row.company_id != null && !companyIds.includes(Number(row.company_id));
+  const outOfStore = storeIds != null && row.store_id != null && !storeIds.includes(Number(row.store_id));
+  if (outOfCompany || outOfStore) throw new NotFoundError(`הוצאת מזומן ${id} לא נמצאה`);
+  return row;
+}
+
+/**
  * סימון הוצאת מזומן כ"טופלה" — וביטול הסימון.
  *
  * זו דרך היציאה של הוצאה שלא תקבל חשבונית ולא קישור אוטומטי: פריטה שנאספה חזרה לקופה. הסימון
@@ -310,13 +326,7 @@ export async function setCashExpenseSettled(source, id, settled, actor, scope = 
   if (!(await cashSettleReady(x))) {
     throw new RuleError('SCHEMA', 'נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים") לפני סימון הוצאות כטופלות.');
   }
-  const row = await cashExpenseScope(source, id, x);
-  if (!row) throw new NotFoundError(`הוצאת מזומן ${id} לא נמצאה`);
-  // אותה בדיקה כמו בכל כתיבה אחרת: מזהה מהבקשה לא יגע בשורה של חברה/חנות אחרת.
-  const { companyIds, storeIds } = normalizeScope(scope);
-  const outOfCompany = companyIds != null && row.company_id != null && !companyIds.includes(Number(row.company_id));
-  const outOfStore = storeIds != null && row.store_id != null && !storeIds.includes(Number(row.store_id));
-  if (outOfCompany || outOfStore) throw new NotFoundError(`הוצאת מזומן ${id} לא נמצאה`);
+  await assertCashExpenseInScope(source, id, scope, x);
 
   await x.run(
     `UPDATE ${table} SET settled_at = ?, settled_by = ? WHERE id = ?`,
@@ -403,6 +413,7 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
     } catch { /* טבלה שטרם נוצרה */ }
   };
   await collect('SELECT cash_expense_id FROM salary_payments WHERE cash_expense_id IS NOT NULL', 'zclosing');
+  await collect('SELECT cash_z_expense_id FROM salary_payments WHERE cash_z_expense_id IS NOT NULL', 'zreport');
   await collect('SELECT void_cash_expense_id FROM payments WHERE void_cash_expense_id IS NOT NULL', 'zclosing');
   await collect('SELECT z_expense_id FROM employee_advances WHERE z_expense_id IS NOT NULL', 'zreport');
 
@@ -418,6 +429,105 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
     if (out.length >= limit) break;
   }
   return out;
+}
+
+/**
+ * שיוך הוצאת מזומן לחשבונית — **משני מקורות ההזנה**.
+ *
+ * קודם היה רק `matchClosingExpenseToInvoice` (סגירת Z), ולכן הוצאה שהוזנה בטופס דוח ה-Z לא
+ * ניתנת הייתה לשיוך בכלל: היא הופיעה ברשימת "ללא התאמה" בלי שום דרך לצאת ממנה. הפונקציה הזו
+ * מטפלת בשתיהן, מסמנת את החשבונית כשולמה במזומן, ומתריעה — התאמת מזומן היא הרגע שבו כסף
+ * שיצא מהקופה מקבל הסבר, והבעלים ביקש לדעת עליה בזמן אמת.
+ */
+export async function matchCashExpenseToInvoice(source, id, invoiceId, actor, scope = null, x = getExecutor()) {
+  const table = SETTLE_TABLE[source];
+  if (!table) throw new RuleError('VALIDATION', 'מקור הוצאה לא מוכר');
+  await assertCashExpenseInScope(source, id, scope, x);
+  const { companyIds } = normalizeScope(scope);
+
+  const exp = await x.one(`SELECT id, amount, payer_name, purpose FROM ${table} WHERE id = ?`, [Number(id)]);
+  if (!exp) throw new NotFoundError(`הוצאת מזומן ${id} לא נמצאה`);
+  const inv = await x.one(
+    `SELECT i.id, i.invoice_number, i.total_amount, i.company_id, i.store_id, s.name AS supplier_name
+       FROM invoices i LEFT JOIN suppliers s ON s.id = i.supplier_id WHERE i.id = ?`,
+    [Number(invoiceId)],
+  );
+  if (!inv) throw new NotFoundError(`חשבונית ${invoiceId} לא נמצאה`);
+  // הצד השני של השיוך נבדק גם הוא — אחרת מזהה חשבונית מנוחש היה קושר הוצאה לחשבונית של חברה אחרת.
+  if (companyIds != null && inv.company_id != null && !companyIds.includes(Number(inv.company_id))) {
+    throw new NotFoundError(`חשבונית ${invoiceId} לא נמצאה`);
+  }
+
+  await x.run(`UPDATE ${table} SET invoice_id = ?, description_type = 'invoice' WHERE id = ?`, [inv.id, Number(id)]);
+  await logAction(
+    { userId: actor?.id ?? null, action: 'cash_expense.match_invoice', entityType: 'invoice', entityId: inv.id,
+      details: { source, expenseId: Number(id), amount: exp.amount } },
+    x,
+  );
+  const { notify } = await import('../lib/notify.js');
+  const { fromAgorot } = await import('../lib/money.js');
+  const diff = Number(inv.total_amount) - Number(exp.amount);
+  await notify(
+    `💵 <b>הותאם תשלום במזומן לחשבונית</b>`
+      + `\nחשבונית #${inv.invoice_number || inv.id}${inv.supplier_name ? ' · ' + inv.supplier_name : ''}`
+      + `\nהוצאה ${fromAgorot(exp.amount)} ₪${exp.purpose ? ' · ' + exp.purpose : ''}`
+      + (diff ? `\n⚠️ הפרש מול סכום החשבונית: ${fromAgorot(Math.abs(diff))} ₪` : '')
+      + `\nמקור: ${source === 'zclosing' ? 'סגירת Z' : 'דוח Z'}`,
+    { kind: 'cash_match', link: `/invoices/${inv.id}` },
+  );
+  return { source, id: Number(id), invoiceId: inv.id, diff };
+}
+
+/**
+ * החשבוניות שאפשר לשייך אליהן הוצאת מזומן — **אותו סכום קודם**.
+ *
+ * זה לא קישוט: כשהמזומן יצא מהקופה עבור חשבונית, הסכום הוא הסימן החזק ביותר שיש, והבעלים
+ * מזהה את השורה הנכונה בלי לקרוא רשימה של מאות. חשבונית בסכום זהה עולה לראש ומסומנת; השאר
+ * נשארות זמינות, כי סכום שונה קורה (תשלום חלקי, עיגול, זיכוי).
+ *
+ * @param {number} amount  סכום ההוצאה באגורות
+ */
+export async function invoiceMatchCandidates(amount, scope = null, storeId = null, limit = 60, x = getExecutor()) {
+  const { listPayable } = await import('./invoices.js');
+  // listPayable מקבל scope כפרמטר ראשון (לא אובייקט אפשרויות); סינון החנות נעשה כאן, כי
+  // `scope` שכבר צומצם לחנות הפעילה מטפל ברוב המקרים ו-storeId הוא צמצום נוסף.
+  const all = await listPayable(scope, x);
+  const rows = storeId ? all.filter((r) => Number(r.store_id) === Number(storeId)) : all;
+  const target = Number(amount) || 0;
+  const scored = rows.map((r) => ({ ...r, sameAmount: Number(r.total_amount) === target }));
+  scored.sort((a, b) => (b.sameAmount ? 1 : 0) - (a.sameAmount ? 1 : 0)
+    || String(b.invoice_date || '').localeCompare(String(a.invoice_date || '')));
+  return scored.slice(0, limit);
+}
+
+/**
+ * צ׳קי השכר שהוזנו בדף "עובדים ומשכורות" ועדיין לא שויכו להוצאת מזומן — **אותו סכום קודם**.
+ * זו ההתאמה של "העובד פרט את הצ׳ק בקופה": הכסף יצא מהמגירה, והצ׳ק חייב להתבטל אחרת הוא ייפרע
+ * בבנק וישולם אותו שכר פעמיים.
+ */
+export async function salaryMatchCandidates(amount, scope = null, storeId = null, limit = 60, x = getExecutor()) {
+  const sc = scopeWhere(scope, 'st.company_id', 'sp.store_id');
+  const st = storeId ? ' AND sp.store_id = ?' : '';
+  let rows;
+  try {
+    rows = await x.many(
+      `SELECT sp.id, sp.amount, sp.due_date, sp.reference, sp.method, sp.payment_id,
+              e.first_name, e.last_name, st.name AS store_name
+         FROM salary_payments sp
+         JOIN employees e ON e.id = sp.employee_id
+         JOIN stores st ON st.id = sp.store_id
+        WHERE sp.cashed = 0 AND sp.cash_expense_id IS NULL${sc.sql}${st}
+        ORDER BY sp.due_date DESC, sp.id DESC`,
+      [...sc.params, ...(storeId ? [storeId] : [])],
+    );
+  } catch {
+    return []; // הטבלה טרם קיימת (מסד לפני עדכון) — ראה salaryPaymentsReady
+  }
+  const target = Number(amount) || 0;
+  const scored = rows.map((r) => ({ ...r, sameAmount: Number(r.amount) === target }));
+  scored.sort((a, b) => (b.sameAmount ? 1 : 0) - (a.sameAmount ? 1 : 0)
+    || String(b.due_date || '').localeCompare(String(a.due_date || '')));
+  return scored.slice(0, limit);
 }
 
 /**
@@ -516,7 +626,21 @@ export async function deleteExpense(id, actor, x = getExecutor()) {
  */
 // Cash-expense kinds: manual (ידני, free text) / salary (שכר) / advance (מפרעה) / invoice
 // (תשלום בגין חשבונית). salary+advance link an employee; invoice links an invoice.
-export const EXPENSE_KINDS = new Set(['manual', 'salary', 'advance', 'invoice']);
+export const EXPENSE_KINDS = new Set(['manual', 'petty', 'salary', 'advance', 'invoice']);
+
+/**
+ * האם השורה היא פריטה — ההוצאה היחידה שנסגרת בסימון "טופל" ולא בהתאמה, כי היא נאספת חזרה
+ * לקופה ולעולם לא תקבל חשבונית.
+ *
+ * 🔴 גם לפי טקסט "עבור", ולא רק לפי הסוג: הסוג `petty` נוסף עכשיו, אבל במסד כבר יושבות שורות
+ * שנרשמו "פריטה" בשדה החופשי לפני שהסוג היה קיים. בלי הנפילה-לאחור הזו הבעלים היה צריך להזין
+ * אותן מחדש כדי לסגור אותן.
+ */
+export function isPettyExpense(row) {
+  if (!row) return false;
+  if (row.description_type === 'petty') return true;
+  return /פריט/.test(String(row.purpose || ''));
+}
 
 export async function replaceExpenses(zReportId, rows, actor, x = getExecutor()) {
   await getZReport(zReportId, x);

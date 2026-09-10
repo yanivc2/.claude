@@ -14,6 +14,8 @@ import { getExecutor } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeWhere, normalizeScope } from '../lib/scope.js';
 import { logAction } from './audit.js';
+import { notify } from '../lib/notify.js';
+import { fromAgorot } from '../lib/money.js';
 
 export const SALARY_METHODS = [
   { value: 'check', label: 'צ׳ק' },
@@ -136,12 +138,17 @@ export async function cashExpenseCandidates({ storeId = null, scope = null, limi
  * @param {number} id            salary_payments.id
  * @param {number} cashExpenseId z_closing_expenses.id — the till payout
  */
-export async function markCashed(id, cashExpenseId, actor, x = getExecutor()) {
+export async function markCashed(id, cashExpenseId, actor, x = getExecutor(), { source = 'zclosing' } = {}) {
+  if (source !== 'zclosing' && source !== 'zreport') throw new RuleError('VALIDATION', 'מקור הוצאה לא מוכר');
   const row = await getSalaryPayment(id, x);
   if (Number(row.cashed)) throw new RuleError('R', 'תשלום השכר כבר סומן כנפרט');
-  const expense = await x.one('SELECT * FROM z_closing_expenses WHERE id = ?', [Number(cashExpenseId)]);
+  // 🔴 שתי טבלאות, שני מרחבי מזהים: הוצאה שהוזנה בטופס דוח ה-Z נשמרת ב-`cash_z_expense_id`
+  // ולא ב-`cash_expense_id`, אחרת ה-FK מצביע על שורה אחרת לגמרי (או נכשל).
+  const table = source === 'zclosing' ? 'z_closing_expenses' : 'z_expenses';
+  const col = source === 'zclosing' ? 'cash_expense_id' : 'cash_z_expense_id';
+  const expense = await x.one(`SELECT * FROM ${table} WHERE id = ?`, [Number(cashExpenseId)]);
   if (!expense) throw new NotFoundError('הוצאת המזומן לא נמצאה');
-  const clash = await x.one('SELECT id FROM salary_payments WHERE cash_expense_id = ?', [Number(cashExpenseId)]);
+  const clash = await x.one(`SELECT id FROM salary_payments WHERE ${col} = ?`, [Number(cashExpenseId)]);
   if (clash) throw new RuleError('R', `הוצאת המזומן כבר שויכה לתשלום שכר #${clash.id}`);
 
   // Void FIRST, then flag. voidPayment runs its own transaction (and refuses a check that is
@@ -157,18 +164,70 @@ export async function markCashed(id, cashExpenseId, actor, x = getExecutor()) {
       x,
     );
   }
-  await x.run('UPDATE salary_payments SET cashed = 1, cash_expense_id = ? WHERE id = ?', [Number(cashExpenseId), id]);
+  await x.run(`UPDATE salary_payments SET cashed = 1, ${col} = ? WHERE id = ?`, [Number(cashExpenseId), id]);
   await logAction(
-    { userId: actor?.id ?? null, action: 'salary.cashed', entityType: 'salary_payment', entityId: id, details: { cashExpenseId } },
+    { userId: actor?.id ?? null, action: 'salary.cashed', entityType: 'salary_payment', entityId: id, details: { cashExpenseId, source } },
     x,
   );
+  // 🔴 התאמה של מזומן היא הרגע שבו כסף שיצא מהקופה מקבל הסבר — ולכן הבעלים רוצה לדעת עליה
+  // בזמן אמת, גם כשמישהו אחר עשה אותה. notify דוחף לטלגרם **וגם** רושם התראה בפעמון.
+  // getSalaryPayment מחזיר את שורת התשלום בלבד — שם העובד נשלף כאן, אחרת ההתראה אומרת "עובד"
+  // ולא אומרת מי, וזו בדיוק האינפורמציה שבגללה שולחים אותה.
+  const who = await x.one('SELECT first_name, last_name FROM employees WHERE id = ?', [row.employee_id]);
+  const emp = `${who?.first_name || ''} ${who?.last_name || ''}`.trim();
+  await notify(
+    `💵 <b>הותאם תשלום שכר במזומן</b>\n${emp || 'עובד'} · ${fromAgorot(row.amount)} ₪`
+      + `\nההוצאה מ${source === 'zclosing' ? 'סגירת Z' : 'דוח Z'} שויכה לתשלום השכר`
+      + `${row.payment_id ? ' — הצ׳ק בוטל כדי שלא ייפרע פעם שנייה.' : '.'}`,
+    { kind: 'cash_match', link: '/employees' },
+  );
   return getSalaryPayment(id, x);
+}
+
+/**
+ * צ׳ק שכר שנפרע בבנק **לפני** שהותאם להוצאת מזומן.
+ *
+ * זה בדיוק המצב המסוכן: העובד לקח מזומן מהקופה וגם הצ׳ק נפרע בבנק — אותו שכר יצא פעמיים. כל
+ * עוד ההתאמה נעשית בזמן, הצ׳ק מתבטל ולא מגיע לבנק; אם הבנק הקדים, אין מה לבטל ויש מה לברר.
+ * ההתראה אומרת במפורש שהפירעון קדם להתאמה, ונשלחת פעם אחת (`cleared_alerted`).
+ */
+export async function alertOnSalaryChecksClearedBeforeMatch(x = getExecutor()) {
+  let rows;
+  try {
+    rows = await x.many(
+      `SELECT sp.id, sp.amount, sp.due_date, sp.reference, p.check_number, p.cleared_date,
+              e.first_name, e.last_name, st.name AS store_name
+         FROM salary_payments sp
+         JOIN payments p ON p.id = sp.payment_id
+         JOIN employees e ON e.id = sp.employee_id
+         JOIN stores st ON st.id = sp.store_id
+        WHERE p.status = 'cleared' AND sp.cashed = 0
+          AND sp.cash_expense_id IS NULL AND sp.cash_z_expense_id IS NULL
+          AND sp.cleared_alerted IS NULL`,
+      [],
+    );
+  } catch {
+    return 0; // סכימה לפני העדכון
+  }
+  for (const r of rows) {
+    await notify(
+      `⚠️ <b>צ׳ק שכר נפרע בבנק — לפני שנעשתה התאמה</b>`
+        + `\n${`${r.first_name || ''} ${r.last_name || ''}`.trim()} · ${fromAgorot(r.amount)} ₪`
+        + `\nצ׳ק ${r.check_number || r.reference || ''} · ${r.store_name || ''} · נפרע ${r.cleared_date || ''}`
+        + `\nהכסף עזב את הבנק בזמן שהשכר עדיין לא שויך להוצאת מזומן. אם העובד גם פרט אותו בקופה —`
+        + ` אותו שכר יצא פעמיים.`,
+      { kind: 'salary_cleared_unmatched', link: '/employees' },
+    );
+    await x.run('UPDATE salary_payments SET cleared_alerted = ? WHERE id = ?',
+      [new Date().toISOString().slice(0, 19).replace('T', ' '), r.id]);
+  }
+  return rows.length;
 }
 
 /** Undo the match (a mis-click). The voided check is NOT un-voided — that is a separate decision. */
 export async function unmatchCashed(id, actor, x = getExecutor()) {
   await getSalaryPayment(id, x);
-  await x.run('UPDATE salary_payments SET cashed = 0, cash_expense_id = NULL WHERE id = ?', [id]);
+  await x.run('UPDATE salary_payments SET cashed = 0, cash_expense_id = NULL, cash_z_expense_id = NULL WHERE id = ?', [id]);
   await logAction({ userId: actor?.id ?? null, action: 'salary.uncashed', entityType: 'salary_payment', entityId: id }, x);
   return getSalaryPayment(id, x);
 }

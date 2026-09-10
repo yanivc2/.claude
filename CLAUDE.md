@@ -114,7 +114,9 @@ happen only at merge. So:
   `POST /ingest/bank-txns` (also `CRON_SECRET`-guarded) → `importScrapedBatch` → same
   `importTransactions`+`autoReconcile` pipeline. **Bank credentials live only in the runner's
   secrets — never in the DB, never on Vercel.** Unknown account numbers are reported, never guessed.
-- **Alerts:** `lib/notify.js#notify(html, {kind?,link?})` — fire-and-forget, never throws. Does TWO
+- **Alerts:** `lib/notify.js#notify(html, {kind?,link?})` — never throws. 🔴 **מחזיר promise: התראה שאסור
+  לאבד חייבת `await notify(...)`** — על serverless הפונקציה קופאת כשהתשובה נשלחה, וההתראה פשוט לא נרשמת.
+  ללא await זו fire-and-forget כמו קודם. Does TWO
   things: pushes to Telegram (no-op without token) **and** records an in-app notification (bell +
   `/notifications`, owner-only) via `services/notifications.js` (HTML→text, first line=title). So
   every alert reaches the owner even without Telegram. Telegram needs **`TELEGRAM_BOT_TOKEN`** env

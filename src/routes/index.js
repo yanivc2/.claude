@@ -7,7 +7,13 @@ import {
   outstandingChecksInRange,
 } from '../services/reports.js';
 import { lookupChecks } from '../services/payments.js';
-import { unmatchedCashExpenses, zSequenceStatus, setCashExpenseSettled, cashSettleReady, settledCashExpenses } from '../services/zreports.js';
+import {
+  unmatchedCashExpenses, zSequenceStatus, setCashExpenseSettled, cashSettleReady, settledCashExpenses,
+  isPettyExpense, invoiceMatchCandidates, salaryMatchCandidates, matchCashExpenseToInvoice,
+  assertCashExpenseInScope,
+} from '../services/zreports.js';
+import { markCashed } from '../services/salaryPayments.js';
+import { listNotifications } from '../services/notifications.js';
 import { listDeposits, zReportsWithoutDeposit, declaredNotDeposited } from '../services/deposits.js';
 import { voidedChecksSeenInBank } from '../services/reconciliation.js';
 import { searchSuppliers, listSuppliers } from '../services/suppliers.js';
@@ -94,8 +100,28 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope, unpaidOnly }) : null,
       checkResults: q ? await lookupChecks(q, scope) : null,
       supplierResults: q ? await searchSuppliers(q, req.scope) : null,
-      unmatchedCash: await unmatchedCashExpenses(scope, 20, storeId),
+      unmatchedCash: await (async () => {
+        // כל שורה נושאת את המועמדים שלה, כדי שהכפתור ייפתח על רשימה מוכנה ולא ידרוש סבב נוסף.
+        // "אותו סכום קודם" הוא מה שהופך את הבחירה למיידית (services/zreports.js).
+        const rows = await unmatchedCashExpenses(scope, 20, storeId);
+        return Promise.all(rows.map(async (r) => ({
+          ...r,
+          petty: isPettyExpense(r),
+          candidates: isPettyExpense(r) ? []
+            : (r.description_type === 'salary' || r.description_type === 'advance')
+              ? await salaryMatchCandidates(r.amount, scope, storeId, 40)
+              : await invoiceMatchCandidates(r.amount, scope, storeId, 40),
+        })));
+      })(),
       cashSettleReady: await cashSettleReady(),
+      // 🔴 ההתראות על תנועות מזומן מוצגות **בלוח הבקרה עצמו**, לא רק בפעמון: אלה בדיוק
+      // האירועים שהבעלים ביקש לראות (התאמת מזומן, וצ׳ק שכר שנפרע לפני התאמה), והפעמון נקרא
+      // רק כשנכנסים אליו. owner-only, כמו כל ההתראות.
+      cashAlerts: req.user?.role === 'owner'
+        ? (await listNotifications({ limit: 40 }))
+            .filter((n) => n.kind === 'cash_match' || n.kind === 'salary_cleared_unmatched')
+            .slice(0, 8)
+        : [],
       settledCash: await settledCashExpenses(scope, 30, storeId),
       cashErr: req.query.cashErr ? String(req.query.cashErr) : null,
       depositsHistory: await listDeposits({ scope, storeId, limit: 20 }),
@@ -141,6 +167,41 @@ router.get('/approvals', ownerOnly, async (req, res, next) => {
       error: null,
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+// התאמת הוצאת מזומן לחשבונית — הכפתור של כל שורה שאינה פריטה ואינה שכר. "כל סכום יקבל
+// חשבונית", ולכן זו דרך היציאה הרגילה מהרשימה.
+router.post('/cash-expenses/:source/:id/match-invoice', async (req, res, next) => {
+  try {
+    await matchCashExpenseToInvoice(
+      req.params.source, Number(req.params.id), Number(req.body.invoice_id), req.user, req.scope,
+    );
+    return res.redirect(303, '/');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof NotFoundError) {
+      return res.redirect(303, '/?cashErr=' + encodeURIComponent(err.message));
+    }
+    next(err);
+  }
+});
+
+// התאמת הוצאת שכר לצ׳ק שהוזן בדף עובדים ומשכורות. `markCashed` מבטל את הצ׳ק, אחרת הוא ייפרע
+// בבנק ואותו שכר ישולם פעמיים (services/salaryPayments.js).
+router.post('/cash-expenses/:source/:id/match-salary', async (req, res, next) => {
+  try {
+    // הסקופ נבדק על צד ההוצאה לפני הפעולה — אותה בדיקה כמו בכל כתיבה אחרת.
+    await assertCashExpenseInScope(req.params.source, Number(req.params.id), req.scope);
+    await markCashed(
+      Number(req.body.salary_payment_id), Number(req.params.id), req.user, undefined,
+      { source: req.params.source },
+    );
+    return res.redirect(303, '/');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof NotFoundError || err?.name === 'RuleError') {
+      return res.redirect(303, '/?cashErr=' + encodeURIComponent(err.message));
+    }
     next(err);
   }
 });

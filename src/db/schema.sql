@@ -653,6 +653,11 @@ CREATE TABLE IF NOT EXISTS salary_payments (
   -- owner matches it to the Z-closing cash expense that paid it out.
   cashed          INTEGER NOT NULL DEFAULT 0,
   cash_expense_id INTEGER REFERENCES z_closing_expenses(id) ON DELETE SET NULL,
+  -- אותה התאמה בדיוק, כשההוצאה הוזנה בטופס דוח ה-Z ולא בסגירה. שתי עמודות ולא אחת, כי אלה שתי
+  -- טבלאות ושני מרחבי מזהים — מזהה מטבלה אחת ב-FK של השנייה הוא שורה שגויה או שגיאת FK.
+  cash_z_expense_id INTEGER REFERENCES z_expenses(id) ON DELETE SET NULL,
+  -- הצ׳ק נפרע בבנק בזמן שהשכר עדיין לא הותאם להוצאת מזומן. נשמר כדי שההתראה תישלח פעם אחת.
+  cleared_alerted TEXT,
   payment_id      INTEGER REFERENCES payments(id) ON DELETE SET NULL,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))

@@ -636,6 +636,8 @@ CREATE TABLE IF NOT EXISTS salary_payments (
   amount          INTEGER NOT NULL,
   cashed          INTEGER NOT NULL DEFAULT 0,
   cash_expense_id INTEGER,
+  cash_z_expense_id INTEGER REFERENCES z_expenses(id) ON DELETE SET NULL,
+  cleared_alerted TEXT,
   payment_id      INTEGER REFERENCES payments(id) ON DELETE SET NULL,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
@@ -794,3 +796,8 @@ ALTER TABLE z_expenses         ADD COLUMN IF NOT EXISTS settled_at TEXT;
 ALTER TABLE z_expenses         ADD COLUMN IF NOT EXISTS settled_by INTEGER REFERENCES users(id);
 ALTER TABLE z_closing_expenses ADD COLUMN IF NOT EXISTS settled_at TEXT;
 ALTER TABLE z_closing_expenses ADD COLUMN IF NOT EXISTS settled_by INTEGER REFERENCES users(id);
+
+-- התאמת שכר להוצאה שהוזנה בטופס דוח ה-Z (מרחב מזהים אחר מזה של הסגירה), ודגל התראה חד-פעמית
+-- על צ׳ק שכר שנפרע בבנק לפני שהותאם להוצאת מזומן.
+ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS cash_z_expense_id INTEGER REFERENCES z_expenses(id) ON DELETE SET NULL;
+ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS cleared_alerted TEXT;

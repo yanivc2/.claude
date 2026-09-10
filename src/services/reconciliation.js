@@ -193,6 +193,10 @@ export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
     const { alertOnUntrackedTransfers, alertOnTransferProblems } = await import('./transfers.js');
     await alertOnUntrackedTransfers(x);
     await alertOnTransferProblems(x);
+    // …וצ׳ק שכר שנפרע בבנק לפני שהותאם להוצאת מזומן: דף בנק טרי הוא בדיוק הרגע שבו הפירעון
+    // נעשה ידוע, ולכן זו ההזדמנות הראשונה לומר עליו (services/salaryPayments.js).
+    const { alertOnSalaryChecksClearedBeforeMatch } = await import('./salaryPayments.js');
+    await alertOnSalaryChecksClearedBeforeMatch(x);
   } catch { /* an alert must never fail a reconcile */ }
 
   await logAction(

@@ -2,7 +2,7 @@
   // "הוצאות מזומן" rubric — rows from recentClosingExpenses(). Columns: סוג · תאריך · שם · פרטים · סכום.
   // Required local: `rows`. Optional: `matchable` (+ `matchInvoices`) adds a "התאמה" column that lets
   // the user link an unmatched cash expense to an invoice → the invoice reads "שולם במזומן".
-  var _cxKindLabel = { manual: 'ידני', salary: 'שכר', advance: 'מפרעה', invoice: 'חשבונית' };
+  var _cxKindLabel = { manual: 'ידני', petty: 'פריטה', salary: 'שכר', advance: 'מפרעה', invoice: 'חשבונית' };
   var _matchable = (typeof matchable !== 'undefined' && matchable);
   var _matchInvoices = (typeof matchInvoices !== 'undefined' && matchInvoices) ? matchInvoices : [];
   // `hideStore` — הקורא כבר מקבץ לפי חנות (רובריקת "הוצאות מזומן מהקופה"), ואז שם החנות בכל
