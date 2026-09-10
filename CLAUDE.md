@@ -276,4 +276,5 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   a POST-only URL, and the next reload/PWA restore GETs it and hits the error page with the action
   already done. `middleware/actionUrlFallback.js` is the safety net (a GET to an action URL → 303 to
   the nearest ancestor page, swept by `test/action-url-fallback.test.js`), not a licence to skip PRG.
+- **מספר שהגיע מקובץ יכול להיות כתוב בכתיב מדעי.** יצואנים (בפרט של דפי בנק) כותבים `1.81732779E8` ו-`26411.0` — כתיב של Java. **קנונן דרך `lib/numText.js#plainNumber`** (הרחבה טקסטואלית, לא `Number`, כדי לא לאבד ספרה ב-16 ספרות). 🔴 ערך שהוא **מפתח השוואה** (אסמכתא מול מספר צ׳ק / שקית הפקדה, מפתח זיהוי כפילות) חייב להיקנון **בכתיבה** ולא בתצוגה — פורמט תצוגה משאיר את ההשוואה נכשלת בשקט ואת המסך נראה תקין. פרטים: INDEX.md · התאמת בנק.
 - Badge classes: `b-approved/paid/cleared/on_hold/blocked/voided/neutral` (no `b-warn`; use `b-on_hold`).

@@ -12,6 +12,7 @@
 // outside that throws a Hebrew error the route surfaces to the user.
 
 import { inflateRawSync } from 'node:zlib';
+import { plainNumber } from './numText.js';
 
 // ---- ZIP -------------------------------------------------------------------
 
@@ -154,10 +155,13 @@ function parseSheetRows(xml, shared) {
         value = collectText(body);
       } else if (type === 'str') {
         const vM = /<v>([\s\S]*?)<\/v>/.exec(body);
-        value = vM ? unescapeXml(vM[1]) : '';
+        value = vM ? plainNumber(unescapeXml(vM[1])) : '';
       } else {
+        // 🔴 תא מספרי נקרא כטקסט, אבל לא כל יצואן כותב אותו כספרות: היצואן של דף הבנק כותב
+        // `<v>1.81732779E8</v>` (כתיב של Java) ו-`<v>26411.0</v>`. בלי ההרחבה כאן האסמכתא הזו
+        // נשמרת ומוצגת ככתיב מדעי — מספר שאי אפשר להשוות לצ׳ק ואי אפשר לקרוא. ראה lib/numText.js.
         const vM = /<v>([\s\S]*?)<\/v>/.exec(body);
-        value = vM ? vM[1] : '';
+        value = vM ? plainNumber(vM[1]) : '';
       }
       cells[ci] = String(value).trim();
     }

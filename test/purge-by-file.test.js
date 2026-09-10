@@ -46,7 +46,7 @@ test('the file finds exactly the rows it brought, and nothing else', async () =>
 test('deleting by the file leaves the account\'s own transactions alone', async () => {
   const { db, ow, acct } = await world();
   const hit = await matchRowsToTransactions(acct.id, FOREIGN, db);
-  const r = await deleteTransactions(hit.ids, acct.id, ow, db);
+  const r = await deleteTransactions(hit.ids, acct.id, ow, {}, db);
   assert.equal(r.deleted, 3);
   const left = await db.many('SELECT description FROM bank_transactions ORDER BY id', []);
   assert.deepEqual(left.map((x) => x.description), ['שלי א', 'שלי ב']);
@@ -101,4 +101,38 @@ test('a tracked import is still deletable as a batch — this is only for the un
   assert.ok(importId);
   const hit = await matchRowsToTransactions(acct.id, FOREIGN, db);
   assert.ok(!hit.rows.some((r) => r.description === 'חדש'), 'the file only matches what it contains');
+});
+
+test('🔴 releasing the false matches: these rows never belonged to this account', async () => {
+  const { db, ow, store, acct } = await world();
+  const sup = await approveSupplier((await createSupplier({ name: 'טרה' }, ow, db)).id, ow, db);
+  await createInvoice({ supplierId: sup.id, storeId: store.id, invoiceNumber: 'INV-8', invoiceDate: '2026-08-20',
+    amountBeforeVat: 100000, vatAmount: 18000, docType: 'tax_invoice', allocationNumber: '555666777' }, ow, db);
+  const inv = await db.one("SELECT * FROM invoices WHERE invoice_number = 'INV-8'", []);
+  await approveInvoiceForPayment(inv.id, ow, db);
+  const pay = await createPayment({ bankAccountId: acct.id, method: 'check', checkNumber: '1001',
+    paymentDate: '2026-09-01', invoiceIds: [inv.id] }, ow, db);
+  const txn = await db.one("SELECT * FROM bank_transactions WHERE raw_reference = '1001'", []);
+  await confirmMatch(txn.id, pay.id, ow, db);
+
+  const hit = await matchRowsToTransactions(acct.id, FOREIGN, db);
+  const everything = hit.ids.concat(hit.matched);
+
+  // Without the flag the matched row survives — the default stays cautious.
+  const cautious = await deleteTransactions(everything, acct.id, ow, {}, db);
+  assert.equal(cautious.skippedMatched, 1);
+  assert.equal(cautious.released, 0);
+  assert.ok(await db.one('SELECT id FROM bank_transactions WHERE id = ?', [txn.id]));
+
+  // With it, the false match is released and the row goes: the check was never paid by this line.
+  const r = await deleteTransactions([txn.id], acct.id, ow, { releaseMatched: true }, db);
+  assert.equal(r.released, 1);
+  assert.equal(r.deleted, 1);
+  assert.equal(r.skippedMatched, 0);
+  assert.equal(await db.one('SELECT id FROM bank_transactions WHERE id = ?', [txn.id]), undefined);
+
+  // The check itself is untouched and back among the open ones — it still awaits its real line.
+  const stillOpen = await db.one('SELECT id, status FROM payments WHERE id = ?', [pay.id]);
+  assert.ok(stillOpen, 'the payment survives — only the bank match was wrong');
+  assert.notEqual(stillOpen.status, 'cleared', 'and it is no longer reported as cleared');
 });

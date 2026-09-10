@@ -7,7 +7,7 @@ import { toAgorot } from '../lib/money.js';
 import { parseCsv } from '../lib/csv.js';
 import { parseXlsx } from '../lib/xlsx.js';
 import { normalizeBankRows } from '../lib/bankCsv.js';
-import { decodeBuffer } from '../lib/decodeText.js';
+import { decodeBuffer, decodeFileName } from '../lib/decodeText.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import {
@@ -24,6 +24,8 @@ import {
   deleteTransaction,
   editTransaction,
   getTransaction,
+  oddReferences,
+  normalizeStoredReferences,
 } from '../services/bankTransactions.js';
 import { submitRequest } from '../services/changeRequests.js';
 import { describeBankTxn } from '../lib/changeSummary.js';
@@ -42,6 +44,7 @@ const csvUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
 }).single('csv');
+
 
 // A .xlsx is a ZIP archive — its first bytes are the local-file-header magic "PK\x03\x04".
 // Detect by content (robust to a wrong/missing extension from a phone) or by name.
@@ -87,6 +90,7 @@ async function renderPage(req, res, accountId, extra = {}) {
     importsReady: await importsReady(),
     imports: accountId ? await listImports({ accountId }) : [],
     untracked: accountId ? await untrackedSummary(accountId) : null,
+    oddRefs: accountId ? await oddReferences(accountId) : { count: 0, sample: [] },
     classified,
     transactions: accountId ? await listTransactions(accountId) : [],
     // Open-Banking sync is offered only when the key is configured AND this account is linked.
@@ -126,7 +130,7 @@ router.post('/import-csv', requirePermission('import_bank'), (req, res, next) =>
         throw new RuleError('CSV', e.message);
       }
       if (mapped.length === 0) throw new RuleError('CSV', 'לא נמצאו תנועות בקובץ');
-      const fileName = req.file.originalname || null;
+      const fileName = decodeFileName(req.file.originalname);
       const { inserted, skipped } = await importTransactions(
         accountId, mapped, 'csv', req.user, undefined, { fileName },
       );
@@ -285,9 +289,10 @@ router.post('/purge-preview', requirePermission('import_bank'), (req, res, next)
       const hit = await matchRowsToTransactions(accountId, mapped);
       return renderPage(req, res, accountId, {
         purge: {
-          fileName: req.file.originalname || null,
+          fileName: decodeFileName(req.file.originalname),
           fileRows: mapped.length,
           ids: hit.ids,
+          matchedIds: hit.matched,
           matchedCount: hit.matched.length,
           rows: hit.rows.slice(0, 12),
           total: hit.rows.reduce((n, r) => n + Number(r.amount || 0), 0),
@@ -305,10 +310,29 @@ router.post('/txns/delete', requirePermission('import_bank'), async (req, res, n
   const accountId = await resolveAccountId(req);
   try {
     const ids = [].concat(req.body.txn_ids || []).map(Number).filter(Boolean);
-    const r = await deleteTransactions(ids, accountId, req.user);
+    const r = await deleteTransactions(ids, accountId, req.user, { releaseMatched: req.body.release === '1' });
     return renderPage(req, res, accountId, {
       notice: `נמחקו ${r.deleted} תנועות`
-        + `${r.skippedMatched ? `. ${r.skippedMatched} דולגו כי הן מותאמות לצ׳ק — בטל את ההתאמה קודם.` : '.'}`,
+        + `${r.released ? `, ו-${r.released} התאמות שוחררו — הצ׳קים חזרו לרשימת הפתוחים.` : ''}`
+        + `${r.skippedMatched ? `. ${r.skippedMatched} דולגו כי הן מותאמות לצ׳ק — בטל את ההתאמה קודם.` : (r.released ? '' : '.')}`,
+    });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return renderPage(req, res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+// תיקון אסמכתאות שנשמרו בכתיב מדעי (`1.81732779E8` במקום `181732779`). זו פעולה קנונית —
+// אותו מספר, כתיב קריא — ולכן היא לא נוגעת בסכומים, בתאריכים ובהתאמות קיימות. ייבוא חדש כבר
+// שומר את הצורה הנכונה מלכתחילה (lib/numText.js), אז הכפתור נועד למה שכבר במסד.
+router.post('/refs/normalize', requirePermission('import_bank'), async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  try {
+    const r = await normalizeStoredReferences(accountId, req.user);
+    return renderPage(req, res, accountId, {
+      notice: r.fixed
+        ? `${r.fixed} מספרי אסמכתא נכתבו מחדש בספרות.`
+        : 'לא נמצאו אסמכתאות שדורשות תיקון.',
     });
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return renderPage(req, res, accountId, { error: err.message });

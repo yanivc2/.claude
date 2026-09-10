@@ -41,3 +41,29 @@ export function decodeBuffer(buf) {
     }
   }
 }
+
+/**
+ * שם קובץ כפי שהמשתמש רואה אותו — לא כפי ש-multer מוסר אותו.
+ *
+ * multer מוסר את `originalname` כבייטים שנקראו כ-latin1, ולכן "פקדון ספטמבר.csv" מגיע כג'יבריש.
+ * השם הזה נשמר במסד ואז מוצג בשורת הייבוא — בדיוק המקום שבו המשתמש אמור לזהות איזה קובץ הוא
+ * העלה לחשבון הלא נכון.
+ *
+ * 🔴 הפונקציה בטוחה לקריאה חוזרת, ולכן אפשר להפעיל אותה גם על שם שכבר נשמר במסד: שם עברי תקין
+ * מכיל תווים מעל U+00FF ומוחזר כמות שהוא; רק מחרוזת שכולה בייטים (\u0000-\u00ff) נבחנת, ורק אם
+ * הפענוח שלה כ-UTF-8 לא יצר תו החלפה.
+ *
+ * @param {string|null|undefined} name
+ * @returns {string|null}
+ */
+export function decodeFileName(name) {
+  const raw = (name ?? '').toString();
+  if (!raw) return null;
+  if (/[^\u0000-\u00ff]/.test(raw)) return raw; // כבר טקסט תקין, לא בייטים
+  try {
+    const back = Buffer.from(raw, 'latin1').toString('utf8');
+    return back.includes('\uFFFD') ? raw : back;
+  } catch {
+    return raw;
+  }
+}

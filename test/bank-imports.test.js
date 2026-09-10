@@ -144,7 +144,7 @@ test('bulk delete removes the picked rows, and skips ones matched to a check', a
   const matchedTxn = all.find((t) => t.raw_reference === '1001');
   await confirmMatch(matchedTxn.id, pay.id, ow, db);
 
-  const r = await deleteTransactions(all.map((t) => t.id), acct.id, ow, db);
+  const r = await deleteTransactions(all.map((t) => t.id), acct.id, ow, {}, db);
   assert.equal(r.deleted, 1, 'the free row went');
   assert.equal(r.skippedMatched, 1, 'the matched one was skipped, not silently detached');
   const left = await db.many('SELECT id FROM bank_transactions', []);
@@ -160,7 +160,7 @@ test('🔒 bulk delete cannot reach another account by a forged id', async () =>
   await importTransactions(other.id, ROWS, 'csv', ow, db, { fileName: 'theirs.csv' });
   const theirs = await db.many('SELECT id FROM bank_transactions', []);
 
-  const r = await deleteTransactions(theirs.map((t) => t.id), acct.id, ow, db);
+  const r = await deleteTransactions(theirs.map((t) => t.id), acct.id, ow, {}, db);
   assert.equal(r.deleted, 0, 'ids belonging to another account are simply not there');
   assert.equal((await db.many('SELECT id FROM bank_transactions', [])).length, theirs.length);
 });
@@ -168,7 +168,7 @@ test('🔒 bulk delete cannot reach another account by a forged id', async () =>
 test('bulk delete refuses an empty selection instead of doing nothing quietly', async () => {
   const { db, ow, acct } = await world();
   const { deleteTransactions } = await import('../src/services/bankTransactions.js');
-  await assert.rejects(() => deleteTransactions([], acct.id, ow, db), /לא נבחרו/);
+  await assert.rejects(() => deleteTransactions([], acct.id, ow, {}, db), /לא נבחרו/);
 });
 
 test('🔴 before the DB upgrade the page says so — it must not claim "no files imported"', async () => {
@@ -186,4 +186,25 @@ test('🔴 before the DB upgrade the page says so — it must not claim "no file
   assert.match(view, /נדרש עדכון מסד נתונים/);
   assert.ok(view.indexOf('נדרש עדכון מסד נתונים') < view.indexOf('עדיין לא יובאו קבצים לחשבון הזה'),
     'the upgrade notice takes precedence over the empty-state text');
+});
+
+test('🔴 cancelling an import also returns its checks to the open list', async () => {
+  const { db, ow, store, acct } = await world();
+  const sup = await approveSupplier((await createSupplier({ name: 'טרה' }, ow, db)).id, ow, db);
+  await createInvoice({ supplierId: sup.id, storeId: store.id, invoiceNumber: 'INV-11', invoiceDate: '2026-08-20',
+    amountBeforeVat: 100000, vatAmount: 18000, docType: 'tax_invoice', allocationNumber: '444555666' }, ow, db);
+  const inv = await db.one("SELECT * FROM invoices WHERE invoice_number = 'INV-11'", []);
+  await approveInvoiceForPayment(inv.id, ow, db);
+  const pay = await createPayment({ bankAccountId: acct.id, method: 'check', checkNumber: '1001',
+    paymentDate: '2026-09-01', invoiceIds: [inv.id] }, ow, db);
+
+  const { importId } = await importTransactions(acct.id, ROWS, 'csv', ow, db, { fileName: 'wrong.csv' });
+  const txn = await db.one("SELECT * FROM bank_transactions WHERE raw_reference = '1001'", []);
+  await confirmMatch(txn.id, pay.id, ow, db);
+  assert.equal((await db.one('SELECT status FROM payments WHERE id = ?', [pay.id])).status, 'cleared');
+
+  await deleteImport(importId, ow, { releaseMatched: true }, db);
+  // Clearing only the bank link would leave the check reported as paid for ever — the money never
+  // actually moved on this account, so the check has to go back to waiting.
+  assert.notEqual((await db.one('SELECT status FROM payments WHERE id = ?', [pay.id])).status, 'cleared');
 });

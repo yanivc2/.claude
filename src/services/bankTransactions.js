@@ -1,6 +1,8 @@
 import { getExecutor, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { logAction } from './audit.js';
+import { plainNumber, isOddNumberText } from '../lib/numText.js';
+import { decodeFileName } from '../lib/decodeText.js';
 
 // Stage 2: bank transactions land here (from the scraper, a CSV export, or manual entry)
 // and are then reconciled against open checks by the R7 engine. Amounts are signed agorot
@@ -14,6 +16,11 @@ import { logAction } from './audit.js';
 export async function importTransactions(bankAccountId, rows, source, actor, x = getExecutor(), { fileName = null } = {}) {
   const account = await x.one('SELECT id FROM bank_accounts WHERE id = ?', [bankAccountId]);
   if (!account) throw new NotFoundError(`חשבון בנק ${bankAccountId} לא נמצא`);
+
+  // 🔴 לפני בדיקת הכפילות, לא אחריה. הבדיקה משווה אסמכתא מול אסמכתא ב-SQL; שורה ישנה שנשמרה
+  // כ-`1.81732779E8` מול שורה חדשה שנקראת כ-`181732779` תיראה לה כתנועה אחרת, והעלאה חוזרת של
+  // אותו קובץ הייתה מכפילה כל שורה. הקנוניזציה מיישרת את שני הצדדים מראש.
+  await normalizeStoredReferences(bankAccountId, actor, x);
 
   // כל העלאה נרשמת כאירוע, וכל שורה נושאת את מזהה ההעלאה שהביאה אותה. בלי זה אין דרך לדעת מה
   // הועלה ומתי — ולכן גם אין דרך לבטל קובץ שהועלה לחשבון הלא נכון.
@@ -94,7 +101,11 @@ export async function matchRowsToTransactions(bankAccountId, rows, x = getExecut
     'SELECT id, txn_date, amount, description, raw_reference, matched_payment_id FROM bank_transactions WHERE bank_account_id = ?',
     [Number(bankAccountId)],
   );
-  const key = (d, a, desc, ref) => [d, Number(a), (desc ?? '') || '', (ref ?? '') || ''].join('|');
+  // 🔴 האסמכתא מקונוננת בשני הצדדים. שורה שנשמרה לפני התיקון נושאת `1.81732779E8` ואילו קריאה
+  // חדשה של אותו קובץ נותנת `181732779` — אותו מספר, שני מפתחות, והקובץ לא היה מוצא את השורות
+  // שהוא עצמו יצר. `plainNumber` על שני הצדדים מבטל את ההפרש הזה בלי לגעת בנתונים.
+  const key = (d, a, desc, ref) =>
+    [d, Number(a), (desc ?? '') || '', plainNumber((ref ?? '') || '')].join('|');
   const pool = new Map();
   for (const t of txns) {
     const k = key(t.txn_date, t.amount, t.description, t.raw_reference);
@@ -112,6 +123,50 @@ export async function matchRowsToTransactions(bankAccountId, rows, x = getExecut
     matched: hits.filter((t) => t.matched_payment_id != null).map((t) => Number(t.id)),
     rows: hits,
   };
+}
+
+/**
+ * אסמכתאות שנשמרו בכתיב שאי אפשר לקרוא — `1.81732779E8` במקום `181732779`, `26411.0` במקום
+ * `26411`. זה מה שהיצואן של דף הבנק כותב, וזה נכנס למסד כמו שהוא.
+ *
+ * 🔴 זו לא תקלת תצוגה. אסמכתא היא מפתח ההשוואה מול מספר הצ׳ק (התאמה דטרמיניסטית) ומול מספר
+ * שקית ההפקדה — ומספר שנכתב בכתיב מדעי פשוט לא שווה לאף אחד מהם. לכן התיקון הוא **בנתון**
+ * ולא בעיצוב: אחרת המסך ייראה תקין וההתאמה תמשיך להיכשל בשקט.
+ *
+ * @returns {Promise<{count:number, sample:string[]}>}
+ */
+export async function oddReferences(accountId = null, x = getExecutor()) {
+  const rows = accountId
+    ? await x.many('SELECT id, raw_reference FROM bank_transactions WHERE bank_account_id = ?', [Number(accountId)])
+    : await x.many('SELECT id, raw_reference FROM bank_transactions', []);
+  const odd = rows.filter((r) => isOddNumberText(r.raw_reference));
+  return { count: odd.length, sample: odd.slice(0, 3).map((r) => String(r.raw_reference)) };
+}
+
+/**
+ * כותב את אותן אסמכתאות בספרות. פעולה קנונית בלבד — אותו מספר בדיוק, כתיב אחר — ולכן היא
+ * בטוחה לחזרה ואינה משנה שום התאמה קיימת.
+ * @returns {Promise<{fixed:number}>}
+ */
+export async function normalizeStoredReferences(accountId = null, actor = null, x = getExecutor()) {
+  const rows = accountId
+    ? await x.many('SELECT id, raw_reference FROM bank_transactions WHERE bank_account_id = ?', [Number(accountId)])
+    : await x.many('SELECT id, raw_reference FROM bank_transactions', []);
+  let fixed = 0;
+  for (const r of rows) {
+    if (!isOddNumberText(r.raw_reference)) continue;
+    const clean = plainNumber(r.raw_reference);
+    if (clean === String(r.raw_reference)) continue;
+    await x.run('UPDATE bank_transactions SET raw_reference = ? WHERE id = ?', [clean, r.id]);
+    fixed += 1;
+  }
+  if (fixed) {
+    await logAction(
+      { userId: actor?.id ?? null, action: 'bank.refs_normalized', entityType: 'bank_account', entityId: accountId ? Number(accountId) : null, details: { fixed } },
+      x,
+    );
+  }
+  return { fixed };
 }
 
 export async function importsReady(x = getExecutor()) {
@@ -149,6 +204,9 @@ export async function listImports({ accountId = null, limit = 20 } = {}, x = get
     const matched = mine.filter((r) => r.matched_payment_id != null).length;
     return {
       ...imp,
+      // שם שנשמר לפני שהפענוח היה קיים נשמר כג'יבריש; `decodeFileName` בטוחה לקריאה חוזרת ולכן
+      // היא מיישרת גם אותו, בלי לכתוב מחדש שורה במסד ובלי לפגוע בשם שכבר תקין.
+      file_name: decodeFileName(imp.file_name),
       present: mine.length,               // שורות שעדיין קיימות (חלקן אולי נמחקו ידנית)
       matched,
       unmatched: mine.length - matched,
@@ -175,20 +233,34 @@ export async function listImports({ accountId = null, limit = 20 } = {}, x = get
  * @param {number[]} ids
  * @returns {Promise<{deleted:number, skippedMatched:number}>}
  */
-export async function deleteTransactions(ids, accountId, actor, x = getExecutor()) {
+export async function deleteTransactions(ids, accountId, actor, { releaseMatched = false } = {}, x = getExecutor()) {
   const wanted = [...new Set((ids || []).map(Number).filter(Boolean))];
   if (!wanted.length) throw new RuleError('VALIDATION', 'לא נבחרו תנועות');
   // כל השורות נשלפות ומסוננות לחשבון הזה — מזהה מזויף לא ימחק תנועה של חשבון אחר.
   const rows = await x.many('SELECT id, matched_payment_id FROM bank_transactions WHERE bank_account_id = ?', [Number(accountId)]);
   const mine = rows.filter((r) => wanted.includes(Number(r.id)));
+  const matched = mine.filter((r) => r.matched_payment_id != null);
   const free = mine.filter((r) => r.matched_payment_id == null);
-  for (const r of free) await x.run('DELETE FROM bank_transactions WHERE id = ?', [r.id]);
+
+  // `releaseMatched` = המשתמש ראה כמה התאמות ישוחררו ואישר. זה המצב של "פרטי בנק שאינם שייכים
+  // לחשבון הזה בכלל": ההתאמה שנעשתה מולם היא **התאמת שווא** — הצ׳ק לא נפרע בתנועה הזו — ולכן
+  // שחרורה הוא התיקון, לא נזק. הצ׳ק חוזר לרשימת הפתוחים וממתין לתנועה האמיתית שלו.
+  const toDelete = releaseMatched ? [...free, ...matched] : free;
+  let released = 0;
+  if (releaseMatched) {
+    // 🔴 דרך `unmatch` ולא ב-UPDATE ישיר: ניתוק השדה לבדו משאיר את התשלום ב-`cleared` עם
+    // `cleared_date`, כלומר הצ׳ק ממשיך להיראות פרוע ואינו חוזר לרשימת הפתוחים — בדיוק ההפך
+    // ממה שהמסך מבטיח. `unmatch` מחזיר גם את סטטוס התשלום.
+    const { unmatch } = await import('./reconciliation.js');
+    for (const r of matched) { await unmatch(r.id, actor, x); released += 1; }
+  }
+  for (const r of toDelete) await x.run('DELETE FROM bank_transactions WHERE id = ?', [r.id]);
   await logAction(
     { userId: actor?.id ?? null, action: 'bank.txn_bulk_delete', entityType: 'bank_account', entityId: Number(accountId),
-      details: { deleted: free.length, skippedMatched: mine.length - free.length } },
+      details: { deleted: toDelete.length, released, skippedMatched: releaseMatched ? 0 : matched.length } },
     x,
   );
-  return { deleted: free.length, skippedMatched: mine.length - free.length };
+  return { deleted: toDelete.length, released, skippedMatched: releaseMatched ? 0 : matched.length };
 }
 
 export async function untrackedSummary(accountId, x = getExecutor()) {
@@ -235,9 +307,10 @@ export async function deleteImport(id, actor, { releaseMatched = false } = {}, x
     throw new RuleError('MATCHED', `${matched.length} מתנועות הייבוא כבר הותאמו לצ׳קים — אישור נוסף נדרש כדי לבטל את ההתאמות ולמחוק.`);
   }
   let released = 0;
-  for (const r of matched) {
-    await x.run('UPDATE bank_transactions SET matched_payment_id = NULL WHERE id = ?', [r.id]);
-    released += 1;
+  if (matched.length) {
+    // כמו ב-deleteTransactions: ניתוק השדה לבדו היה משאיר את הצ׳ק "נפרע".
+    const { unmatch } = await import('./reconciliation.js');
+    for (const r of matched) { await unmatch(r.id, actor, x); released += 1; }
   }
   await x.run('DELETE FROM bank_transactions WHERE import_id = ?', [imp.id]);
   await x.run('DELETE FROM bank_imports WHERE id = ?', [imp.id]);

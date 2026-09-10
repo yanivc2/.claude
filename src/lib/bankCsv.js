@@ -1,4 +1,5 @@
 import { toAgorot } from './money.js';
+import { plainNumber } from './numText.js';
 
 // Normalize parsed CSV rows into bank_transactions shape. Auto-detects three shapes:
 //   1. Bank Hapoalim export (Hebrew headers, separate חובה/זכות columns, אסמכתא = check number)
@@ -32,10 +33,22 @@ function normalizeDate(value) {
 
 /** Strip currency symbols / spaces / unicode minus so toAgorot accepts real bank cells. */
 function cleanAmount(value) {
-  return String(value || '')
+  return plainNumber(String(value || '')
     .replace(/[₪\s ]/g, '') // shekel sign, spaces, non-breaking space
     .replace(/[−‒–—]/g, '-') // unicode minus / dashes -> ASCII hyphen
-    .trim();
+    .trim());
+}
+
+/**
+ * אסמכתא כפי שהיא צריכה להישמר: ספרות, לא כתיב מדעי.
+ *
+ * 🔴 הנקודה הזו היא המשפך של שני מסלולי הקריאה (CSV ו-xlsx כאחד), ולכן היא המקום שבו האסמכתא
+ * מקבלת צורה **אחת** בכל המסד. אסמכתא היא מפתח השוואה — מול מספר צ׳ק, מול מספר שקית הפקדה ומול
+ * בדיקת הכפילות בייבוא — ושתי כתיבות של אותו מספר הן שני מפתחות שונים.
+ */
+export function normalizeReference(value) {
+  const s = String(value ?? '').trim();
+  return s ? plainNumber(s) : s;
 }
 
 function firstNonEmpty(row, keys) {
@@ -92,7 +105,7 @@ export function normalizeBankRows(rows) {
       const date = normalizeDate(firstNonEmpty(r, dateKey ? [dateKey] : []));
       if (!date) return; // rows without a date are summaries/footers — skip, don't fail
       const desc = descKeys.map((k) => firstNonEmpty(r, [k])).filter(Boolean).join(' — ') || null;
-      const ref = refKey ? firstNonEmpty(r, [refKey]) || null : null;
+      const ref = refKey ? normalizeReference(firstNonEmpty(r, [refKey])) || null : null;
       out.push({ txnDate: date, amount, description: desc, rawReference: ref, balanceAfter: parseBalance(r) });
     } else {
       if (!r.date || r.amount === undefined || r.amount === '') {
@@ -106,7 +119,7 @@ export function normalizeBankRows(rows) {
         txnDate: normalizeDate(r.date),
         amount: toAgorot(cleanAmount(r.amount)),
         description: r.description || null,
-        rawReference: r.reference || null,
+        rawReference: normalizeReference(r.reference) || null,
         balanceAfter: parseBalance(r),
       });
     }

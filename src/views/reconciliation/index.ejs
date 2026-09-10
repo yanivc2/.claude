@@ -48,6 +48,25 @@
   <% } %>
 </div>
 
+<%# אסמכתא שנשמרה בכתיב מדעי אינה רק מכוערת: היא לא שווה למספר הצ׳ק ולא למספר שקית ההפקדה,
+    ולכן ההתאמה מולה נכשלת בשקט. לכן ההצעה כאן היא לתקן את הנתון, לא להסתיר אותו בעיצוב. %>
+<% var odd = (typeof oddRefs !== 'undefined') ? oddRefs : null; %>
+<% if (odd && odd.count && typeof can === 'function' && can('import_bank')) { %>
+  <div class="card" style="border-color:var(--color-warn)">
+    <h2 style="margin:0 0 .4rem">🔢 מספרי אסמכתא בכתיב מדעי</h2>
+    <p style="margin:0 0 .5rem">
+      ל-<strong><%= odd.count %></strong> תנועות בחשבון הזה נשמרה האסמכתא כפי שקובץ הבנק כתב אותה
+      <% if (odd.sample.length) { %>(<%= odd.sample.join(' · ') %>)<% } %> — ולא בספרות.
+      זה גם מה שמונע התאמה לפי מספר צ׳ק או מספר שקית הפקדה.
+    </p>
+    <form method="post" action="/reconciliation/refs/normalize" class="actions" data-busy>
+      <input type="hidden" name="account_id" value="<%= accountId %>" />
+      <button type="submit">כתוב אותן בספרות</button>
+      <span class="muted" style="font-size:12px">אותו מספר בדיוק, כתיב קריא. סכומים, תאריכים והתאמות קיימות לא משתנים.</span>
+    </form>
+  </div>
+<% } %>
+
 <% var pg = (typeof purge !== 'undefined') ? purge : null; %>
 <% if (pg) { %>
   <div class="card" style="border-color:var(--color-bad)">
@@ -78,15 +97,29 @@
       <% if (pg.ids.length + pg.matchedCount > pg.rows.length) { %>
         <p class="muted" style="margin:.3rem 0 0">מוצגות <%= pg.rows.length %> הראשונות מתוך <%= pg.ids.length + pg.matchedCount %>.</p>
       <% } %>
-      <% if (pg.ids.length) { %>
-        <form method="post" action="/reconciliation/txns/delete" style="margin-top:.6rem"
-              onsubmit="return confirm('למחוק <%= pg.ids.length %> תנועות שהגיעו מהקובץ הזה? הפעולה אינה הפיכה.');">
-          <input type="hidden" name="account_id" value="<%= accountId %>" />
-          <% pg.ids.forEach(function(id){ %><input type="hidden" name="txn_ids" value="<%= id %>" /><% }); %>
-          <button type="submit" class="danger">🗑️ מחק <%= pg.ids.length %> תנועות</button>
-          <a class="btn btn-secondary" href="/reconciliation?account=<%= accountId %>">ביטול</a>
-        </form>
-      <% } %>
+      <div class="actions" style="margin-top:.6rem">
+        <% if (pg.ids.length) { %>
+          <form method="post" action="/reconciliation/txns/delete" style="display:inline"
+                onsubmit="return confirm('למחוק <%= pg.ids.length %> תנועות שהגיעו מהקובץ הזה? הפעולה אינה הפיכה.');">
+            <input type="hidden" name="account_id" value="<%= accountId %>" />
+            <% pg.ids.forEach(function(id){ %><input type="hidden" name="txn_ids" value="<%= id %>" /><% }); %>
+            <button type="submit" class="danger">🗑️ מחק <%= pg.ids.length %> תנועות</button>
+          </form>
+        <% } %>
+        <%# פרטי בנק שאינם שייכים לחשבון הזה בכלל: ההתאמה שנעשתה מולם היא **התאמת שווא** — הצ׳ק
+            לא נפרע בתנועה הזו — ולכן שחרורה הוא התיקון ולא נזק. הצ׳ק חוזר לרשימת הפתוחים
+            וממתין לתנועה האמיתית שלו. אישור מפורש, כי זו פעולה על צ׳קים ולא רק על תנועות. %>
+        <% if (pg.matchedCount) { %>
+          <form method="post" action="/reconciliation/txns/delete" style="display:inline"
+                onsubmit="return confirm('למחוק את כל <%= pg.ids.length + pg.matchedCount %> התנועות מהקובץ הזה, כולל <%= pg.matchedCount %> שכבר הותאמו?\n\nההתאמות ישוחררו והצ׳קים יחזרו לרשימת הצ׳קים הפתוחים — נכון כשהתנועות אינן שייכות לחשבון הזה בכלל.\nהפעולה אינה הפיכה.');">
+            <input type="hidden" name="account_id" value="<%= accountId %>" />
+            <input type="hidden" name="release" value="1" />
+            <% pg.ids.concat(pg.matchedIds || []).forEach(function(id){ %><input type="hidden" name="txn_ids" value="<%= id %>" /><% }); %>
+            <button type="submit" class="danger">🗑️ מחק את כל <%= pg.ids.length + pg.matchedCount %> ושחרר <%= pg.matchedCount %> התאמות</button>
+          </form>
+        <% } %>
+        <a class="btn btn-secondary" href="/reconciliation?account=<%= accountId %>">ביטול</a>
+      </div>
     <% } %>
   </div>
 <% } %>
@@ -133,7 +166,7 @@
           <% imps.forEach(function(im){ %>
             <tr>
               <td data-label="מתי" data-sort="<%= im.imported_at %>"><%= String(im.imported_at).slice(0,16) %></td>
-              <td data-label="קובץ"><%= im.file_name || '—' %></td>
+              <td data-label="קובץ" title="<%= im.file_name || '' %>" style="word-break:break-word; min-width:12ch"><%= im.file_name || '—' %></td>
               <td data-label="מקור" class="muted"><%= im.source === 'csv' ? 'קובץ' : im.source === 'financy' ? 'משיכה מהבנק' : im.source === 'scraper' ? 'סריקה' : im.source %></td>
               <td data-label="נשמרו" class="right"><strong><%= im.inserted %></strong></td>
               <td data-label="כפילויות" class="right muted"><%= im.skipped || '—' %></td>
