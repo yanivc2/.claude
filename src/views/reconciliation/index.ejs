@@ -34,6 +34,17 @@
       </p>
     <% } %>
   <% } %>
+
+  <%# הכנסת התנועות היא הפעולה הראשונה בדף, ולכן היא יושבת כאן — ליד בורר החשבון והמשיכה מהבנק.
+      קודם היא הייתה שני אייקונים עגולים בכרטיס בלי כותרת בתחתית הדף, מתחת לקפל גם בדסקטופ
+      (נמדד: 916px) וגם בנייד (1355px). קיימת אך בלתי נראית. %>
+  <% if (typeof can === 'function' && can('import_bank')) { %>
+    <div class="actions" style="margin-top:var(--space-4)">
+      <button type="button" onclick="document.getElementById('csvDlg').showModal()">📄 ייבוא CSV / Excel</button>
+      <button type="button" class="btn-secondary" onclick="document.getElementById('txnDlg').showModal()">➕ הוספת תנועה ידנית</button>
+      <span class="muted" style="font-size:12px">קובץ פעולות בחשבון מהבנק (CSV או Excel), או תנועה בודדת בהזנה ידנית.</span>
+    </div>
+  <% } %>
 </div>
 
 <div class="card">
@@ -99,7 +110,12 @@
     <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th><th>סטטוס</th><th data-nosort class="no-print">פעולות</th></tr></thead>
     <tbody>
       <% if (transactions.length === 0) { %>
-        <tr><td colspan="7" class="muted">אין תנועות. ייבא CSV/Excel, הרץ scraper, או הוסף ידנית.</td></tr>
+        <tr><td colspan="7" class="muted">
+          אין תנועות בחשבון.
+          <% if (typeof can === 'function' && can('import_bank')) { %>
+            <button type="button" class="btn-sm" onclick="document.getElementById('csvDlg').showModal()">📄 ייבוא CSV / Excel</button>
+          <% } %>
+        </td></tr>
       <% } %>
       <% transactions.forEach(function(t){ %>
         <tr>
@@ -151,24 +167,6 @@
     </tbody>
   </table>
 </div>
-
-<!-- כפתורים עגולים למטה-מימין: ייבוא CSV + הוספת תנועה (נפתחים בחלון) -->
-<% if (typeof can === 'function' && can('import_bank')) { %>
-<div class="card no-print" style="display:flex; gap:var(--space-8); justify-content:flex-start; align-items:flex-start">
-  <div class="icon-tile">
-    <button type="button" class="icon-circle accent" onclick="document.getElementById('csvDlg').showModal()" aria-label="ייבוא CSV / Excel" title="ייבוא CSV / Excel">
-      <svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/><path d="M12 11v6M9.5 14.5 12 17l2.5-2.5"/></svg>
-    </button>
-    <span class="cap">ייבוא CSV / Excel</span>
-  </div>
-  <div class="icon-tile">
-    <button type="button" class="icon-circle" onclick="document.getElementById('txnDlg').showModal()" aria-label="הוספת תנועה" title="הוספת תנועה">
-      <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
-    <span class="cap">הוספת תנועה</span>
-  </div>
-</div>
-<% } %>
 
 <!-- מודל ייבוא CSV / Excel -->
 <dialog id="csvDlg" class="dlg wide">
