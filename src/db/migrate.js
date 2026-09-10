@@ -33,6 +33,7 @@ export function migrate(db) {
   migrateSupplierBank(db);
   migrateEmployeeAdvances(db); // after employees/stores/salary_payments exist
   migrateTrackedInvoices(db);
+  migrateBankImports(db);
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -681,4 +682,27 @@ function migrateTrackedInvoices(db) {
     if (!cols.includes(col)) db.exec(`ALTER TABLE invoices ADD COLUMN ${col} ${ddl};`);
   }
   db.exec('CREATE INDEX IF NOT EXISTS ix_invoices_tracked ON invoices(tracked_for_payment);');
+}
+
+// bank_imports — כל העלאה כאירוע אחד, כדי שאפשר יהיה לראות ולבטל (ראה schema.sql).
+function migrateBankImports(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  if (!has('bank_accounts') || !has('bank_transactions')) return;
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bank_imports (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
+      source          TEXT NOT NULL,
+      file_name       TEXT,
+      rows_total      INTEGER NOT NULL DEFAULT 0,
+      inserted        INTEGER NOT NULL DEFAULT 0,
+      skipped         INTEGER NOT NULL DEFAULT 0,
+      imported_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+      imported_by     INTEGER REFERENCES users(id)
+    );
+    CREATE INDEX IF NOT EXISTS ix_bank_imports_account ON bank_imports(bank_account_id, id);
+  `);
+  const cols = db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name);
+  if (!cols.includes('import_id')) db.exec('ALTER TABLE bank_transactions ADD COLUMN import_id INTEGER REFERENCES bank_imports(id);');
+  db.exec('CREATE INDEX IF NOT EXISTS ix_bank_txn_import ON bank_transactions(import_id);');
 }

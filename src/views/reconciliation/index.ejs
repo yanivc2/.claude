@@ -47,6 +47,56 @@
   <% } %>
 </div>
 
+<%# מה הועלה לחשבון הזה. בלי הרובריקה הזו אין שום דרך לדעת מה נכנס, מתי, ועל ידי מי — ולכן גם
+    אין דרך לבטל קובץ שנחת בחשבון של חנות אחרת. %>
+<% var imps = (typeof imports !== 'undefined' && imports) ? imports : []; %>
+<div class="card">
+  <h2 style="margin:0 0 .4rem">ייבואים אחרונים לחשבון זה</h2>
+  <% if (!imps.length) { %>
+    <p class="muted" style="margin:0">עדיין לא יובאו קבצים לחשבון הזה.</p>
+  <% } else { %>
+    <p class="muted" style="margin:0 0 .5rem">
+      כל שורה היא העלאה אחת. <strong>"נשמר ומוכן להתאמה"</strong> = השורות קיימות וממתינות ל"התאמה אוטומטית".
+      ביטול ייבוא מוחק את התנועות שהגיעו בו בלבד.
+    </p>
+    <div class="table-scroll">
+      <table class="sortable line-grid">
+        <thead><tr>
+          <th>מתי</th><th>קובץ</th><th>מקור</th><th class="right">נשמרו</th><th class="right">כפילויות</th>
+          <th>מצב</th><th>הועלה ע״י</th><th data-nosort>ביטול</th>
+        </tr></thead>
+        <tbody>
+          <% imps.forEach(function(im){ %>
+            <tr>
+              <td data-label="מתי" data-sort="<%= im.imported_at %>"><%= String(im.imported_at).slice(0,16) %></td>
+              <td data-label="קובץ"><%= im.file_name || '—' %></td>
+              <td data-label="מקור" class="muted"><%= im.source === 'csv' ? 'קובץ' : im.source === 'financy' ? 'משיכה מהבנק' : im.source === 'scraper' ? 'סריקה' : im.source %></td>
+              <td data-label="נשמרו" class="right"><strong><%= im.inserted %></strong></td>
+              <td data-label="כפילויות" class="right muted"><%= im.skipped || '—' %></td>
+              <td data-label="מצב">
+                <% if (!im.present) { %><span class="badge b-neutral">אין שורות</span>
+                <% } else if (im.matched) { %><span class="badge b-paid"><%= im.matched %> הותאמו</span>
+                  <% if (im.unmatched) { %> <span class="badge b-on_hold"><%= im.unmatched %> ממתינות</span><% } %>
+                <% } else { %><span class="badge b-approved">נשמר ומוכן להתאמה</span><% } %>
+              </td>
+              <td data-label="הועלה ע״י" class="muted"><%= im.imported_by_name || '—' %></td>
+              <td data-label="ביטול">
+                <form method="post" action="/reconciliation/imports/<%= im.id %>/delete" style="display:inline"
+                      onsubmit="return confirm('לבטל את הייבוא<%= im.file_name ? ' — ' + im.file_name : '' %>?\n<%= im.present %> תנועות יימחקו מהחשבון הזה.<% if (im.matched) { %>\nשים לב: <%= im.matched %> מהן כבר הותאמו לצ׳קים — ההתאמות ישוחררו והצ׳קים יחזרו לרשימת הפתוחים.<% } %>');">
+                  <%# שורות שכבר הותאמו: השירות מסרב בלי אישור נוסף, ולכן האישור נשלח מראש רק כשהמשתמש
+                      רואה במפורש כמה התאמות ישוחררו. %>
+                  <% if (im.matched) { %><input type="hidden" name="release" value="1" /><% } %>
+                  <button type="submit" class="btn-sm danger"><%= im.matched ? 'בטל ושחרר התאמות' : 'בטל ייבוא' %></button>
+                </form>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
 <div class="card">
   <div class="toolbar">
     <h2 style="margin:0">תנועות לא מותאמות (חובה)</h2>

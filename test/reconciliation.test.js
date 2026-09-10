@@ -151,6 +151,13 @@ test('importTransactions is idempotent on identical rows', async () => {
   const db = await freshDb();
   const acct = (await db.one('SELECT id FROM bank_accounts LIMIT 1', [])).id;
   const row = { txnDate: '2026-07-01', amount: -12345, description: 'x', rawReference: 'r1' };
-  assert.deepEqual(await importTransactions(acct, [row], 'manual', null, db), { inserted: 1, skipped: 0 });
-  assert.deepEqual(await importTransactions(acct, [row], 'manual', null, db), { inserted: 0, skipped: 1 });
+  // כל ייבוא מחזיר גם `importId` — כל העלאה היא אירוע שאפשר לראות ולבטל (bank_imports).
+  const first = await importTransactions(acct, [row], 'manual', null, db);
+  assert.equal(first.inserted, 1);
+  assert.equal(first.skipped, 0);
+  assert.ok(first.importId);
+  const again = await importTransactions(acct, [row], 'manual', null, db);
+  assert.equal(again.inserted, 0);
+  assert.equal(again.skipped, 1, 'the duplicate is blocked, and the batch records that it was');
+  assert.notEqual(again.importId, first.importId, 'a second upload is a second event, even if nothing landed');
 });

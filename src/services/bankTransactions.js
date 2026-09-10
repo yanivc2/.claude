@@ -11,9 +11,18 @@ import { logAction } from './audit.js';
  * (txn_date, amount, description, raw_reference).
  * @returns {{inserted:number, skipped:number}}
  */
-export async function importTransactions(bankAccountId, rows, source, actor, x = getExecutor()) {
+export async function importTransactions(bankAccountId, rows, source, actor, x = getExecutor(), { fileName = null } = {}) {
   const account = await x.one('SELECT id FROM bank_accounts WHERE id = ?', [bankAccountId]);
   if (!account) throw new NotFoundError(`חשבון בנק ${bankAccountId} לא נמצא`);
+
+  // כל העלאה נרשמת כאירוע, וכל שורה נושאת את מזהה ההעלאה שהביאה אותה. בלי זה אין דרך לדעת מה
+  // הועלה ומתי — ולכן גם אין דרך לבטל קובץ שהועלה לחשבון הלא נכון.
+  const batch = await x.run(
+    `INSERT INTO bank_imports (bank_account_id, source, file_name, rows_total, imported_by)
+     VALUES (?, ?, ?, ?, ?)`,
+    [bankAccountId, source, (fileName || '').toString().trim() || null, (rows || []).length, actor?.id ?? null],
+  );
+  const importId = batch.lastInsertRowid;
 
   let inserted = 0;
   let skipped = 0;
@@ -44,19 +53,91 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
         continue;
       }
       await t.run(
-        `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, balance_after, source, external_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [bankAccountId, r.txnDate, r.amount, desc, ref, Number.isFinite(r.balanceAfter) ? r.balanceAfter : null, source, externalId],
+        `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, balance_after, source, external_id, import_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [bankAccountId, r.txnDate, r.amount, desc, ref, Number.isFinite(r.balanceAfter) ? r.balanceAfter : null, source, externalId, importId],
       );
       inserted += 1;
     }
   });
 
+  await x.run('UPDATE bank_imports SET inserted = ?, skipped = ? WHERE id = ?', [inserted, skipped, importId]);
   await logAction(
-    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped } },
+    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, importId, fileName } },
     x,
   );
-  return { inserted, skipped };
+  return { inserted, skipped, importId };
+}
+
+/**
+ * ההעלאות האחרונות לחשבון, כל אחת עם כמה משורותיה עדיין קיימות וכמה מהן כבר הותאמו לצ׳ק.
+ * זה מה שעונה על "האם הקובץ נשמר ומוכן להתאמה" — ועל "מה בעצם העליתי לכאן".
+ */
+export async function listImports({ accountId = null, limit = 20 } = {}, x = getExecutor()) {
+  let imports;
+  try {
+    imports = accountId
+      ? await x.many('SELECT * FROM bank_imports WHERE bank_account_id = ? ORDER BY id DESC LIMIT ?', [Number(accountId), limit])
+      : await x.many('SELECT * FROM bank_imports ORDER BY id DESC LIMIT ?', [limit]);
+  } catch {
+    return []; // מסד לפני העדכון
+  }
+  if (!imports.length) return [];
+  // ספירה ב-JS ולא ב-GROUP BY: pg-mem אינו תומך ב-GROUP BY מעל join, וזו רשימה קצרה וחסומה.
+  const rows = await x.many(
+    'SELECT import_id, matched_payment_id FROM bank_transactions WHERE import_id IS NOT NULL', [],
+  );
+  const users = await x.many('SELECT id, name FROM users', []);
+  const byUser = new Map(users.map((u) => [Number(u.id), u.name]));
+  return imports.map((imp) => {
+    const mine = rows.filter((r) => Number(r.import_id) === Number(imp.id));
+    const matched = mine.filter((r) => r.matched_payment_id != null).length;
+    return {
+      ...imp,
+      present: mine.length,               // שורות שעדיין קיימות (חלקן אולי נמחקו ידנית)
+      matched,
+      unmatched: mine.length - matched,
+      imported_by_name: byUser.get(Number(imp.imported_by)) || null,
+      deletable: mine.length > 0,
+    };
+  });
+}
+
+export async function getImport(id, x = getExecutor()) {
+  const row = await x.one('SELECT * FROM bank_imports WHERE id = ?', [Number(id)]);
+  if (!row) throw new NotFoundError(`ייבוא ${id} לא נמצא`);
+  return row;
+}
+
+/**
+ * ביטול ייבוא: מוחק את התנועות שהגיעו בו.
+ *
+ * 🔴 שורה שכבר הותאמה לצ׳ק **אינה נמחקת בשקט** — מחיקה כזו הייתה מנתקת את הצ׳ק מההתאמה שלו בלי
+ * שאיש ביקש. ברירת המחדל היא לסרב ולומר כמה שורות מותאמות; רק `{ releaseMatched: true }` — כלומר
+ * אישור מפורש של המשתמש שראה את המספר — מבטל את ההתאמות ואז מוחק.
+ *
+ * @returns {{deleted:number, released:number, kept:number}}
+ */
+export async function deleteImport(id, actor, { releaseMatched = false } = {}, x = getExecutor()) {
+  const imp = await getImport(id, x);
+  const rows = await x.many('SELECT id, matched_payment_id FROM bank_transactions WHERE import_id = ?', [imp.id]);
+  const matched = rows.filter((r) => r.matched_payment_id != null);
+  if (matched.length && !releaseMatched) {
+    throw new RuleError('MATCHED', `${matched.length} מתנועות הייבוא כבר הותאמו לצ׳קים — אישור נוסף נדרש כדי לבטל את ההתאמות ולמחוק.`);
+  }
+  let released = 0;
+  for (const r of matched) {
+    await x.run('UPDATE bank_transactions SET matched_payment_id = NULL WHERE id = ?', [r.id]);
+    released += 1;
+  }
+  await x.run('DELETE FROM bank_transactions WHERE import_id = ?', [imp.id]);
+  await x.run('DELETE FROM bank_imports WHERE id = ?', [imp.id]);
+  await logAction(
+    { userId: actor?.id ?? null, action: 'bank.import_delete', entityType: 'bank_account', entityId: Number(imp.bank_account_id),
+      details: { importId: imp.id, fileName: imp.file_name, deleted: rows.length, released } },
+    x,
+  );
+  return { deleted: rows.length, released, kept: 0 };
 }
 
 /** Unmatched debit transactions for an account (candidates for check reconciliation). */

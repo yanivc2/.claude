@@ -99,7 +99,7 @@
 
     <h3 style="margin:1.1rem 0 .2rem">ספירת מזומן</h3>
     <div class="table-scroll">
-      <table>
+      <table data-count-adjust>
         <thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>
         <tbody>
           <% denoms.forEach(function(d){ %>
@@ -335,12 +335,13 @@
       + '<div><label>קופה</label><select name="reg_number[]"><option value="1">קופה 1</option><option value="2">קופה 2</option><option value="3">קופה 3</option></select></div>'
       + '<div><label>חנות</label><select name="reg_store[]">' + storeOptsHtml() + '</select></div>'
       + '</div>'
-      + '<div class="table-scroll" style="margin-top:.4rem"><table><thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>'
+      + '<div class="table-scroll" style="margin-top:.4rem"><table data-count-adjust><thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>'
       + '<tbody>' + denomRows() + '</tbody>'
       + '<tfoot><tr><th>סה"כ קופה ' + n + '</th><th></th><th class="right rc-total">₪0.00</th></tr></tfoot></table></div>'
       + '<div style="margin-top:.4rem"><button type="button" class="danger small" onclick="regDel(this)">הסר קופה</button></div>';
     var sel = div.querySelector('select[name="reg_number[]"]'); if (sel) sel.value = String(Math.min(n, 3));
     list.appendChild(div);
+    if (window.apCountAdjust) window.apCountAdjust(div);   // "הוסף/החסר שטרות" גם לקופה שנוספה עכשיו
     div.addEventListener('input', function(e){ if (e.target.classList && e.target.classList.contains('rc-cnt')) recalcBlock(div); });
     showCounter();
   };
@@ -365,4 +366,5 @@
   regAdd(); // start with one register
 })();
 </script>
+<script src="/count-adjust.js" defer></script>
 <%- include('../partials/footer') %>

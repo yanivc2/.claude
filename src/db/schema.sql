@@ -283,6 +283,25 @@ CREATE TABLE IF NOT EXISTS payment_lines (
 CREATE UNIQUE INDEX IF NOT EXISTS ux_payment_lines_invoice
   ON payment_lines(payment_id, invoice_id);
 
+
+-- bank_imports — כל העלאה של קובץ פעולות (או משיכה מהבנק) כאירוע אחד.
+--
+-- למה זה קיים: בלי זה אין שום דרך לדעת מה הועלה, מתי, לאיזה חשבון — ולכן גם אין דרך לבטל.
+-- קובץ של חנות אחת שהועלה בטעות לחשבון של חנות אחרת היה נשאר שם לנצח, מעורבב בתנועות אמיתיות,
+-- והתאמה אוטומטית הייתה מנסה להתאים אותו לצ׳קים של החנות הלא נכונה.
+CREATE TABLE IF NOT EXISTS bank_imports (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
+  source          TEXT NOT NULL,            -- csv / financy / scraper / manual
+  file_name       TEXT,                     -- שם הקובץ שהועלה, כפי שהמשתמש רואה אותו
+  rows_total      INTEGER NOT NULL DEFAULT 0,
+  inserted        INTEGER NOT NULL DEFAULT 0,
+  skipped         INTEGER NOT NULL DEFAULT 0,   -- כפילויות שנחסמו
+  imported_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  imported_by     INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS ix_bank_imports_account ON bank_imports(bank_account_id, id);
+
 -- §4 bank_transactions (stage 2 — table created now, matching engine is stage 2) -
 CREATE TABLE IF NOT EXISTS bank_transactions (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -296,6 +315,7 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
   -- Provider's own transaction id (Financy `SK`). NULL for CSV/manual rows. When present it is
   -- the dedupe key, so re-pulling an overlapping date window never duplicates a line.
   external_id        TEXT,
+  import_id          INTEGER REFERENCES bank_imports(id),   -- ההעלאה שהביאה את השורה
   matched_payment_id INTEGER REFERENCES payments(id)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_bank_txn_external

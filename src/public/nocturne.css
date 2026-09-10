@@ -1105,3 +1105,7 @@ tr.row-tracked:hover td { background: color-mix(in srgb, #f59e0b 18%, transparen
 }
 .icon-btn:hover { background: var(--color-surface); }
 .is-disabled { opacity: .45; pointer-events: none; }
+
+/* "הוסף / החסר שטרות" (public/count-adjust.js) — עדכון ספירה קיימת בלי לחשב בראש. */
+.count-adjust-bar { margin: 0 0 .4rem; gap: var(--space-2); }
+.count-adjust-dlg { width: min(460px, 94vw); }

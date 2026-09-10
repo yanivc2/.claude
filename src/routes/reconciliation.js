@@ -8,10 +8,13 @@ import { parseCsv } from '../lib/csv.js';
 import { parseXlsx } from '../lib/xlsx.js';
 import { normalizeBankRows } from '../lib/bankCsv.js';
 import { decodeBuffer } from '../lib/decodeText.js';
-import { RuleError } from '../lib/errors.js';
+import { RuleError, AuthError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import {
   importTransactions,
+  listImports,
+  getImport,
+  deleteImport,
   listUnmatched,
   listTransactions,
   deleteTransaction,
@@ -76,6 +79,7 @@ async function renderPage(req, res, accountId, extra = {}) {
     title: 'התאמת בנק',
     accounts: await accounts(req.scope),
     accountId,
+    imports: accountId ? await listImports({ accountId }) : [],
     classified,
     transactions: accountId ? await listTransactions(accountId) : [],
     // Open-Banking sync is offered only when the key is configured AND this account is linked.
@@ -115,9 +119,16 @@ router.post('/import-csv', requirePermission('import_bank'), (req, res, next) =>
         throw new RuleError('CSV', e.message);
       }
       if (mapped.length === 0) throw new RuleError('CSV', 'לא נמצאו תנועות בקובץ');
-      const { inserted, skipped } = await importTransactions(accountId, mapped, 'csv', req.user);
+      const fileName = req.file.originalname || null;
+      const { inserted, skipped } = await importTransactions(
+        accountId, mapped, 'csv', req.user, undefined, { fileName },
+      );
+      const acct = await getExecutor().one('SELECT display_name FROM bank_accounts WHERE id = ?', [accountId]);
+      // ההודעה אומרת **לאיזה חשבון** — הטעות שקרתה בפועל היא קובץ של חנות אחת שנחת בחשבון של אחרת,
+      // ובלי לומר את זה בקול היא נראית בדיוק כמו הצלחה.
       return renderPage(req, res, accountId, {
-        notice: `יובאו ${inserted} תנועות חדשות, ${skipped} כבר היו קיימות.`,
+        notice: `${fileName ? `"${fileName}" · ` : ''}יובאו ${inserted} תנועות חדשות ל${acct ? `חשבון ${acct.display_name}` : 'חשבון'}`
+          + `${skipped ? `, ${skipped} כבר היו קיימות` : ''}. הקובץ נשמר ומוכן להתאמה.`,
       });
     } catch (err) {
       if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
@@ -243,6 +254,26 @@ router.post('/unmatch', async (req, res, next) => {
     await renderPage(req, res, accountId, { notice: 'ההתאמה בוטלה, הצ׳ק חזר לסטטוס פתוח.' });
   } catch (err) {
     if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+// ביטול ייבוא — הדרך לתקן קובץ שהועלה לחשבון הלא נכון. שורות שכבר הותאמו לצ׳ק אינן נמחקות
+// בשקט: השירות מסרב, מחזיר את מספרן, והמשתמש מאשר שוב (`release=1`) אחרי שראה אותו.
+router.post('/imports/:id/delete', requirePermission('import_bank'), async (req, res, next) => {
+  try {
+    const imp = await getImport(Number(req.params.id));
+    // מזהה מהבקשה: בלי זה אפשר היה למחוק ייבוא של חברה אחרת לפי ניחוש מספר.
+    await assertInScope('bankAccount', Number(imp.bank_account_id), req.scope);
+    const r = await deleteImport(imp.id, req.user, { releaseMatched: req.body.release === '1' });
+    return renderPage(req, res, Number(imp.bank_account_id), {
+      notice: `הייבוא בוטל: ${r.deleted} תנועות נמחקו${r.released ? `, ${r.released} התאמות שוחררו` : ''}.`,
+    });
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      const imp = await getImport(Number(req.params.id)).catch(() => null);
+      return renderPage(req, res, imp ? Number(imp.bank_account_id) : await resolveAccountId(req), { error: err.message });
+    }
     next(err);
   }
 });
