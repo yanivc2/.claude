@@ -189,7 +189,7 @@
   </div>
   <div class="zdep-grid" style="margin-top:.7rem">
     <div><label>סה"כ הופקד</label><input id="dep_total" readonly value="₪0.00" /><small class="muted">סכום כל השקיות</small></div>
-    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">(מזומן מגירה − הוצאות במזומן) − הפקדה</small></div>
+    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">הפקדה − (מזומן מגירה − הוצאות במזומן)</small></div>
   </div>
 
   <%# שמירה דביקה. הכפתור היה בתחתית טופס ארוך (מגירה · אשראי · הוצאות · הפקדה), חלקו בתוך
@@ -218,8 +218,8 @@
   function depDeclared(){
     return Array.prototype.some.call(depBags.querySelectorAll('.dep-amt'), function(i){ return i.value.trim() !== ''; });
   }
-  // חוסר/יתרה = (מזומן מדוח מגירה − סה"כ הוצאות במזומן) − סכום ההפקדה, כלומר **מנקודת המבט של
-  // הקופה**: הפקידו פחות ממה שהיה בה → נשארה יתרה (+ ירוק); הפקידו יותר → חוסר (− אדום).
+  // חוסר/יתרה = סכום ההפקדה − (מזומן מדוח מגירה − סה"כ הוצאות במזומן).
+  // הפקידו פחות ממה שהיה בקופה → חוסר (− אדום); הפקידו יותר → יתרה (+ ירוק).
   // 🔴 מזומן בלבד, לא סה"כ המגירה: להפקדת מזומן אין קשר לאשראי/צ׳קים/הקפה/תווי קניה, והשוואה
   // מול הסה"כ הראתה "חוסר" בגובה הכנסות האשראי בכל יום.
   // 🔴 ההוצאות מופחתות ולא מתווספות: כסף שיצא מהקופה כהוצאה כבר אינו בה ולא יכול להגיע לשקית.
@@ -230,7 +230,7 @@
     var totalEl = document.getElementById('dep_total');
     if (totalEl) totalEl.value = fmt(depSum());
     if (!depDeclared()) { depReconEl.value = '—'; depReconEl.style.color = ''; return; }
-    var diff = (drawerCash() - cxSum()) - depSum();
+    var diff = depSum() - (drawerCash() - cxSum());
     if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--color-ok)'; }
     else if (diff > 0) { depReconEl.value = 'יתרה ' + fmt(diff); depReconEl.style.color = 'var(--color-ok)'; }
     else { depReconEl.value = 'חוסר ' + fmt(-diff); depReconEl.style.color = 'var(--color-bad)'; }

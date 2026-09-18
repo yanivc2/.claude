@@ -131,8 +131,8 @@ async function alertIfUnmatched(req, id) {
 }
 
 // WhatsApp status for a Z in the "רשומות Z אחרונות" list, per the owner's rule:
-// depDiff = (מזומן מדוח מגירה − הוצאות במזומן) − סכום ההפקדה, מנקודת המבט של הקופה.
-// 0 → תואם; הפקידו פחות ממה שהיה בקופה (depDiff>0) → יתרה; הפקידו יותר (depDiff<0) → חוסר.
+// depDiff = סכום ההפקדה − (מזומן מדוח מגירה − הוצאות במזומן).
+// 0 → תואם; הפקידו פחות ממה שהיה בקופה (depDiff<0) → חוסר; הפקידו יותר (depDiff>0) → יתרה.
 function zDepositWhatsappText(zr, depDiff) {
   const head = `זד מס ${zr.z_number} מתאריך : ${zr.z_date}`;
   const status =
@@ -253,7 +253,7 @@ async function renderZReports(req, res, extra = {}) {
       const bags = await depositsForZ(z.id);
       const dep = bags[0] || null;
       const deposit = bags.reduce((n, d) => n + (Number(d.amount) || 0), 0);
-      const depDiff = depositDiff(z, expenses, deposit); // >0 יתרה בקופה · <0 חוסר · 0 תואם
+      const depDiff = depositDiff(z, expenses, deposit); // <0 חוסר · >0 יתרה · 0 תואם
       const hasDeposit = !!dep;
       const depMatched = hasDeposit && depDiff === 0;
       const waText = zDepositWhatsappText(z, depDiff);
