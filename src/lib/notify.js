@@ -83,7 +83,7 @@ function toPlain(html) {
  * without blocking the caller. Both paths are best-effort and never throw. `opts.link` (optional)
  * makes the in-app notification clickable; `opts.kind` tags it.
  * @param {string} text  HTML message body
- * @param {{kind?:string, link?:string}} [opts]
+ * @param {{kind?:string, link?:string, storeId?:number}} [opts]
  */
 export function notify(text, opts = {}) {
   const tg = sendTelegram(text); // Telegram (no-op if unconfigured); never rejects
@@ -95,7 +95,8 @@ export function notify(text, opts = {}) {
       if (!plain) return;
       const [title, ...rest] = plain.split('\n');
       const { recordNotification } = await import('../services/notifications.js');
-      await recordNotification({ kind: opts.kind || 'alert', title, body: rest.join('\n').trim() || null, link: opts.link || null });
+      await recordNotification({ kind: opts.kind || 'alert', title, body: rest.join('\n').trim() || null,
+        link: opts.link || null, storeId: opts.storeId ?? null });
     } catch { /* best-effort */ }
   })();
   // 🔴 מוחזר promise, ועדיין לא זורק. הקוראים הוותיקים מתעלמים ממנו ומתנהגים כמו קודם

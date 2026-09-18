@@ -64,11 +64,15 @@ function migrateNotifications(db) {
        title      TEXT NOT NULL,
        body       TEXT,
        link       TEXT,
+       store_id   INTEGER REFERENCES stores(id),
        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
        read_at    TEXT
      );`,
   );
   db.exec('CREATE INDEX IF NOT EXISTS ix_notifications_created ON notifications(created_at);');
+  // שיוך לחנות על מסד קיים. NULL = כלל-ארגונית, או התראה שנרשמה לפני העמודה.
+  const cols = db.prepare('PRAGMA table_info(notifications)').all().map((c) => c.name);
+  if (!cols.includes('store_id')) db.exec('ALTER TABLE notifications ADD COLUMN store_id INTEGER REFERENCES stores(id);');
 }
 
 // app_settings — app-wide key/value flags (e.g. the scan-feature lock). Create it on existing DBs.

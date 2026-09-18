@@ -498,7 +498,7 @@ export async function matchCashExpenseToInvoice(source, id, invoiceId, actor, sc
       + `\nהוצאה ${fromAgorot(exp.amount)} ₪${exp.purpose ? ' · ' + exp.purpose : ''}`
       + (diff ? `\n⚠️ הפרש מול סכום החשבונית: ${fromAgorot(Math.abs(diff))} ₪` : '')
       + `\nמקור: ${source === 'zclosing' ? 'סגירת Z' : 'דוח Z'}`,
-    { kind: 'cash_match', link: `/invoices/${inv.id}` },
+    { kind: 'cash_match', link: `/invoices/${inv.id}`, storeId: inv.store_id ?? null },
   );
   return { source, id: Number(id), invoiceId: inv.id, diff };
 }

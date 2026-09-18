@@ -12,7 +12,10 @@ import {
   matchCashExpenseToInvoice, assertCashExpenseInScope, withMatchCandidates,
 } from '../services/zreports.js';
 import { markCashed } from '../services/salaryPayments.js';
-import { listNotifications } from '../services/notifications.js';
+import { listNotifications, unscopedNotificationCount } from '../services/notifications.js';
+
+// שני סוגי ההתראה שהבעלים ביקש לראות בלוח עצמו ולא רק בפעמון.
+const CASH_ALERT_KINDS = ['cash_match', 'salary_cleared_unmatched'];
 import { listDeposits, zReportsWithoutDeposit, declaredNotDeposited, depositVerifications, depositZDiffs } from '../services/deposits.js';
 import { voidedChecksSeenInBank } from '../services/reconciliation.js';
 import { searchSuppliers, listSuppliers } from '../services/suppliers.js';
@@ -105,11 +108,17 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       // 🔴 ההתראות על תנועות מזומן מוצגות **בלוח הבקרה עצמו**, לא רק בפעמון: אלה בדיוק
       // האירועים שהבעלים ביקש לראות (התאמת מזומן, וצ׳ק שכר שנפרע לפני התאמה), והפעמון נקרא
       // רק כשנכנסים אליו. owner-only, כמו כל ההתראות.
+      // 🔴 מסונן לחנות הפעילה. ההתראה נושאת `store_id` מרגע שנרשמה, ולכן התראה על מזומן של
+      // סניף אחד אינה מוצגת תחת סניף אחר. התראות ישנות (לפני העמודה) נספרות בנפרד ומוצגות
+      // בתצוגת "כל החנויות" — הן אינן נעלמות, הן פשוט לא נתלות על חנות שאולי אינה שלהן.
       cashAlerts: req.user?.role === 'owner'
-        ? (await listNotifications({ limit: 40 }))
+        ? (await listNotifications({ limit: 40, storeId }))
             .filter((n) => n.kind === 'cash_match' || n.kind === 'salary_cleared_unmatched')
             .slice(0, 8)
         : [],
+      cashAlertsUnscoped: req.user?.role === 'owner' && storeId
+        ? await unscopedNotificationCount(CASH_ALERT_KINDS)
+        : 0,
       settledCash: await settledCashExpenses(scope, 30, storeId),
       cashErr: req.query.cashErr ? String(req.query.cashErr) : null,
       depositsHistory: depositRows,

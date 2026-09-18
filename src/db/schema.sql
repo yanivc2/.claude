@@ -173,6 +173,8 @@ CREATE TABLE IF NOT EXISTS notifications (
   title      TEXT NOT NULL,
   body       TEXT,
   link       TEXT,
+  -- לאיזו חנות ההתראה שייכת. NULL = התראה כלל-ארגונית (בנק, ספקים) או התראה ישנה מלפני העמודה.
+  store_id   INTEGER REFERENCES stores(id),
   created_at TEXT NOT NULL,
   read_at    TEXT
 );

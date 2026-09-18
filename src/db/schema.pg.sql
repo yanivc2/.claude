@@ -88,6 +88,10 @@ CREATE TABLE IF NOT EXISTS notifications (
   title      TEXT NOT NULL,
   body       TEXT,
   link       TEXT,
+  -- 🔴 `store_id` מתווסף ב-ALTER שבתחתית הקובץ ולא כאן: הטבלה הזו נוצרת **לפני** `stores`,
+  -- וב-Postgres מפתח זר מאומת ברגע היצירה — עמודה עם REFERENCES stores(id) כאן מפילה התקנה
+  -- נקייה ב-relation "stores" does not exist. ה-ALTER בתחתית רץ אחרי שכל הטבלאות קיימות,
+  -- ולכן מסד חדש ומסד קיים מקבלים בדיוק את אותה עמודה עם אותו FK.
   created_at TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
   read_at    TEXT
 );
@@ -801,3 +805,7 @@ ALTER TABLE z_closing_expenses ADD COLUMN IF NOT EXISTS settled_by INTEGER REFER
 -- על צ׳ק שכר שנפרע בבנק לפני שהותאם להוצאת מזומן.
 ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS cash_z_expense_id INTEGER REFERENCES z_expenses(id) ON DELETE SET NULL;
 ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS cleared_alerted TEXT;
+
+-- שיוך התראה לחנות. NULL = כלל-ארגונית (בנק, ספקים), או התראה ישנה מלפני העמודה. רובריקת
+-- "התראות מזומן" בלוח הבקרה מסננת לפיה, אחרת התראה על מזומן של סניף אחד מוצגת תחת סניף אחר.
+ALTER TABLE notifications ADD COLUMN IF NOT EXISTS store_id INTEGER REFERENCES stores(id);

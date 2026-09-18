@@ -84,7 +84,11 @@ happen only at merge. So:
   2. `src/db/migrate.js` (SQLite migrations for existing DBs — PRAGMA table_info + ADD COLUMN; CHECK
      changes need a table rebuild, see `migrateStandingOrder`)
   3. `src/db/schema.pg.sql` (Postgres; `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE … ADD COLUMN IF
-     NOT EXISTS` at the bottom for existing-DB migrations). Order matters (FKs validated at create).
+     NOT EXISTS` at the bottom for existing-DB migrations). **Order matters — FKs are validated at CREATE**, so a column
+     whose `REFERENCES` target is declared later in the file fails a *clean* install (measured:
+     `notifications.store_id` → `relation "stores" does not exist`). Fix: declare it **only** in the bottom
+     `ALTER … ADD COLUMN IF NOT EXISTS`, which runs after every table exists — fresh and existing DBs then get the
+     identical column and FK.
   - **Gotcha:** services often `SELECT` explicit column lists (e.g. `getUser`/`listUsers` in
     `services/users.js`) — add new columns there too or they'll be `undefined` in views.
 - **Israel time:** `lib/loginHours.js#israelClock()`/`israelToday()` (→`'YYYY-MM-DD'`) and

@@ -179,7 +179,7 @@ export async function markCashed(id, cashExpenseId, actor, x = getExecutor(), { 
     `💵 <b>הותאם תשלום שכר במזומן</b>\n${emp || 'עובד'} · ${fromAgorot(row.amount)} ₪`
       + `\nההוצאה מ${source === 'zclosing' ? 'סגירת Z' : 'דוח Z'} שויכה לתשלום השכר`
       + `${row.payment_id ? ' — הצ׳ק בוטל כדי שלא ייפרע פעם שנייה.' : '.'}`,
-    { kind: 'cash_match', link: '/employees' },
+    { kind: 'cash_match', link: '/employees', storeId: row.store_id ?? null },
   );
   return getSalaryPayment(id, x);
 }
@@ -196,7 +196,7 @@ export async function alertOnSalaryChecksClearedBeforeMatch(x = getExecutor()) {
   try {
     rows = await x.many(
       `SELECT sp.id, sp.amount, sp.due_date, sp.reference, p.check_number, p.cleared_date,
-              e.first_name, e.last_name, st.name AS store_name
+              sp.store_id, e.first_name, e.last_name, st.name AS store_name
          FROM salary_payments sp
          JOIN payments p ON p.id = sp.payment_id
          JOIN employees e ON e.id = sp.employee_id
@@ -216,7 +216,7 @@ export async function alertOnSalaryChecksClearedBeforeMatch(x = getExecutor()) {
         + `\nצ׳ק ${r.check_number || r.reference || ''} · ${r.store_name || ''} · נפרע ${r.cleared_date || ''}`
         + `\nהכסף עזב את הבנק בזמן שהשכר עדיין לא שויך להוצאת מזומן. אם העובד גם פרט אותו בקופה —`
         + ` אותו שכר יצא פעמיים.`,
-      { kind: 'salary_cleared_unmatched', link: '/employees' },
+      { kind: 'salary_cleared_unmatched', link: '/employees', storeId: r.store_id ?? null },
     );
     await x.run('UPDATE salary_payments SET cleared_alerted = ? WHERE id = ?',
       [new Date().toISOString().slice(0, 19).replace('T', ' '), r.id]);

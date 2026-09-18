@@ -38,3 +38,31 @@ test('notify() records an in-app notification (title = first line, body = rest)'
   assert.match(rows[0].body, /6004/);
   assert.ok(!rows[0].title.includes('<b>')); // HTML stripped
 });
+
+// 🔴 נמדד במסך: הבעלים עמד ב"סופר על הדרך" ורובריקת "התראות מזומן" הציגה שתי התאמות שכר של
+// עובדות מסניף אחר. בניגוד לשתי התקלות הקודמות מאותו סוג, כאן לא היה שירות ששכח לקרוא לסקופ —
+// לטבלת notifications פשוט לא הייתה עמודת חנות בכלל, ולכן כל התראה הייתה גלובלית מעצם הגדרתה.
+test('a cash alert belongs to its store, and an untagged one is never hung on a store', async () => {
+  const db = await freshDb();
+  const a = await db.one('SELECT * FROM stores ORDER BY id LIMIT 1', []);
+  const b = await db.one('SELECT * FROM stores WHERE id <> ? ORDER BY id LIMIT 1', [a.id]);
+  assert.ok(b, 'the seed must have a second store for this test to mean anything');
+
+  await recordNotification({ kind: 'cash_match', title: 'התאמה בסניף א', storeId: a.id }, db);
+  await recordNotification({ kind: 'cash_match', title: 'התאמה בסניף ב', storeId: b.id }, db);
+  // התראה ישנה, מלפני העמודה — או התראה כלל-ארגונית (בנק/ספקים).
+  await recordNotification({ kind: 'cash_match', title: 'ללא שיוך' }, db);
+
+  const inB = await listNotifications({ limit: 20, storeId: b.id }, db);
+  assert.deepEqual(inB.map((n) => n.title), ['התאמה בסניף ב'],
+    'a cash alert from another branch must not appear, and an untagged one must not either');
+
+  // בלי חנות — הכול. שום התראה לא נעלמת מהמערכת, היא רק לא נתלית על סניף שאולי אינו שלה.
+  const all = await listNotifications({ limit: 20 }, db);
+  assert.equal(all.length, 3);
+
+  // והרובריקה יודעת לספר שיש ישנות, כדי שמסך ריק לא ייראה כמו "אין התראות".
+  const { unscopedNotificationCount, notificationStoreReady } = await import('../src/services/notifications.js');
+  assert.equal(await unscopedNotificationCount(['cash_match', 'salary_cleared_unmatched'], db), 1);
+  assert.equal(await notificationStoreReady(db), true);
+});

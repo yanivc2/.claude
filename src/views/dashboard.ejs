@@ -245,7 +245,8 @@
     שני האירועים שאסור לפספס: התאמת מזומן שנעשתה (הכסף קיבל הסבר), וצ׳ק שכר שנפרע בבנק לפני
     שהותאם (אותו שכר עלול לצאת פעמיים). no-collapse — אזהרה לא נסגרת מאחורי אקורדיון. %>
 <% var _alerts = (typeof cashAlerts !== 'undefined' && cashAlerts) ? cashAlerts : []; %>
-<% if (_alerts.length) { %>
+<% var _alertsOld = (typeof cashAlertsUnscoped !== 'undefined' && cashAlertsUnscoped) ? Number(cashAlertsUnscoped) : 0; %>
+<% if (_alerts.length || _alertsOld) { %>
   <div class="card no-collapse" style="border-color:var(--color-warn)">
     <h2 style="margin:0 0 .5rem">🔔 התראות מזומן</h2>
     <div class="table-scroll">
@@ -266,6 +267,14 @@
         </tbody>
       </table>
     </div>
+    <%# 🔴 התראות שנרשמו לפני שהיה שיוך לחנות אינן נתלות על חנות שאולי אינה שלהן — אבל גם לא
+        נבלעות בשקט, אחרת מסך ריק היה נראה כמו "אין התראות" בזמן שיש. %>
+    <% if (_alertsOld) { %>
+      <p class="muted" style="margin:.5rem 0 0; font-size:12px">
+        ועוד <strong><%= _alertsOld %></strong> התראות מזומן ישנות ללא שיוך לחנות —
+        <a href="/notifications">מוצגות ברשימת ההתראות</a> ובתצוגת "כל החנויות".
+      </p>
+    <% } %>
     <p class="muted" style="margin:.5rem 0 0; font-size:12px"><a href="/notifications">כל ההתראות</a></p>
   </div>
 <% } %>
