@@ -224,3 +224,17 @@ test('🔴 שורת "תיקון" אינה נספרת כחלק מההפקדה', a
   const v = (await depositVerifications(await listDeposits({ scope: null }, x), x)).get(Number(dep.lastInsertRowid));
   assert.equal(v.correctionTotal, -1000, 'התיקון נספר בעמודה שלו, ולא פעמיים');
 });
+
+test('🔴 "הופקדה" הוא סימון ידני — רק "הותאמה בבנק" אומר שהבנק ראה את הכסף', async () => {
+  // הבאדג' הדו-מצבי הציג "הופקד" ירוק מול תאריך סטטוס ריק: סתירה שנראית כמו תקלת תצוגה, בזמן
+  // שהמצב האמיתי הוא "אמרתי שהפקדתי, הבנק עוד לא אישר".
+  const { depositStatus } = await import('../src/services/deposits.js');
+  assert.equal(depositStatus({ deposited: 0 }).label, 'הונפקה');
+  assert.equal(depositStatus({ deposited: 1 }).label, 'הופקדה');
+  assert.equal(depositStatus({ deposited: 1, matched_txn_id: 5 }).label, 'הותאמה בבנק');
+
+  const partial = readFileSync(new URL('../src/views/partials/_deposits.ejs', import.meta.url), 'utf8');
+  assert.match(partial, /depositStatus\(d\)/, 'הטבלה משתמשת בשלושת המצבים ולא בבדיקת deposited לבדה');
+  assert.match(partial, /טרם אותרה בבנק/, 'סימון ידני אומר במפורש שהבנק עוד לא אישר');
+  assert.ok(!/badge b-approved">הופקד</.test(partial), 'הבאדג\' הדו-מצבי הוסר');
+});

@@ -41,8 +41,15 @@
               <div class="muted" style="font-size:11px">בנק: <%= d.recon_diff > 0 ? '+' : '−' %><%= formatIls(Math.abs(d.recon_diff)) %></div>
             <% } %>
           </td>
+          <%# 🔴 שלושה מצבים, לא שניים. "הופקדה" הוא **סימון ידני** של אדם ("שמתי את השקית בבנק"),
+              ולא אישור של הבנק; רק "הותאמה בבנק" אומר שהכסף נראה בדף החשבון. באדג' דו-מצבי הציג
+              "הופקד" ירוק מול תאריך סטטוס ריק, וזו סתירה שנראית כמו תקלה בתצוגה. %>
+          <% var ds = depositStatus(d); %>
           <td>
-            <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
+            <span class="badge <%= ds.badge %>" title="<%= ds.key === 'deposited' ? 'סימון ידני — הבנק עדיין לא אישר' : ds.key === 'matched' ? 'אותרה בדף הבנק' : 'הוצהרה, עדיין לא סומנה כהופקדה' %>"><%= ds.label %></span>
+            <% if (ds.key === 'deposited') { %>
+              <div class="muted" style="font-size:11px">טרם אותרה בבנק</div>
+            <% } %>
           </td>
           <%# התאריך שבו ההפקדה הופיעה בדף הבנק — לא תאריך ההצהרה. %>
           <td class="mono" data-sort="<%= v && v.statusDate ? v.statusDate : '' %>"><%= v && v.statusDate ? formatDate(v.statusDate) : '—' %></td>
