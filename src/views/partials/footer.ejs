@@ -621,7 +621,37 @@
   // localStorage. Cards holding a required control are skipped so validation never targets a hidden
   // field. Opt out of a specific card with class "no-collapse".
   (function () {
-    // (1) native <details data-accordion>
+    // ── שמירת מיקום הגלילה על פני POST→303→GET ────────────────────────────────────
+  // כל פעולה בדף היא PRG (POST ואז redirect), ולכן הדפדפן טוען דף חדש ומתחיל מלמעלה. כשלוחצים
+  // "טופל" על שורה באמצע טבלה, הקפיצה לראש הדף מאבדת את המקום — ובטבלה ארוכה צריך לגלול חזרה
+  // בכל לחיצה. טופס שמסומן `data-keep-scroll` שומר את מיקום הגלילה רגע לפני השליחה, והדף
+  // מחזיר אותו מיד בטעינה.
+  //
+  // sessionStorage ולא URL: ה-fragment היה מחזיר לראש הכרטיס ולא לשורה, ומלכלך את הכתובת.
+  // המיקום נמחק אחרי השימוש ופג אחרי 15 שניות, כך שכניסה מאוחרת לדף לא קופצת בלי סיבה.
+  (function () {
+    var KEY = 'apScroll:' + location.pathname;
+    document.addEventListener('submit', function (e) {
+      var f = e.target;
+      if (!f || !f.matches || !f.matches('form[data-keep-scroll]')) return;
+      try { sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY, t: Date.now() })); } catch (err) {}
+    }, true);
+    try {
+      var raw = sessionStorage.getItem(KEY);
+      if (raw) {
+        sessionStorage.removeItem(KEY);
+        var v = JSON.parse(raw);
+        if (v && Date.now() - v.t < 15000 && v.y > 0) {
+          // אחרי שהמשפרים סיימו לשנות גבהים (טבלאות, אקורדיון), אחרת המיקום מפספס.
+          window.requestAnimationFrame(function () {
+            window.requestAnimationFrame(function () { window.scrollTo(0, v.y); });
+          });
+        }
+      }
+    } catch (err) {}
+  })();
+
+  // (1) native <details data-accordion>
     document.querySelectorAll('details[data-accordion]').forEach(function (d) {
       d.addEventListener('toggle', function () {
         if (!d.open) return;

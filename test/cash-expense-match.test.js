@@ -154,3 +154,37 @@ test('הלוח מציג כפתור לפי סוג ואת כרטיס ההתראו�
     assert.match(t, /\['petty','פריטה'\]/, `${f}: סוג פריטה קיים בבורר`);
   }
 });
+
+test('🔴 "טופל" לכל סוג הוצאה — לבעלים בלבד; והפעולה שומרת את מיקום הגלילה', () => {
+  const v = readFileSync(new URL('../src/views/partials/_unmatchedCash.ejs', import.meta.url), 'utf8');
+  // פריטה: "טופל" לכולם. שאר הסוגים: התאמה לכולם, ו"טופל" רק לבעלים — יש מקרים שאין למה
+  // להתאים, והשורה חייבת דרך יציאה; זו החלטה של הבעלים.
+  assert.match(v, /_isOwner\s*=\s*\(typeof currentUser[\s\S]{0,90}role === 'owner'\)/);
+  assert.match(v, /_settleOk && _isOwner[\s\S]{0,400}\/settle/, '"טופל" לשאר הסוגים מוגן בבעלים');
+  // כל טופס פעולה בטבלה מסומן לשמירת מקום — PRG טוען דף חדש ומתחיל מלמעלה.
+  // 🔴 **כל** טופס POST בטבלה — סימון, ביטול סימון והתאמה. אחד שנשכח קופץ לראש הדף, וזה בדיוק
+  // מה שהמשתמש דיווח עליו. ספירה ולא regex על התגית: ה-action מכיל תגי EJS עם '>' בתוכם.
+  const forms = (v.match(/<form method="post"/g) || []).length;
+  assert.ok(forms >= 3, 'יש טפסי פעולה');
+  assert.equal((v.match(/data-keep-scroll/g) || []).length, forms, 'כל טופס פעולה שומר את מיקום הגלילה');
+
+  const footer = readFileSync(new URL('../src/views/partials/footer.ejs', import.meta.url), 'utf8');
+  assert.match(footer, /form\[data-keep-scroll\]/, 'המשפר הגלובלי קיים');
+  assert.match(footer, /sessionStorage\.setItem\(KEY/, 'המיקום נשמר לפני השליחה');
+  assert.match(footer, /window\.scrollTo\(0, v\.y\)/, 'ומוחזר בטעינה');
+});
+
+test('🔴 סימון "טופל" ללא התאמה נאכף בשרת — כפתור מוסתר הוא עיצוב, לא הרשאה', async () => {
+  const { setCashExpenseSettled } = await import('../src/services/zreports.js');
+  const { secretary } = await import('./helpers.js');
+  const x = await freshDb();
+  const ow = await owner(x); const sec = await secretary(x); const store = await firstStore(x);
+  const petty = await aClosingExpense(x, store, ow, { kind: 'petty', purpose: 'פריטה', amount: 30000 });
+  const other = await aClosingExpense(x, store, ow, { kind: 'manual', purpose: 'ציוד', amount: 9000 });
+
+  // פריטה — כל מי שרואה את הדף יכול לסגור (היא לעולם לא תקבל חשבונית)
+  await setCashExpenseSettled('zclosing', petty, true, sec, null, x);
+  // כל השאר — בעלים בלבד, גם ב-POST ישיר
+  await assert.rejects(() => setCashExpenseSettled('zclosing', other, true, sec, null, x), /בעלים בלבד/);
+  await setCashExpenseSettled('zclosing', other, true, ow, null, x);
+});

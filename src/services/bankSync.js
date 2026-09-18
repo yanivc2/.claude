@@ -1,7 +1,7 @@
 // Open-Banking sync: pull a bank account's movements from Financy straight into
 // bank_transactions, then run the existing R7 matching engine over them.
 //
-// This is the SAME pipeline as the CSV import — `importTransactions` + `autoReconcile` — with the
+// This is the SAME pipeline as the CSV import — `importTransactions` + `reconcileAccount` — with the
 // file swapped for an API call. Nothing about matching, scoping or the reconciliation UI changes;
 // the only new state is `bank_accounts.financy_account_id` (which provider account to pull) and
 // `bank_transactions.external_id` (the provider's row id, so a re-pull is idempotent).
@@ -14,7 +14,7 @@ import { config } from '../config.js';
 import { financyConfigured, fetchFinancyAccounts, fetchFinancyTransactions } from '../lib/financy.js';
 import { mapFinancyTransactions, matchFinancyAccount } from '../lib/financyMap.js';
 import { importTransactions } from './bankTransactions.js';
-import { autoReconcile } from './reconciliation.js';
+import { reconcileAccount } from './reconciliation.js';
 import { logAction } from './audit.js';
 
 /** 'YYYY-MM-DD' N days before the Israel-local today. */
@@ -103,7 +103,8 @@ export async function syncBankAccount(bankAccountId, opts = {}, actor, x = getEx
   let matched = 0;
   let voidedSeen = 0;
   if (inserted > 0) {
-    const rec = await autoReconcile(bankAccountId, actor, x);
+    // צ׳קים **וגם** הפקדות: דף בנק טרי הוא בדיוק הרגע שבו שקית שהופקדה נעשית נראית.
+    const rec = await reconcileAccount(bankAccountId, actor, x);
     matched = rec?.matched ?? 0;
     voidedSeen = rec?.voidedSeen ?? 0;
   }
@@ -202,7 +203,7 @@ export async function importScrapedBatch(payload, actor, x = getExecutor()) {
 
     let matched = 0;
     if (inserted > 0) {
-      const rec = await autoReconcile(target.id, actor, x);
+      const rec = await reconcileAccount(target.id, actor, x);
       matched = rec?.matched ?? 0;
     }
     results.push({ accountId: target.id, displayName: target.display_name, inserted, skipped, matched });

@@ -209,6 +209,22 @@ export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
 }
 
 /**
+ * **התאמה מלאה של חשבון** — צ׳קים *וגם* הפקדות. זה מה שכל מסלול צריך לקרוא.
+ *
+ * 🔴 למה זה קיים: `reconcileDeposits` נקרא בעבר **רק** מכפתור "התאמה אוטומטית" בדף המרקורים.
+ * לא מדף התאמת הבנק (שם הכפתור באותו שם עשה רק צ׳קים), לא ממשיכת הבנקאות הפתוחה, ולא מהסריקה
+ * הלילית. כלומר הפקדה נקשרה לשורת הבנק שלה רק אם הבעלים במקרה לחץ על הכפתור הנכון מבין השניים —
+ * ומי שלחץ על השני קיבל "הותאמו 0" ולא ידע למה. מי שמוסיף מסלול ייבוא חדש קורא לזה, ולא לשניים.
+ *
+ * מחזיר את אותם שדות של `autoReconcile` (ולכן קוראים ותיקים ממשיכים לעבוד) בתוספת `deposits`.
+ */
+export async function reconcileAccount(bankAccountId, actor, x = getExecutor()) {
+  const checks = await autoReconcile(bankAccountId, actor, x);
+  const dep = await reconcileDeposits(bankAccountId, actor, x);
+  return { ...checks, deposits: dep.matched };
+}
+
+/**
  * Reconcile bank credit lines against deposit declarations (הפקדות) of the account's store.
  * A deposit's bag number is the bank reference (מספר שקית = מספר אסמכתה); the amounts may differ,
  * so we record recon_diff = bank amount − declared amount (יתרה>0 / חוסר<0) rather than requiring

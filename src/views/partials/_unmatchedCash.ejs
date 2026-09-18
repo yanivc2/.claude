@@ -9,6 +9,7 @@
   var _settled = (typeof settled !== 'undefined' && settled) ? settled : [];
   var _settleOk = (typeof settleOk !== 'undefined') ? settleOk : true;
   var _returnTo = (typeof returnTo !== 'undefined' && returnTo) ? returnTo : '/';
+  var _isOwner = (typeof currentUser !== 'undefined' && currentUser && currentUser.role === 'owner');
   // "נשמר בסגירת Z על ידי X" — מי עמד בקופה. זה מה שהופך שורה למאותרת מול אדם.
   function _by(e) {
     var n = ((e.by_first || '') + ' ' + (e.by_last || '')).trim();
@@ -69,7 +70,7 @@
                 כל השאר → חשבונית. %>
             <% if (e.petty) { %>
               <% if (_settleOk) { %>
-                <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline">
+                <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline" data-keep-scroll>
                   <input type="hidden" name="return_to" value="<%= _returnTo %>" />
                   <button type="submit" class="btn btn-secondary small" title="פריטה שנאספה — סמן כטופל">✓ טופל</button>
                 </form>
@@ -100,7 +101,7 @@
                     <% } else if (_same.length > 1) { %>נמצאו <%= _same.length %> באותו סכום (★) — הראשונה נבחרה.
                     <% } else { %>אין <%= _isSal ? 'צ׳ק' : 'חשבונית' %> בסכום זהה — בחר מהרשימה.<% } %>
                   </p>
-                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/<%= _isSal ? 'match-salary' : 'match-invoice' %>">
+                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/<%= _isSal ? 'match-salary' : 'match-invoice' %>" data-keep-scroll>
                     <select name="<%= _isSal ? 'salary_payment_id' : 'invoice_id' %>" class="js-combo" required style="width:100%">
                       <option value=""></option>
                       <% e.candidates.forEach(function(c, ci){ %>
@@ -118,6 +119,15 @@
                   </form>
                 <% } %>
               </dialog>
+              <%# "טופל" גם להוצאה שאינה פריטה — **לבעלים בלבד**. הדרך הרגילה היא התאמה, אבל יש
+                  מקרים שבהם אין למה להתאים והשורה חייבת דרך יציאה; זו החלטה של הבעלים ולכן
+                  הכפתור שלו. `_ownerCan` נבדק בשרת שוב (assertCashExpenseInScope + ההרשאה). %>
+              <% if (_settleOk && _isOwner) { %>
+                <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline" data-keep-scroll>
+                  <input type="hidden" name="return_to" value="<%= _returnTo %>" />
+                  <button type="submit" class="btn btn-secondary small" title="סמן כטופל בלי התאמה — בעלים בלבד">✓ טופל</button>
+                </form>
+              <% } %>
             <% } %>
           </td>
         </tr>
@@ -154,8 +164,7 @@
                   <% if (e.settled_by_name) { %><div><%= e.settled_by_name %></div><% } %>
                 </td>
                 <td class="no-print">
-                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline">
-                  <input type="hidden" name="return_to" value="<%= _returnTo %>" />
+                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline" data-keep-scroll>
                     <input type="hidden" name="undo" value="1" />
                     <input type="hidden" name="return_to" value="<%= _returnTo %>" />
                     <button type="submit" class="btn btn-secondary small" title="החזר לרשימת ההוצאות ללא התאמה">↩ בטל סימון</button>

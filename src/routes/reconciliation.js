@@ -33,7 +33,7 @@ import {
   classify,
   confirmMatch,
   unmatch,
-  autoReconcile,
+  reconcileAccount,
 } from '../services/reconciliation.js';
 import { syncBankAccount } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
@@ -193,9 +193,11 @@ router.post('/add', requirePermission('import_bank'), async (req, res, next) => 
 router.post('/auto', async (req, res, next) => {
   const accountId = await resolveAccountId(req);
   try {
-    const r = await autoReconcile(accountId, req.user);
+    // צ׳קים **וגם** הפקדות — אותו כפתור באותו שם בשני הדפים חייב לעשות אותו דבר.
+    const r = await reconcileAccount(accountId, req.user);
     await renderPage(req, res, accountId, {
-      notice: `הותאמו אוטומטית ${r.matched} צ׳קים · ${r.ambiguous} דורשים הכרעה · ${r.unmatched} ללא התאמה.`,
+      notice: `הותאמו אוטומטית ${r.matched} צ׳קים · ${r.ambiguous} דורשים הכרעה · ${r.unmatched} ללא התאמה`
+        + `${r.deposits ? ` · ${r.deposits} הפקדות הותאמו לפי מספר שקית.` : '.'}`,
     });
   } catch (err) {
     next(err);

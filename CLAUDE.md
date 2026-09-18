@@ -131,7 +131,8 @@ happen only at merge. So:
   as the submitted value + enforce required on submit. (3) **collapsible rubrics** — every `.card` with a
   direct `<h2>` becomes collapsible (accordion: opening one closes the others on the page; state in
   localStorage); skips `<details>`, `.no-collapse`, and cards with a `[required]` control. Also handles
-  `<details data-accordion="grp">`.
+  `<details data-accordion="grp">`. (4) **שחזור גלילה** — `form[data-keep-scroll]` שומר את מיקום הגלילה
+  ומשחזר אותו אחרי ה-redirect של PRG, כך שפעולה בטבלה ארוכה לא זורקת את המשתמש לראש הדף.
 
 ## Auth, permissions & scope
 - `middleware/currentUser.js` — auth gate: reads signed `session` cookie, loads user, sets

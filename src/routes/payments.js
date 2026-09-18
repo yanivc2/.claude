@@ -14,7 +14,7 @@ import { listPayable } from '../services/invoices.js';
 import { listDeposits, depositVerifications, depositZDiffs } from '../services/deposits.js';
 import { unmatchedCashExpenses, settledCashExpenses, cashSettleReady, withMatchCandidates } from '../services/zreports.js';
 
-import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js';
+import { reconcileAccount } from '../services/reconciliation.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopeWhere, effectiveStoreId } from '../lib/scope.js';
 import { scopeParam, assertInScope } from '../lib/scopeGuard.js';
@@ -112,12 +112,11 @@ router.post('/auto-reconcile', async (req, res, next) => {
     let u = 0;
     let dep = 0;
     for (const acc of accounts) {
-      const r = await autoReconcile(acc.id, req.user);
+      const r = await reconcileAccount(acc.id, req.user);
       m += r.matched;
       a += r.ambiguous;
       u += r.unmatched;
-      const rd = await reconcileDeposits(acc.id, req.user);
-      dep += rd.matched;
+      dep += r.deposits;
     }
 
     const q = new URLSearchParams({ rc: '1', m: String(m), a: String(a), u: String(u), dep: String(dep) });

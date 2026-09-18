@@ -343,6 +343,14 @@ export async function setCashExpenseSettled(source, id, settled, actor, scope = 
   }
   await assertCashExpenseInScope(source, id, scope, x);
 
+  // 🔴 סגירת שורה **בלי התאמה** היא החלטה של הבעלים, ונאכפת בשרת ולא רק בהסתרת הכפתור:
+  // כפתור מוסתר הוא עיצוב, לא הרשאה — POST ישיר היה עוקף אותו. פריטה היא היוצאת מן הכלל:
+  // היא נאספת חזרה לקופה ולעולם לא תקבל חשבונית, ולכן כל מי שרואה את הדף יכול לסגור אותה.
+  const row = await x.one(`SELECT description_type, purpose FROM ${table} WHERE id = ?`, [Number(id)]);
+  if (!isPettyExpense(row) && actor?.role !== 'owner') {
+    throw new RuleError('OWNER', 'סימון הוצאה שאינה פריטה כטופלה — בעלים בלבד. לשאר ההוצאות יש התאמה.');
+  }
+
   await x.run(
     `UPDATE ${table} SET settled_at = ?, settled_by = ? WHERE id = ?`,
     [settled ? israelNowStamp() : null, settled ? (actor?.id ?? null) : null, Number(id)],
