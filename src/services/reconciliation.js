@@ -285,3 +285,91 @@ export async function reconcileDeposits(bankAccountId, actor, x = getExecutor())
   }
   return { matched };
 }
+
+/**
+ * התאם תנועת בנק ל**חשבונית אחת או לכמה** — חיוב שיצא מהבנק בלי שנרשם כאן תשלום.
+ *
+ * זה המקרה של העברה/הוראת קבע/חיוב ישיר שהספק גבה: הכסף עזב את הבנק, החשבוניות יושבות "לתשלום",
+ * ואין צ׳ק להתאים אליו — ולכן עד עכשיו השורה אמרה "אין צ׳ק פתוח תואם" ולא הייתה שום דרך לסגור
+ * אותה. התוצאה הייתה חשבונית שנשארת פתוחה אחרי שכבר שולמה, כלומר מועמדת להיות משולמת פעם שנייה.
+ *
+ * 🔴 **נרשם כתשלום אמיתי ולא כקישור-תצוגה.** `syncInvoicePaidStatus` הוא המקום היחיד שמחליט
+ * `paid`, והוא נגזר מ-`payment_lines` — קישור שאינו עובר דרך תשלום היה משאיר את החשבונית פתוחה
+ * בדיוק כמו קודם, רק עם מראה של טיפול. לכן: נוצר תשלום בסכום **שיצא מהבנק בפועל** (לא בסכום
+ * החשבוניות), הוא מוקצה על פני החשבוניות דרך `payInvoices` (אותו R8, זיכויים ראשונים), והתנועה
+ * מקושרת אליו כמו כל התאמה אחרת — כך ש"בטל התאמה" עובד בלי קוד נוסף.
+ *
+ * @param {number} txnId
+ * @param {number[]} invoiceIds
+ * @param {{method?:string, reference?:string}} opts
+ * @returns {Promise<{txnId:number, paymentId:number, allocated:number, stillOpen:number}>}
+ */
+export async function matchTxnToInvoices(txnId, invoiceIds, opts, actor, x = getExecutor()) {
+  const txn = await getTransaction(txnId, x);
+  if (txn.matched_payment_id) throw new RuleError('R7', 'תנועה זו כבר הותאמה');
+  // חיוב בלבד: זיכוי בבנק אינו תשלום לספק, ושיוכו לחשבונית היה רושם תשלום שלא קרה.
+  if (Number(txn.amount) >= 0) {
+    throw new RuleError('R7', 'רק תנועת חובה (כסף שיצא) ניתנת לשיוך לחשבוניות.');
+  }
+  const ids = [].concat(invoiceIds || []).map(Number).filter(Boolean);
+  if (!ids.length) throw new RuleError('R', 'לא נבחרו חשבוניות');
+
+  // כל החשבוניות חייבות להיות של חשבון הבנק הזה — כלומר של החנות שממנה יצא הכסף. בלי זה חיוב
+  // בסניף אחד היה סוגר חשבונית של סניף אחר, והספרים של שניהם יוצאים שגויים.
+  const rows = [];
+  for (const id of ids) {
+    const inv = await x.one(
+      `SELECT i.id, i.invoice_number, i.supplier_id, i.store_id, ba.id AS bank_account_id
+         FROM invoices i LEFT JOIN bank_accounts ba ON ba.store_id = i.store_id
+        WHERE i.id = ?`,
+      [id],
+    );
+    if (!inv) throw new NotFoundError(`חשבונית ${id} לא נמצאה`);
+    if (Number(inv.bank_account_id) !== Number(txn.bank_account_id)) {
+      throw new RuleError(
+        'R7',
+        `חשבונית ${inv.invoice_number || inv.id} שייכת לחנות אחרת מזו של חשבון הבנק — לא ניתן לשייך אליה חיוב מהחשבון הזה.`,
+      );
+    }
+    rows.push(inv);
+  }
+
+  // התשלום נרשם על ספק אחד. ספקים שונים באותו חיוב = לא ניתן לדעת למי שולם, ולכן סירוב מפורש
+  // ולא ניחוש לפי הראשונה.
+  const suppliers = [...new Set(rows.map((r) => Number(r.supplier_id)))];
+  if (suppliers.length > 1) {
+    throw new RuleError('R8', 'החשבוניות שנבחרו שייכות לכמה ספקים. בחר חשבוניות של ספק אחד — חיוב אחד בבנק הוא תשלום לספק אחד.');
+  }
+
+  const { payInvoices } = await import('./payments.js');
+  const { payment, allocated, stillOpen } = await payInvoices(
+    {
+      bankAccountId: txn.bank_account_id,
+      method: opts?.method || 'transfer',
+      reference: opts?.reference || txn.raw_reference || null,
+      paymentDate: txn.txn_date,
+      invoiceIds: ids,
+      supplierId: suppliers[0],
+      amount: Math.abs(Number(txn.amount)),
+    },
+    actor,
+    x,
+  );
+
+  await tx(async (t) => {
+    await t.run('UPDATE bank_transactions SET matched_payment_id = ? WHERE id = ?', [payment.id, txnId]);
+    await t.run("UPDATE payments SET status = 'cleared', cleared_date = ? WHERE id = ?", [txn.txn_date, payment.id]);
+    await logAction(
+      {
+        userId: actor?.id ?? null,
+        action: 'reconcile.match_invoices',
+        entityType: 'payment',
+        entityId: payment.id,
+        details: { txnId, invoiceIds: ids, amount: Math.abs(Number(txn.amount)), stillOpen },
+      },
+      t,
+    );
+  });
+
+  return { txnId, paymentId: payment.id, allocated, stillOpen };
+}

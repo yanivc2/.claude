@@ -248,12 +248,131 @@
             <% } else { %>
               <span class="muted">אין צ׳ק פתוח תואם</span>
             <% } %>
+            <%# חיוב שאין לו צ׳ק הוא לרוב העברה/הוראת קבע/חיוב ישיר שהספק גבה. עד עכשיו השורה
+                נגמרה כאן, והחשבונית נשארה "לתשלום" אחרי שכבר שולמה. הכפתור פותח דיאלוג **אחד
+                משותף** (ולא דיאלוג לכל שורה) שמקבל את פרטי התנועה דרך data-*. %>
+            <% if (payableInvoices && payableInvoices.length) { %>
+              <button type="button" class="small secondary js-inv-match"
+                      data-txn="<%= c.txn.id %>"
+                      data-amount="<%= Math.abs(c.txn.amount) %>"
+                      data-amount-label="<%= formatIls(Math.abs(c.txn.amount)) %>"
+                      data-date="<%= formatDate(c.txn.txn_date) %>"
+                      data-desc="<%= c.txn.description || '' %>">🧾 שייך לחשבוניות</button>
+            <% } %>
           </td>
         </tr>
       <% }); %>
     </tbody>
   </table>
 </div>
+
+<%# 🔴 דיאלוג אחד לכל השורות. אחד-לכל-שורה היה משכפל את רשימת החשבוניות פי מספר התנועות —
+    עשרות עותקים של אותו HTML בדף אחד. פרטי התנועה מוזרקים ב-JS מה-data-* של הכפתור שנלחץ. %>
+<% if (payableInvoices && payableInvoices.length) { %>
+<dialog id="invDlg">
+  <form method="post" action="/reconciliation/match-invoices" id="invForm">
+    <input type="hidden" name="account_id" value="<%= accountId %>" />
+    <input type="hidden" name="txn_id" id="invTxn" />
+    <h3 style="margin:0 0 .3rem">שיוך חיוב לחשבוניות</h3>
+    <p class="muted" style="margin:0 0 .6rem; font-size:12px">
+      חיוב שיצא מהבנק בלי צ׳ק — העברה, הוראת קבע או חיוב ישיר. ייווצר תשלום בסכום שיצא מהבנק,
+      והחשבוניות שתסמן ייסגרו לפיו.
+    </p>
+    <p style="margin:0 0 .6rem">
+      <strong id="invTxnLabel"></strong>
+      <span class="muted" id="invTxnMeta" style="font-size:12px"></span>
+    </p>
+
+    <label style="display:block; margin-bottom:.6rem">אמצעי התשלום
+      <select name="pay_method" style="width:auto">
+        <% payMethods.forEach(function(m){ %><option value="<%= m.value %>"><%= m.label %></option><% }); %>
+      </select>
+    </label>
+
+    <div class="table-scroll" style="max-height:40vh">
+      <table class="no-enhance">
+        <thead><tr><th></th><th>חשבונית</th><th>ספק</th><th>תאריך</th><th class="right">פתוח</th></tr></thead>
+        <tbody>
+          <% payableInvoices.forEach(function(iv){ %>
+            <tr>
+              <td style="width:1%"><input type="checkbox" class="js-inv-pick" name="invoice_ids" value="<%= iv.id %>" data-open="<%= iv.open_amount %>" /></td>
+              <td class="mono"><%= iv.invoice_number || iv.id %></td>
+              <td><%= iv.supplier_name || '' %></td>
+              <td><%= formatDate(iv.invoice_date) %></td>
+              <td class="right"><%= formatIls(iv.open_amount) %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+
+    <%# הסכום הרץ מול סכום החיוב. בלעדיו הבחירה היא ניחוש, והשרת רק היה מסרב אחרי הלחיצה. %>
+    <p style="margin:.6rem 0 0" id="invSum"></p>
+    <div class="actions" style="margin-top:.6rem">
+      <button type="submit" id="invGo">שייך</button>
+      <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
+    </div>
+  </form>
+</dialog>
+<script>
+(function(){
+  var dlg = document.getElementById("invDlg");
+  if (!dlg) return;
+  var form = document.getElementById("invForm");
+  var txnInput = document.getElementById("invTxn");
+  var label = document.getElementById("invTxnLabel");
+  var meta = document.getElementById("invTxnMeta");
+  var sum = document.getElementById("invSum");
+  var go = document.getElementById("invGo");
+  var picks = form.querySelectorAll(".js-inv-pick");
+  var target = 0;
+
+  function ils(a){ return (a/100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + " \u20AA"; }
+
+  function recalc(){
+    var chosen = 0, n = 0;
+    picks.forEach(function(cb){ if (cb.checked) { chosen += Number(cb.dataset.open||0); n += 1; } });
+    var diff = chosen - target;
+    if (!n) {
+      sum.textContent = "לא נבחרו חשבוניות.";
+      sum.style.color = "";
+      go.disabled = true;
+      return;
+    }
+    go.disabled = false;
+    // 🔴 חוסר אינו שגיאה — חיוב אחד יכול לכסות חלק מחשבונית (תשלום חלקי, R8). **עודף כן**:
+    // אי אפשר לשלם מעבר ליתרה הפתוחה, והשרת יסרב — אז נאמר זאת כאן ולא אחרי הלחיצה.
+    if (diff < 0) {
+      sum.textContent = "נבחרו " + n + " · פתוח " + ils(chosen) + " מתוך חיוב " + ils(target)
+        + " — יישארו " + ils(target - chosen) + " מהחיוב ללא שיוך. בחר עוד חשבוניות.";
+      sum.style.color = "var(--color-warn)";
+      go.disabled = true;
+    } else if (diff > 0) {
+      sum.textContent = "נבחרו " + n + " · פתוח " + ils(chosen) + " מול חיוב " + ils(target)
+        + " — תשלום חלקי, תישאר יתרה פתוחה של " + ils(diff) + ".";
+      sum.style.color = "var(--color-warn)";
+    } else {
+      sum.textContent = "נבחרו " + n + " · " + ils(chosen) + " — תואם בדיוק לסכום החיוב.";
+      sum.style.color = "var(--color-ok)";
+    }
+  }
+
+  picks.forEach(function(cb){ cb.addEventListener("change", recalc); });
+
+  document.querySelectorAll(".js-inv-match").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      target = Number(btn.dataset.amount||0);
+      txnInput.value = btn.dataset.txn;
+      label.textContent = "חיוב " + btn.dataset.amountLabel;
+      meta.textContent = " · " + btn.dataset.date + (btn.dataset.desc ? " · " + btn.dataset.desc : "");
+      picks.forEach(function(cb){ cb.checked = false; });
+      recalc();
+      dlg.showModal();
+    });
+  });
+})();
+</script>
+<% } %>
 
 <div class="card">
   <h2>כל התנועות בחשבון</h2>

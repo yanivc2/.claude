@@ -3,12 +3,12 @@ import multer from 'multer';
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { assertInScope } from '../lib/scopeGuard.js';
-import { toAgorot } from '../lib/money.js';
+import { toAgorot, fromAgorot } from '../lib/money.js';
 import { parseCsv } from '../lib/csv.js';
 import { parseXlsx } from '../lib/xlsx.js';
 import { normalizeBankRows } from '../lib/bankCsv.js';
 import { decodeBuffer, decodeFileName } from '../lib/decodeText.js';
-import { RuleError, AuthError } from '../lib/errors.js';
+import { RuleError, AuthError, NotFoundError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import {
   importTransactions,
@@ -34,6 +34,7 @@ import {
   confirmMatch,
   unmatch,
   reconcileAccount,
+  matchTxnToInvoices,
 } from '../services/reconciliation.js';
 import { syncBankAccount } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
@@ -79,6 +80,32 @@ async function resolveAccountId(req) {
   return (active || all[0])?.id;
 }
 
+// אמצעי התשלום שחיוב בנק יכול להיות. צ׳ק אינו כאן: צ׳ק מותאם לפי מספרו במסלול הרגיל, ורישומו
+// דרך המסלול הזה היה יוצר תשלום שני לאותו צ׳ק.
+const PAY_METHODS = [
+  { value: 'transfer', label: 'העברה בנקאית' },
+  { value: 'standing_order', label: 'הוראת קבע' },
+  { value: 'credit', label: 'כרטיס אשראי' },
+];
+
+// החשבוניות הפתוחות של החנות שמאחורי חשבון הבנק. הסקופ עובר גם כאן — הרשימה הזו נשלחת ל-UI,
+// ולכן חשבונית מחוץ להרשאה לא תיראה בבורר מלכתחילה (הכתיבה נבדקת שוב בראוט עצמו).
+async function payableForAccount(accountId, scope) {
+  const acct = await getExecutor().one('SELECT store_id FROM bank_accounts WHERE id = ?', [accountId]);
+  if (!acct) return [];
+  const { listPayable } = await import('../services/invoices.js');
+  const rows = await listPayable(scope);
+  const out = [];
+  for (const r of rows.filter((i) => Number(i.store_id) === Number(acct.store_id))) {
+    // "כמה עוד פתוח" ולא הערך הנקוב: תשלום קודם כבר לקח את חלקו, וזה מה שהחיוב הזה יכול לסגור.
+    const { invoiceAllocation } = await import('../services/allocations.js');
+    const a = await invoiceAllocation(r.id);
+    if (a.open === 0) continue;
+    out.push({ ...r, open_amount: a.open });
+  }
+  return out;
+}
+
 async function renderPage(req, res, accountId, extra = {}) {
   const unmatched = accountId ? await listUnmatched(accountId) : [];
   const classified = await Promise.all(unmatched.map(async (t) => ({ txn: t, ...(await classify(t)) })));
@@ -93,6 +120,10 @@ async function renderPage(req, res, accountId, extra = {}) {
     oddRefs: accountId ? await oddReferences(accountId) : { count: 0, sample: [] },
     classified,
     transactions: accountId ? await listTransactions(accountId) : [],
+    // חשבוניות פתוחות של החנות שמאחורי החשבון הזה — המועמדות לשיוך של חיוב שאין לו צ׳ק.
+    // נשלחות פעם אחת עם הדף ומשרתות דיאלוג אחד משותף לכל השורות (ולא דיאלוג לכל שורה).
+    payableInvoices: accountId ? await payableForAccount(accountId, req.scope) : [],
+    payMethods: PAY_METHODS,
     // Open-Banking sync is offered only when the key is configured AND this account is linked.
     financyReady: financyConfigured(),
     financyLinked: Boolean(
@@ -106,7 +137,11 @@ async function renderPage(req, res, accountId, extra = {}) {
 
 router.get('/', async (req, res, next) => {
   try {
-    await renderPage(req, res, await resolveAccountId(req));
+    // ההודעה של PRG (ראה /match-invoices) חוזרת דרך ה-query, כדי שהפעולה תסתיים ב-GET.
+    await renderPage(req, res, await resolveAccountId(req), {
+      notice: req.query.notice ? String(req.query.notice).slice(0, 300) : null,
+      error: req.query.err ? String(req.query.err).slice(0, 300) : null,
+    });
   } catch (err) {
     next(err);
   }
@@ -215,6 +250,36 @@ router.post('/match', async (req, res, next) => {
     await renderPage(req, res, accountId, { notice: 'הצ׳ק סומן כנפרע.' });
   } catch (err) {
     if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+// שיוך חיוב לחשבונית אחת או לכמה — חיוב שיצא מהבנק בלי צ׳ק (העברה / הוראת קבע / חיוב ישיר).
+// יוצר תשלום אמיתי בסכום שיצא מהבנק ומקשר אליו את התנועה, ולכן "בטל התאמה" הקיים עובד עליו.
+router.post('/match-invoices', async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  try {
+    const txnId = Number(req.body.txn_id);
+    const invoiceIds = [].concat(req.body.invoice_ids || []).map(Number).filter(Boolean);
+    // שני צדדי השיוך נבדקים: תנועה מזויפת מחברה אחרת, וגם חשבונית מחברה/חנות אחרת (404).
+    await assertInScope('bankTxn', txnId, req.scope);
+    for (const id of invoiceIds) await assertInScope('invoice', id, req.scope);
+    const r = await matchTxnToInvoices(
+      txnId,
+      invoiceIds,
+      { method: req.body.pay_method, reference: req.body.pay_reference },
+      req.user,
+    );
+    const msg = r.stillOpen > 0
+      ? `החיוב שויך ל-${invoiceIds.length} חשבוניות. נותרה יתרה פתוחה של ${fromAgorot(r.stillOpen)} ₪.`
+      : `החיוב שויך ל-${invoiceIds.length} חשבוניות, והן נסגרו במלואן.`;
+    // PRG (ראה CLAUDE.md): רינדור במקום היה משאיר את הדפדפן על כתובת שהיא POST בלבד, וריענון
+    // או שחזור PWA היו שולחים אליה GET — עם הפעולה כבר מבוצעת. ההודעה נוסעת ב-query.
+    return res.redirect(303, `/reconciliation?account=${accountId}&notice=${encodeURIComponent(msg)}`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof NotFoundError) {
+      return res.redirect(303, `/reconciliation?account=${accountId}&err=${encodeURIComponent(err.message)}`);
+    }
     next(err);
   }
 });

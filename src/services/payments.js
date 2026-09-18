@@ -6,6 +6,7 @@ import { userCan } from '../lib/permissions.js';
 import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
+import { fromAgorot } from '../lib/money.js';
 import { notify } from '../lib/notify.js';
 import { israelToday } from '../lib/loginHours.js';
 import { logAction } from './audit.js';
@@ -655,4 +656,80 @@ export async function lookupChecks(query, scope = null, x = getExecutor()) {
       ORDER BY p.id DESC`,
     [...m.params, ...sc.params],
   );
+}
+
+/**
+ * שלם כמה חשבוניות בתשלום אחד — **הביטוי היחיד** של הכלל הזה.
+ *
+ * הלוגיקה הזו ישבה inline ב-`POST /invoices/pay-batch`, ודף התאמת הבנק צריך בדיוק אותה: גם שם
+ * סוגרים כמה חשבוניות בתשלום אחד, רק שהסכום אינו נבחר אלא **נקבע בידי הבנק**. שכפולה היה יוצר שני
+ * ביטויים של R8 שנפרדים בשקט — ובפרט את סדר הזיכויים, שטעות בו היא קיזוז שגוי ולא שגיאה גלויה.
+ *
+ * `amount` (אגורות) = כמה כסף באמת שולם. `null` = הסכום נגזר מהחשבוניות (המסלול הרגיל, R5).
+ * כשהוא נתון — התשלום נרשם כתשלום לספק ואז **מוקצה** על פני החשבוניות, וזה מה שמאפשר תשלום חלקי.
+ *
+ * @returns {Promise<{payment:object, allocated:number, stillOpen:number}>}
+ */
+export async function payInvoices(input, actor, x = getExecutor()) {
+  const { invoiceIds = [], supplierId = null, amount = null, ...payInput } = input;
+  const ids = [].concat(invoiceIds).map(Number).filter(Boolean);
+  if (ids.length === 0) throw new RuleError('R', 'לא נבחרו חשבוניות לתשלום');
+
+  const { invoiceAllocation, paymentAllocation, allocateInvoiceToPayments } = await import('./allocations.js');
+
+  // מה שעוד **פתוח** בחשבוניות — לא ערכן הנקוב — הוא מה שהתשלום הבא יכול לכסות, כי תשלום קודם
+  // כבר לקח את חלקו.
+  let remaining = 0;
+  let faceValue = 0;
+  for (const invId of ids) {
+    const a = await invoiceAllocation(invId, x);
+    remaining += a.open;
+    faceValue += a.total;
+  }
+  const split = amount != null || remaining !== faceValue;
+
+  if (!split) {
+    const payment = await createPayment({ ...payInput, invoiceIds: ids }, actor, x);
+    return { payment, allocated: faceValue, stillOpen: 0 };
+  }
+
+  if (remaining <= 0) throw new RuleError('R8', 'החשבוניות המסומנות כבר משולמות במלואן');
+  // סכום מעל היתרה הפתוחה הוא **טעות הקלדה, לא הוראה** — מסרבים במקום לקצץ בשקט, אחרת נרשם
+  // תשלום שאיש לא התכוון לבצע.
+  if (amount != null && amount > remaining) {
+    throw new RuleError(
+      'R8',
+      `לא ניתן לשלם מעבר ליתרה. היתרה הפתוחה בחשבוניות המסומנות היא ${fromAgorot(remaining)} ₪ ` +
+        `והוזן ${fromAgorot(amount)} ₪. תקן את הסכום ונסה שוב.`,
+    );
+  }
+  const payAmount = amount == null ? remaining : amount;
+  if (payAmount <= 0) throw new RuleError('R8', 'סכום התשלום חייב להיות חיובי');
+
+  const payment = await createPayment(
+    { ...payInput, invoiceIds: [], supplierId, amount: payAmount }, actor, x,
+  );
+
+  // 🔴 **זיכויים ראשונים.** שורת זיכוי שלילית, ולכן החלתה לפני החשבוניות **מגדילה** את מה שהתשלום
+  // יכול לבלוע (₪5,000 עם זיכוי ₪1,000− מכסים ₪6,000 חשבונית). בסדר ההפוך התשלום היה מתמלא
+  // מהחשבונית, הזיכוי היה נדחק לתשלום מאוחר יותר, והקיזוז יוצא שגוי — בשקט. זיכוי נכנס בשלמותו
+  // לתשלום אחד ואינו מתפצל.
+  const ordered = [];
+  for (const invId of ids) {
+    const a = await invoiceAllocation(invId, x);
+    ordered.push({ invId, credit: a.total < 0 });
+  }
+  ordered.sort((p1, p2) => Number(p2.credit) - Number(p1.credit));
+
+  for (const row of ordered) {
+    const a = await invoiceAllocation(row.invId, x);
+    const done = a.total < 0 ? a.open >= 0 : a.open <= 0;
+    if (done) continue;
+    if (a.total > 0 && (await paymentAllocation(payment.id, x)).unallocated <= 0) break;
+    await allocateInvoiceToPayments(row.invId, [{ paymentId: payment.id }], actor, x);
+  }
+
+  let stillOpen = 0;
+  for (const invId of ids) stillOpen += (await invoiceAllocation(invId, x)).open;
+  return { payment, allocated: payAmount, stillOpen };
 }

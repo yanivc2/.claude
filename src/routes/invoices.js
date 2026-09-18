@@ -24,11 +24,11 @@ import { scopeClause } from '../lib/scope.js';
 import { toAgorot, fromAgorot } from '../lib/money.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
-import { createPayment } from '../services/payments.js';
+import { createPayment, payInvoices } from '../services/payments.js';
 import { submitRequest, pendingRequestFor } from '../services/changeRequests.js';
 import { userCan } from '../lib/permissions.js';
 import { describeInvoice } from '../lib/changeSummary.js';
-import { invoiceAllocation, paymentAllocation, openAdvancesForSupplier, allocateInvoiceToPayments, deallocate } from '../services/allocations.js';
+import { invoiceAllocation, openAdvancesForSupplier, allocateInvoiceToPayments, deallocate } from '../services/allocations.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
 import { scopeParam, assertInScope, assertStoreAllowed } from '../lib/scopeGuard.js';
@@ -318,62 +318,10 @@ router.post('/pay-batch', async (req, res, next) => {
     }
     if (!payInput.paymentDate) payInput.paymentDate = new Date().toISOString().slice(0, 10);
 
-    // SPLIT PAYMENTS (R8): an invoice may need several checks. What is still OPEN on the selection
-    // — not the invoices' face value — is what the next payment can cover, because earlier checks
-    // already took their share.
+    // R8 (תשלום חלקי, זיכויים ראשונים) חי ב-`services/payments.js#payInvoices` — אותו ביטוי
+    // בדיוק שמשמש את התאמת הבנק. `pay_amount` ריק = הסכום נגזר מהחשבוניות (R5).
     const typed = String(b.pay_amount || '').trim() ? toAgorot(b.pay_amount) : null;
-    let remaining = 0;
-    let faceValue = 0;
-    let hasCredit = false;
-    for (const invId of invoiceIds) {
-      const a = await invoiceAllocation(invId);
-      remaining += a.open;
-      faceValue += a.total;
-      if (a.total < 0) hasCredit = true;
-    }
-    // Split when an amount was typed, or when a previous check already covered part of these.
-    const split = typed != null || remaining !== faceValue;
-
-    let payment;
-    if (!split) {
-      payment = await createPayment(payInput, req.user);
-    } else {
-      if (remaining <= 0) throw new RuleError('R8', 'החשבוניות המסומנות כבר משולמות במלואן');
-      // A typed amount over the open balance is a TYPO, not an instruction: refuse and come back
-      // to the same form so the number can be corrected. Silently capping it would record a
-      // payment the user never meant to make.
-      if (typed != null && typed > remaining) {
-        throw new RuleError(
-          'R8',
-          `לא ניתן לשלם מעבר ליתרה. היתרה הפתוחה בחשבוניות המסומנות היא ${fromAgorot(remaining)} ₪ ` +
-            `והוזן ${fromAgorot(typed)} ₪. תקן את הסכום ונסה שוב.`,
-        );
-      }
-      const amount = typed == null ? remaining : typed;
-      if (amount <= 0) throw new RuleError('R8', 'סכום התשלום חייב להיות חיובי');
-
-      // Recorded as money paid to the supplier, then allocated across the selected invoices.
-      payment = await createPayment({ ...payInput, invoiceIds: [], supplierId, amount }, req.user);
-
-      // CREDIT NOTES FIRST. A credit's line is negative, so applying it before the invoices
-      // enlarges what this check can absorb: a ₪5,000 check with a −₪1,000 credit covers ₪6,000
-      // of invoice. Applied the other way round the check would fill up and the credit would be
-      // left behind on a later payment, netting wrongly. A credit goes on ONE payment, whole.
-      const ordered = [];
-      for (const invId of invoiceIds) {
-        const a = await invoiceAllocation(invId);
-        ordered.push({ invId, credit: a.total < 0, open: a.open });
-      }
-      ordered.sort((p1, p2) => Number(p2.credit) - Number(p1.credit));
-
-      for (const row of ordered) {
-        const a = await invoiceAllocation(row.invId);
-        const done = a.total < 0 ? a.open >= 0 : a.open <= 0;
-        if (done) continue;
-        if (a.total > 0 && (await paymentAllocation(payment.id)).unallocated <= 0) break;
-        await allocateInvoiceToPayments(row.invId, [{ paymentId: payment.id }], req.user);
-      }
-    }
+    const { payment } = await payInvoices({ ...payInput, invoiceIds, supplierId, amount: typed }, req.user);
 
     // "שמור וצור תשלום נוסף לחשבונית": keep the same selection on the form so the next check can
     // be entered straight away, and say what is still open.
