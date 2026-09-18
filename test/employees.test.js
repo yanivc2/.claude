@@ -48,7 +48,7 @@ test('advance line on a Z feeds the employee ledger + totals', async () => {
   assert.equal(ledger.length, 2, 'manual line is not in the employee ledger');
   assert.ok(ledger.every((r) => r.first_name === 'רון'));
 
-  const totals = await employeeTotals(x);
+  const totals = await employeeTotals({}, x);
   const row = totals.find((t) => t.id === emp.id);
   assert.equal(row.advances, 30000);
   assert.equal(row.salary, 50000);
@@ -97,4 +97,41 @@ test('deleteEmployee deactivates when they have lines, hard-deletes otherwise', 
   const r2 = await deleteEmployee(clean.id, o, x);
   assert.equal(r2.deactivated, false);
   assert.equal(await x.one('SELECT id FROM employees WHERE id = ?', [clean.id]), undefined);
+});
+
+// 🔴 נמדד במסך: הבעלים עמד בחנות "מידנייט" ורובריקת "מעקב מפרעות ושכר" הציגה שורת שכר של
+// "סופר על הדרך". שתי השאילתות האלה היו היחידות בדף שלא קיבלו סקופ כלל — הנעילה לחנות פעילה
+// מצמצמת את req.scope, אבל שירות שאינו קורא לו כלל אינו מצומצם. שורת כסף שמופיעה תחת החנות
+// הלא-נכונה היא גרועה מכלום: היא נראית כמו חוב של הסניף הזה.
+test('the ledger and the totals are scoped to the Z report store, not to the employee', async () => {
+  const x = await freshDb();
+  const o = await owner(x);
+  const a = await firstStore(x);
+  const b = await x.one('SELECT * FROM stores WHERE id <> ? ORDER BY id LIMIT 1', [a.id]);
+  assert.ok(b, 'the seed must have a second store for this test to mean anything');
+
+  // עובד ללא שיוך לחנות = משותף לכל הסניפים, ולכן סינון לפי העובד לא היה עוזר כאן.
+  const emp = await createEmployee({ firstName: 'אדם', lastName: 'לוי' }, o, x);
+  const za = await createZReport({ storeId: a.id, zNumber: '3290', zDate: '2026-09-05', drawerCash: 100000 }, o, x);
+  const zb = await createZReport({ storeId: b.id, zNumber: '77', zDate: '2026-09-05', drawerCash: 100000 }, o, x);
+  await replaceExpenses(za.id, [{ kind: 'salary', employeeId: emp.id, amount: 100000, expenseDate: '2026-09-05' }], o, x);
+  await replaceExpenses(zb.id, [{ kind: 'advance', employeeId: emp.id, amount: 25000, expenseDate: '2026-09-05' }], o, x);
+
+  const all = await listEmployeeLedger({}, x);
+  assert.equal(all.length, 2, 'with no store the owner still sees every branch');
+
+  const onlyB = await listEmployeeLedger({ storeId: b.id }, x);
+  assert.equal(onlyB.length, 1);
+  assert.equal(Number(onlyB[0].store_id), Number(b.id), 'the other branch’s salary line must not appear');
+  assert.equal(onlyB[0].kind, 'advance');
+
+  // הסיכום נגזר מאותן שורות, ולכן אינו יכול להציג סכום של חנות אחרת ליד רשימה מסוננת.
+  const totalsB = (await employeeTotals({ storeId: b.id }, x)).find((t) => Number(t.id) === Number(emp.id));
+  assert.equal(totalsB.advances, 25000);
+  assert.equal(totalsB.salary, 0, 'the other branch’s salary must not be counted here');
+  assert.equal(totalsB.lines, 1);
+
+  const totalsAll = (await employeeTotals({}, x)).find((t) => Number(t.id) === Number(emp.id));
+  assert.equal(totalsAll.salary, 100000);
+  assert.equal(totalsAll.lines, 2);
 });

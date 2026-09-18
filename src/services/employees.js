@@ -1,7 +1,7 @@
 import { getExecutor } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { normalizePhone } from '../lib/employeeImport.js';
-import { filterByStoreLinks } from '../lib/scope.js';
+import { filterByStoreLinks, scopeWhere } from '../lib/scope.js';
 import { logAction } from './audit.js';
 
 // "עובדים ומשכורות" — staff list + a tracking table of advances (מפרעות) and salary lines
@@ -113,19 +113,31 @@ export async function deleteEmployee(id, actor, x = getExecutor()) {
 /**
  * The tracking table: every salary/advance line entered on a Z report, joined to its employee
  * and Z. `kind` is 'advance' (מפרעה) or 'salary' (שכר). Newest first.
+ *
+ * 🔴 SCOPED by the Z report's store, not by the employee's links. An employee with no store links
+ * is shared with every branch (filterByStoreLinks), so filtering the ledger by who the employee is
+ * would leave a מידנייט screen showing a salary line paid at סופר על הדרך — measured. What the
+ * line belongs to is the register it came out of, which is `z_reports.store_id`.
  */
-export async function listEmployeeLedger({ employeeId = null } = {}, x = getExecutor()) {
-  const where = employeeId ? 'AND e.employee_id = ?' : '';
-  const params = employeeId ? [employeeId] : [];
+export async function listEmployeeLedger(
+  { employeeId = null, storeId = null, scope = null } = {},
+  x = getExecutor(),
+) {
+  const sc = scopeWhere(scope, 'st.company_id', 'z.store_id');
+  const params = [...sc.params];
+  let where = '';
+  if (employeeId) { where += ' AND e.employee_id = ?'; params.push(Number(employeeId)); }
+  if (storeId) { where += ' AND z.store_id = ?'; params.push(Number(storeId)); }
   return x.many(
     `SELECT e.id, e.expense_date, e.amount, e.description_type AS kind, e.purpose,
             emp.id AS employee_id, emp.first_name, emp.last_name,
-            z.id AS z_report_id, z.z_number, z.z_date, st.name AS store_name
+            z.id AS z_report_id, z.z_number, z.z_date, z.store_id, st.name AS store_name
        FROM z_expenses e
        JOIN employees emp ON emp.id = e.employee_id
        JOIN z_reports z ON z.id = e.z_report_id
        JOIN stores st ON st.id = z.store_id
-      WHERE e.employee_id IS NOT NULL AND e.description_type IN ('advance','salary') ${where}
+      WHERE e.employee_id IS NOT NULL AND e.description_type IN ('advance','salary')
+            ${sc.sql}${where}
       ORDER BY e.expense_date DESC, e.id DESC`,
     params,
   );
@@ -135,22 +147,23 @@ export async function listEmployeeLedger({ employeeId = null } = {}, x = getExec
  * Per-employee totals of advances and salary lines, for the summary table.
  * @returns {Promise<Array<{id, first_name, last_name, active, advances, salary, lines}>>}
  */
-export async function employeeTotals(x = getExecutor()) {
-  const employees = await listEmployees({ includeInactive: true }, x);
-  const rows = await x.many(
-    `SELECT employee_id, description_type AS kind, COALESCE(SUM(amount),0) AS amt, COUNT(*) AS n
-       FROM z_expenses
-      WHERE employee_id IS NOT NULL AND description_type IN ('advance','salary')
-      GROUP BY employee_id, description_type`,
-    [],
-  );
+export async function employeeTotals({ storeId = null, scope = null } = {}, x = getExecutor()) {
+  const employees = await listEmployees({ includeInactive: true, scope }, x);
+  // 🔴 נגזר מאותן שורות בדיוק שהטבלה "מעקב מפרעות ושכר" מציגה, ולא משאילתת GROUP BY משלו: קודם
+  // היה כאן סכום על **כל** החנויות ליד רשימה מסוננת, כלומר מסך של חנות אחת הראה סכום של כולן
+  // ואי אפשר היה לדעת שהוא לא שלה. מקור אחד = שתי הטבלאות לא יכולות להיפרד בשקט. (סיכום ב-JS ולא
+  // ב-SQL גם עוקף את מגבלת pg-mem — GROUP BY מעל join.)
+  const ledger = await listEmployeeLedger({ storeId, scope }, x);
   const byEmp = new Map();
-  for (const r of rows) {
-    const cur = byEmp.get(r.employee_id) || { advances: 0, salary: 0, lines: 0 };
-    if (r.kind === 'advance') cur.advances += Number(r.amt);
-    else if (r.kind === 'salary') cur.salary += Number(r.amt);
-    cur.lines += Number(r.n);
-    byEmp.set(r.employee_id, cur);
+  for (const r of ledger) {
+    const cur = byEmp.get(Number(r.employee_id)) || { advances: 0, salary: 0, lines: 0 };
+    if (r.kind === 'advance') cur.advances += Number(r.amount);
+    else if (r.kind === 'salary') cur.salary += Number(r.amount);
+    cur.lines += 1;
+    byEmp.set(Number(r.employee_id), cur);
   }
-  return employees.map((e) => ({ ...e, ...(byEmp.get(e.id) || { advances: 0, salary: 0, lines: 0 }) }));
+  return employees.map((e) => ({
+    ...e,
+    ...(byEmp.get(Number(e.id)) || { advances: 0, salary: 0, lines: 0 }),
+  }));
 }

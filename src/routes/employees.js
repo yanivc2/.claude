@@ -38,10 +38,10 @@ async function allowedStoreIds(body, scope) {
 
 // The summary table joined to the SCOPED employee list: rows the caller may not see are dropped,
 // and each surviving row carries its `stores` so the screen can show where the employee works.
-async function scopedTotals(scope) {
+async function scopedTotals(scope, storeId) {
   const visible = await listEmployees({ includeInactive: true, scope });
   const byId = new Map(visible.map((e) => [Number(e.id), e]));
-  const rows = await employeeTotals();
+  const rows = await employeeTotals({ storeId, scope });
   return rows
     .filter((r) => byId.has(Number(r.id)))
     .map((r) => ({ ...r, stores: byId.get(Number(r.id)).stores || [] }));
@@ -91,8 +91,8 @@ async function render(req, res, extra = {}) {
     // Scoped: an employee linked to stores is only visible where one of them is in scope; an
     // employee with no links is shared with every store (see services/employees.js#listEmployees).
     storeOptions: await scopedStoreList(assignmentScope(req)),
-    totals: await scopedTotals(req.scope),
-    ledger: await listEmployeeLedger(),
+    totals: await scopedTotals(req.scope, storeId),
+    ledger: await listEmployeeLedger({ storeId, scope: req.scope }),
     error: null,
     notice: null,
     ...extra,

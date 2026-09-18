@@ -81,14 +81,17 @@ async function scanContext(invoiceId) {
 
 // For the "save & add another" batch flow: the still-payable invoices already recorded
 // for one supplier at one store, so they can be paid together from the new-invoice screen.
-async function batchContext(supplierId, storeId) {
+async function batchContext(supplierId, storeId, scope) {
   const sid = Number(supplierId);
   const stid = Number(storeId);
   if (!sid || !stid) return { batchInvoices: [] };
   // Include the supplier's whole payment family (parent + subsidiaries, e.g. קוקה קולה + טרה) so
   // their open invoices in this store can be paid together in one payment.
   const family = new Set(await supplierFamilyIds(sid));
-  const payable = await listPayable();
+  // 🔴 `stid` מגיע מ-`?store=` כפי שהוא. בלי הסקופ כאן, `/invoices/new?store=<חנות זרה>` היה מציג
+  // את החשבוניות הפתוחות של אותה חנות — הסינון לפי `store_id` מצמצם לחנות אחת, אבל לא בודק
+  // שהיא מותרת. עם הסקופ, חנות מחוץ להרשאה פשוט מחזירה רשימה ריקה.
+  const payable = await listPayable(scope);
   const rows = payable.filter((i) => family.has(i.supplier_id) && i.store_id === stid);
   // What is still OPEN on each one (R8): after a partial payment the face value is no longer what
   // the next check has to cover, and the form's running balance has to say so.
@@ -134,7 +137,7 @@ router.get('/new', async (req, res, next) => {
   try {
     const supplierId = req.query.supplier ? Number(req.query.supplier) : null;
     const storeId = req.query.store ? Number(req.query.store) : null;
-    const ctx = await batchContext(supplierId, storeId);
+    const ctx = await batchContext(supplierId, storeId, req.scope);
     // Open (payable, no payment) invoices for the "צרף חשבונית פתוחה" picker — scoped to the user.
     const openInvoices = await listPayable(req.scope);
     let pickIds = String(req.query.pick || '').split(',').map(Number).filter(Boolean);
@@ -175,7 +178,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       warnings: [],
       error: null,
       uploadedImage: imagePath,
-      ...(await batchContext(b.supplier_id, b.store_id)),
+      ...(await batchContext(b.supplier_id, b.store_id, req.scope)),
       ...extra,
     });
   };
@@ -189,7 +192,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       warnings: [],
       error: req.uploadError,
       uploadedImage: null,
-      ...(await batchContext(b.supplier_id, b.store_id)),
+      ...(await batchContext(b.supplier_id, b.store_id, req.scope)),
     });
   }
 
@@ -267,7 +270,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
         warnings: err.meta.warnings,
         error: null,
         uploadedImage: imagePath,
-        ...(await batchContext(b.supplier_id, b.store_id)),
+        ...(await batchContext(b.supplier_id, b.store_id, req.scope)),
       });
     }
     if (err instanceof RuleError) {
@@ -407,7 +410,7 @@ router.post('/pay-batch', async (req, res, next) => {
         openInvoices: await listPayable(req.scope),
         pickIds: invoiceIds,
         payValues: b,
-        ...(await batchContext(supplierId, storeId)),
+        ...(await batchContext(supplierId, storeId, req.scope)),
       });
     }
     next(err);
