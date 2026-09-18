@@ -18,22 +18,22 @@
     /* Standard 501 approximate check size (~175mm x 80mm). */
     .check {
       position: relative; width: 175mm; height: 80mm; margin: 0 auto; background:#fff;
-      border:1px solid var(--line); padding: 6mm 8mm; overflow:hidden;
+      border:1px solid var(--color-line); padding: 6mm 8mm; overflow:hidden;
     }
     .check .row { display:flex; justify-content:space-between; align-items:flex-start; }
     .drawer { font-weight:700; font-size: 3.4mm; }
     .drawer small { display:block; font-weight:400; color:#444; }
     .bankbox { text-align:left; font-size: 3mm; }
     .date { margin-top: 3mm; font-size: 3mm; }
-    .date .box { display:inline-block; min-width:34mm; border-bottom:1px solid var(--line); text-align:center; }
+    .date .box { display:inline-block; min-width:34mm; border-bottom:1px solid var(--color-line); text-align:center; }
     .payee { margin-top: 5mm; font-size: 3.4mm; }
-    .payee .line { display:inline-block; min-width:120mm; border-bottom:1px solid var(--line); font-weight:700; }
-    .amountbox { position:absolute; top: 20mm; left: 8mm; border:1.5px solid var(--line);
+    .payee .line { display:inline-block; min-width:120mm; border-bottom:1px solid var(--color-line); font-weight:700; }
+    .amountbox { position:absolute; top: 20mm; left: 8mm; border:1.5px solid var(--color-line);
       padding: 1mm 3mm; font-weight:700; font-size: 4mm; }
     .words { margin-top: 4mm; font-size: 3.2mm; }
-    .words .line { display:inline-block; min-width:150mm; border-bottom:1px solid var(--line); }
+    .words .line { display:inline-block; min-width:150mm; border-bottom:1px solid var(--color-line); }
     .foot { position:absolute; bottom: 12mm; left:8mm; text-align:center; font-size:2.6mm; color:#333; }
-    .foot .sig { min-width:45mm; border-top:1px solid var(--line); padding-top:1mm; }
+    .foot .sig { min-width:45mm; border-top:1px solid var(--color-line); padding-top:1mm; }
     .memo { position:absolute; bottom: 12mm; right:8mm; font-size:2.8mm; }
 
     /* Bank-approved MICR font (commit the licensed file here to activate — see fonts/README.txt).

@@ -48,7 +48,7 @@
     <p class="muted">אין בקשות ממתינות.</p>
   <% } %>
   <% pending.forEach(function(r){ %>
-    <div style="border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
+    <div style="border:1px solid var(--color-line);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
       <div class="toolbar" style="margin-bottom:.4rem">
         <div>
           <strong><%= actionLabel(r.action) %></strong>
@@ -64,7 +64,7 @@
           </form>
         </div>
       </div>
-      <div style="white-space:pre-line;background:var(--th-bg);border-radius:6px;padding:.6rem"><%= r.summary || '' %></div>
+      <div style="white-space:pre-line;background:var(--color-section);border-radius:6px;padding:.6rem"><%= r.summary || '' %></div>
     </div>
   <% }); %>
 </div>

@@ -11,7 +11,7 @@ import {
   listPayments,
 } from '../services/payments.js';
 import { listPayable } from '../services/invoices.js';
-import { listDeposits } from '../services/deposits.js';
+import { listDeposits, depositVerifications } from '../services/deposits.js';
 import { unmatchedCashExpenses, settledCashExpenses, cashSettleReady, withMatchCandidates } from '../services/zreports.js';
 
 import { autoReconcile, reconcileDeposits } from '../services/reconciliation.js';
@@ -61,10 +61,13 @@ router.get('/', async (req, res, next) => {
       const dep = Number(req.query.dep) || 0;
       notice = `הותאמו אוטומטית ${m} צ׳קים · ${a} דורשים הכרעה · ${u} ללא התאמה` + (dep ? ` · ${dep} הפקדות הותאמו לפי מספר שקית.` : '.');
     }
+    const depositRows = await listDeposits({ storeId, scope, limit: 50 });
     res.render('payments/index', {
       title: 'מרקורים',
       payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope }),
-      deposits: await listDeposits({ storeId, scope, limit: 50 }),
+      deposits: depositRows,
+      // "אימות ספירה" — האם הבנק תיקן את הסכום אחרי שספר את השקית (services/deposits.js).
+      depVerify: await depositVerifications(depositRows),
       // אותה טבלה בדיוק של לוח הבקרה — partials/_unmatchedCash.ejs. שתי טבלאות שונות לאותו
       // דבר היו מבלבלות: אותה שורת כסף נראתה אחרת בכל דף.
       unmatchedCash: await withMatchCandidates(await unmatchedCashExpenses(scope, 50, storeId), scope, storeId),

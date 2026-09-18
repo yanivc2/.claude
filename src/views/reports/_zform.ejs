@@ -231,9 +231,9 @@
     if (totalEl) totalEl.value = fmt(depSum());
     if (!depDeclared()) { depReconEl.value = '—'; depReconEl.style.color = ''; return; }
     var diff = (drawerCash() - cxSum()) - depSum();
-    if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--ok)'; }
-    else if (diff > 0) { depReconEl.value = 'יתרה ' + fmt(diff); depReconEl.style.color = 'var(--ok)'; }
-    else { depReconEl.value = 'חוסר ' + fmt(-diff); depReconEl.style.color = 'var(--bad)'; }
+    if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--color-ok)'; }
+    else if (diff > 0) { depReconEl.value = 'יתרה ' + fmt(diff); depReconEl.style.color = 'var(--color-ok)'; }
+    else { depReconEl.value = 'חוסר ' + fmt(-diff); depReconEl.style.color = 'var(--color-bad)'; }
   }
   function recalcDrawer(){ form.querySelector('#drawer_total').value = fmt(drawerSum()); }
   function ccMatches(){ return Math.round(ccSum()*100) === Math.round(num(creditEl)*100); }
@@ -242,8 +242,8 @@
     var ccBadge = document.getElementById('cc_sum_badge');
     if (ccBadge) ccBadge.textContent = fmt(ccSum());
     var msg = form.querySelector('#cc_match_msg');
-    if (ccMatches()) { msg.textContent = 'תואם לאשראי מגירה ✓'; msg.style.color = 'var(--ok)'; }
-    else { msg.textContent = 'אין התאמה בהכנסות מאשראי — אשראי מגירה ' + fmt(num(creditEl)); msg.style.color = 'var(--bad)'; }
+    if (ccMatches()) { msg.textContent = 'תואם לאשראי מגירה ✓'; msg.style.color = 'var(--color-ok)'; }
+    else { msg.textContent = 'אין התאמה בהכנסות מאשראי — אשראי מגירה ' + fmt(num(creditEl)); msg.style.color = 'var(--color-bad)'; }
   }
   form.querySelectorAll('input.dr').forEach(function(i){ i.addEventListener('input', function(){ recalcDrawer(); recalcCc(); recalcDepRecon(); }); });
   form.querySelectorAll('input.cc').forEach(function(i){ i.addEventListener('input', recalcCc); });

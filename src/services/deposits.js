@@ -1,6 +1,7 @@
 import { getExecutor } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeClause, scopeWhere } from '../lib/scope.js';
+import { addDaysIso } from '../lib/loginHours.js';
 import { logAction } from './audit.js';
 
 // "הצהרה על הפקדה" — a bank deposit declaration: a bag number + amount for a store, with a flag
@@ -40,6 +41,82 @@ export async function listDeposits({ storeId = null, scope = null, limit = 30 } 
   sql += ' ORDER BY d.deposit_date DESC, d.id DESC LIMIT ?';
   params.push(limit);
   return x.many(sql, params);
+}
+
+/**
+ * "אימות ספירה" — האם הבנק אישר בסוף את הסכום שהוצהר, או תיקן אותו.
+ *
+ * מה קורה בפועל: השקית מגיעה לסניף, הבנק מזכה את החשבון בסכום שהוצהר, וההפקדה נראית סגורה.
+ * ואז — יום אחר כך, ואחרי סוף שבוע או חג כמה ימים — הסניף סופר את השקית וכותב שורות **"תיקון"**
+ * באותה אסמכתה: ביטול הזיכוי המקורי וזיכוי מחדש בסכום שנספר בפועל. ההפרש ביניהן הוא מה שבאמת
+ * נכנס או חסר.
+ *
+ * 🔴 ההפרש הוא **סכום שורות התיקון**, לא הפרש מול הזיכוי המקורי. הבנק כותב אותן כזוג
+ * (−68,230 ואז +68,220), וסכומן הוא ההפרש הנקי (−10). חיסור מול השורה המקורית היה סופר את
+ * הביטול פעמיים.
+ *
+ * 🔴 "אומתה" נאמר רק כשיש כיסוי בנתונים. אם דף הבנק שיובא אינו מגיע עד שבוע אחרי ההפקדה, אי
+ * אפשר לדעת שלא הגיע תיקון — רק שעוד לא ראינו אותו. אמירת "אומתה" במצב הזה היא אישור שקרי על
+ * כסף, ולכן המצב הזה נקרא "ממתין" ואומר עד מתי.
+ *
+ * @param {Array} deposits שורות מ-listDeposits
+ * @returns {Promise<Map<number, {statusDate, correctionTotal, verifyDate, state, corrections}>>}
+ */
+export const VERIFY_WINDOW_DAYS = 7;
+
+export async function depositVerifications(deposits, x = getExecutor()) {
+  const out = new Map();
+  const matched = (deposits || []).filter((d) => d.matched_txn_id);
+  if (!matched.length) return out;
+
+  // שורת הבנק של כל הפקדה — ממנה מגיעים תאריך הסטטוס, החשבון והאסמכתה.
+  const txns = await x.many(
+    'SELECT id, bank_account_id, txn_date, amount, raw_reference, description FROM bank_transactions', [],
+  );
+  const byId = new Map(txns.map((t) => [Number(t.id), t]));
+  // כל התנועות באותו חשבון ואותה אסמכתה — סינון ב-JS, כי זו רשימה קצרה וכדי לא להסתבך עם pg-mem.
+  const byKey = new Map();
+  for (const t of txns) {
+    const ref = String(t.raw_reference ?? '').trim();
+    if (!ref) continue;
+    const k = `${Number(t.bank_account_id)}|${ref}`;
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(t);
+  }
+  // עד איזה תאריך יש בכלל נתוני בנק לכל חשבון — זה מה שמבדיל "אומתה" מ"עוד לא ראינו".
+  const lastSeen = new Map();
+  for (const t of txns) {
+    const k = Number(t.bank_account_id);
+    const d = String(t.txn_date || '');
+    if (!lastSeen.has(k) || d > lastSeen.get(k)) lastSeen.set(k, d);
+  }
+
+  for (const dep of matched) {
+    const base = byId.get(Number(dep.matched_txn_id));
+    if (!base) continue;
+    const ref = String(base.raw_reference ?? '').trim();
+    const statusDate = base.txn_date || null;
+    const siblings = (byKey.get(`${Number(base.bank_account_id)}|${ref}`) || [])
+      // 🔴 השורה המקורית עצמה יוצאת מהחישוב: היא הזיכוי, לא התיקון.
+      .filter((t) => Number(t.id) !== Number(base.id))
+      .filter((t) => !statusDate || String(t.txn_date || '') >= String(statusDate))
+      .sort((a, b) => String(a.txn_date).localeCompare(String(b.txn_date)) || Number(a.id) - Number(b.id));
+
+    const correctionTotal = siblings.reduce((n, t) => n + (Number(t.amount) || 0), 0);
+    const verifyDate = siblings.length ? siblings[siblings.length - 1].txn_date : null;
+    const deadline = statusDate ? addDaysIso(statusDate, VERIFY_WINDOW_DAYS) : null;
+    const covered = statusDate && (lastSeen.get(Number(base.bank_account_id)) || '') >= deadline;
+
+    out.set(Number(dep.id), {
+      statusDate,
+      corrections: siblings,
+      correctionTotal: siblings.length ? correctionTotal : null,
+      verifyDate,
+      deadline,
+      state: siblings.length ? 'corrected' : (covered ? 'verified' : 'waiting'),
+    });
+  }
+  return out;
 }
 
 /**

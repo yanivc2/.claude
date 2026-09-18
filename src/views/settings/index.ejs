@@ -229,7 +229,7 @@
   <summary>פרטי חברות בע"מ</summary>
   <div class="section-body">
     <% companies.forEach(function(c){ %>
-      <div style="border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
+      <div style="border:1px solid var(--color-line);border-radius:8px;padding:.8rem;margin-bottom:.8rem">
         <div class="toolbar" style="margin-bottom:.4rem">
           <strong><%= c.name %></strong>
           <form method="post" action="/settings/companies/<%= c.id %>" class="actions">

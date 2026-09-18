@@ -61,16 +61,16 @@
           closerTotal += val*closer; mgrTotal += val*mgr;
           var cell = inp.closest('tr').querySelector('.mb-diff'); var d = (mgr-closer)*val;
           if (closer === 0 && mgr === 0) { cell.textContent = '—'; cell.style.color = ''; }
-          else if (mgr === closer) { cell.textContent = '✓'; cell.style.color = 'var(--ok)'; }
-          else if (d > 0) { cell.textContent = 'עודף ' + fmt(d); cell.style.color = 'var(--ok)'; }
-          else { cell.textContent = 'חוסר ' + fmt(-d); cell.style.color = 'var(--bad)'; }
+          else if (mgr === closer) { cell.textContent = '✓'; cell.style.color = 'var(--color-ok)'; }
+          else if (d > 0) { cell.textContent = 'עודף ' + fmt(d); cell.style.color = 'var(--color-ok)'; }
+          else { cell.textContent = 'חוסר ' + fmt(-d); cell.style.color = 'var(--color-bad)'; }
         });
         document.getElementById('mb-closer-total').textContent = fmt(closerTotal);
         document.getElementById('mb-mgr-total').textContent = fmt(mgrTotal);
         var dt = mgrTotal - closerTotal; var el = document.getElementById('mb-diff-total');
-        if (Math.round(dt*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--ok)'; }
-        else if (dt > 0) { el.textContent = 'עודף ' + fmt(dt); el.style.color = 'var(--ok)'; }
-        else { el.textContent = 'חוסר ' + fmt(-dt); el.style.color = 'var(--bad)'; }
+        if (Math.round(dt*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--color-ok)'; }
+        else if (dt > 0) { el.textContent = 'עודף ' + fmt(dt); el.style.color = 'var(--color-ok)'; }
+        else { el.textContent = 'חוסר ' + fmt(-dt); el.style.color = 'var(--color-bad)'; }
       }
       form.querySelectorAll('.mb-cnt').forEach(function(i){ i.addEventListener('input', recalc); });
       recalc();

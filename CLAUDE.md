@@ -283,4 +283,8 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   the nearest ancestor page, swept by `test/action-url-fallback.test.js`), not a licence to skip PRG.
 - **מספר שהגיע מקובץ יכול להיות כתוב בכתיב מדעי.** יצואנים (בפרט של דפי בנק) כותבים `1.81732779E8` ו-`26411.0` — כתיב של Java. **קנונן דרך `lib/numText.js#plainNumber`** (הרחבה טקסטואלית, לא `Number`, כדי לא לאבד ספרה ב-16 ספרות). 🔴 ערך שהוא **מפתח השוואה** (אסמכתא מול מספר צ׳ק / שקית הפקדה, מפתח זיהוי כפילות) חייב להיקנון **בכתיבה** ולא בתצוגה — פורמט תצוגה משאיר את ההשוואה נכשלת בשקט ואת המסך נראה תקין. פרטים: INDEX.md · התאמת בנק.
 - **אזהרה שנושאת פעולה חייבת `class="card no-collapse"`.** האקורדיון של `partials/footer.ejs` מכווץ את **כל** שאר הכרטיסים ברגע שנפתח אחד, והמצב נשמר ב-localStorage — כלומר הכפתור שמתקן את הבעיה נעלם בדיוק כשהמשתמש מסתכל על הבעיה. נמדד בדפדפן, לא הונח.
+- **משתני CSS: רק אלה של `nocturne.css`** (`--color-ok`/`--color-bad`/`--color-warn`/`--color-line`/
+  `--color-section`). `public/style.css` **אינו נטען משום דף**, ולכן `var(--ok)`/`var(--bad)`/`var(--line)`
+  הם שמות מתים — משתנה שאינו מוגדר אינו שגיאה, ההכרזה פשוט לא חלה והמסך נראה תקין ("חוסר" ו"יתרה" באותו
+  צבע). `test/css-vars.test.js` סורק את זה; `var(--x, #fallback)` מותר.
 - Badge classes: `b-approved/paid/cleared/on_hold/blocked/voided/neutral` (no `b-warn`; use `b-on_hold`).

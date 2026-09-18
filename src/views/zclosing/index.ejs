@@ -226,9 +226,9 @@
     var diff = grand - drawer; // >0 יתרה · <0 חוסר
     var el = document.getElementById('closing-diff');
     if (drawerEl && drawerEl.value.trim() === '') { el.textContent = '—'; el.style.color = ''; }
-    else if (Math.round(diff*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--ok)'; }
-    else if (diff > 0) { el.textContent = 'יתרה ' + fmt(diff); el.style.color = 'var(--ok)'; }
-    else { el.textContent = 'חוסר ' + fmt(-diff); el.style.color = 'var(--bad)'; }
+    else if (Math.round(diff*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--color-ok)'; }
+    else if (diff > 0) { el.textContent = 'יתרה ' + fmt(diff); el.style.color = 'var(--color-ok)'; }
+    else { el.textContent = 'חוסר ' + fmt(-diff); el.style.color = 'var(--color-bad)'; }
   }
   form.querySelectorAll('.cc-cnt').forEach(function(i){ i.addEventListener('input', recalc); });
   var drawerIn = document.getElementById('drawer-cash-in'); if (drawerIn) drawerIn.addEventListener('input', recalc);
