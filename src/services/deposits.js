@@ -2,6 +2,7 @@ import { getExecutor } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { addDaysIso } from '../lib/loginHours.js';
+import { plainNumber } from '../lib/numText.js';
 import { logAction } from './audit.js';
 
 // "הצהרה על הפקדה" — a bank deposit declaration: a bag number + amount for a store, with a flag
@@ -41,6 +42,70 @@ export async function listDeposits({ storeId = null, scope = null, limit = 30 } 
   sql += ' ORDER BY d.deposit_date DESC, d.id DESC LIMIT ?';
   params.push(limit);
   return x.many(sql, params);
+}
+
+/**
+ * מספרי השקיות שבשדה אחד.
+ *
+ * 🔴 הבעלים מזין הפקדה של שתי שקיות כ-`216404173+216404174` בשדה אחד, והבנק מזכה **שורה לכל
+ * שקית** עם האסמכתה שלה. השוואת מחרוזת מלאה (`bag_number = raw_reference`) לא מוצאת אף אחת
+ * מהן, וההפקדה נשארת לא-מותאמת לנצח: בלי תאריך סטטוס, בלי אימות ספירה, ובלי שום סימן שמשהו
+ * לא עבד. פיצול השדה הוא מה שמחזיר אותה לצינור.
+ *
+ * מפריד הוא כל דבר שאינו ספרה/אות — `+`, פסיק, רווח, `/` — ולכן שקית בודדת מוחזרת כמות שהיא.
+ * @returns {string[]}
+ */
+export function bagReferences(bagNumber) {
+  // קנוניזציה **לפני** הפיצול: שקית בודדת שנשמרה ככתיב מדעי היא מספר אחד, והנקודה שבתוכו אינה
+  // מפריד. אחרי הפיצול הקנוניזציה חוזרת על כל אסימון, וזה בטוח לחזרה.
+  return plainNumber(String(bagNumber ?? '').trim())
+    .split(/[^0-9A-Za-z]+/)
+    .map((t) => plainNumber(t.trim()))
+    .filter(Boolean);
+}
+
+/**
+ * "חוסר / יתרה" של כל הפקדה — **אותו מספר שדוח ה-Z מציג**.
+ *
+ * 🔴 העמודה הזו הראתה קודם את `recon_diff` (מה שהבנק זיכה מול מה שהוצהר), שהוא כמעט תמיד 0 או
+ * ריק, ולכן היא נראתה ריקה מול דוח Z שאומר "יתרה ₪94.20". זה אותו כסף ושתי תשובות שונות.
+ * כאן מחושב בדיוק הביטוי של `depositDiff`: הפקדה − (מזומן מגירה − הוצאות מזומן).
+ *
+ * ההפרש הוא **של דוח ה-Z כולו**, לא של שקית בודדת: כל השקיות של אותו Z נסכמות, כי הן יחד
+ * המזומן שיצא מהקופה. שתי שורות של אותו Z יציגו לכן את אותו הפרש — וזה נכון, זה הפרש אחד.
+ *
+ * @returns {Promise<Map<number, number|null>>} depositId → הפרש באגורות (null = אין Z משויך)
+ */
+export async function depositZDiffs(deposits, x = getExecutor()) {
+  const out = new Map();
+  const zIds = [...new Set((deposits || []).map((d) => Number(d.z_report_id)).filter(Boolean))];
+  if (!zIds.length) return out;
+  const { depositDiff } = await import('./zreports.js');
+
+  // שליפות פשוטות וסינון ב-JS — pg-mem מועד על IN מול טבלה מצורפת (ראה lib/scope.js#scopeClause).
+  const zRows = await x.many('SELECT id, drawer_cash FROM z_reports', []);
+  const zById = new Map(zRows.filter((z) => zIds.includes(Number(z.id))).map((z) => [Number(z.id), z]));
+  const expRows = await x.many('SELECT z_report_id, amount FROM z_expenses', []);
+  const depRows = await x.many('SELECT z_report_id, amount FROM deposits WHERE z_report_id IS NOT NULL', []);
+
+  const sumBy = (rows, key) => {
+    const m = new Map();
+    for (const r of rows) {
+      const k = Number(r[key]);
+      if (!zById.has(k)) continue;
+      m.set(k, (m.get(k) || 0) + (Number(r.amount) || 0));
+    }
+    return m;
+  };
+  const expenses = sumBy(expRows, 'z_report_id');
+  const deposited = sumBy(depRows, 'z_report_id');
+
+  for (const d of deposits || []) {
+    const zid = Number(d.z_report_id);
+    const z = zById.get(zid);
+    out.set(Number(d.id), z ? depositDiff(z, expenses.get(zid) || 0, deposited.get(zid) || 0) : null);
+  }
+  return out;
 }
 
 /**
@@ -94,26 +159,40 @@ export async function depositVerifications(deposits, x = getExecutor()) {
   for (const dep of matched) {
     const base = byId.get(Number(dep.matched_txn_id));
     if (!base) continue;
-    const ref = String(base.raw_reference ?? '').trim();
-    const statusDate = base.txn_date || null;
-    const siblings = (byKey.get(`${Number(base.bank_account_id)}|${ref}`) || [])
-      // 🔴 השורה המקורית עצמה יוצאת מהחישוב: היא הזיכוי, לא התיקון.
-      .filter((t) => Number(t.id) !== Number(base.id))
-      .filter((t) => !statusDate || String(t.txn_date || '') >= String(statusDate))
-      .sort((a, b) => String(a.txn_date).localeCompare(String(b.txn_date)) || Number(a.id) - Number(b.id));
+    const account = Number(base.bank_account_id);
+    // 🔴 כל שקיות ההפקדה, לא רק זו שנקשרה: הפקדה של שתי שקיות מקבלת שתי שורות זיכוי ושתי
+    // קבוצות תיקון, וספירת אחת מהן בלבד הייתה מציגה חצי מההפרש.
+    const refs = bagReferences(dep.bag_number);
+    const useRefs = refs.length ? refs : [String(base.raw_reference ?? '').trim()].filter(Boolean);
 
-    const correctionTotal = siblings.reduce((n, t) => n + (Number(t.amount) || 0), 0);
-    const verifyDate = siblings.length ? siblings[siblings.length - 1].txn_date : null;
+    const credits = [];
+    const corrections = [];
+    for (const ref of useRefs) {
+      const lines = (byKey.get(`${account}|${ref}`) || [])
+        .slice()
+        .sort((a, b) => String(a.txn_date).localeCompare(String(b.txn_date)) || Number(a.id) - Number(b.id));
+      if (!lines.length) continue;
+      // לכל אסמכתה: השורה הראשונה היא הזיכוי של ההפקדה, וכל מה שאחריה הוא תיקון — בדיוק מה
+      // שהבנק עושה: מזכה, ואחרי הספירה בסניף מבטל ומזכה מחדש.
+      credits.push(lines[0]);
+      corrections.push(...lines.slice(1));
+    }
+    if (!credits.length) continue;
+    corrections.sort((a, b) => String(a.txn_date).localeCompare(String(b.txn_date)) || Number(a.id) - Number(b.id));
+
+    const statusDate = credits.map((t) => String(t.txn_date || '')).filter(Boolean).sort()[0] || null;
+    const correctionTotal = corrections.reduce((n, t) => n + (Number(t.amount) || 0), 0);
+    const verifyDate = corrections.length ? corrections[corrections.length - 1].txn_date : null;
     const deadline = statusDate ? addDaysIso(statusDate, VERIFY_WINDOW_DAYS) : null;
-    const covered = statusDate && (lastSeen.get(Number(base.bank_account_id)) || '') >= deadline;
+    const covered = statusDate && (lastSeen.get(account) || '') >= deadline;
 
     out.set(Number(dep.id), {
       statusDate,
-      corrections: siblings,
-      correctionTotal: siblings.length ? correctionTotal : null,
+      corrections,
+      correctionTotal: corrections.length ? correctionTotal : null,
       verifyDate,
       deadline,
-      state: siblings.length ? 'corrected' : (covered ? 'verified' : 'waiting'),
+      state: corrections.length ? 'corrected' : (covered ? 'verified' : 'waiting'),
     });
   }
   return out;

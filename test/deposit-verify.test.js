@@ -90,11 +90,137 @@ test('הפקדה שעדיין לא הותאמה לבנק אינה מקבלת א�
 });
 
 test('הטבלה מציגה את שלוש העמודות, ואת סימן התיקון בצבע', () => {
-  const v = readFileSync(new URL('../src/views/payments/index.ejs', import.meta.url), 'utf8');
-  assert.match(v, /<th>סטטוס<\/th><th>תאריך סטטוס<\/th><th>אימות ספירה<\/th><th>תאריך אימות<\/th>/,
+  // הטבלה עברה לפרשל משותף — לוח הבקרה ומרקורים מציגים את **אותה** טבלה.
+  const v = readFileSync(new URL('../src/views/partials/_deposits.ejs', import.meta.url), 'utf8');
+  assert.match(v, /<th>סטטוס<\/th><th>תאריך סטטוס<\/th>[\s\S]{0,80}<th>אימות ספירה<\/th><th>תאריך אימות<\/th>/,
     '"תאריך סטטוס" יושב משמאל לסטטוס (כלומר אחריו ב-DOM, בכיוון RTL)');
   assert.match(v, /correctionTotal > 0[\s\S]{0,120}var\(--color-ok\)/, 'פלוס בירוק');
   assert.match(v, /correctionTotal < 0[\s\S]{0,140}var\(--color-bad\)/, 'מינוס באדום');
   assert.match(v, /−<%= formatIls\(-v\.correctionTotal\)/, 'מינוס מוצג עם סימן');
   assert.equal(VERIFY_WINDOW_DAYS, 7);
+});
+
+// ── שתי שקיות בשדה אחד, ו"יתרה / חוסר" שתואם לדוח ה-Z ──────────────────────────
+import { bagReferences, depositZDiffs } from '../src/services/deposits.js';
+import { reconcileDeposits } from '../src/services/reconciliation.js';
+import { depositDiff } from '../src/services/zreports.js';
+
+test('שדה שקית אחד יכול לשאת כמה מספרים', () => {
+  assert.deepEqual(bagReferences('216404173+216404174'), ['216404173', '216404174']);
+  assert.deepEqual(bagReferences('216404173'), ['216404173']);
+  assert.deepEqual(bagReferences('111, 222 / 333'), ['111', '222', '333']);
+  assert.deepEqual(bagReferences('1.6E8'), ['160000000'], 'כתיב מדעי מורחב לפני הפיצול');
+  assert.deepEqual(bagReferences(''), []);
+});
+
+test('🔴 הפקדה של שתי שקיות מותאמת לשתי שורות הבנק — ומקבלת תאריך סטטוס', async () => {
+  const x = await freshDb();
+  const ow = await owner(x); const store = await firstStore(x); const acc = await accountForStore(x, store.id);
+  const put = async (date, amount, ref) => (await x.run(
+    `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, source)
+     VALUES (?, ?, ?, 'הפ.תיק ממסרים', ?, 'csv')`, [acc.id, date, amount, ref])).lastInsertRowid;
+  await put('2026-09-05', 6823000, '216404173');
+  await put('2026-09-05', 6638500, '216404174');
+  const dep = await x.run(
+    `INSERT INTO deposits (store_id, deposit_date, bag_number, amount, deposited, created_by)
+     VALUES (?, '2026-09-05', '216404173+216404174', 13461500, 0, ?)`, [store.id, ow.id]);
+
+  const r = await reconcileDeposits(acc.id, ow, x);
+  assert.equal(r.matched, 1, 'שדה עם "+" חייב להתאים — קודם הוא לא התאים לאף שורה');
+  const row = await x.one('SELECT * FROM deposits WHERE id = ?', [dep.lastInsertRowid]);
+  assert.ok(row.matched_txn_id, 'בלי זה אין תאריך סטטוס ואין אימות ספירה');
+  assert.equal(row.recon_diff, 0, 'שתי השקיות יחד מול הסכום שהוצהר');
+  assert.equal(row.deposited, 1);
+
+  const v = (await depositVerifications(await listDeposits({ scope: null }, x), x)).get(Number(dep.lastInsertRowid));
+  assert.equal(v.statusDate, '2026-09-05');
+});
+
+test('🔴 תיקון על שתי השקיות נספר במלואו', async () => {
+  const x = await freshDb();
+  const ow = await owner(x); const store = await firstStore(x); const acc = await accountForStore(x, store.id);
+  const put = async (date, amount, ref) => x.run(
+    `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, source)
+     VALUES (?, ?, ?, 'x', ?, 'csv')`, [acc.id, date, amount, ref]);
+  await put('2026-09-05', 6823000, '216404173');
+  await put('2026-09-05', 6638500, '216404174');
+  const dep = await x.run(
+    `INSERT INTO deposits (store_id, deposit_date, bag_number, amount, deposited, created_by)
+     VALUES (?, '2026-09-05', '216404173+216404174', 13461500, 0, ?)`, [store.id, ow.id]);
+  await reconcileDeposits(acc.id, ow, x);
+  // כל שקית נספרה מחדש בסניף: −10 באחת, −5 בשנייה
+  await put('2026-09-07', -6823000, '216404173'); await put('2026-09-07', 6822000, '216404173');
+  await put('2026-09-08', -6638500, '216404174'); await put('2026-09-08', 6638000, '216404174');
+
+  const v = (await depositVerifications(await listDeposits({ scope: null }, x), x)).get(Number(dep.lastInsertRowid));
+  assert.equal(v.correctionTotal, -1500, '₪10 + ₪5 חסרים — משתי השקיות, לא מאחת');
+  assert.equal(v.verifyDate, '2026-09-08', 'התאריך של התיקון האחרון');
+});
+
+test('🔴 "יתרה / חוסר" בטבלה = אותו מספר שדוח ה-Z מציג', async () => {
+  const x = await freshDb();
+  const ow = await owner(x); const store = await firstStore(x);
+  const z = await x.run(`INSERT INTO z_reports (store_id, z_number, z_date, daily_total, drawer_cash, created_by)
+                         VALUES (?, '2143', '2026-09-05', 0, 13480920, ?)`, [store.id, ow.id]);
+  await x.run(`INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, description_type, amount)
+               VALUES (?, '2026-09-05', 'נופר', 'ציוד', 'manual', 10000)`, [z.lastInsertRowid]);
+  const dep = await x.run(
+    `INSERT INTO deposits (store_id, z_report_id, deposit_date, bag_number, amount, deposited, created_by)
+     VALUES (?, ?, '2026-09-05', '216404173+216404174', 13461500, 1, ?)`, [store.id, z.lastInsertRowid, ow.id]);
+
+  const rows = await listDeposits({ scope: null }, x);
+  const got = (await depositZDiffs(rows, x)).get(Number(dep.lastInsertRowid));
+  // 134,809.20 − 100 הוצאות = 134,709.20 אמור לשקית; הופקדו 134,615 → חוסר ₪94.20
+  const expected = depositDiff({ drawer_cash: 13480920 }, 10000, 13461500);
+  assert.equal(got, expected, 'העמודה חייבת לומר בדיוק את מה שהטופס אומר');
+  assert.equal(got, -9420);
+});
+
+test('שתי שקיות של אותו Z מציגות הפרש אחד — הפרש של ה-Z, לא של שקית', async () => {
+  const x = await freshDb();
+  const ow = await owner(x); const store = await firstStore(x);
+  const z = await x.run(`INSERT INTO z_reports (store_id, z_number, z_date, daily_total, drawer_cash, created_by)
+                         VALUES (?, '2144', '2026-09-06', 0, 100000, ?)`, [store.id, ow.id]);
+  const a = await x.run(`INSERT INTO deposits (store_id, z_report_id, deposit_date, bag_number, amount, created_by)
+                         VALUES (?, ?, '2026-09-06', '111', 60000, ?)`, [store.id, z.lastInsertRowid, ow.id]);
+  const b = await x.run(`INSERT INTO deposits (store_id, z_report_id, deposit_date, bag_number, amount, created_by)
+                         VALUES (?, ?, '2026-09-06', '222', 30000, ?)`, [store.id, z.lastInsertRowid, ow.id]);
+  const m = await depositZDiffs(await listDeposits({ scope: null }, x), x);
+  // 1,000 בקופה, הופקדו 600+300=900 → חוסר ₪100 על ה-Z כולו
+  assert.equal(m.get(Number(a.lastInsertRowid)), -10000);
+  assert.equal(m.get(Number(b.lastInsertRowid)), -10000, 'אותו הפרש — זה הפרש אחד של ה-Z');
+});
+
+test('שני הדפים מציגים את אותה טבלה', () => {
+  for (const page of ['dashboard', 'payments/index']) {
+    const t = readFileSync(new URL(`../src/views/${page}.ejs`, import.meta.url), 'utf8');
+    assert.match(t, /_deposits/, `${page}: אותו פרשל`);
+  }
+  const partial = readFileSync(new URL('../src/views/partials/_deposits.ejs', import.meta.url), 'utf8');
+  for (const col of ['מספר שקית', 'יתרה / חוסר', 'סטטוס', 'תאריך סטטוס', 'אימות ספירה', 'תאריך אימות']) {
+    assert.ok(partial.includes(col), col);
+  }
+});
+
+test('🔴 שורת "תיקון" אינה נספרת כחלק מההפקדה', async () => {
+  // נמדד: כשדף הבנק שיובא כבר מכיל את התיקונים, לקיחת כל השורות החיוביות באותה אסמכתה ספרה
+  // גם את הזיכוי-מחדש, ו-recon_diff יצא בגובה הפקדה שלמה (+68,220 במקום 0).
+  const x = await freshDb();
+  const ow = await owner(x); const store = await firstStore(x); const acc = await accountForStore(x, store.id);
+  const put = async (date, amount, ref) => x.run(
+    `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, source)
+     VALUES (?, ?, ?, 'x', ?, 'csv')`, [acc.id, date, amount, ref]);
+  await put('2026-09-05', 6823000, '216404173');
+  await put('2026-09-05', 6638500, '216404174');
+  await put('2026-09-07', -6823000, '216404173');   // ביטול
+  await put('2026-09-07', 6822000, '216404173');    // זיכוי מחדש
+  const dep = await x.run(
+    `INSERT INTO deposits (store_id, deposit_date, bag_number, amount, deposited, created_by)
+     VALUES (?, '2026-09-05', '216404173+216404174', 13461500, 0, ?)`, [store.id, ow.id]);
+
+  await reconcileDeposits(acc.id, ow, x);
+  const row = await x.one('SELECT * FROM deposits WHERE id = ?', [dep.lastInsertRowid]);
+  assert.equal(row.recon_diff, 0, 'רק שורת הזיכוי הראשונה לכל שקית');
+  const v = (await depositVerifications(await listDeposits({ scope: null }, x), x)).get(Number(dep.lastInsertRowid));
+  assert.equal(v.correctionTotal, -1000, 'התיקון נספר בעמודה שלו, ולא פעמיים');
 });

@@ -15,78 +15,10 @@
 
 <details class="card collapse" open style="margin-top:1rem">
   <summary><span class="caret">▸</span> הצהרות הפקדה <span class="muted">(<%= (deposits || []).length %>)</span></summary>
-  <p class="muted no-print" style="margin:.6rem 0 .2rem">הפקדות שהוצהרו בדוחות Z. "יתרה / חוסר" מתמלא בהתאמה אוטומטית לבנק לפי מספר שקית = מספר אסמכתה.</p>
-  <div class="table-scroll">
-  <table class="sortable">
-    <thead><tr><th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>שיוך ל-Z</th><th class="right">יתרה / חוסר</th><th>סטטוס</th><th>תאריך סטטוס</th><th>אימות ספירה</th><th>תאריך אימות</th><th class="no-print" data-nosort>פעולות</th></tr></thead>
-    <tbody>
-      <% if (!deposits || deposits.length === 0) { %><tr><td colspan="10" class="muted">אין הצהרות הפקדה.</td></tr><% } %>
-      <%# 🔴 "אימות ספירה": הבנק מזכה קודם בסכום שהוצהר, ורק אחרי שהסניף סופר את השקית — יום
-          אחר כך, ואחרי סוף שבוע או חג כמה ימים — הוא כותב שורות "תיקון" באותה אסמכתה. עד אז
-          ההפקדה נראית סגורה אבל היא לא. ראה services/deposits.js#depositVerifications. %>
-      <% var _dv = (typeof depVerify !== 'undefined' && depVerify) ? depVerify : new Map(); %>
-      <% (deposits || []).forEach(function(d){ %>
-        <tr>
-          <td class="mono"><%= d.bag_number || '—' %></td>
-          <td class="right"><%= formatIls(d.amount) %></td>
-          <td><%= formatDate(d.deposit_date) %></td>
-          <td>
-            <% if (d.z_report_id) { %><a href="/reports/zreports/<%= d.z_report_id %>">Z <%= d.z_number || d.z_report_id %></a><% } else { %>—<% } %>
-          </td>
-          <td class="right">
-            <% if (d.recon_diff == null) { %><span class="muted">—</span>
-            <% } else if (d.recon_diff === 0) { %><span class="badge b-approved">מאוזן</span>
-            <% } else if (d.recon_diff > 0) { %><span class="badge b-cleared">יתרה <%= formatIls(d.recon_diff) %></span>
-            <% } else { %><span class="badge b-blocked">חוסר <%= formatIls(-d.recon_diff) %></span><% } %>
-          </td>
-          <td>
-            <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
-          </td>
-          <% var v = _dv.get(Number(d.id)) || null; %>
-          <%# התאריך שבו ההפקדה הופיעה בדף הבנק — לא תאריך ההצהרה. %>
-          <td class="mono" data-sort="<%= v && v.statusDate ? v.statusDate : '' %>"><%= v && v.statusDate ? formatDate(v.statusDate) : '—' %></td>
-          <td>
-            <% if (!v) { %><span class="muted">—</span>
-            <% } else if (v.state === 'corrected') { %>
-              <%# סכום התיקון = סכום שורות התיקון. פלוס בירוק, מינוס עם סימן ובאדום. %>
-              <% if (v.correctionTotal > 0) { %>
-                <strong style="color:var(--color-ok)">+<%= formatIls(v.correctionTotal) %></strong>
-              <% } else if (v.correctionTotal < 0) { %>
-                <strong style="color:var(--color-bad)">−<%= formatIls(-v.correctionTotal) %></strong>
-              <% } else { %><span class="badge b-approved">אומתה</span><% } %>
-            <% } else if (v.state === 'verified') { %><span class="badge b-approved">אומתה</span>
-            <% } else { %>
-              <%# אין עדיין נתוני בנק עד סוף חלון האימות — לומר "אומתה" כאן זה אישור שקרי על כסף. %>
-              <span class="badge b-on_hold" title="דף הבנק שיובא עדיין לא מגיע עד התאריך הזה">ממתין עד <%= formatDate(v.deadline) %></span>
-            <% } %>
-          </td>
-          <td class="mono" data-sort="<%= v && v.verifyDate ? v.verifyDate : '' %>"><%= v && v.verifyDate ? formatDate(v.verifyDate) : '—' %></td>
-          <td class="no-print">
-            <% if (typeof can === 'function' && can('manage_deposits')) { %>
-              <% if (!d.deposited) { %>
-                <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="1" /><button class="ok small" type="submit">סמן כהופקד</button></form>
-              <% } else if (currentUser.role === 'owner') { %>
-                <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline" onsubmit="return confirm('לבטל את סימון ההפקדה?')"><input type="hidden" name="value" value="0" /><button class="danger small" type="submit">בטל</button></form>
-              <% } else { %>
-                <span class="muted" style="font-size:12px">ביטול — בעלים בלבד</span>
-              <% } %>
-            <% } %>
-          </td>
-        </tr>
-      <% }); %>
-    </tbody>
-    <%# סה"כ ההפקדות שבטבלה. שורת tfoot ולא שורה ב-tbody, אחרת המיון והחיפוש הגלובליים
-        (partials/footer.ejs) מתייחסים אליה כאל שורת נתונים ומסתירים/ממיינים אותה. %>
-    <% var _depSum = (deposits || []).reduce(function(n, d){ return n + (Number(d.amount) || 0); }, 0); %>
-    <tfoot>
-      <tr>
-        <th>סה"כ</th>
-        <th class="right"><%= formatIls(_depSum) %></th>
-        <th colspan="8" class="muted" style="font-weight:400"><%= (deposits || []).length %> הצהרות</th>
-      </tr>
-    </tfoot>
-  </table>
-  </div>
+  <p class="muted no-print" style="margin:.6rem 0 .2rem">הפקדות שהוצהרו בדוחות Z. "יתרה / חוסר" הוא אותו הפרש שדוח ה-Z מציג; "אימות ספירה" מתמלא כשהבנק כותב שורת תיקון אחרי שספר את השקית.</p>
+  <%- include('../partials/_deposits', {
+        rows: deposits, verify: depVerify, zdiff: depZDiff, actions: true,
+      }) %>
 </details>
 
 <%# תשלום במזומן ללא התאמה — **אותה טבלה בדיוק** של לוח הבקרה (partials/_unmatchedCash.ejs).

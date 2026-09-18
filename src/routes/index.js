@@ -13,7 +13,7 @@ import {
 } from '../services/zreports.js';
 import { markCashed } from '../services/salaryPayments.js';
 import { listNotifications } from '../services/notifications.js';
-import { listDeposits, zReportsWithoutDeposit, declaredNotDeposited } from '../services/deposits.js';
+import { listDeposits, zReportsWithoutDeposit, declaredNotDeposited, depositVerifications, depositZDiffs } from '../services/deposits.js';
 import { voidedChecksSeenInBank } from '../services/reconciliation.js';
 import { searchSuppliers, listSuppliers } from '../services/suppliers.js';
 import { listRecent } from '../services/audit.js';
@@ -82,6 +82,7 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       ? Number(ocSelected.outstanding_count) || 0
       : ocAccounts.reduce((s, a) => s + (Number(a.outstanding_count) || 0), 0);
 
+    const depositRows = await listDeposits({ scope, storeId, limit: 20 });
     res.render('dashboard', {
       title: 'לוח בקרה',
       stats: await dashboardStats(scope, storeId),
@@ -111,7 +112,10 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
         : [],
       settledCash: await settledCashExpenses(scope, 30, storeId),
       cashErr: req.query.cashErr ? String(req.query.cashErr) : null,
-      depositsHistory: await listDeposits({ scope, storeId, limit: 20 }),
+      depositsHistory: depositRows,
+      // אותה טבלה של המרקורים, ולכן אותם נתונים בדיוק (partials/_deposits.ejs).
+      depVerify: await depositVerifications(depositRows),
+      depZDiff: await depositZDiffs(depositRows),
       zStatus: await zSequenceStatus(scope, storeId),
       zNoDepositCount: (await zReportsWithoutDeposit({ scope, storeId })).length,
       notDepositedCount: (await declaredNotDeposited({ scope, storeId })).length,

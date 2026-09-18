@@ -1,0 +1,89 @@
+<%
+  // ── טבלת "הצהרות הפקדה" — פרשל אחד, שני דפים ──────────────────────────────────
+  // 🔴 לוח הבקרה ודף המרקורים הציגו שתי טבלאות שונות לאותה הפקדה, עם עמודות שונות ונתונים
+  // שונים (אחת עם "יתרה / זכות" שתמיד ריקה). אותה שקית נראתה אחרת בכל דף.
+  //
+  // locals: `rows` (מ-listDeposits), `verify` (Map מ-depositVerifications), `zdiff` (Map
+  //         מ-depositZDiffs), `actions` (להציג עמודת פעולות).
+  var _rows = (typeof rows !== 'undefined' && rows) ? rows : [];
+  var _verify = (typeof verify !== 'undefined' && verify) ? verify : new Map();
+  var _zdiff = (typeof zdiff !== 'undefined' && zdiff) ? zdiff : new Map();
+  var _actions = (typeof actions !== 'undefined') ? actions : false;
+  var _cols = _actions ? 10 : 9;
+  var _sum = _rows.reduce(function (n, d) { return n + (Number(d.amount) || 0); }, 0);
+%>
+<div class="table-scroll">
+  <table class="sortable">
+    <thead><tr>
+      <th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>שיוך ל-Z</th>
+      <th class="right">יתרה / חוסר</th><th>סטטוס</th><th>תאריך סטטוס</th>
+      <th>אימות ספירה</th><th>תאריך אימות</th>
+      <% if (_actions) { %><th class="no-print" data-nosort>פעולות</th><% } %>
+    </tr></thead>
+    <tbody>
+      <% if (!_rows.length) { %><tr><td colspan="<%= _cols %>" class="muted">אין הצהרות הפקדה.</td></tr><% } %>
+      <% _rows.forEach(function(d){ var v = _verify.get(Number(d.id)) || null; var zd = _zdiff.get(Number(d.id)); %>
+        <tr>
+          <td class="mono"><%= d.bag_number || '—' %></td>
+          <td class="right"><%= formatIls(d.amount) %></td>
+          <td><%= formatDate(d.deposit_date) %></td>
+          <td>
+            <% if (d.z_report_id) { %><a href="/reports/zreports/<%= d.z_report_id %>">Z <%= d.z_number || d.z_report_id %></a><% } else { %>—<% } %>
+          </td>
+          <%# אותו מספר בדיוק שדוח ה-Z מציג: הפקדה − (מזומן מגירה − הוצאות מזומן). %>
+          <td class="right">
+            <% if (zd == null) { %><span class="muted">—</span>
+            <% } else if (zd === 0) { %><span class="badge b-approved">תואם</span>
+            <% } else if (zd > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(zd) %></strong>
+            <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-zd) %></strong><% } %>
+            <%# ההפרש מול מה שהבנק זיכה בפועל נשמר בנפרד — לא לאבד אותו כשהוא אינו אפס. %>
+            <% if (d.recon_diff != null && d.recon_diff !== 0) { %>
+              <div class="muted" style="font-size:11px">בנק: <%= d.recon_diff > 0 ? '+' : '−' %><%= formatIls(Math.abs(d.recon_diff)) %></div>
+            <% } %>
+          </td>
+          <td>
+            <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
+          </td>
+          <%# התאריך שבו ההפקדה הופיעה בדף הבנק — לא תאריך ההצהרה. %>
+          <td class="mono" data-sort="<%= v && v.statusDate ? v.statusDate : '' %>"><%= v && v.statusDate ? formatDate(v.statusDate) : '—' %></td>
+          <td>
+            <% if (!v) { %><span class="muted">—</span>
+            <% } else if (v.state === 'corrected') { %>
+              <% if (v.correctionTotal > 0) { %>
+                <strong style="color:var(--color-ok)">+<%= formatIls(v.correctionTotal) %></strong>
+              <% } else if (v.correctionTotal < 0) { %>
+                <strong style="color:var(--color-bad)">−<%= formatIls(-v.correctionTotal) %></strong>
+              <% } else { %><span class="badge b-approved">אומתה</span><% } %>
+            <% } else if (v.state === 'verified') { %><span class="badge b-approved">אומתה</span>
+            <% } else { %>
+              <%# אין עדיין נתוני בנק עד סוף חלון האימות — "אומתה" כאן הוא אישור שקרי על כסף. %>
+              <span class="badge b-on_hold" title="דף הבנק שיובא עדיין לא מגיע עד התאריך הזה">ממתין עד <%= formatDate(v.deadline) %></span>
+            <% } %>
+          </td>
+          <td class="mono" data-sort="<%= v && v.verifyDate ? v.verifyDate : '' %>"><%= v && v.verifyDate ? formatDate(v.verifyDate) : '—' %></td>
+          <% if (_actions) { %>
+            <td class="no-print">
+              <% if (typeof can === 'function' && can('manage_deposits')) { %>
+                <% if (!d.deposited) { %>
+                  <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="1" /><button class="ok small" type="submit">סמן כהופקד</button></form>
+                <% } else if (currentUser.role === 'owner') { %>
+                  <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline" onsubmit="return confirm('לבטל את סימון ההפקדה?')"><input type="hidden" name="value" value="0" /><button class="danger small" type="submit">בטל</button></form>
+                <% } else { %>
+                  <span class="muted" style="font-size:12px">ביטול — בעלים בלבד</span>
+                <% } %>
+              <% } %>
+            </td>
+          <% } %>
+        </tr>
+      <% }); %>
+    </tbody>
+    <%# סה"כ ב-tfoot ולא ב-tbody: משפרי הטבלה מתייחסים לשורות tbody כנתונים וממיינים/מסתירים אותן. %>
+    <tfoot>
+      <tr>
+        <th>סה"כ</th>
+        <th class="right"><%= formatIls(_sum) %></th>
+        <th colspan="<%= _cols - 2 %>" class="muted" style="font-weight:400"><%= _rows.length %> הצהרות</th>
+      </tr>
+    </tfoot>
+  </table>
+</div>

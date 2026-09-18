@@ -281,27 +281,13 @@
 
 <div class="card">
   <h2 style="margin:0 0 .5rem">היסטוריית הפקדות</h2>
-  <table class="sortable">
-    <thead><tr><th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>סטטוס</th><th class="right">יתרה / זכות</th></tr></thead>
-    <tbody>
-      <% if (!depositsHistory || depositsHistory.length === 0) { %><tr><td colspan="5" class="muted">אין הפקדות.</td></tr><% } %>
-      <% (depositsHistory || []).forEach(function(d){ var ds = depositStatus(d); %>
-        <tr>
-          <td class="mono"><%= d.bag_number || '—' %></td>
-          <td class="right"><%= formatIls(d.amount) %></td>
-          <td><%= formatDate(d.deposit_date) %></td>
-          <td><span class="badge <%= ds.badge %>"><%= ds.label %></span></td>
-          <td class="right">
-            <% if (d.recon_diff == null) { %><span class="muted">—</span>
-            <% } else if (d.recon_diff === 0) { %><span class="badge b-approved">מאוזן</span>
-            <% } else if (d.recon_diff > 0) { %><span class="badge b-cleared">יתרה <%= formatIls(d.recon_diff) %></span>
-            <% } else { %><span class="badge b-blocked">חוסר <%= formatIls(-d.recon_diff) %></span><% } %>
-          </td>
-        </tr>
-      <% }); %>
-    </tbody>
-  </table>
-  <p class="muted" style="margin:.4rem 0 0">"יתרה / זכות" מתמלא רק לאחר התאמת בנקים.</p>
+  <%# אותה טבלה בדיוק של דף המרקורים — partials/_deposits.ejs. %>
+  <%- include('partials/_deposits', {
+        rows: depositsHistory,
+        verify: (typeof depVerify !== 'undefined' ? depVerify : new Map()),
+        zdiff: (typeof depZDiff !== 'undefined' ? depZDiff : new Map()),
+        actions: false,
+      }) %>
 </div>
 
 <div class="card">

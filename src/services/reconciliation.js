@@ -5,6 +5,8 @@ import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeWhere } from '../lib/scope.js';
 import { notify } from '../lib/notify.js';
 import { getTransaction } from './bankTransactions.js';
+import { bagReferences } from './deposits.js';
+import { plainNumber } from '../lib/numText.js';
 import { logAction } from './audit.js';
 
 // R7 — reconcile a bank debit against an open (issued) check. Matches on same account + same
@@ -217,35 +219,52 @@ export async function reconcileDeposits(bankAccountId, actor, x = getExecutor())
   const acc = await x.one('SELECT id, store_id FROM bank_accounts WHERE id = ?', [bankAccountId]);
   if (!acc) return { matched: 0 };
   const txns = await x.many(
-    `SELECT * FROM bank_transactions WHERE bank_account_id = ? AND amount > 0 ORDER BY txn_date`,
+    `SELECT * FROM bank_transactions WHERE bank_account_id = ? AND amount > 0 ORDER BY txn_date, id`,
     [bankAccountId],
   );
   // Credit lines already used for a deposit match (filtered in JS — pg-mem can't run the
   // correlated NOT EXISTS this would otherwise need).
   const usedRows = await x.many('SELECT matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', []);
   const used = new Set(usedRows.map((r) => Number(r.matched_txn_id)));
+
+  // 🔴 מונע **מההפקדה** ולא מהתנועה. הפקדה אחת יכולה לשאת כמה שקיות בשדה אחד
+  // (`216404173+216404174`), והבנק מזכה שורה לכל שקית; לולאה על התנועות עם השוואת מחרוזת מלאה
+  // לא הייתה מוצאת אף אחת מהן, וההפקדה נשארה לא-מותאמת לנצח — בלי תאריך סטטוס ובלי אימות ספירה.
+  const deposits = await x.many(
+    `SELECT * FROM deposits WHERE store_id = ? AND matched_txn_id IS NULL ORDER BY deposit_date, id`,
+    [acc.store_id],
+  );
+  const refOf = (t) => plainNumber(String(t.raw_reference ?? '').trim());
   let matched = 0;
-  for (const txn of txns) {
-    if (used.has(Number(txn.id))) continue;
-    const ref = (txn.raw_reference ?? '').trim();
-    if (!ref) continue;
-    const dep = await x.one(
-      `SELECT * FROM deposits
-         WHERE store_id = ? AND matched_txn_id IS NULL AND bag_number = ?
-         ORDER BY deposit_date LIMIT 1`,
-      [acc.store_id, ref],
-    );
-    if (!dep) continue;
-    const diff = txn.amount - dep.amount;
+  for (const dep of deposits) {
+    const refs = new Set(bagReferences(dep.bag_number));
+    if (!refs.size) continue;
+    // 🔴 **שורת הזיכוי הראשונה בלבד לכל אסמכתה.** הבנק כותב אחריה שורות "תיקון" — ביטול וזיכוי
+    // מחדש — עם אותה אסמכתה בדיוק. לקיחת כל השורות החיוביות סופרת גם את הזיכוי-מחדש, ואז
+    // `recon_diff` יצא בגובה הפקדה שלמה (נמדד: +68,220 במקום 0). התיקונים נספרים בנפרד,
+    // בעמודת "אימות ספירה" (services/deposits.js#depositVerifications).
+    const firstPerRef = new Map();
+    for (const t of txns) {
+      if (used.has(Number(t.id))) continue;
+      const r = refOf(t);
+      if (!refs.has(r) || firstPerRef.has(r)) continue;
+      firstPerRef.set(r, t); // txns כבר ממוין לפי txn_date, id
+    }
+    const lines = [...firstPerRef.values()];
+    if (!lines.length) continue;
+    // כל השקיות יחד מול הסכום שהוצהר — אחרת הפקדה של שתי שקיות תיראה כחצי חסרה.
+    const total = lines.reduce((n, t) => n + (Number(t.amount) || 0), 0);
+    const diff = total - dep.amount;
     await x.run(
       'UPDATE deposits SET matched_txn_id = ?, recon_diff = ?, deposited = 1 WHERE id = ?',
-      [txn.id, diff, dep.id],
+      [lines[0].id, diff, dep.id],
     );
     await logAction(
-      { userId: actor?.id ?? null, action: 'reconcile.deposit', entityType: 'deposit', entityId: dep.id, details: { txnId: txn.id, diff } },
+      { userId: actor?.id ?? null, action: 'reconcile.deposit', entityType: 'deposit', entityId: dep.id,
+        details: { txnIds: lines.map((t) => t.id), bags: [...refs], diff } },
       x,
     );
-    used.add(Number(txn.id));
+    for (const t of lines) used.add(Number(t.id));
     matched += 1;
   }
   return { matched };
