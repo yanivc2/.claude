@@ -25,7 +25,8 @@ paths:
 │
 ├── .claude/                     — repo-scoped config (active when cwd == this repo)
 │   ├── settings.json            — nested hooks/permissions for working *in* this repo
-│   └── rules/config-repo.md     — this file
+│   ├── rules/config-repo.md     — this file
+│   └── rules/skills-inventory.md — claude.ai-synced skills triage (keep/disable)
 │
 ├── commands/
 │   ├── install-review.md        — /install-review (implements operating rule #1)
