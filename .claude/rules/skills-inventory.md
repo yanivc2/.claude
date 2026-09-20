@@ -56,8 +56,44 @@ paths:
 `canvas-design`, `docs`, `morning`, `mcp-builder`, `web-artifacts-builder`,
 `2slides-ppt-generator`, `pptx`, `session-start-hook`
 
-## איך מבצעים
+## מצב ביצוע (2026-09-20, PR #111)
 
-1. `/skills` → לכבות את שתי רשימות ה־⛔ (18 skills). להסרה מוחלטת: לכבות ב־claude.ai.
-2. `/skill-doctor` לאימות שהרשימה הצטמצמה.
-3. עדכון תאריך "Last triaged" בקובץ הזה בכל מיון מחדש.
+18 ה־⛔ כובו דרך `skillOverrides` ב־`settings.json` (כולם `"off"`), בשמות בסיס
+ללא קידומת — ליישור עם מוסכמת `Skill(...)` שכבר בקובץ. שינוי הגדרות בלבד, הפיך.
+
+- **חל רק אחרי `git pull`** של main ל־`~/.claude` במכונה.
+- **אימות:** להריץ `/skill-doctor`. אם skill עדיין מופיע → המפתח דורש את הצורה
+  עם קידומת `anthropic-skills:<name>` (ר' בלוק הגיבוי למטה).
+- להסרה מוחלטת (לא רק השבתה): לכבות/למחוק ב־claude.ai; אחרת נשאר זמין לסנכרון.
+
+### בלוק גיבוי — מפתחות עם קידומת `anthropic-skills:`
+
+אם האימות מראה שהשמות ללא הקידומת לא תפסו, החלף את בלוק `skillOverrides`
+ב־`settings.json` בזה:
+
+```json
+"skillOverrides": {
+  "anthropic-skills:00-andruia-consultant": "off",
+  "anthropic-skills:10-andruia-skill-smith": "off",
+  "anthropic-skills:20-andruia-niche-intelligence": "off",
+  "anthropic-skills:advogado-especialista": "off",
+  "anthropic-skills:active-directory-attacks": "off",
+  "anthropic-skills:aegisops-ai": "off",
+  "anthropic-skills:agent-evaluation": "off",
+  "anthropic-skills:agentflow": "off",
+  "anthropic-skills:acceptance-orchestrator": "off",
+  "anthropic-skills:3d-web-experience": "off",
+  "anthropic-skills:activecampaign-automation": "off",
+  "anthropic-skills:import-memory": "off",
+  "anthropic-skills:007": "off",
+  "anthropic-skills:accesslint-scan": "off",
+  "anthropic-skills:accesslint-diff": "off",
+  "anthropic-skills:accessibility-compliance-accessibility-audit": "off",
+  "anthropic-skills:israeli-social-content": "off",
+  "anthropic-skills:ad-creative": "off"
+}
+```
+
+## תחזוקה
+
+- עדכון תאריך "Last triaged" בראש הקובץ בכל מיון מחדש.
