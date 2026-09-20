@@ -214,5 +214,25 @@
   },
   "fileCheckpointingEnabled": true,
   "model": "opus",
-  "effortLevel": "xhigh"
+  "effortLevel": "xhigh",
+  "skillOverrides": {
+    "00-andruia-consultant": "off",
+    "10-andruia-skill-smith": "off",
+    "20-andruia-niche-intelligence": "off",
+    "advogado-especialista": "off",
+    "active-directory-attacks": "off",
+    "aegisops-ai": "off",
+    "agent-evaluation": "off",
+    "agentflow": "off",
+    "acceptance-orchestrator": "off",
+    "3d-web-experience": "off",
+    "activecampaign-automation": "off",
+    "import-memory": "off",
+    "007": "off",
+    "accesslint-scan": "off",
+    "accesslint-diff": "off",
+    "accessibility-compliance-accessibility-audit": "off",
+    "israeli-social-content": "off",
+    "ad-creative": "off"
+  }
 }
