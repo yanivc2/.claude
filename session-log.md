@@ -1,4 +1,9 @@
-﻿## 2026-09-20 23:35
+﻿## 2026-09-20 23:55
+- כיבוי 18 skills מסונכרנים דרך `skillOverrides` ב-`settings.json` (כולם `"off"`, בשמות בסיס ליישור עם מוסכמת `Skill(...)` שבקובץ) — 13 רעש + 5 כפילויות; שינוי הגדרות בלבד, הפיך (PR #111, `49a360b`)
+- הכנת גרסת גיבוי ב-`.claude/rules/skills-inventory.md`: בלוק `skillOverrides` מוכן־להדבקה עם מפתחות בקידומת `anthropic-skills:`, למקרה שהשמות ללא קידומת לא תופסים; כולל הסבר אימות (PR #112, `9a40502`)
+- אזהרות: חל רק אחרי `git pull` ל-`~/.claude`; לאימות `/skill-doctor`; להסרה מוחלטת (לא רק השבתה) לכבות ב-claude.ai
+
+## 2026-09-20 23:35
 - הוספת שרת MCP של 21st.dev ל-`.mcp.json` (`type: http`, `https://21st.dev/api/mcp`), המפתח מוזרק דרך `${input:st21_api_key}` (`promptString`, `password`) ולא נכתב בקובץ; לצד `github` ו-`playwright`
 - הרצת `/install-review` לפני ההוספה (verdict: התקן בזהירות — מפתח מחוץ ל-git, נקודת קצה חיצונית אחת); לא ב-`plugins/blocklist.json`
 - מיון ה-skills המסונכרנים מ-claude.ai לפי `/skill-doctor`: זוהה ש-`skills/` מוחרג ב-`.gitignore` ולכן לא ניתן לעריכה/מחיקה מהריפו, ומחיקה מקומית חוזרת בסנכרון (הבקרה: `/skills` או claude.ai). מומלץ לכבות 18 skills (13 רעש + 5 כפילויות)
