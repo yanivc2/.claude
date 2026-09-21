@@ -125,22 +125,6 @@
             "type": "command",
             "command": "if (Test-Path '.git') { $stat = git diff HEAD --stat 2>&1; if ($stat) { $lines = ($stat | Select-Object -First 12) -join '\\n'; $out = @{systemMessage = ('📝 ' + $lines)} | ConvertTo-Json -Compress; Write-Output $out } }; exit 0",
             "shell": "powershell"
-          },
-          {
-            "type": "command",
-            "command": "if (Test-Path 'deletions') { Get-ChildItem 'deletions' | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-14) } | Remove-Item -Force }; exit 0",
-            "shell": "powershell"
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "Write-Output '{\"systemMessage\": \"Before compacting: save open TODOs, decisions and lessons to CLAUDE.md or .claude/rules/. Note: path-scoped rules are DROPPED by /compact until a matching file is read again — prefer /clear and restarting in the subdirectory you are working in.\"}'",
-            "shell": "powershell"
           }
         ]
       }
@@ -163,28 +147,6 @@
             "type": "command",
             "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $c = $j.tool_input.command; if ($c -match 'rm -rf|reset --hard|drop table') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: destructive command\"}'; exit 1 }; if (($c -match '(?i)(Move-Item|Remove-Item|Copy-Item|Set-Content|Out-File|New-Item|Rename-Item|\\bmv\\b|\\bcp\\b|\\brm\\b|\\bdel\\b)') -and ($c -match '(?i)[\\\\/]OneDrive')) { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: OneDrive is read-only (iron rule)\"}'; exit 1 }; if ($c -match '(?i)(cat|type|Get-Content|notepad|more|head|tail|Select-String)') { if ($c -match '(?i)\\.env(?!\\.example)|session\\.json|client_secret') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: secrets file must not enter context\"}'; exit 1 } }; exit 0",
             "shell": "powershell"
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -and (Test-Path $f -PathType Leaf)) { $d = Join-Path $PWD 'deletions'; New-Item -ItemType Directory -Force $d | Out-Null; $ts = Get-Date -Format 'yyyyMMdd_HHmmss'; $n = [IO.Path]::GetFileName($f); Copy-Item $f (Join-Path $d \"${ts}_$n\") -Force }; exit 0",
-            "shell": "powershell",
-            "statusMessage": "Backing up file before overwrite..."
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $cmd = $j.tool_input.command; if ($cmd -match '\\brm\\b|\\bRemove-Item\\b') { $parts = $cmd -split '\\s+' | Where-Object { $_ -notmatch '^-' -and $_ -notin @('rm','Remove-Item','') }; foreach ($f in $parts) { if ($f -and (Test-Path $f -PathType Leaf)) { $d = Join-Path $PWD 'deletions'; New-Item -ItemType Directory -Force $d | Out-Null; $ts = Get-Date -Format 'yyyyMMdd_HHmmss'; $n = [IO.Path]::GetFileName($f); Copy-Item $f (Join-Path $d \"${ts}_$n\") -Force } } }; exit 0",
-            "shell": "powershell",
-            "statusMessage": "Backing up files before deletion..."
           }
         ]
       }
@@ -219,22 +181,44 @@
   "effortLevel": "xhigh",
   "skillOverrides": {
     "00-andruia-consultant": "off",
+    "anthropic-skills:00-andruia-consultant": "off",
     "10-andruia-skill-smith": "off",
+    "anthropic-skills:10-andruia-skill-smith": "off",
     "20-andruia-niche-intelligence": "off",
+    "anthropic-skills:20-andruia-niche-intelligence": "off",
     "advogado-especialista": "off",
+    "anthropic-skills:advogado-especialista": "off",
     "active-directory-attacks": "off",
+    "anthropic-skills:active-directory-attacks": "off",
     "aegisops-ai": "off",
+    "anthropic-skills:aegisops-ai": "off",
     "agent-evaluation": "off",
+    "anthropic-skills:agent-evaluation": "off",
     "agentflow": "off",
+    "anthropic-skills:agentflow": "off",
     "acceptance-orchestrator": "off",
+    "anthropic-skills:acceptance-orchestrator": "off",
     "3d-web-experience": "off",
+    "anthropic-skills:3d-web-experience": "off",
     "activecampaign-automation": "off",
+    "anthropic-skills:activecampaign-automation": "off",
     "import-memory": "off",
+    "anthropic-skills:import-memory": "off",
     "007": "off",
+    "anthropic-skills:007": "off",
     "accesslint-scan": "off",
+    "anthropic-skills:accesslint-scan": "off",
     "accesslint-diff": "off",
+    "anthropic-skills:accesslint-diff": "off",
     "accessibility-compliance-accessibility-audit": "off",
+    "anthropic-skills:accessibility-compliance-accessibility-audit": "off",
     "israeli-social-content": "off",
-    "ad-creative": "off"
+    "anthropic-skills:israeli-social-content": "off",
+    "ad-creative": "off",
+    "anthropic-skills:ad-creative": "off",
+    "ab-test-setup": "off",
+    "anthropic-skills:ab-test-setup": "off",
+    "2slides-ppt-generator": "off",
+    "anthropic-skills:2slides-ppt-generator": "off"
   }
 }

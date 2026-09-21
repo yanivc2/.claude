@@ -44,7 +44,7 @@ paths:
 │       ├── .mcp.json            — GitHub MCP server for the new project
 │       ├── .gitignore           — standard Node/TS ignore set
 │       └── .claude/
-│           ├── settings.json    — per-project hooks (typecheck, lint, session log)
+│           ├── settings.json    — per-project hooks (typecheck, lint, commits-only session log)
 │           └── rules/           — path-scoped rule files (see below)
 │
 └── shell-snapshots/             — captured shell env (gitignored)
@@ -55,7 +55,7 @@ paths:
 | File | Scope | Purpose |
 |---|---|---|
 | `settings.json` (root) | **Global** — every session on this machine | Permission allowlist + deny rules, global hooks, model + effort. |
-| `.claude/settings.json` | **This repo only** | Local overrides while editing the config itself: extra permissions, critical-rules banner, agent-based session recorder, typecheck hook. |
+| `.claude/settings.json` | **This repo only** | Local overrides while editing the config itself: extra permissions, critical-rules banner, session recorder (command hook, commits-only), typecheck hook. |
 
 Claude Code merges the nearest `.claude/settings.json` with the global one.
 
@@ -68,22 +68,22 @@ Claude Code merges the nearest `.claude/settings.json` with the global one.
     project-root `rules/` directory exists, it emits a migration note (never deletes).
   - **Environment nudges:** warns on `package.json` without `node_modules`, or
     `.env.example` without `.env`.
-- **`Stop`** — completion chime, `git diff HEAD --stat` summary, prunes `deletions/`
-  older than 14 days.
-- **`PreCompact`** — reminds Claude to persist TODOs/decisions before context is lost,
-  and warns that path-scoped rules are dropped by `/compact`.
+- **`Stop`** — completion chime and a `git diff HEAD --stat` summary.
 - **`PreToolUse`**
   - **OneDrive write guard:** blocks any `Write`/`Edit`/`Bash` operation targeting a
     OneDrive path. This is the *only* real enforcement of that iron rule —
     `Write()` entries in `permissions.deny` are accepted but never checked.
   - **Bash guard:** blocks `rm -rf`, `reset --hard`, `drop table`, and reads of
     `.env` / `session.json`.
-  - **Write backup:** copies a file into `deletions/<timestamp>_<name>` before overwrite.
-  - **Bash delete backup:** backs up `rm`/`Remove-Item` targets into `deletions/`.
 - **`PostToolUse`** — typecheck after editing `.ts`/`.tsx` in a repo with `tsconfig.json`.
 
-> `session-log.md` is auto-maintained by the Stop hook (kept under ~80 lines, entries
-> older than 30 days trimmed). Don't hand-edit it.
+> `session-log.md` is auto-maintained by the repo-scoped Stop hook — **only when the
+> session produced commits** (kept under ~80 lines). Don't hand-edit it.
+>
+> **Removed on purpose (2026-09-21):** the `deletions/` backup hooks and their prune —
+> `fileCheckpointingEnabled: true` already snapshots files before edits, so they were
+> pure duplication. `PreCompact` too: the harness summarizes context itself now, and
+> the hook pushed TODOs into `CLAUDE.md`, which is meant to stay lean.
 
 ## The project template (`templates/project/`)
 

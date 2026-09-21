@@ -38,20 +38,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$logFile = 'C:\\Users\\yaniv\\.claude\\session-log.md'; $date = Get-Date -Format 'yyyy-MM-dd HH:mm'; $log = git log --oneline --since='4 hours ago' 2>$null; $bullet = if ($log) { ($log | Select-Object -First 3) -join ' | ' } else { 'שיחה ללא שינויי קוד' }; $entry = \"## $date`n- $bullet`n\"; $existing = if (Test-Path $logFile) { Get-Content $logFile -Raw } else { '' }; $combined = ($entry + \"`n\" + $existing).TrimEnd() -split \"`n\" | Select-Object -First 80; Set-Content $logFile ($combined -join \"`n\") -Encoding utf8; exit 0",
+            "command": "$logFile = 'C:\\Users\\yaniv\\.claude\\session-log.md'; $date = Get-Date -Format 'yyyy-MM-dd HH:mm'; $log = git log --oneline --since='4 hours ago' 2>$null; if (-not $log) { exit 0 }; $bullet = if ($log) { ($log | Select-Object -First 3) -join ' | ' } else { 'שיחה ללא שינויי קוד' }; $entry = \"## $date`n- $bullet`n\"; $existing = if (Test-Path $logFile) { Get-Content $logFile -Raw } else { '' }; $combined = ($entry + \"`n\" + $existing).TrimEnd() -split \"`n\" | Select-Object -First 80; Set-Content $logFile ($combined -join \"`n\") -Encoding utf8; exit 0",
             "shell": "powershell",
             "statusMessage": "מתעד סשן..."
-          }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "Write-Output '{\"systemMessage\": \"Before compacting: save open TODOs, decisions and lessons to CLAUDE.md or .claude/rules/. Note: path-scoped rules are DROPPED by /compact until a matching file is read again.\"}'",
-            "shell": "powershell"
           }
         ]
       }

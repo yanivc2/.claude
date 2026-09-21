@@ -9,7 +9,7 @@ paths:
 
 > **Applies to:** deciding which claude.ai-synced skills stay enabled. Loaded on
 > demand. Explanations in Hebrew (rule #3); skill identifiers stay in English.
-> Last triaged: 2026-09-20.
+> Last triaged: 2026-09-21.
 
 ## עובדת יסוד
 
@@ -65,6 +65,18 @@ paths:
 - **אימות:** להריץ `/skill-doctor`. אם skill עדיין מופיע → המפתח דורש את הצורה
   עם קידומת `anthropic-skills:<name>` (ר' בלוק הגיבוי למטה).
 - להסרה מוחלטת (לא רק השבתה): לכבות/למחוק ב־claude.ai; אחרת נשאר זמין לסנכרון.
+
+### עדכון 2026-09-21 — שני מפתחות לכל skill, ועוד 2 כיבויים
+
+ב־`settings.json` כל skill מכובה מופיע עכשיו **בשתי הצורות** — `<name>` וגם
+`anthropic-skills:<name>` — כי לא אומת איזו צורה תופסת בפועל, ומפתח לא־מוכר מתעלמים
+ממנו בלי נזק. כך אין צורך בבלוק הגיבוי שלמטה (נשאר לתיעוד).
+
+נוספו ל־⛔: `ab-test-setup` (לא בפרופיל השימוש), `2slides-ppt-generator` (API חיצוני עם
+מפתח; `pptx` מכסה). קבוצת ⚠️ «החלטת שימוש» לא נגעה — היא ממתינה לנתוני `/usage` מהמכונה.
+
+**מגבלה:** הבלוק מכסה רק את ה־skills המסונכרנים מ־claude.ai (~50). ~950 ה־skills
+המקומיים ב־`~/.claude/skills` אינם נראים מהריפו — לטיפול בהם: `/skills-audit measure`.
 
 ### בלוק גיבוי — מפתחות עם קידומת `anthropic-skills:`
 
