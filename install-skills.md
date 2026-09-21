@@ -207,3 +207,77 @@ claude mcp add playwright -- npx -y @playwright/mcp@latest
 | Motion AI Kit | MCP | ⚠️ API key + מנוי בתשלום |
 | Higgsfield | MCP | ⚠️ חשבון+קרדיטים בתשלום; רשת |
 | Playwright | MCP | ✅ בלי key; מריץ דפדפן על אתרים חיים |
+
+---
+
+## חלק 4 — סבב שלישי: Emil Kowalski (13 סקילים)
+
+> עבר `/install-review` ב-2026-09-21. ממצא: **אין הרצת קוד, אין רשת, אין `postinstall`**.
+> 25 קבצים, כולם Markdown. רישיון MIT. המפרסם: Emil Kowalski (Vercel, Linear, Sonner, Vaul).
+
+```bash
+# ⚠️ שם ה-repo הקנוני הוא "skills" ברבים. "skill" ביחיד הוא redirect ועובד גם הוא.
+npx skills add emilkowalski/skills -g -y --skill '*'
+```
+
+### ⚠️ הודעת השגיאה המטעה — קרא/י לפני שתתייאש/י
+
+הפקודה מסיימת עם מה שנראה ככישלון מוחלט:
+
+```
+x  Failed to install 13
+   ✗ animate → PromptScript: PromptScript does not support global skill installation
+   ... (כל 13)
+```
+
+**ההתקנה בכל זאת הצליחה.** ה-CLI מתקין לכמה יעדים במקביל; רק היעד
+PromptScript נכשל, ו-Claude Code הצליח. אומת בפועל בהתקנה הזו:
+
+| מה | איפה |
+|---|---|
+| הקבצים עצמם | `~/.agents/skills/<name>/` — 13 תיקיות |
+| הקישור של Claude Code | `~/.claude/skills/<name>` → symlink ל-`../../.agents/skills/<name>` |
+
+**איך מוודאים שההתקנה עבדה** (ולא סומכים על הפלט):
+
+```bash
+ls ~/.agents/skills/     # אמורות להופיע 13 תיקיות
+ls -l ~/.claude/skills/  # אמורים להופיע 13 symlinks
+```
+
+> **על Windows:** יצירת symlink דורשת Developer Mode או הרצה כאדמין. אם
+> `~/.claude/skills/` יוצא ריק בזמן ש-`~/.agents/skills/` מלא — זו הסיבה.
+
+### מה הותקן
+
+| סקיל | נושא | נטען אוטומטית |
+|---|---|---|
+| animate | בניית אנימציה לווב מאפס | כן |
+| animate-expo | אותו דבר ל-React Native / Expo | כן |
+| animation-vocabulary | מילון הפוך: תיאור מעורפל → המונח המדויק | כן |
+| apple-design | עקרונות העיצוב והתנועה של Apple, מתורגמים לווב | כן |
+| ask-sonner | מדריך ל-Sonner (ספריית ה-toast של המחבר) | כן |
+| emil-design-eng | הסקיל המרכזי: פילוסופיית ה-UI polish | כן |
+| find-animation-opportunities | איתור מקומות שכדאי להנפיש (read-only) | כן |
+| improve-animations | ביקורת אנימציות בריפו + תוכניות ביצוע | כן |
+| mobile-native | גרימת אפליקציית ווב להרגיש נייטיב בנייד | כן |
+| write-swift | Swift מודרני: concurrency, generics, ביצועים | כן |
+| pick-ui-library | בחירת ספריית UI מרשימה אוצרת | **לא** |
+| prototype | בניית כמה גרסאות UI מאחורי picker חזותי | **לא** |
+| review-animations | ביקורת אנימציות לפי רף קפדני | **לא** |
+
+שלושת האחרונים מסומנים `disable-model-invocation: true` ורצים רק בהפעלה מפורשת.
+
+### שתי הסתייגויות (לא אבטחה)
+
+1. **תקציב קונטקסט** — עשרת התיאורים הנטענים אוטומטית מוסיפים בערך 1,300 טוקנים
+   לאינדקס הסקילים **בכל סשן בכל פרויקט**. אם `write-swift` ו-`animate-expo`
+   לא רלוונטיים לעבודה שלך, שקול/י להשבית אותם ב-`skillOverrides`.
+2. **התנגשות עם כלל #3** — ל-`prototype` יש תשובת פתיחה קבועה **באנגלית** שהסקיל
+   מורה למסור מילה במילה. אותה בעיה כמו Caveman.
+
+### שתי ההתנהגויות היחידות שכותבות משהו
+
+- `improve-animations` כותב תוכניות ל-`plans/` בלבד, ואוסר במפורש על עריכת קוד מקור.
+  `improve-animations execute <plan>` שולח subagent ל-git worktree מבודד.
+- `prototype` בונה קבצי prototype מבודדים ומוחק אותם אחרי בחירת הזוכה.
