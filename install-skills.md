@@ -281,3 +281,63 @@ ls -l ~/.claude/skills/  # אמורים להופיע 13 symlinks
 - `improve-animations` כותב תוכניות ל-`plans/` בלבד, ואוסר במפורש על עריכת קוד מקור.
   `improve-animations execute <plan>` שולח subagent ל-git worktree מבודד.
 - `prototype` בונה קבצי prototype מבודדים ומוחק אותם אחרי בחירת הזוכה.
+
+---
+
+## חלק 5 — סבב רביעי: Leonxlnx/taste-skill (5 מתוך 13)
+
+> עבר `/install-review` ב-2026-09-21. **הותקנו 5 בלבד מתוך 13** — הנימוקים למטה.
+> אבטחה: נקי. יש קוד בריפו (`skill.sh`, `scripts/*.mjs`) אבל הוא לא מותקן ולא רץ,
+> ואין `postinstall`, רשת או מפתחות API. רישיון MIT.
+
+### ⚠️ מלכודת: `--skill` מקבל את `name:` ולא את שם התיקייה
+
+ב-repo הזה שם התיקייה ושם ההתקנה **שונים**, וה-README אומר את זה במפורש.
+`--skill soft-skill` ייכשל; הערך הנכון הוא `high-end-visual-design`.
+
+```bash
+npx skills add Leonxlnx/taste-skill -g -y \
+  --skill "design-taste-frontend" \
+  --skill "high-end-visual-design" \
+  --skill "minimalist-ui" \
+  --skill "industrial-brutalist-ui" \
+  --skill "redesign-existing-projects"
+```
+
+> אותה הודעת `Failed to install 5` המטעה של PromptScript מופיעה גם כאן —
+> ראה/י חלק 4. הפעם הפלט אפילו מציג את שתי השורות זו לצד זו:
+> `✓ symlinked: Claude Code` ומיד אחריה `✗ ... does not support global`.
+> תמיד לאמת מול `~/.agents/skills/`, לא לסמוך על קוד היציאה.
+
+### מה הותקן
+
+| תיקייה | שם ההתקנה (`--skill`) | נושא |
+|---|---|---|
+| taste-skill | `design-taste-frontend` | הסקיל המרכזי: anti-slop ל-landing pages ותיקי עבודות |
+| soft-skill | `high-end-visual-design` | פונטים, מרווחים וצללים שגורמים לאתר להרגיש יקר |
+| minimalist-skill | `minimalist-ui` | מינימליזם עריכתי, מונוכרום חם, בלי גרדיאנטים |
+| brutalist-skill | `industrial-brutalist-ui` | ברוטליזם תעשייתי, גריד נוקשה, אסתטיקת טרמינל |
+| redesign-skill | `redesign-existing-projects` | שדרוג אתרים קיימים בלי לשבור פונקציונליות |
+
+### מה נשאר בחוץ ולמה
+
+| שם ההתקנה | הסיבה |
+|---|---|
+| `full-output-enforcement` | **משנה התנהגות גלובלית.** אוסר על תמצות ועל "for brevity", מורה "do not optimize for brevity". כל תשובה תהיה מקסימלית באורכה, בכל סשן. אותו סוג סיכון כמו Caveman. |
+| `brandkit` | דורש כלי יצירת תמונות שאין ל-Claude Code |
+| `imagegen-frontend-web` | אותו דבר |
+| `imagegen-frontend-mobile` | אותו דבר |
+| `image-to-code` | נכתב במפורש ל-Codex ("In Codex, it must…") |
+| `gpt-taste` | נכתב ל-GPT, ומורה לייצר "mock Python output" מפוברק |
+| `design-taste-frontend-v1` | גרסה ישנה של `design-taste-frontend` |
+| `stitch-design-taste` | רלוונטי רק למשתמשי Google Stitch |
+
+שלושת ה-imagegen לבדם אוכלים 1,765 מתוך 4,507 תווי התיאור של החבילה — 39%
+מהתקציב על יכולת שלא קיימת כאן.
+
+### הערה על חפיפה
+
+החבילה הזו ושל Emil (חלק 4) מכסות את אותו שטח: `high-end-visual-design` מול
+`emil-design-eng`, `redesign-existing-projects` מול `improve-animations`.
+שתיהן דעתניות מאוד. אם תשובות עיצוב מתחילות לסתור זו את זו, זו הסיבה —
+כבה/י אחת מהן ב-`skillOverrides` במקום לנחש.
