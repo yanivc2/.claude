@@ -32,7 +32,13 @@ concurrency:
 
 jobs:
   scrape:
-    runs-on: ubuntu-latest
+    # 🔴 מוצמד ל-22.04 ולא ubuntu-latest. ה-latest הוא Ubuntu 24.04, שחוסם unprivileged user
+    # namespaces דרך AppArmor — ושם ארגז החול של Chrome אינו מצליח לאתחל והדפדפן קורס ב
+    # "No usable sandbox!" עוד לפני שדף הבנק נטען (נמדד בהרצה 21). 22.04 מקדים את ההגבלה
+    # ההיא, ולכן Chrome עולה שם **עם ארגז החול שלו דלוק** — בלי לגעת בשום הקשחה של המכונה
+    # ובלי --no-sandbox, שהוא הפתרון הנפוץ ברשת אבל פשוט מכבה את ארגז החול. הדפדפן הזה
+    # מתחבר לחשבון בנק, אז ההפרדה הזו שווה הצמדה.
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
