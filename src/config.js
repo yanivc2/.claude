@@ -142,6 +142,10 @@ export const config = {
   // Shared secret so an external scheduler (e.g. Vercel Cron) can trigger the reminders runner
   // without a login session: GET /audit/reminders/run?key=<CRON_SECRET>.
   cronSecret: process.env.CRON_SECRET || null,
+  // סוד לסוכן סנכרון הבנק שרץ על מחשב המשרד (/ingest/bank-agent/*). נקודות הקצה האלה מעבירות
+  // קודי SMS של הבנק, ולכן סוד נפרד עדיף; אם לא הוגדר — נופל ל-CRON_SECRET כדי שיעבוד מיד.
+  // אף אחד מהשניים = הסוכן כבוי (503).
+  bankAgentSecret: process.env.BANK_AGENT_SECRET || process.env.CRON_SECRET || null,
   // Shared secret for the nightly revenue-report email ingestion (POST /ingest/revenue-report).
   // Unset = the endpoint is disabled, so it is never open by accident.
   revenueIngestSecret: process.env.REVENUE_INGEST_SECRET || null,

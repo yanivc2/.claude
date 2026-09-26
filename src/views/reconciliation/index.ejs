@@ -48,6 +48,8 @@
   <% } %>
 </div>
 
+<% if (typeof bankSync !== 'undefined' && bankSync) { %><%- include('_bankSync', { bankSync: bankSync }) %><% } %>
+
 <%# אסמכתא שנשמרה בכתיב מדעי אינה רק מכוערת: היא לא שווה למספר הצ׳ק ולא למספר שקית ההפקדה,
     ולכן ההתאמה מולה נכשלת בשקט. לכן ההצעה כאן היא לתקן את הנתון, לא להסתיר אותו בעיצוב. %>
 <% var odd = (typeof oddRefs !== 'undefined') ? oddRefs : null; %>

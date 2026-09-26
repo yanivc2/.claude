@@ -1,0 +1,229 @@
+<%# 🏦 סנכרון מהבנק דרך מחשב המשרד. no-collapse: כשהבנק מבקש קוד, השדה חייב להיות גלוי —
+    האקורדיון של footer.ejs מכווץ כרטיסים, ושדה קוד מוסתר ברגע שה-SMS מגיע = קוד שפג תוקפו.
+    המצב ההתחלתי מרונדר כאן (עובד בלי JS, עם PRG); הסקריפט למטה מרענן אותו בזמן אמת. %>
+<% var bs = bankSync; %>
+<div class="card no-collapse" id="bank-sync">
+  <h2 style="margin:0 0 .4rem">🏦 סנכרון מהבנק — הפועלים לעסקים</h2>
+  <div id="bs-body">
+    <% if (!bs.ready) { %>
+      <p class="muted">נדרש עדכון מסד נתונים: הגדרות ← "עדכן מסד נתונים".</p>
+    <% } else { %>
+      <p id="bs-agent" style="margin:0 0 .5rem">
+        <% if (bs.agentOnline) { %><span class="badge b-paid">● מחשב המשרד מחובר</span>
+        <% } else if (bs.agentSeenSec != null) { %><span class="badge b-on_hold">● מחשב המשרד לא מחובר</span>
+          <span class="muted" style="font-size:12px">נראה לאחרונה לפני <%= Math.round(bs.agentSeenSec / 60) %> דק׳ — ודא שהוא דלוק ושהסוכן רץ.</span>
+        <% } else { %><span class="badge b-neutral">● מחשב המשרד עוד לא התחבר</span>
+          <span class="muted" style="font-size:12px">הסוכן צריך לרוץ על מחשב המשרד (ראה הוראות ההתקנה).</span>
+        <% } %>
+      </p>
+
+      <% var j = bs.job; var active = j && ['requested','running','awaiting_otp'].indexOf(j.status) >= 0; %>
+      <% if (j) { %>
+        <p id="bs-msg" style="margin:0 0 .5rem">
+          <% if (j.status === 'done') { %><span class="badge b-paid">הושלם</span>
+          <% } else if (['failed','expired','cancelled'].indexOf(j.status) >= 0) { %><span class="badge b-blocked"><%= j.status === 'cancelled' ? 'בוטל' : 'נכשל' %></span>
+          <% } else { %><span class="badge b-on_hold">בתהליך</span><% } %>
+          <%= j.message || '' %>
+          <% if (j.byName && !j.mine) { %><span class="muted" style="font-size:12px">· התחיל: <%= j.byName %></span><% } %>
+        </p>
+
+        <% if (j.canEnterOtp) { %>
+          <form method="post" action="/reconciliation/bank-sync/<%= j.id %>/otp" class="actions js-bs-form" style="margin:.4rem 0">
+            <%# autocomplete=one-time-code: בטלפון, המקלדת מציעה את הקוד מה-SMS בלחיצה אחת. %>
+            <input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 \-]{4,14}"
+                   maxlength="14" required placeholder="הקוד מה-SMS" style="width:10rem; font-size:1.1rem; letter-spacing:.15em" />
+            <button type="submit" class="ok">שלח קוד</button>
+          </form>
+        <% } %>
+
+        <% if (j.result && j.result.accounts && j.result.accounts.length) { %>
+          <table class="no-enhance" style="margin:.4rem 0">
+            <thead><tr><th>חשבון</th><th class="right">חדשות</th><th class="right">הותאמו</th></tr></thead>
+            <tbody>
+              <% j.result.accounts.forEach(function(a){ %>
+                <tr><td><%= a.displayName %></td><td class="right"><%= a.inserted %></td><td class="right"><%= a.matched %></td></tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+        <% if (j.result && j.result.unmappedCount) { %>
+          <p class="muted" style="font-size:12px; margin:.2rem 0">
+            <%= j.result.unmappedCount %> חשבונות שנמשכו אינם רשומים באפליקציה ולא נקלטו
+            <% if (j.result.unmapped && j.result.unmapped.length) { %>(<%= j.result.unmapped.join(', ') %>)<% } %>
+            — אפשר להוסיף אותם בהגדרות.
+          </p>
+        <% } %>
+      <% } %>
+
+      <div class="actions" style="margin-top:.4rem">
+        <% if (active) { %>
+          <% if (j.canCancel) { %>
+            <form method="post" action="/reconciliation/bank-sync/<%= j.id %>/cancel" class="js-bs-form" style="display:inline">
+              <button type="submit" class="secondary small">בטל</button>
+            </form>
+          <% } %>
+        <% } else { %>
+          <form method="post" action="/reconciliation/bank-sync/request" class="js-bs-form" style="display:inline">
+            <button type="submit">🔄 סנכרן עכשיו</button>
+          </form>
+          <span class="muted" style="font-size:12px">הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.</span>
+        <% } %>
+      </div>
+      <p class="muted" style="font-size:11px; margin:.5rem 0 0">
+        המפתח שלך במחשב המשרד: <span class="mono"><%= bs.loginKey %></span>
+      </p>
+    <% } %>
+  </div>
+</div>
+
+<% if (bs.ready) { %>
+<script>
+(function () {
+  // מרענן את הכרטיס בזמן אמת. 🔴 הכול נבנה עם textContent ולא innerHTML: ההודעות מגיעות מהסוכן
+  // ומהמסד, ואסור שטקסט כזה יוכל להזריק HTML לדף.
+  var card = document.getElementById('bank-sync');
+  if (!card || !window.fetch) return;
+  var ACTIVE = ['requested', 'running', 'awaiting_otp'];
+  var lastStatus = <%- JSON.stringify(bs.job ? bs.job.status : null).replace(/</g, '\\u003c') %>;
+  var timer = null;
+
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    Object.keys(attrs || {}).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function badge(cls, text) { return el('span', { class: 'badge ' + cls }, text); }
+
+  function render(s) {
+    var body = document.getElementById('bs-body');
+    if (!body) return;
+    // שדה קוד שמשתמש מקליד בו כרגע לא נדרס ברענון — אחרת ההקלדה נמחקת באמצע.
+    var typing = document.activeElement && document.activeElement.name === 'otp';
+    if (typing && s.job && s.job.status === 'awaiting_otp') return;
+
+    var frag = document.createDocumentFragment();
+    var p = el('p', { id: 'bs-agent', style: 'margin:0 0 .5rem' });
+    if (s.agentOnline) p.appendChild(badge('b-paid', '● מחשב המשרד מחובר'));
+    else {
+      p.appendChild(badge(s.agentSeenSec != null ? 'b-on_hold' : 'b-neutral',
+        s.agentSeenSec != null ? '● מחשב המשרד לא מחובר' : '● מחשב המשרד עוד לא התחבר'));
+      p.appendChild(document.createTextNode(' '));
+      p.appendChild(el('span', { class: 'muted', style: 'font-size:12px' },
+        s.agentSeenSec != null ? 'ודא שהוא דלוק ושהסוכן רץ.' : 'הסוכן צריך לרוץ על מחשב המשרד.'));
+    }
+    frag.appendChild(p);
+
+    var j = s.job;
+    var active = j && ACTIVE.indexOf(j.status) >= 0;
+    if (j) {
+      var m = el('p', { id: 'bs-msg', style: 'margin:0 0 .5rem' });
+      if (j.status === 'done') m.appendChild(badge('b-paid', 'הושלם'));
+      else if (['failed', 'expired', 'cancelled'].indexOf(j.status) >= 0) m.appendChild(badge('b-blocked', j.status === 'cancelled' ? 'בוטל' : 'נכשל'));
+      else m.appendChild(badge('b-on_hold', 'בתהליך'));
+      m.appendChild(document.createTextNode(' ' + (j.message || '')));
+      if (j.byName && !j.mine) m.appendChild(el('span', { class: 'muted', style: 'font-size:12px' }, ' · התחיל: ' + j.byName));
+      frag.appendChild(m);
+
+      if (j.canEnterOtp) {
+        var f = el('form', { method: 'post', action: '/reconciliation/bank-sync/' + j.id + '/otp', class: 'actions js-bs-form', style: 'margin:.4rem 0' });
+        var inp = el('input', { name: 'otp', inputmode: 'numeric', autocomplete: 'one-time-code', pattern: '[0-9 \\-]{4,14}',
+          maxlength: '14', required: 'required', placeholder: 'הקוד מה-SMS', style: 'width:10rem; font-size:1.1rem; letter-spacing:.15em' });
+        f.appendChild(inp);
+        f.appendChild(document.createTextNode(' '));
+        f.appendChild(el('button', { type: 'submit', class: 'ok' }, 'שלח קוד'));
+        frag.appendChild(f);
+      }
+      if (j.result && j.result.accounts && j.result.accounts.length) {
+        var t = el('table', { class: 'no-enhance', style: 'margin:.4rem 0' });
+        var hr = el('tr');
+        hr.appendChild(el('th', {}, 'חשבון'));
+        hr.appendChild(el('th', { class: 'right' }, 'חדשות'));
+        hr.appendChild(el('th', { class: 'right' }, 'הותאמו'));
+        var th = el('thead'); th.appendChild(hr); t.appendChild(th);
+        var tb = el('tbody');
+        j.result.accounts.forEach(function (a) {
+          var tr = el('tr');
+          tr.appendChild(el('td', {}, a.displayName));
+          tr.appendChild(el('td', { class: 'right' }, String(a.inserted)));
+          tr.appendChild(el('td', { class: 'right' }, String(a.matched)));
+          tb.appendChild(tr);
+        });
+        t.appendChild(tb);
+        frag.appendChild(t);
+      }
+    }
+
+    var acts = el('div', { class: 'actions', style: 'margin-top:.4rem' });
+    if (active) {
+      if (j.canCancel) {
+        var cf = el('form', { method: 'post', action: '/reconciliation/bank-sync/' + j.id + '/cancel', class: 'js-bs-form', style: 'display:inline' });
+        cf.appendChild(el('button', { type: 'submit', class: 'secondary small' }, 'בטל'));
+        acts.appendChild(cf);
+      }
+    } else {
+      var rf = el('form', { method: 'post', action: '/reconciliation/bank-sync/request', class: 'js-bs-form', style: 'display:inline' });
+      rf.appendChild(el('button', { type: 'submit' }, '🔄 סנכרן עכשיו'));
+      acts.appendChild(rf);
+      acts.appendChild(el('span', { class: 'muted', style: 'font-size:12px' }, ' הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.'));
+    }
+    frag.appendChild(acts);
+    var help = el('p', { class: 'muted', style: 'font-size:11px; margin:.5rem 0 0' }, 'המפתח שלך במחשב המשרד: ');
+    help.appendChild(el('span', { class: 'mono' }, s.loginKey));
+    frag.appendChild(help);
+
+    body.textContent = '';
+    body.appendChild(frag);
+    var otp = body.querySelector('input[name=otp]');
+    if (otp && lastStatus !== 'awaiting_otp') otp.focus(); // הקוד הגיע עכשיו — לשים את הסמן בשדה
+  }
+
+  function schedule(s) {
+    clearTimeout(timer);
+    var active = s.job && ACTIVE.indexOf(s.job.status) >= 0;
+    timer = setTimeout(poll, active ? 2000 : 20000);
+  }
+
+  function apply(s) {
+    var prev = lastStatus;
+    render(s);
+    lastStatus = s.job ? s.job.status : null;
+    // סיום: טוענים את הדף פעם אחת, כדי שהתנועות החדשות יופיעו בטבלאות שמתחת. התוצאה נשארת
+    // בכרטיס אחרי הטעינה (המצב שומר את הסנכרון האחרון חצי שעה).
+    if (prev && ACTIVE.indexOf(prev) >= 0 && lastStatus === 'done') { location.reload(); return; }
+    schedule(s);
+  }
+
+  function poll() {
+    fetch('/reconciliation/bank-sync/status', { headers: { accept: 'application/json' }, credentials: 'same-origin' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (s) { if (s) apply(s); else schedule({}); })
+      .catch(function () { schedule({}); });
+  }
+
+  // שליחת הטפסים ב-fetch — בלי טעינת דף. אם ה-JS נכשל, הטופס נשלח כרגיל ו-PRG מחזיר לכאן.
+  card.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f.classList || !f.classList.contains('js-bs-form')) return;
+    e.preventDefault();
+    var btn = f.querySelector('button[type=submit]');
+    if (btn) btn.disabled = true;
+    fetch(f.action, {
+      method: 'POST',
+      headers: { accept: 'application/json', 'content-type': 'application/x-www-form-urlencoded' },
+      credentials: 'same-origin',
+      body: new URLSearchParams(new FormData(f)).toString(),
+    })
+      .then(function (r) { return r.json().catch(function () { return { ok: false, error: 'שגיאה' }; }); })
+      .then(function (s) {
+        if (s && s.ok) { apply(s); return; }
+        if (btn) btn.disabled = false;
+        alert((s && s.error) || 'הפעולה נכשלה');
+      })
+      .catch(function () { if (btn) btn.disabled = false; alert('אין חיבור לשרת'); });
+  });
+
+  schedule({ job: lastStatus ? { status: lastStatus } : null });
+})();
+</script>
+<% } %>

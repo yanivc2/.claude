@@ -816,3 +816,22 @@ CREATE TABLE IF NOT EXISTS employee_advance_repayments (
 CREATE INDEX IF NOT EXISTS ix_advance_repayments ON employee_advance_repayments(advance_id, repaid_date);
 
 
+
+-- 🏦 תור סנכרון הבנק (הפועלים לעסקים). האפליקציה על Vercel אינה יכולה להריץ דפדפן, ולכן סוכן על
+-- מחשב המשרד מושך מכאן בקשות, מתחבר לבנק, וממתין לקוד ה-SMS שהמשתמש מזין באפליקציה.
+-- 🔴 אין כאן סיסמאות בנק — הן יושבות רק בקובץ מקומי במחשב המשרד. login_key הוא שם משתמש
+-- באפליקציה, לא סוד. otp_code חי שניות: נמחק ברגע שהסוכן קורא אותו.
+CREATE TABLE IF NOT EXISTS bank_sync_jobs (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  status        TEXT NOT NULL DEFAULT 'requested', -- requested|running|awaiting_otp|done|failed|expired|cancelled
+  login_key     TEXT NOT NULL,
+  requested_by  INTEGER REFERENCES users(id),
+  requested_at  TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  agent         TEXT,
+  otp_code      TEXT,
+  message       TEXT,
+  result        TEXT,
+  finished_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_bank_sync_jobs_status ON bank_sync_jobs(status, requested_at);

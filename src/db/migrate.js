@@ -36,6 +36,7 @@ export function migrate(db) {
   migrateBankImports(db);
   migrateSettledCashExpenses(db);
   migrateSalaryCashMatch(db);
+  migrateBankSyncJobs(db);
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -734,4 +735,24 @@ function migrateSalaryCashMatch(db) {
     db.exec('ALTER TABLE salary_payments ADD COLUMN cash_z_expense_id INTEGER REFERENCES z_expenses(id) ON DELETE SET NULL;');
   }
   if (!cols.includes('cleared_alerted')) db.exec('ALTER TABLE salary_payments ADD COLUMN cleared_alerted TEXT;');
+}
+
+// תור סנכרון הבנק (סוכן מחשב המשרד). ראה schema.sql.
+function migrateBankSyncJobs(db) {
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS bank_sync_jobs (
+       id            INTEGER PRIMARY KEY AUTOINCREMENT,
+       status        TEXT NOT NULL DEFAULT 'requested',
+       login_key     TEXT NOT NULL,
+       requested_by  INTEGER REFERENCES users(id),
+       requested_at  TEXT NOT NULL,
+       updated_at    TEXT NOT NULL,
+       agent         TEXT,
+       otp_code      TEXT,
+       message       TEXT,
+       result        TEXT,
+       finished_at   TEXT
+     );`,
+  );
+  db.exec('CREATE INDEX IF NOT EXISTS ix_bank_sync_jobs_status ON bank_sync_jobs(status, requested_at);');
 }

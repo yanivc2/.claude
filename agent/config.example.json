@@ -1,0 +1,13 @@
+{
+  "appUrl": "https://ap-control.vercel.app",
+  "agentSecret": "אותו ערך בדיוק כמו BANK_AGENT_SECRET ב-Vercel",
+
+  "logins": {
+    "שם-המשתמש-שלך-באפליקציה": { "userCode": "קוד משתמש בבנק", "password": "סיסמת הבנק" },
+    "שם-המשתמש-של-המזכירה": { "userCode": "קוד המשתמש שלה בבנק", "password": "הסיסמה שלה" }
+  },
+
+  "accountIds": [],
+  "startDaysBack": 60,
+  "showBrowser": false
+}

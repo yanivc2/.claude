@@ -1,0 +1,17 @@
+{
+  "name": "ap-control-bank-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "סוכן סנכרון הבנק — רץ על מחשב המשרד, מתחבר להפועלים לעסקים ומקבל את קוד ה-SMS מהאפליקציה",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node bank-agent.mjs",
+    "check": "node bank-agent.mjs --check"
+  },
+  "dependencies": {
+    "puppeteer": "^24.0.0"
+  }
+}

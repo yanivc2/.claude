@@ -1,0 +1,2 @@
+# קבצי הפעלה ל-Windows חייבים סיומות שורה CRLF
+agent/*.bat text eol=crlf

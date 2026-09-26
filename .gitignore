@@ -20,3 +20,7 @@ uploads/
 
 # scratchpad for one-off verification scripts (never committed)
 scratchpad/
+
+# 🔴 סוכן סנכרון הבנק (agent/): קובץ ההגדרות מכיל פרטי התחברות לבנק. הוא חי רק על מחשב המשרד.
+agent/config.json
+agent/*.png

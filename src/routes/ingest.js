@@ -8,6 +8,8 @@ import { notify } from '../lib/notify.js';
 import { israelToday } from '../lib/loginHours.js';
 import { syncAllLinkedAccounts, importScrapedBatch } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
+import { timingSafeEqual } from 'node:crypto';
+import { claimNext, reportState, takeOtp, completeWithAccounts, agentPing } from '../services/bankSyncJobs.js';
 
 /** Yesterday in Israel time — the business day the nightly report covers. */
 function yesterdayInIsrael() {
@@ -157,6 +159,89 @@ router.post('/bank-txns', json({ limit: '4mb' }), async (req, res) => {
     return res.status(r.unmapped.length ? 207 : 200).json({ ok: true, ...r });
   } catch (err) {
     return res.status(err.rule === 'SCRAPER' ? 400 : 500).json({ ok: false, error: err.message });
+  }
+});
+
+// 🏦 סוכן סנכרון הבנק (מחשב המשרד). הדפדפן רץ שם כי ל-Vercel אין דפדפן; המסד הוא הגשר.
+// ראה services/bankSyncJobs.js למכונת המצבים המלאה.
+//
+//   POST /ingest/bank-agent/claim          → { job: {id, loginKey} | null }   (גם פעימת חיים)
+//   POST /ingest/bank-agent/:id/state      { status: running|awaiting_otp|failed, message }
+//   POST /ingest/bank-agent/:id/otp        → { otp } | { otp: null } | { cancelled }
+//   POST /ingest/bank-agent/:id/result     { accounts: [...] }  (אותו מבנה של /bank-txns)
+//
+// 🔴 הסוד מתקבל **רק בכותרת** (`Authorization: Bearer …` או `X-Agent-Secret`), לא ב-?key=:
+// כתובות URL נרשמות ביומני הגישה, ונקודות הקצה האלה מעבירות קודי SMS של הבנק. ההשוואה
+// בזמן קבוע, כדי שזמן התגובה לא ידליף כמה תווים מהסוד נכונים.
+function agentAuth(req, res) {
+  const secret = config.bankAgentSecret;
+  if (!secret) {
+    res.status(503).json({ ok: false, error: 'bank agent disabled (no BANK_AGENT_SECRET / CRON_SECRET)' });
+    return false;
+  }
+  const bearer = (req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  const given = Buffer.from(String(req.get('x-agent-secret') || bearer || ''));
+  const want = Buffer.from(String(secret));
+  if (given.length !== want.length || !timingSafeEqual(given, want)) {
+    res.status(401).json({ ok: false, error: 'bad secret' });
+    return false;
+  }
+  return true;
+}
+
+const agentName = (req) => String(req.get('x-agent-name') || req.body?.agent || 'agent').slice(0, 80);
+
+function agentError(res, err) {
+  const known = err && (err.rule || err.name === 'NotFoundError');
+  return res.status(known ? 400 : 500).json({ ok: false, error: err?.message || 'error' });
+}
+
+router.post('/bank-agent/ping', json(), async (req, res) => {
+  if (!agentAuth(req, res)) return;
+  try {
+    return res.json(await agentPing(agentName(req)));
+  } catch (err) {
+    return agentError(res, err);
+  }
+});
+
+router.post('/bank-agent/claim', json(), async (req, res) => {
+  if (!agentAuth(req, res)) return;
+  try {
+    return res.json({ ok: true, job: await claimNext(agentName(req)) });
+  } catch (err) {
+    return agentError(res, err);
+  }
+});
+
+router.post('/bank-agent/:id/state', json(), async (req, res) => {
+  if (!agentAuth(req, res)) return;
+  try {
+    const r = await reportState(req.params.id, { status: req.body?.status, message: req.body?.message }, agentName(req));
+    return res.json({ ok: true, ...r });
+  } catch (err) {
+    return agentError(res, err);
+  }
+});
+
+router.post('/bank-agent/:id/otp', json(), async (req, res) => {
+  if (!agentAuth(req, res)) return;
+  try {
+    // no-store: קוד חד-פעמי אסור שיישב במטמון של אף שכבה בדרך.
+    res.set('Cache-Control', 'no-store');
+    return res.json({ ok: true, ...(await takeOtp(req.params.id, agentName(req))) });
+  } catch (err) {
+    return agentError(res, err);
+  }
+});
+
+router.post('/bank-agent/:id/result', json({ limit: '4mb' }), async (req, res) => {
+  if (!agentAuth(req, res)) return;
+  try {
+    const r = await completeWithAccounts(req.params.id, req.body, agentName(req));
+    return res.json({ ok: true, ...r });
+  } catch (err) {
+    return agentError(res, err);
   }
 });
 

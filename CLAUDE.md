@@ -66,7 +66,8 @@ happen only at merge. So:
 ## Run & test
 - `npm test` → SQLite dialect. `TEST_PG=1 npm test` → Postgres dialect (pg-mem). **Run both** before pushing.
 - `node scripts/smoke.mjs` → boots the real app + an owner session, seeds a full dataset, and sweeps
-  **every GET route (~52)** — every page, detail (`:id`), CSV, JSON and image route — asserting a
+  **a hand-maintained list of GET routes (~57)** — 🔴 **a new GET route must be added to its `routes` array by hand**
+  (it is NOT derived from the router; a new JSON route went unchecked until added) — every page, detail (`:id`), CSV, JSON and image route — asserting a
   healthy status (not the error page). Catches EJS/500 regressions unit tests miss. `node
   scripts/smoke.mjs [paths...]` = quick mode: check just those paths (expects 200).
 - Tests live in `test/*.test.js` (~48 files). Helpers: `test/helpers.js` → `freshDb()` (schema+seed,
@@ -112,6 +113,11 @@ happen only at merge. So:
   number (הגדרות ← 🏦 "קשר חשבונות בנק"); a re-pull is idempotent via `bank_transactions.external_id`.
   Nightly: `GET /ingest/bank-sync` (before the auth gate, guarded by **`CRON_SECRET`** — unset = 503;
   Vercel Cron sends it as a Bearer header), scheduled in `vercel.json` → `crons`.
+- **Bank channel 3 — office-PC agent (הפועלים לעסקים, SMS every login):** Vercel can't run a browser or hold a
+  session across requests, so `agent/` runs on the office computer and the DB table `bank_sync_jobs` is the only
+  bridge (user clicks + types the SMS code in `/reconciliation`; agent claims, logs in, waits, imports). Agent
+  endpoints `/ingest/bank-agent/*` use **`BANK_AGENT_SECRET`** (falls back to `CRON_SECRET`), header-only. **Bank
+  passwords never enter the app** — only `agent/config.json` on that PC (gitignored). Detail: INDEX.md · התאמת בנק.
 - **Bank channel 2 — scraping:** `israeli-bank-scrapers` (optional dep, lazy) via `src/scraper/*` +
   `lib/scraperMap.js`; run OUTSIDE the app (`scripts/scrape-push.mjs` on GitHub Actions —
   `.github/workflows/bank-scrape.yml`) because it needs a real Chromium. It POSTs finished rows to

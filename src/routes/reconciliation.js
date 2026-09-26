@@ -36,6 +36,7 @@ import {
   reconcileAccount,
   matchTxnToInvoices,
 } from '../services/reconciliation.js';
+import { requestSync, submitOtp, cancelSync, syncStatus } from '../services/bankSyncJobs.js';
 import { syncBankAccount } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
 
@@ -123,6 +124,9 @@ async function renderPage(req, res, accountId, extra = {}) {
     // חשבוניות פתוחות של החנות שמאחורי החשבון הזה — המועמדות לשיוך של חיוב שאין לו צ׳ק.
     // נשלחות פעם אחת עם הדף ומשרתות דיאלוג אחד משותף לכל השורות (ולא דיאלוג לכל שורה).
     payableInvoices: accountId ? await payableForAccount(accountId, req.scope) : [],
+    // כרטיס סנכרון הבנק (סוכן מחשב המשרד) — רק למי שמורשה לייבא. המצב ההתחלתי מרונדר בשרת כדי
+    // שהכרטיס יעבוד גם בלי JS; הסקריפט רק מרענן אותו בזמן אמת.
+    bankSync: res.locals.can?.('import_bank') ? await syncStatus(req.user, req.scope) : null,
     payMethods: PAY_METHODS,
     // Open-Banking sync is offered only when the key is configured AND this account is linked.
     financyReady: financyConfigured(),
@@ -185,6 +189,60 @@ router.post('/import-csv', requirePermission('import_bank'), (req, res, next) =>
 
 // Open-Banking sync — pull this account's movements from Financy and run the matcher.
 // Same permission as the CSV import: this is the same act (bring the statement in), automated.
+// 🏦 סנכרון הבנק דרך סוכן מחשב המשרד (הפועלים לעסקים — קוד SMS בכל התחברות). האפליקציה לא
+// מריצה דפדפן; היא רק כותבת בקשה, מציגה מצב, ומקבלת את הקוד שהמשתמש קיבל. ראה
+// services/bankSyncJobs.js. תחת /reconciliation בכוונה: שומר הדף, חומת ברירת-המחדל וה-fallback
+// של כתובות-פעולה כבר מכסים את הנתיבים האלה, בלי רשומה חדשה שאפשר לשכוח.
+const wantsJson = (req) => /application\/json/i.test(req.get('accept') || '');
+
+async function bankSyncReply(req, res, fn, okNotice) {
+  try {
+    await fn();
+    if (wantsJson(req)) return res.json({ ok: true, ...(await syncStatus(req.user, req.scope)) });
+    // PRG (ראה CLAUDE.md): הפניה ולא רינדור, כדי שרענון לא ישלח שוב בקשה או קוד.
+    return res.redirect(303, `/reconciliation?notice=${encodeURIComponent(okNotice)}#bank-sync`);
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof NotFoundError) {
+      if (wantsJson(req)) return res.status(400).json({ ok: false, error: err.message });
+      return res.redirect(303, `/reconciliation?err=${encodeURIComponent(err.message)}#bank-sync`);
+    }
+    throw err;
+  }
+}
+
+router.get('/bank-sync/status', requirePermission('import_bank'), async (req, res, next) => {
+  try {
+    res.set('Cache-Control', 'no-store');
+    return res.json({ ok: true, ...(await syncStatus(req.user, req.scope)) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/bank-sync/request', requirePermission('import_bank'), async (req, res, next) => {
+  try {
+    await bankSyncReply(req, res, () => requestSync(req.user), 'בקשת הסנכרון נשלחה למחשב המשרד.');
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/bank-sync/:id/otp', requirePermission('import_bank'), async (req, res, next) => {
+  try {
+    await bankSyncReply(req, res, () => submitOtp(req.params.id, req.body?.otp, req.user), 'הקוד נשלח — מאמת מול הבנק.');
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/bank-sync/:id/cancel', requirePermission('import_bank'), async (req, res, next) => {
+  try {
+    await bankSyncReply(req, res, () => cancelSync(req.params.id, req.user), 'הסנכרון בוטל.');
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/sync', requirePermission('import_bank'), async (req, res, next) => {
   const accountId = await resolveAccountId(req);
   try {
