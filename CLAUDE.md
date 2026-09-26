@@ -119,8 +119,8 @@ happen only at merge. So:
   endpoints `/ingest/bank-agent/*` use **`BANK_AGENT_SECRET`** (falls back to `CRON_SECRET`), header-only. **Bank
   passwords never enter the app** — only `agent/config.json` on that PC (gitignored). Detail: INDEX.md · התאמת בנק.
 - **Bank channel 2 — scraping:** `israeli-bank-scrapers` (optional dep, lazy) via `src/scraper/*` +
-  `lib/scraperMap.js`; run OUTSIDE the app (`scripts/scrape-push.mjs` on GitHub Actions —
-  `.github/workflows/bank-scrape.yml`) because it needs a real Chromium. It POSTs finished rows to
+  `lib/scraperMap.js`; run OUTSIDE the app (`scripts/scrape-push.mjs`, by hand on any machine with a browser —
+  the GitHub Actions workflow was **deleted**: our bank needs an SMS code, see channel 3). It POSTs finished rows to
   `POST /ingest/bank-txns` (also `CRON_SECRET`-guarded) → `importScrapedBatch` → same
   `importTransactions`+`autoReconcile` pipeline. **Bank credentials live only in the runner's
   secrets — never in the DB, never on Vercel.** Unknown account numbers are reported, never guessed.

@@ -3,7 +3,8 @@
 //
 // Why outside: israeli-bank-scrapers drives a real Chromium against the bank's website. A Vercel
 // serverless function has no browser and a 300s ceiling, so this runs on a machine that does have
-// one — a GitHub Actions cron (see .github/workflows/bank-scrape.yml), a small VPS, or your own PC.
+// one — a small VPS or your own PC. (The GitHub Actions cron was removed: הפועלים לעסקים asks for an
+// SMS code on every login, so it runs through the office-PC agent instead — see agent/.)
 //
 // It logs in, scrapes, and POSTs the finished rows to /ingest/bank-txns. THE APP NEVER SEES THE
 // BANK CREDENTIALS: they exist only in this runner's environment (GitHub Secrets), never in the
