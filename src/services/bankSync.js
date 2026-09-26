@@ -180,18 +180,57 @@ export async function syncAllLinkedAccounts(opts = {}, actor, x = getExecutor())
  * @param {{accounts:Array<{accountNumber:string, transactions:Array}>}} payload
  * @returns {{accounts:number, inserted:number, skipped:number, matched:number, unmapped:string[], results:Array}}
  */
+/**
+ * מיפוי חשבון שנסרק לחשבון הבנק הרשום באפליקציה — **בלי לנחש**.
+ *
+ * 🔴 שני מרחבי כתיבה שונים: ייבוא CSV ו-Financy מוסרים מספר חשבון בלבד ("432110"), אבל סקרייפר
+ * של בנק מוסר מזהה מלא — `בנק-סניף-חשבון` ("12-628-432110"), כי זה מה שה-API של הבנק דורש.
+ * ההשוואה הקודמת הסירה תווים שאינם ספרות משני הצדדים, ולכן השוותה "12628432110" מול "432110"
+ * ו**לא התאימה כלום**: כל חשבון שנסרק היה חוזר כ"לא מזוהה" ושום תנועה לא הייתה נקלטת.
+ *
+ * הסדר: התאמה מלאה → סניף+חשבון → מספר חשבון לבדו, **ורק אם הוא ייחודי**. שני חשבונות באותו
+ * מספר בסניפים שונים = דו-משמעות, וזה מדווח ולא מנוחש (אותו כלל של `matchFinancyAccount`:
+ * לעולם לא לנחש לאיזה ספר כסף נכנס).
+ */
+export function resolveScrapedAccount(rows) {
+  const digits = (v) => String(v ?? '').replace(/\D/g, '');
+  const byFull = new Map();
+  const byBranchAccount = new Map();
+  const countByAccount = new Map();
+  for (const r of rows) {
+    const acct = digits(r.account_number);
+    byFull.set(acct, r);
+    byBranchAccount.set(`${digits(r.branch)}|${acct}`, r);
+    countByAccount.set(acct, (countByAccount.get(acct) || 0) + 1);
+  }
+  return (incoming) => {
+    const raw = String(incoming ?? '');
+    if (!raw.trim()) return null;
+    const exact = byFull.get(digits(raw));
+    if (exact) return exact;
+    const parts = raw.split(/[^0-9]+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const account = parts[parts.length - 1];
+      const branch = parts[parts.length - 2];
+      const hit = byBranchAccount.get(`${branch}|${account}`);
+      if (hit) return hit;
+      if (countByAccount.get(account) === 1) return byFull.get(account);
+    }
+    return null;
+  };
+}
+
 export async function importScrapedBatch(payload, actor, x = getExecutor()) {
   const incoming = Array.isArray(payload?.accounts) ? payload.accounts : [];
   if (!incoming.length) throw new RuleError('SCRAPER', 'לא התקבלו חשבונות במשיכה');
 
-  const rows = await x.many('SELECT id, account_number, display_name FROM bank_accounts', []);
-  const byNumber = new Map(rows.map((r) => [String(r.account_number).replace(/\D/g, ''), r]));
+  const rows = await x.many('SELECT id, account_number, branch, display_name FROM bank_accounts', []);
+  const target_ = resolveScrapedAccount(rows);
 
   const results = [];
   const unmapped = [];
   for (const acc of incoming) {
-    const key = String(acc?.accountNumber ?? '').replace(/\D/g, '');
-    const target = key && byNumber.get(key);
+    const target = target_(acc?.accountNumber);
     if (!target) {
       unmapped.push(String(acc?.accountNumber ?? ''));
       continue;
