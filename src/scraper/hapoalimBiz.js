@@ -108,7 +108,14 @@ async function apiGet(page, url) {
  */
 export async function scrapeHapoalimBiz({
   credentials, startDate, showBrowser = false, failureScreenshotPath = null,
-  selectors = { userCode: '#userCode', password: '#password', submit: '.login-btn' },
+  accountIds = null,
+  // 🔴 נמדדו מול המסך החי. **`#user-code` עם מקף** — הפורטל הפרטי משתמש ב-`#userCode` בלי מקף,
+  // וזו בדיוק הטעות שהייתה עולה ניסיון התחברות כושל.
+  selectors = {
+    userCode: '#user-code',
+    password: '#password',
+    submit: '.submit-btn-container button[type="submit"], button.submit-btn',
+  },
   loginUrl = `${BIZ_BASE}/ng-portals/auth/he/`,
 }) {
   if (!credentials?.userCode || !credentials?.password) {
@@ -127,6 +134,9 @@ export async function scrapeHapoalimBiz({
     await page.setViewport({ width: 1280, height: 900 });
     await page.goto(loginUrl, { waitUntil: 'networkidle2' });
 
+    // 🔴 הקלדה אמיתית (`page.type`) ולא השמה ל-`value`. הטופס הוא Angular reactive form
+    // (`formcontrolname`), שמקשיב לאירועי קלט — השמה ישירה ל-value ממלאת את השדה על המסך אבל
+    // משאירה את הטופס ריק מבחינת Angular, וההתחברות נכשלת עם מסך שנראה מלא.
     await page.waitForSelector(selectors.userCode, { timeout: 30000 });
     await page.type(selectors.userCode, credentials.userCode);
     await page.type(selectors.password, credentials.password);
@@ -141,14 +151,22 @@ export async function scrapeHapoalimBiz({
       throw new Error('ההתחברות לפורטל העסקי לא עברה (נשארנו בדף ההתחברות). לא בוצע ניסיון נוסף.');
     }
 
-    const accounts = await apiGet(page, `${BIZ_BASE}/ServerServices/general/accounts`);
-    const open = (accounts || []).filter((a) => Number(a?.accountClosingReasonCode ?? 0) === 0);
+    // מאיפה מגיעה רשימת החשבונות: אם הוגדרה מפורשות ב-BANK_SCRAPERS — משם, וזה המסלול
+    // הוודאי. אחרת שואלים את הבנק. ההגדרה המפורשת קיימת כדי שגילוי החשבונות לא יהיה תנאי
+    // להרצה: קבוצה עם שני חשבונות ידועים לא צריכה לחכות לאנדפוינט שאולי נקרא אחרת בפורטל הזה.
+    let ids = (accountIds || []).map((x) => String(x).trim()).filter(Boolean);
+    if (!ids.length) {
+      const accounts = await apiGet(page, `${BIZ_BASE}/ServerServices/general/accounts`);
+      ids = (accounts || [])
+        .filter((a) => Number(a?.accountClosingReasonCode ?? 0) === 0)
+        .map(composeAccountId);
+    }
+    if (!ids.length) throw new Error('לא נמצאו חשבונות למשיכה בפורטל העסקי');
 
     const from = yyyymmdd(startDate);
     const to = yyyymmdd(new Date());
     const out = [];
-    for (const acc of open) {
-      const accountId = composeAccountId(acc);
+    for (const accountId of ids) {
       const url = `${BIZ_BASE}/ServerServices/current-account/transactions`
         + `?numItemsPerPage=500&sortCode=1&retrievalEndDate=${to}&retrievalStartDate=${from}`
         + `&accountId=${encodeURIComponent(accountId)}&lang=he`;

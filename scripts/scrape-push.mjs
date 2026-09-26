@@ -18,6 +18,9 @@
 //                   [{"companyId":"hapoalim","credentials":{"userCode":"…","password":"…"}},
 //                    {"companyId":"isracard","credentials":{"id":"…","card6Digits":"…","password":"…"}}]
 //                   The credential keys are whatever that scraper expects; they are passed through.
+//                   `hapoalimBiz` = בנק הפועלים **לעסקים** (biz2), שהספרייה אינה מכסה:
+//                   [{"companyId":"hapoalimBiz","credentials":{"userCode":"…","password":"…"},
+//                     "accountIds":["12-628-123456"]}]   ← accountIds אופציונלי
 //   AP_INGEST_URL   e.g. https://ap-control.vercel.app
 //   CRON_SECRET     same value the app has — authenticates the POST
 //   BANK_SCRAPE_DAYS  how far back to scrape (default 90). The window overlaps on purpose;
@@ -81,6 +84,9 @@ async function main() {
         //    ולכן אינו נאסף כברירת מחדל — הוא נועד לענות על שאלה אחת ("על מה הדפדפן תקוע")
         //    ואז להימחק.
         failureScreenshotPath: debug ? `${shotDir}/${t.companyId}.png` : null,
+        // אופציונלי: רשימת מזהי חשבון מפורשת ("12-628-123456"). כשהיא נתונה, המשיכה אינה
+        // תלויה בגילוי חשבונות אצל הבנק.
+        accountIds: t.accountIds || null,
       });
       for (const acc of got) {
         log(`  ${t.companyId} · account ${acc.accountNumber}: ${acc.transactions.length} rows`);

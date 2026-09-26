@@ -15,9 +15,14 @@ import { mapScrapedTransactions } from '../lib/scraperMap.js';
 
 /** Institutions this app is wired for. Keys are israeli-bank-scrapers' own CompanyTypes names. */
 export const SCRAPER_COMPANIES = [
-  'hapoalim', 'leumi', 'discount', 'mizrahi', 'otsarHahayal', 'beinleumi', 'massad', 'yahav', 'union',
+  'hapoalim', 'hapoalimBiz', 'leumi', 'discount', 'mizrahi', 'otsarHahayal', 'beinleumi', 'massad', 'yahav', 'union',
   'isracard', 'amex', 'visaCal', 'max',
 ];
+
+// 🔴 `hapoalimBiz` אינו מוסד של הספרייה — הספרייה מכירה את הפועלים **הפרטי** בלבד
+// (login.bankhapoalim.co.il, baseUrl מקודד קשיח), והחשבון של הקבוצה הוא עסקי
+// (biz2.bankhapoalim.co.il). המימוש שלנו יושב ב-./hapoalimBiz.js ומדבר עם אותו backend.
+const OWN_SCRAPERS = new Set(['hapoalimBiz']);
 
 async function loadLib() {
   try {
@@ -38,11 +43,16 @@ async function loadLib() {
  */
 export async function scrapeInstitution({
   companyId, credentials, startDate, showBrowser = false,
-  verbose = false, defaultTimeout = null, failureScreenshotPath = null,
+  verbose = false, defaultTimeout = null, failureScreenshotPath = null, accountIds = null,
 }) {
   if (!companyId) throw new Error('חסר companyId למשיכה');
   if (!credentials || !Object.keys(credentials).length) {
     throw new Error(`חסרים פרטי התחברות עבור ${companyId}`);
+  }
+
+  if (OWN_SCRAPERS.has(companyId)) {
+    const { scrapeHapoalimBiz } = await import('./hapoalimBiz.js');
+    return scrapeHapoalimBiz({ credentials, startDate, showBrowser, failureScreenshotPath, accountIds });
   }
 
   const { createScraper, CompanyTypes } = await loadLib();
