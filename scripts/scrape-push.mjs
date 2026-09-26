@@ -53,6 +53,16 @@ async function main() {
   const days = Number(process.env.BANK_SCRAPE_DAYS ?? 90);
   const startDate = startArg ? new Date(`${startArg}T00:00:00Z`) : new Date(Date.now() - days * 86400000);
 
+  // אבחון מופעל במפורש (SCRAPE_DEBUG=1) — לא כברירת מחדל, כי הוא מצלם את דף הבנק.
+  const debug = /^(1|true|yes)$/i.test(String(process.env.SCRAPE_DEBUG || ''));
+  const timeoutMs = Number(process.env.SCRAPE_TIMEOUT_MS) || null;
+  const shotDir = process.env.SCRAPE_SHOT_DIR || 'scrape-debug';
+  if (debug) {
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(shotDir, { recursive: true });
+    log(`Debug on — failure screenshots → ${shotDir}/`);
+  }
+
   const targets = parseTargets();
   log(`Scraping ${targets.length} institution(s) from ${startDate.toISOString().slice(0, 10)} …`);
 
@@ -61,7 +71,17 @@ async function main() {
   const failures = [];
   for (const t of targets) {
     try {
-      const got = await scrapeInstitution({ companyId: t.companyId, credentials: t.credentials, startDate });
+      const got = await scrapeInstitution({
+        companyId: t.companyId,
+        credentials: t.credentials,
+        startDate,
+        verbose: debug,
+        defaultTimeout: timeoutMs,
+        // 🔴 צילום המסך נכתב רק כשיש כישלון, ורק כשביקשו אבחון במפורש. הוא מצלם את דף הבנק
+        //    ולכן אינו נאסף כברירת מחדל — הוא נועד לענות על שאלה אחת ("על מה הדפדפן תקוע")
+        //    ואז להימחק.
+        failureScreenshotPath: debug ? `${shotDir}/${t.companyId}.png` : null,
+      });
       for (const acc of got) {
         log(`  ${t.companyId} · account ${acc.accountNumber}: ${acc.transactions.length} rows`);
         accounts.push(acc);

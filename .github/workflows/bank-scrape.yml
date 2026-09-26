@@ -23,6 +23,10 @@ on:
         description: 'Scrape and print, POST nothing'
         type: boolean
         default: false
+      debug:
+        description: 'Capture a screenshot of the page when login fails (private artifact, 1 day)'
+        type: boolean
+        default: false
 
 # Never let two scrapes overlap: a second login while the first is live can trip a bank's
 # fraud controls, and both would write the same rows.
@@ -58,7 +62,22 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           AP_INGEST_URL: ${{ vars.AP_INGEST_URL || 'https://ap-control.vercel.app' }}
           BANK_SCRAPE_DAYS: ${{ vars.BANK_SCRAPE_DAYS || '90' }}
+          SCRAPE_DEBUG: ${{ inputs.debug == true && '1' || '' }}
+          SCRAPE_SHOT_DIR: scrape-debug
         run: |
           node scripts/scrape-push.mjs \
             ${{ inputs.start_date }} \
             ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+      # 🔴 רק על כישלון, ורק כשביקשו אבחון. התמונה מראה את דף הבנק ברגע התקיעה — זה מה שמבדיל
+      # בין סיסמה שגויה, דרישת אימות דו-שלבי, וחסימה של הבנק על כתובת IP של חוות שרתים; שלושתם
+      # נראים בלוג כאותו "TIMEOUT". הריפו פרטי, והשמירה מוגבלת ליום אחד — זו ראיה לחקירה אחת,
+      # לא ארכיון.
+      - name: Upload failure screenshot
+        if: failure() && inputs.debug == true
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-debug
+          path: scrape-debug/
+          retention-days: 1
+          if-no-files-found: ignore

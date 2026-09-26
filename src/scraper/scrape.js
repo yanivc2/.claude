@@ -36,7 +36,10 @@ async function loadLib() {
  *   Leumi/Isracard/Cal/Max: {username|id, password, card6Digits...}) — passed through untouched.
  * @returns {Promise<Array<{accountNumber:string, transactions:Array}>>}
  */
-export async function scrapeInstitution({ companyId, credentials, startDate, showBrowser = false }) {
+export async function scrapeInstitution({
+  companyId, credentials, startDate, showBrowser = false,
+  verbose = false, defaultTimeout = null, failureScreenshotPath = null,
+}) {
   if (!companyId) throw new Error('חסר companyId למשיכה');
   if (!credentials || !Object.keys(credentials).length) {
     throw new Error(`חסרים פרטי התחברות עבור ${companyId}`);
@@ -46,7 +49,20 @@ export async function scrapeInstitution({ companyId, credentials, startDate, sho
   const type = CompanyTypes[companyId];
   if (!type) throw new Error(`מוסד לא מוכר ל-israeli-bank-scrapers: ${companyId}`);
 
-  const scraper = createScraper({ companyId: type, startDate, combineInstallments: false, showBrowser });
+  // 🔴 אבחון. כשההתחברות נכשלת הודעת השגיאה לבדה אינה אומרת **למה** — "TIMEOUT waiting for
+  // redirect" נראה זהה בין סיסמה שגויה, דרישת אימות דו-שלבי, וחסימה של הבנק על כתובת IP של
+  // חוות שרתים. צילום המסך ברגע הכישלון הוא מה שמבדיל ביניהם, ובלעדיו מנחשים.
+  // `navigationRetryCount` מכסה טעינה אחת איטית; הוא אינו מנסה להתחבר שוב ולכן אינו מסכן נעילה.
+  const scraper = createScraper({
+    companyId: type,
+    startDate,
+    combineInstallments: false,
+    showBrowser,
+    verbose,
+    navigationRetryCount: 2,
+    ...(defaultTimeout ? { defaultTimeout } : {}),
+    ...(failureScreenshotPath ? { storeFailureScreenShotPath: failureScreenshotPath } : {}),
+  });
   const result = await scraper.scrape(credentials);
   if (!result.success) {
     throw new Error(`שגיאת scraper (${companyId}): ${result.errorType || ''} ${result.errorMessage || ''}`.trim());
