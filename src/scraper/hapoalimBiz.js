@@ -156,12 +156,20 @@ export async function scrapeHapoalimBiz({
     // להרצה: קבוצה עם שני חשבונות ידועים לא צריכה לחכות לאנדפוינט שאולי נקרא אחרת בפורטל הזה.
     let ids = (accountIds || []).map((x) => String(x).trim()).filter(Boolean);
     if (!ids.length) {
-      const accounts = await apiGet(page, `${BIZ_BASE}/ServerServices/general/accounts`);
+      const accounts = await apiGet(page, `${BIZ_BASE}/ServerServices/general/accounts?lang=he`);
       ids = (accounts || [])
         .filter((a) => Number(a?.accountClosingReasonCode ?? 0) === 0)
-        .map(composeAccountId);
+        .map(composeAccountId)
+        // 🔴 מזהה שנבנה חלקית הוא גרוע ממזהה חסר: הוא היה נשלח לבנק, חוזר ריק, והמשיכה
+        // הייתה מדווחת "0 תנועות" — כלומר נראית כמו הצלחה שקטה מול חשבון שלא נבדק כלל.
+        .filter((id) => !/undefined|null/.test(id));
     }
-    if (!ids.length) throw new Error('לא נמצאו חשבונות למשיכה בפורטל העסקי');
+    if (!ids.length) {
+      throw new Error(
+        'לא נמצאו חשבונות למשיכה בפורטל העסקי. הוסף accountIds ל-BANK_SCRAPERS '
+        + '(פורמט בנק-סניף-חשבון) כדי לא להיות תלוי בגילוי אוטומטי.',
+      );
+    }
 
     const from = yyyymmdd(startDate);
     const to = yyyymmdd(new Date());
