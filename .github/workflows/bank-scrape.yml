@@ -11,9 +11,14 @@
 name: bank-scrape
 
 on:
-  schedule:
-    # 04:20 UTC ≈ 07:20 Israel — after the bank has posted overnight, offset from the Financy cron.
-    - cron: '20 4 * * *'
+  # 🔴 התזמון הלילי מושבת בכוונה. `israeli-bank-scrapers` תומך ב-**הפועלים הפרטי בלבד**
+  # (login.bankhapoalim.co.il), והחשבון כאן הוא **הפועלים לעסקים** (bankhapoalim.biz) — מערכת
+  # אחרת לגמרי. נמדד: קוד המשתמש העסקי הוזן לדף הפרטי, הדף השיב "כדי להתחבר לחשבון הפרטי יש
+  # להצטרף לקבלת שירות בדיגיטל דרך הסניף", וההתחברות נתקעה. הרצה לילית כזו היא **ניסיון
+  # התחברות כושל בכל בוקר**, והבנק נועל גישה אחרי כמה כשלונות — כלומר התזמון לא רק חסר תועלת,
+  # הוא מסוכן. להחזרה: להסיר את ההערה משתי השורות למטה.
+  #  schedule:
+  #    - cron: '20 4 * * *'
   workflow_dispatch:
     inputs:
       start_date:
