@@ -31,7 +31,7 @@ export const OTP_WAIT_SEC = 300;
 /** ריצה שלא דיווחה זמן כזה נחשבת מתה — הסוכן קרס או שהמחשב נכבה באמצע. */
 export const STALE_SEC = 360;
 /** מחשב המשרד נחשב "מחובר" אם דיווח לאחרונה בחלון הזה. */
-export const AGENT_ONLINE_SEC = 45;
+export const AGENT_ONLINE_SEC = 75; // הסוכן שואל כל 30 שניות — מרווח לשתי החמצות
 
 const HEARTBEAT_KEY = 'bank_agent_heartbeat';
 
@@ -187,6 +187,7 @@ export async function syncStatus(user, scope = null, x = getExecutor()) {
     ready,
     agentOnline: agentAge <= AGENT_ONLINE_SEC,
     agentSeenSec: Number.isFinite(agentAge) ? Math.round(agentAge) : null,
+    agentHours: agent?.hours || null,
     loginKey: loginKeyFor(user),
     job: null,
   };
@@ -245,18 +246,21 @@ export async function syncStatus(user, scope = null, x = getExecutor()) {
 // ---------------------------------------------------------------- צד הסוכן (מחשב המשרד)
 
 /** פעימת חיים — כותבים רק אם הקודמת ישנה מ-20 שניות, כדי לא לכתוב למסד בכל בדיקה. */
-async function heartbeat(agentName, x) {
+async function heartbeat(agentName, x, hours = undefined) {
   const hb = await getSetting(HEARTBEAT_KEY, null, x);
   let prev = null;
   try { prev = hb ? JSON.parse(hb) : null; } catch { prev = null; }
-  if (!prev || ageSec(prev.at) > 20 || prev.agent !== agentName) {
-    await setSetting(HEARTBEAT_KEY, JSON.stringify({ at: nowTs(), agent: agentName }), x);
+  // שעות הפעילות של הסוכן (למשל "08:00-16:00") — מחוץ להן הוא לא שולח אף בקשה, והכרטיס אומר את זה
+  // במקום "לא מחובר" סתמי. `undefined` = הפנייה לא מסרה שעות, נשארים עם הידוע.
+  const h = hours === undefined ? (prev?.hours ?? null) : (/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(String(hours || '')) ? String(hours) : null);
+  if (!prev || ageSec(prev.at) > 20 || prev.agent !== agentName || (prev.hours ?? null) !== h) {
+    await setSetting(HEARTBEAT_KEY, JSON.stringify({ at: nowTs(), agent: agentName, hours: h }), x);
   }
 }
 
 /** בדיקת חיבור מהסוכן (npm run check במחשב המשרד): רק פעימת חיים, בלי לתפוס בקשה. */
-export async function agentPing(agentName, x = getExecutor()) {
-  await heartbeat(agentName, x);
+export async function agentPing(agentName, x = getExecutor(), { hours } = {}) {
+  await heartbeat(agentName, x, hours);
   return { ok: true, ready: await bankSyncReady(x) };
 }
 
@@ -265,8 +269,8 @@ export async function agentPing(agentName, x = getExecutor()) {
  * `changes`): שני סוכנים שרצים בטעות על שני מחשבים לא יתפסו את אותה בקשה — כלומר לא יתחברו
  * לבנק פעמיים במקביל.
  */
-export async function claimNext(agentName, x = getExecutor()) {
-  await heartbeat(agentName, x);
+export async function claimNext(agentName, x = getExecutor(), { hours } = {}) {
+  await heartbeat(agentName, x, hours);
   await expireStale(x);
   const busy = await x.one(`SELECT id FROM bank_sync_jobs WHERE status IN (?, ?) LIMIT 1`, ['running', 'awaiting_otp']);
   if (busy) return null; // אחד בכל פעם

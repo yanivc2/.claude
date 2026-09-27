@@ -177,3 +177,15 @@ test('בזמן שבקשה נתפסה ופעילה — הסוכן מוצג מחו
   st = await syncStatus(o, null, x);
   assert.equal(st.agentOnline, false, 'אחרי הסיום — שוב לפי פעימת החיים');
 });
+
+test('שעות הפעילות שהסוכן מוסר נשמרות ומוצגות בכרטיס; פורמט לא תקין נזרק', async () => {
+  const { agentPing } = await import('../src/services/bankSyncJobs.js');
+  const x = await freshDb();
+  const o = await owner(x);
+  await claimNext('office-pc', x, { hours: '08:00-16:00' });
+  assert.equal((await syncStatus(o, null, x)).agentHours, '08:00-16:00');
+  await agentPing('office-pc', x); // פנייה בלי שעות — נשארים עם הידוע
+  assert.equal((await syncStatus(o, null, x)).agentHours, '08:00-16:00');
+  await agentPing('office-pc', x, { hours: '<script>' });
+  assert.equal((await syncStatus(o, null, x)).agentHours, null);
+});

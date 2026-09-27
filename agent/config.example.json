@@ -9,5 +9,7 @@
 
   "accountIds": [],
   "startDaysBack": 60,
-  "showBrowser": false
+  "showBrowser": false,
+  "activeHours": "08:00-16:00",
+  "pollSeconds": 30
 }

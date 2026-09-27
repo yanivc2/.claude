@@ -29,7 +29,33 @@ const NAME = process.env.BANK_AGENT_NAME || os.hostname();
 // כותרת HTTP מקבלת רק תווי ASCII — שם מחשב בעברית היה מפיל כל בקשה ("Cannot convert argument to a
 // ByteString"). שם כזה נשלח בגוף הבקשה (`agent`), שהשרת קורא כשאין כותרת.
 const NAME_IS_ASCII = /^[\x20-\x7e]*$/.test(NAME);
-const IDLE_MS = 10_000;     // כל כמה זמן לבדוק אם מישהו לחץ "סנכרן"
+// כל בקשה לאפליקציה היא הפעלה של פונקציה ב-Vercel. לכן הסוכן שואל "יש עבודה?" רק בשעות הפעילות
+// ובמרווח שנקבע (ברירת מחדל: 08:00-16:00, כל 30 שניות — בחירת הבעלים). מחוץ לשעות: אפס בקשות;
+// הסוכן ממשיך לרוץ על המחשב (זה לא עולה כלום) ובודק את השעון המקומי בלבד.
+const DEFAULT_HOURS = '08:00-16:00';
+const DEFAULT_POLL_SEC = 30;
+function pollMs(cfg) {
+  const n = Number(cfg.pollSeconds);
+  return (Number.isFinite(n) && n >= 10 ? n : DEFAULT_POLL_SEC) * 1000;
+}
+function activeHours(cfg) {
+  const v = cfg.activeHours === undefined ? DEFAULT_HOURS : String(cfg.activeHours || '').trim();
+  if (!v || /^(always|תמיד)$/i.test(v)) return null; // תמיד
+  const m = v.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
+  if (!m) throw new Error(`config.json: activeHours "${v}" לא בפורמט 08:00-16:00`);
+  const pad = (x) => String(x).padStart(2, '0');
+  return { from: Number(m[1]) * 60 + Number(m[2]), to: Number(m[3]) * 60 + Number(m[4]), label: `${pad(m[1])}:${m[2]}-${pad(m[3])}:${m[4]}` };
+}
+function israelMinutes(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
+  const get = (t) => Number(parts.find((p) => p.type === t)?.value);
+  return get('hour') * 60 + get('minute');
+}
+function withinHours(h, now = new Date()) {
+  if (!h) return true;
+  const m = israelMinutes(now);
+  return h.from <= h.to ? m >= h.from && m < h.to : m >= h.from || m < h.to; // גם טווח שחוצה חצות
+}
 const OTP_POLL_MS = 2_000;  // כל כמה זמן לבדוק אם הוזן קוד
 const OTP_WAIT_MS = 290_000; // השרת מוותר אחרי 300 שניות — הסוכן מוותר רגע לפניו
 
@@ -334,7 +360,8 @@ async function check() {
   });
   if (cfg) {
     await step('חיבור לאפליקציה', async () => {
-      const r = await api(cfg, '/ingest/bank-agent/ping');
+      const h = activeHours(cfg);
+      const r = await api(cfg, '/ingest/bank-agent/ping', { hours: h?.label || null });
       return r.ready ? 'מחובר' : 'מחובר, אבל צריך ללחוץ "עדכן מסד נתונים" בהגדרות';
     });
   }
@@ -353,15 +380,26 @@ async function main() {
   if (process.argv.includes('--check')) return check();
   if (process.argv.includes('--add-login')) return addLogin();
   let cfg = loadConfig();
+  let hours = activeHours(cfg);
   log(`סוכן סנכרון הבנק פועל על "${NAME}" מול ${cfg.appUrl}. משאירים את החלון פתוח.`);
+  log(hours ? `שולח בקשות רק בשעות ${hours.label} (שעון ישראל), כל ${pollMs(cfg) / 1000} שניות.` : `שולח בקשות כל ${pollMs(cfg) / 1000} שניות, בכל שעה.`);
   let backoff = 0;
+  let sleeping = false;
   for (;;) {
+    if (!withinHours(hours)) {
+      if (!sleeping) { log(`מחוץ לשעות הפעילות (${hours.label}) — לא שולח בקשות עד ${hours.label.split('-')[0]}.`); sleeping = true; }
+      await sleep(60_000); // שעון מקומי בלבד — אף בקשה לא יוצאת
+      try { cfg = loadConfig(); hours = activeHours(cfg); } catch { /* נשארים עם ההגדרות הקודמות */ }
+      continue;
+    }
+    if (sleeping) { log('בתוך שעות הפעילות — ממשיך.'); sleeping = false; }
     try {
-      const { job } = await api(cfg, '/ingest/bank-agent/claim');
+      const { job } = await api(cfg, '/ingest/bank-agent/claim', { hours: hours?.label || null });
       backoff = 0;
       if (job) {
         log(`→ #${job.id}: בקשת סנכרון (${job.loginKey})`);
         cfg = loadConfig(); // משתמש שנוסף ל-config.json נכנס לתוקף בלי להפעיל מחדש
+        hours = activeHours(cfg);
         await runJob(cfg, job);
         continue;
       }
@@ -371,7 +409,7 @@ async function main() {
       await sleep(backoff);
       continue;
     }
-    await sleep(IDLE_MS);
+    await sleep(pollMs(cfg));
   }
 }
 
