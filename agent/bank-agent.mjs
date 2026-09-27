@@ -45,9 +45,28 @@ function loadConfig() {
   }
   if (!/^https?:\/\//.test(cfg.appUrl || '')) throw new Error('config.json: חסר appUrl (למשל https://ap-control.vercel.app)');
   if (!cfg.agentSecret || /אותו ערך/.test(cfg.agentSecret)) throw new Error('config.json: חסר agentSecret (אותו ערך כמו BANK_AGENT_SECRET ב-Vercel)');
-  const logins = Object.entries(cfg.logins || {}).filter(([k, v]) => k && v?.userCode && v?.password && !/קוד משתמש/.test(v.userCode));
-  if (!logins.length) throw new Error('config.json: אין אף משתמש ב-logins עם userCode ו-password');
+  const entries = Object.entries(cfg.logins || {});
+  if (!entries.some(([k, v]) => !loginProblem(k, v))) {
+    const why = entries.map(([k, v]) => `"${k}": ${loginProblem(k, v)}`).join(' · ');
+    throw new Error(`config.json: אין אף משתמש תקין ב-logins${why ? ` (${why})` : ''}`);
+  }
   return cfg;
+}
+
+// למה שורה ב-logins לא שמישה — בלי לחשוף אף ערך. ערכי הדוגמה בעברית, וקוד משתמש בבנק אינו עברי,
+// ולכן עברית בשדה = הדוגמה לא הוחלפה (ניסיון התחברות עם הדוגמה היה מבזבז ניסיון מול נעילת הבנק).
+const HEBREW = /[\u0590-\u05FF]/;
+const EXAMPLE_PASSWORDS = new Set(['סיסמת הבנק', 'הסיסמה שלה']);
+function loginProblem(key, v) {
+  if (/^שם-המשתמש/.test(key)) return 'המפתח עדיין הדוגמה — צריך את שם המשתמש באפליקציה';
+  if (!v || typeof v !== 'object') return 'חסרים userCode ו-password';
+  const code = v.userCode == null ? '' : String(v.userCode).trim();
+  const pass = v.password == null ? '' : String(v.password);
+  if (!code) return 'חסר userCode';
+  if (HEBREW.test(code)) return 'userCode עדיין הדוגמה';
+  if (!pass) return 'חסר password';
+  if (EXAMPLE_PASSWORDS.has(pass)) return 'password עדיין הדוגמה';
+  return null;
 }
 
 async function api(cfg, pathname, body) {
@@ -79,8 +98,11 @@ function scrub(msg, creds) {
 }
 
 async function runJob(cfg, job) {
-  const creds = cfg.logins?.[job.loginKey];
-  if (!creds?.userCode || !creds?.password) {
+  const entry = cfg.logins?.[job.loginKey];
+  const creds = entry && !loginProblem(job.loginKey, entry)
+    ? { userCode: String(entry.userCode).trim(), password: String(entry.password) }
+    : null;
+  if (!creds) {
     await api(cfg, `/ingest/bank-agent/${job.id}/state`, {
       status: 'failed',
       message: `אין במחשב המשרד פרטי בנק למשתמש "${job.loginKey}". יש להוסיף אותו ל-agent/config.json תחת logins.`,
@@ -157,7 +179,13 @@ async function check() {
     try { const note = await fn(); log(`✓ ${label}${note ? ` — ${note}` : ''}`); } catch (e) { ok = false; log(`✗ ${label} — ${e.message}`); }
   };
   let cfg = null;
-  await step('קובץ ההגדרות', async () => { cfg = loadConfig(); return `${Object.keys(cfg.logins).length} משתמשים: ${Object.keys(cfg.logins).join(', ')}`; });
+  await step('קובץ ההגדרות', async () => {
+    cfg = loadConfig();
+    const entries = Object.entries(cfg.logins);
+    const good = entries.filter(([k, v]) => !loginProblem(k, v)).map(([k]) => k);
+    for (const [k, v] of entries) { const p = loginProblem(k, v); if (p) log(`  ⚠ "${k}" יידלג: ${p}`); }
+    return `${good.length} משתמשים מוכנים: ${good.join(', ')}`;
+  });
   if (cfg) {
     await step('חיבור לאפליקציה', async () => {
       const r = await api(cfg, '/ingest/bank-agent/ping');
