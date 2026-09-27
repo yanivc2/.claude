@@ -252,7 +252,7 @@ async function heartbeat(agentName, x, hours = undefined) {
   try { prev = hb ? JSON.parse(hb) : null; } catch { prev = null; }
   // שעות הפעילות של הסוכן (למשל "08:00-16:00") — מחוץ להן הוא לא שולח אף בקשה, והכרטיס אומר את זה
   // במקום "לא מחובר" סתמי. `undefined` = הפנייה לא מסרה שעות, נשארים עם הידוע.
-  const h = hours === undefined ? (prev?.hours ?? null) : (/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(String(hours || '')) ? String(hours) : null);
+  const h = hours === undefined ? (prev?.hours ?? null) : (/^[א-ת׳,–\- ]{0,24}(\d{2}:\d{2}-\d{2}:\d{2})?$/.test(String(hours || '')) && /\S/.test(String(hours || '')) ? String(hours).trim() : null);
   if (!prev || ageSec(prev.at) > 20 || prev.agent !== agentName || (prev.hours ?? null) !== h) {
     await setSetting(HEARTBEAT_KEY, JSON.stringify({ at: nowTs(), agent: agentName, hours: h }), x);
   }

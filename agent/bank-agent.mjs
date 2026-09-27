@@ -29,31 +29,70 @@ const NAME = process.env.BANK_AGENT_NAME || os.hostname();
 // כותרת HTTP מקבלת רק תווי ASCII — שם מחשב בעברית היה מפיל כל בקשה ("Cannot convert argument to a
 // ByteString"). שם כזה נשלח בגוף הבקשה (`agent`), שהשרת קורא כשאין כותרת.
 const NAME_IS_ASCII = /^[\x20-\x7e]*$/.test(NAME);
-// כל בקשה לאפליקציה היא הפעלה של פונקציה ב-Vercel. לכן הסוכן שואל "יש עבודה?" רק בשעות הפעילות
-// ובמרווח שנקבע (ברירת מחדל: 08:00-16:00, כל 30 שניות — בחירת הבעלים). מחוץ לשעות: אפס בקשות;
-// הסוכן ממשיך לרוץ על המחשב (זה לא עולה כלום) ובודק את השעון המקומי בלבד.
+// כל בקשה לאפליקציה היא הפעלה של פונקציה ב-Vercel. לכן הסוכן שואל "יש עבודה?" רק בימים ובשעות
+// הפעילות ובמרווח שנקבע (ברירת מחדל: א׳–ה׳, 08:00-16:00 שעון ישראל, כל 30 שניות — בחירת הבעלים).
+// מחוץ להם: אפס בקשות; הסוכן ממשיך לרוץ על המחשב (זה לא עולה כלום) ובודק את השעון המקומי בלבד.
 const DEFAULT_HOURS = '08:00-16:00';
+const DEFAULT_DAYS = 'א-ה';
 const DEFAULT_POLL_SEC = 30;
+const DAY_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש']; // 0 = ראשון … 6 = שבת
 function pollMs(cfg) {
   const n = Number(cfg.pollSeconds);
   return (Number.isFinite(n) && n >= 10 ? n : DEFAULT_POLL_SEC) * 1000;
 }
+/** "א-ה" / "א,ב,ד" / "all" → קבוצת ימים (0-6), או null = כל יום. */
+function parseDays(raw) {
+  const v = String(raw ?? DEFAULT_DAYS).replace(/[׳']/g, '').replace(/\s+/g, '').replace(/–/g, '-');
+  if (!v || /^(all|always|כליום|תמיד)$/i.test(v)) return null;
+  const days = new Set();
+  for (const part of v.split(',')) {
+    const m = part.match(/^([א-ת])(?:-([א-ת]))?$/);
+    const a = m ? DAY_LETTERS.indexOf(m[1]) : -1;
+    const b = m ? (m[2] ? DAY_LETTERS.indexOf(m[2]) : a) : -1;
+    if (a < 0 || b < 0 || b < a) throw new Error(`config.json: activeDays "${raw}" לא בפורמט "א-ה" או "א,ב,ג"`);
+    for (let d = a; d <= b; d += 1) days.add(d);
+  }
+  return days.size === 7 ? null : days;
+}
+function daysLabel(days) {
+  if (!days) return '';
+  const list = [...days].sort((x, y) => x - y);
+  const contiguous = list.every((d, i) => i === 0 || d === list[i - 1] + 1);
+  const L = (d) => `${DAY_LETTERS[d]}׳`;
+  return contiguous && list.length > 1 ? `${L(list[0])}–${L(list[list.length - 1])}` : list.map(L).join(',');
+}
 function activeHours(cfg) {
   const v = cfg.activeHours === undefined ? DEFAULT_HOURS : String(cfg.activeHours || '').trim();
-  if (!v || /^(always|תמיד)$/i.test(v)) return null; // תמיד
-  const m = v.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
-  if (!m) throw new Error(`config.json: activeHours "${v}" לא בפורמט 08:00-16:00`);
-  const pad = (x) => String(x).padStart(2, '0');
-  return { from: Number(m[1]) * 60 + Number(m[2]), to: Number(m[3]) * 60 + Number(m[4]), label: `${pad(m[1])}:${m[2]}-${pad(m[3])}:${m[4]}` };
+  const days = parseDays(cfg.activeDays);
+  let from = null;
+  let to = null;
+  let time = '';
+  if (v && !/^(always|תמיד)$/i.test(v)) {
+    const m = v.match(/^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/);
+    if (!m || Number(m[1]) > 23 || Number(m[3]) > 24 || Number(m[2]) > 59 || Number(m[4]) > 59) {
+      throw new Error(`config.json: activeHours "${v}" לא בפורמט 08:00-16:00`);
+    }
+    const pad = (x) => String(x).padStart(2, '0');
+    from = Number(m[1]) * 60 + Number(m[2]);
+    to = Number(m[3]) * 60 + Number(m[4]);
+    time = `${pad(m[1])}:${m[2]}-${pad(m[3])}:${m[4]}`;
+  }
+  if (from == null && !days) return null; // תמיד
+  return { from, to, days, label: [daysLabel(days), time].filter(Boolean).join(' ') };
 }
-function israelMinutes(now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(now);
-  const get = (t) => Number(parts.find((p) => p.type === t)?.value);
-  return get('hour') * 60 + get('minute');
+function israelNow(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now);
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(get('weekday'));
+  return { day, minutes: Number(get('hour')) * 60 + Number(get('minute')) };
 }
 function withinHours(h, now = new Date()) {
   if (!h) return true;
-  const m = israelMinutes(now);
+  const { day, minutes: m } = israelNow(now);
+  if (h.days && !h.days.has(day)) return false;
+  if (h.from == null) return true;
   return h.from <= h.to ? m >= h.from && m < h.to : m >= h.from || m < h.to; // גם טווח שחוצה חצות
 }
 const OTP_POLL_MS = 2_000;  // כל כמה זמן לבדוק אם הוזן קוד
@@ -387,7 +426,7 @@ async function main() {
   let sleeping = false;
   for (;;) {
     if (!withinHours(hours)) {
-      if (!sleeping) { log(`מחוץ לשעות הפעילות (${hours.label}) — לא שולח בקשות עד ${hours.label.split('-')[0]}.`); sleeping = true; }
+      if (!sleeping) { log(`מחוץ לשעות הפעילות (${hours.label}, שעון ישראל) — לא שולח בקשות עד תחילת הפעילות הבאה.`); sleeping = true; }
       await sleep(60_000); // שעון מקומי בלבד — אף בקשה לא יוצאת
       try { cfg = loadConfig(); hours = activeHours(cfg); } catch { /* נשארים עם ההגדרות הקודמות */ }
       continue;

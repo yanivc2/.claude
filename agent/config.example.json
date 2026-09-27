@@ -10,6 +10,7 @@
   "accountIds": [],
   "startDaysBack": 60,
   "showBrowser": false,
+  "activeDays": "א-ה",
   "activeHours": "08:00-16:00",
   "pollSeconds": 30
 }

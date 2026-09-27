@@ -11,7 +11,7 @@
       <p id="bs-agent" style="margin:0 0 .5rem">
         <% if (bs.agentOnline) { %><span class="badge b-paid">● מחשב המשרד מחובר</span>
         <% } else if (bs.agentSeenSec != null) { %><span class="badge b-on_hold">● מחשב המשרד לא מחובר</span>
-          <span class="muted" style="font-size:12px"><% if (bs.agentHours) { %>הסוכן שולח בקשות רק בשעות <%= bs.agentHours %> (שעון ישראל) — מחוץ להן סנכרון לא יתבצע.<% } else { %>נראה לאחרונה לפני <%= Math.round(bs.agentSeenSec / 60) %> דק׳ — ודא שהוא דלוק ושהסוכן רץ.<% } %></span>
+          <span class="muted" style="font-size:12px"><% if (bs.agentHours) { %>הסוכן פעיל רק ב-<%= bs.agentHours %> (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.<% } else { %>נראה לאחרונה לפני <%= Math.round(bs.agentSeenSec / 60) %> דק׳ — ודא שהוא דלוק ושהסוכן רץ.<% } %></span>
         <% } else { %><span class="badge b-neutral">● מחשב המשרד עוד לא התחבר</span>
           <span class="muted" style="font-size:12px">הסוכן צריך לרוץ על מחשב המשרד (ראה הוראות ההתקנה).</span>
         <% } %>
@@ -110,7 +110,7 @@
         s.agentSeenSec != null ? '● מחשב המשרד לא מחובר' : '● מחשב המשרד עוד לא התחבר'));
       p.appendChild(document.createTextNode(' '));
       p.appendChild(el('span', { class: 'muted', style: 'font-size:12px' },
-        s.agentHours ? ('הסוכן שולח בקשות רק בשעות ' + s.agentHours + ' (שעון ישראל) — מחוץ להן סנכרון לא יתבצע.')
+        s.agentHours ? ('הסוכן פעיל רק ב-' + s.agentHours + ' (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.')
           : s.agentSeenSec != null ? 'ודא שהוא דלוק ושהסוכן רץ.' : 'הסוכן צריך לרוץ על מחשב המשרד.'));
     }
     frag.appendChild(p);
