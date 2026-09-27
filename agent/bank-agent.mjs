@@ -21,10 +21,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { randomBytes } from 'node:crypto';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = process.env.BANK_AGENT_CONFIG || path.join(here, 'config.json');
-const NAME = os.hostname();
+const NAME = process.env.BANK_AGENT_NAME || os.hostname();
+// כותרת HTTP מקבלת רק תווי ASCII — שם מחשב בעברית היה מפיל כל בקשה ("Cannot convert argument to a
+// ByteString"). שם כזה נשלח בגוף הבקשה (`agent`), שהשרת קורא כשאין כותרת.
+const NAME_IS_ASCII = /^[\x20-\x7e]*$/.test(NAME);
 const IDLE_MS = 10_000;     // כל כמה זמן לבדוק אם מישהו לחץ "סנכרן"
 const OTP_POLL_MS = 2_000;  // כל כמה זמן לבדוק אם הוזן קוד
 const OTP_WAIT_MS = 290_000; // השרת מוותר אחרי 300 שניות — הסוכן מוותר רגע לפניו
@@ -44,13 +48,24 @@ function loadConfig() {
     throw new Error(`config.json אינו JSON תקין: ${e.message}`);
   }
   if (!/^https?:\/\//.test(cfg.appUrl || '')) throw new Error('config.json: חסר appUrl (למשל https://ap-control.vercel.app)');
-  if (!cfg.agentSecret || /אותו ערך/.test(cfg.agentSecret)) throw new Error('config.json: חסר agentSecret (אותו ערך כמו BANK_AGENT_SECRET ב-Vercel)');
+  const sp = secretProblem(cfg.agentSecret);
+  if (sp) throw new Error(`config.json: agentSecret ${sp}. הרץ: node bank-agent.mjs --add-login`);
   const entries = Object.entries(cfg.logins || {});
   if (!entries.some(([k, v]) => !loginProblem(k, v))) {
     const why = entries.map(([k, v]) => `"${k}": ${loginProblem(k, v)}`).join(' · ');
     throw new Error(`config.json: אין אף משתמש תקין ב-logins${why ? ` (${why})` : ''}`);
   }
   return cfg;
+}
+
+// הסוד נשלח בכותרת Authorization, ולכן חייב להיות ASCII. עברית בו = טקסט דוגמה שלא הוחלף.
+function secretProblem(v) {
+  const s = v == null ? '' : String(v).trim();
+  if (!s) return 'חסר';
+  if (/אותו ערך|הסוד/.test(s)) return 'עדיין טקסט הדוגמה';
+  if (!/^[\x21-\x7e]+$/.test(s)) return 'מכיל תווים שאינם אותיות באנגלית/ספרות (כנראה טקסט דוגמה או שפת מקלדת)';
+  if (s.length < 16) return 'קצר מדי';
+  return null;
 }
 
 // למה שורה ב-logins לא שמישה — בלי לחשוף אף ערך. ערכי הדוגמה בעברית, וקוד משתמש בבנק אינו עברי,
@@ -89,9 +104,9 @@ async function api(cfg, pathname, body) {
     headers: {
       'content-type': 'application/json',
       authorization: `Bearer ${cfg.agentSecret}`, // בכותרת בלבד — השרת לא מקבל סוד ב-URL
-      'x-agent-name': NAME,
+      ...(NAME_IS_ASCII ? { 'x-agent-name': NAME } : {}),
     },
-    body: JSON.stringify(body || {}),
+    body: JSON.stringify(NAME_IS_ASCII ? (body || {}) : { ...(body || {}), agent: NAME }),
   });
   let data = null;
   try { data = await res.json(); } catch { data = null; }
@@ -254,8 +269,19 @@ async function addLogin() {
   cfg.showBrowser ??= false;
   cfg.logins = cfg.logins && typeof cfg.logins === 'object' ? cfg.logins : {};
 
-  if (!cfg.agentSecret || /אותו ערך/.test(cfg.agentSecret)) {
-    cfg.agentSecret = (await askHidden('הסוד (BANK_AGENT_SECRET, מודבק עם קליק ימני; לא יוצג): ')).trim();
+  if (secretProblem(cfg.agentSecret)) {
+    console.log(`הסוד בקובץ ${secretProblem(cfg.agentSecret)}.`);
+    for (;;) {
+      const v = (await askHidden('הדבק את BANK_AGENT_SECRET (קליק ימני; לא יוצג), או Enter ריק ליצירת סוד חדש: ')).trim();
+      if (!v) {
+        cfg.agentSecret = randomBytes(32).toString('hex');
+        console.log(`\nנוצר סוד חדש. העתק אותו ל-Vercel ← Settings ← Environment Variables ← BANK_AGENT_SECRET,\nואז Deployments ← Redeploy:\n\n  ${cfg.agentSecret}\n`);
+        break;
+      }
+      const p = secretProblem(v);
+      if (!p) { cfg.agentSecret = v; console.log(`  נקלט (${v.length} תווים).`); break; }
+      console.log(`  הסוד ${p} — נסה שוב.`);
+    }
   }
   for (const [k, v] of Object.entries(cfg.logins)) {
     if (loginProblem(k, v)) { delete cfg.logins[k]; console.log(`הוסרה שורה לא שמישה: "${k}"`); }
