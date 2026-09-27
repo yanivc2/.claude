@@ -184,7 +184,7 @@
               <td data-label="הועלה ע״י" class="muted"><%= im.imported_by_name || '—' %></td>
               <td data-label="ביטול">
                 <form method="post" action="/reconciliation/imports/<%= im.id %>/delete" style="display:inline"
-                      onsubmit="return confirm('לבטל את הייבוא<%= im.file_name ? ' — ' + im.file_name : '' %>?\n<%= im.present %> תנועות יימחקו מהחשבון הזה.<% if (im.matched) { %>\nשים לב: <%= im.matched %> מהן כבר הותאמו לצ׳קים — ההתאמות ישוחררו והצ׳קים יחזרו לרשימת הפתוחים.<% } %>');">
+                      onsubmit="return confirm('לבטל את הייבוא<%= im.file_name ? ' — ' + im.file_name : '' %>?\n<%= im.present %> תנועות יימחקו מהחשבון הזה.<% if (im.matched) { %>\nשים לב: <%= im.matched %> מהן כבר הותאמו (לצ׳קים או להפקדות) — ההתאמות ישוחררו, והצ׳קים וההפקדות יחזרו לממתינים להתאמה.<% } %>');">
                   <%# שורות שכבר הותאמו: השירות מסרב בלי אישור נוסף, ולכן האישור נשלח מראש רק כשהמשתמש
                       רואה במפורש כמה התאמות ישוחררו. %>
                   <% if (im.matched) { %><input type="hidden" name="release" value="1" /><% } %>

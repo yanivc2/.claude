@@ -143,3 +143,18 @@ test('ביטול ייבוא משחרר גם התאמה להפקדה, ולא נו
   assert.equal(d.matched_txn_id, null);
   assert.equal(Number(d.deposited), 1, 'הכסף אכן הופקד — רק ההתאמה משתחררת');
 });
+
+test('היסטוריית הייבוא סופרת התאמה להפקדה כהתאמה — כדי שהכפתור ישלח את האישור', async () => {
+  const { listImports } = await import('../src/services/bankTransactions.js');
+  const db = await freshDb();
+  const o = await owner(db);
+  const st = await firstStore(db);
+  const acct = await account(db);
+  const imp = await importTransactions(acct, [
+    { txnDate: '2026-09-02', amount: 120000, description: 'הפקדה', rawReference: '78', externalId: 'd78' },
+  ], 'scraper', o, db);
+  const txn = await db.one('SELECT id FROM bank_transactions WHERE external_id = ?', ['d78']);
+  await db.run('INSERT INTO deposits (store_id, deposit_date, amount, deposited, matched_txn_id, created_by) VALUES (?, ?, ?, 1, ?, ?)', [st.id, '2026-09-02', 120000, txn.id, o.id]);
+  const row = (await listImports({ accountId: acct }, db)).find((i) => Number(i.id) === Number(imp.importId));
+  assert.equal(row.matched, 1);
+});

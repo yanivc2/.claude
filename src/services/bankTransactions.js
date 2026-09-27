@@ -255,9 +255,16 @@ export async function listImports({ accountId = null, limit = 20 } = {}, x = get
   );
   const users = await x.many('SELECT id, name FROM users', []);
   const byUser = new Map(users.map((u) => [Number(u.id), u.name]));
+  // התאמה = לצ׳ק **או להפקדה** — אחרת ייבוא שהותאם רק להפקדות היה נראה "לא מותאם", הכפתור לא היה
+  // שולח את האישור, והביטול היה נדחה בלי דרך לאשר.
+  const depRows = await x.many('SELECT matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', []);
+  const depTxn = new Set(depRows.map((d) => Number(d.matched_txn_id)));
+  const withIds = await x.many('SELECT id, import_id FROM bank_transactions WHERE import_id IS NOT NULL', []);
+  const depByImport = new Map();
+  for (const r of withIds) if (depTxn.has(Number(r.id))) depByImport.set(Number(r.import_id), (depByImport.get(Number(r.import_id)) || 0) + 1);
   return imports.map((imp) => {
     const mine = rows.filter((r) => Number(r.import_id) === Number(imp.id));
-    const matched = mine.filter((r) => r.matched_payment_id != null).length;
+    const matched = mine.filter((r) => r.matched_payment_id != null).length + (depByImport.get(Number(imp.id)) || 0);
     return {
       ...imp,
       // שם שנשמר לפני שהפענוח היה קיים נשמר כג'יבריש; `decodeFileName` בטוחה לקריאה חוזרת ולכן
