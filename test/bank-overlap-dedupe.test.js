@@ -104,3 +104,17 @@ test('הבקשה שהסוכן תופס נושאת את רשימת החשבונו
     assert.match(a.account_number, /^\d+$/);
   }
 });
+
+test('שורה שנסרקה בפורמט המזהה הישן מזוהה גם מול המזהה החדש', async () => {
+  const db = await freshDb();
+  const o = await owner(db);
+  const acct = await account(db);
+  await importTransactions(acct, [
+    { txnDate: '2026-09-01', amount: -50000, description: 'צ׳ק', rawReference: '5001', externalId: 'scr:hapoalimBiz:12-628-432110:5001' },
+  ], 'scraper', o, db);
+  const r = await importTransactions(acct, [
+    { txnDate: '2026-09-01', amount: -50000, description: 'צ׳ק', rawReference: '5001', externalId: 'scr:hapoalimBiz:12-628-432110:5001:2026-09-01:-50000' },
+  ], 'scraper', o, db);
+  assert.equal(r.inserted, 0);
+  assert.equal(await count(db, acct), 1);
+});

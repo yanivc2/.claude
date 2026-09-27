@@ -50,7 +50,12 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
     // הפרש (תאריך ערך מול תאריך פעולה), אסמכתא זהה מועדפת, כל שורה ישנה נתפסת פעם אחת בלבד.
     const legacy = [];
     for (const e of existing) {
-      if (e.external_id) byExternal.add(e.external_id);
+      if (e.external_id) {
+        byExternal.add(e.external_id);
+        // מזהה סריקה בפורמט הישן (`scr:חברה:חשבון:אסמכתא`, לפני שנוספו תאריך+סכום): המזהה החדש של
+        // אותה שורה הוא בדיוק הישן + `:תאריך:סכום` — ולכן גוזרים אותו ממה שנשמר, ומשיכה חדשה מזהה אותה.
+        if (/^scr:[^:]*:[^:]*:[^:]+$/.test(e.external_id)) byExternal.add(`${e.external_id}:${e.txn_date}:${e.amount}`);
+      }
       else legacy.push({ id: e.id, date: e.txn_date, amount: e.amount, ref: plainNumber(e.raw_reference ?? '') || null, taken: false });
       byFields.add(fieldKey(e.txn_date, e.amount, e.description, e.raw_reference));
     }
