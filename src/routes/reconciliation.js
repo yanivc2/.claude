@@ -139,6 +139,17 @@ async function renderPage(req, res, accountId, extra = {}) {
   });
 }
 
+// 🔴 PRG: פעולה מסתיימת ב-303 ולא ב-render במקום. render השאיר את הדפדפן על כתובת ה-POST, ורענון
+// או לחיצה שנייה שלחו את הפעולה שוב — "ייבוא 18 לא נמצא" על ייבוא שנמחק בהצלחה בלחיצה הראשונה,
+// ו"הוסף תנועה" שנשלח שוב היה מוסיף אותה פעמיים. ההודעה חוזרת דרך ה-query (ראה GET /).
+function backTo(res, accountId, { notice = null, error = null } = {}) {
+  const q = new URLSearchParams();
+  if (accountId) q.set('account', String(accountId));
+  if (notice) q.set('notice', notice);
+  if (error) q.set('err', error);
+  return res.redirect(303, `/reconciliation?${q.toString()}`);
+}
+
 router.get('/', async (req, res, next) => {
   try {
     // ההודעה של PRG (ראה /match-invoices) חוזרת דרך ה-query, כדי שהפעולה תסתיים ב-GET.
@@ -176,12 +187,12 @@ router.post('/import-csv', requirePermission('import_bank'), (req, res, next) =>
       const acct = await getExecutor().one('SELECT display_name FROM bank_accounts WHERE id = ?', [accountId]);
       // ההודעה אומרת **לאיזה חשבון** — הטעות שקרתה בפועל היא קובץ של חנות אחת שנחת בחשבון של אחרת,
       // ובלי לומר את זה בקול היא נראית בדיוק כמו הצלחה.
-      return renderPage(req, res, accountId, {
+      return backTo(res, accountId, {
         notice: `${fileName ? `"${fileName}" · ` : ''}יובאו ${inserted} תנועות חדשות ל${acct ? `חשבון ${acct.display_name}` : 'חשבון'}`
           + `${skipped ? `, ${skipped} כבר היו קיימות` : ''}. הקובץ נשמר ומוכן להתאמה.`,
       });
     } catch (err) {
-      if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+      if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
       next(err);
     }
   });
@@ -248,13 +259,13 @@ router.post('/sync', requirePermission('import_bank'), async (req, res, next) =>
   try {
     if (!accountId) throw new RuleError('FINANCY', 'לא נבחר חשבון בנק');
     const r = await syncBankAccount(accountId, {}, req.user);
-    return renderPage(req, res, accountId, {
+    return backTo(res, accountId, {
       notice:
         `סונכרן מהבנק (${r.from} — ${r.to}): ${r.fetched} תנועות נמשכו, ${r.inserted} חדשות, ` +
         `${r.skipped} כבר היו קיימות, ${r.matched} הותאמו אוטומטית לתשלומים.`,
     });
   } catch (err) {
-    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
     next(err);
   }
 });
@@ -276,9 +287,9 @@ router.post('/add', requirePermission('import_bank'), async (req, res, next) => 
       'manual',
       req.user,
     );
-    await renderPage(req, res, accountId, { notice: 'התנועה נוספה.' });
+    return backTo(res, accountId, { notice: 'התנועה נוספה.' });
   } catch (err) {
-    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
     next(err);
   }
 });
@@ -288,7 +299,7 @@ router.post('/auto', async (req, res, next) => {
   try {
     // צ׳קים **וגם** הפקדות — אותו כפתור באותו שם בשני הדפים חייב לעשות אותו דבר.
     const r = await reconcileAccount(accountId, req.user);
-    await renderPage(req, res, accountId, {
+    return backTo(res, accountId, {
       notice: `הותאמו אוטומטית ${r.matched} צ׳קים · ${r.ambiguous} דורשים הכרעה · ${r.unmatched} ללא התאמה`
         + `${r.deposits ? ` · ${r.deposits} הפקדות הותאמו לפי מספר שקית.` : '.'}`,
     });
@@ -305,9 +316,9 @@ router.post('/match', async (req, res, next) => {
     await assertInScope('bankTxn', Number(req.body.txn_id), req.scope);
     await assertInScope('payment', Number(req.body.payment_id), req.scope);
     await confirmMatch(Number(req.body.txn_id), Number(req.body.payment_id), req.user);
-    await renderPage(req, res, accountId, { notice: 'הצ׳ק סומן כנפרע.' });
+    return backTo(res, accountId, { notice: 'הצ׳ק סומן כנפרע.' });
   } catch (err) {
-    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
     next(err);
   }
 });
@@ -360,12 +371,12 @@ router.post('/txn/:id/edit', async (req, res, next) => {
         { action: 'bank_txn.edit', entityType: 'bank_transaction', entityId: id, payload: { id, fields }, summary: describeBankTxn(current, fields) },
         req.user,
       );
-      return renderPage(req, res, accountId, { notice: 'בקשת העריכה נשלחה לאישור הבעלים.' });
+      return backTo(res, accountId, { notice: 'בקשת העריכה נשלחה לאישור הבעלים.' });
     }
     await editTransaction(id, fields, req.user);
-    await renderPage(req, res, accountId, { notice: 'התנועה עודכנה.' });
+    return backTo(res, accountId, { notice: 'התנועה עודכנה.' });
   } catch (err) {
-    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
     next(err);
   }
 });
@@ -375,9 +386,9 @@ router.post('/txn/:id/delete', async (req, res, next) => {
   try {
     await assertInScope('bankTxn', Number(req.params.id), req.scope);
     await deleteTransaction(Number(req.params.id), req.user);
-    await renderPage(req, res, accountId, { notice: 'התנועה נמחקה.' });
+    return backTo(res, accountId, { notice: 'התנועה נמחקה.' });
   } catch (err) {
-    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
     next(err);
   }
 });
@@ -387,9 +398,9 @@ router.post('/unmatch', async (req, res, next) => {
   try {
     await assertInScope('bankTxn', Number(req.body.txn_id), req.scope);
     await unmatch(Number(req.body.txn_id), req.user);
-    await renderPage(req, res, accountId, { notice: 'ההתאמה בוטלה, הצ׳ק חזר לסטטוס פתוח.' });
+    return backTo(res, accountId, { notice: 'ההתאמה בוטלה, הצ׳ק חזר לסטטוס פתוח.' });
   } catch (err) {
-    if (err instanceof RuleError) return renderPage(req, res, accountId, { error: err.message });
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
     next(err);
   }
 });
@@ -436,13 +447,13 @@ router.post('/txns/delete', requirePermission('import_bank'), async (req, res, n
   try {
     const ids = [].concat(req.body.txn_ids || []).map(Number).filter(Boolean);
     const r = await deleteTransactions(ids, accountId, req.user, { releaseMatched: req.body.release === '1' });
-    return renderPage(req, res, accountId, {
+    return backTo(res, accountId, {
       notice: `נמחקו ${r.deleted} תנועות`
         + `${r.released ? `, ו-${r.released} התאמות שוחררו — הצ׳קים חזרו לרשימת הפתוחים.` : ''}`
         + `${r.skippedMatched ? `. ${r.skippedMatched} דולגו כי הן מותאמות לצ׳ק — בטל את ההתאמה קודם.` : (r.released ? '' : '.')}`,
     });
   } catch (err) {
-    if (err instanceof RuleError || err instanceof AuthError) return renderPage(req, res, accountId, { error: err.message });
+    if (err instanceof RuleError || err instanceof AuthError) return backTo(res, accountId, { error: err.message });
     next(err);
   }
 });
@@ -454,14 +465,14 @@ router.post('/refs/normalize', requirePermission('import_bank'), async (req, res
   const accountId = await resolveAccountId(req);
   try {
     const r = await normalizeStoredReferences(accountId, req.user);
-    return renderPage(req, res, accountId, {
+    return backTo(res, accountId, {
       notice: r.fixed
         ? `${r.fixed} מספרי אסמכתא נכתבו מחדש בספרות. לחץ עכשיו "התאמה אוטומטית" — צ׳ק שלא נמצא קודם `
           + `לפי מספר האסמכתא עשוי להימצא עכשיו.`
         : 'לא נמצאו אסמכתאות שדורשות תיקון.',
     });
   } catch (err) {
-    if (err instanceof RuleError || err instanceof AuthError) return renderPage(req, res, accountId, { error: err.message });
+    if (err instanceof RuleError || err instanceof AuthError) return backTo(res, accountId, { error: err.message });
     next(err);
   }
 });
@@ -469,19 +480,18 @@ router.post('/refs/normalize', requirePermission('import_bank'), async (req, res
 // ביטול ייבוא — הדרך לתקן קובץ שהועלה לחשבון הלא נכון. שורות שכבר הותאמו לצ׳ק אינן נמחקות
 // בשקט: השירות מסרב, מחזיר את מספרן, והמשתמש מאשר שוב (`release=1`) אחרי שראה אותו.
 router.post('/imports/:id/delete', requirePermission('import_bank'), async (req, res, next) => {
+  const imp = await getImport(Number(req.params.id)).catch(() => null);
+  // כבר נמחק (לחיצה שנייה / שליחה חוזרת) — זו לא שגיאה: התוצאה שהמשתמש רצה כבר קיימת.
+  if (!imp) return backTo(res, await resolveAccountId(req), { notice: 'הייבוא הזה כבר בוטל.' });
   try {
-    const imp = await getImport(Number(req.params.id));
     // מזהה מהבקשה: בלי זה אפשר היה למחוק ייבוא של חברה אחרת לפי ניחוש מספר.
     await assertInScope('bankAccount', Number(imp.bank_account_id), req.scope);
     const r = await deleteImport(imp.id, req.user, { releaseMatched: req.body.release === '1' });
-    return renderPage(req, res, Number(imp.bank_account_id), {
+    return backTo(res, Number(imp.bank_account_id), {
       notice: `הייבוא בוטל: ${r.deleted} תנועות נמחקו${r.released ? `, ${r.released} התאמות שוחררו` : ''}.`,
     });
   } catch (err) {
-    if (err instanceof RuleError || err instanceof AuthError) {
-      const imp = await getImport(Number(req.params.id)).catch(() => null);
-      return renderPage(req, res, imp ? Number(imp.bank_account_id) : await resolveAccountId(req), { error: err.message });
-    }
+    if (err instanceof RuleError || err instanceof AuthError) return backTo(res, Number(imp.bank_account_id), { error: err.message });
     next(err);
   }
 });
