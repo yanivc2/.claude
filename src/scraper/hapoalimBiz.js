@@ -74,7 +74,7 @@ function yyyymmdd(d) {
  * הקוד שלנו, אינו נשמר, ואינו נרשם ללוג.
  */
 async function apiPost(page, url) {
-  return page.evaluate(async (u) => {
+  const r = await page.evaluate(async (u) => {
     const xsrf = (document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/) || [])[1];
     const res = await fetch(u, {
       method: 'POST',
@@ -85,17 +85,35 @@ async function apiPost(page, url) {
       },
       body: '[]',
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${u}`);
-    return res.json();
+    return { ok: res.ok, status: res.status, text: await res.text() };
   }, url);
+  return parseBankResponse(r, url);
 }
 
 async function apiGet(page, url) {
-  return page.evaluate(async (u) => {
+  const r = await page.evaluate(async (u) => {
     const res = await fetch(u, { credentials: 'include' });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${u}`);
-    return res.json();
+    return { ok: res.ok, status: res.status, text: await res.text() };
   }, url);
+  return parseBankResponse(r, url);
+}
+
+/**
+ * 🔴 **תשובה ריקה = "אין נתונים", לא שגיאה.** הבנק עונה 204 / גוף ריק לחשבון שאין בו תנועות בטווח
+ * (נמדד בסנכרון החי הראשון: `res.json()` זרק "Unexpected end of JSON input", וחשבון שקט אחד מתוך
+ * ארבעה הפיל את כל הסנכרון — אחרי שההתחברות וקוד ה-SMS כבר עברו). בהודעות: נתיב בלבד, בלי
+ * ה-query שמכיל את מספר החשבון.
+ */
+export function parseBankResponse({ ok, status, text } = {}, url = '') {
+  let where = url;
+  try { where = new URL(url).pathname; } catch { /* נשאר כמו שהוא */ }
+  if (!ok) throw new Error(`HTTP ${status} ${where}`);
+  if (status === 204 || !String(text ?? '').trim()) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`הבנק החזיר תשובה שאינה JSON (${where}, HTTP ${status})`);
+  }
 }
 
 /**

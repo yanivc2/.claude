@@ -2,7 +2,7 @@
 // שמות השדות כאן הם מה שנמדד מול התגובה החיה של biz2.bankhapoalim.co.il, לא מה שהונח.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { convertBizTransactions, composeAccountId } from '../src/scraper/hapoalimBiz.js';
+import { convertBizTransactions, composeAccountId, parseBankResponse } from '../src/scraper/hapoalimBiz.js';
 import { mapScrapedTransactions } from '../src/lib/scraperMap.js';
 
 const row = (over = {}) => ({
@@ -55,4 +55,20 @@ test('שורה עם תאריך לא תקין נשמטת ואינה מפילה', 
   const raw = convertBizTransactions([row({ eventDate: null }), row()]);
   assert.equal(raw[0].date, null);
   assert.equal(mapScrapedTransactions(raw, {}).length, 1);
+});
+
+// 🔴 נמדד בסנכרון החי הראשון: חשבון בלי תנועות בטווח עונה 204/גוף ריק, ו-res.json() זרק
+// "Unexpected end of JSON input" — חשבון שקט אחד הפיל את כל הסנכרון.
+test('תשובה ריקה מהבנק = אין תנועות, לא שגיאה', () => {
+  const url = 'https://biz2.bankhapoalim.co.il/ServerServices/current-account/transactions?accountId=12-628-432110';
+  assert.equal(parseBankResponse({ ok: true, status: 204, text: '' }, url), null);
+  assert.equal(parseBankResponse({ ok: true, status: 200, text: '  ' }, url), null);
+  assert.deepEqual(convertBizTransactions(parseBankResponse({ ok: true, status: 204, text: '' }, url)?.transactions), []);
+  assert.deepEqual(parseBankResponse({ ok: true, status: 200, text: '{"transactions":[]}' }, url), { transactions: [] });
+});
+
+test('שגיאת בנק לא חושפת את מספר החשבון מה-URL', () => {
+  const url = 'https://biz2.bankhapoalim.co.il/ServerServices/current-account/transactions?accountId=12-628-432110';
+  assert.throws(() => parseBankResponse({ ok: false, status: 500, text: '' }, url), (e) => !/432110/.test(e.message) && /HTTP 500/.test(e.message));
+  assert.throws(() => parseBankResponse({ ok: true, status: 200, text: '<html>' }, url), (e) => !/432110/.test(e.message) && /אינה JSON/.test(e.message));
 });
