@@ -33,30 +33,79 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
 
   let inserted = 0;
   let skipped = 0;
+  let adopted = 0;
   await tx(async (t) => {
+    // כל מה שכבר בחשבון נטען פעם אחת — בדיקת כפילות בזיכרון במקום SELECT לכל שורה. משיכה מהבנק
+    // מביאה ~2,000 שורות, ושתי קריאות מסד לכל שורה מ-Vercel ל-Neon הן דקות.
+    const existing = await t.many(
+      'SELECT id, txn_date, amount, description, raw_reference, external_id FROM bank_transactions WHERE bank_account_id = ?',
+      [bankAccountId],
+    );
+    const fieldKey = (date, amount, desc, ref) => `${date}|${amount}|${desc ?? ''}|${ref ?? ''}`;
+    const byExternal = new Set();
+    const byFields = new Set();
+    // 🔴 שורות שהגיעו מקובץ (Excel/CSV) נושאות external_id ריק. שורה מהבנק נושאת מזהה משלה — ולכן
+    // בדיקה לפי מזהה בלבד לא רואה אותן, וכל החפיפה בין הקובץ האחרון למשיכה (60 יום) הייתה נקלטת
+    // פעמיים. התיאור אינו מפתח כאן: הקובץ והאתר מנסחים אותו אחרת. ההתאמה: אותו סכום, עד 3 ימים
+    // הפרש (תאריך ערך מול תאריך פעולה), אסמכתא זהה מועדפת, כל שורה ישנה נתפסת פעם אחת בלבד.
+    const legacy = [];
+    for (const e of existing) {
+      if (e.external_id) byExternal.add(e.external_id);
+      else legacy.push({ id: e.id, date: e.txn_date, amount: e.amount, ref: plainNumber(e.raw_reference ?? '') || null, taken: false });
+      byFields.add(fieldKey(e.txn_date, e.amount, e.description, e.raw_reference));
+    }
+    const dayDiff = (a, b) => Math.abs((Date.parse(a) - Date.parse(b)) / 86_400_000);
+    const claimLegacy = (r, maxDays) => {
+      const ref = plainNumber(r.rawReference ?? '') || null;
+      let best = null;
+      let bestScore = Infinity;
+      for (const l of legacy) {
+        if (l.taken || Number(l.amount) !== Number(r.amount)) continue;
+        const d = dayDiff(l.date, r.txnDate);
+        if (!(d <= maxDays)) continue;
+        const score = d + (ref && l.ref === ref ? -10 : 0);
+        if (score < bestScore) { best = l; bestScore = score; }
+      }
+      if (best) best.taken = true;
+      return best;
+    };
+
     for (const r of rows) {
       if (!r || !r.txnDate || !Number.isFinite(r.amount)) {
         throw new RuleError('VALIDATION', 'שורת תנועה לא תקינה (חסר תאריך או סכום)');
       }
+    }
+    // שני מעברים: קודם התאמות באותו תאריך בדיוק, ורק אחר כך בטווח. אחרת עמלה קבועה שחוזרת כל יום
+    // (אותו סכום) הייתה תופסת את השורה הישנה של אתמול, ושורת היום האמיתית הייתה נדחקת.
+    const adoptedRow = new Map();
+    for (const maxDays of [0, 3]) {
+      for (const r of rows) {
+        const externalId = r.externalId ?? null;
+        if (!externalId || byExternal.has(externalId) || adoptedRow.has(r) || !legacy.length) continue;
+        const hit = claimLegacy(r, maxDays);
+        if (hit) adoptedRow.set(r, hit);
+      }
+    }
+
+    for (const r of rows) {
       const desc = r.description ?? null;
       const ref = r.rawReference ?? null;
       const externalId = r.externalId ?? null;
-      // A row that carries the provider's own id (Open Banking sync) dedupes on THAT — the bank may
-      // restate a line's description or value date between pulls, and an overlapping date window is
-      // re-fetched on every sync. Rows without one (CSV / manual) keep the field-equality check.
-      const dup = externalId
-        ? await t.one(
-            'SELECT id FROM bank_transactions WHERE bank_account_id = ? AND external_id = ?',
-            [bankAccountId, externalId],
-          )
-        : await t.one(
-            `SELECT id FROM bank_transactions
-              WHERE bank_account_id = ? AND txn_date = ? AND amount = ?
-                AND COALESCE(description,'') = COALESCE(?, '') AND COALESCE(raw_reference,'') = COALESCE(?, '')`,
-            [bankAccountId, r.txnDate, r.amount, desc, ref],
-          );
-      if (dup) {
+      // A row that carries the provider's own id (Open Banking sync / bank agent) dedupes on THAT — the
+      // bank may restate a line's description or value date between pulls, and an overlapping date
+      // window is re-fetched on every sync. Rows without one (CSV / manual) keep the field-equality check.
+      if (externalId ? byExternal.has(externalId) : byFields.has(fieldKey(r.txnDate, r.amount, desc, ref))) {
         skipped += 1;
+        continue;
+      }
+      const hit = adoptedRow.get(r);
+      if (hit) {
+        // השורה כבר קיימת מהקובץ: היא נשארת (עם ההתאמות שלה), ומקבלת את המזהה של הבנק כדי
+        // שמשיכה הבאה תזהה אותה ישירות.
+        await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ? AND external_id IS NULL', [externalId, hit.id]);
+        byExternal.add(externalId);
+        skipped += 1;
+        adopted += 1;
         continue;
       }
       await t.run(
@@ -64,16 +113,18 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [bankAccountId, r.txnDate, r.amount, desc, ref, Number.isFinite(r.balanceAfter) ? r.balanceAfter : null, source, externalId, importId],
       );
+      if (externalId) byExternal.add(externalId);
+      byFields.add(fieldKey(r.txnDate, r.amount, desc, ref));
       inserted += 1;
     }
   });
 
   await x.run('UPDATE bank_imports SET inserted = ?, skipped = ? WHERE id = ?', [inserted, skipped, importId]);
   await logAction(
-    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, importId, fileName } },
+    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, adopted, importId, fileName } },
     x,
   );
-  return { inserted, skipped, importId };
+  return { inserted, skipped, adopted, importId };
 }
 
 /**

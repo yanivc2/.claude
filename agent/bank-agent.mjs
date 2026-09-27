@@ -165,6 +165,8 @@ async function runJob(cfg, job) {
       ...(cfg.bankBaseUrl ? { baseUrl: cfg.bankBaseUrl } : {}),
       showBrowser: Boolean(cfg.showBrowser),
       accountIds: Array.isArray(cfg.accountIds) && cfg.accountIds.length ? cfg.accountIds : null,
+      // החשבונות הרשומים באפליקציה (מהשרת, בכל בקשה) — רק הם נקראים מהבנק. null = שרת ישן.
+      onlyAccounts: Array.isArray(job.accounts) ? job.accounts : null,
       failureScreenshotPath: cfg.debugScreenshots ? path.join(here, `fail-${job.id}.png`) : null,
       onProgress: (m) => { report('running', m); },
       onOtp: async () => {

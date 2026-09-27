@@ -10,7 +10,7 @@
 //
 // `x-b3-traceid`/`x-dtpc` שמופיעות בדפדפן הן כותרות ניטור של הבנק ואינן נדרשות.
 
-import { mapScrapedTransactions } from '../lib/scraperMap.js';
+import { mapScrapedTransactions, resolveScrapedAccount } from '../lib/scraperMap.js';
 
 export const BIZ_BASE = 'https://biz2.bankhapoalim.co.il';
 
@@ -55,6 +55,15 @@ export function convertBizTransactions(rows) {
       status: Number(t?.serialNumber) === 0 ? 'pending' : 'completed',
     };
   });
+}
+
+/**
+ * מתוך מזהי החשבונות בבנק (`12-628-432110`) — רק אלה שרשומים באפליקציה (`{branch, account_number}`),
+ * לפי אותו כלל שיוך של הקליטה, כך שמה שנקרא הוא בדיוק מה שהיה נקלט.
+ */
+export function pickKnownAccounts(ids, onlyAccounts) {
+  const known = resolveScrapedAccount(onlyAccounts || []);
+  return (ids || []).filter((id) => known(id));
 }
 
 /** `{bankNumber, branchNumber, accountNumber}` → `12-628-432110`, הפורמט ש-accountId מצפה לו. */
@@ -183,7 +192,7 @@ async function enterOtp(page, code) {
  */
 export async function scrapeHapoalimBiz({
   credentials, startDate, showBrowser = false, failureScreenshotPath = null,
-  accountIds = null, onOtp = null, onProgress = null, puppeteer = null, executablePath = null,
+  accountIds = null, onlyAccounts = null, onOtp = null, onProgress = null, puppeteer = null, executablePath = null,
   // הבסיס ניתן להחלפה: לבדיקה מקצה לקצה מול בנק מדומה, ולמקרה שהבנק יעבור מ-biz2 לשרת אחר.
   baseUrl = BIZ_BASE,
   // 🔴 נמדדו מול המסך החי. **`#user-code` עם מקף** — הפורטל הפרטי משתמש ב-`#userCode` בלי מקף,
@@ -275,6 +284,17 @@ export async function scrapeHapoalimBiz({
         // 🔴 מזהה שנבנה חלקית הוא גרוע ממזהה חסר: הוא היה נשלח לבנק, חוזר ריק, והמשיכה
         // הייתה מדווחת "0 תנועות" — כלומר נראית כמו הצלחה שקטה מול חשבון שלא נבדק כלל.
         .filter((id) => !/undefined|null/.test(id));
+    }
+    // `onlyAccounts` = החשבונות הרשומים באפליקציה (מגיע מהשרת עם הבקשה). חשבון בבנק שאינו ביניהם
+    // **לא נקרא בכלל** — אותו כלל שיוך של הקליטה (resolveScrapedAccount), כך שמה שנקרא הוא בדיוק
+    // מה שהיה נקלט. null = שרת ישן שלא שולח רשימה → הכול, כמו קודם.
+    if (Array.isArray(onlyAccounts)) {
+      const all = ids.length;
+      ids = pickKnownAccounts(ids, onlyAccounts);
+      if (all > ids.length) progress(`${ids.length} חשבונות רשומים באפליקציה; ${all - ids.length} חשבונות נוספים בבנק לא נקראו.`);
+      if (!ids.length) {
+        throw new Error(`אף אחד מ-${all} החשבונות בבנק אינו רשום באפליקציה (הגדרות ← חשבונות בנק: סניף + מספר חשבון). לא נקרא אף חשבון.`);
+      }
     }
     if (!ids.length) {
       throw new Error(

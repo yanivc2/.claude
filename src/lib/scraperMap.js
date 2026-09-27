@@ -25,10 +25,13 @@ function shekelsToAgorot(n) {
  * choice for a re-scraped window: it can merge two genuinely identical same-day charges, but it
  * never duplicates one.
  */
-export function scrapedExternalId({ companyId, accountNumber, identifier }) {
+export function scrapedExternalId({ companyId, accountNumber, identifier, date = null, amount = null }) {
   const id = identifier == null ? '' : String(identifier).trim();
   if (!id) return null;
-  return `scr:${companyId || '?'}:${accountNumber || '?'}:${id}`;
+  // 🔴 אסמכתא לבדה אינה ייחודית בפועל (הפועלים חוזר על referenceNumber בין תנועות שונות), והמזהה
+  // משמש לזיהוי כפילות — אסמכתא חוזרת הייתה מדלגת בשקט על תנועה אמיתית. תאריך + סכום מצמצמים את זה.
+  const tail = date || amount != null ? `:${date || ''}:${amount ?? ''}` : '';
+  return `scr:${companyId || '?'}:${accountNumber || '?'}:${id}${tail}`;
 }
 
 /**
@@ -42,13 +45,14 @@ export function mapScrapedTransaction(txn, ctx = {}) {
     .map((p) => String(p == null ? '' : p).trim())
     .filter(Boolean);
   const uniq = [...new Set(desc)];
+  const txnDate = String(txn?.date ?? '').slice(0, 10);
   return {
-    txnDate: String(txn?.date ?? '').slice(0, 10),
+    txnDate,
     amount,
     description: uniq.length ? uniq.join(' — ') : null,
     rawReference: txn?.identifier != null && String(txn.identifier).trim() !== '' ? String(txn.identifier) : null,
     status: txn?.status ?? null,
-    externalId: scrapedExternalId({ ...ctx, identifier: txn?.identifier }),
+    externalId: scrapedExternalId({ ...ctx, identifier: txn?.identifier, date: txnDate, amount }),
   };
 }
 
@@ -69,4 +73,44 @@ export function mapScrapedTransactions(txns, ctx = {}) {
     out.push(row);
   }
   return out;
+}
+
+/**
+ * מיפוי חשבון שנסרק לחשבון הבנק הרשום באפליקציה — **בלי לנחש**.
+ *
+ * 🔴 שני מרחבי כתיבה שונים: ייבוא CSV ו-Financy מוסרים מספר חשבון בלבד ("432110"), אבל סקרייפר
+ * של בנק מוסר מזהה מלא — `בנק-סניף-חשבון` ("12-628-432110"), כי זה מה שה-API של הבנק דורש.
+ * ההשוואה הקודמת הסירה תווים שאינם ספרות משני הצדדים, ולכן השוותה "12628432110" מול "432110"
+ * ו**לא התאימה כלום**: כל חשבון שנסרק היה חוזר כ"לא מזוהה" ושום תנועה לא הייתה נקלטת.
+ *
+ * הסדר: התאמה מלאה → סניף+חשבון → מספר חשבון לבדו, **ורק אם הוא ייחודי**. שני חשבונות באותו
+ * מספר בסניפים שונים = דו-משמעות, וזה מדווח ולא מנוחש (אותו כלל של `matchFinancyAccount`:
+ * לעולם לא לנחש לאיזה ספר כסף נכנס).
+ */
+export function resolveScrapedAccount(rows) {
+  const digits = (v) => String(v ?? '').replace(/\D/g, '');
+  const byFull = new Map();
+  const byBranchAccount = new Map();
+  const countByAccount = new Map();
+  for (const r of rows) {
+    const acct = digits(r.account_number);
+    byFull.set(acct, r);
+    byBranchAccount.set(`${digits(r.branch)}|${acct}`, r);
+    countByAccount.set(acct, (countByAccount.get(acct) || 0) + 1);
+  }
+  return (incoming) => {
+    const raw = String(incoming ?? '');
+    if (!raw.trim()) return null;
+    const exact = byFull.get(digits(raw));
+    if (exact) return exact;
+    const parts = raw.split(/[^0-9]+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const account = parts[parts.length - 1];
+      const branch = parts[parts.length - 2];
+      const hit = byBranchAccount.get(`${branch}|${account}`);
+      if (hit) return hit;
+      if (countByAccount.get(account) === 1) return byFull.get(account);
+    }
+    return null;
+  };
 }

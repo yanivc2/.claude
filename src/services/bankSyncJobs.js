@@ -276,7 +276,13 @@ export async function claimNext(agentName, x = getExecutor()) {
     [String(agentName || '?').slice(0, 80), 'מתחבר לבנק…', nowTs(), job.id],
   );
   if (!r.changes) return null;
-  return { id: job.id, loginKey: job.login_key, requestedAt: job.requested_at };
+  // 🔴 רק החשבונות הרשומים באפליקציה נקראים מהבנק. הפורטל מציג גם חשבונות שאינם של העסק (נמדד:
+  // 7 בבנק מול 4 באפליקציה), והבעלים לא רוצה שהם ייקראו בכלל — לא רק שלא ייקלטו. הרשימה נשלפת
+  // בכל תפיסה, ולכן חשבון שנוסף בהגדרות נכלל מהסנכרון הבא. ספרות בלבד: סניף + מספר חשבון.
+  const accounts = (await x.many('SELECT branch, account_number FROM bank_accounts', []))
+    .map((a) => ({ branch: String(a.branch ?? '').replace(/\D/g, ''), account_number: String(a.account_number ?? '').replace(/\D/g, '') }))
+    .filter((a) => a.account_number);
+  return { id: job.id, loginKey: job.login_key, requestedAt: job.requested_at, accounts };
 }
 
 async function agentJob(id, agentName, x) {

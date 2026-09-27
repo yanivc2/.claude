@@ -34,7 +34,7 @@ test('scraped rows map to signed agorot; pending, dateless and zero rows are dro
     amount: -117050,
     description: 'צ׳ק',
     rawReference: '5001',
-    externalId: 'scr:hapoalim:412345:5001',
+    externalId: 'scr:hapoalim:412345:5001:2026-07-10:-117050',
   });
   assert.equal(rows[1].amount, 200000);
   assert.ok(!('status' in rows[0]), 'status was only ever a filter, not a column');
