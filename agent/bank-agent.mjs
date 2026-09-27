@@ -38,7 +38,8 @@ function loadConfig() {
   }
   let cfg;
   try {
-    cfg = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+    // פנקס רשימות ב-Windows עלול לשמור "UTF-8 עם BOM" — JSON.parse נכשל עליו בהודעה סתומה
+    cfg = JSON.parse(readFileSync(CONFIG_PATH, 'utf8').replace(/^\uFEFF/, ''));
   } catch (e) {
     throw new Error(`config.json אינו JSON תקין: ${e.message}`);
   }
