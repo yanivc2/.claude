@@ -57,14 +57,28 @@ function loadConfig() {
 // ולכן עברית בשדה = הדוגמה לא הוחלפה (ניסיון התחברות עם הדוגמה היה מבזבז ניסיון מול נעילת הבנק).
 const HEBREW = /[\u0590-\u05FF]/;
 const EXAMPLE_PASSWORDS = new Set(['סיסמת הבנק', 'הסיסמה שלה']);
+// שם השדה נסלח לאותיות גדולות/קטנות ולקו מפריד (usercode / user_code / UserCode) — טעות הקלדה
+// בשם השדה אינה סיבה להיכשל; הערך הוא מה שחשוב.
+function credsOf(v) {
+  const pick = (re) => { const f = Object.keys(v).find((k) => re.test(k)); return f === undefined ? undefined : v[f]; };
+  return { userCode: pick(/^user[\s_-]?code$/i), password: pick(/^pass(word)?$/i) };
+}
 function loginProblem(key, v) {
   if (/^שם-המשתמש/.test(key)) return 'המפתח עדיין הדוגמה — צריך את שם המשתמש באפליקציה';
-  if (!v || typeof v !== 'object') return 'חסרים userCode ו-password';
-  const code = v.userCode == null ? '' : String(v.userCode).trim();
-  const pass = v.password == null ? '' : String(v.password);
-  if (!code) return 'חסר userCode';
+  if (!v || typeof v !== 'object') return 'הערך צריך להיות { "userCode": "...", "password": "..." }';
+  const { userCode, password } = credsOf(v);
+  const code = userCode == null ? '' : String(userCode).trim();
+  const pass = password == null ? '' : String(password);
+  if (userCode === undefined) {
+    const extra = Object.keys(v).filter((f) => !/^password$/i.test(f)).length;
+    return extra
+      ? 'אין שדה בשם userCode — שם השדה נכתב בדיוק "userCode", ורק הערך שמימין לנקודתיים מוחלף'
+      : 'חסר השדה "userCode"';
+  }
+  if (!code) return 'userCode ריק — קוד המשתמש בבנק נכתב בין המירכאות';
   if (HEBREW.test(code)) return 'userCode עדיין הדוגמה';
-  if (!pass) return 'חסר password';
+  if (password === undefined) return 'חסר השדה "password"';
+  if (!pass) return 'password ריק';
   if (EXAMPLE_PASSWORDS.has(pass)) return 'password עדיין הדוגמה';
   return null;
 }
@@ -100,7 +114,7 @@ function scrub(msg, creds) {
 async function runJob(cfg, job) {
   const entry = cfg.logins?.[job.loginKey];
   const creds = entry && !loginProblem(job.loginKey, entry)
-    ? { userCode: String(entry.userCode).trim(), password: String(entry.password) }
+    ? { userCode: String(credsOf(entry).userCode).trim(), password: String(credsOf(entry).password) }
     : null;
   if (!creds) {
     await api(cfg, `/ingest/bank-agent/${job.id}/state`, {
