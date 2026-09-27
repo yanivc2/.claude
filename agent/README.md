@@ -17,6 +17,13 @@
    npm install
    ```
    (מוריד דפדפן ייעודי, כ-170MB.)
+   ⚠️ ב-npm 11 ומעלה מופיעה אזהרה `install scripts blocked ... puppeteer` — כלומר הדפדפן **לא** ירד.
+   מורידים אותו ידנית (באותה תיקייה):
+   ```
+   npx puppeteer browsers install chrome
+   ```
+   אזהרת `high severity vulnerabilities` נוגעת ל-`extract-zip`, שמשמש רק לפריסת הדפדפן שהורד מגוגל —
+   **לא** להריץ `npm audit fix --force` (מעלה גרסה ראשית של puppeteer שלא נבדקה עם הסוכן).
 4. **הגדרות** — להעתיק את `config.example.json` לקובץ חדש בשם `config.json` ולמלא:
    - `agentSecret` — אותו ערך בדיוק כמו `BANK_AGENT_SECRET` ב-Vercel.
    - `logins` — שורה לכל מי שיסנכרן. **המפתח** הוא שם המשתמש באפליקציה — הוא מופיע בכרטיס
