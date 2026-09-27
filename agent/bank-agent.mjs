@@ -19,7 +19,7 @@
 
 import os from 'node:os';
 import path from 'node:path';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -187,6 +187,110 @@ async function runJob(cfg, job) {
   }
 }
 
+// `npm run add-login` — ממלא את config.json בשאלות, בלי לערוך JSON ביד. עריכה ידנית של קובץ שמערבב
+// עברית ואנגלית ב-Notepad היא מלכודת: הכיוון מימין-לשמאל מערבב את סדר התווים, ושפת המקלדת
+// מחליפה אותיות בלי שרואים. הסיסמה לא מוצגת בהקלדה ולא נכתבת לשום מקום מלבד הקובץ.
+// קורא שורה אחת מהמקלדת. במצב raw אנחנו אלה שמדפיסים את מה שהוקלד — ולכן בשדה מוסתר פשוט לא
+// מדפיסים. (readline של Node מדפיס הקשות בנתיב שלא ניתן להשתיק — הסיסמה הופיעה על המסך.)
+let pendingInput = '';
+function readLine(prompt, { hidden = false } = {}) {
+  return new Promise((resolve) => {
+    const { stdin, stdout } = process;
+    const tty = !!stdin.isTTY;
+    stdout.write(prompt);
+    let buf = '';
+    let esc = 0;
+    const finish = (rest) => {
+      stdin.off('data', onData);
+      if (tty) stdin.setRawMode(false);
+      stdin.pause();
+      pendingInput = rest;
+      stdout.write('\n');
+      resolve(buf.trim());
+    };
+    const feed = (chunk) => {
+      for (let i = 0; i < chunk.length; i++) {
+        const c = chunk[i];
+        if (esc) { if (esc === 1 && c === '[') esc = 2; else if (esc === 1 || /[@-~]/.test(c)) esc = 0; continue; }
+        if (c === '\x1b') { esc = 1; continue; }
+        if (c === '\r' || c === '\n') {
+          let rest = chunk.slice(i + 1);
+          if (c === '\r' && rest[0] === '\n') rest = rest.slice(1);
+          finish(rest);
+          return true;
+        }
+        if (c === '\x03') { if (tty) stdin.setRawMode(false); stdout.write('\n'); process.exit(130); }
+        if (c === '\b' || c === '\x7f') { if (buf) { buf = buf.slice(0, -1); if (tty && !hidden) stdout.write('\b \b'); } continue; }
+        if (c < ' ') continue;
+        buf += c;
+        if (tty && !hidden) stdout.write(c);
+      }
+      return false;
+    };
+    function onData(chunk) { feed(chunk); }
+    if (pendingInput) { const p = pendingInput; pendingInput = ''; if (feed(p)) return; }
+    if (tty) stdin.setRawMode(true);
+    stdin.setEncoding('utf8');
+    stdin.on('data', onData);
+    stdin.resume();
+  });
+}
+
+async function addLogin() {
+  const ask = (q) => readLine(q);
+  const askHidden = (q) => readLine(q, { hidden: true });
+  const yes = async (q) => /^(כ|כן|y|yes)$/i.test(await ask(q));
+
+  let cfg;
+  try {
+    cfg = existsSync(CONFIG_PATH) ? JSON.parse(readFileSync(CONFIG_PATH, 'utf8').replace(/^﻿/, '')) : {};
+  } catch {
+    console.log('config.json הנוכחי אינו JSON תקין — בונים אותו מחדש (הסוד ייבחר שוב).');
+    cfg = {};
+  }
+  cfg.appUrl ||= 'https://ap-control.vercel.app';
+  cfg.accountIds ??= [];
+  cfg.startDaysBack ??= 60;
+  cfg.showBrowser ??= false;
+  cfg.logins = cfg.logins && typeof cfg.logins === 'object' ? cfg.logins : {};
+
+  if (!cfg.agentSecret || /אותו ערך/.test(cfg.agentSecret)) {
+    cfg.agentSecret = (await askHidden('הסוד (BANK_AGENT_SECRET, מודבק עם קליק ימני; לא יוצג): ')).trim();
+  }
+  for (const [k, v] of Object.entries(cfg.logins)) {
+    if (loginProblem(k, v)) { delete cfg.logins[k]; console.log(`הוסרה שורה לא שמישה: "${k}"`); }
+  }
+
+  do {
+    console.log('\nהמפתח = מה שכתוב בכרטיס הסנכרון באפליקציה, "המפתח שלך במחשב המשרד".');
+    const key = await ask('המפתח: ');
+    if (!key) break;
+    let userCode;
+    for (;;) {
+      userCode = await ask('קוד המשתמש בבנק (כמו במסך הכניסה של פועלים לעסקים): ');
+      if (!userCode) continue;
+      if (HEBREW.test(userCode)) { console.log('  הוקלד בעברית — החלף שפת מקלדת (Alt+Shift) ונסה שוב.'); continue; }
+      break;
+    }
+    let password;
+    for (;;) {
+      password = await askHidden('סיסמת הבנק (לא תוצג בהקלדה): ');
+      if (!password) continue;
+      if (HEBREW.test(password) && !(await yes('  בסיסמה יש אותיות עבריות — אולי המקלדת בעברית? להשאיר כך? (כ/ל): '))) continue;
+      const again = await askHidden('שוב, לאימות: ');
+      if (again !== password) { console.log('  הסיסמאות לא זהות — שוב.'); continue; }
+      break;
+    }
+    cfg.logins[key] = { userCode, password };
+    writeFileSync(CONFIG_PATH, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8');
+    console.log(`✓ נשמר "${key}" (קוד משתמש: ${userCode.length} תווים, סיסמה: ${password.length} תווים).`);
+  } while (await yes('\nלהוסיף עוד משתמש? (כ/ל): '));
+
+  writeFileSync(CONFIG_PATH, `${JSON.stringify(cfg, null, 2)}\n`, 'utf8');
+  console.log(`\nמשתמשים בקובץ: ${Object.keys(cfg.logins).join(', ') || '—'}. עכשיו: npm run check`);
+  process.exit(0);
+}
+
 async function check() {
   let ok = true;
   const step = async (label, fn) => {
@@ -219,6 +323,7 @@ async function check() {
 
 async function main() {
   if (process.argv.includes('--check')) return check();
+  if (process.argv.includes('--add-login')) return addLogin();
   let cfg = loadConfig();
   log(`סוכן סנכרון הבנק פועל על "${NAME}" מול ${cfg.appUrl}. משאירים את החלון פתוח.`);
   let backoff = 0;

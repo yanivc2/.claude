@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node bank-agent.mjs",
-    "check": "node bank-agent.mjs --check"
+    "check": "node bank-agent.mjs --check",
+    "add-login": "node bank-agent.mjs --add-login"
   },
   "dependencies": {
     "puppeteer": "^24.0.0"
