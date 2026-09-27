@@ -220,8 +220,13 @@ export async function syncStatus(user, scope = null, x = getExecutor()) {
       };
     } catch { result = null; }
   }
+  // 🔴 בזמן עבודה הסוכן לא שואל "יש עבודה?" — הוא מחכה לבנק או לקליטה בשרת (עשרות שניות), ופעימת
+  // החיים מתיישנת. הכרטיס הציג "מחשב המשרד לא מחובר" באמצע סנכרון תקין (נצפה). בקשה שנתפסה ועדיין
+  // פעילה היא עצמה הוכחת חיים — ובקשה שהסוכן נטש פוקעת ב-expireStale.
+  const working = job.agent && ['running', 'awaiting_otp'].includes(job.status);
   return {
     ...base,
+    agentOnline: base.agentOnline || Boolean(working),
     job: {
       id: job.id,
       status: job.status,
@@ -286,6 +291,7 @@ export async function claimNext(agentName, x = getExecutor()) {
 }
 
 async function agentJob(id, agentName, x) {
+  await heartbeat(agentName, x); // כל פנייה של הסוכן היא סימן חיים, לא רק "יש עבודה?"
   const job = await getJob(id, x);
   if (job.agent && agentName && job.agent !== String(agentName).slice(0, 80)) {
     throw new RuleError('BANK_SYNC', 'הבקשה נתפסה על ידי סוכן אחר');

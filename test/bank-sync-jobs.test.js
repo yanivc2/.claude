@@ -161,3 +161,19 @@ test('דיווח "עובד" באיחור אינו מעלים את שדה הקו�
   await takeOtp(job.id, 'pc', x);
   assert.equal((await x.one('SELECT status FROM bank_sync_jobs WHERE id = ?', [job.id])).status, 'running');
 });
+
+// 🔴 נצפה בסנכרון החי: באמצע משיכה תקינה הכרטיס הציג "מחשב המשרד לא מחובר", כי הסוכן לא שואל
+// "יש עבודה?" בזמן שהוא עובד ופעימת החיים התיישנה.
+test('בזמן שבקשה נתפסה ופעילה — הסוכן מוצג מחובר גם כשפעימת החיים ישנה', async () => {
+  const x = await freshDb();
+  const o = await owner(x);
+  const job = await requestSync(o, x);
+  await claimNext('office-pc', x);
+  await x.run("UPDATE app_settings SET value = ? WHERE key = 'bank_agent_heartbeat'", [JSON.stringify({ at: '2000-01-01 00:00:00', agent: 'office-pc' })]);
+  let st = await syncStatus(o, null, x);
+  assert.equal(st.job.status, 'running');
+  assert.equal(st.agentOnline, true);
+  await cancelSync(job.id, o, x);
+  st = await syncStatus(o, null, x);
+  assert.equal(st.agentOnline, false, 'אחרי הסיום — שוב לפי פעימת החיים');
+});

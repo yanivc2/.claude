@@ -280,6 +280,26 @@ export async function listImports({ accountId = null, limit = 20 } = {}, x = get
  * תאריכים, ולא כ"ייבוא" שאפשר לבטל בלחיצה: מחיקה גורפת שלהן הייתה מוחקת גם תנועות אמיתיות.
  */
 /**
+ * 🔴 תנועה יכולה להיות מותאמת לשני דברים: צ׳ק (`matched_payment_id`) **או הפקדה**
+ * (`deposits.matched_txn_id`, FK). מחיקה ששחררה רק צ׳קים נפלה ב-Postgres על ה-FK של ההפקדה —
+ * **אחרי** שהצ׳קים כבר שוחררו, כלומר מצב חצי-מבוצע. לכן: מונים את שני הסוגים, ומשחררים את שניהם
+ * לפני DELETE. ההפקדה חוזרת ל"ממתינה להתאמה" (`deposited` נשאר — הכסף אכן הופקד).
+ */
+async function depositLinks(ids, x) {
+  const set = new Set((ids || []).map(Number));
+  if (!set.size) return [];
+  const rows = await x.many('SELECT id, matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', []);
+  return rows.filter((d) => set.has(Number(d.matched_txn_id)));
+}
+async function releaseDeposits(links, actor, x) {
+  for (const d of links) {
+    await x.run('UPDATE deposits SET matched_txn_id = NULL, recon_diff = NULL WHERE id = ?', [d.id]);
+    await logAction({ userId: actor?.id ?? null, action: 'deposit.unmatch', entityType: 'deposit', entityId: d.id, details: { txnId: d.matched_txn_id } }, x);
+  }
+  return links.length;
+}
+
+/**
  * מחיקת כמה תנועות בבת אחת — הכלי לניקוי שורות שהועלו לחשבון הלא נכון, כולל כאלה שקדמו למעקב
  * הייבוא ואין להן קובץ לבטל.
  *
@@ -295,8 +315,10 @@ export async function deleteTransactions(ids, accountId, actor, { releaseMatched
   // כל השורות נשלפות ומסוננות לחשבון הזה — מזהה מזויף לא ימחק תנועה של חשבון אחר.
   const rows = await x.many('SELECT id, matched_payment_id FROM bank_transactions WHERE bank_account_id = ?', [Number(accountId)]);
   const mine = rows.filter((r) => wanted.includes(Number(r.id)));
-  const matched = mine.filter((r) => r.matched_payment_id != null);
-  const free = mine.filter((r) => r.matched_payment_id == null);
+  const links = await depositLinks(mine.map((r) => r.id), x);
+  const depTxn = new Set(links.map((d) => Number(d.matched_txn_id)));
+  const matched = mine.filter((r) => r.matched_payment_id != null || depTxn.has(Number(r.id)));
+  const free = mine.filter((r) => r.matched_payment_id == null && !depTxn.has(Number(r.id)));
 
   // `releaseMatched` = המשתמש ראה כמה התאמות ישוחררו ואישר. זה המצב של "פרטי בנק שאינם שייכים
   // לחשבון הזה בכלל": ההתאמה שנעשתה מולם היא **התאמת שווא** — הצ׳ק לא נפרע בתנועה הזו — ולכן
@@ -308,7 +330,8 @@ export async function deleteTransactions(ids, accountId, actor, { releaseMatched
     // `cleared_date`, כלומר הצ׳ק ממשיך להיראות פרוע ואינו חוזר לרשימת הפתוחים — בדיוק ההפך
     // ממה שהמסך מבטיח. `unmatch` מחזיר גם את סטטוס התשלום.
     const { unmatch } = await import('./reconciliation.js');
-    for (const r of matched) { await unmatch(r.id, actor, x); released += 1; }
+    released += await releaseDeposits(links, actor, x);
+    for (const r of matched) if (r.matched_payment_id != null) { await unmatch(r.id, actor, x); released += 1; }
   }
   for (const r of toDelete) await x.run('DELETE FROM bank_transactions WHERE id = ?', [r.id]);
   await logAction(
@@ -359,10 +382,12 @@ export async function deleteImport(id, actor, { releaseMatched = false } = {}, x
   const imp = await getImport(id, x);
   const rows = await x.many('SELECT id, matched_payment_id FROM bank_transactions WHERE import_id = ?', [imp.id]);
   const matched = rows.filter((r) => r.matched_payment_id != null);
-  if (matched.length && !releaseMatched) {
-    throw new RuleError('MATCHED', `${matched.length} מתנועות הייבוא כבר הותאמו לצ׳קים — אישור נוסף נדרש כדי לבטל את ההתאמות ולמחוק.`);
+  const links = await depositLinks(rows.map((r) => r.id), x);
+  if ((matched.length || links.length) && !releaseMatched) {
+    throw new RuleError('MATCHED', `${matched.length + links.length} מתנועות הייבוא כבר הותאמו (לצ׳קים או להפקדות) — אישור נוסף נדרש כדי לבטל את ההתאמות ולמחוק.`);
   }
   let released = 0;
+  released += await releaseDeposits(links, actor, x);
   if (matched.length) {
     // כמו ב-deleteTransactions: ניתוק השדה לבדו היה משאיר את הצ׳ק "נפרע".
     const { unmatch } = await import('./reconciliation.js');
@@ -440,6 +465,9 @@ export async function deleteTransaction(id, actor, x = getExecutor()) {
   const txn = await getTransaction(id, x);
   if (txn.matched_payment_id) {
     throw new RuleError('MATCHED', 'התנועה מותאמת לצ׳ק — בטל את ההתאמה לפני מחיקה.');
+  }
+  if ((await depositLinks([id], x)).length) {
+    throw new RuleError('MATCHED', 'התנועה מותאמת להפקדה — בטל את ההתאמה לפני מחיקה.');
   }
   await x.run('DELETE FROM bank_transactions WHERE id = ?', [id]);
   await logAction({ userId: actor?.id ?? null, action: 'bank.txn_delete', entityType: 'bank_transaction', entityId: id }, x);

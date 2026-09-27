@@ -118,3 +118,28 @@ test('שורה שנסרקה בפורמט המזהה הישן מזוהה גם מ�
   assert.equal(r.inserted, 0);
   assert.equal(await count(db, acct), 1);
 });
+
+// 🔴 תנועה מותאמת להפקדה (deposits.matched_txn_id, FK). ביטול ייבוא ששחרר רק צ׳קים נפל ב-Postgres
+// על ה-FK — אחרי שהצ׳קים כבר שוחררו. עכשיו: נספר באישור, משוחרר, ונמחק.
+test('ביטול ייבוא משחרר גם התאמה להפקדה, ולא נופל על ה-FK', async () => {
+  const { deleteImport } = await import('../src/services/bankTransactions.js');
+  const db = await freshDb();
+  const o = await owner(db);
+  const st = await firstStore(db);
+  const acct = await account(db);
+  const imp = await importTransactions(acct, [
+    { txnDate: '2026-09-02', amount: 120000, description: 'הפקדה', rawReference: '77', externalId: 'd77' },
+  ], 'scraper', o, db);
+  const txn = await db.one('SELECT id FROM bank_transactions WHERE bank_account_id = ? AND external_id = ?', [acct, 'd77']);
+  const dep = await db.run(
+    'INSERT INTO deposits (store_id, deposit_date, amount, deposited, matched_txn_id, created_by) VALUES (?, ?, ?, 1, ?, ?)',
+    [st.id, '2026-09-02', 120000, txn.id, o.id],
+  );
+  await assert.rejects(() => deleteImport(imp.importId, o, {}, db), /הפקדות/);
+  const r = await deleteImport(imp.importId, o, { releaseMatched: true }, db);
+  assert.equal(r.deleted, 1);
+  assert.equal(r.released, 1);
+  const d = await db.one('SELECT matched_txn_id, deposited FROM deposits WHERE id = ?', [dep.lastInsertRowid]);
+  assert.equal(d.matched_txn_id, null);
+  assert.equal(Number(d.deposited), 1, 'הכסף אכן הופקד — רק ההתאמה משתחררת');
+});
