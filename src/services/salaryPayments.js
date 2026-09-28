@@ -290,14 +290,19 @@ const DAY = 86_400_000;
  */
 export async function matchSalaryChecksToBank(bankAccountId, actor, x = getExecutor()) {
   if (!(await salaryBankReady(x))) return { matched: 0, doublePaid: 0 };
-  const acc = await x.one('SELECT id, store_id FROM bank_accounts WHERE id = ?', [Number(bankAccountId)]);
+  const acc = await x.one('SELECT id, store_id, company_id FROM bank_accounts WHERE id = ?', [Number(bankAccountId)]);
   if (!acc?.store_id) return { matched: 0, doublePaid: 0 };
-  const salaries = await x.many(
+  // 🔴 כל חנויות **החברה**, לא רק החנות של החשבון: שכר של חנות אחת יכול לצאת מהחשבון של חנות
+  // אחרת באותה חברה, והגבלה לחנות הייתה משאירה צ׳ק כזה לא מותאם לנצח. מספר צ׳ק + סכום מדויק
+  // מספיקים; בין חברות — לא (ספר כסף אחר).
+  const companyStores = new Set((await x.many('SELECT id FROM stores WHERE company_id = ?', [acc.company_id]))
+    .map((r) => Number(r.id)));
+  const salaries = (await x.many(
     `SELECT sp.*, e.first_name, e.last_name FROM salary_payments sp JOIN employees e ON e.id = sp.employee_id
-      WHERE sp.store_id = ? AND sp.method = 'check' AND sp.bank_txn_id IS NULL AND sp.reference IS NOT NULL
+      WHERE sp.method = 'check' AND sp.bank_txn_id IS NULL AND sp.reference IS NOT NULL
       ORDER BY sp.due_date, sp.id`,
-    [acc.store_id],
-  );
+    [],
+  )).filter((sp) => companyStores.has(Number(sp.store_id)) || Number(sp.store_id) === Number(acc.store_id));
   if (!salaries.length) return { matched: 0, doublePaid: 0 };
   const taken = await salaryLinkedTxnIds(x);
   const depRows = await x.many('SELECT matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', []);
@@ -338,4 +343,43 @@ export async function matchSalaryChecksToBank(bankAccountId, actor, x = getExecu
     }
   }
   return { matched, doublePaid };
+}
+
+/**
+ * למה צ׳ק שכר עוד לא "נפרע בבנק" — אומר את זה בשורה עצמה במקום להשאיר את המשתמש לנחש (נצפה: 13
+ * צ׳קים בלי סטטוס, ואין דרך לדעת אם הם לא נפרעו, או שנפרעו בסכום אחר, או שהאסמכתה שגויה).
+ * מחפש בכל חשבונות החברה חיוב עם אותו מספר צ׳ק, ומחזיר משפט אחד לכל שורה (`r.bank_hint`).
+ */
+export async function attachSalaryBankHints(rows, x = getExecutor()) {
+  const pending = (rows || []).filter((r) => r.method === 'check' && r.bank_txn_id == null && !Number(r.cashed));
+  if (!pending.length || !(await salaryBankReady(x))) return rows;
+  const stores = await x.many('SELECT id, company_id FROM stores', []);
+  const companyOf = new Map(stores.map((st) => [Number(st.id), Number(st.company_id)]));
+  // בלי שם החשבון בהודעה: הוא יכול להיות של חנות אחרת בחברה, מחוץ לסקופ של הצופה.
+  const accounts = await x.many('SELECT id, company_id FROM bank_accounts', []);
+  const accCompany = new Map(accounts.map((a) => [Number(a.id), Number(a.company_id)]));
+  const linked = await salaryLinkedTxnIds(x);
+  const byKey = new Map();
+  for (const t of await x.many('SELECT id, bank_account_id, txn_date, amount, raw_reference, matched_payment_id FROM bank_transactions WHERE amount < 0', [])) {
+    const k = checkKey(t.raw_reference);
+    if (!k) continue;
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(t);
+  }
+  for (const r of pending) {
+    const key = checkKey(r.reference);
+    if (!key) { r.bank_hint = 'אין מספר צ׳ק באסמכתה — אין לפי מה להתאים'; continue; }
+    const co = companyOf.get(Number(r.store_id));
+    const hits = (byKey.get(key) || []).filter((t) => accCompany.get(Number(t.bank_account_id)) === co);
+    if (!hits.length) { r.bank_hint = 'טרם נפרע בבנק (אין חיוב עם מספר הצ׳ק הזה)'; continue; }
+    const same = hits.find((t) => -Number(t.amount) === Number(r.amount));
+    if (same && linked.has(Number(same.id))) r.bank_hint = 'החיוב בבנק כבר שויך לצ׳ק שכר אחר';
+    else if (same && same.matched_payment_id) r.bank_hint = `החיוב בבנק (${same.txn_date}) הותאם לתשלום ספק`;
+    else if (same) r.bank_hint = `נמצא בבנק (${same.txn_date}) — לחץ "התאמה אוטומטית" בהתאמת בנק`;
+    else {
+      const t = hits[0];
+      r.bank_hint = `בבנק צ׳ק ${r.reference} נפרע בסכום ${fromAgorot(-Number(t.amount))} ₪ (${t.txn_date}) — שונה מהסכום שהוזן`;
+    }
+  }
+  return rows;
 }

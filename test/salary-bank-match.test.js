@@ -97,3 +97,39 @@ test('צ׳ק שהוזן אחרי ששורת הבנק שלו כבר נמשכה �
   assert.equal(again.inserted, 0);
   assert.ok((await db.one('SELECT bank_txn_id FROM salary_payments WHERE id = ?', [sp.id])).bank_txn_id, 'הותאם בכל זאת');
 });
+
+test('שכר של חנות אחת שיצא מהחשבון של חנות אחרת באותה חברה — מותאם; מחברה אחרת — לא', async () => {
+  const { db, o, st, salary } = await world();
+  const company = (await db.one('SELECT company_id FROM stores WHERE id = ?', [st.id])).company_id;
+  const sib = (await db.run('INSERT INTO stores (company_id, name) VALUES (?, ?)', [company, 'חנות אחות'])).lastInsertRowid;
+  const sibAcct = (await db.run(
+    `INSERT INTO bank_accounts (company_id, store_id, bank_name, branch, account_number, display_name) VALUES (?, ?, 'הפועלים', '628', '999111', 'אחות')`,
+    [company, sib],
+  )).lastInsertRowid;
+  const other = await db.one('SELECT ba.id AS acct FROM bank_accounts ba WHERE ba.company_id <> ?', [company]);
+
+  await salary('27750', 1291992);
+  await salary('27751', 115600);
+  await importTransactions(sibAcct, [{ txnDate: '2026-09-12', amount: -1291992, description: 'שיק', rawReference: '27750', externalId: 'f1' }], 'scraper', o, db);
+  assert.equal((await reconcileAccount(sibAcct, o, db)).salary, 1, 'חשבון של חנות אחות באותה חברה');
+  await importTransactions(other.acct, [{ txnDate: '2026-09-12', amount: -115600, description: 'שיק', rawReference: '27751', externalId: 'f2' }], 'scraper', o, db);
+  assert.equal((await reconcileAccount(other.acct, o, db)).salary, 0, 'חברה אחרת = ספר כסף אחר');
+});
+
+test('הסבר בשורה: טרם נפרע / סכום שונה / נמצא — ממתין להתאמה', async () => {
+  const { attachSalaryBankHints } = await import('../src/services/salaryPayments.js');
+  const { db, salary, bank } = await world();
+  await salary('27740', 406114);
+  await salary('27741', 362098);
+  await salary('27742', 141952);
+  await bank([
+    { txnDate: '2026-09-12', amount: -362000, description: 'שיק', rawReference: '27741', externalId: 'g1' },
+    { txnDate: '2026-09-12', amount: -141952, description: 'שיק', rawReference: '27742', externalId: 'g2' },
+  ]);
+  const rows = await attachSalaryBankHints(await listSalaryPayments({}, db), db);
+  const hint = (ref) => rows.find((r) => r.reference === ref).bank_hint;
+  assert.match(hint('27740'), /טרם נפרע/);
+  assert.match(hint('27741'), /3,620\.00|3620\.00/);
+  assert.match(hint('27741'), /שונה מהסכום/);
+  assert.match(hint('27742'), /התאמה אוטומטית/);
+});

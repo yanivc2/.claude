@@ -36,7 +36,7 @@ import { israelStamp } from './lib/loginHours.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-09-28·188';
+const BUILD_VERSION = '2026-09-28·189';
 
 export function createApp() {
   const app = express();

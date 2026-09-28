@@ -95,6 +95,7 @@
                     <button class="btn btn-secondary small" type="submit">בטל התאמה</button>
                   </form>
                 <% } else if (r.method === 'check') { %>
+                  <% if (r.bank_hint) { %><div class="muted" style="font-size:12px; margin-bottom:.2rem">🏦 <%= r.bank_hint %></div><% } %>
                   <%# The employee cashed the wage check at the till: matching it to the Z-closing
                       cash expense that paid it out also VOIDS the check, so the same wage is not
                       paid twice (services/salaryPayments.js#markCashed). %>

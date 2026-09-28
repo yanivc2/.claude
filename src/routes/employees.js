@@ -6,7 +6,7 @@ import {
 } from '../services/employees.js';
 import { scopedStoreList, assignmentScope, effectiveStoreId } from '../lib/scope.js';
 import {
-  listSalaryPayments, createSalaryPayment, deleteSalaryPayment, markCashed, unmatchCashed,
+  listSalaryPayments, createSalaryPayment, deleteSalaryPayment, markCashed, unmatchCashed, attachSalaryBankHints,
   cashExpenseCandidates, SALARY_METHODS,
 } from '../services/salaryPayments.js';
 import { salaryPaymentsReady } from '../services/voidedChecks.js';
@@ -79,7 +79,7 @@ async function render(req, res, extra = {}) {
   res.render('employees/index', {
     title: 'עובדים ומשכורות',
     salaryReady,
-    salaryRows: salaryReady ? await listSalaryPayments({ storeId, scope: req.scope }) : [],
+    salaryRows: salaryReady ? await attachSalaryBankHints(await listSalaryPayments({ storeId, scope: req.scope })) : [],
     salaryMethods: SALARY_METHODS,
     cashCandidates: salaryReady ? await cashExpenseCandidates({ storeId, scope: req.scope }) : [],
     salaryStoreId: storeId,
