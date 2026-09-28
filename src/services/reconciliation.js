@@ -150,6 +150,34 @@ export async function unmatch(txnId, actor, x = getExecutor()) {
 }
 
 /**
+ * 🔴 **התאמה מיידית של תשלום שנרשם עכשיו** — בלי ללחוץ "התאמה אוטומטית". ההתאמה רצה ממילא אחרי כל
+ * סנכרון וכל ייבוא; המקרה היחיד שנשאר בחוץ הוא תשלום שנרשם **אחרי** ששורת הבנק שלו כבר נמשכה
+ * (למשל צ׳ק שתוקן והוזן מחדש). כאן מחפשים רק חיוב פנוי **באותו חשבון, עם אותו מספר צ׳ק/אסמכתה
+ * ובאותו סכום בדיוק** — לעולם לא לפי סכום בלבד. אף פעם לא זורק: תשלום שכבר נרשם לא ייכשל בגלל זה.
+ */
+export async function matchPaymentNow(paymentId, actor, x = getExecutor()) {
+  try {
+    const p = await x.one('SELECT id, bank_account_id, amount, status, check_number, reference, batch_number FROM payments WHERE id = ?', [Number(paymentId)]);
+    if (!p || p.status !== 'issued' || !p.bank_account_id) return false;
+    const keyOf = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').replace(/^0+/, '');
+    const keys = [p.check_number, p.reference, p.batch_number].map(keyOf).filter(Boolean);
+    if (!keys.length) return false;
+    const taken = await salaryLinkedTxnIds(x);
+    for (const d of await x.many('SELECT matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', [])) taken.add(Number(d.matched_txn_id));
+    const hit = (await x.many(
+      `SELECT id, raw_reference FROM bank_transactions
+        WHERE bank_account_id = ? AND amount = ? AND matched_payment_id IS NULL ORDER BY txn_date, id`,
+      [p.bank_account_id, -Number(p.amount)],
+    )).find((t) => !taken.has(Number(t.id)) && keys.includes(keyOf(t.raw_reference)));
+    if (!hit) return false;
+    await confirmMatch(hit.id, p.id, actor, x);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Auto-reconcile every unmatched debit on an account.
  * @returns {{matched:number, ambiguous:number, unmatched:number}}
  */

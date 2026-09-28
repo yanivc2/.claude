@@ -11,6 +11,7 @@ import {
   listPayments,
 } from '../services/payments.js';
 import { listPayable, invoiceNotesReady, appendInvoiceNote } from '../services/invoices.js';
+import { matchPaymentNow } from '../services/reconciliation.js';
 import { listDeposits, depositVerifications, depositZDiffs } from '../services/deposits.js';
 import { unmatchedCashExpenses, settledCashExpenses, cashSettleReady, withMatchCandidates } from '../services/zreports.js';
 
@@ -189,6 +190,8 @@ router.post('/', async (req, res, next) => {
       },
       req.user,
     );
+    // שורת הבנק של התשלום כבר נמשכה? מותאם מיד (מספר צ׳ק/אסמכתה + סכום) — בלי "התאמה אוטומטית".
+    await matchPaymentNow(payment.id, req.user);
     // הערה בעת הנפקת התשלום → נכתבת על החשבוניות ששולמו ומופיעה בדף החשבוניות. כשל כאן לא מפיל
     // תשלום שכבר נרשם.
     if (invoiceIds.length && String(b.note || '').trim()) {

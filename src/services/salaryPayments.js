@@ -98,6 +98,15 @@ export async function createSalaryPayment(input, actor, x = getExecutor()) {
     { userId: actor?.id ?? null, action: 'salary.create', entityType: 'salary_payment', entityId: info.lastInsertRowid, details: { employeeId, amount, method } },
     x,
   );
+  // שורת בנק שכבר נמשכה (למשל צ׳ק שתוקן והוזן מחדש) — מותאמת מיד, בלי "התאמה אוטומטית".
+  // בכל חשבונות החברה, כמו בסנכרון. כשל כאן לא מפיל רישום שכבר נשמר.
+  if (method !== 'cash') {
+    try {
+      const store = await x.one('SELECT company_id FROM stores WHERE id = ?', [storeId]);
+      const accounts = store ? await x.many('SELECT id FROM bank_accounts WHERE company_id = ?', [store.company_id]) : [];
+      for (const a of accounts) await matchSalaryChecksToBank(a.id, actor, x);
+    } catch { /* ההתאמה תרוץ בסנכרון הבא */ }
+  }
   return getSalaryPayment(info.lastInsertRowid, x);
 }
 

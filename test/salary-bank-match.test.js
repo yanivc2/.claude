@@ -170,3 +170,32 @@ test('העברת שכר עם אסמכתה שלא מופיעה בבנק — הה�
   const hint = rows.find((x) => x.reference === '10208425').bank_hint;
   assert.match(hint, /אין בבנק חיוב עם האסמכתה הזו — אבל יש חיוב באותו סכום ב-2026-09-09 \(אסמכתה 99887766\)/);
 });
+
+// 🔴 "למה בכלל צריך ללחוץ על כפתור?" — תשלום שנרשם אחרי ששורת הבנק שלו כבר נמשכה מותאם מיד.
+test('שורת שכר שהוזנה אחרי ששורת הבנק כבר קיימת — מותאמת מיד, בלי "התאמה אוטומטית"', async () => {
+  const { db, salary, bank } = await world();
+  await bank([{ txnDate: '2026-09-11', amount: -238366, description: 'שיק', rawReference: '32000', externalId: 'm1' }]);
+  const sp = await salary('32000', 238366); // אחרי שהבנק כבר נמשך — ובלי reconcileAccount
+  assert.ok((await db.one('SELECT bank_txn_id FROM salary_payments WHERE id = ?', [sp.id])).bank_txn_id);
+});
+
+test('תשלום לספק שנרשם אחרי ששורת הבנק כבר קיימת — מותאם מיד; לפי סכום בלבד — לא', async () => {
+  const { matchPaymentNow } = await import('../src/services/reconciliation.js');
+  const { createSupplier, approveSupplier } = await import('../src/services/suppliers.js');
+  const { createInvoice } = await import('../src/services/invoices.js');
+  const { createPayment } = await import('../src/services/payments.js');
+  const { db, o, st, acct, bank } = await world();
+  const sup = await approveSupplier((await createSupplier({ name: 'ספק מיידי' }, o, db)).id, o, db);
+  const inv = async (n, before) => (await createInvoice({ supplierId: sup.id, storeId: st.id, invoiceNumber: n, invoiceDate: '2026-09-01', amountBeforeVat: before, vatAmount: 0, docType: 'tax_invoice', confirm: true }, o, db)).invoice;
+  const a = await inv('IM1', 50000);
+  const b = await inv('IM2', 70000);
+  await bank([
+    { txnDate: '2026-09-12', amount: -50000, description: 'שיק', rawReference: '5501', externalId: 'n1' },
+    { txnDate: '2026-09-12', amount: -70000, description: 'שיק', rawReference: '9999', externalId: 'n2' }, // מספר אחר
+  ]);
+  const p1 = await createPayment({ bankAccountId: acct, method: 'check', checkNumber: '5501', paymentDate: '2026-09-05', invoiceIds: [a.id] }, o, db);
+  const p2 = await createPayment({ bankAccountId: acct, method: 'check', checkNumber: '5502', paymentDate: '2026-09-05', invoiceIds: [b.id] }, o, db);
+  assert.equal(await matchPaymentNow(p1.id, o, db), true);
+  assert.equal(await matchPaymentNow(p2.id, o, db), false, 'אותו סכום, מספר צ׳ק אחר — לא מותאם');
+  assert.equal((await db.one('SELECT status FROM payments WHERE id = ?', [p1.id])).status, 'cleared');
+});

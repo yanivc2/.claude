@@ -292,6 +292,9 @@ export async function executeTransfer(id, { reference, paymentDate = null }, act
     [israelNow(), ref, payment.id, id],
   );
   await logAction({ userId: actor?.id ?? null, action: 'transfer.execute', entityType: 'bank_transfer', entityId: id, details: { reference: ref, paymentId: payment.id } }, x);
+  // ההעברה כבר מופיעה בבנק (נמשכה לפני שנרשם הביצוע)? מותאמת מיד לפי האסמכתה + הסכום.
+  const { matchPaymentNow } = await import('./reconciliation.js');
+  await matchPaymentNow(payment.id, actor, x);
   return getTransfer(id, x);
 }
 

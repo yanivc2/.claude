@@ -28,6 +28,7 @@ import { toAgorot, fromAgorot } from '../lib/money.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { createPayment, payInvoices } from '../services/payments.js';
+import { matchPaymentNow } from '../services/reconciliation.js';
 import { submitRequest, pendingRequestFor } from '../services/changeRequests.js';
 import { userCan } from '../lib/permissions.js';
 import { describeInvoice } from '../lib/changeSummary.js';
@@ -257,7 +258,8 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
           payInput.reference = b.so_ref;
           payInput.paymentDate = b.so_date || invoice.invoice_date;
         }
-        await createPayment(payInput, req.user);
+        const created = await createPayment(payInput, req.user);
+        await matchPaymentNow(created.id, req.user); // שורת בנק שכבר נמשכה — מותאמת מיד
         return res.redirect(303, `/invoices/${invoice.id}?paid=1`);
       } catch (payErr) {
         // The invoice is saved; only the payment failed (e.g. R3 hold / unapproved supplier / cash ceiling).
@@ -342,6 +344,7 @@ router.post('/pay-batch', async (req, res, next) => {
     // בדיוק שמשמש את התאמת הבנק. `pay_amount` ריק = הסכום נגזר מהחשבוניות (R5).
     const typed = String(b.pay_amount || '').trim() ? toAgorot(b.pay_amount) : null;
     const { payment } = await payInvoices({ ...payInput, invoiceIds, supplierId, amount: typed }, req.user);
+    await matchPaymentNow(payment.id, req.user); // שורת בנק שכבר נמשכה — מותאמת מיד
     await notePaid(invoiceIds, b.pay_note, req.user);
 
     // "שמור וצור תשלום נוסף לחשבונית": keep the same selection on the form so the next check can
