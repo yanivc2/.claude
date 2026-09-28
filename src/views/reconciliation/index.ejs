@@ -416,6 +416,8 @@
           <td>
             <% if (t.matched_payment_id) { %>
               <span class="badge b-cleared">נפרע · <%= methodLabel(t.matched_method) %> <span class="mono"><%= t.matched_check_number %></span></span>
+            <% } else if (t.salary_match) { %>
+              <span class="badge b-cleared">נפרע · צ׳ק שכר <span class="mono"><%= t.salary_match.reference %></span> · <%= t.salary_match.name %></span>
             <% } else if (t.amount < 0) { %>
               <span class="badge b-issued">ממתין להתאמה</span>
             <% } else { %>

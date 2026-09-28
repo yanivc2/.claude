@@ -298,6 +298,13 @@ async function depositLinks(ids, x) {
   const rows = await x.many('SELECT id, matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', []);
   return rows.filter((d) => set.has(Number(d.matched_txn_id)));
 }
+/** צ׳ק שכר ששויך לתנועה שנמחקת חוזר ל"לא נפרע" — גם ב-SQLite, שבו FK ON DELETE לא מובטח. */
+async function releaseSalaryLinks(ids, x) {
+  const { salaryBankReady } = await import('./salaryPayments.js');
+  if (!(await salaryBankReady(x))) return;
+  for (const id of ids || []) await x.run('UPDATE salary_payments SET bank_txn_id = NULL WHERE bank_txn_id = ?', [Number(id)]);
+}
+
 async function releaseDeposits(links, actor, x) {
   for (const d of links) {
     await x.run('UPDATE deposits SET matched_txn_id = NULL, recon_diff = NULL WHERE id = ?', [d.id]);
@@ -340,6 +347,7 @@ export async function deleteTransactions(ids, accountId, actor, { releaseMatched
     released += await releaseDeposits(links, actor, x);
     for (const r of matched) if (r.matched_payment_id != null) { await unmatch(r.id, actor, x); released += 1; }
   }
+  await releaseSalaryLinks(toDelete.map((r) => r.id), x);
   for (const r of toDelete) await x.run('DELETE FROM bank_transactions WHERE id = ?', [r.id]);
   await logAction(
     { userId: actor?.id ?? null, action: 'bank.txn_bulk_delete', entityType: 'bank_account', entityId: Number(accountId),
@@ -400,6 +408,7 @@ export async function deleteImport(id, actor, { releaseMatched = false } = {}, x
     const { unmatch } = await import('./reconciliation.js');
     for (const r of matched) { await unmatch(r.id, actor, x); released += 1; }
   }
+  await releaseSalaryLinks(rows.map((r) => r.id), x);
   await x.run('DELETE FROM bank_transactions WHERE import_id = ?', [imp.id]);
   await x.run('DELETE FROM bank_imports WHERE id = ?', [imp.id]);
   await logAction(
@@ -412,17 +421,19 @@ export async function deleteImport(id, actor, { releaseMatched = false } = {}, x
 
 /** Unmatched debit transactions for an account (candidates for check reconciliation). */
 export async function listUnmatched(bankAccountId, x = getExecutor()) {
-  return x.many(
+  const { salaryLinkedTxnIds } = await import('./salaryPayments.js');
+  const salaryTaken = await salaryLinkedTxnIds(x); // צ׳ק שכר שנפרע — מוסבר, לא "ממתין"
+  return (await x.many(
     `SELECT * FROM bank_transactions
       WHERE bank_account_id = ? AND matched_payment_id IS NULL AND amount < 0
       ORDER BY txn_date`,
     [bankAccountId],
-  );
+  )).filter((t) => !salaryTaken.has(Number(t.id)));
 }
 
 /** All transactions for an account, newest first, with any matched check number joined. */
 export async function listTransactions(bankAccountId, x = getExecutor()) {
-  return x.many(
+  const rows = await x.many(
     `SELECT bt.*, p.method AS matched_method,
             COALESCE(p.check_number, p.reference, p.batch_number) AS matched_check_number
        FROM bank_transactions bt
@@ -431,6 +442,22 @@ export async function listTransactions(bankAccountId, x = getExecutor()) {
       ORDER BY bt.txn_date DESC, bt.id DESC`,
     [bankAccountId],
   );
+  // צ׳ק שכר שנפרע — "נפרע · שכר · שם העובד" במקום "ממתין להתאמה".
+  const { salaryBankReady } = await import('./salaryPayments.js');
+  if (rows.length && (await salaryBankReady(x))) {
+    const sal = await x.many(
+      `SELECT sp.bank_txn_id, sp.reference, e.first_name, e.last_name
+         FROM salary_payments sp JOIN employees e ON e.id = sp.employee_id
+        WHERE sp.bank_txn_id IS NOT NULL`,
+      [],
+    );
+    const byTxn = new Map(sal.map((r) => [Number(r.bank_txn_id), r]));
+    for (const r of rows) {
+      const s = byTxn.get(Number(r.id));
+      if (s) r.salary_match = { name: `${s.first_name || ''} ${s.last_name || ''}`.trim(), reference: s.reference };
+    }
+  }
+  return rows;
 }
 
 export async function getTransaction(id, x = getExecutor()) {
@@ -476,6 +503,7 @@ export async function deleteTransaction(id, actor, x = getExecutor()) {
   if ((await depositLinks([id], x)).length) {
     throw new RuleError('MATCHED', 'התנועה מותאמת להפקדה — בטל את ההתאמה לפני מחיקה.');
   }
+  await releaseSalaryLinks([id], x);
   await x.run('DELETE FROM bank_transactions WHERE id = ?', [id]);
   await logAction({ userId: actor?.id ?? null, action: 'bank.txn_delete', entityType: 'bank_transaction', entityId: id }, x);
   return txn;

@@ -74,7 +74,7 @@
   <% if (sRows.length) { %>
     <div class="table-scroll" style="margin-top:.8rem">
       <table>
-        <thead><tr><th>שם העובד</th><th>שולם ב</th><th>מס׳ אסמכתה</th><th>לתאריך</th><th class="right">סכום</th><th>נפרט בקופה</th><th class="no-print" data-nosort></th></tr></thead>
+        <thead><tr><th>שם העובד</th><th>שולם ב</th><th>מס׳ אסמכתה</th><th>לתאריך</th><th class="right">סכום</th><th>נפרע</th><th class="no-print" data-nosort></th></tr></thead>
         <tbody>
           <% sRows.forEach(function(r){ %>
             <tr>
@@ -84,7 +84,12 @@
               <td class="mono"><%= formatDate(r.due_date) %></td>
               <td class="right"><%= formatIls(r.amount) %></td>
               <td>
-                <% if (Number(r.cashed)) { %>
+                <% if (r.bank_txn_id && Number(r.cashed)) { %>
+                  <%# נפרע בבנק **וגם** סומן כנפרט בקופה — אותו שכר יצא פעמיים (נשלחה התראה). %>
+                  <span class="badge b-blocked">⚠️ נפרע בבנק<%= r.bank_date ? ' · ' + formatDate(r.bank_date) : '' %> וגם בקופה</span>
+                <% } else if (r.bank_txn_id) { %>
+                  <span class="badge b-cleared">🏦 נפרע בבנק<%= r.bank_date ? ' · ' + formatDate(r.bank_date) : '' %></span>
+                <% } else if (Number(r.cashed)) { %>
                   <span class="badge b-approved">הותאם להוצאת מזומן</span>
                   <form method="post" action="/employees/salary/<%= r.id %>/uncashed" style="display:inline" onsubmit="return confirm('לבטל את ההתאמה? הצ׳ק שבוטל יישאר במעקב.')">
                     <button class="btn btn-secondary small" type="submit">בטל התאמה</button>

@@ -106,7 +106,7 @@ export async function syncBankAccount(bankAccountId, opts = {}, actor, x = getEx
   if (inserted > 0) {
     // צ׳קים **וגם** הפקדות: דף בנק טרי הוא בדיוק הרגע שבו שקית שהופקדה נעשית נראית.
     const rec = await reconcileAccount(bankAccountId, actor, x);
-    matched = rec?.matched ?? 0;
+    matched = (rec?.matched ?? 0) + (rec?.salary ?? 0);
     voidedSeen = rec?.voidedSeen ?? 0;
   }
 
@@ -208,7 +208,7 @@ export async function importScrapedBatch(payload, actor, x = getExecutor()) {
     let matched = 0;
     if (inserted > 0) {
       const rec = await reconcileAccount(target.id, actor, x);
-      matched = rec?.matched ?? 0;
+      matched = (rec?.matched ?? 0) + (rec?.salary ?? 0);
     }
     results.push({ accountId: target.id, displayName: target.display_name, inserted, skipped, matched });
   }

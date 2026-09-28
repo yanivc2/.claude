@@ -300,7 +300,7 @@ router.post('/auto', async (req, res, next) => {
     // צ׳קים **וגם** הפקדות — אותו כפתור באותו שם בשני הדפים חייב לעשות אותו דבר.
     const r = await reconcileAccount(accountId, req.user);
     return backTo(res, accountId, {
-      notice: `הותאמו אוטומטית ${r.matched} צ׳קים · ${r.ambiguous} דורשים הכרעה · ${r.unmatched} ללא התאמה`
+      notice: `הותאמו אוטומטית ${r.matched} צ׳קים${r.salary ? ` · ${r.salary} צ׳קי שכר` : ''} · ${r.ambiguous} דורשים הכרעה · ${r.unmatched} ללא התאמה`
         + `${r.deposits ? ` · ${r.deposits} הפקדות הותאמו לפי מספר שקית.` : '.'}`,
     });
   } catch (err) {

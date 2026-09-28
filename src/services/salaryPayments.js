@@ -16,6 +16,7 @@ import { scopeWhere, normalizeScope } from '../lib/scope.js';
 import { logAction } from './audit.js';
 import { notify } from '../lib/notify.js';
 import { fromAgorot } from '../lib/money.js';
+import { plainNumber } from '../lib/numText.js';
 
 export const SALARY_METHODS = [
   { value: 'check', label: 'צ׳ק' },
@@ -33,7 +34,7 @@ export async function listSalaryPayments({ storeId = null, scope = null, limit =
   let filter = '';
   if (storeId) { filter = ' AND sp.store_id = ?'; params.push(Number(storeId)); }
   params.push(limit);
-  return x.many(
+  const rows = await x.many(
     `SELECT sp.*, e.first_name, e.last_name, st.name AS store_name
        FROM salary_payments sp
        JOIN employees e ON e.id = sp.employee_id
@@ -42,6 +43,18 @@ export async function listSalaryPayments({ storeId = null, scope = null, limit =
       ORDER BY sp.due_date DESC, sp.id DESC LIMIT ?`,
     params,
   );
+  // תאריך הפירעון בבנק (צ׳ק ששויך לתנועת הבנק שלו). שאילתה נפרדת ולא JOIN רביעי — pg-mem מתקשה
+  // בחיפוש לפי מזהה על טבלה מצורפת (ראה lib/scope.js#scopeClause), והרשימה קצרה וחסומה.
+  const linked = rows.filter((r) => r.bank_txn_id != null).map((r) => Number(r.bank_txn_id));
+  if (linked.length) {
+    const txns = await x.many(
+      `SELECT id, txn_date FROM bank_transactions WHERE id IN (${linked.map(() => '?').join(',')})`,
+      linked,
+    );
+    const dateOf = new Map(txns.map((t) => [Number(t.id), t.txn_date]));
+    for (const r of rows) if (r.bank_txn_id != null) r.bank_date = dateOf.get(Number(r.bank_txn_id)) || null;
+  }
+  return rows;
 }
 
 export async function getSalaryPayment(id, x = getExecutor()) {
@@ -142,6 +155,10 @@ export async function markCashed(id, cashExpenseId, actor, x = getExecutor(), { 
   if (source !== 'zclosing' && source !== 'zreport') throw new RuleError('VALIDATION', 'מקור הוצאה לא מוכר');
   const row = await getSalaryPayment(id, x);
   if (Number(row.cashed)) throw new RuleError('R', 'תשלום השכר כבר סומן כנפרט');
+  if (row.bank_txn_id) {
+    const bt = await x.one('SELECT txn_date FROM bank_transactions WHERE id = ?', [row.bank_txn_id]);
+    throw new RuleError('R', `הצ׳ק כבר נפרע בבנק${bt ? ` (${bt.txn_date})` : ''} — הוא לא נפרט בקופה.`);
+  }
   // 🔴 שתי טבלאות, שני מרחבי מזהים: הוצאה שהוזנה בטופס דוח ה-Z נשמרת ב-`cash_z_expense_id`
   // ולא ב-`cash_expense_id`, אחרת ה-FK מצביע על שורה אחרת לגמרי (או נכשל).
   const table = source === 'zclosing' ? 'z_closing_expenses' : 'z_expenses';
@@ -230,4 +247,95 @@ export async function unmatchCashed(id, actor, x = getExecutor()) {
   await x.run('UPDATE salary_payments SET cashed = 0, cash_expense_id = NULL, cash_z_expense_id = NULL WHERE id = ?', [id]);
   await logAction({ userId: actor?.id ?? null, action: 'salary.uncashed', entityType: 'salary_payment', entityId: id }, x);
   return getSalaryPayment(id, x);
+}
+
+
+// ---------------------------------------------------------------- צ׳ק שכר ↔ תנועת בנק
+// 🔴 צ׳ק שכר לא נרשם כ"תשלום" (טבלת payments), ולכן ההתאמה האוטומטית של הבנק — שעובדת רק מול
+// payments — לא ראתה אותו: צ׳ק שכר שנפרע בבנק נשאר חיוב "ממתין להתאמה" בהתאמת בנק, ובדף העובדים
+// לא הופיע שום סטטוס (נצפה אחרי הסנכרון הראשון: 13 צ׳קי שכר, אף אחד לא "הותאם").
+
+let bankReadyCache = false;
+/** האם `salary_payments.bank_txn_id` קיימת (לפני "עדכן מסד נתונים" — לא). */
+export async function salaryBankReady(x = getExecutor()) {
+  if (bankReadyCache) return true;
+  try {
+    await x.one('SELECT bank_txn_id FROM salary_payments LIMIT 1', []);
+    bankReadyCache = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** מזהי תנועות בנק שכבר שויכו לצ׳ק שכר — כדי שלא ייחשבו "ממתינות להתאמה" בשום מקום. */
+export async function salaryLinkedTxnIds(x = getExecutor()) {
+  if (!(await salaryBankReady(x))) return new Set();
+  const rows = await x.many('SELECT bank_txn_id FROM salary_payments WHERE bank_txn_id IS NOT NULL', []);
+  return new Set(rows.map((r) => Number(r.bank_txn_id)));
+}
+
+const checkKey = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').replace(/^0+/, '');
+const DAY = 86_400_000;
+
+/**
+ * שיוך צ׳קי שכר של החנות לתנועות החיוב שלהם בחשבון הזה: **מספר צ׳ק זהה וסכום זהה בדיוק** — שני
+ * התנאים, לא אחד מהם. מספר לבדו חוזר בין פנקסים; סכום לבדו חוזר בין עובדים. חלון תאריכים סביר
+ * (60 יום לפני "לתאריך" עד 180 אחרי) מונע שיוך לפנקס של שנה אחרת. כל תנועה משויכת פעם אחת.
+ *
+ * צ׳ק שסומן "נפרט בקופה" **וגם** נפרע בבנק = אותו שכר יצא פעמיים (בדיוק מה שביטול הצ׳ק בקופה נועד
+ * למנוע). הוא משויך כדי שיהיה גלוי, ונשלחת התראה.
+ *
+ * @returns {Promise<{matched:number, doublePaid:number}>}
+ */
+export async function matchSalaryChecksToBank(bankAccountId, actor, x = getExecutor()) {
+  if (!(await salaryBankReady(x))) return { matched: 0, doublePaid: 0 };
+  const acc = await x.one('SELECT id, store_id FROM bank_accounts WHERE id = ?', [Number(bankAccountId)]);
+  if (!acc?.store_id) return { matched: 0, doublePaid: 0 };
+  const salaries = await x.many(
+    `SELECT sp.*, e.first_name, e.last_name FROM salary_payments sp JOIN employees e ON e.id = sp.employee_id
+      WHERE sp.store_id = ? AND sp.method = 'check' AND sp.bank_txn_id IS NULL AND sp.reference IS NOT NULL
+      ORDER BY sp.due_date, sp.id`,
+    [acc.store_id],
+  );
+  if (!salaries.length) return { matched: 0, doublePaid: 0 };
+  const taken = await salaryLinkedTxnIds(x);
+  const depRows = await x.many('SELECT matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', []);
+  for (const d of depRows) taken.add(Number(d.matched_txn_id));
+  const txns = (await x.many(
+    `SELECT id, txn_date, amount, raw_reference, description FROM bank_transactions
+      WHERE bank_account_id = ? AND amount < 0 AND matched_payment_id IS NULL ORDER BY txn_date, id`,
+    [acc.id],
+  )).filter((t) => !taken.has(Number(t.id)));
+
+  let matched = 0;
+  let doublePaid = 0;
+  for (const sp of salaries) {
+    const key = checkKey(sp.reference);
+    if (!key) continue;
+    const due = Date.parse(sp.due_date);
+    const hit = txns.find((t) => !taken.has(Number(t.id))
+      && checkKey(t.raw_reference) === key
+      && -Number(t.amount) === Number(sp.amount)
+      && (!Number.isFinite(due) || (Date.parse(t.txn_date) >= due - 60 * DAY && Date.parse(t.txn_date) <= due + 180 * DAY)));
+    if (!hit) continue;
+    taken.add(Number(hit.id));
+    await x.run('UPDATE salary_payments SET bank_txn_id = ? WHERE id = ? AND bank_txn_id IS NULL', [hit.id, sp.id]);
+    await logAction(
+      { userId: actor?.id ?? null, action: 'salary.bank_cleared', entityType: 'salary_payment', entityId: sp.id,
+        details: { txnId: hit.id, txnDate: hit.txn_date, reference: sp.reference } },
+      x,
+    );
+    matched += 1;
+    if (Number(sp.cashed)) {
+      doublePaid += 1;
+      const emp = `${sp.first_name || ''} ${sp.last_name || ''}`.trim();
+      await notify(
+        `🔴 <b>צ׳ק שכר נפרע גם בבנק וגם בקופה</b>\n${emp || 'עובד'} · ${fromAgorot(sp.amount)} ₪ · צ׳ק ${sp.reference}`
+          + `\nהצ׳ק סומן כנפרט בקופה (הוצאת מזומן), ובכל זאת נפרע בבנק ב-${hit.txn_date}. אותו שכר יצא פעמיים.`,
+        { kind: 'salary_double_paid', link: '/employees', storeId: sp.store_id ?? null },
+      );
+    }
+  }
+  return { matched, doublePaid };
 }

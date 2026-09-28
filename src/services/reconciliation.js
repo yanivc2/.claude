@@ -8,6 +8,7 @@ import { getTransaction } from './bankTransactions.js';
 import { bagReferences } from './deposits.js';
 import { plainNumber } from '../lib/numText.js';
 import { logAction } from './audit.js';
+import { matchSalaryChecksToBank, salaryLinkedTxnIds } from './salaryPayments.js';
 
 // R7 — reconcile a bank debit against an open (issued) check. Matches on same account + same
 // amount + payment_date within reconcileWindowDays of the transaction date + debit direction.
@@ -153,12 +154,15 @@ export async function unmatch(txnId, actor, x = getExecutor()) {
  * @returns {{matched:number, ambiguous:number, unmatched:number}}
  */
 export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
-  const txns = await x.many(
+  // תנועה ששויכה לצ׳ק שכר כבר מוסברת — אחרת התאמה "single" לפי סכום בלבד הייתה יכולה לשייך אותה
+  // לצ׳ק ספק באותו סכום.
+  const salaryTaken = await salaryLinkedTxnIds(x);
+  const txns = (await x.many(
     `SELECT * FROM bank_transactions
       WHERE bank_account_id = ? AND matched_payment_id IS NULL AND amount < 0
       ORDER BY txn_date`,
     [bankAccountId],
-  );
+  )).filter((t) => !salaryTaken.has(Number(t.id)));
 
   let matched = 0;
   let ambiguous = 0;
@@ -219,9 +223,12 @@ export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
  * מחזיר את אותם שדות של `autoReconcile` (ולכן קוראים ותיקים ממשיכים לעבוד) בתוספת `deposits`.
  */
 export async function reconcileAccount(bankAccountId, actor, x = getExecutor()) {
+  // צ׳קי שכר **לפני** צ׳קי הספקים: שיוך שלהם דטרמיניסטי (מספר צ׳ק + סכום מדויק), ומוציא את
+  // התנועה מהמאגר שההתאמה לפי סכום בלבד בוחרת ממנו.
+  const salary = await matchSalaryChecksToBank(bankAccountId, actor, x);
   const checks = await autoReconcile(bankAccountId, actor, x);
   const dep = await reconcileDeposits(bankAccountId, actor, x);
-  return { ...checks, deposits: dep.matched };
+  return { ...checks, deposits: dep.matched, salary: salary.matched, salaryDoublePaid: salary.doublePaid };
 }
 
 /**

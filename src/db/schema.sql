@@ -662,6 +662,9 @@ CREATE TABLE IF NOT EXISTS salary_payments (
   -- הצ׳ק נפרע בבנק בזמן שהשכר עדיין לא הותאם להוצאת מזומן. נשמר כדי שההתראה תישלח פעם אחת.
   cleared_alerted TEXT,
   payment_id      INTEGER REFERENCES payments(id) ON DELETE SET NULL,
+  -- הצ׳ק נפרע בבנק: תנועת הבנק שלו (מספר צ׳ק + סכום מדויק). ON DELETE SET NULL — ביטול ייבוא
+  -- הבנק מנתק את ההתאמה במקום להיחסם על ה-FK.
+  bank_txn_id     INTEGER REFERENCES bank_transactions(id) ON DELETE SET NULL,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );

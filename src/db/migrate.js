@@ -736,6 +736,10 @@ function migrateSalaryCashMatch(db) {
     db.exec('ALTER TABLE salary_payments ADD COLUMN cash_z_expense_id INTEGER REFERENCES z_expenses(id) ON DELETE SET NULL;');
   }
   if (!cols.includes('cleared_alerted')) db.exec('ALTER TABLE salary_payments ADD COLUMN cleared_alerted TEXT;');
+  // צ׳ק שכר שנפרע בבנק — תנועת הבנק שלו (ראה services/salaryPayments.js#matchSalaryChecksToBank).
+  if (!cols.includes('bank_txn_id')) {
+    db.exec('ALTER TABLE salary_payments ADD COLUMN bank_txn_id INTEGER REFERENCES bank_transactions(id) ON DELETE SET NULL;');
+  }
 }
 
 // תור סנכרון הבנק (סוכן מחשב המשרד). ראה schema.sql.
