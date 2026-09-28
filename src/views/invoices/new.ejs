@@ -178,6 +178,12 @@
           <div><label>תאריך חיוב</label><input type="date" name="so_date" value="<%= values.so_date || '' %>" /></div>
         </div>
       </div>
+      <% if (typeof invoiceNotesReady !== 'undefined' && invoiceNotesReady) { %>
+        <div style="margin-top:.6rem">
+          <label>📝 הערה לחשבונית (לא חובה)</label>
+          <textarea name="pay_note" rows="2" maxlength="2000" placeholder="תופיע בדף החשבוניות בכפתור 📝"><%= values.pay_note || '' %></textarea>
+        </div>
+      <% } %>
       <script>
         (function(){
           var sel = document.getElementById('pay_method');
@@ -292,6 +298,12 @@
           <div><label>תאריך חיוב</label><input type="date" name="so_date" value="<%= pv.so_date || '' %>" /></div>
         </div>
       </div>
+      <% if (typeof invoiceNotesReady !== 'undefined' && invoiceNotesReady) { %>
+        <div style="margin-top:.6rem">
+          <label>📝 הערה לחשבוניות (לא חובה)</label>
+          <textarea name="pay_note" rows="2" maxlength="2000" placeholder="תיכתב על החשבוניות המסומנות ותופיע בדף החשבוניות"><%= pv.pay_note || '' %></textarea>
+        </div>
+      <% } %>
       <%# Split payments (R8): leave the amount empty to pay the whole open balance in one payment,
           or type an amount to pay part of it now and the rest on the next check. %>
       <div class="row" style="margin-top:.6rem">

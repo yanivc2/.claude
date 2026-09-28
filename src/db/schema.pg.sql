@@ -206,6 +206,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   hold_reason        TEXT,
   tracked_for_payment INTEGER NOT NULL DEFAULT 0,
   tracked_note        TEXT,
+  notes               TEXT,
   tracked_at          TEXT,
   tracked_by          INTEGER REFERENCES users(id),
   created_by         INTEGER NOT NULL REFERENCES users(id),
@@ -777,6 +778,7 @@ ALTER TABLE supplier_bank_changes ADD COLUMN IF NOT EXISTS new_extra TEXT;
 
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tracked_for_payment INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tracked_note TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tracked_at TEXT;
 ALTER TABLE invoices ADD COLUMN IF NOT EXISTS tracked_by INTEGER REFERENCES users(id);
 CREATE INDEX IF NOT EXISTS ix_invoices_tracked ON invoices(tracked_for_payment);

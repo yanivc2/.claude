@@ -221,6 +221,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   -- נדלק ונכבה רק בידיים, ולכן הוא שורד עריכה ואפשר לעקוב גם אחרי חשבונית שכבר שולמה.
   tracked_for_payment INTEGER NOT NULL DEFAULT 0,
   tracked_note        TEXT,                                   -- ההסבר/פירוט שנשלח לספק
+  notes               TEXT,                                   -- הערה חופשית (דף חשבוניות / בעת הנפקת תשלום)
   tracked_at          TEXT,
   tracked_by          INTEGER REFERENCES users(id),
   created_by         INTEGER NOT NULL REFERENCES users(id),

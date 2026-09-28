@@ -10,7 +10,7 @@ import {
   getCheckPrintData,
   listPayments,
 } from '../services/payments.js';
-import { listPayable } from '../services/invoices.js';
+import { listPayable, invoiceNotesReady, appendInvoiceNote } from '../services/invoices.js';
 import { listDeposits, depositVerifications, depositZDiffs } from '../services/deposits.js';
 import { unmatchedCashExpenses, settledCashExpenses, cashSettleReady, withMatchCandidates } from '../services/zreports.js';
 
@@ -27,6 +27,12 @@ import { VOID_REASONS, voidLinkOptions } from '../services/voidedChecks.js';
 import { paymentAllocation, openInvoicesForPayment, allocateInvoiceToPayments } from '../services/allocations.js';
 
 const router = Router();
+
+// שדה "הערה" בטופס התשלום מוצג רק כשהעמודה קיימת במסד (ראה invoiceNotesReady).
+router.use(async (req, res, next) => {
+  try { res.locals.invoiceNotesReady = await invoiceNotesReady(); } catch { res.locals.invoiceNotesReady = false; }
+  next();
+});
 
 // Bank accounts the caller may pick from — scoped to their authorized companies AND stores
 // (owner = all). Accepts the req.scope object so a per-store-granted user only sees their stores'
@@ -183,6 +189,11 @@ router.post('/', async (req, res, next) => {
       },
       req.user,
     );
+    // הערה בעת הנפקת התשלום → נכתבת על החשבוניות ששולמו ומופיעה בדף החשבוניות. כשל כאן לא מפיל
+    // תשלום שכבר נרשם.
+    if (invoiceIds.length && String(b.note || '').trim()) {
+      try { await appendInvoiceNote(invoiceIds, b.note, req.user); } catch { /* התשלום כבר נרשם */ }
+    }
     // "שמור והוסף עוד תשלום" — stay on the form for the next check instead of opening this one.
     if (b.add_another) return res.redirect(303, '/payments/new?added=1');
     res.redirect(303, `/payments/${payment.id}`);

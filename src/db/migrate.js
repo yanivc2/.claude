@@ -685,6 +685,7 @@ function migrateTrackedInvoices(db) {
     ['tracked_note', 'TEXT'],
     ['tracked_at', 'TEXT'],
     ['tracked_by', 'INTEGER REFERENCES users(id)'],
+    ['notes', 'TEXT'], // הערה חופשית לחשבונית — דף חשבוניות / בעת הנפקת תשלום
   ]) {
     if (!cols.includes(col)) db.exec(`ALTER TABLE invoices ADD COLUMN ${col} ${ddl};`);
   }

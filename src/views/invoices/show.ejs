@@ -64,6 +64,23 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <% if (invoice.status === 'on_hold' && invoice.hold_reason) { %><div class="alert alert-warn"><strong>מוחזק:</strong> <%= invoice.hold_reason %></div><% } %>
+<% if (typeof invoiceNotesReady !== 'undefined' && invoiceNotesReady) { %>
+  <%# אותה הערה של כפתור 📝 בדף החשבוניות — כולל מה שנכתב בעת הנפקת תשלום. %>
+  <div class="card no-collapse" id="inv-note" style="padding:.7rem .9rem">
+    <% if (invoice.notes) { %>
+      <strong>📝 הערה</strong>
+      <div style="white-space:pre-wrap; word-break:break-word; margin:.35rem 0 .2rem"><%= invoice.notes %></div>
+    <% } %>
+    <details class="no-print" <%= !invoice.notes ? '' : '' %>>
+      <summary class="muted" style="cursor:pointer; font-size:13px"><%= invoice.notes ? '✏️ ערוך הערה' : '📝 הוסף הערה' %></summary>
+      <form method="post" action="/invoices/<%= invoice.id %>/note" style="margin-top:.4rem">
+        <input type="hidden" name="back" value="/invoices/<%= invoice.id %>" />
+        <textarea name="note" rows="3" maxlength="2000" style="width:100%"><%= invoice.notes || '' %></textarea>
+        <div class="actions" style="margin-top:.4rem"><button type="submit" class="btn-sm">שמור הערה</button></div>
+      </form>
+    </details>
+  </div>
+<% } %>
 <% if (payReq) { %><div class="alert alert-info">בקשת אישור תשלום ממתינה<% if (isManager) { %> — אפשר לאשר בכפתור למטה<% } else { %> לאישור מנהל/בעלים<% } %>.</div><% } %>
 <% if (checkZeroVat) { %><div class="alert alert-warn"><strong>חשבונית מס ללא מע"מ</strong> — מעל <%= formatIls(allocationThresholdAgorot) %> לפני מע"מ אך המע"מ <%= formatIls(Math.abs(invoice.vat_amount || 0)) %>. אם המע"מ נשכח — תקן אותו (אז יידרש מספר הקצאה). אם זו עסקה בשיעור אפס (פירות וירקות טריים, §30(א)(13)) — סמן את הספק כ"עסקאות בשיעור אפס" בכרטיס הספק וההודעה תיעלם.</div><% } %>
 <% if (requiresAllocation) { %><div class="alert alert-error"><strong>נדרש מספר הקצאה</strong> — חשבונית מס עם מע"מ מעל <%= formatIls(allocationVatThresholdAgorot) %> ללא מספר הקצאה. הזן מספר הקצאה בכפתור למטה.</div><% } %>

@@ -125,6 +125,13 @@ const groupList = Object.values(groups);
         <div><label>מספר אסמכתא *</label><input name="reference" /></div>
       </div>
 
+      <% if (typeof invoiceNotesReady !== 'undefined' && invoiceNotesReady) { %>
+        <%# נכתבת על החשבוניות המסומנות (נוספת להערה קיימת) ומופיעה בדף החשבוניות בכפתור 📝. %>
+        <div style="margin-top:.6rem">
+          <label>📝 הערה לחשבוניות (לא חובה)</label>
+          <textarea name="note" rows="2" maxlength="2000" placeholder="תופיע בדף החשבוניות ליד החשבוניות ששולמו"><%= values.note || '' %></textarea>
+        </div>
+      <% } %>
       <div style="margin-top:1rem" class="actions">
         <button type="submit">הנפק תשלום</button>
       </div>

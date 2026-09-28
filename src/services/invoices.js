@@ -583,3 +583,64 @@ function normalizeAllocation(value) {
   }
   return t;
 }
+
+// ---------------------------------------------------------------- הערות לחשבונית
+// הערה חופשית — מדף החשבוניות (כפתור 📝) או בעת הנפקת תשלום, ואז היא נכתבת על החשבוניות ששולמו.
+
+export const INVOICE_NOTE_MAX = 2000;
+
+let notesReadyCache = false;
+/**
+ * האם `invoices.notes` קיימת במסד? 🔴 בלי הבדיקה, שדה הערה שמופיע לפני "עדכן מסד נתונים" היה נכשל
+ * בשמירה — ובתשלום, ההערה הייתה נעלמת בשקט אחרי שהתשלום עצמו כבר נרשם. לכן השדות מוצגים רק
+ * כשהעמודה קיימת. תשובה חיובית נשמרת (עמודה לא נעלמת); שלילית נבדקת שוב בכל בקשה.
+ */
+export async function invoiceNotesReady(x = getExecutor()) {
+  if (notesReadyCache) return true;
+  try {
+    await x.one('SELECT notes FROM invoices LIMIT 1', []);
+    notesReadyCache = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function cleanNote(note) {
+  const s = String(note ?? '').replace(/\r\n/g, '\n').trim();
+  if (s.length > INVOICE_NOTE_MAX) throw new RuleError('VALIDATION', `ההערה ארוכה מדי (עד ${INVOICE_NOTE_MAX} תווים)`);
+  return s;
+}
+
+/** קביעת ההערה (מחליפה). ריק = מחיקת ההערה. */
+export async function setInvoiceNote(id, note, actor, x = getExecutor()) {
+  const inv = await x.one('SELECT id, notes FROM invoices WHERE id = ?', [Number(id)]);
+  if (!inv) throw new NotFoundError(`חשבונית ${id} לא נמצאה`);
+  const next = cleanNote(note) || null;
+  await x.run('UPDATE invoices SET notes = ? WHERE id = ?', [next, inv.id]);
+  await logAction(
+    { userId: actor?.id ?? null, action: next ? 'invoice.note' : 'invoice.note_clear', entityType: 'invoice', entityId: inv.id,
+      details: { before: inv.notes || null, after: next } },
+    x,
+  );
+  return next;
+}
+
+/**
+ * הוספת הערה (בעת הנפקת תשלום) לכל החשבוניות ששולמו. 🔴 מוסיפה ולא מחליפה: לחשבונית כבר יכולה
+ * להיות הערה מדף החשבוניות, ותשלום נוסף (צ׳ק שני לאותה חשבונית) לא ימחק אותה.
+ */
+export async function appendInvoiceNote(ids, note, actor, x = getExecutor()) {
+  const text = cleanNote(note);
+  if (!text) return 0;
+  let n = 0;
+  for (const id of [...new Set((ids || []).map(Number).filter(Boolean))]) {
+    const inv = await x.one('SELECT id, notes FROM invoices WHERE id = ?', [id]);
+    if (!inv) continue;
+    const merged = inv.notes ? `${inv.notes}\n${text}` : text;
+    await x.run('UPDATE invoices SET notes = ? WHERE id = ?', [merged.slice(0, INVOICE_NOTE_MAX * 2), inv.id]);
+    await logAction({ userId: actor?.id ?? null, action: 'invoice.note', entityType: 'invoice', entityId: inv.id, details: { appended: text } }, x);
+    n += 1;
+  }
+  return n;
+}

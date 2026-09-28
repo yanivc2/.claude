@@ -13,6 +13,9 @@ import {
   setImage,
   clearImage,
   listPayable,
+  invoiceNotesReady,
+  setInvoiceNote,
+  appendInvoiceNote,
 } from '../services/invoices.js';
 import { listSuppliers, supplierFamilyIds } from '../services/suppliers.js';
 import { cashPaymentsForInvoice } from '../services/zreports.js';
@@ -35,6 +38,18 @@ import { scopeParam, assertInScope, assertStoreAllowed } from '../lib/scopeGuard
 import { scopedStoreList, effectiveStoreId } from '../lib/scope.js';
 
 const router = Router();
+
+// שדות ההערה מוצגים רק כשהעמודה קיימת במסד (לפני "עדכן מסד נתונים" — ראה invoiceNotesReady).
+router.use(async (req, res, next) => {
+  try { res.locals.invoiceNotesReady = await invoiceNotesReady(); } catch { res.locals.invoiceNotesReady = false; }
+  next();
+});
+
+/** הערה שהוזנה בעת הנפקת תשלום נכתבת על החשבוניות ששולמו. כשל כאן לא מפיל תשלום שכבר נרשם. */
+async function notePaid(invoiceIds, note, actor) {
+  if (!String(note || '').trim()) return;
+  try { await appendInvoiceNote(invoiceIds, note, actor); } catch { /* התשלום כבר נרשם */ }
+}
 
 // Company-separation guard: every /invoices/:id route (read AND write) is refused with 404
 // when the invoice belongs to a company the caller isn't authorized for.
@@ -127,6 +142,9 @@ router.get('/', async (req, res, next) => {
       closingExpenses: await recentClosingExpenses(req.scope, 30),
       // Payable invoices (in scope) a cash expense can be matched to, for the "התאם לחשבונית" control.
       matchInvoices: await listPayable(req.scope),
+      noteError: req.query.noteerr ? String(req.query.noteerr).slice(0, 300) : null,
+      // חזרה אחרי שמירת הערה — אותו סינון בדיוק (החלון נפתח מתוך הרשימה המסוננת).
+      backUrl: req.originalUrl.replace(/([?&])noteerr=[^&]*&?/, '$1').replace(/[?&]$/, ''),
     });
   } catch (err) {
     next(err);
@@ -215,6 +233,8 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       confirmReason: b.confirm_reason || null,
     };
     const { invoice } = await createInvoice(input, req.user);
+    // הערה מקטע "אמצעי תשלום" — נשמרת על החשבונית שנוצרה (גם אם התשלום עצמו ייכשל: החשבונית קיימת).
+    await notePaid([invoice.id], b.pay_note, req.user);
     // Optional: the invoice was paid — create the payment (check/transfer/cash) and link it.
     const method = (b.pay_method || '').trim();
     if (method) {
@@ -322,6 +342,7 @@ router.post('/pay-batch', async (req, res, next) => {
     // בדיוק שמשמש את התאמת הבנק. `pay_amount` ריק = הסכום נגזר מהחשבוניות (R5).
     const typed = String(b.pay_amount || '').trim() ? toAgorot(b.pay_amount) : null;
     const { payment } = await payInvoices({ ...payInput, invoiceIds, supplierId, amount: typed }, req.user);
+    await notePaid(invoiceIds, b.pay_note, req.user);
 
     // "שמור וצור תשלום נוסף לחשבונית": keep the same selection on the form so the next check can
     // be entered straight away, and say what is still open.
@@ -744,6 +765,25 @@ router.post('/:id/ocr/apply', async (req, res, next) => {
     res.redirect(303, `/invoices/${id}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return renderShow(res, id, err.message);
+    next(err);
+  }
+});
+
+// 📝 הערה לחשבונית מדף החשבוניות / מדף החשבונית. ריק = מחיקה. חוזר לאותו מקום (PRG).
+router.post('/:id/note', async (req, res, next) => {
+  const id = Number(req.params.id);
+  const raw = String(req.body.back || '');
+  // רק חזרה פנימית לדפי החשבוניות — לא הפניה פתוחה לכתובת חיצונית.
+  const back = /^\/invoices(?:[/?#]|$)/.test(raw) && !raw.startsWith('//') ? raw : '/invoices';
+  try {
+    await assertInScope('invoice', id, req.scope);
+    await setInvoiceNote(id, req.body.note, req.user);
+    return res.redirect(303, back);
+  } catch (err) {
+    if (err instanceof RuleError) {
+      const sep = back.includes('?') ? '&' : '?';
+      return res.redirect(303, `${back.split('#')[0]}${sep}noteerr=${encodeURIComponent(err.message)}`);
+    }
     next(err);
   }
 });

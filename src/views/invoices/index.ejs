@@ -83,11 +83,11 @@
 <div class="table-scroll">
 <table class="sortable">
   <thead>
-    <tr><th class="no-print" data-nosort>✓</th><th>מספר חשבונית</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th><th>שולם</th></tr>
+    <tr><th class="no-print" data-nosort>✓</th><th>מספר חשבונית</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th><th>שולם</th><% if (invoiceNotesReady) { %><th data-nosort>הערות</th><% } %></tr>
   </thead>
   <tbody>
     <% if (invoices.length === 0) { %>
-      <tr><td colspan="7" class="muted">אין חשבוניות להצגה.</td></tr>
+      <tr><td colspan="<%= invoiceNotesReady ? 8 : 7 %>" class="muted">אין חשבוניות להצגה.</td></tr>
     <% } %>
     <% invoices.forEach(function(i){ %>
       <%
@@ -133,11 +133,85 @@
           <%# צבע לבדו אינו סטטוס — מי שלא מבחין בכתום חייב לקרוא את זה במילים. %>
           <% if (tracked) { %><br><span class="badge b-tracked">מעוקבת לתשלום</span><% } %>
         </td>
+        <% if (invoiceNotesReady) { %>
+          <%# 📝 = יש הערה (לחיצה פותחת חלון עם הטקסט); ＋ עמום = הוספת הערה. הטקסט נוסע ב-data ומוצב
+              בחלון ב-textContent בלבד. stopPropagation: לחיצה על השורה פותחת את החשבונית. %>
+          <td data-label="הערות" onclick="event.stopPropagation()" style="cursor:default">
+            <button type="button" class="note-btn <%= i.notes ? 'has-note' : 'no-note no-print' %>"
+              data-id="<%= i.id %>" data-num="<%= i.invoice_number %>" data-note="<%= i.notes || '' %>"
+              title="<%= i.notes ? String(i.notes).slice(0, 120) : 'הוסף הערה' %>"
+              aria-label="<%= i.notes ? 'הצג הערה' : 'הוסף הערה' %>"><%= i.notes ? '📝' : '＋' %></button>
+          </td>
+        <% } %>
       </tr>
     <% }); %>
   </tbody>
 </table>
 </div>
+
+<% if (invoiceNotesReady) { %>
+<% if (typeof noteError !== 'undefined' && noteError) { %><div class="alert alert-error no-print"><%= noteError %></div><% } %>
+<style>
+  .note-btn { background: none; border: 0; padding: .1rem .35rem; min-height: 0; width: auto; cursor: pointer; font-size: 18px; line-height: 1; }
+  .note-btn.no-note { font-size: 15px; opacity: .3; }
+  .note-btn.no-note:hover, .note-btn.no-note:focus-visible { opacity: 1; }
+  #noteDlg .note-view { white-space: pre-wrap; word-break: break-word; background: var(--color-section, transparent);
+    border: 1px solid var(--color-line); border-radius: 8px; padding: .6rem .7rem; margin: .4rem 0 .7rem; max-height: 50vh; overflow: auto; }
+</style>
+<dialog id="noteDlg" class="dlg">
+  <div class="dlg-head">
+    <strong>📝 הערה · חשבונית <span id="noteNum"></span></strong>
+    <button type="button" class="dlg-close" onclick="this.closest('dialog').close()">✕</button>
+  </div>
+  <div id="noteView" class="note-view"></div>
+  <form method="post" id="noteForm" data-keep-scroll>
+    <input type="hidden" name="back" value="<%= typeof backUrl !== 'undefined' ? backUrl : '/invoices' %>" />
+    <textarea name="note" id="noteText" rows="5" maxlength="2000" placeholder="כתוב הערה…" style="width:100%"></textarea>
+    <div class="actions" style="margin-top:.6rem">
+      <button type="submit" id="noteSave">שמור הערה</button>
+      <button type="button" id="noteEdit" class="secondary">✏️ ערוך</button>
+      <button type="submit" id="noteDel" class="secondary danger">מחק הערה</button>
+    </div>
+  </form>
+</dialog>
+<script>
+  // חלון הערה אחד משותף לכל השורות. יש הערה → מצב קריאה (+ "ערוך"); אין → ישר לכתיבה.
+  (function(){
+    var dlg = document.getElementById('noteDlg');
+    if (!dlg) return;
+    var view = document.getElementById('noteView'), form = document.getElementById('noteForm');
+    var text = document.getElementById('noteText'), num = document.getElementById('noteNum');
+    var save = document.getElementById('noteSave'), edit = document.getElementById('noteEdit'), del = document.getElementById('noteDel');
+    function show(el, on) { el.style.display = on ? '' : 'none'; } // לא `hidden`: CSS של כפתורים גובר עליו
+    function mode(editing, has) {
+      show(view, !editing && has);
+      show(text, editing);
+      show(save, editing);
+      show(edit, !editing && has);
+      show(del, has);
+    }
+    document.querySelectorAll('.note-btn').forEach(function(b){
+      b.addEventListener('click', function(e){
+        e.stopPropagation();
+        var note = b.getAttribute('data-note') || '';
+        num.textContent = b.getAttribute('data-num') || '';
+        view.textContent = note;
+        text.value = note;
+        form.action = '/invoices/' + b.getAttribute('data-id') + '/note';
+        mode(!note, !!note);
+        dlg.showModal();
+        if (!note) text.focus();
+      });
+    });
+    edit.addEventListener('click', function(){ mode(true, true); text.focus(); });
+    del.addEventListener('click', function(e){
+      if (!confirm('למחוק את ההערה?')) { e.preventDefault(); return; }
+      text.value = '';
+    });
+  })();
+</script>
+<% } %>
+
 
 <div id="payBar" class="pay-bar no-print" hidden>
   <span>נבחרו <strong id="payCount">0</strong> חשבוניות · ספק <strong id="paySup"></strong> · נטו לתשלום <strong id="payNet">₪0.00</strong></span>
