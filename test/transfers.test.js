@@ -14,7 +14,7 @@ import { freshDb, owner, secretary, firstStore, accountForStore } from './helper
 import { createInvoice, approveInvoiceForPayment } from '../src/services/invoices.js';
 import {
   createTransfer, approveTransfer, rejectTransfer, executeTransfer, cancelTransfer,
-  listTransfers, transferableInvoices, untrackedTransfers, setWatchFrom, getWatchFrom,
+  listTransfers, transferableInvoices, untrackedTransfers, isTransferMovement, setWatchFrom, getWatchFrom,
   alertOnUntrackedTransfers, backfilled,
 } from '../src/services/transfers.js';
 
@@ -144,8 +144,8 @@ test('🔴 an outgoing movement with no request behind it is reported — but on
        VALUES (?, ?, ?, ?, ?, 'csv')`,
       [acct.id, date, amount, description, ref],
     );
-  await debit('2026-01-15', -500000, 'העברה לספק');   // before the watch — history
-  await debit('2026-06-10', -300000, 'העברה לספק');   // after — the real case
+  await debit('2026-01-15', -500000, 'העב׳ במקבץ-נט לספק');   // before the watch — history
+  await debit('2026-06-10', -300000, 'העב׳ במקבץ-נט לספק');   // after — the real case
 
   // Off by default: nothing is reported until the owner turns it on.
   assert.equal(await getWatchFrom(db), null);
@@ -171,13 +171,13 @@ test('a movement that carries a known identifier, or is a check, is not reported
        VALUES (?, ?, ?, ?, ?, 'csv')`,
       [acct.id, date, amount, description, ref],
     );
-  await debit('2026-06-03', -100000, 'העברה', 'ASM-77');   // ours — the אסמכתה we recorded
+  await debit('2026-06-03', -100000, 'העב׳ במקבץ-נט', 'ASM-77');   // ours — the אסמכתה we recorded
   await debit('2026-06-04', -70000, 'שיק 5001', '5001');   // a check — tracked on its own page
-  await debit('2026-06-05', -90000, 'העברה לא מוכרת');      // the real problem
+  await debit('2026-06-05', -90000, 'העברה מהבנק לא מוכרת');      // the real problem
 
   const rows = await untrackedTransfers({ scope: null }, db);
   assert.equal(rows.length, 1);
-  assert.equal(rows[0].description, 'העברה לא מוכרת');
+  assert.equal(rows[0].description, 'העברה מהבנק לא מוכרת');
 });
 
 test('each untracked movement is pushed once, not every night', async () => {
@@ -185,7 +185,7 @@ test('each untracked movement is pushed once, not every night', async () => {
   await setWatchFrom('2026-01-01', ow, db);
   await db.run(
     `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, source)
-     VALUES (?, '2026-06-10', ?, 'העברה', 'csv')`,
+     VALUES (?, '2026-06-10', ?, 'העב׳ במקבץ-נט', 'csv')`,
     [acct.id, -300000],
   );
   assert.equal(await alertOnUntrackedTransfers(db), 1);
@@ -356,4 +356,24 @@ test('🔴 the fingerprint follows the account the STORE actually pays from', as
   row = (await listTransfers({ scope: null }, db)).find((r) => Number(r.id) === Number(t.id));
   assert.equal(row.displayStatus, 'stale', 'a different bank with the same account number is a different destination');
   await assert.rejects(() => executeTransfer(t.id, { reference: 'Z9' }, ow, db), /השתנו אחרי האישור/);
+});
+
+// 🔴 החלטת הבעלים: "העברה ללא תיעוד" = רק מה שהבנק קורא לו העברה — תיאור ש**מתחיל** ב"העב׳ במקבץ-נט"
+// או ב"העברה מהבנק". קודם כל חיוב לא מותאם נספר, והטבלה בלוח הבקרה הייתה מלאה בעמלות, הוראות קבע,
+// ביטוח לאומי, מס הכנסה וישראכרט.
+test('רק תיאור שמתחיל ב"העב׳ במקבץ-נט" / "העברה מהבנק" נחשב העברה — בכל כתיב', async () => {
+  const { db, ow, acct } = await world();
+  await setWatchFrom('2026-01-01', ow, db);
+  const debit = (i, description) => db.run(
+    `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, source) VALUES (?, '2026-06-10', ?, ?, 'csv')`,
+    [acct.id, -10000 - i, description],
+  );
+  const yes = ['העב׳ במקבץ-נט', "העב' במקבץ - נט 4411", 'העב׳ במקבץ־נט', '  העברה מהבנק — לספק'];
+  const no = ['עמלת העברה', 'תיקון העברה מהבנק', 'הוראת קבע', 'ביטוח לאומי', 'מס הכנסה', 'ישראכרט', 'עמלה/הוצאה',
+    'ע.מפעולות-ישיר', 'הפקדה לפקדון', 'כ.א.ל-תנובה', 'ONTIME-עמ׳ עוש', 'העברה'];
+  let i = 0;
+  for (const d of [...yes, ...no]) await debit(i++, d);
+  const got = (await untrackedTransfers({ scope: null }, db)).map((r) => r.description).sort();
+  assert.deepEqual(got, [...yes].sort());
+  assert.equal(isTransferMovement('עמלה/הוצאה העב׳ במקבץ-נט'), false, 'באמצע המשפט — לא');
 });

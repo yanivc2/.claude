@@ -449,7 +449,30 @@ export async function untrackedTransfers({ scope = null } = {}, x = getExecutor(
   // A check is tracked through its own number and its own page — reporting it here would double up.
   const isCheck = (t) => /שיק|צ'ק|צ׳ק|check/i.test(String(t.description ?? ''));
 
-  return txns.filter((t) => !isCheck(t) && !looksTracked(t));
+  return txns.filter((t) => isTransferMovement(t.description) && !isCheck(t) && !looksTracked(t));
+}
+
+/**
+ * 🔴 **רשימה חיובית: רק מה שהבנק עצמו קורא לו העברה.** קודם כל חיוב שלא הותאם נספר — עמלות,
+ * הוראות קבע, ביטוח לאומי, מס הכנסה, ישראכרט, תיקונים — והטבלה בלוח הבקרה הייתה מלאה ברעש שאיננו
+ * העברה בכלל. החלטת הבעלים: העברה = תיאור **שמתחיל** ב"העב׳ במקבץ-נט" או ב"העברה מהבנק". כל
+ * תנועה כזו שלא הוצהרה (אין בקשת העברה / תשלום עם האסמכתא שלה) היא "העברה ללא תיעוד".
+ *
+ * הכתיב מנורמל לפני ההשוואה, כי אותה פעולה מגיעה בכמה צורות: גרש עברי ׳ מול ' (קובץ Excel מול
+ * האתר), מקף רגיל / מקאף ־ / מקף ארוך, ורווחים סביב המקף ("במקבץ - נט").
+ */
+const TRANSFER_PREFIXES = ["העב' במקבץ-נט", 'העברה מהבנק'];
+export function normalizeBankText(s) {
+  return String(s ?? '')
+    .replace(/[\u05F3\u2019\u2018`´]/g, "'")        // ׳ ’ ‘ ` ´ → '
+    .replace(/[\u05BE\u2010-\u2015]/g, '-')          // ־ ‐ ‑ ‒ – — ― → -
+    .replace(/\s*-\s*/g, '-')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+export function isTransferMovement(description) {
+  const d = normalizeBankText(description);
+  return TRANSFER_PREFIXES.some((p) => d.startsWith(p));
 }
 
 /**
