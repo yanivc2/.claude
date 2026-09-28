@@ -83,3 +83,17 @@ test('צ׳ק שסומן "נפרט בקופה" ונפרע גם בבנק — מש�
   await reconcileAccount(acct, o, db);
   await assert.rejects(() => markCashed(sp2.id, expenseId, o, db), /כבר נפרע בבנק/);
 });
+
+test('צ׳ק שהוזן אחרי ששורת הבנק שלו כבר נמשכה — מותאם בסנכרון הבא, גם כשאין בו תנועות חדשות', async () => {
+  const { importScrapedBatch } = await import('../src/services/bankSync.js');
+  const { db, o, acct, salary } = await world();
+  const ba = await db.one('SELECT account_number FROM bank_accounts WHERE id = ?', [acct]);
+  const payload = { accounts: [{ accountNumber: ba.account_number, transactions: [
+    { txnDate: '2026-09-14', amount: -754321, description: 'שיק', rawReference: '32210', externalId: 'e1' },
+  ] }] };
+  await importScrapedBatch(payload, o, db);
+  const sp = await salary('32210', 754321); // הוזן אחרי המשיכה
+  const again = await importScrapedBatch(payload, o, db); // אותן שורות — 0 חדשות
+  assert.equal(again.inserted, 0);
+  assert.ok((await db.one('SELECT bank_txn_id FROM salary_payments WHERE id = ?', [sp.id])).bank_txn_id, 'הותאם בכל זאת');
+});
