@@ -7,6 +7,7 @@ import {
 import { scopedStoreList, assignmentScope, effectiveStoreId } from '../lib/scope.js';
 import {
   listSalaryPayments, createSalaryPayment, deleteSalaryPayment, markCashed, unmatchCashed, attachSalaryBankHints,
+  fixSalaryAmountToBank,
   cashExpenseCandidates, SALARY_METHODS,
 } from '../services/salaryPayments.js';
 import { salaryPaymentsReady } from '../services/voidedChecks.js';
@@ -16,7 +17,7 @@ import {
   ADVANCE_KINDS, ADVANCE_METHODS, REPAY_SOURCES, kindLabel, methodLabel, repaySourceLabel,
 } from '../services/employeeAdvances.js';
 import { toAgorot } from '../lib/money.js';
-import { assertStoreAllowed } from '../lib/scopeGuard.js';
+import { assertStoreAllowed, assertInScope } from '../lib/scopeGuard.js';
 import { israelToday } from '../lib/loginHours.js';
 import { parseEmployeeFile } from '../lib/employeeImport.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -115,6 +116,7 @@ const NOTICES = {
   'salary-deleted': 'תשלום השכר נמחק.',
   cashed: 'הצ׳ק סומן כנפרט והותאם להוצאת המזומן. הצ׳ק בוטל ונמצא במעקב ב"צ׳קים מבוטלים".',
   uncashed: 'ההתאמה בוטלה. הצ׳ק שבוטל נשאר במעקב.',
+  amountfixed: 'הסכום עודכן לסכום שיצא מהבנק, והתשלום סומן כנפרע בבנק. הסכום הקודם נשמר ביומן.',
   advance: 'המפרעה נרשמה.',
   'advance-deleted': 'המפרעה נמחקה.',
   repaid: 'ההחזר נרשם והיתרה עודכנה.',
@@ -188,8 +190,23 @@ router.post('/salary', async (req, res, next) => {
 
 // "הצ׳ק נפרט" — tie the wage row to the Z-closing cash expense that paid it out at the till, and
 // void the underlying check so the same wage is not paid twice.
+// 🏦 "עדכן לסכום בבנק" — הסכום נלקח מהחיוב עצמו (אותה אסמכתה), והשורה משויכת אליו.
+router.post('/salary/:id/fix-amount', async (req, res, next) => {
+  try {
+    await assertInScope('salaryPayment', Number(req.params.id), req.scope);
+    await assertInScope('bankTxn', Number(req.body.txn_id), req.scope);
+    await fixSalaryAmountToBank(Number(req.params.id), Number(req.body.txn_id), req.user);
+    return res.redirect(303, '/employees?saved=amountfixed');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
 router.post('/salary/:id/cashed', async (req, res, next) => {
   try {
+    // שורה של חנות מחוץ לסקופ = 404 (לא לפי ניחוש מזהה).
+    await assertInScope('salaryPayment', Number(req.params.id), req.scope);
     await markCashed(Number(req.params.id), Number(req.body.cash_expense_id), req.user);
     return res.redirect(303, '/employees?saved=cashed');
   } catch (err) {
@@ -200,6 +217,8 @@ router.post('/salary/:id/cashed', async (req, res, next) => {
 
 router.post('/salary/:id/uncashed', async (req, res, next) => {
   try {
+    // שורה של חנות מחוץ לסקופ = 404 (לא לפי ניחוש מזהה).
+    await assertInScope('salaryPayment', Number(req.params.id), req.scope);
     await unmatchCashed(Number(req.params.id), req.user);
     return res.redirect(303, '/employees?saved=uncashed');
   } catch (err) {
@@ -210,6 +229,8 @@ router.post('/salary/:id/uncashed', async (req, res, next) => {
 
 router.post('/salary/:id/delete', async (req, res, next) => {
   try {
+    // שורה של חנות מחוץ לסקופ = 404 (לא לפי ניחוש מזהה).
+    await assertInScope('salaryPayment', Number(req.params.id), req.scope);
     await deleteSalaryPayment(Number(req.params.id), req.user);
     return res.redirect(303, '/employees?saved=salary-deleted');
   } catch (err) {

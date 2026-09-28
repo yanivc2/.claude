@@ -430,10 +430,50 @@ export async function attachSalaryBankHints(rows, x = getExecutor()) {
     else if (same) r.bank_hint = `נמצא בבנק (${same.txn_date}) — לחץ "התאמה אוטומטית" בהתאמת בנק`;
     else {
       const t = hits[0];
+      // "עדכן לסכום בבנק" — רק לשורה בודדת (לא מקבץ: שם ההפרש הוא של הקבוצה, לא של שורה אחת),
+      // ורק כשהחיוב פנוי. אותה אסמכתה בדיוק; משתנה רק הסכום.
+      const free = hits.find((h) => !h.matched_payment_id && !linked.has(Number(h.id)));
+      if (r.method !== 'batch' && free) r.bank_fix = { txnId: Number(free.id), amount: -Number(free.amount), date: free.txn_date };
       r.bank_hint = r.method === 'check'
         ? `בבנק צ׳ק ${r.reference} נפרע בסכום ${fromAgorot(-Number(t.amount))} ₪ (${t.txn_date}) — שונה מהסכום שהוזן`
         : `בבנק אסמכתה ${r.reference} בסכום ${fromAgorot(-Number(t.amount))} ₪ (${t.txn_date}) — שונה מהסכום שהוזן${r.method === 'batch' ? ' (אם זה מקבץ של כמה עובדים — ודא שכל השורות שלו הוזנו עם אותה אסמכתה)' : ''}`;
     }
   }
   return rows;
+}
+
+/**
+ * "עדכן לסכום בבנק" — הסכום שהוזן שגוי באגורות (נצפה: 2,383.60 מול 2,383.66 בבנק). במקום למחוק
+ * ולהזין מחדש: הסכום נלקח **מהחיוב עצמו**, והשורה משויכת אליו באותה פעולה.
+ *
+ * 🔴 רק מה שבוודאות אותו תשלום: אותה אסמכתה/מספר צ׳ק בדיוק, חיוב פנוי (לא משויך לתשלום ספק, לשכר
+ * אחר או להפקדה), באותה חברה, ושורה שעוד לא הותאמה ולא סומנה כנפרטה בקופה. לא מקבץ — בו ההפרש
+ * שייך לקבוצה ולא לשורה אחת. הסכום הקודם נרשם ביומן.
+ */
+export async function fixSalaryAmountToBank(id, txnId, actor, x = getExecutor()) {
+  if (!(await salaryBankReady(x))) throw new RuleError('R', 'נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים").');
+  const row = await getSalaryPayment(Number(id), x);
+  if (row.bank_txn_id) throw new RuleError('R', 'תשלום השכר כבר הותאם לבנק');
+  if (Number(row.cashed)) throw new RuleError('R', 'תשלום השכר סומן כנפרט בקופה — הסכום שלו לא נגזר מהבנק');
+  if (!['check', 'transfer'].includes(row.method)) throw new RuleError('R', 'עדכון לסכום בבנק זמין לצ׳ק ולהעברה בודדת בלבד');
+  const txn = await x.one('SELECT id, bank_account_id, amount, raw_reference, matched_payment_id, txn_date FROM bank_transactions WHERE id = ?', [Number(txnId)]);
+  if (!txn || !(Number(txn.amount) < 0)) throw new NotFoundError('תנועת הבנק לא נמצאה');
+  if (txn.matched_payment_id) throw new RuleError('R', 'החיוב בבנק כבר הותאם לתשלום אחר');
+  if ((await salaryLinkedTxnIds(x)).has(Number(txn.id))) throw new RuleError('R', 'החיוב בבנק כבר שויך לתשלום שכר אחר');
+  if (await x.one('SELECT id FROM deposits WHERE matched_txn_id = ?', [txn.id])) throw new RuleError('R', 'החיוב בבנק שויך להפקדה');
+  if (!checkKey(row.reference) || checkKey(txn.raw_reference) !== checkKey(row.reference)) {
+    throw new RuleError('R', 'האסמכתה בבנק שונה מהאסמכתה של תשלום השכר — מתקנים סכום רק לאותה אסמכתה');
+  }
+  const acc = await x.one('SELECT company_id FROM bank_accounts WHERE id = ?', [txn.bank_account_id]);
+  const st = await x.one('SELECT company_id FROM stores WHERE id = ?', [row.store_id]);
+  if (!acc || !st || Number(acc.company_id) !== Number(st.company_id)) throw new RuleError('R', 'החיוב שייך לחשבון של חברה אחרת');
+
+  const amount = -Number(txn.amount);
+  await x.run('UPDATE salary_payments SET amount = ?, bank_txn_id = ? WHERE id = ? AND bank_txn_id IS NULL', [amount, txn.id, row.id]);
+  await logAction(
+    { userId: actor?.id ?? null, action: 'salary.amount_from_bank', entityType: 'salary_payment', entityId: row.id,
+      details: { before: row.amount, after: amount, txnId: txn.id, txnDate: txn.txn_date, reference: row.reference } },
+    x,
+  );
+  return getSalaryPayment(row.id, x);
 }

@@ -22,6 +22,8 @@ const SCOPE_OF = {
   bankAccount: 'SELECT company_id, store_id FROM bank_accounts WHERE id = ?',
   bankTxn:
     'SELECT ba.company_id AS company_id, ba.store_id AS store_id FROM bank_transactions bt JOIN bank_accounts ba ON ba.id = bt.bank_account_id WHERE bt.id = ?',
+  salaryPayment:
+    'SELECT st.company_id AS company_id, sp.store_id AS store_id FROM salary_payments sp JOIN stores st ON st.id = sp.store_id WHERE sp.id = ?',
 };
 
 // Accept the historical shape (companyIds array / null) as well as the full req.scope object
@@ -34,7 +36,7 @@ function normalizeScope(scope) {
 
 /**
  * Throw NotFoundError if entity <kind:id> is missing OR outside the caller's company/store scope.
- * @param {'store'|'invoice'|'payment'|'zreport'|'deposit'|'expense'|'scanDraft'|'bankAccount'|'bankTxn'} kind
+ * @param {'store'|'invoice'|'payment'|'zreport'|'deposit'|'expense'|'scanDraft'|'bankAccount'|'bankTxn'|'salaryPayment'} kind
  * @param {number|string} id
  * @param {number[]|null|{companyIds:number[]|null, storeIds:number[]|null}} scope
  * @returns {Promise<number>} the entity's company_id (when in scope)
