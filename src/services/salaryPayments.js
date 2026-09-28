@@ -279,12 +279,14 @@ const checkKey = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').r
 const DAY = 86_400_000;
 
 /**
- * שיוך צ׳קי שכר של החנות לתנועות החיוב שלהם בחשבון הזה: **מספר צ׳ק זהה וסכום זהה בדיוק** — שני
- * התנאים, לא אחד מהם. מספר לבדו חוזר בין פנקסים; סכום לבדו חוזר בין עובדים. חלון תאריכים סביר
- * (60 יום לפני "לתאריך" עד 180 אחרי) מונע שיוך לפנקס של שנה אחרת. כל תנועה משויכת פעם אחת.
+ * שיוך תשלומי שכר של החברה לתנועות החיוב שלהם בחשבון הזה: **אסמכתה זהה וסכום זהה בדיוק** — שני
+ * התנאים, לא אחד מהם. צ׳ק — לפי מספר הצ׳ק; **העברה / מקבץ** — לפי האסמכתה (נצפה: העברות שכר עם
+ * אסמכתה נשארו בלי התאמה כי רק צ׳קים נבדקו). מקבץ יכול לצאת מהבנק כ**חיוב אחד** לכמה עובדים: אם
+ * אין חיוב בסכום של שורה בודדת, קבוצת שורות באותה אסמכתה שסכומן שווה לחיוב משויכת אליו יחד.
+ * חלון תאריכים (60 יום לפני "לתאריך" עד 180 אחרי) מונע שיוך לפנקס/אסמכתה של תקופה אחרת.
  *
- * צ׳ק שסומן "נפרט בקופה" **וגם** נפרע בבנק = אותו שכר יצא פעמיים (בדיוק מה שביטול הצ׳ק בקופה נועד
- * למנוע). הוא משויך כדי שיהיה גלוי, ונשלחת התראה.
+ * צ׳ק שסומן "נפרט בקופה" **וגם** נפרע בבנק = אותו שכר יצא פעמיים. הוא משויך כדי שיהיה גלוי,
+ * ונשלחת התראה.
  *
  * @returns {Promise<{matched:number, doublePaid:number}>}
  */
@@ -293,13 +295,12 @@ export async function matchSalaryChecksToBank(bankAccountId, actor, x = getExecu
   const acc = await x.one('SELECT id, store_id, company_id FROM bank_accounts WHERE id = ?', [Number(bankAccountId)]);
   if (!acc?.store_id) return { matched: 0, doublePaid: 0 };
   // 🔴 כל חנויות **החברה**, לא רק החנות של החשבון: שכר של חנות אחת יכול לצאת מהחשבון של חנות
-  // אחרת באותה חברה, והגבלה לחנות הייתה משאירה צ׳ק כזה לא מותאם לנצח. מספר צ׳ק + סכום מדויק
-  // מספיקים; בין חברות — לא (ספר כסף אחר).
+  // אחרת באותה חברה. בין חברות — לא (ספר כסף אחר).
   const companyStores = new Set((await x.many('SELECT id FROM stores WHERE company_id = ?', [acc.company_id]))
     .map((r) => Number(r.id)));
   const salaries = (await x.many(
     `SELECT sp.*, e.first_name, e.last_name FROM salary_payments sp JOIN employees e ON e.id = sp.employee_id
-      WHERE sp.method = 'check' AND sp.bank_txn_id IS NULL AND sp.reference IS NOT NULL
+      WHERE sp.method IN ('check', 'transfer', 'batch') AND sp.bank_txn_id IS NULL AND sp.reference IS NOT NULL
       ORDER BY sp.due_date, sp.id`,
     [],
   )).filter((sp) => companyStores.has(Number(sp.store_id)) || Number(sp.store_id) === Number(acc.store_id));
@@ -312,27 +313,23 @@ export async function matchSalaryChecksToBank(bankAccountId, actor, x = getExecu
       WHERE bank_account_id = ? AND amount < 0 AND matched_payment_id IS NULL ORDER BY txn_date, id`,
     [acc.id],
   )).filter((t) => !taken.has(Number(t.id)));
+  const inWindow = (t, dueDate) => {
+    const due = Date.parse(dueDate);
+    const d = Date.parse(t.txn_date);
+    return !Number.isFinite(due) || (d >= due - 60 * DAY && d <= due + 180 * DAY);
+  };
 
   let matched = 0;
   let doublePaid = 0;
-  for (const sp of salaries) {
-    const key = checkKey(sp.reference);
-    if (!key) continue;
-    const due = Date.parse(sp.due_date);
-    const hit = txns.find((t) => !taken.has(Number(t.id))
-      && checkKey(t.raw_reference) === key
-      && -Number(t.amount) === Number(sp.amount)
-      && (!Number.isFinite(due) || (Date.parse(t.txn_date) >= due - 60 * DAY && Date.parse(t.txn_date) <= due + 180 * DAY)));
-    if (!hit) continue;
-    taken.add(Number(hit.id));
+  const link = async (sp, hit) => {
     await x.run('UPDATE salary_payments SET bank_txn_id = ? WHERE id = ? AND bank_txn_id IS NULL', [hit.id, sp.id]);
     await logAction(
       { userId: actor?.id ?? null, action: 'salary.bank_cleared', entityType: 'salary_payment', entityId: sp.id,
-        details: { txnId: hit.id, txnDate: hit.txn_date, reference: sp.reference } },
+        details: { txnId: hit.id, txnDate: hit.txn_date, reference: sp.reference, method: sp.method } },
       x,
     );
     matched += 1;
-    if (Number(sp.cashed)) {
+    if (sp.method === 'check' && Number(sp.cashed)) {
       doublePaid += 1;
       const emp = `${sp.first_name || ''} ${sp.last_name || ''}`.trim();
       await notify(
@@ -341,6 +338,37 @@ export async function matchSalaryChecksToBank(bankAccountId, actor, x = getExecu
         { kind: 'salary_double_paid', link: '/employees', storeId: sp.store_id ?? null },
       );
     }
+  };
+
+  // 1) שורה אחת ↔ חיוב אחד (צ׳ק, העברה בודדת)
+  const done = new Set();
+  for (const sp of salaries) {
+    const key = checkKey(sp.reference);
+    if (!key) continue;
+    const hit = txns.find((t) => !taken.has(Number(t.id)) && checkKey(t.raw_reference) === key
+      && -Number(t.amount) === Number(sp.amount) && inWindow(t, sp.due_date));
+    if (!hit) continue;
+    taken.add(Number(hit.id));
+    done.add(sp.id);
+    await link(sp, hit);
+  }
+  // 2) מקבץ: כמה העברות באותה אסמכתה ↔ חיוב אחד בסכום הכולל
+  const groups = new Map();
+  for (const sp of salaries) {
+    if (done.has(sp.id) || sp.method === 'check') continue;
+    const key = checkKey(sp.reference);
+    if (!key) continue;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(sp);
+  }
+  for (const [key, rows] of groups) {
+    if (rows.length < 2) continue;
+    const total = rows.reduce((n, r) => n + Number(r.amount), 0);
+    const hit = txns.find((t) => !taken.has(Number(t.id)) && checkKey(t.raw_reference) === key
+      && -Number(t.amount) === total && inWindow(t, rows[0].due_date));
+    if (!hit) continue;
+    taken.add(Number(hit.id));
+    for (const sp of rows) await link(sp, hit);
   }
   return { matched, doublePaid };
 }
@@ -351,7 +379,8 @@ export async function matchSalaryChecksToBank(bankAccountId, actor, x = getExecu
  * מחפש בכל חשבונות החברה חיוב עם אותו מספר צ׳ק, ומחזיר משפט אחד לכל שורה (`r.bank_hint`).
  */
 export async function attachSalaryBankHints(rows, x = getExecutor()) {
-  const pending = (rows || []).filter((r) => r.method === 'check' && r.bank_txn_id == null && !Number(r.cashed));
+  const pending = (rows || []).filter((r) => ['check', 'transfer', 'batch'].includes(r.method)
+    && r.bank_txn_id == null && !Number(r.cashed));
   if (!pending.length || !(await salaryBankReady(x))) return rows;
   const stores = await x.many('SELECT id, company_id FROM stores', []);
   const companyOf = new Map(stores.map((st) => [Number(st.id), Number(st.company_id)]));
@@ -366,19 +395,35 @@ export async function attachSalaryBankHints(rows, x = getExecutor()) {
     if (!byKey.has(k)) byKey.set(k, []);
     byKey.get(k).push(t);
   }
+  const allDebits = [...byKey.values()].flat();
+  const noRef = await x.many("SELECT id, bank_account_id, txn_date, amount, raw_reference FROM bank_transactions WHERE amount < 0 AND (raw_reference IS NULL OR raw_reference = '')", []);
   for (const r of pending) {
+    const what = r.method === 'check' ? 'מספר הצ׳ק' : 'האסמכתה';
     const key = checkKey(r.reference);
-    if (!key) { r.bank_hint = 'אין מספר צ׳ק באסמכתה — אין לפי מה להתאים'; continue; }
+    if (!key) { r.bank_hint = `אין ${what} — אין לפי מה להתאים`; continue; }
     const co = companyOf.get(Number(r.store_id));
     const hits = (byKey.get(key) || []).filter((t) => accCompany.get(Number(t.bank_account_id)) === co);
-    if (!hits.length) { r.bank_hint = 'טרם נפרע בבנק (אין חיוב עם מספר הצ׳ק הזה)'; continue; }
+    if (!hits.length) {
+      // אסמכתה שלא נמצאה — אולי הוקלדה אסמכתה אחרת (למשל של אתר הבנק ולא של דף החשבון): מציעים
+      // חיוב פנוי באותו סכום בדיוק, כדי שיהיה ברור מה לתקן.
+      const due = Date.parse(r.due_date);
+      const near = [...allDebits, ...noRef].find((t) => accCompany.get(Number(t.bank_account_id)) === co
+        && -Number(t.amount) === Number(r.amount) && !t.matched_payment_id && !linked.has(Number(t.id))
+        && (!Number.isFinite(due) || Math.abs(Date.parse(t.txn_date) - due) <= 45 * DAY));
+      r.bank_hint = near
+        ? `אין בבנק חיוב עם ${what} ${r.method === 'check' ? 'הזה' : 'הזו'} — אבל יש חיוב באותו סכום ב-${near.txn_date}${near.raw_reference ? ` (אסמכתה ${near.raw_reference})` : ''}. אם זה הוא — עדכן את ${what}.`
+        : (r.method === 'check' ? 'טרם נפרע בבנק (אין חיוב עם מספר הצ׳ק הזה)' : 'אין בבנק חיוב עם האסמכתה הזו');
+      continue;
+    }
     const same = hits.find((t) => -Number(t.amount) === Number(r.amount));
-    if (same && linked.has(Number(same.id))) r.bank_hint = 'החיוב בבנק כבר שויך לצ׳ק שכר אחר';
+    if (same && linked.has(Number(same.id))) r.bank_hint = 'החיוב בבנק כבר שויך לתשלום שכר אחר';
     else if (same && same.matched_payment_id) r.bank_hint = `החיוב בבנק (${same.txn_date}) הותאם לתשלום ספק`;
     else if (same) r.bank_hint = `נמצא בבנק (${same.txn_date}) — לחץ "התאמה אוטומטית" בהתאמת בנק`;
     else {
       const t = hits[0];
-      r.bank_hint = `בבנק צ׳ק ${r.reference} נפרע בסכום ${fromAgorot(-Number(t.amount))} ₪ (${t.txn_date}) — שונה מהסכום שהוזן`;
+      r.bank_hint = r.method === 'check'
+        ? `בבנק צ׳ק ${r.reference} נפרע בסכום ${fromAgorot(-Number(t.amount))} ₪ (${t.txn_date}) — שונה מהסכום שהוזן`
+        : `בבנק אסמכתה ${r.reference} בסכום ${fromAgorot(-Number(t.amount))} ₪ (${t.txn_date}) — שונה מהסכום שהוזן${r.method === 'batch' ? ' (אם זה מקבץ של כמה עובדים — ודא שכל השורות שלו הוזנו עם אותה אסמכתה)' : ''}`;
     }
   }
   return rows;

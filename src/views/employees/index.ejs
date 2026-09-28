@@ -88,7 +88,7 @@
                   <%# נפרע בבנק **וגם** סומן כנפרט בקופה — אותו שכר יצא פעמיים (נשלחה התראה). %>
                   <span class="badge b-blocked">⚠️ נפרע בבנק<%= r.bank_date ? ' · ' + formatDate(r.bank_date) : '' %> וגם בקופה</span>
                 <% } else if (r.bank_txn_id) { %>
-                  <span class="badge b-cleared">🏦 נפרע בבנק<%= r.bank_date ? ' · ' + formatDate(r.bank_date) : '' %></span>
+                  <span class="badge b-cleared">🏦 <%= r.method === 'check' ? 'נפרע בבנק' : 'יצא מהבנק' %><%= r.bank_date ? ' · ' + formatDate(r.bank_date) : '' %></span>
                 <% } else if (Number(r.cashed)) { %>
                   <span class="badge b-approved">הותאם להוצאת מזומן</span>
                   <form method="post" action="/employees/salary/<%= r.id %>/uncashed" style="display:inline" onsubmit="return confirm('לבטל את ההתאמה? הצ׳ק שבוטל יישאר במעקב.')">
@@ -112,6 +112,8 @@
                       <button type="submit" class="small" style="margin-top:.3rem">התאם ובטל את הצ׳ק</button>
                     </form>
                   </details>
+                <% } else if (r.bank_hint) { %>
+                  <div class="muted" style="font-size:12px">🏦 <%= r.bank_hint %></div>
                 <% } else { %><span class="muted">—</span><% } %>
               </td>
               <td class="no-print">

@@ -133,3 +133,40 @@ test('הסבר בשורה: טרם נפרע / סכום שונה / נמצא — מ
   assert.match(hint('27741'), /שונה מהסכום/);
   assert.match(hint('27742'), /התאמה אוטומטית/);
 });
+
+// 🔴 נצפה: העברות שכר עם אסמכתה נשארו בלי התאמה — רק צ׳קים נבדקו.
+test('העברת שכר ↔ חיוב בבנק לפי אסמכתה + סכום; מקבץ של כמה עובדים ↔ חיוב אחד בסכום הכולל', async () => {
+  const { db, o, st, acct, bank } = await world();
+  const emp2 = await createEmployee({ firstName: 'זאב', lastName: 'כהן' }, o, db);
+  const emp3 = await createEmployee({ firstName: 'שלי', lastName: 'פורמן' }, o, db);
+  const pay = (employeeId, method, reference, amount) =>
+    createSalaryPayment({ storeId: st.id, employeeId, method, reference, dueDate: '2026-09-08', amount }, o, db);
+  const single = await pay(emp2.id, 'transfer', '10208394', 1309289);
+  const b1 = await pay(emp2.id, 'batch', '777001', 200000);
+  const b2 = await pay(emp3.id, 'batch', '777001', 288000);
+  await bank([
+    { txnDate: '2026-09-08', amount: -1309289, description: 'העב׳ במקבץ-נט', rawReference: '10208394', externalId: 'h1' },
+    { txnDate: '2026-09-08', amount: -488000, description: 'העב׳ במקבץ-נט', rawReference: '777001', externalId: 'h2' },
+  ]);
+  const r = await reconcileAccount(acct, o, db);
+  assert.equal(r.salary, 3);
+  const linkOf = async (id) => (await db.one('SELECT bank_txn_id FROM salary_payments WHERE id = ?', [id])).bank_txn_id;
+  assert.ok(await linkOf(single.id));
+  assert.equal(await linkOf(b1.id), await linkOf(b2.id), 'שתי שורות המקבץ על אותו חיוב');
+
+  // והחיובים האלה אינם "העברה ללא תיעוד" בלוח הבקרה
+  const { setWatchFrom, untrackedTransfers } = await import('../src/services/transfers.js');
+  await setWatchFrom('2026-01-01', o, db);
+  assert.deepEqual(await untrackedTransfers({ scope: null }, db), []);
+});
+
+test('העברת שכר עם אסמכתה שלא מופיעה בבנק — ההסבר מציע חיוב פנוי באותו סכום', async () => {
+  const { attachSalaryBankHints } = await import('../src/services/salaryPayments.js');
+  const { db, o, st, bank } = await world();
+  const emp = await createEmployee({ firstName: 'ניסים', lastName: 'בן מרגי' }, o, db);
+  await createSalaryPayment({ storeId: st.id, employeeId: emp.id, method: 'transfer', reference: '10208425', dueDate: '2026-09-08', amount: 1556481 }, o, db);
+  await bank([{ txnDate: '2026-09-09', amount: -1556481, description: 'העב׳ במקבץ-נט', rawReference: '99887766', externalId: 'k1' }]);
+  const rows = await attachSalaryBankHints(await listSalaryPayments({}, db), db);
+  const hint = rows.find((x) => x.reference === '10208425').bank_hint;
+  assert.match(hint, /אין בבנק חיוב עם האסמכתה הזו — אבל יש חיוב באותו סכום ב-2026-09-09 \(אסמכתה 99887766\)/);
+});

@@ -441,6 +441,15 @@ export async function untrackedTransfers({ scope = null } = {}, x = getExecutor(
   for (const r of await x.many("SELECT reference, check_number, batch_number FROM payments WHERE status <> 'voided'", [])) {
     for (const v of [r.reference, r.check_number, r.batch_number]) if (v) known.add(String(v).trim());
   }
+  // העברת **שכר** מוצהרת בדף העובדים (תשלומי שכר) — גם היא תיעוד: האסמכתה שלה מוכרת, והחיוב
+  // ששויך אליה כבר מוסבר. בלי זה כל משכורת בהעברה הייתה מופיעה כ"העברה ללא תיעוד".
+  const { salaryLinkedTxnIds } = await import('./salaryPayments.js');
+  const salaryTaken = await salaryLinkedTxnIds(x);
+  try {
+    for (const r of await x.many("SELECT reference FROM salary_payments WHERE method IN ('transfer', 'batch') AND reference IS NOT NULL", [])) {
+      known.add(String(r.reference).trim());
+    }
+  } catch { /* לפני עדכון המסד — אין טבלת שכר */ }
   const looksTracked = (t) => {
     const ref = String(t.raw_reference ?? '').trim();
     const text = `${t.description ?? ''} ${t.raw_reference ?? ''}`;
@@ -449,7 +458,7 @@ export async function untrackedTransfers({ scope = null } = {}, x = getExecutor(
   // A check is tracked through its own number and its own page — reporting it here would double up.
   const isCheck = (t) => /שיק|צ'ק|צ׳ק|check/i.test(String(t.description ?? ''));
 
-  return txns.filter((t) => isTransferMovement(t.description) && !isCheck(t) && !looksTracked(t));
+  return txns.filter((t) => isTransferMovement(t.description) && !isCheck(t) && !salaryTaken.has(Number(t.id)) && !looksTracked(t));
 }
 
 /**
