@@ -4,6 +4,7 @@ import {
   outstandingChecks,
   outstandingChecksForAccount,
   outstandingCheckDetail,
+  outstandingBankCandidates,
   outstandingMonths,
   invoiceLookup,
   profitability,
@@ -18,6 +19,7 @@ import {
 } from '../services/zreports.js';
 import { createDeposit, listDeposits, setDeposited, setDepositBag, deleteDeposit, depositTotalForZ, depositForZ, depositsForZ, replaceDepositsForZ, declaredNotDeposited, zReportsWithoutDeposit, depositVerifications } from '../services/deposits.js';
 import { listEmployees } from '../services/employees.js';
+import { confirmMatch } from '../services/reconciliation.js';
 import { matchingClosing, CLOSING_DENOMS } from '../services/zclosing.js';
 import { listInvoices } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
@@ -410,6 +412,7 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
     const detailAccountId = req.query.account ? Number(req.query.account) : null;
     // Scope guard: only show detail for an account the user is allowed to see.
     const inScope = detailAccountId != null && accounts.some((a) => a.id === detailAccountId);
+    const detail = inScope ? await outstandingCheckDetail(detailAccountId, cutArg) : [];
     res.render('reports/outstanding', {
       title: 'צ׳קים בחוץ',
       accounts,
@@ -421,9 +424,57 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
       from: c.from,
       to: c.to,
       detailAccountId: inScope ? detailAccountId : null,
-      detail: inScope ? await outstandingCheckDetail(detailAccountId, cutArg) : [],
+      detail,
+      // "התאמה לפי סכום": חיובים בבנק באותו סכום שעוד לא הותאמו (services/reports.js).
+      bankMatches: inScope ? await outstandingBankCandidates(detailAccountId, detail) : new Map(),
+      notice: req.query.notice ? String(req.query.notice).slice(0, 200) : null,
+      error: req.query.err ? String(req.query.err).slice(0, 300) : null,
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+// "התאם" לפי סכום מתוך צ׳קים בחוץ — אותו confirmMatch של התאמת הבנק (סכום זהה, אותו חשבון, צ׳ק
+// פתוח), ושני הצדדים נבדקים מול הסקופ. PRG חזרה לפירוט החשבון.
+function outstandingBack(res, accountId, { notice, error } = {}) {
+  const q = [`account=${Number(accountId) || ''}`];
+  if (notice) q.push(`notice=${encodeURIComponent(notice)}`);
+  if (error) q.push(`err=${encodeURIComponent(error)}`);
+  return res.redirect(303, `/reports/outstanding?${q.join('&')}`);
+}
+
+router.post('/outstanding/match', requirePageAccess('nav_outstanding'), async (req, res, next) => {
+  const accountId = Number(req.body.account);
+  try {
+    await assertInScope('bankTxn', Number(req.body.txn_id), req.scope);
+    await assertInScope('payment', Number(req.body.payment_id), req.scope);
+    const r = await confirmMatch(Number(req.body.txn_id), Number(req.body.payment_id), req.user);
+    return outstandingBack(res, accountId, { notice: `הצ׳ק הותאם לחיוב בבנק מ-${r.clearedDate} וסומן כנפרע.` });
+  } catch (err) {
+    if (err instanceof RuleError) return outstandingBack(res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+// "התאם את כל החד-משמעיים" — רק זוגות שבהם הצ׳ק הוא היחיד לתנועה והתנועה היחידה לצ׳ק. מחושב
+// מחדש בשרת (לא מהטופס), על כל הצ׳קים הפתוחים בחשבון.
+router.post('/outstanding/match-unique', requirePageAccess('nav_outstanding'), async (req, res, next) => {
+  const accountId = Number(req.body.account);
+  try {
+    const { accounts } = await outstandingChecks(req.scope, { storeId: effectiveStoreId(req, null) });
+    if (!accounts.some((a) => Number(a.id) === accountId)) throw new RuleError('VALIDATION', 'חשבון לא נמצא');
+    const detail = await outstandingCheckDetail(accountId, {});
+    const matches = await outstandingBankCandidates(accountId, detail);
+    let n = 0;
+    for (const [paymentId, m] of matches) {
+      if (!m.unique) continue;
+      await confirmMatch(Number(m.candidates[0].id), paymentId, req.user);
+      n += 1;
+    }
+    return outstandingBack(res, accountId, { notice: n ? `הותאמו ${n} צ׳קים לחיובים בבנק לפי סכום, וסומנו כנפרעו.` : 'אין התאמות חד-משמעיות לפי סכום.' });
+  } catch (err) {
+    if (err instanceof RuleError) return outstandingBack(res, accountId, { error: err.message });
     next(err);
   }
 });

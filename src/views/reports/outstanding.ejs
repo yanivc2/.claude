@@ -3,6 +3,8 @@
   <h1>צ׳קים בחוץ</h1>
 </div>
 <p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7). לחץ על שורה לפירוט.</p>
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
 <%
 // "הכל" resets the cut (preserving the selected account).
@@ -93,31 +95,70 @@ function cutQS(){
 </div>
 
 <% if (detailAccountId) { %>
+  <% var _bm = (typeof bankMatches !== 'undefined' && bankMatches) ? bankMatches : new Map();
+     var _withCand = 0, _unique = 0;
+     detail.forEach(function(r){ var m = _bm.get(Number(r.paymentId)); if (m && m.candidates.length) { _withCand += 1; if (m.unique) _unique += 1; } }); %>
   <div class="card">
     <div class="toolbar">
       <h2 style="margin:0">פירוט צ׳קים שלא נפרעו — החשבון הנבחר</h2>
       <a class="btn secondary no-print" href="/reports/outstanding-detail.csv?account=<%= detailAccountId %><%= cutQS() %>">ייצוא CSV מפורט</a>
+    </div>
+    <%# "התאמה לפי סכום": חיוב בבנק באותו סכום שעוד לא הותאם (services/reports.js#outstandingBankCandidates).
+        הצעה בלבד — סכום זהה לבדו אינו הוכחה, ולכן ההתאמה בלחיצה. %>
+    <div class="alert <%= _withCand ? 'alert-warn' : 'alert-ok' %> no-print" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+      <% if (_withCand) { %>
+        <span>🔎 נמצאו חיובים בבנק <strong>באותו סכום</strong> ל-<strong><%= _withCand %></strong> מתוך <%= detail.length %> צ׳קים פתוחים<%= _unique ? ' — ' + _unique + ' מהם חד-משמעיים' : '' %>. ייתכן שהם כבר נפרעו.</span>
+        <% if (_unique) { %>
+          <form method="post" action="/reports/outstanding/match-unique" style="margin:0"
+                onsubmit="return confirm('להתאים <%= _unique %> צ׳קים לחיובים בבנק לפי סכום ולסמן אותם כנפרעו?')">
+            <input type="hidden" name="account" value="<%= detailAccountId %>" />
+            <button type="submit" class="ok small">🔗 התאם את כל החד-משמעיים (<%= _unique %>)</button>
+          </form>
+        <% } %>
+      <% } else { %>
+        <span>🔎 לא נמצא חיוב בבנק באותו סכום לאף צ׳ק פתוח בחשבון הזה (בדף הבנק שיובא עד היום).</span>
+      <% } %>
     </div>
     <table class="sortable">
       <thead>
         <tr>
           <th>ספק</th><th>מס' חשבונית</th><th>תאריך חשבונית</th><th class="right">סכום חשבונית</th>
           <th>מס' זיכוי</th><th class="right">סכום זיכוי</th><th>תאריך פירעון</th><th class="right">סכום</th>
+          <th class="no-print">התאמה בבנק לפי סכום</th>
           <th class="no-print" data-nosort>פעולות</th>
         </tr>
       </thead>
       <tbody>
-        <% if (detail.length === 0) { %><tr><td colspan="9" class="muted">אין צ׳קים פתוחים.</td></tr><% } %>
+        <% if (detail.length === 0) { %><tr><td colspan="10" class="muted">אין צ׳קים פתוחים.</td></tr><% } %>
         <% detail.forEach(function(r){ %>
           <tr>
-            <td><%= r.supplierName %></td>
-            <td class="mono"><a href="/payments/<%= r.paymentId %>"><%= r.invoiceNumbers || r.ident %></a></td>
-            <td><%= r.invoiceDate %></td>
+            <td><%= r.supplierName %><% if (r.isAdvance) { %> <span class="muted" style="font-size:11px">· על החשבון</span><% } %></td>
+            <td class="mono"><a href="/payments/<%= r.paymentId %>"><%= r.invoiceNumbers || r.ident || ('תשלום #' + r.paymentId) %></a></td>
+            <td><%= r.invoiceDate ? formatDate(r.invoiceDate) : '' %></td>
             <td class="right"><%= formatIls(r.invoiceAmount) %></td>
             <td class="mono"><%= r.creditNumbers || '—' %></td>
             <td class="right"><%= r.creditAmount ? '−' + formatIls(r.creditAmount) : '—' %></td>
-            <td><%= r.dueDate %></td>
+            <td data-sort="<%= r.dueDate %>"><%= formatDate(r.dueDate) %></td>
             <td class="right"><strong><%= formatIls(r.amount) %></strong></td>
+            <% var m = _bm.get(Number(r.paymentId)); %>
+            <td class="no-print">
+              <% if (!m || !m.candidates.length) { %><span class="muted">—</span>
+              <% } else { %>
+                <form method="post" action="/reports/outstanding/match" style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:0">
+                  <input type="hidden" name="account" value="<%= detailAccountId %>" />
+                  <input type="hidden" name="payment_id" value="<%= r.paymentId %>" />
+                  <% if (m.candidates.length === 1) { var t = m.candidates[0]; %>
+                    <input type="hidden" name="txn_id" value="<%= t.id %>" />
+                    <span style="font-size:12px" title="<%= t.description || '' %>">חיוב <%= formatDate(t.txn_date) %><%= t.raw_reference ? ' · אסמכתה ' + t.raw_reference : '' %><% if (!m.unique) { %> <span class="badge b-on_hold">גם לצ׳ק אחר</span><% } %></span>
+                  <% } else { %>
+                    <select name="txn_id" style="max-width:190px;font-size:12px">
+                      <% m.candidates.forEach(function(t){ %><option value="<%= t.id %>"><%= formatDate(t.txn_date) %><%= t.raw_reference ? ' · ' + t.raw_reference : '' %></option><% }); %>
+                    </select>
+                  <% } %>
+                  <button type="submit" class="small" onclick="return confirm('להתאים את הצ׳ק לחיוב הזה בבנק ולסמן אותו כנפרע?')">🔗 התאם</button>
+                </form>
+              <% } %>
+            </td>
             <td class="no-print">
               <form method="post" action="/payments/<%= r.paymentId %>/clear" style="display:inline">
                 <button class="ok small" type="submit">סמן כנפרע</button>

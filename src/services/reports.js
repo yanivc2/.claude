@@ -162,7 +162,7 @@ export async function outstandingChecksForAccount(bankAccountId, x = getExecutor
 export async function outstandingCheckDetail(bankAccountId, cut = {}, x = getExecutor()) {
   const dc = dueDateCut(cut);
   const payments = await x.many(
-    `SELECT p.id, p.payment_date, p.amount, p.method, p.check_number, p.reference, p.batch_number
+    `SELECT p.id, p.payment_date, p.amount, p.method, p.check_number, p.reference, p.batch_number, p.supplier_id
        FROM payments p
       WHERE p.bank_account_id = ? AND p.status = 'issued'${dc.cond}
       ORDER BY p.payment_date, p.id`,
@@ -188,6 +188,14 @@ export async function outstandingCheckDetail(bankAccountId, cut = {}, x = getExe
     if (!byPayment.has(l.payment_id)) byPayment.set(l.payment_id, []);
     byPayment.get(l.payment_id).push(l);
   }
+  // תשלום על החשבון (מקדמה) אין לו שורות חשבונית — הספק שלו יושב על התשלום עצמו. בלעדיו השורה
+  // הציגה עמודת ספק ריקה, ואי אפשר היה לדעת למי יצא הצ׳ק.
+  const advSupIds = [...new Set(payments.filter((p) => p.supplier_id && !byPayment.has(p.id)).map((p) => Number(p.supplier_id)))];
+  const supName = new Map();
+  if (advSupIds.length) {
+    const rows = await x.many(`SELECT id, name FROM suppliers WHERE id IN (${advSupIds.map(() => '?').join(',')})`, advSupIds);
+    for (const r of rows) supName.set(Number(r.id), r.name);
+  }
 
   return payments.map((p) => {
     const ls = byPayment.get(p.id) || [];
@@ -197,7 +205,8 @@ export async function outstandingCheckDetail(bankAccountId, cut = {}, x = getExe
       paymentId: p.id,
       method: p.method,
       ident: p.check_number || p.reference || p.batch_number || '',
-      supplierName: (pos[0] || ls[0] || {}).supplier_name || '',
+      supplierName: (pos[0] || ls[0] || {}).supplier_name || supName.get(Number(p.supplier_id)) || '',
+      isAdvance: !ls.length && !!p.supplier_id,
       invoiceNumbers: pos.map((l) => l.invoice_number).join(', '),
       invoiceDate: (pos[0] || {}).invoice_date || '',
       invoiceAmount: pos.reduce((s, l) => s + l.total_amount, 0),
@@ -208,6 +217,55 @@ export async function outstandingCheckDetail(bankAccountId, cut = {}, x = getExe
       invoiceIds: pos.map((l) => l.invoice_id),
     };
   });
+}
+
+/**
+ * "התאמה לפי סכום" לצ׳קים בחוץ — לכל צ׳ק פתוח: חיובים בבנק **באותו סכום בדיוק**, באותו חשבון, שעוד
+ * לא הותאמו לשום דבר, בחלון סביב תאריך הפירעון (14 יום לפני עד 180 יום אחרי — צ׳ק נפרע אחרי
+ * הפירעון, לפעמים חודשים אחריו; לפני הפירעון רק בטעות של הבנק).
+ *
+ * ההתאמה האוטומטית (`autoReconcile`) דורשת מספר צ׳ק; צ׳ק שנרשם בלי מספר, או שהבנק כתב לו אסמכתה
+ * אחרת, נשאר "בחוץ" לנצח גם אחרי שנפרע. כאן מציעים — לא מתאימים לבד: סכום זהה לבדו אינו הוכחה.
+ * `unique` = הצ׳ק היחיד שמתאים לתנועה הזו **והתנועה היחידה** שמתאימה לצ׳ק — רק אלה נכנסים ל"התאם
+ * את כל החד-משמעיים".
+ *
+ * @param {number} bankAccountId
+ * @param {Array<{paymentId:number, amount:number, dueDate:string}>} detail שורות outstandingCheckDetail
+ * @returns {Promise<Map<number, {candidates: Array, unique: boolean}>>}
+ */
+export const OUTSTANDING_MATCH_BEFORE_DAYS = 14;
+export const OUTSTANDING_MATCH_AFTER_DAYS = 180;
+export async function outstandingBankCandidates(bankAccountId, detail, x = getExecutor()) {
+  const out = new Map();
+  if (!detail || !detail.length) return out;
+  const txns = await x.many(
+    `SELECT id, txn_date, amount, description, raw_reference FROM bank_transactions
+      WHERE bank_account_id = ? AND amount < 0 AND matched_payment_id IS NULL ORDER BY txn_date, id`,
+    [bankAccountId],
+  );
+  // חיוב שכבר שויך לתשלום שכר אינו פנוי (שיוך השכר יושב על salary_payments, לא על התנועה).
+  const { salaryLinkedTxnIds } = await import('./salaryPayments.js');
+  const salaryTaken = await salaryLinkedTxnIds(x);
+  const free = txns.filter((t) => !salaryTaken.has(Number(t.id)));
+  const shift = (iso, days) => {
+    const d = new Date(`${String(iso).slice(0, 10)}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
+  const usage = new Map(); // txnId → מספר הצ׳קים שהיא מועמדת להם
+  for (const r of detail) {
+    const due = String(r.dueDate || '').slice(0, 10);
+    const lo = due ? shift(due, -OUTSTANDING_MATCH_BEFORE_DAYS) : '';
+    const hi = due ? shift(due, OUTSTANDING_MATCH_AFTER_DAYS) : '9999-12-31';
+    const candidates = free.filter((t) => Math.abs(Number(t.amount)) === Number(r.amount)
+      && String(t.txn_date) >= lo && String(t.txn_date) <= hi);
+    for (const t of candidates) usage.set(Number(t.id), (usage.get(Number(t.id)) || 0) + 1);
+    out.set(Number(r.paymentId), { candidates, unique: false });
+  }
+  for (const v of out.values()) {
+    v.unique = v.candidates.length === 1 && usage.get(Number(v.candidates[0].id)) === 1;
+  }
+  return out;
 }
 
 /**
