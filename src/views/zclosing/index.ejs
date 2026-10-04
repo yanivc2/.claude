@@ -184,12 +184,12 @@
             <td class="right"><%= formatIls(c.total_cash) %></td>
             <td class="right"><%= formatIls(c.total_expenses) %></td>
             <td class="right"><strong><%= formatIls(c.grand_total) %></strong></td>
-            <%# הגדרת הבעלים: מגירה > נספר+הוצאות = יתרה, קטנה = חוסר (services/zclosing.js#closingDiff). %>
-            <% var cd = Number(c.drawer_cash || 0) - Number(c.grand_total || 0); %>
-            <td class="right" data-sort="<%= cd %>">
-              <% if (cd === 0) { %><span class="badge b-approved">תואם</span>
-              <% } else if (cd > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(cd) %></strong>
-              <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-cd) %></strong><% } %>
+            <%# (נספר + הוצאות) − מגירה, מספר עם סימן — מגירה 1,000 ונספר+הוצאות 950 = ‎-50 (services/zclosing.js#closingDiff). %>
+            <% var cd = Number(c.grand_total || 0) - Number(c.drawer_cash || 0); %>
+            <td class="right" data-sort="<%= cd %>" title="<%= cd < 0 ? 'חוסר' : cd > 0 ? 'יתרה' : 'תואם' %>">
+              <% if (cd === 0) { %><span class="badge b-approved">0</span>
+              <% } else if (cd > 0) { %><strong style="color:var(--color-ok)" dir="ltr">+<%= formatIls(cd) %></strong>
+              <% } else { %><strong style="color:var(--color-bad)" dir="ltr">-<%= formatIls(-cd) %></strong><% } %>
             </td>
             <% if (isOwner) { %>
               <td class="no-print">
@@ -230,7 +230,7 @@
     var drawerEl = document.getElementById('drawer-cash-in');
     var drawer = drawerEl ? (parseFloat(drawerEl.value) || 0) : 0;
     document.getElementById('drawer-disp').textContent = fmt(drawer);
-    var diff = drawer - grand; // הגדרת הבעלים: מגירה > נספר+הוצאות = יתרה · < = חוסר (services/zclosing.js#closingDiff)
+    var diff = grand - drawer; // (נספר+הוצאות) − מגירה: <0 חוסר · >0 יתרה (services/zclosing.js#closingDiff)
     var el = document.getElementById('closing-diff');
     if (drawerEl && drawerEl.value.trim() === '') { el.textContent = '—'; el.style.color = ''; }
     else if (Math.round(diff*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--color-ok)'; }

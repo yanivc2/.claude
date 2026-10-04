@@ -186,7 +186,7 @@ export async function createZClosing(input, actor, x = getExecutor()) {
     await notify( // await: על serverless התראה בלי await נעלמת כשהתשובה כבר נשלחה (CLAUDE.md)
       `⚠️ <b>חוסר בסגירת קופה</b>\nעובד: ${names.first} ${names.last}` +
         (storeName ? `\nחנות: ${storeName}` : '') +
-        `\nZ ${zNumber}\nחוסר ע"ס ₪${fromAgorot(Math.abs(diff))}\n(מגירה ₪${fromAgorot(drawerCash)} מול נספר+הוצאות ₪${fromAgorot(grandTotal)})`,
+        `\nZ ${zNumber}\nחוסר ע"ס ₪${fromAgorot(Math.abs(diff))}\n(נספר+הוצאות ₪${fromAgorot(grandTotal)} מול מגירה ₪${fromAgorot(drawerCash)})`,
     );
   }
   return info.lastInsertRowid;
@@ -336,11 +336,11 @@ export async function deleteZClosing(id, actor, x = getExecutor()) {
 }
 
 /**
- * חוסר / יתרה של סגירת Z — **הגדרת הבעלים**: מגירה גדולה מ"נספר + הוצאות" = **יתרה**, קטנה = **חוסר**.
- * ביטוי יחיד: עמודת "חוסר / יתרה" בסגירות האחרונות, השורה בטופס (index/edit) וההתראה על חוסר.
- * (קודם הטופס וההתראה חישבו הפוך; הבעלים הכריע לטובת ההגדרה הזו, ושלושתם יושרו אליה.)
- * @returns {number} agorot — >0 יתרה · <0 חוסר · 0 תואם
+ * חוסר / יתרה של סגירת Z = **(נספר + הוצאות) − מגירה** — הדוגמה של הבעלים: מגירה 1,000, נספר +
+ * הוצאות 950 → **‎-50** (חסר כסף ביחס למגירה). ביטוי יחיד: עמודת "חוסר / יתרה" בסגירות האחרונות
+ * (מספר עם סימן), השורה בטופס (index/edit) וההתראה על חוסר.
+ * @returns {number} agorot — <0 חוסר · >0 יתרה · 0 תואם
  */
 export function closingDiff({ drawerCash, grandTotal }) {
-  return (Number(drawerCash) || 0) - (Number(grandTotal) || 0);
+  return (Number(grandTotal) || 0) - (Number(drawerCash) || 0);
 }
