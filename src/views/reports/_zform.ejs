@@ -190,7 +190,7 @@
   </div>
   <div class="zdep-grid" style="margin-top:.7rem">
     <div><label>סה"כ הופקד</label><input id="dep_total" readonly value="₪0.00" /><small class="muted">סכום כל השקיות</small></div>
-    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">הפקדה − (מזומן − (תווי קניה + צ'ק + הקפה + הוצאות במזומן))</small></div>
+    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">הפקדה − (מזומן − (צ'ק + הקפה + הוצאות במזומן))</small></div>
   </div>
 
   <%# שמירה דביקה. הכפתור היה בתחתית טופס ארוך (מגירה · אשראי · הוצאות · הפקדה), חלקו בתוך
@@ -219,13 +219,13 @@
   function depDeclared(){
     return Array.prototype.some.call(depBags.querySelectorAll('.dep-amt'), function(i){ return i.value.trim() !== ''; });
   }
-  // חוסר/יתרה = סכום ההפקדה − (מזומן − (תווי קניה + צ'ק + הקפה + סה"כ הוצאות במזומן)).
+  // חוסר/יתרה = סכום ההפקדה − (מזומן − (צ'ק + הקפה + סה"כ הוצאות במזומן)).
   // הפקידו פחות ממה שהיה אמור להגיע לשקית → חוסר (− אדום); הפקידו יותר → יתרה (+ ירוק).
-  // 🔴 תווי קניה, צ'ק והקפה אינם כסף בשקית ולכן מופחתים מהמזומן (הגדרת הבעלים); אשראי לא נכנס.
+  // 🔴 צ'ק והקפה אינם כסף בשקית ולכן מופחתים מהמזומן (הגדרת הבעלים); תווי קניה ואשראי לא נכנסים.
   // 🔴 ההוצאות מופחתות ולא מתווספות: כסף שיצא מהקופה כהוצאה כבר אינו בה ולא יכול להגיע לשקית.
   // חייב להישאר זהה ל-services/zreports.js#depositBase/depositDiff.
   function drawerCash(){ return num(form.querySelector('input[name="drawer_cash"]')); }
-  function nonCash(){ return ['drawer_vouchers','drawer_check','drawer_hakafa'].reduce(function(t, k){ var el = form.querySelector('input[name="' + k + '"]'); return t + (el ? num(el) : 0); }, 0); }
+  function nonCash(){ return ['drawer_check','drawer_hakafa'].reduce(function(t, k){ var el = form.querySelector('input[name="' + k + '"]'); return t + (el ? num(el) : 0); }, 0); }
   function recalcDepRecon(){
     if (!depReconEl) return;
     var totalEl = document.getElementById('dep_total');

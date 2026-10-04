@@ -154,7 +154,7 @@ async function alertIfUnmatched(req, id) {
 }
 
 // WhatsApp status for a Z in the "רשומות Z אחרונות" list, per the owner's rule:
-// depDiff = סכום ההפקדה − (מזומן − (תווי קניה + צ׳ק + הקפה + הוצאות במזומן)) — services/zreports.js#depositBase.
+// depDiff = סכום ההפקדה − (מזומן − (צ׳ק + הקפה + הוצאות במזומן)) — services/zreports.js#depositBase.
 // 0 → תואם; הפקידו פחות ממה שהיה בקופה (depDiff<0) → חוסר; הפקידו יותר (depDiff>0) → יתרה.
 function zDepositWhatsappText(zr, depDiff) {
   const head = `זד מס ${zr.z_number} מתאריך : ${zr.z_date}`;
@@ -265,8 +265,8 @@ async function renderZReports(req, res, extra = {}) {
   const zRows = await listZReports({ storeId: zStoreId, limit: 30, scope: req.scope });
   const zReports = await Promise.all(
     zRows.map(async (z) => {
-      // התאמת ההפקדה — הנוסחה כולה ב-services/zreports.js#depositBase (מזומן פחות תווי קניה, צ׳ק,
-      // הקפה והוצאות במזומן). אל תשכפל אותה כאן.
+      // התאמת ההפקדה — הנוסחה כולה ב-services/zreports.js#depositBase (מזומן פחות צ׳ק, הקפה
+      // והוצאות במזומן). אל תשכפל אותה כאן.
       const expenses = await expensesTotal(z.id);
       // כל השקיות, לא הראשונה: הפקדה מפוצלת שנספרה חלקית נראית כמו חוסר שלא קיים.
       const bags = await depositsForZ(z.id);
@@ -626,7 +626,7 @@ router.post('/zreports', async (req, res, next) => {
       const cr = await cashReconciliation(created.id);
       if (cr.hasDeposit && cr.diff !== 0) {
         const label = cr.diff < 0 ? 'חוסר' : 'יתרה';
-        await notifyZOnce(created.id, `⚠️ <b>פער מזומן ב-Z ${b.z_number}</b>\n${label} ע"ס ${ils(Math.abs(cr.diff))}\nהופקד ${ils(cr.deposit)} · אמור להגיע לשקית ${ils(cr.expected)} (מזומן ${ils(cr.cash)} − תווי קניה/צ'ק/הקפה ${ils(cr.nonCash)} − הוצאות ${ils(cr.expenses)})\n${zUrl(req, created.id)}`);
+        await notifyZOnce(created.id, `⚠️ <b>פער מזומן ב-Z ${b.z_number}</b>\n${label} ע"ס ${ils(Math.abs(cr.diff))}\nהופקד ${ils(cr.deposit)} · אמור להגיע לשקית ${ils(cr.expected)} (מזומן ${ils(cr.cash)} − צ'ק/הקפה ${ils(cr.nonCash)} − הוצאות ${ils(cr.expenses)})\n${zUrl(req, created.id)}`);
       }
     } catch { /* best-effort */ }
     // PRG: רענון לא יוסיף את הדוח (ואת ההתראות) פעם שנייה.

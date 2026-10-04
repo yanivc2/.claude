@@ -36,7 +36,7 @@
           <td>
             <% if (d.z_report_id) { %><a href="/reports/zreports/<%= d.z_report_id %>">Z <%= d.z_number || d.z_report_id %></a><% } else { %>—<% } %>
           </td>
-          <%# אותו מספר בדיוק שדוח ה-Z מציג: הפקדה − (מזומן − (תווי קניה + צ׳ק + הקפה + הוצאות)). %>
+          <%# אותו מספר בדיוק שדוח ה-Z מציג: הפקדה − (מזומן − (צ׳ק + הקפה + הוצאות)). %>
           <td class="right">
             <% if (zd == null) { %><span class="muted">—</span>
             <% } else if (zd === 0) { %><span class="badge b-approved">תואם</span>
