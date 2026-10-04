@@ -426,8 +426,13 @@ export async function attachSalaryBankHints(rows, x = getExecutor()) {
       const near = [...allDebits, ...noRef].find((t) => accCompany.get(Number(t.bank_account_id)) === co
         && -Number(t.amount) === Number(r.amount) && !t.matched_payment_id && !linked.has(Number(t.id))
         && (!Number.isFinite(due) || Math.abs(Date.parse(t.txn_date) - due) <= 45 * DAY));
+      // 🔗 כפתור "התאם לחיוב הזה" — הסכום זהה בדיוק, ורק האסמכתה שהוקלדה שונה (נצפה: העברות שכר
+      // עם אסמכתה מאישור ההעברה באתר — 10208425 — מול 182750207 בדף החשבון).
+      if (near && ['check', 'transfer'].includes(r.method)) {
+        r.bank_link = { txnId: Number(near.id), date: near.txn_date, reference: near.raw_reference || null };
+      }
       r.bank_hint = near
-        ? `אין בבנק חיוב עם ${what} ${r.method === 'check' ? 'הזה' : 'הזו'} — אבל יש חיוב באותו סכום ב-${near.txn_date}${near.raw_reference ? ` (אסמכתה ${near.raw_reference})` : ''}. אם זה הוא — עדכן את ${what}.`
+        ? `אין בבנק חיוב עם ${what} ${r.method === 'check' ? 'הזה' : 'הזו'} — אבל יש חיוב באותו סכום ב-${near.txn_date}${near.raw_reference ? ` (אסמכתה ${near.raw_reference})` : ''}.`
         : (r.method === 'check' ? 'טרם נפרע בבנק (אין חיוב עם מספר הצ׳ק הזה)' : 'אין בבנק חיוב עם האסמכתה הזו');
       continue;
     }
@@ -500,6 +505,43 @@ export async function approveSalaryBankDiff(id, txnId, note, actor, x = getExecu
   await logAction(
     { userId: actor?.id ?? null, action: 'salary.bank_diff_approved', entityType: 'salary_payment', entityId: row.id,
       details: { amount: row.amount, bankAmount, diff: bankAmount - Number(row.amount), txnId: txn.id, txnDate: txn.txn_date, note: text } },
+    x,
+  );
+  return getSalaryPayment(row.id, x);
+}
+
+/**
+ * 🔗 "התאם לחיוב הזה" — האסמכתה שהוקלדה אינה זו שבדף החשבון (העתקה מאישור ההעברה באתר, או סכום
+ * שהוקלד בשדה מספר הצ׳ק), אבל יש חיוב פנוי **באותו סכום בדיוק** וקרוב בתאריך. המשתמש רואה אותו
+ * בהסבר ומאשר שזה הוא. האסמכתה שהוזנה **נשמרת** (היא נכונה לעצמה); האסמכתה של הבנק נרשמת ביומן.
+ *
+ * 🔴 סכום זהה בדיוק — זה מה שמחליף את האסמכתה כראיה; ±45 יום מ"לתאריך"; חיוב פנוי (לא משויך
+ * לתשלום ספק, לשכר אחר או להפקדה); אותה חברה; צ׳ק או העברה בודדת שעוד לא הותאמו ולא נפרטו בקופה.
+ */
+export async function linkSalaryToBankTxn(id, txnId, actor, x = getExecutor()) {
+  if (!(await salaryBankReady(x))) throw new RuleError('R', 'נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים").');
+  const row = await getSalaryPayment(Number(id), x);
+  if (row.bank_txn_id) throw new RuleError('R', 'תשלום השכר כבר הותאם לבנק');
+  if (Number(row.cashed)) throw new RuleError('R', 'תשלום השכר סומן כנפרט בקופה');
+  if (!['check', 'transfer'].includes(row.method)) throw new RuleError('R', 'שיוך ידני זמין לצ׳ק ולהעברה בודדת בלבד');
+  const txn = await x.one('SELECT id, bank_account_id, amount, raw_reference, matched_payment_id, txn_date FROM bank_transactions WHERE id = ?', [Number(txnId)]);
+  if (!txn || !(Number(txn.amount) < 0)) throw new NotFoundError('תנועת הבנק לא נמצאה');
+  if (-Number(txn.amount) !== Number(row.amount)) throw new RuleError('R', 'הסכום בבנק שונה מסכום תשלום השכר — שיוך ידני רק לאותו סכום בדיוק');
+  if (txn.matched_payment_id) throw new RuleError('R', 'החיוב בבנק כבר הותאם לתשלום אחר');
+  if ((await salaryLinkedTxnIds(x)).has(Number(txn.id))) throw new RuleError('R', 'החיוב בבנק כבר שויך לתשלום שכר אחר');
+  if (await x.one('SELECT id FROM deposits WHERE matched_txn_id = ?', [txn.id])) throw new RuleError('R', 'החיוב בבנק שויך להפקדה');
+  const due = Date.parse(row.due_date);
+  if (Number.isFinite(due) && Math.abs(Date.parse(txn.txn_date) - due) > 45 * DAY) {
+    throw new RuleError('R', 'החיוב רחוק מדי מתאריך התשלום (יותר מ-45 יום)');
+  }
+  const acc = await x.one('SELECT company_id FROM bank_accounts WHERE id = ?', [txn.bank_account_id]);
+  const st = await x.one('SELECT company_id FROM stores WHERE id = ?', [row.store_id]);
+  if (!acc || !st || Number(acc.company_id) !== Number(st.company_id)) throw new RuleError('R', 'החיוב שייך לחשבון של חברה אחרת');
+
+  await x.run('UPDATE salary_payments SET bank_txn_id = ? WHERE id = ? AND bank_txn_id IS NULL', [txn.id, row.id]);
+  await logAction(
+    { userId: actor?.id ?? null, action: 'salary.bank_linked_manual', entityType: 'salary_payment', entityId: row.id,
+      details: { txnId: txn.id, txnDate: txn.txn_date, reference: row.reference, bankReference: txn.raw_reference ?? null } },
     x,
   );
   return getSalaryPayment(row.id, x);

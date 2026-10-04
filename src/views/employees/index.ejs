@@ -101,6 +101,13 @@
                   </form>
                 <% } else if (r.method === 'check') { %>
                   <% if (r.bank_hint) { %><div class="muted" style="font-size:12px; margin-bottom:.2rem">🏦 <%= r.bank_hint %></div><% } %>
+                  <% if (r.bank_link) { %>
+                    <form method="post" action="/employees/salary/<%= r.id %>/link-bank" style="margin:.15rem 0 .3rem"
+                          onsubmit="return confirm('להתאים את התשלום לחיוב מ-<%= formatDate(r.bank_link.date) %><%= r.bank_link.reference ? ' (אסמכתה ' + r.bank_link.reference + ')' : '' %>, באותו סכום?')">
+                      <input type="hidden" name="txn_id" value="<%= r.bank_link.txnId %>" />
+                      <button type="submit" class="btn btn-secondary small">🔗 התאם לחיוב הזה</button>
+                    </form>
+                  <% } %>
                   <% if (r.bank_diff) { %>
                     <%# הסכום שהוזן נשאר; הצ׳ק נכתב בסכום שונה במעט וההפרש אושר — ההסבר חובה. %>
                     <details style="margin:.15rem 0 .3rem">
@@ -130,6 +137,13 @@
                   </details>
                 <% } else if (r.bank_hint) { %>
                   <div class="muted" style="font-size:12px">🏦 <%= r.bank_hint %></div>
+                  <% if (r.bank_link) { %>
+                    <form method="post" action="/employees/salary/<%= r.id %>/link-bank" style="margin:.15rem 0 .3rem"
+                          onsubmit="return confirm('להתאים את התשלום לחיוב מ-<%= formatDate(r.bank_link.date) %><%= r.bank_link.reference ? ' (אסמכתה ' + r.bank_link.reference + ')' : '' %>, באותו סכום?')">
+                      <input type="hidden" name="txn_id" value="<%= r.bank_link.txnId %>" />
+                      <button type="submit" class="btn btn-secondary small">🔗 התאם לחיוב הזה</button>
+                    </form>
+                  <% } %>
                   <% if (r.bank_diff) { %>
                     <%# הסכום שהוזן נשאר; הצ׳ק נכתב בסכום שונה במעט וההפרש אושר — ההסבר חובה. %>
                     <details style="margin:.15rem 0 .3rem">

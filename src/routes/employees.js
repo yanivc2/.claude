@@ -7,7 +7,7 @@ import {
 import { scopedStoreList, assignmentScope, effectiveStoreId } from '../lib/scope.js';
 import {
   listSalaryPayments, createSalaryPayment, deleteSalaryPayment, markCashed, unmatchCashed, attachSalaryBankHints,
-  approveSalaryBankDiff,
+  approveSalaryBankDiff, linkSalaryToBankTxn,
   cashExpenseCandidates, SALARY_METHODS,
 } from '../services/salaryPayments.js';
 import { salaryPaymentsReady } from '../services/voidedChecks.js';
@@ -117,6 +117,7 @@ const NOTICES = {
   cashed: 'הצ׳ק סומן כנפרט והותאם להוצאת המזומן. הצ׳ק בוטל ונמצא במעקב ב"צ׳קים מבוטלים".',
   uncashed: 'ההתאמה בוטלה. הצ׳ק שבוטל נשאר במעקב.',
   diffapproved: 'ההתאמה אושרה עם ההפרש. הסכום שהוזן נשאר, וההערה נשמרה ליד התשלום.',
+  banklinked: 'התשלום הותאם לחיוב בבנק.',
   advance: 'המפרעה נרשמה.',
   'advance-deleted': 'המפרעה נמחקה.',
   repaid: 'ההחזר נרשם והיתרה עודכנה.',
@@ -190,6 +191,19 @@ router.post('/salary', async (req, res, next) => {
 
 // "הצ׳ק נפרט" — tie the wage row to the Z-closing cash expense that paid it out at the till, and
 // void the underlying check so the same wage is not paid twice.
+// 🔗 "התאם לחיוב הזה" — אותו סכום בדיוק, אסמכתה שהוקלדה שונה מזו שבדף החשבון.
+router.post('/salary/:id/link-bank', async (req, res, next) => {
+  try {
+    await assertInScope('salaryPayment', Number(req.params.id), req.scope);
+    await assertInScope('bankTxn', Number(req.body.txn_id), req.scope);
+    await linkSalaryToBankTxn(Number(req.params.id), Number(req.body.txn_id), req.user);
+    return res.redirect(303, '/employees?saved=banklinked');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
+    next(err);
+  }
+});
+
 // ✅ "אשר התאמה עם הפרש" — הצ׳ק נכתב בסכום שונה במעט וההפרש אושר. הסכום שהוזן נשאר, ההערה חובה.
 router.post('/salary/:id/approve-diff', async (req, res, next) => {
   try {

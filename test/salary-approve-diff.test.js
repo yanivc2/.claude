@@ -90,3 +90,36 @@ test('דרך הדף: 303 והודעה; ושורת שכר ממזהה מזויף �
   }
   assert.ok(await db.one('SELECT id FROM salary_payments WHERE id = ?', [sp.id]), 'השורה עדיין קיימת');
 });
+
+// 🔗 נצפה: העברות שכר עם אסמכתה מאישור ההעברה באתר (10208425) מול 182750207 בדף החשבון — אותו סכום
+// בדיוק, יום אחרי. ההסבר אמר "עדכן את האסמכתה" ולא היה שום כפתור.
+test('"התאם לחיוב הזה": אותו סכום, אסמכתה אחרת → משויך, והחיוב יוצא מ"העברות ללא תיעוד"', async () => {
+  const { linkSalaryToBankTxn } = await import('../src/services/salaryPayments.js');
+  const { setWatchFrom, untrackedTransfers } = await import('../src/services/transfers.js');
+  const { db, o, st, acct, emp } = await world();
+  await setWatchFrom('2026-01-01', o, db);
+  await importTransactions(acct, [{ txnDate: '2026-09-09', amount: -1556481, description: 'העב׳ במקבץ-נט', rawReference: '182750207', externalId: 'w1' }], 'scraper', o, db);
+  assert.equal((await untrackedTransfers({ scope: null }, db)).length, 1, 'לפני השיוך — נראית כהעברה ללא תיעוד');
+  const sp = await createSalaryPayment({ storeId: st.id, employeeId: emp.id, method: 'transfer', reference: '10208425', dueDate: '2026-09-08', amount: 1556481 }, o, db);
+  const row = (await attachSalaryBankHints(await listSalaryPayments({}, db), db)).find((r) => r.id === sp.id);
+  assert.equal(row.bank_link.reference, '182750207');
+  const linked = await linkSalaryToBankTxn(sp.id, row.bank_link.txnId, o, db);
+  assert.equal(Number(linked.bank_txn_id), row.bank_link.txnId);
+  assert.equal(linked.reference, '10208425', 'האסמכתה שהוזנה נשמרת');
+  assert.deepEqual(await untrackedTransfers({ scope: null }, db), [], 'אחרי השיוך — מוסברת');
+});
+
+test('"התאם לחיוב הזה" נדחה בסכום שונה או בחיוב רחוק בזמן', async () => {
+  const { linkSalaryToBankTxn } = await import('../src/services/salaryPayments.js');
+  const { db, o, st, acct, emp } = await world();
+  await importTransactions(acct, [
+    { txnDate: '2026-09-09', amount: -100001, description: 'העב׳ במקבץ-נט', rawReference: '1', externalId: 'v1' },
+    { txnDate: '2026-12-30', amount: -200000, description: 'העב׳ במקבץ-נט', rawReference: '2', externalId: 'v2' },
+  ], 'scraper', o, db);
+  const t1 = await db.one("SELECT id FROM bank_transactions WHERE external_id = 'v1'", []);
+  const t2 = await db.one("SELECT id FROM bank_transactions WHERE external_id = 'v2'", []);
+  const a = await createSalaryPayment({ storeId: st.id, employeeId: emp.id, method: 'transfer', reference: '9', dueDate: '2026-09-08', amount: 100000 }, o, db);
+  const b = await createSalaryPayment({ storeId: st.id, employeeId: emp.id, method: 'transfer', reference: '8', dueDate: '2026-09-08', amount: 200000 }, o, db);
+  await assert.rejects(() => linkSalaryToBankTxn(a.id, t1.id, o, db), /הסכום בבנק שונה/);
+  await assert.rejects(() => linkSalaryToBankTxn(b.id, t2.id, o, db), /רחוק מדי/);
+});
