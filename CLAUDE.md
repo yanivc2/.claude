@@ -6,8 +6,10 @@ register closings, employees, and a product catalog. **Live:** https://ap-contro
 
 This file is the fast map of *where things live* so I don't re-read the whole tree each session.
 
-**🗣️ Always answer the user in Hebrew** (every reply, every session). Code, identifiers and commit
-messages stay in English.
+**🗣️ Everything written to the user is in Hebrew** (every session) — replies, progress/interim
+messages, questions (`AskUserQuestion` text, headers, option labels + descriptions), plans, and
+summaries (end-of-task recaps **and** context-compaction summaries). Code, identifiers and commit
+messages stay in English. Also enforced by `"language": "hebrew"` in `.claude/settings.json`.
 
 > **Before changing any button/feature, read [`INDEX.md`](INDEX.md)** — a per-feature index of what
 > each button does, how it's wired, what it's coupled to, and what breaks if you delete/change/move it.
