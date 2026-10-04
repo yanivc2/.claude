@@ -1,5 +1,7 @@
 # {{PROJECT_NAME}}
 
+> **🗣️ Language:** everything written to the user — replies, progress messages, questions (incl. option labels), plans and summaries — is in **Hebrew**. Code, identifiers and commit messages stay in English.
+
 {{PROJECT_DESCRIPTION}}
 
 ---

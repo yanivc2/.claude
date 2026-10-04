@@ -1,4 +1,5 @@
 {
+  "language": "hebrew",
   "permissions": {
     "allow": [
       "PowerShell(gh auth status 2>&1)",
@@ -73,7 +74,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "Write-Output '{\"systemMessage\": \"Before compacting: note any open TODOs, architectural decisions, and lessons learned that should be saved to CLAUDE.md or rules/ before context is lost.\"}'",
+            "command": "Write-Output '{\"systemMessage\": \"לפני דחיסת ההקשר: רשום משימות פתוחות, החלטות ולקחים שצריך לשמור ב-CLAUDE.md או ב-rules/. הסיכום עצמו — בעברית.\"}'",
             "shell": "powershell"
           }
         ]

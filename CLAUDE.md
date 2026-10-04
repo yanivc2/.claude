@@ -23,9 +23,12 @@ rules for any session:
    add a hook, skill, or plugin without running the review first. The command is
    implemented at `commands/install-review.md`.
 2. **Never `commit` or `push` without an explicit request** from the user.
-3. **Explanations are always in Hebrew** (`הסברים תמיד בעברית`). Code, file
-   contents, commit messages, and identifiers stay in English; prose
-   explanations to the user are in Hebrew unless they ask otherwise.
+3. **Everything written to the user is in Hebrew** (`כל טקסט למשתמש בעברית`) —
+   every reply, every progress/interim message, every question (including
+   `AskUserQuestion` question text, headers, option labels and descriptions),
+   every plan, and every summary (end-of-task recaps *and* context-compaction
+   summaries). Code, file contents, commit messages, and identifiers stay in
+   English. Enforced also by `"language": "hebrew"` in `settings.json`.
 
 The active model is **`opus`** at **`effortLevel: xhigh`** (`settings.json`).
 
