@@ -1,5 +1,8 @@
 <%- include('../partials/header') %>
 <% var filterLabel = filter === 'recorded' ? 'נרשמו' : filter === 'on_hold' ? 'מוחזקות' : filter === 'approved_for_payment' ? 'מאושרות לתשלום' : filter === 'unpaid' ? 'לא שולמו' : filter === 'paid' ? 'שולמו' : 'הכל'; %>
+<% if (typeof movedNotice !== 'undefined' && movedNotice) { %>
+  <div class="alert alert-ok no-print">חשבונית #<%= movedNotice %> הועברה לחנות אחרת — היא מופיעה שם, כשאותה חנות פעילה.</div>
+<% } %>
 <% if (typeof paidNotice !== 'undefined' && paidNotice) { %>
   <div class="alert alert-info no-print" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
     <span>✅ נוצר תשלום ושויך לחשבוניות שנבחרו.</span>

@@ -14,12 +14,18 @@
 <% } else { %>
 
 <div class="card">
+  <%# החנות = החנות הפעילה, נעולה (כלל הבעלים — אין בורר חנות בטופסי הזנה). data-locked אומר
+      ל-scan-capture.js לא לשחזר "החנות האחרונה" מ-localStorage מעליה. %>
+  <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
+    <%- include('../partials/_needStore', { what: 'צילום חשבונית' }) %>
+  <% } %>
   <label class="lbl">חנות *</label>
-  <select id="scanStore">
-    <option value="">— בחר חנות —</option>
-    <% stores.forEach(function(st){ %>
-      <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
-    <% }); %>
+  <select id="scanStore" data-locked<%= (typeof activeStore !== 'undefined' && activeStore) ? '' : ' disabled' %>>
+    <% if (typeof activeStore !== 'undefined' && activeStore) { %>
+      <option value="<%= activeStore.id %>" selected><%= activeStore.name %> · <%= activeStore.company_name %></option>
+    <% } else { %>
+      <option value="">— בחר חנות פעילה למעלה —</option>
+    <% } %>
   </select>
   <%# Naming the supplier before the shot is what lets its learned profile ("הסקיל") travel with
       the very first extraction. Optional on purpose: an employee who does not know the supplier

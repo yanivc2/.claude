@@ -53,11 +53,13 @@ test('the list is never narrower than a name, nor wider than the screen', () => 
   assert.match(footer, /Math\.min\(Math\.max\(r\.width, 240\), window\.innerWidth - 16\)/);
 });
 
-test('the salary row has ONE employee picker, and the store has its own column', () => {
+test('the salary row has ONE employee picker, and no store picker at all', () => {
   const view = fs.readFileSync(path.join(process.cwd(), 'src/views/employees/index.ejs'), 'utf8');
   const form = view.slice(view.indexOf('action="/employees/salary"'), view.indexOf('</table>', view.indexOf('action="/employees/salary"')));
-  assert.match(form, /<% if \(!sStoreId\) \{ %><th>חנות<\/th><% \} %><th>שם העובד<\/th>/,
-    'the store picker used to sit inside the employee cell, so the row showed two identical search boxes');
+  // The store picker once sat inside the employee cell (two identical search boxes); now the row is
+  // always entered in the active store (partials/_formStore) and has no store column at all.
+  assert.match(form, /<thead><tr><th>שם העובד<\/th>/);
+  assert.ok(!/name="store_id" class="js-combo"/.test(form), 'no per-row store picker');
   const cells = form.split('<td>').filter((c) => c.includes('js-combo'));
   for (const c of cells) {
     assert.equal((c.match(/js-combo/g) || []).length, 1, 'one combo per cell — never two stacked');

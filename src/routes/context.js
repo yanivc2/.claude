@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { availableStoresFor } from '../lib/scope.js';
+import { userCan } from '../lib/permissions.js';
 
 // Active-store context switch. A single endpoint the header banner posts to. The chosen store is
 // validated against the user's authorized stores (never trust the client), then remembered in a
@@ -24,6 +25,18 @@ function isFetch(req) {
   return (req.headers['x-requested-with'] || '').toLowerCase() === 'fetch';
 }
 
+// "בחר חנות" — where a multi-store user without view_all_stores lands when no store is active
+// (currentUser redirects here). One button per store; each posts to /context/store.
+router.get('/choose', async (req, res, next) => {
+  try {
+    const r = (req.query.return_to || '').toString();
+    const returnTo = r.startsWith('/') && !r.startsWith('//') && !r.startsWith('/context') ? r : '/';
+    res.render('context/choose', { title: 'בחירת חנות', returnTo, stores: await availableStoresFor(req.user) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/store', async (req, res, next) => {
   try {
     const raw = (req.body.store_id ?? '').toString().trim();
@@ -34,8 +47,9 @@ router.post('/store', async (req, res, next) => {
     // the app already redirects with 303; this one was the exception.
     const done = () => (isFetch(req) ? res.status(204).end() : res.redirect(303, dest));
     if (!raw) {
-      // Empty selection = clear the context (owner/multi-store → "all stores").
-      res.clearCookie('ap_store');
+      // Empty selection = clear the context ("all stores") — only with view_all_stores. Without it
+      // the request is ignored: the user stays in the store they are in (see currentUser).
+      if (userCan(req.user, 'view_all_stores')) res.clearCookie('ap_store');
       return done();
     }
     const wanted = Number(raw);

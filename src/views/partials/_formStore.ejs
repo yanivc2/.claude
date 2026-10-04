@@ -1,0 +1,20 @@
+<%#
+  The store of an ENTRY form = the active store, never a picker (owner rule 2026-10-04: a picker per
+  form is how one branch's data got typed into another). Renders the read-only store + two hidden
+  fields: `store_id` (what the routes already read and validate with assertStoreAllowed) and
+  `ctx_store` (lib/storeContext.js refuses the post if the active store changed since render).
+  Locals: label (default 'חנות'; false = hidden fields only). Callers render partials/_needStore
+  instead of the form when there is no active store.
+%>
+<% var _fs = (typeof activeStore !== 'undefined' && activeStore) ? activeStore : null;
+   var _lbl = (typeof label === 'undefined') ? 'חנות' : label; %>
+<% if (_fs) { %>
+  <input type="hidden" name="store_id" value="<%= _fs.id %>" />
+  <input type="hidden" name="ctx_store" value="<%= _fs.id %>" />
+  <% if (_lbl) { %>
+    <div class="form-store">
+      <label><%= _lbl %></label>
+      <input value="<%= _fs.name %> · <%= _fs.company_name %>" readonly title="נעול לחנות הפעילה — מחליפים אותה בבורר שבראש המסך" />
+    </div>
+  <% } %>
+<% } %>

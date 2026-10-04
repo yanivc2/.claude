@@ -148,7 +148,13 @@ const groupList = Object.values(groups);
       כ"יתרה על החשבון" אצל הספק, וכשתגיע החשבונית (למשל עבור 3 חודשים) משייכים אותה לצ׳קים
       האלה מדף החשבונית. כל עוד לא שויכה — הכסף מופיע כיתרה פתוחה.
     </p>
+    <%# חשבון הבנק קובע את החנות (חשבון אחד לחנות), ולכן בלי חנות פעילה אין כאן הזנה — אותו כלל
+        של כל טופסי ההזנה. %>
+    <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
+      <%- include('../partials/_needStore', { what: 'תשלום על החשבון' }) %>
+    <% } else { %>
     <form method="post" action="/payments" onsubmit="return validateAdvance(this)">
+      <input type="hidden" name="ctx_store" value="<%= activeStore.id %>" />
       <div class="row">
         <div>
           <label>חשבון בנק *</label>
@@ -197,6 +203,7 @@ const groupList = Object.values(groups);
         <button type="submit" name="add_another" value="1" class="secondary">שמור והוסף עוד תשלום</button>
       </div>
     </form>
+    <% } %>
   </details>
 </div>
 

@@ -57,7 +57,7 @@ export async function getZReport(id, x = getExecutor()) {
  * updated_at (UTC 'YYYY-MM-DD HH:MM:SS', matching created_at). Same validation as create.
  */
 export async function updateZReport(id, input, actor, x = getExecutor()) {
-  await getZReport(id, x);
+  const before = await getZReport(id, x);
   const {
     storeId, zNumber, zDate, dailyTotal = 0,
     drawerCash = 0, drawerCheck = 0, drawerCredit = 0, drawerHakafa = 0, drawerVouchers = 0,
@@ -69,6 +69,12 @@ export async function updateZReport(id, input, actor, x = getExecutor()) {
   const zNum = String(zNumber).trim();
   const dup = await x.one('SELECT id FROM z_reports WHERE store_id = ? AND z_number = ? AND id <> ?', [storeId, zNum, id]);
   if (dup) throw new RuleError('VALIDATION', `דוח Z מספר ${zNum} כבר קיים לחנות זו`);
+  // 🔴 Moving the report to another store: refused when one of its deposit bags is already matched
+  // to a bank movement — that movement is in THIS store's account, and the match cannot follow.
+  if (Number(storeId) !== Number(before.store_id)) {
+    const matched = await x.one('SELECT id FROM deposits WHERE z_report_id = ? AND matched_txn_id IS NOT NULL LIMIT 1', [id]);
+    if (matched) throw new RuleError('VALIDATION', 'שקית הפקדה של הדוח כבר הותאמה לתנועה בבנק של החנות הנוכחית — לא ניתן להעביר את הדוח לחנות אחרת.');
+  }
   const drawerTotal = drawerCash + drawerCheck + drawerCredit + drawerHakafa + drawerVouchers;
   if (drawerTotal <= 0) throw new RuleError('VALIDATION', 'סה"כ מגירה חובה — הזן לפחות רכיב מגירה אחד.');
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');

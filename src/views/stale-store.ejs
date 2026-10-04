@@ -1,0 +1,28 @@
+<%- include('partials/header') %>
+<div class="toolbar"><h1>החנות הפעילה הוחלפה</h1></div>
+<div class="card no-collapse">
+  <p style="margin:0 0 .6rem">
+    הטופס נפתח עבור <strong><%= formStore ? (formStore.name || ('חנות ' + formStore.id)) : 'כל החנויות' %></strong>,
+    אבל החנות הפעילה עכשיו היא <strong><%= activeName %></strong> — כנראה היא הוחלפה בלשונית אחרת.
+  </p>
+  <p class="muted" style="margin:0 0 .9rem"><strong>דבר לא נשמר.</strong> כך שום נתון לא נרשם בטעות בחנות אחרת.</p>
+  <div class="actions">
+    <% if (formStore) { %>
+      <button type="button" id="stale-switch" data-store="<%= formStore.id %>">חזור ל<%= formStore.name || 'חנות הטופס' %> ולטופס</button>
+    <% } %>
+    <button type="button" class="btn btn-secondary" onclick="history.back()">חזרה לטופס</button>
+  </div>
+  <p class="muted" style="margin:.7rem 0 0;font-size:13px">הטופס יחזור עם מה שהוקלד. אחרי שהחנות הנכונה פעילה — שלח אותו שוב.</p>
+</div>
+<script>
+(function(){
+  var b = document.getElementById('stale-switch'); if (!b) return;
+  b.addEventListener('click', function(){
+    b.disabled = true;
+    var body = new URLSearchParams({ store_id: b.getAttribute('data-store'), return_to: '/' });
+    fetch('/context/store', { method: 'POST', body: body, credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
+      .then(function(){ history.back(); }, function(){ history.back(); });
+  });
+})();
+</script>
+<%- include('partials/footer') %>

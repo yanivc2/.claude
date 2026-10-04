@@ -35,7 +35,8 @@ before(async () => {
   server = createApp().listen(0);
   await once(server, 'listening');
   base = `http://127.0.0.1:${server.address().port}`;
-  headers = { cookie: `session=${encodeURIComponent(createSession(o.id))}` };
+  // ההזנה נעשית תמיד בתוך חנות פעילה; בלי חנות פעילה הטפסים מוחלפים ב"בחר חנות".
+  headers = { cookie: `session=${encodeURIComponent(createSession(o.id))}; ap_store=${store.id}` };
   paths = ['/zclosing', `/zclosing/${closingId}`, '/reports/zreports', `/reports/zreports/${zr.id}`];
 });
 

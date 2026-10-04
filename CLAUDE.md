@@ -193,6 +193,13 @@ happen only at merge. So:
   switches it; `res.locals.availableStores` must stay unnarrowed. Table `user_stores` (schema ×3).
   Guarded by **`test/active-store-lock.test.js`**, which derives the route list from
   `app._router.stack` and sweeps every GET route — a new page cannot silently opt out.
+- **🏬 "כל החנויות" = permission `view_all_stores`** (owner always); without it a multi-store user
+  with no active store is sent to `/context/choose`. **Entry forms never have a store picker:**
+  include `partials/_formStore.ejs` (active store + hidden `store_id` + `ctx_store`) and render
+  `partials/_needStore.ejs` instead of the form when no store is active. `ctx_store` is what lets
+  `lib/storeContext.js#staleStoreGuard` refuse a form posted after the store was switched in another
+  tab (multipart routes call `staleStoreFor` after multer). Edit forms: `partials/_storeField.ejs` +
+  `assertStoreMove` (a store change = a move). Detail: INDEX.md · 🏬.
 - Login flow: `routes/auth.js` — checks `loginAllowedNow` (403 outside window), pushes a Telegram
   notice on every login. Forced-change + temp-password onboarding: `routes/account.js` (change form),
   `routes/settings.js` (invite builds WhatsApp msg + temp password), `services/users.js`

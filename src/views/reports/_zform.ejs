@@ -52,12 +52,12 @@
   }
 %>
 <form method="post" action="<%= action %>" class="stack" data-zform>
-  <label>חנות</label>
-  <select name="store_id" required>
-    <% storeOptions.forEach(function(st){ %>
-      <option value="<%= st.id %>" <%= z.store_id === st.id ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option>
-    <% }); %>
-  </select>
+  <%# החנות אינה בורר (כלל הבעלים): בהוספה — החנות הפעילה; בעריכה — חנות הדוח (העברה רק עם view_all_stores). %>
+  <% if (z.id) { %>
+    <%- include('../partials/_storeField', { currentStoreId: z.store_id }) %>
+  <% } else { %>
+    <%- include('../partials/_formStore') %>
+  <% } %>
   <div class="row">
     <div><label>מספר Z</label><input name="z_number" required value="<%= z.z_number || '' %>" /></div>
     <div><label>תאריך</label><input type="date" name="z_date" required value="<%= z.z_date || '' %>" /></div>

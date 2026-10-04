@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { staleStoreFor, renderStaleStore, assertStoreMove } from '../lib/storeContext.js';
 import {
   listInvoices,
   getInvoiceDetail,
@@ -137,6 +138,7 @@ router.get('/', async (req, res, next) => {
       stores,
       // After a batch payment we come back HERE (not to the payments page) so entering more
       // invoices stays one click away; nsup/nstore carry the supplier+store for that shortcut.
+      movedNotice: req.query.moved ? Number(req.query.moved) || null : null,
       paidNotice: req.query.paid
         ? { paymentId: Number(req.query.paid), supplierId: Number(req.query.nsup) || null, storeId: Number(req.query.nstore) || null }
         : null,
@@ -201,6 +203,13 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       ...extra,
     });
   };
+
+  // Multipart: the app-level stale-store guard ran before multer parsed the body, so check here.
+  const stale = staleStoreFor(req);
+  if (stale) {
+    if (req.file) removeUpload(req.file.filename);
+    return renderStaleStore(req, res, stale);
+  }
 
   if (req.uploadError) {
     if (imagePath) removeUpload(imagePath);
@@ -445,8 +454,11 @@ router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, nex
   const b = req.body;
   try {
     await assertInScope('invoice', id, req.scope);
-    // Editing must not MOVE an invoice into a store the caller cannot see either.
-    await assertStoreAllowed(b.store_id, req.scope);
+    // The store is fixed in an edit; changing it is a MOVE — only with view_all_stores, and only into
+    // a store the caller is granted (lib/storeContext.js). updateInvoice blocks a linked invoice.
+    const before = await getInvoiceDetail(id);
+    const moving = await assertStoreMove(req, before.store_id, b.store_id);
+    if (!moving) await assertStoreAllowed(b.store_id, req.scope);
     const fields = {
       supplierId: Number(b.supplier_id),
       storeId: Number(b.store_id),
@@ -474,6 +486,9 @@ router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, nex
       });
     }
     await updateInvoice(id, fields, req.user);
+    // After a move the invoice belongs to another store, so it is no longer visible in the active
+    // one — land on the list with a note instead of a "not found" detail page.
+    if (moving) return res.redirect(303, `/invoices?moved=${id}`);
     res.redirect(303, `/invoices/${id}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {

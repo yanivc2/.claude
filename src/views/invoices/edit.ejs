@@ -17,14 +17,7 @@
         </select>
       </div>
       <div>
-        <label>חנות *</label>
-        <select name="store_id" required>
-          <% stores.forEach(function(st){ %>
-            <option value="<%= st.id %>" <%= String(values.store_id) === String(st.id) ? 'selected' : '' %>>
-              <%= st.name %> · <%= st.company_name %>
-            </option>
-          <% }); %>
-        </select>
+        <%- include('../partials/_storeField', { currentStoreId: values.store_id || invoice.store_id, label: 'חנות *' }) %>
       </div>
     </div>
 

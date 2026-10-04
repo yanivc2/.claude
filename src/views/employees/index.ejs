@@ -31,23 +31,17 @@
     <% if (sStoreId) { %>מוצגים תשלומי החנות הפעילה בלבד.<% } else { %>בחר חנות פעילה בבאנר כדי לצמצם לסניף אחד.<% } %>
   </p>
 
+  <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
+    <%- include('../partials/_needStore', { what: 'תשלום שכר' }) %>
+  <% } else { %>
   <form method="post" action="/employees/salary" class="stack">
-    <% if (sStoreId) { %><input type="hidden" name="store_id" value="<%= sStoreId %>" /><% } %>
+    <%- include('../partials/_formStore', { label: false }) %>
     <div class="table-scroll">
       <table class="no-enhance">
-        <%# בורר החנות מקבל עמודה משלו. קודם הוא ישב באותו תא של שם העובד, ונראה כמו שתי רובריקות
-            "שם העובד" זו מעל זו — שתיהן "הקלד לחיפוש…", ואי אפשר היה לדעת מה כל אחת. %>
-        <thead><tr><% if (!sStoreId) { %><th>חנות</th><% } %><th>שם העובד</th><th>שולם ב</th><th>מס׳ אסמכתה</th><th>לתאריך</th><th class="right">סכום (₪)</th><th></th></tr></thead>
+        <%# אין בורר חנות: תשלום שכר נרשם תמיד בחנות הפעילה (partials/_formStore). %>
+        <thead><tr><th>שם העובד</th><th>שולם ב</th><th>מס׳ אסמכתה</th><th>לתאריך</th><th class="right">סכום (₪)</th><th></th></tr></thead>
         <tbody>
           <tr>
-            <% if (!sStoreId) { %>
-              <td>
-                <select name="store_id" class="js-combo" required data-combo-ph="בחר חנות…">
-                  <option value="">בחר חנות…</option>
-                  <% (storeOptions || []).forEach(function(st){ %><option value="<%= st.id %>"><%= st.name %></option><% }); %>
-                </select>
-              </td>
-            <% } %>
             <td>
               <select name="employee_id" class="js-combo" required data-combo-ph="בחר עובד…">
                 <option value="">בחר עובד…</option>
@@ -70,6 +64,7 @@
       </table>
     </div>
   </form>
+  <% } %>
 
   <% if (sRows.length) { %>
     <div class="table-scroll" style="margin-top:.8rem">
@@ -411,16 +406,13 @@
       <p class="muted" style="margin:0 0 .6rem">
         מפרעה שיצאה מהקופה כבר נמשכת לכאן מדוח ה-Z. כאן רושמים מפרעה שניתנה אחרת — בהעברה, בצ׳ק או במזומן.
       </p>
+      <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
+        <%- include('../partials/_needStore', { what: 'מפרעה' }) %>
+        <div class="actions" style="margin-top:.6rem"><button type="button" class="secondary" onclick="this.closest('dialog').close()">סגור</button></div>
+      <% } else { %>
       <form method="post" action="/employees/advances" style="margin-top:.5rem">
         <div class="row">
-          <div>
-            <label>חנות</label>
-            <select name="store_id" class="js-combo" required>
-              <% (storeOptions || []).forEach(function(st){ %>
-                <option value="<%= st.id %>" <%= (typeof salaryStoreId !== 'undefined' && Number(salaryStoreId) === Number(st.id)) ? 'selected' : '' %>><%= st.name %></option>
-              <% }); %>
-            </select>
-          </div>
+          <div><%- include('../partials/_formStore') %></div>
           <div>
             <label>עובד</label>
             <select name="employee_id" class="js-combo" required>
@@ -456,6 +448,7 @@
           <button type="button" class="secondary" onclick="this.closest('dialog').close()">ביטול</button>
         </div>
       </form>
+      <% } %>
     </dialog>
   <% } %>
 </div>

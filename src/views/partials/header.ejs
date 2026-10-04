@@ -101,8 +101,10 @@
         <strong class="store-banner-name">
           <% if (typeof activeStore !== 'undefined' && activeStore) { %>
             <%= activeStore.name %><% if (activeStore.company_name) { %> <span class="store-banner-co">· <%= activeStore.company_name %></span><% } %>
-          <% } else { %>
+          <% } else if (typeof canAllStores !== 'undefined' && canAllStores) { %>
             כל החנויות
+          <% } else { %>
+            לא נבחרה חנות
           <% } %>
         </strong>
         <% if (availableStores.length > 1) { %>
@@ -113,7 +115,7 @@
                 onsubmit="if (window.apAutoSubmit) { apAutoSubmit(this); return false; } return true;">
             <input type="hidden" name="return_to" value="<%= path %>">
             <select name="store_id" onchange="apAutoSubmit(this)" aria-label="בחר חנות פעילה">
-              <option value="">— כל החנויות —</option>
+              <% if (typeof canAllStores !== 'undefined' && canAllStores) { %><option value="">— כל החנויות —</option><% } else if (!(typeof activeStore !== 'undefined' && activeStore)) { %><option value="" disabled selected>— בחר חנות —</option><% } %>
               <% availableStores.forEach(function(s){ %>
                 <option value="<%= s.id %>"<%= (typeof activeStore !== 'undefined' && activeStore && Number(activeStore.id) === Number(s.id)) ? ' selected' : '' %>><%= s.name %> · <%= s.company_name %></option>
               <% }); %>

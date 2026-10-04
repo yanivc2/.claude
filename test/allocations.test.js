@@ -319,7 +319,8 @@ test('the new-payment screen offers the on-account form, and it records an advan
   const server = createApp().listen(0);
   await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
-  const cookie = `session=${createSession(ow.id)}`;
+  // הזנה נעשית תמיד בתוך חנות פעילה — בלי חנות פעילה הטופס מוחלף ב"בחר חנות".
+  const cookie = `session=${createSession(ow.id)}; ap_store=${store.id}`;
   try {
     const page = await (await fetch(`${base}/payments/new`, { headers: { cookie } })).text();
     assert.match(page, /תשלום על החשבון/);

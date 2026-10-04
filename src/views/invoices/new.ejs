@@ -20,6 +20,9 @@
 <% } %>
 
 <div class="card">
+  <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
+    <%- include('../partials/_needStore', { what: 'חשבונית' }) %>
+  <% } else { %>
   <form class="stack" method="post" action="/invoices" enctype="multipart/form-data">
     <div class="row">
       <div>
@@ -35,21 +38,7 @@
         <p class="muted" style="margin:.3rem 0 0">ספק לא קיים? <a href="/suppliers/new">פתח ספק חדש</a></p>
       </div>
       <div>
-        <label>חנות *</label>
-        <% if (typeof activeStore !== 'undefined' && activeStore) { %>
-          <%# Locked to the active-store context so a new invoice can't be filed to the wrong store. %>
-          <input type="hidden" name="store_id" value="<%= activeStore.id %>" />
-          <input value="<%= activeStore.name %> · <%= activeStore.company_name %>" readonly title="נעול לחנות הפעילה — החלף בבאנר למעלה" />
-        <% } else { %>
-          <select name="store_id" required>
-            <option value="">— בחר חנות —</option>
-            <% stores.forEach(function(st){ %>
-              <option value="<%= st.id %>" <%= String(values.store_id) === String(st.id) ? 'selected' : '' %>>
-                <%= st.name %> · <%= st.company_name %>
-              </option>
-            <% }); %>
-          </select>
-        <% } %>
+        <%- include('../partials/_formStore', { label: 'חנות *' }) %>
       </div>
     </div>
 
@@ -227,6 +216,7 @@
     </div>
     <p class="muted" style="margin:.4rem 0 0">"שמור והוסף עוד לספק" — שומר ופותח טופס ריק לאותו ספק/חנות, כדי להזין עוד חשבוניות (כולל זיכוי) ואז לשייך את כולן לתשלום למטה.</p>
   </form>
+  <% } %>
 </div>
 
 <% if (typeof batchInvoices !== 'undefined' && batchInvoices && batchInvoices.length) { %>

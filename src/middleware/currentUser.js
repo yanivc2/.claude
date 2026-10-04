@@ -23,6 +23,13 @@ export function parseCookies(header = '') {
   return out;
 }
 
+// Paths that work without an active store: choosing one, the account/password pages, logout and
+// the public legal pages.
+function storeChoiceExempt(p) {
+  return p.startsWith('/context') || p.startsWith('/account') || p === '/logout' ||
+    p === '/privacy' || p === '/accessibility' || p === '/audit/reminders/run';
+}
+
 export async function currentUser(req, res, next) {
   try {
     const cookies = parseCookies(req.headers.cookie);
@@ -91,7 +98,7 @@ export async function currentUser(req, res, next) {
     // header banner shows it and every scoped page/new-form defaults to it. Guards:
     //   • the chosen store must be one the user may access (else it's ignored — no cross-store leak);
     //   • a user with exactly one available store is auto-locked to it (no picker needed);
-    //   • owner/multi-store with no valid cookie → null = "all stores".
+    //   • multi-store with no valid cookie → null = "all stores" (only with view_all_stores — below).
     const availableStores = await availableStoresFor(user);
     res.locals.availableStores = availableStores;
     let activeStore = null;
@@ -103,6 +110,17 @@ export async function currentUser(req, res, next) {
     }
     req.activeStoreId = activeStore ? Number(activeStore.id) : null;
     res.locals.activeStore = activeStore; // {id,name,company_id,company_name} or null = all
+
+    // 🔒 "כל החנויות" היא הרשאה (`view_all_stores`; בעלים תמיד), לא ברירת מחדל. מי שאין לו אותה
+    // ויש לו יותר מחנות אחת עובד תמיד בתוך חנות אחת — כדי שלא יזין נתון של סניף אחד לתוך סניף
+    // אחר. בלי חנות פעילה (מכשיר חדש / עוגייה שנמחקה) הוא נשלח לבחור אחת, ולא מקבל "חנות
+    // ראשונה" אוטומטית: בחירה שקטה היא בדיוק הטעות שהכלל הזה בא למנוע.
+    const canAllStores = userCan(user, 'view_all_stores');
+    res.locals.canAllStores = canAllStores;
+    if (!activeStore && !canAllStores && availableStores.length > 1 && !storeChoiceExempt(req.path)) {
+      const back = req.method === 'GET' ? req.originalUrl : '/';
+      return res.redirect(303, `/context/choose?return_to=${encodeURIComponent(back)}`);
+    }
 
     // 🔒 נעילה הרמטית — the ONE place a chosen branch locks the whole request.
     //

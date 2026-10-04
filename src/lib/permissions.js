@@ -15,6 +15,7 @@ export const PERMISSIONS = [
   { key: 'delete_zreport', label: 'מחיקת דוח Z', group: 'פעולות', icon: '🗑️', desc: 'מחיקת דוחות Z.' },
   { key: 'manage_deposits', label: 'ניהול הפקדות', group: 'פעולות', icon: '🏷️', desc: 'סימון הפקדה כ"הופקד" ומחיקת הצהרות הפקדה.' },
   { key: 'import_bank', label: 'ייבוא בנק', group: 'פעולות', icon: '🏦', desc: 'ייבוא תנועות בנק (קובץ/ידני) בהתאמת בנק.' },
+  { key: 'view_all_stores', label: 'צפייה בכל החנויות', group: 'פעולות', icon: '🏬', desc: 'אפשרות "כל החנויות" בבורר החנות הפעילה. בלעדיה עובדים תמיד בתוך חנות אחת ומחליפים ביניהן בבורר.' },
   // Page-access permissions (which screens the role may open). See canViewPage below.
   { key: 'nav_dashboard', label: 'לוח בקרה', group: 'עמודים', icon: '🏠', desc: 'מסך הבית עם קיצורים וקוביות מצב.' },
   { key: 'nav_invoices', label: 'חשבוניות', group: 'עמודים', icon: '🧾', desc: 'רשימת החשבוניות והזנתן.' },

@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { staleStoreFor, renderStaleStore, assertStoreMove } from '../lib/storeContext.js';
 import {
   outstandingChecks,
   outstandingChecksForAccount,
@@ -249,7 +250,6 @@ async function renderProfitability(req, res, extra = {}) {
     stores,
     totals,
     // "דוח פדיון מידנייט" rubric: the store picker + the most recent imported days.
-    revStores: await storeList(req),
     revRows: await listRevenue({ limit: 20, scope: req.scope }),
     // The nightly mail lands after 00:30 for the PREVIOUS business day → default to yesterday.
     revDefaultDate: yesterdayInIsrael(),
@@ -526,6 +526,9 @@ const revenueUpload = multer({ storage: multer.memoryStorage(), limits: { fileSi
 router.post('/profitability/revenue-import', requirePageAccess('nav_profitability'), (req, res, next) => {
   revenueUpload(req, res, async (uploadErr) => {
     try {
+      // Multipart: the app-level stale-store guard ran before multer parsed the body.
+      const stale = staleStoreFor(req);
+      if (stale) return renderStaleStore(req, res, stale);
       if (uploadErr) throw new RuleError('CSV', 'העלאת הקובץ נכשלה');
       if (!req.file) throw new RuleError('CSV', 'לא נבחר קובץ');
       const storeId = Number(req.body.store_id);
@@ -645,8 +648,11 @@ router.post('/zreports/:id', async (req, res, next) => {
   const b = req.body;
   try {
     await assertInScope('zreport', id, req.scope);
-    // …and editing must not MOVE the report into a store outside the caller's grants.
-    const storeId = await assertStoreAllowed(b.store_id, req.scope);
+    // The store is fixed in an edit; changing it is a MOVE — only with view_all_stores, into a store
+    // the caller is granted (lib/storeContext.js). updateZReport blocks a bank-matched deposit.
+    const zBefore = await getZReport(id);
+    const moving = await assertStoreMove(req, zBefore.store_id, b.store_id);
+    const storeId = moving ? Number(b.store_id) : await assertStoreAllowed(b.store_id, req.scope);
     const { amounts: ccAmounts, total: ccTotal } = parseCc(b);
     const drawerCredit = toAgorot(b.drawer_credit);
     if (ccTotal !== drawerCredit) throw new RuleError('VALIDATION', 'אין התאמה בהכנסות מאשראי');
@@ -684,7 +690,9 @@ router.post('/zreports/:id', async (req, res, next) => {
       }
     } catch { /* best-effort */ }
     await notifyZOnce(id, `✏️ <b>עודכן דוח Z ${b.z_number}</b>${gapLine}\n${zUrl(req, id)}`);
-    // PRG: רענון אחרי שמירה לא ישמור (וישלח התראה) פעם נוספת.
+    // PRG: רענון אחרי שמירה לא ישמור (וישלח התראה) פעם נוספת. אחרי העברה הדוח שייך לחנות אחרת
+    // ואינו גלוי בחנות הפעילה — חוזרים לרשימה.
+    if (moving) return res.redirect(303, `/reports/zreports?notice=${encodeURIComponent(`דוח Z ${b.z_number} הועבר לחנות אחרת.`)}`);
     return res.redirect(303, `/reports/zreports/${id}?notice=${encodeURIComponent('הדוח עודכן.')}`);
   } catch (err) {
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });

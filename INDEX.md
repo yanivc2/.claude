@@ -29,7 +29,7 @@
 | 9 | **workflow דחיפה** | `apnew/main` = מה ש-Vercel מפרסם | `git push apnew ap-control-split:main` + mirror `git push origin ap-control-split`. `fetch apnew main && rebase` לפני כל דחיפה. אף פעם לא לדרוס commit של סשן אחר. |
 | 10 | **סכימה נבחרת מפורשות ב-SELECT** | הרבה services בוחרים רשימת עמודות מפורשת (`getUser`/`listUsers`) | עמודה חדשה שלא נוספה ל-SELECT → `undefined` בתצוגה למרות שהיא במסד. |
 | 10.5 | **GET לכתובת-פעולה לא מגיע לדף שגיאה** | `middleware/actionUrlFallback.js`, מותקן פעמיים ב-`app.js`: `'early'` אחרי `enforcePageScope` ולפני ה-routers, `'late'` לפני ה-404 | טבלת ה-routes נקראת **מ-`app._router.stack`** (lazy, בבקשה הראשונה) | **הבאג:** לא מעט handlers של POST עונים ב-**render** של דף הרשימה במקום ב-redirect אליו. הפעולה מצליחה, אבל הדפדפן נשאר על כתובת שמקבלת רק POST — ורענון / חזור-קדימה / שחזור PWA שולחים GET ל-`/employees/54/stores` ומקבלים "הדף המבוקש לא נמצא", כשהשמירה כבר בוצעה. ה-middleware מזהה GET לנתיב שרשום רק ל-POST ושולח ל**אב הקרוב ביותר שכן עונה ל-GET**. `'early'` מטפל רק ב**נתיב ליטרלי שנתיב-פרמטר מסתיר** (`/invoices/pay-batch` מתחת ל-`/invoices/:id`, שמנסה לטעון חשבונית בשם "pay-batch" ומחזיר "הרשומה לא נמצאה") — כל השאר ב-`'late'`, **אחרי** שומרי ההרשאות, כדי שמשתמש לא-מורשה עדיין יקבל 403 ולא redirect ידידותי. `/ingest/*` מוחרג (endpoints של מכונה — GY נודד חייב להישאר 404). | **זו רשת ביטחון, לא היתר:** handler חדש עדיין צריך לעשות redirect 303 אחרי הפעולה (PRG). `test/action-url-fallback.test.js` סורק את **כל** ה-routes שרשומים רק ל-POST ודורש 303 — route חדש מכוסה אוטומטית. הסרת ה-`'early'` מחזירה את "הרשומה לא נמצאה" על `/invoices/pay-batch` ודומיו. |
-| 11 | **הקשר "חנות פעילה" + הרשאה פר-חנות** | `middleware/currentUser.js` (קובע `req.activeStoreId`, **מצמצם את `req.scope` לחנות הפעילה** ושומר את ההרשאות המלאות ב-`req.grantedScope`, `res.locals.activeStore/availableStores`), `lib/scope.js` (`authorizedStoreIds`/`availableStoresFor`/`setUserStores`/`effectiveStoreId`/`assignmentScope`), `routes/context.js` (`POST /context/store`, cookie `ap_store`), טבלת `user_stores`. | 🔒 **הצמצום הוא הנעילה ההרמטית — מקום אחד, כל הדפים** (ראו "נעילה הרמטית" למטה): כל `scopeWhere`/`scopedStoreList`/`assertInScope`/`assertStoreAllowed` יורש אותו, כולל דפים עתידיים. `res.locals.availableStores` נשאר **לא-מצומצם** אחרת אי אפשר להחליף חנות. הבורר בבאנר (`header.ejs`) חייב את `/context` ב-`OPEN_PATHS` אחרת תפקיד מוגבל חסום. `authorizedStoreIds`: אין grants → כל חנויות החברות המורשות (תאימות לאחור). טפסי יצירה (חשבונית/סגירה) ננעלים ל-`activeStore`. |
+| 11 | **הקשר "חנות פעילה" + הרשאה פר-חנות** | `middleware/currentUser.js` (קובע `req.activeStoreId`, **מצמצם את `req.scope` לחנות הפעילה** ושומר את ההרשאות המלאות ב-`req.grantedScope`, `res.locals.activeStore/availableStores`), `lib/scope.js` (`authorizedStoreIds`/`availableStoresFor`/`setUserStores`/`effectiveStoreId`/`assignmentScope`), `routes/context.js` (`POST /context/store`, cookie `ap_store`), טבלת `user_stores`. | 🔒 **הצמצום הוא הנעילה ההרמטית — מקום אחד, כל הדפים** (ראו "נעילה הרמטית" למטה): כל `scopeWhere`/`scopedStoreList`/`assertInScope`/`assertStoreAllowed` יורש אותו, כולל דפים עתידיים. `res.locals.availableStores` נשאר **לא-מצומצם** אחרת אי אפשר להחליף חנות. הבורר בבאנר (`header.ejs`) חייב את `/context` ב-`OPEN_PATHS` אחרת תפקיד מוגבל חסום. `authorizedStoreIds`: אין grants → כל חנויות החברות המורשות (תאימות לאחור). טפסי הזנה ננעלים ל-`activeStore` ו"כל החנויות" היא הרשאה — ראו "🏬 כל החנויות היא הרשאה" למטה. |
 
 ---
 
@@ -45,7 +45,7 @@
 | **בורר תאריך (footer)** | מחליף `input[type=date]` → תצוגה DD/MM/YY, הקלדה במחשב (`parseTyped`). שומר hidden ISO בשם המקורי. | שינוי → משפיע על **כל** שדות התאריך. `data-dp-mode=week/month` נשארים picker-only. |
 | **קומבובוקס (footer)** | מחליף `<select class="js-combo">` בשדה חיפוש; ה-select נשאר הערך הנשלח. | הסרת המחלקה `js-combo` מהשדה מחזירה select רגיל (לא שובר). שינוי הלוגיקה משפיע על שדה הספק בחשבוניות. |
 | **חלונות בעלים** (`_ownerDialogs.ejs`) | כפתור `apOpen('dlg-X')` + `<dialog id="dlg-X">` **חייבים לנסוע יחד** (מבחן `orgs-permissions.test.js` אוכף). | כפתור בלי הדיאלוג = כפתור מת (showModal על null). מחיקת דיאלוג → הסר גם את הכפתור + עדכן את מערך `ACTIONS` במבחן. |
-| **באנר "חנות פעילה"** (`header.ejs`, ראשון ב-`<main>`) | מציג `activeStore` (או "כל החנויות"); בורר `<select onchange=submit>` + כפתור מחווט ל-`POST /context/store` (cookie `ap_store`). CSS `.store-banner` ב-`nocturne.css`. נעילה אוטומטית כשיש חנות זמינה אחת. | מוצג בכל דף כשיש `availableStores`. הסרת ה-cookie/route → אין הקשר. תלוי ב-`res.locals.availableStores/activeStore` מ-`currentUser`. |
+| **באנר "חנות פעילה"** (`header.ejs`, ראשון ב-`<main>`) | מציג `activeStore` (או "כל החנויות" — רק עם `view_all_stores`; אחרת "לא נבחרה חנות"); בורר `<select onchange=submit>` + כפתור מחווט ל-`POST /context/store` (cookie `ap_store`). CSS `.store-banner` ב-`nocturne.css`. נעילה אוטומטית כשיש חנות זמינה אחת. | מוצג בכל דף כשיש `availableStores`. הסרת ה-cookie/route → אין הקשר. תלוי ב-`res.locals.availableStores/activeStore` מ-`currentUser`. |
 
 ---
 
@@ -292,6 +292,39 @@
   ועוד — נבדק.
 
 מכוסה גם ב-`test/store-context.test.js` (הבאנר, הנעילה האוטומטית לחנות יחידה, והסינון בפועל).
+
+### 🏬 "כל החנויות" היא הרשאה, והזנה נעשית תמיד בחנות אחת (כלל הבעלים 2026-10-04)
+
+- **`view_all_stores`** (`lib/permissions.js`, קבוצת "פעולות"; בעלים תמיד דרך `userCan`) — רק עם
+  ההרשאה מוצגת האפשרות "— כל החנויות —" בבאנר (`res.locals.canAllStores`), ו-`POST /context/store`
+  עם ערך ריק מנקה את העוגייה. בלעדיה: ניקוי מתעלמים ממנו, ומשתמש עם יותר מחנות אחת **בלי חנות
+  פעילה** (מכשיר חדש / עוגייה שנמחקה) מופנה ב-`currentUser` ל-**`GET /context/choose`**
+  (`views/context/choose.ejs`, כפתור לכל חנות) — **לא** "חנות ראשונה" אוטומטית, כי בחירה שקטה היא
+  בדיוק הטעות שהכלל מונע. פטורים: `/context*`, `/account*`, `/logout`, הדפים המשפטיים. משתמש עם חנות
+  אחת — ננעל אוטומטית כמו קודם. `test/store-choice.test.js`.
+- **אין בורר חנות בטופס הזנה.** `partials/_formStore.ejs` = החנות הפעילה לקריאה בלבד + `store_id`
+  נסתר (מה שה-routes כבר קוראים ומאמתים ב-`assertStoreAllowed`) + **`ctx_store`**. בלי חנות פעילה
+  הטופס מוחלף ב-`partials/_needStore.ejs` ("כדי להזין X, בחר חנות פעילה" — מחליף את החנות הפעילה,
+  לא שדה בטופס), **גם לבעלים**. חל על: דוח Z (`_zform` בהוספה), חשבונית חדשה, סגירת Z (הקופות
+  ב"איזון קופות" שייכות תמיד לחנות הסגירה — `reg_store[]` הוסר, וממילא לא אומת מול ההרשאות),
+  שכר ומפרעה (`/employees`), ייבוא דוח פדיון (שהיה בורר עם ברירת מחדל קשיחה "מידנייט"), "תשלום על
+  החשבון" (חשבון הבנק = החנות), וצילום חשבונית (`#scanStore` נעול; `data-locked` עוצר את שחזור
+  החנות האחרונה מ-localStorage). סריקת מקור ב-`test/entry-store-lock.test.js` אוסרת
+  `<select name="store_id">` בכל view מלבד רשימה מותרת (בורר הבאנר, חשבון בנק של ספק לפי חנות,
+  `_storeField`, `_needStore`).
+- **לשונית ישנה:** החנות הפעילה היא עוגייה אחת לכל הדפדפן. טופס שנפתח לחנות A ונשלח אחרי שהוחלפה
+  ל-B בלשונית אחרת **נדחה לפני כל כתיבה** — `lib/storeContext.js#staleStoreGuard` (app-level, אחרי
+  `enforcePageScope`; טפסי multipart — חשבונית, דוח פדיון — קוראים ל-`staleStoreFor` אחרי multer),
+  409 + `views/stale-store.ejs` עם "חזור ל-A ולטופס" (מחליף ב-fetch ואז `history.back()` — הטופס
+  חוזר עם מה שהוקלד). בלי `ctx_store` בטופס אין בדיקה — **טופס הזנה חדש חייב לכלול את
+  `_formStore`**.
+- **עריכה: החנות קבועה; שינוי = העברה.** `partials/_storeField.ejs` — בורר רק עם `view_all_stores`
+  (ואחרת קריאה בלבד), ו-`lib/storeContext.js#assertStoreMove` בצד השרת: הרשאה + יעד בתוך
+  `req.grantedScope` (הלא-מצומצם — היעד אינו החנות הפעילה). חסימות בשירות: חשבונית עם שורת תשלום
+  חיה או התאמה להוצאת מזומן (`updateInvoice`); דוח Z ששקית שלו הותאמה לבנק (`updateZReport`; שקיות
+  לא-מותאמות עוברות איתו דרך `replaceDepositsForZ`). אחרי העברה חוזרים **לרשימה** עם הודעה
+  (`/invoices?moved=`, `/reports/zreports?notice=`, `/zclosing?notice=`) — הרשומה כבר לא גלויה בחנות
+  הפעילה. `test/store-move.test.js`. בדרך: שמירה ועריכה של סגירת Z הן עכשיו PRG (303).
 
 **הכפתור "החלף" (חנות פעילה) הוא נוחות, לא הגנה.** הוא רק בוחר *מסנן* מתוך `availableStoresFor(user)`;
 הוא לא יכול להרחיב גישה, וזיוף עוגיית `ap_store` לחנות לא-מורשית פשוט מתעלמים ממנו

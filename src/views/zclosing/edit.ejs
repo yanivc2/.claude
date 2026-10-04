@@ -76,18 +76,7 @@
     <% } %>
     <div class="row">
       <div>
-        <label>חנות</label>
-        <% if (stOpts.length === 1) { %>
-          <input type="hidden" name="store_id" value="<%= stOpts[0].id %>" />
-          <input value="<%= stOpts[0].name %> · <%= stOpts[0].company_name %>" readonly />
-        <% } else { %>
-          <select name="store_id" required>
-            <option value="">בחר חנות…</option>
-            <% stOpts.forEach(function(st){ %>
-              <option value="<%= st.id %>" <%= closing.store_id === st.id ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option>
-            <% }); %>
-          </select>
-        <% } %>
+        <%- include('../partials/_storeField', { currentStoreId: closing.store_id }) %>
       </div>
       <div><label>מספר Z</label><input name="z_number" required autocomplete="off" value="<%= closing.z_number || '' %>" /></div>
       <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required value="<%= sh(closing.drawer_cash) %>" /></div>
@@ -292,12 +281,10 @@
   var list = document.getElementById('reg-list');
   if (!list) return;
   var DENOMS = <%- JSON.stringify((denoms || []).map(function(d){ return { key: d.key, value: d.value, kind: d.kind }; })) %>;
-  var STORES = <%- JSON.stringify((stOpts || []).map(function(s){ return { id: s.id, label: s.name + ' · ' + s.company_name }; })) %>;
   var SAVED = [];
   try { SAVED = JSON.parse(<%- JSON.stringify(closing.registers || '[]') %>) || []; } catch (e) { SAVED = []; }
   function fmt(a){ return '₪' + a.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
   function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-  function storeOptsHtml(sel){ return STORES.map(function(s){ return '<option value="'+s.id+'"'+(Number(sel)===s.id?' selected':'')+'>'+esc(s.label)+'</option>'; }).join(''); }
   function denomRows(bd){
     bd = bd || {};
     return DENOMS.map(function(d){
@@ -333,7 +320,6 @@
       + '<input type="hidden" name="reg_last[]" value="'+esc(preset.last)+'">'
       + '<div class="row">'
       + '<div><label>קופה</label><select name="reg_number[]"><option value="1">קופה 1</option><option value="2">קופה 2</option><option value="3">קופה 3</option></select></div>'
-      + '<div><label>חנות</label><select name="reg_store[]">' + storeOptsHtml(preset.storeId) + '</select></div>'
       + '</div>'
       + '<div class="table-scroll" style="margin-top:.4rem"><table data-count-adjust><thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>'
       + '<tbody>' + denomRows(preset.breakdown) + '</tbody>'

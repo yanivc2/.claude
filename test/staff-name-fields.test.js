@@ -106,7 +106,7 @@ test('the closing form asks for the counter once, above איזון קופות, a
   await once(server, 'listening');
   try {
     const url = `http://127.0.0.1:${server.address().port}/zclosing`;
-    const html = await (await fetch(url, { headers: { cookie: `session=${encodeURIComponent(createSession(o.id))}` } })).text();
+    const html = await (await fetch(url, { headers: { cookie: `session=${encodeURIComponent(createSession(o.id))}; ap_store=${(await firstStore(x)).id}` } })).text();
 
     const counter = html.indexOf('עובד (מבצע הספירה)');
     const balancing = html.indexOf('איזון קופות');
@@ -133,7 +133,7 @@ test('with no employees at all the closing form still works (free-text fallback)
   await once(server, 'listening');
   try {
     const url = `http://127.0.0.1:${server.address().port}/zclosing`;
-    const html = await (await fetch(url, { headers: { cookie: `session=${encodeURIComponent(createSession(o.id))}` } })).text();
+    const html = await (await fetch(url, { headers: { cookie: `session=${encodeURIComponent(createSession(o.id))}; ap_store=${(await firstStore(x)).id}` } })).text();
     assert.ok(html.includes('name="employee_first"'), 'falls back to typing the counter');
     assert.ok(/<input name="payer_name"/.test(html), 'and to typing the expense name');
     assert.ok(!/name="reg_first\[\]"/.test(html), 'still never asks for a name per register');
@@ -158,7 +158,7 @@ test('the Z-report form uses the same employee picker for a cash expense name', 
   await once(server, 'listening');
   try {
     const root = `http://127.0.0.1:${server.address().port}`;
-    const headers = { cookie: `session=${encodeURIComponent(createSession(o.id))}` };
+    const headers = { cookie: `session=${encodeURIComponent(createSession(o.id))}; ap_store=${(await firstStore(x)).id}` };
     for (const path of ['/reports/zreports', `/reports/zreports/${zr.id}`]) {
       const html = await (await fetch(root + path, { headers })).text();
       assert.ok(html.includes('class="cx-payer js-combo"'), `${path}: the payer field is the employee picker`);
@@ -197,7 +197,7 @@ test('cash payment forms pick "שם המשלם" from the staff list, and keep a 
   await once(server, 'listening');
   try {
     const root = `http://127.0.0.1:${server.address().port}`;
-    const headers = { cookie: `session=${encodeURIComponent(createSession(o.id))}` };
+    const headers = { cookie: `session=${encodeURIComponent(createSession(o.id))}; ap_store=${(await firstStore(x)).id}` };
 
     const newHtml = await (await fetch(`${root}/payments/new`, { headers })).text();
     assert.ok(!/<input name="payer_name"/.test(newHtml), 'no free-text payer input on /payments/new');

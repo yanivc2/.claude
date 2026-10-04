@@ -1,0 +1,19 @@
+<%- include('../partials/header') %>
+<div class="toolbar"><h1>בחירת חנות</h1></div>
+<div class="card no-collapse">
+  <p class="muted" style="margin:0 0 .8rem">
+    עובדים תמיד בתוך חנות אחת, כדי שנתון של סניף אחד לא יוזן בטעות לסניף אחר. בחר את החנות שבה
+    אתה עובד עכשיו — אפשר להחליף בכל רגע בבורר "חנות פעילה" שבראש המסך.
+  </p>
+  <div class="store-choose">
+    <% stores.forEach(function(s){ %>
+      <form method="post" action="/context/store"
+            onsubmit="if (window.apAutoSubmit) { apAutoSubmit(this); return false; } return true;">
+        <input type="hidden" name="store_id" value="<%= s.id %>">
+        <input type="hidden" name="return_to" value="<%= returnTo %>">
+        <button type="submit" class="store-choose-btn"><strong><%= s.name %></strong><span class="muted"><%= s.company_name %></span></button>
+      </form>
+    <% }); %>
+  </div>
+</div>
+<%- include('../partials/footer') %>

@@ -10,6 +10,7 @@ import { listEmployees } from '../services/employees.js';
 import { requireOwner } from '../middleware/requireOwner.js';
 import { RuleError } from '../lib/errors.js';
 import { assertStoreAllowed } from '../lib/scopeGuard.js';
+import { assertStoreMove } from '../lib/storeContext.js';
 import { scopedStoreList } from '../lib/scope.js';
 
 const router = Router();
@@ -56,15 +57,16 @@ function closingInputFrom(b) {
   const rFirst = [].concat(b.reg_first || []);
   const rLast = [].concat(b.reg_last || []);
   const rNum = [].concat(b.reg_number || []);
-  const rStore = [].concat(b.reg_store || []);
   const rCounts = {};
   for (const d of CLOSING_DENOMS) rCounts[d.key] = [].concat(b[`reg_count_${d.key}`] || []);
-  const regN = Math.max(rFirst.length, rLast.length, rNum.length, rStore.length, ...CLOSING_DENOMS.map((d) => rCounts[d.key].length));
+  const regN = Math.max(rFirst.length, rLast.length, rNum.length, ...CLOSING_DENOMS.map((d) => rCounts[d.key].length));
   const registers = [];
   for (let i = 0; i < regN; i++) {
     const rc = {};
     for (const d of CLOSING_DENOMS) rc[d.key] = Number(rCounts[d.key][i] || 0);
-    registers.push({ first: rFirst[i], last: rLast[i], register: rNum[i], storeId: rStore[i] || null, counts: rc });
+    // A register belongs to the closing's store — there is no per-register store picker any more
+    // (and a posted one was never validated against the caller's grants).
+    registers.push({ first: rFirst[i], last: rLast[i], register: rNum[i], storeId: b.store_id || null, counts: rc });
   }
 
   return {
@@ -99,7 +101,8 @@ async function render(req, res, extra = {}) {
 
 router.get('/', async (req, res, next) => {
   try {
-    await render(req, res);
+    const notice = req.query.saved ? 'הסגירה נשמרה. תודה!' : (req.query.notice ? String(req.query.notice).slice(0, 200) : null);
+    await render(req, res, notice ? { notice } : {});
   } catch (err) {
     next(err);
   }
@@ -111,7 +114,8 @@ router.post('/', async (req, res, next) => {
     // otherwise post another store's id and file a cash count against a register they can't see.
     if (req.body.store_id) await assertStoreAllowed(req.body.store_id, req.scope);
     await createZClosing(closingInputFrom(req.body), req.user);
-    await render(req, res, { notice: 'הסגירה נשמרה. תודה!' });
+    // PRG: a reload after saving must not file the same count twice.
+    return res.redirect(303, '/zclosing?saved=1');
   } catch (err) {
     if (err instanceof RuleError) return render(req, res, { error: err.message });
     next(err);
@@ -150,8 +154,14 @@ router.get('/:id', requireOwner, async (req, res, next) => {
 router.post('/:id', requireOwner, async (req, res, next) => {
   const id = Number(req.params.id);
   try {
+    // The store is fixed in an edit; a different one is a MOVE (view_all_stores — the owner — into a
+    // granted store). Validated against the unnarrowed grants: the target is not the active store.
+    const current = await getZClosing(id);
+    const moving = await assertStoreMove(req, current.store_id, req.body.store_id);
+    if (!moving && req.body.store_id) await assertStoreAllowed(req.body.store_id, req.scope);
     await updateZClosing(id, closingInputFrom(req.body), req.user);
-    await render(req, res, { notice: 'הסגירה עודכנה.' });
+    // PRG (was a render in place on the POST URL).
+    return res.redirect(303, `/zclosing?notice=${encodeURIComponent(moving ? 'הסגירה הועברה לחנות אחרת.' : 'הסגירה עודכנה.')}`);
   } catch (err) {
     if (err instanceof RuleError) return renderEdit(req, res, id, { error: err.message });
     next(err);

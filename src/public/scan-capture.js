@@ -589,7 +589,7 @@
 
     try {
       var last = localStorage.getItem('scanStoreId');
-      if (last) el.store.value = last;
+      if (last && !el.store.hasAttribute('data-locked')) el.store.value = last;
     } catch (e) {
       /* private mode — the picker just starts empty */
     }

@@ -6,7 +6,11 @@
 
 <div class="card no-print">
   <h2>הוספת דוח Z</h2>
+  <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
+    <%- include('../partials/_needStore', { what: 'דוח Z' }) %>
+  <% } else { %>
   <%- include('_zform', { action: '/reports/zreports', submitLabel: 'הוסף דוח Z', storeOptions: storeOptions, invoiceOptions: invoiceOptions, ccBrands: ccBrands, zr: null, dep: null, expenses: [] }) %>
+  <% } %>
 </div>
 
 <div class="card">

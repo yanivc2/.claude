@@ -49,6 +49,9 @@
 
 <details class="card no-print collapse-card" open>
   <summary>הזנת סגירת Z חדשה</summary>
+  <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
+    <div style="margin-top:.8rem"><%- include('../partials/_needStore', { what: 'סגירת Z' }) %></div>
+  <% } else { %>
   <form method="post" action="/zclosing" class="stack" id="zclose-form" style="margin-top:.8rem">
     <input type="hidden" name="started_at" value="<%= startedAt %>" />
     <p class="muted" style="margin:0 0 .6rem">תחילת ספירה: <strong><%= startedAt %></strong> · שעון ישראל</p>
@@ -79,23 +82,7 @@
 
     <div class="row">
       <div>
-        <label>חנות</label>
-        <% if (typeof activeStore !== 'undefined' && activeStore) { %>
-          <%# Locked to the active-store context (switch it in the banner at the top). %>
-          <input type="hidden" name="store_id" value="<%= activeStore.id %>" />
-          <input value="<%= activeStore.name %> · <%= activeStore.company_name %>" readonly title="נעול לחנות הפעילה" />
-        <% } else if (stOpts.length === 1) { %>
-          <input type="hidden" name="store_id" value="<%= stOpts[0].id %>" />
-          <input value="<%= stOpts[0].name %> · <%= stOpts[0].company_name %>" readonly />
-        <% } else { %>
-          <select name="store_id" required>
-            <option value="">בחר חנות…</option>
-            <% stOpts.forEach(function(st){ %>
-              <option value="<%= st.id %>"><%= st.name %> · <%= st.company_name %></option>
-            <% }); %>
-          </select>
-          <% if (stOpts.length === 0) { %><small class="muted">לא שויכה חנות — פנה לבעלים.</small><% } %>
-        <% } %>
+        <%- include('../partials/_formStore') %>
       </div>
       <div><label>מספר Z</label><input name="z_number" required autocomplete="off" /></div>
       <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required /></div>
@@ -158,6 +145,7 @@
 
     <div style="margin-top:.8rem"><button type="submit">💾 שמור סגירה</button></div>
   </form>
+  <% } %>
 </details>
 
 <details class="card collapse-card" data-accordion="recent-z">
@@ -337,9 +325,7 @@
   var list = document.getElementById('reg-list');
   if (!list) return;
   var DENOMS = <%- JSON.stringify((denoms || []).map(function(d){ return { key: d.key, value: d.value, kind: d.kind }; })) %>;
-  var STORES = <%- JSON.stringify((stOpts || []).map(function(s){ return { id: s.id, label: s.name + ' · ' + s.company_name }; })) %>;
   function fmt(a){ return '₪' + a.toLocaleString('en-US',{minimumFractionDigits:2, maximumFractionDigits:2}); }
-  function storeOptsHtml(){ return STORES.map(function(s){ return '<option value="'+s.id+'">'+s.label+'</option>'; }).join(''); }
   function denomRows(){
     return DENOMS.map(function(d){
       return '<tr><td>₪'+d.value+' <span class="muted" style="font-size:12px">'+d.kind+'</span></td>'
@@ -365,7 +351,6 @@
       '<div class="reg-counter muted" style="margin:0 0 .4rem">נספר ע"י: <strong>—</strong></div>'
       + '<div class="row">'
       + '<div><label>קופה</label><select name="reg_number[]"><option value="1">קופה 1</option><option value="2">קופה 2</option><option value="3">קופה 3</option></select></div>'
-      + '<div><label>חנות</label><select name="reg_store[]">' + storeOptsHtml() + '</select></div>'
       + '</div>'
       + '<div class="table-scroll" style="margin-top:.4rem"><table data-count-adjust><thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>'
       + '<tbody>' + denomRows() + '</tbody>'

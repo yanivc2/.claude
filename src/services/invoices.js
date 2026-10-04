@@ -354,6 +354,20 @@ export async function updateInvoice(id, input, actor, x = getExecutor()) {
   if (!supplier) throw new NotFoundError(`ספק ${supplierId} לא נמצא`);
   const store = await x.one('SELECT id, company_id FROM stores WHERE id = ?', [storeId]);
   if (!store) throw new NotFoundError(`חנות ${storeId} לא נמצאה`);
+  // 🔴 Moving to another store: refused once money is attached. A payment line means the money left
+  // THIS store's bank account (payments are one-store by construction), and a cash-expense link means
+  // it left this store's register — moving the invoice would leave either pointing at a branch that
+  // no longer owns it. Unlink first, then move.
+  if (Number(storeId) !== Number(invoice.store_id)) {
+    const paid = await x.one(
+      "SELECT pl.id FROM payment_lines pl JOIN payments p ON p.id = pl.payment_id WHERE pl.invoice_id = ? AND p.status <> 'voided' LIMIT 1",
+      [id],
+    );
+    if (paid) throw new RuleError('VALIDATION', 'לחשבונית יש תשלום מחשבון הבנק של החנות הנוכחית — לא ניתן להעביר אותה לחנות אחרת. בטל או נתק את התשלום קודם.');
+    const cash = (await x.one('SELECT id FROM z_expenses WHERE invoice_id = ? LIMIT 1', [id]))
+      || (await x.one('SELECT id FROM z_closing_expenses WHERE invoice_id = ? LIMIT 1', [id]));
+    if (cash) throw new RuleError('VALIDATION', 'החשבונית מותאמת להוצאת מזומן מהקופה של החנות הנוכחית — לא ניתן להעביר אותה לחנות אחרת. נתק את ההתאמה קודם.');
+  }
 
   const alloc = normalizeAllocation(allocationNumber);
   if (alloc) {

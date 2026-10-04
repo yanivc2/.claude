@@ -1,0 +1,24 @@
+<%#
+  The store field of an EDIT form. The record's store is fixed; only a user with view_all_stores
+  (owner always) gets a picker, and changing it MOVES the record (lib/storeContext.js#assertStoreMove,
+  plus the service's own blocks: a paid/linked invoice, a Z whose deposit is matched in the bank).
+  Everyone else sees it read-only. Also posts ctx_store (the active store at render time).
+  Locals: currentStoreId (required), label (default 'חנות').
+%>
+<% var _cur = Number(currentStoreId);
+   var _stores = (typeof availableStores !== 'undefined' && availableStores) ? availableStores : [];
+   var _curSt = _stores.find(function(s){ return Number(s.id) === _cur; });
+   var _lbl = (typeof label === 'undefined') ? 'חנות' : label; %>
+<input type="hidden" name="ctx_store" value="<%= (typeof activeStore !== 'undefined' && activeStore) ? activeStore.id : '' %>" />
+<label><%= _lbl %></label>
+<% if (typeof canAllStores !== 'undefined' && canAllStores && _stores.length > 1) { %>
+  <select name="store_id" required>
+    <% _stores.forEach(function(s){ %>
+      <option value="<%= s.id %>" <%= Number(s.id) === _cur ? 'selected' : '' %>><%= s.name %> · <%= s.company_name %></option>
+    <% }); %>
+  </select>
+  <small class="muted">שינוי החנות מעביר את הרשומה לחנות אחרת.</small>
+<% } else { %>
+  <input type="hidden" name="store_id" value="<%= _cur %>" />
+  <input value="<%= _curSt ? (_curSt.name + ' · ' + _curSt.company_name) : ('חנות ' + _cur) %>" readonly />
+<% } %>

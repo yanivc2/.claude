@@ -1,0 +1,22 @@
+<%#
+  Shown INSTEAD of an entry form when no store is active ("כל החנויות" — only with view_all_stores).
+  Entering always happens inside one store; picking here switches the active store and reloads.
+  Locals: what (e.g. 'דוח Z') — optional.
+%>
+<div class="need-store">
+  <p style="margin:0 0 .5rem"><strong>כדי להזין<%= (typeof what !== 'undefined' && what) ? ' ' + what : '' %>, בחר חנות פעילה.</strong>
+    <span class="muted">ההזנה נעשית תמיד בתוך חנות אחת.</span></p>
+  <form method="post" action="/context/store" class="row" style="align-items:flex-end"
+        onsubmit="if (window.apAutoSubmit) { apAutoSubmit(this); return false; } return true;">
+    <input type="hidden" name="return_to" value="<%= (typeof path !== 'undefined' && path) ? path : '/' %>">
+    <div>
+      <select name="store_id" required onchange="apAutoSubmit(this)" aria-label="בחר חנות להזנה">
+        <option value="">— בחר חנות —</option>
+        <% (typeof availableStores !== 'undefined' ? availableStores : []).forEach(function(s){ %>
+          <option value="<%= s.id %>"><%= s.name %> · <%= s.company_name %></option>
+        <% }); %>
+      </select>
+    </div>
+    <div style="flex:0 0 auto"><button type="submit" class="btn btn-secondary">בחר</button></div>
+  </form>
+</div>

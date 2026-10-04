@@ -117,22 +117,20 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
 <%# "דוח פדיון מידנייט" — the nightly revenue report: upload the XLS (or let the email
     ingestion fill it), then it drives the הכנסות/רווח for the selected range above. %>
 <div class="card">
-  <h2 style="margin:0 0 .3rem">📈 דוח פדיון מידנייט</h2>
+  <h2 style="margin:0 0 .3rem">📈 דוח פדיון<%= (typeof activeStore !== 'undefined' && activeStore) ? ' · ' + activeStore.name : '' %></h2>
   <p class="muted" style="margin:0 0 .6rem">
     הדוח הלילי (סך המכירות + סליקות האשראי) מגיע כקובץ XLS במייל. העלה אותו כאן — או חבר קליטה
     אוטומטית מהמייל. הנתונים מסוכמים לפי טווח התאריכים שנבחר למעלה ומשמשים לחישוב ההכנסות והרווח.
   </p>
 
+  <%# הקובץ עצמו אינו נושא שם חנות, ולכן הוא נקלט תמיד לחנות הפעילה. קודם היה כאן בורר עם ברירת
+      מחדל קשיחה "מידנייט" — קובץ של סניף אחר נקלט עליה בלחיצה אחת. %>
+  <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
+    <%- include('../partials/_needStore', { what: 'דוח פדיון' }) %>
+  <% } else { %>
   <form method="post" action="/reports/profitability/revenue-import" enctype="multipart/form-data" class="stack">
     <div class="row">
-      <div>
-        <label>חנות</label>
-        <select name="store_id" class="js-combo" required>
-          <% (revStores || []).forEach(function(st){ %>
-            <option value="<%= st.id %>" <%= /מידנייט/.test(st.name) ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option>
-          <% }); %>
-        </select>
-      </div>
+      <div><%- include('../partials/_formStore') %></div>
       <div>
         <label>קובץ הדוח (XLS / XLSX / CSV)</label>
         <input type="file" name="file" accept=".xls,.xlsx,.csv,text/csv" required />
@@ -165,6 +163,7 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
 
     <div style="margin-top:.7rem"><button type="submit">קלוט דוח פדיון</button></div>
   </form>
+  <% } %>
 
   <h3 style="margin:1rem 0 .3rem">ימים אחרונים שנקלטו</h3>
   <% if (!revRows || !revRows.length) { %>

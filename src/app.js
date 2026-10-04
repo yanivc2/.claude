@@ -31,13 +31,14 @@ import { isScanEnabled } from './services/appSettings.js';
 import { depositStatus } from './services/deposits.js';
 import { requiresAllocationNumber, zeroVatNeedsCheck } from './services/invoices.js';
 import { actionUrlFallback } from './middleware/actionUrlFallback.js';
+import { staleStoreGuard } from './lib/storeContext.js';
 import { israelStamp } from './lib/loginHours.js';
 import { employeeFullName, matchEmployeeName } from './lib/employeeName.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-10-04·204';
+const BUILD_VERSION = '2026-10-04·205';
 
 export function createApp() {
   const app = express();
@@ -164,6 +165,9 @@ export function createApp() {
   // Default-deny firewall for restricted roles (e.g. the register-closer). Runs before every
   // route so no detail/CSV/settings path can be reached outside a role's granted pages.
   app.use(enforcePageScope);
+  // An entry form posted for a store that is no longer the active one (switched in another tab) is
+  // refused before any route writes — see lib/storeContext.js.
+  app.use(staleStoreGuard);
   // A GET to a POST-only action URL lands on the page it belongs to, not on the error page. The
   // EARLY copy only catches literal action paths that a param route would otherwise swallow
   // (/invoices/pay-batch under /invoices/:id); everything else is caught after the routers, so the
