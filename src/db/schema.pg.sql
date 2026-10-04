@@ -808,6 +808,7 @@ ALTER TABLE z_closing_expenses ADD COLUMN IF NOT EXISTS settled_by INTEGER REFER
 ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS cash_z_expense_id INTEGER REFERENCES z_expenses(id) ON DELETE SET NULL;
 ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS cleared_alerted TEXT;
 ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS bank_txn_id INTEGER REFERENCES bank_transactions(id) ON DELETE SET NULL;
+ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS bank_note TEXT;
 
 -- שיוך התראה לחנות. NULL = כלל-ארגונית (בנק, ספקים), או התראה ישנה מלפני העמודה. רובריקת
 -- "התראות מזומן" בלוח הבקרה מסננת לפיה, אחרת התראה על מזומן של סניף אחד מוצגת תחת סניף אחר.

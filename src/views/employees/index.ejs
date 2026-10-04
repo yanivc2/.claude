@@ -89,6 +89,11 @@
                   <span class="badge b-blocked">⚠️ נפרע בבנק<%= r.bank_date ? ' · ' + formatDate(r.bank_date) : '' %> וגם בקופה</span>
                 <% } else if (r.bank_txn_id) { %>
                   <span class="badge b-cleared">🏦 <%= r.method === 'check' ? 'נפרע בבנק' : 'יצא מהבנק' %><%= r.bank_date ? ' · ' + formatDate(r.bank_date) : '' %></span>
+                  <% if (r.bank_note) { %>
+                    <div class="muted" style="font-size:12px; margin-top:.2rem">
+                      ✅ הפרש <%= r.bank_diff_amount > 0 ? '+' : '' %><%= formatIls(r.bank_diff_amount || 0) %> אושר: <%= r.bank_note %>
+                    </div>
+                  <% } %>
                 <% } else if (Number(r.cashed)) { %>
                   <span class="badge b-approved">הותאם להוצאת מזומן</span>
                   <form method="post" action="/employees/salary/<%= r.id %>/uncashed" style="display:inline" onsubmit="return confirm('לבטל את ההתאמה? הצ׳ק שבוטל יישאר במעקב.')">
@@ -96,12 +101,16 @@
                   </form>
                 <% } else if (r.method === 'check') { %>
                   <% if (r.bank_hint) { %><div class="muted" style="font-size:12px; margin-bottom:.2rem">🏦 <%= r.bank_hint %></div><% } %>
-                  <% if (r.bank_fix) { %>
-                    <form method="post" action="/employees/salary/<%= r.id %>/fix-amount" style="margin:.15rem 0 .3rem"
-                          onsubmit="return confirm('לעדכן את הסכום מ-<%= formatIls(r.amount) %> ל-<%= formatIls(r.bank_fix.amount) %> (כפי שיצא מהבנק ב-<%= formatDate(r.bank_fix.date) %>)?')">
-                      <input type="hidden" name="txn_id" value="<%= r.bank_fix.txnId %>" />
-                      <button type="submit" class="btn btn-secondary small">🏦 עדכן לסכום בבנק (<%= formatIls(r.bank_fix.amount) %>)</button>
-                    </form>
+                  <% if (r.bank_diff) { %>
+                    <%# הסכום שהוזן נשאר; הצ׳ק נכתב בסכום שונה במעט וההפרש אושר — ההסבר חובה. %>
+                    <details style="margin:.15rem 0 .3rem">
+                      <summary class="muted" style="cursor:pointer;font-size:12px">✅ אשר התאמה עם הפרש (<%= r.bank_diff.diff > 0 ? '+' : '' %><%= formatIls(r.bank_diff.diff) %>)</summary>
+                      <form method="post" action="/employees/salary/<%= r.id %>/approve-diff" style="margin-top:.35rem">
+                        <input type="hidden" name="txn_id" value="<%= r.bank_diff.txnId %>" />
+                        <textarea name="note" rows="2" maxlength="500" required placeholder="למה ההפרש בסדר — למשל: הצ׳ק נכתב 2,383.66 בטעות, ההפרש אושר"></textarea>
+                        <button type="submit" class="small" style="margin-top:.3rem">אשר והתאם (הסכום שהוזן נשאר <%= formatIls(r.amount) %>)</button>
+                      </form>
+                    </details>
                   <% } %>
                   <%# The employee cashed the wage check at the till: matching it to the Z-closing
                       cash expense that paid it out also VOIDS the check, so the same wage is not
@@ -121,12 +130,16 @@
                   </details>
                 <% } else if (r.bank_hint) { %>
                   <div class="muted" style="font-size:12px">🏦 <%= r.bank_hint %></div>
-                  <% if (r.bank_fix) { %>
-                    <form method="post" action="/employees/salary/<%= r.id %>/fix-amount" style="margin:.15rem 0 .3rem"
-                          onsubmit="return confirm('לעדכן את הסכום מ-<%= formatIls(r.amount) %> ל-<%= formatIls(r.bank_fix.amount) %> (כפי שיצא מהבנק ב-<%= formatDate(r.bank_fix.date) %>)?')">
-                      <input type="hidden" name="txn_id" value="<%= r.bank_fix.txnId %>" />
-                      <button type="submit" class="btn btn-secondary small">🏦 עדכן לסכום בבנק (<%= formatIls(r.bank_fix.amount) %>)</button>
-                    </form>
+                  <% if (r.bank_diff) { %>
+                    <%# הסכום שהוזן נשאר; הצ׳ק נכתב בסכום שונה במעט וההפרש אושר — ההסבר חובה. %>
+                    <details style="margin:.15rem 0 .3rem">
+                      <summary class="muted" style="cursor:pointer;font-size:12px">✅ אשר התאמה עם הפרש (<%= r.bank_diff.diff > 0 ? '+' : '' %><%= formatIls(r.bank_diff.diff) %>)</summary>
+                      <form method="post" action="/employees/salary/<%= r.id %>/approve-diff" style="margin-top:.35rem">
+                        <input type="hidden" name="txn_id" value="<%= r.bank_diff.txnId %>" />
+                        <textarea name="note" rows="2" maxlength="500" required placeholder="למה ההפרש בסדר — למשל: הצ׳ק נכתב 2,383.66 בטעות, ההפרש אושר"></textarea>
+                        <button type="submit" class="small" style="margin-top:.3rem">אשר והתאם (הסכום שהוזן נשאר <%= formatIls(r.amount) %>)</button>
+                      </form>
+                    </details>
                   <% } %>
                 <% } else { %><span class="muted">—</span><% } %>
               </td>

@@ -48,11 +48,17 @@ export async function listSalaryPayments({ storeId = null, scope = null, limit =
   const linked = rows.filter((r) => r.bank_txn_id != null).map((r) => Number(r.bank_txn_id));
   if (linked.length) {
     const txns = await x.many(
-      `SELECT id, txn_date FROM bank_transactions WHERE id IN (${linked.map(() => '?').join(',')})`,
+      `SELECT id, txn_date, amount FROM bank_transactions WHERE id IN (${linked.map(() => '?').join(',')})`,
       linked,
     );
-    const dateOf = new Map(txns.map((t) => [Number(t.id), t.txn_date]));
-    for (const r of rows) if (r.bank_txn_id != null) r.bank_date = dateOf.get(Number(r.bank_txn_id)) || null;
+    const byId = new Map(txns.map((t) => [Number(t.id), t]));
+    for (const r of rows) {
+      if (r.bank_txn_id == null) continue;
+      const t = byId.get(Number(r.bank_txn_id));
+      r.bank_date = t?.txn_date || null;
+      // הפרש שאושר (bank_note): כמה יצא מהבנק מעבר לסכום שהוזן — מוצג לצד ההסבר.
+      r.bank_diff_amount = t ? -Number(t.amount) - Number(r.amount) : 0;
+    }
   }
   return rows;
 }
@@ -397,6 +403,7 @@ export async function attachSalaryBankHints(rows, x = getExecutor()) {
   const accounts = await x.many('SELECT id, company_id FROM bank_accounts', []);
   const accCompany = new Map(accounts.map((a) => [Number(a.id), Number(a.company_id)]));
   const linked = await salaryLinkedTxnIds(x);
+  const noteReady = await salaryBankNoteReady(x);
   const byKey = new Map();
   for (const t of await x.many('SELECT id, bank_account_id, txn_date, amount, raw_reference, matched_payment_id FROM bank_transactions WHERE amount < 0', [])) {
     const k = checkKey(t.raw_reference);
@@ -430,10 +437,12 @@ export async function attachSalaryBankHints(rows, x = getExecutor()) {
     else if (same) r.bank_hint = `נמצא בבנק (${same.txn_date}) — לחץ "התאמה אוטומטית" בהתאמת בנק`;
     else {
       const t = hits[0];
-      // "עדכן לסכום בבנק" — רק לשורה בודדת (לא מקבץ: שם ההפרש הוא של הקבוצה, לא של שורה אחת),
-      // ורק כשהחיוב פנוי. אותה אסמכתה בדיוק; משתנה רק הסכום.
+      // "אשר התאמה עם הפרש" — רק לשורה בודדת (לא מקבץ: שם ההפרש הוא של הקבוצה, לא של שורה אחת),
+      // ורק כשהחיוב פנוי. אותה אסמכתה בדיוק; הסכום שהוזן נשאר.
       const free = hits.find((h) => !h.matched_payment_id && !linked.has(Number(h.id)));
-      if (r.method !== 'batch' && free) r.bank_fix = { txnId: Number(free.id), amount: -Number(free.amount), date: free.txn_date };
+      if (r.method !== 'batch' && free && noteReady) {
+        r.bank_diff = { txnId: Number(free.id), amount: -Number(free.amount), diff: -Number(free.amount) - Number(r.amount), date: free.txn_date };
+      }
       r.bank_hint = r.method === 'check'
         ? `בבנק צ׳ק ${r.reference} נפרע בסכום ${fromAgorot(-Number(t.amount))} ₪ (${t.txn_date}) — שונה מהסכום שהוזן`
         : `בבנק אסמכתה ${r.reference} בסכום ${fromAgorot(-Number(t.amount))} ₪ (${t.txn_date}) — שונה מהסכום שהוזן${r.method === 'batch' ? ' (אם זה מקבץ של כמה עובדים — ודא שכל השורות שלו הוזנו עם אותה אסמכתה)' : ''}`;
@@ -442,37 +451,55 @@ export async function attachSalaryBankHints(rows, x = getExecutor()) {
   return rows;
 }
 
+let noteReadyCache = false;
+/** האם `salary_payments.bank_note` קיימת (לפני "עדכן מסד נתונים" — לא, והכפתור לא מוצג). */
+export async function salaryBankNoteReady(x = getExecutor()) {
+  if (noteReadyCache) return true;
+  try {
+    await x.one('SELECT bank_note FROM salary_payments LIMIT 1', []);
+    noteReadyCache = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export const BANK_NOTE_MAX = 500;
+
 /**
- * "עדכן לסכום בבנק" — הסכום שהוזן שגוי באגורות (נצפה: 2,383.60 מול 2,383.66 בבנק). במקום למחוק
- * ולהזין מחדש: הסכום נלקח **מהחיוב עצמו**, והשורה משויכת אליו באותה פעולה.
+ * "אשר התאמה עם הפרש" — הצ׳ק נכתב בסכום שונה במעט ממה שהוזן (נצפה: 2,383.66 בבנק מול 2,383.60
+ * בשכר), וההפרש אושר. **הסכום שהוזן נשאר** — הוא השכר האמיתי; מה ששגוי הוא הצ׳ק. השורה משויכת
+ * לחיוב, וההסבר נשמר איתה ומוצג לצד ההפרש. בלי הסבר — אין אישור.
  *
- * 🔴 רק מה שבוודאות אותו תשלום: אותה אסמכתה/מספר צ׳ק בדיוק, חיוב פנוי (לא משויך לתשלום ספק, לשכר
- * אחר או להפקדה), באותה חברה, ושורה שעוד לא הותאמה ולא סומנה כנפרטה בקופה. לא מקבץ — בו ההפרש
- * שייך לקבוצה ולא לשורה אחת. הסכום הקודם נרשם ביומן.
+ * 🔴 רק מה שבוודאות אותו תשלום: אותה אסמכתה/מספר צ׳ק בדיוק, חיוב פנוי (לא משויך לתשלום ספק,
+ * לשכר אחר או להפקדה), באותה חברה, שורה שעוד לא הותאמה ולא נפרטה בקופה. לא מקבץ.
  */
-export async function fixSalaryAmountToBank(id, txnId, actor, x = getExecutor()) {
-  if (!(await salaryBankReady(x))) throw new RuleError('R', 'נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים").');
+export async function approveSalaryBankDiff(id, txnId, note, actor, x = getExecutor()) {
+  if (!(await salaryBankNoteReady(x))) throw new RuleError('R', 'נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים").');
+  const text = String(note ?? '').replace(/\r\n/g, '\n').trim();
+  if (!text) throw new RuleError('VALIDATION', 'כדי לאשר התאמה עם הפרש צריך לכתוב הערה — למה ההפרש בסדר');
+  if (text.length > BANK_NOTE_MAX) throw new RuleError('VALIDATION', `ההערה ארוכה מדי (עד ${BANK_NOTE_MAX} תווים)`);
   const row = await getSalaryPayment(Number(id), x);
   if (row.bank_txn_id) throw new RuleError('R', 'תשלום השכר כבר הותאם לבנק');
-  if (Number(row.cashed)) throw new RuleError('R', 'תשלום השכר סומן כנפרט בקופה — הסכום שלו לא נגזר מהבנק');
-  if (!['check', 'transfer'].includes(row.method)) throw new RuleError('R', 'עדכון לסכום בבנק זמין לצ׳ק ולהעברה בודדת בלבד');
+  if (Number(row.cashed)) throw new RuleError('R', 'תשלום השכר סומן כנפרט בקופה');
+  if (!['check', 'transfer'].includes(row.method)) throw new RuleError('R', 'אישור הפרש זמין לצ׳ק ולהעברה בודדת בלבד');
   const txn = await x.one('SELECT id, bank_account_id, amount, raw_reference, matched_payment_id, txn_date FROM bank_transactions WHERE id = ?', [Number(txnId)]);
   if (!txn || !(Number(txn.amount) < 0)) throw new NotFoundError('תנועת הבנק לא נמצאה');
   if (txn.matched_payment_id) throw new RuleError('R', 'החיוב בבנק כבר הותאם לתשלום אחר');
   if ((await salaryLinkedTxnIds(x)).has(Number(txn.id))) throw new RuleError('R', 'החיוב בבנק כבר שויך לתשלום שכר אחר');
   if (await x.one('SELECT id FROM deposits WHERE matched_txn_id = ?', [txn.id])) throw new RuleError('R', 'החיוב בבנק שויך להפקדה');
   if (!checkKey(row.reference) || checkKey(txn.raw_reference) !== checkKey(row.reference)) {
-    throw new RuleError('R', 'האסמכתה בבנק שונה מהאסמכתה של תשלום השכר — מתקנים סכום רק לאותה אסמכתה');
+    throw new RuleError('R', 'האסמכתה בבנק שונה מהאסמכתה של תשלום השכר — מאשרים הפרש רק לאותה אסמכתה');
   }
   const acc = await x.one('SELECT company_id FROM bank_accounts WHERE id = ?', [txn.bank_account_id]);
   const st = await x.one('SELECT company_id FROM stores WHERE id = ?', [row.store_id]);
   if (!acc || !st || Number(acc.company_id) !== Number(st.company_id)) throw new RuleError('R', 'החיוב שייך לחשבון של חברה אחרת');
 
-  const amount = -Number(txn.amount);
-  await x.run('UPDATE salary_payments SET amount = ?, bank_txn_id = ? WHERE id = ? AND bank_txn_id IS NULL', [amount, txn.id, row.id]);
+  const bankAmount = -Number(txn.amount);
+  await x.run('UPDATE salary_payments SET bank_txn_id = ?, bank_note = ? WHERE id = ? AND bank_txn_id IS NULL', [txn.id, text, row.id]);
   await logAction(
-    { userId: actor?.id ?? null, action: 'salary.amount_from_bank', entityType: 'salary_payment', entityId: row.id,
-      details: { before: row.amount, after: amount, txnId: txn.id, txnDate: txn.txn_date, reference: row.reference } },
+    { userId: actor?.id ?? null, action: 'salary.bank_diff_approved', entityType: 'salary_payment', entityId: row.id,
+      details: { amount: row.amount, bankAmount, diff: bankAmount - Number(row.amount), txnId: txn.id, txnDate: txn.txn_date, note: text } },
     x,
   );
   return getSalaryPayment(row.id, x);

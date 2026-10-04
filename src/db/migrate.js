@@ -740,6 +740,7 @@ function migrateSalaryCashMatch(db) {
   if (!cols.includes('bank_txn_id')) {
     db.exec('ALTER TABLE salary_payments ADD COLUMN bank_txn_id INTEGER REFERENCES bank_transactions(id) ON DELETE SET NULL;');
   }
+  if (!cols.includes('bank_note')) db.exec('ALTER TABLE salary_payments ADD COLUMN bank_note TEXT;');
 }
 
 // תור סנכרון הבנק (סוכן מחשב המשרד). ראה schema.sql.

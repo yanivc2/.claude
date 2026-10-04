@@ -665,6 +665,8 @@ CREATE TABLE IF NOT EXISTS salary_payments (
   -- הצ׳ק נפרע בבנק: תנועת הבנק שלו (מספר צ׳ק + סכום מדויק). ON DELETE SET NULL — ביטול ייבוא
   -- הבנק מנתק את ההתאמה במקום להיחסם על ה-FK.
   bank_txn_id     INTEGER REFERENCES bank_transactions(id) ON DELETE SET NULL,
+  -- התאמה לבנק למרות הפרש סכום (הצ׳ק נכתב בסכום שונה במעט): ההסבר של מי שאישר. הסכום שהוזן נשאר.
+  bank_note       TEXT,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );

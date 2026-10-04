@@ -7,7 +7,7 @@ import {
 import { scopedStoreList, assignmentScope, effectiveStoreId } from '../lib/scope.js';
 import {
   listSalaryPayments, createSalaryPayment, deleteSalaryPayment, markCashed, unmatchCashed, attachSalaryBankHints,
-  fixSalaryAmountToBank,
+  approveSalaryBankDiff,
   cashExpenseCandidates, SALARY_METHODS,
 } from '../services/salaryPayments.js';
 import { salaryPaymentsReady } from '../services/voidedChecks.js';
@@ -116,7 +116,7 @@ const NOTICES = {
   'salary-deleted': 'תשלום השכר נמחק.',
   cashed: 'הצ׳ק סומן כנפרט והותאם להוצאת המזומן. הצ׳ק בוטל ונמצא במעקב ב"צ׳קים מבוטלים".',
   uncashed: 'ההתאמה בוטלה. הצ׳ק שבוטל נשאר במעקב.',
-  amountfixed: 'הסכום עודכן לסכום שיצא מהבנק, והתשלום סומן כנפרע בבנק. הסכום הקודם נשמר ביומן.',
+  diffapproved: 'ההתאמה אושרה עם ההפרש. הסכום שהוזן נשאר, וההערה נשמרה ליד התשלום.',
   advance: 'המפרעה נרשמה.',
   'advance-deleted': 'המפרעה נמחקה.',
   repaid: 'ההחזר נרשם והיתרה עודכנה.',
@@ -190,13 +190,13 @@ router.post('/salary', async (req, res, next) => {
 
 // "הצ׳ק נפרט" — tie the wage row to the Z-closing cash expense that paid it out at the till, and
 // void the underlying check so the same wage is not paid twice.
-// 🏦 "עדכן לסכום בבנק" — הסכום נלקח מהחיוב עצמו (אותה אסמכתה), והשורה משויכת אליו.
-router.post('/salary/:id/fix-amount', async (req, res, next) => {
+// ✅ "אשר התאמה עם הפרש" — הצ׳ק נכתב בסכום שונה במעט וההפרש אושר. הסכום שהוזן נשאר, ההערה חובה.
+router.post('/salary/:id/approve-diff', async (req, res, next) => {
   try {
     await assertInScope('salaryPayment', Number(req.params.id), req.scope);
     await assertInScope('bankTxn', Number(req.body.txn_id), req.scope);
-    await fixSalaryAmountToBank(Number(req.params.id), Number(req.body.txn_id), req.user);
-    return res.redirect(303, '/employees?saved=amountfixed');
+    await approveSalaryBankDiff(Number(req.params.id), Number(req.body.txn_id), req.body.note, req.user);
+    return res.redirect(303, '/employees?saved=diffapproved');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) return render(req, res, { error: err.message });
     next(err);
