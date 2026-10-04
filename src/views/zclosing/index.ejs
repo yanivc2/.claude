@@ -171,9 +171,9 @@
   <div class="table-scroll" style="margin-top:.8rem">
     <table class="sortable">
       <% var isOwner = currentUser && currentUser.role === 'owner'; %>
-      <thead><tr><th>עובד</th><th>חנות</th><th>Z</th><th>סיום</th><th class="right">מגירה</th><th class="right">נספר</th><th class="right">הוצאות</th><th class="right">סה"כ</th><% if (isOwner) { %><th class="no-print" data-nosort></th><% } %></tr></thead>
+      <thead><tr><th>עובד</th><th>חנות</th><th>Z</th><th>סיום</th><th class="right">מגירה</th><th class="right">נספר</th><th class="right">הוצאות</th><th class="right">סה"כ</th><th class="right">חוסר / יתרה</th><% if (isOwner) { %><th class="no-print" data-nosort></th><% } %></tr></thead>
       <tbody>
-        <% if (!closings || closings.length === 0) { %><tr><td colspan="<%= isOwner ? 9 : 8 %>" class="muted">אין סגירות עדיין.</td></tr><% } %>
+        <% if (!closings || closings.length === 0) { %><tr><td colspan="<%= isOwner ? 10 : 9 %>" class="muted">אין סגירות עדיין.</td></tr><% } %>
         <% (closings || []).forEach(function(c){ %>
           <tr>
             <td><% if (isOwner) { %><a href="/zclosing/<%= c.id %>"><%= c.employee_first %> <%= c.employee_last %></a><% } else { %><%= c.employee_first %> <%= c.employee_last %><% } %></td>
@@ -184,6 +184,13 @@
             <td class="right"><%= formatIls(c.total_cash) %></td>
             <td class="right"><%= formatIls(c.total_expenses) %></td>
             <td class="right"><strong><%= formatIls(c.grand_total) %></strong></td>
+            <%# הגדרת הבעלים: מגירה > נספר+הוצאות = יתרה, קטנה = חוסר (services/zclosing.js#closingDiff). %>
+            <% var cd = Number(c.drawer_cash || 0) - Number(c.grand_total || 0); %>
+            <td class="right" data-sort="<%= cd %>">
+              <% if (cd === 0) { %><span class="badge b-approved">תואם</span>
+              <% } else if (cd > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(cd) %></strong>
+              <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-cd) %></strong><% } %>
+            </td>
             <% if (isOwner) { %>
               <td class="no-print">
                 <a class="btn btn-secondary small" href="/zclosing/<%= c.id %>">ערוך</a>
@@ -223,7 +230,7 @@
     var drawerEl = document.getElementById('drawer-cash-in');
     var drawer = drawerEl ? (parseFloat(drawerEl.value) || 0) : 0;
     document.getElementById('drawer-disp').textContent = fmt(drawer);
-    var diff = grand - drawer; // >0 יתרה · <0 חוסר
+    var diff = drawer - grand; // הגדרת הבעלים: מגירה > נספר+הוצאות = יתרה · < = חוסר (services/zclosing.js#closingDiff)
     var el = document.getElementById('closing-diff');
     if (drawerEl && drawerEl.value.trim() === '') { el.textContent = '—'; el.style.color = ''; }
     else if (Math.round(diff*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--color-ok)'; }

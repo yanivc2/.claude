@@ -175,18 +175,18 @@ export async function createZClosing(input, actor, x = getExecutor()) {
     x,
   );
 
-  // חוסר/יתרה vs the declared drawer cash. A shortage over ₪20 pushes an alert to the owner.
-  const diff = grandTotal - drawerCash; // >0 יתרה · <0 חוסר
+  // חוסר/יתרה — אותו ביטוי בדיוק של עמודת "חוסר / יתרה" ושל הטופס (closingDiff). חוסר מעל ₪20 → התראה.
+  const diff = closingDiff({ drawerCash, grandTotal });
   if (diff < 0 && Math.abs(diff) > SHORTAGE_ALERT_AGOROT) {
     let storeName = '';
     if (storeId) {
       const s = await x.one('SELECT name FROM stores WHERE id = ?', [storeId]);
       storeName = s ? s.name : '';
     }
-    notify(
+    await notify( // await: על serverless התראה בלי await נעלמת כשהתשובה כבר נשלחה (CLAUDE.md)
       `⚠️ <b>חוסר בסגירת קופה</b>\nעובד: ${names.first} ${names.last}` +
         (storeName ? `\nחנות: ${storeName}` : '') +
-        `\nZ ${zNumber}\nחוסר ע"ס ₪${fromAgorot(Math.abs(diff))}\n(נספר ₪${fromAgorot(grandTotal)} מול מגירה ₪${fromAgorot(drawerCash)})`,
+        `\nZ ${zNumber}\nחוסר ע"ס ₪${fromAgorot(Math.abs(diff))}\n(מגירה ₪${fromAgorot(drawerCash)} מול נספר+הוצאות ₪${fromAgorot(grandTotal)})`,
     );
   }
   return info.lastInsertRowid;
@@ -333,4 +333,14 @@ export async function deleteZClosing(id, actor, x = getExecutor()) {
     await t.run('DELETE FROM z_closings WHERE id = ?', [id]);
   });
   await logAction({ userId: actor?.id ?? null, action: 'zclosing.delete', entityType: 'z_closing', entityId: id }, x);
+}
+
+/**
+ * חוסר / יתרה של סגירת Z — **הגדרת הבעלים**: מגירה גדולה מ"נספר + הוצאות" = **יתרה**, קטנה = **חוסר**.
+ * ביטוי יחיד: עמודת "חוסר / יתרה" בסגירות האחרונות, השורה בטופס (index/edit) וההתראה על חוסר.
+ * (קודם הטופס וההתראה חישבו הפוך; הבעלים הכריע לטובת ההגדרה הזו, ושלושתם יושרו אליה.)
+ * @returns {number} agorot — >0 יתרה · <0 חוסר · 0 תואם
+ */
+export function closingDiff({ drawerCash, grandTotal }) {
+  return (Number(drawerCash) || 0) - (Number(grandTotal) || 0);
 }

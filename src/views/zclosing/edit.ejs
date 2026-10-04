@@ -211,7 +211,7 @@
     var drawerEl = document.getElementById('drawer-cash-in');
     var drawer = drawerEl ? (parseFloat(drawerEl.value) || 0) : 0;
     document.getElementById('drawer-disp').textContent = fmt(drawer);
-    var diff = grand - drawer;
+    var diff = drawer - grand; // הגדרת הבעלים: מגירה > נספר+הוצאות = יתרה · < = חוסר (services/zclosing.js#closingDiff)
     var el = document.getElementById('closing-diff');
     if (drawerEl && drawerEl.value.trim() === '') { el.textContent = '—'; el.style.color = ''; }
     else if (Math.round(diff*100) === 0) { el.textContent = 'תואם'; el.style.color = 'var(--color-ok)'; }
