@@ -16,7 +16,7 @@ import {
   setCreditCards, ccReconciliation, CC_BRANDS,
   zReconciliationStatus,
 } from '../services/zreports.js';
-import { createDeposit, listDeposits, setDeposited, setDepositBag, deleteDeposit, depositTotalForZ, depositForZ, depositsForZ, replaceDepositsForZ, declaredNotDeposited, zReportsWithoutDeposit } from '../services/deposits.js';
+import { createDeposit, listDeposits, setDeposited, setDepositBag, deleteDeposit, depositTotalForZ, depositForZ, depositsForZ, replaceDepositsForZ, declaredNotDeposited, zReportsWithoutDeposit, depositVerifications } from '../services/deposits.js';
 import { listEmployees } from '../services/employees.js';
 import { matchingClosing, CLOSING_DENOMS } from '../services/zclosing.js';
 import { listInvoices } from '../services/invoices.js';
@@ -263,6 +263,7 @@ async function renderProfitability(req, res, extra = {}) {
 async function renderZReports(req, res, extra = {}) {
   // Default to the active store, like the other screens. ?zstore= still overrides it.
   const zStoreId = effectiveStoreId(req, req.query.zstore);
+  const depRows = await listDeposits({ storeId: zStoreId, scope: req.scope });
   const zRows = await listZReports({ storeId: zStoreId, limit: 30, scope: req.scope });
   const zReports = await Promise.all(
     zRows.map(async (z) => {
@@ -297,7 +298,9 @@ async function renderZReports(req, res, extra = {}) {
     unmatchedCount: zReports.filter((z) => z.hasDeposit && !z.depMatched).length,
     zStoreId,
     missingZ: zStoreId ? await missingZNumbers(zStoreId) : [],
-    deposits: await listDeposits({ storeId: zStoreId, scope: req.scope }),
+    deposits: depRows,
+    // "חוסר / יתרה" של כל שקית מול הבנק: הזיכוי + התיקונים בחודש שאחרי ההצהרה (depositVerifications).
+    depVerify: await depositVerifications(depRows),
     // Deposit-lifecycle rubrics (bottom of the page).
     zNoDeposit: await zReportsWithoutDeposit({ scope: req.scope, storeId: zStoreId }),
     notDeposited: await declaredNotDeposited({ scope: req.scope, storeId: zStoreId }),

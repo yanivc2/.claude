@@ -665,7 +665,11 @@
     // (2) collapsible titled cards
     var main = document.querySelector('main.page') || document.querySelector('main');
     if (!main) return;
-    var pageKey = 'apCollapse:' + location.pathname;
+    // A [data-collapse-default="vN"] value versions the saved state: bumping it makes a page's new
+    // "start collapsed" rule win over open/closed choices saved before the rule existed.
+    var _cdm = main.querySelector('[data-collapse-default]');
+    var _cdv = _cdm ? (_cdm.getAttribute('data-collapse-default') || '') : '';
+    var pageKey = 'apCollapse:' + location.pathname + (_cdv ? ':' + _cdv : '');
     function readState() { try { return JSON.parse(localStorage.getItem(pageKey) || '{}'); } catch (e) { return {}; } }
     function saveState(s) { try { localStorage.setItem(pageKey, JSON.stringify(s)); } catch (e) {} }
     var state = readState();

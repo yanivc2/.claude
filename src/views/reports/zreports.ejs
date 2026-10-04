@@ -4,23 +4,29 @@
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
-<div class="card no-print">
-  <h2>הוספת דוח Z</h2>
+<%# כל הרובריקות בדף מתחילות מצומצמות (בקשת הבעלים). הערך "v2" מחליף את מפתח השמירה של הדף, כך
+    שמצב פתוח/סגור שנשמר לפני הכלל הזה לא גובר עליו (partials/footer.ejs#pageKey). %>
+<span data-collapse-default="v2" hidden></span>
+<%# טופס ההוספה הוא <details> ולא .card עם h2: לכרטיס עם שדה חובה המקפל הגלובלי לא נוגע (שדה חובה
+    מוסתר חוסם שליחה). כפתור השליחה בתוך ה-details, כך שאי אפשר לשלוח כשהוא סגור. נפתח לבד אחרי שגיאה. %>
+<details class="card collapse no-print" id="zr-add"<%= (typeof error !== 'undefined' && error) ? ' open' : '' %>>
+  <summary><span class="caret">▸</span> <strong>הוספת דוח Z</strong></summary>
   <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
     <%- include('../partials/_needStore', { what: 'דוח Z' }) %>
   <% } else { %>
   <%- include('_zform', { action: '/reports/zreports', submitLabel: 'הוסף דוח Z', storeOptions: storeOptions, invoiceOptions: invoiceOptions, ccBrands: ccBrands, zr: null, dep: null, expenses: [] }) %>
   <% } %>
-</div>
+</details>
 
 <div class="card">
   <h2>הצהרות הפקדה</h2>
   <div class="table-scroll">
   <table class="sortable">
-    <thead><tr><th>תאריך</th><th>חנות</th><th>מס' שקית</th><th class="right">סכום</th><th>סטטוס</th><th class="no-print" data-nosort></th></tr></thead>
+    <thead><tr><th>תאריך</th><th>חנות</th><th>מס' שקית</th><th class="right">סכום</th><th>סטטוס</th><th class="right">חוסר / יתרה</th><th class="no-print" data-nosort></th></tr></thead>
     <tbody>
-      <% if (!deposits || deposits.length === 0) { %><tr><td colspan="6" class="muted">אין הפקדות.</td></tr><% } %>
-      <% (deposits || []).forEach(function(d){ %>
+      <% if (!deposits || deposits.length === 0) { %><tr><td colspan="7" class="muted">אין הפקדות.</td></tr><% } %>
+      <% var _dv = (typeof depVerify !== 'undefined' && depVerify) ? depVerify : new Map(); var _bdSum = 0, _bdN = 0; %>
+      <% (deposits || []).forEach(function(d){ var v = _dv.get(Number(d.id)) || null; if (v) { _bdSum += v.bankDiff; _bdN += 1; } %>
         <tr>
           <td><%= formatDate(d.deposit_date) %></td>
           <td><%= d.store_name %></td>
@@ -28,6 +34,16 @@
           <td class="right"><%= formatIls(d.amount) %></td>
           <td>
             <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
+          </td>
+          <%# מה שהבנק זיכה בפועל מול ההצהרה: הזיכוי + כל ביטול/זיכוי-מחדש באותה אסמכתה עד חודש מיום
+              ההצהרה (services/deposits.js#depositVerifications). מתעדכן לבד עם כל משיכה מהבנק. %>
+          <td class="right" data-sort="<%= v ? v.bankDiff : '' %>"
+              title="<%= v ? ('בבנק ' + formatIls(v.bankTotal) + (v.corrections.length ? ' · כולל ' + v.corrections.length + ' שורות תיקון' : '') + ' · נבדק עד ' + formatDate(v.windowEnd)) : 'השקית עדיין לא אותרה בבנק' %>">
+            <% if (!v) { %><span class="muted">—</span>
+            <% } else if (v.bankDiff === 0) { %><span class="badge b-approved">תואם</span>
+            <% } else if (v.bankDiff > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(v.bankDiff) %></strong>
+            <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-v.bankDiff) %></strong><% } %>
+            <% if (v && v.corrections.length) { %><div class="muted" style="font-size:11px">תוקן בבנק <%= formatDate(v.verifyDate) %></div><% } %>
           </td>
           <td class="no-print">
             <% if (typeof can === 'function' && can('manage_deposits')) { %>
@@ -42,28 +58,38 @@
         </tr>
       <% }); %>
     </tbody>
+    <tfoot><tr>
+      <th colspan="5">סה"כ <span class="muted" style="font-weight:400">(<%= _bdN %> שקיות שאותרו בבנק)</span></th>
+      <th class="right">
+        <% if (!_bdN) { %><span class="muted">—</span>
+        <% } else if (_bdSum === 0) { %><span class="badge b-approved">תואם</span>
+        <% } else if (_bdSum > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(_bdSum) %></strong>
+        <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-_bdSum) %></strong><% } %>
+      </th>
+      <th class="no-print"></th>
+    </tr></tfoot>
   </table>
   </div>
 </div>
 
+<%# האזהרות מחוץ לרובריקה: היא מצומצמת כברירת מחדל, ואזהרה בתוכה הייתה נעלמת יחד איתה. %>
+<% if (missingZ && missingZ.length) { %>
+  <div class="alert alert-warn">מספרי Z חסרים ברצף: <strong><%= missingZ.join(', ') %></strong> — בדוק אם הוזנו ביום אחר.</div>
+<% } %>
+<% if (unmatchedCount > 0) { %>
+  <div class="alert alert-warn">⚠ <strong><%= unmatchedCount %></strong> דוחות Z לא תואמים — ראה סימון בטבלה "רשומות Z אחרונות".</div>
+<% } %>
+<%# <h2> ישיר (לא בתוך .toolbar) — זה מה שהופך את הכרטיס למתקפל (partials/footer.ejs). %>
 <div class="card">
-  <div class="toolbar">
-    <h2 style="margin:0">רשומות Z אחרונות</h2>
-    <form method="get" action="/reports/zreports" class="no-print">
-      <select name="zstore" onchange="apAutoSubmit(this)">
-        <option value="">כל החנויות</option>
-        <% storeOptions.forEach(function(st){ %>
-          <option value="<%= st.id %>" <%= zStoreId === st.id ? 'selected' : '' %>><%= st.name %></option>
-        <% }); %>
-      </select>
-    </form>
-  </div>
-  <% if (missingZ && missingZ.length) { %>
-    <div class="alert alert-warn">מספרי Z חסרים ברצף: <strong><%= missingZ.join(', ') %></strong> — בדוק אם הוזנו ביום אחר.</div>
-  <% } %>
-  <% if (unmatchedCount > 0) { %>
-    <div class="alert alert-warn">⚠ <strong><%= unmatchedCount %></strong> דוחות Z לא תואמים — ראה סימון בטבלה.</div>
-  <% } %>
+  <h2>רשומות Z אחרונות<% if (unmatchedCount > 0) { %> <span class="badge b-on_hold"><%= unmatchedCount %> לא תואמים</span><% } %></h2>
+  <form method="get" action="/reports/zreports" class="no-print" style="margin:0 0 .6rem">
+    <select name="zstore" onchange="apAutoSubmit(this)" style="max-width:260px">
+      <option value="">כל החנויות</option>
+      <% storeOptions.forEach(function(st){ %>
+        <option value="<%= st.id %>" <%= zStoreId === st.id ? 'selected' : '' %>><%= st.name %></option>
+      <% }); %>
+    </select>
+  </form>
   <div style="overflow-x:auto">
   <table class="sortable">
     <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מגירה</th><th class="right">סכום הפקדה</th><th>שקית הפקדה</th><th>סטטוס</th><th class="right">חוסר / יתרה</th><th class="no-print" data-nosort></th></tr></thead>

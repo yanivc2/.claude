@@ -1,6 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
-import { scopeClause, scopeWhere } from '../lib/scope.js';
+import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
 import { addDaysIso } from '../lib/loginHours.js';
 import { plainNumber } from '../lib/numText.js';
 import { logAction } from './audit.js';
@@ -28,20 +28,24 @@ export async function createDeposit(
 }
 
 // Common SELECT: deposit + store/company names + the linked Z number (for "שיוך ל-Z").
-const DEPOSIT_SELECT = `SELECT d.*, st.name AS store_name, c.name AS company_name, z.z_number
+const DEPOSIT_SELECT = `SELECT d.*, st.name AS store_name, st.company_id AS store_company_id, c.name AS company_name, z.z_number
                   FROM deposits d
                   JOIN stores st ON st.id = d.store_id
                   JOIN companies c ON c.id = st.company_id
                   LEFT JOIN z_reports z ON z.id = d.z_report_id`;
 
 export async function listDeposits({ storeId = null, scope = null, limit = 30 } = {}, x = getExecutor()) {
-  const sc = scopeWhere(scope, 'st.company_id', 'st.id');
-  const params = [...sc.params];
-  let sql = `${DEPOSIT_SELECT} WHERE 1 = 1${sc.sql}`;
-  if (storeId) { sql += ' AND d.store_id = ?'; params.push(storeId); }
-  sql += ' ORDER BY d.deposit_date DESC, d.id DESC LIMIT ?';
-  params.push(limit);
-  return x.many(sql, params);
+  // Store + scope are applied in JS, not as SQL: pg-mem throws "lookups on joins" for this joined
+  // query with ANY WHERE on it once a deposit without a Z exists (the LEFT JOIN's null side) —
+  // measured on דוחות Z with an active store. Same rows, same order; the table is small.
+  const sql = `${DEPOSIT_SELECT} ORDER BY d.deposit_date DESC, d.id DESC`;
+  const { companyIds, storeIds } = normalizeScope(scope);
+  const cos = companyIds == null ? null : new Set(companyIds.map(Number));
+  const sts = storeIds == null ? null : new Set(storeIds.map(Number));
+  const rows = (await x.many(sql, [])).filter((d) =>
+    (!storeId || Number(d.store_id) === Number(storeId)) &&
+    (!cos || cos.has(Number(d.store_company_id))) && (!sts || sts.has(Number(d.store_id))));
+  return rows.slice(0, limit);
 }
 
 /**
@@ -124,10 +128,27 @@ export async function depositZDiffs(deposits, x = getExecutor()) {
  * אפשר לדעת שלא הגיע תיקון — רק שעוד לא ראינו אותו. אמירת "אומתה" במצב הזה היא אישור שקרי על
  * כסף, ולכן המצב הזה נקרא "ממתין" ואומר עד מתי.
  *
+ * 🔴 **חלון התיקונים: חודש מיום ההצהרה** (בקשת הבעלים). הבנק מבטל ומזכה מחדש לפעמים כמה ימים
+ * ואפילו שבועות אחרי ההפקדה; שורה עם אותה אסמכתה אחרי יותר מחודש כבר אינה תיקון של השקית הזו
+ * (מספרי שקיות חוזרים) ולא נספרת.
+ *
+ * `bankTotal` = מה שנכנס בפועל: הזיכויים + כל התיקונים בחלון. `bankDiff` = bankTotal − ההצהרה
+ * (>0 יתרה · <0 חוסר) — עמודת "חוסר / יתרה" בטבלת הצהרות ההפקדה.
+ *
  * @param {Array} deposits שורות מ-listDeposits
- * @returns {Promise<Map<number, {statusDate, correctionTotal, verifyDate, state, corrections}>>}
+ * @returns {Promise<Map<number, {statusDate, correctionTotal, verifyDate, state, corrections, bankTotal, bankDiff, windowEnd}>>}
  */
 export const VERIFY_WINDOW_DAYS = 7;
+
+/** היום האחרון שבו שורת בנק עוד נחשבת לתיקון של הפקדה: אותו יום בחודש הבא (סוף חודש — נחתך). */
+export function correctionWindowEnd(depositDate) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(depositDate || ''));
+  if (!m) return null;
+  let y = Number(m[1]); let mo = Number(m[2]) + 1; const d = Number(m[3]);
+  if (mo > 12) { mo = 1; y += 1; }
+  const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  return `${y}-${String(mo).padStart(2, '0')}-${String(Math.min(d, last)).padStart(2, '0')}`;
+}
 
 export async function depositVerifications(deposits, x = getExecutor()) {
   const out = new Map();
@@ -165,10 +186,12 @@ export async function depositVerifications(deposits, x = getExecutor()) {
     const refs = bagReferences(dep.bag_number);
     const useRefs = refs.length ? refs : [String(base.raw_reference ?? '').trim()].filter(Boolean);
 
+    const windowEnd = correctionWindowEnd(dep.deposit_date);
     const credits = [];
     const corrections = [];
     for (const ref of useRefs) {
       const lines = (byKey.get(`${account}|${ref}`) || [])
+        .filter((t) => Number(t.id) === Number(base.id) || !windowEnd || String(t.txn_date || '') <= windowEnd)
         .slice()
         .sort((a, b) => String(a.txn_date).localeCompare(String(b.txn_date)) || Number(a.id) - Number(b.id));
       if (!lines.length) continue;
@@ -186,9 +209,13 @@ export async function depositVerifications(deposits, x = getExecutor()) {
     const deadline = statusDate ? addDaysIso(statusDate, VERIFY_WINDOW_DAYS) : null;
     const covered = statusDate && (lastSeen.get(account) || '') >= deadline;
 
+    const bankTotal = credits.reduce((n, t) => n + (Number(t.amount) || 0), 0) + correctionTotal;
     out.set(Number(dep.id), {
       statusDate,
       corrections,
+      bankTotal,
+      bankDiff: bankTotal - (Number(dep.amount) || 0),
+      windowEnd,
       correctionTotal: corrections.length ? correctionTotal : null,
       verifyDate,
       deadline,
