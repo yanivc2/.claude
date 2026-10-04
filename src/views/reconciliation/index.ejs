@@ -209,6 +209,28 @@
       <button type="submit">התאמה אוטומטית</button>
     </form>
   </div>
+  <%# "תאריך תחילת עבודה": חיובים לא מותאמים עד התאריך מוסתרים (לא נמחקים — הסוכן מושך 60 יום
+      אחורה והיה מחזיר אותם, וצ׳ק מיידי שהונפק בתוכנה עדיין מותאם אליהם). בעלים בלבד. %>
+  <% var _hu = (typeof hiddenUntil !== 'undefined') ? hiddenUntil : null; var _hc = (typeof hiddenCount !== 'undefined') ? hiddenCount : 0; %>
+  <div class="no-print" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:0 0 .6rem">
+    <% if (_hu) { %>
+      <span class="muted">מוסתרים חיובים עד <strong><%= formatDate(_hu) %></strong> (לפני תחילת העבודה)<%= _hc ? ' — ' + _hc + ' בחשבון הזה' : '' %>.</span>
+    <% } %>
+    <% if (currentUser.role === 'owner') { %>
+      <form method="post" action="/reconciliation/hide-until" style="display:flex;align-items:center;gap:.4rem;margin:0">
+        <input type="hidden" name="account_id" value="<%= accountId %>" />
+        <label style="margin:0;font-size:13px">הסתר חיובים לא מותאמים עד (כולל):</label>
+        <input type="date" name="until" value="<%= _hu || '' %>" style="max-width:150px" />
+        <button type="submit" class="btn-secondary small">שמור</button>
+      </form>
+      <% if (_hu) { %>
+        <form method="post" action="/reconciliation/hide-until" style="margin:0">
+          <input type="hidden" name="account_id" value="<%= accountId %>" /><input type="hidden" name="until" value="" />
+          <button type="submit" class="btn-secondary small">הצג הכל</button>
+        </form>
+      <% } %>
+    <% } %>
+  </div>
   <%# מיון A-Z + שורת סינון לכל עמודה (המשפרים הגלובליים ב-partials/footer.ejs). עמודת ההתאמה
       היא טפסים, לא טקסט — אין מה למיין או לסנן לפיה. %>
   <table class="sortable filterable">

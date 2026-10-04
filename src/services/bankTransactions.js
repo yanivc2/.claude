@@ -3,6 +3,7 @@ import { NotFoundError, RuleError } from '../lib/errors.js';
 import { logAction } from './audit.js';
 import { plainNumber, isOddNumberText } from '../lib/numText.js';
 import { decodeFileName } from '../lib/decodeText.js';
+import { getSetting, setSetting } from './appSettings.js';
 
 // Stage 2: bank transactions land here (from the scraper, a CSV export, or manual entry)
 // and are then reconciled against open checks by the R7 engine. Amounts are signed agorot
@@ -420,7 +421,31 @@ export async function deleteImport(id, actor, { releaseMatched = false } = {}, x
 }
 
 /** Unmatched debit transactions for an account (candidates for check reconciliation). */
-export async function listUnmatched(bankAccountId, x = getExecutor()) {
+/**
+ * "תאריך תחילת עבודה" — חיובים לא מותאמים **עד התאריך הזה (כולל)** אינם מוצגים ב"תנועות לא
+ * מותאמות". הבעלים התחיל לעבוד עם התוכנה בתחילת ספטמבר, וצ׳קים ניתנים לרוב 30 יום קדימה, ולכן
+ * כל חיוב צ׳ק עד סוף ספטמבר הוא צ׳ק שהונפק לפני התוכנה — "אין צ׳ק פתוח תואם" בהגדרה, ורעש.
+ *
+ * 🔴 הסתרה ולא מחיקה, משתי סיבות שנמדדו בקוד: (1) הסוכן מושך **60 יום אחורה** בכל סנכרון
+ * (`agent/bank-agent.mjs`, `startDaysBack`), ולכן שורה שנמחקה הייתה חוזרת בסנכרון הבא; (2) צ׳ק
+ * שהונפק בתוכנה בספטמבר בתאריך מיידי צריך את שורת החיוב שלו כדי להיסגר — שורה מוסתרת עדיין
+ * מותאמת אוטומטית (`autoReconcile` אינו מסנן לפי התאריך הזה), שורה מחוקה לא.
+ * גלובלי לכל החשבונות (אותו יום התחלה לכל הסניפים). ריק = אין הסתרה.
+ */
+export const HIDE_UNMATCHED_KEY = 'bank_unmatched_hidden_until';
+export async function unmatchedHiddenUntil(x = getExecutor()) {
+  const v = await getSetting(HIDE_UNMATCHED_KEY, null, x);
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null;
+}
+export async function setUnmatchedHiddenUntil(date, actor, x = getExecutor()) {
+  const v = String(date || '').trim();
+  if (v && !/^\d{4}-\d{2}-\d{2}$/.test(v)) throw new RuleError('VALIDATION', 'תאריך לא תקין');
+  await setSetting(HIDE_UNMATCHED_KEY, v || null, x);
+  await logAction({ userId: actor?.id ?? null, action: 'bank.hide_unmatched_until', entityType: 'app_settings', entityId: null, details: { until: v || null } }, x);
+  return v || null;
+}
+
+async function unmatchedAll(bankAccountId, x) {
   const { salaryLinkedTxnIds } = await import('./salaryPayments.js');
   const salaryTaken = await salaryLinkedTxnIds(x); // צ׳ק שכר שנפרע — מוסבר, לא "ממתין"
   return (await x.many(
@@ -429,6 +454,20 @@ export async function listUnmatched(bankAccountId, x = getExecutor()) {
       ORDER BY txn_date`,
     [bankAccountId],
   )).filter((t) => !salaryTaken.has(Number(t.id)));
+}
+
+/** חיובים לא מותאמים — בלי אלה שעד "תאריך תחילת העבודה" (ראה unmatchedHiddenUntil). */
+export async function listUnmatched(bankAccountId, x = getExecutor()) {
+  const until = await unmatchedHiddenUntil(x);
+  const all = await unmatchedAll(bankAccountId, x);
+  return until ? all.filter((t) => String(t.txn_date).slice(0, 10) > until) : all;
+}
+
+/** כמה חיובים לא מותאמים מוסתרים בחשבון בגלל תאריך תחילת העבודה. */
+export async function hiddenUnmatchedCount(bankAccountId, x = getExecutor()) {
+  const until = await unmatchedHiddenUntil(x);
+  if (!until) return 0;
+  return (await unmatchedAll(bankAccountId, x)).filter((t) => String(t.txn_date).slice(0, 10) <= until).length;
 }
 
 /** All transactions for an account, newest first, with any matched check number joined. */

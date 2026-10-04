@@ -9,7 +9,7 @@ import { parseXlsx } from '../lib/xlsx.js';
 import { normalizeBankRows } from '../lib/bankCsv.js';
 import { decodeBuffer, decodeFileName } from '../lib/decodeText.js';
 import { RuleError, AuthError, NotFoundError } from '../lib/errors.js';
-import { requirePermission } from '../middleware/requireOwner.js';
+import { requirePermission, requireOwner } from '../middleware/requireOwner.js';
 import {
   importTransactions,
   listImports,
@@ -20,6 +20,9 @@ import {
   getImport,
   deleteImport,
   listUnmatched,
+  unmatchedHiddenUntil,
+  setUnmatchedHiddenUntil,
+  hiddenUnmatchedCount,
   listTransactions,
   deleteTransaction,
   editTransaction,
@@ -110,6 +113,8 @@ async function payableForAccount(accountId, scope) {
 
 async function renderPage(req, res, accountId, extra = {}) {
   const unmatched = accountId ? await listUnmatched(accountId) : [];
+  const hiddenUntil = await unmatchedHiddenUntil();
+  const hiddenCount = accountId ? await hiddenUnmatchedCount(accountId) : 0;
   const classified = await Promise.all(unmatched.map(async (t) => ({ txn: t, ...(await classify(t)) })));
   res.render('reconciliation/index', {
     title: 'התאמת בנק',
@@ -121,6 +126,8 @@ async function renderPage(req, res, accountId, extra = {}) {
     untracked: accountId ? await untrackedSummary(accountId) : null,
     oddRefs: accountId ? await oddReferences(accountId) : { count: 0, sample: [] },
     classified,
+    hiddenUntil,
+    hiddenCount,
     transactions: accountId ? await listTransactions(accountId) : [],
     // חשבוניות פתוחות של החנות שמאחורי החשבון הזה — המועמדות לשיוך של חיוב שאין לו צ׳ק.
     // נשלחות פעם אחת עם הדף ומשרתות דיאלוג אחד משותף לכל השורות (ולא דיאלוג לכל שורה).
@@ -221,6 +228,19 @@ async function bankSyncReply(req, res, fn, okNotice) {
     throw err;
   }
 }
+
+// "תאריך תחילת עבודה" — הסתרת חיובים לא מותאמים עד תאריך (בעלים בלבד; ריק = ביטול). ראה
+// services/bankTransactions.js#unmatchedHiddenUntil — למה הסתרה ולא מחיקה.
+router.post('/hide-until', requireOwner, async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  try {
+    const v = await setUnmatchedHiddenUntil(req.body.until, req.user);
+    return backTo(res, accountId, { notice: v ? `חיובים לא מותאמים עד ${v.split('-').reverse().join('/')} (כולל) הוסתרו מהרשימה.` : 'ההסתרה בוטלה — כל החיובים הלא מותאמים מוצגים.' });
+  } catch (err) {
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
+    next(err);
+  }
+});
 
 // 🔍 בדיקת שיוך לחשבון — האם כל התנועות בחשבון באמת שלו (רצף היתרות, אותה תנועה בחשבון אחר,
 // צ׳ק מפנקס של חשבון אחר). קריאה בלבד; services/accountIntegrity.js.
