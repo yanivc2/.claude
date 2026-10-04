@@ -129,7 +129,8 @@ const Z_ALERT_DEDUPE_SEC = 600;
 async function notifyZOnce(zId, html) {
   try {
     const key = `z_alert_last:${zId}`;
-    const hash = createHash('sha256').update(html).digest('hex').slice(0, 16);
+    // "(ללא שינוי)" לא הופך הודעה לחדשה: שמירה חוזרת מיד אחרי שמירה אומרת אותו דבר.
+    const hash = createHash('sha256').update(html.replace(' (ללא שינוי)', '')).digest('hex').slice(0, 16);
     let prev = null;
     try { prev = JSON.parse((await getSetting(key, null)) || 'null'); } catch { prev = null; }
     if (prev && prev.hash === hash && Date.now() - Number(prev.at || 0) < Z_ALERT_DEDUPE_SEC * 1000) return false;
@@ -153,7 +154,7 @@ async function alertIfUnmatched(req, id) {
 }
 
 // WhatsApp status for a Z in the "רשומות Z אחרונות" list, per the owner's rule:
-// depDiff = סכום ההפקדה − (מזומן מדוח מגירה − הוצאות במזומן).
+// depDiff = סכום ההפקדה − (מזומן − (תווי קניה + צ׳ק + הקפה + הוצאות במזומן)) — services/zreports.js#depositBase.
 // 0 → תואם; הפקידו פחות ממה שהיה בקופה (depDiff<0) → חוסר; הפקידו יותר (depDiff>0) → יתרה.
 function zDepositWhatsappText(zr, depDiff) {
   const head = `זד מס ${zr.z_number} מתאריך : ${zr.z_date}`;
@@ -264,12 +265,8 @@ async function renderZReports(req, res, extra = {}) {
   const zRows = await listZReports({ storeId: zStoreId, limit: 30, scope: req.scope });
   const zReports = await Promise.all(
     zRows.map(async (z) => {
-      // התאמת ההפקדה לפי הכלל של הבעלים: (מזומן מדוח מגירה + הוצאות במזומן) מול סכום ההפקדה.
-      //
-      // 🔴 הבסיס הוא `drawer_cash` ולא `drawer_total`. הפקדת מזומן לבנק אין לה שום קשר לאשראי,
-      // לצ׳קים, להקפה או לתווי קניה — ולכן השוואה מול סה"כ המגירה הציגה "חוסר" ענק בכל יום שבו
-      // היו הכנסות מאשראי, כלומר כמעט תמיד. המזומן שיצא כהוצאה מהקופה מתווסף חזרה, כי הוא היה
-      // חלק מאותו מזומן ופשוט לא הגיע לשקית.
+      // התאמת ההפקדה — הנוסחה כולה ב-services/zreports.js#depositBase (מזומן פחות תווי קניה, צ׳ק,
+      // הקפה והוצאות במזומן). אל תשכפל אותה כאן.
       const expenses = await expensesTotal(z.id);
       // כל השקיות, לא הראשונה: הפקדה מפוצלת שנספרה חלקית נראית כמו חוסר שלא קיים.
       const bags = await depositsForZ(z.id);
@@ -624,13 +621,12 @@ router.post('/zreports', async (req, res, next) => {
         notify(`🔢 <b>מספר Z חסר ברצף</b>\nחסרים: ${missing.join(', ')}\n${req.protocol}://${req.get('host')}/reports/zreports?zstore=${storeId}`);
       }
     } catch { /* best-effort */ }
-    // Cash-gap alert on the create path: מזומן מגירה vs הפקדה + הוצאות. The individual-view edit
-    // routes already alert via alertIfUnmatched; this covers the "created in one go" path.
+    // Cash-gap alert on the create path — the same depositDiff the form shows (cashReconciliation).
     try {
       const cr = await cashReconciliation(created.id);
-      if (cr.diff !== 0) {
+      if (cr.hasDeposit && cr.diff !== 0) {
         const label = cr.diff < 0 ? 'חוסר' : 'יתרה';
-        await notifyZOnce(created.id, `⚠️ <b>פער מזומן ב-Z ${b.z_number}</b>\n${label} ע"ס ${ils(Math.abs(cr.diff))}\nמזומן מגירה ${ils(cr.cash)} = הפקדה ${ils(cr.deposit)} + הוצאות ${ils(cr.expenses)}\n${zUrl(req, created.id)}`);
+        await notifyZOnce(created.id, `⚠️ <b>פער מזומן ב-Z ${b.z_number}</b>\n${label} ע"ס ${ils(Math.abs(cr.diff))}\nהופקד ${ils(cr.deposit)} · אמור להגיע לשקית ${ils(cr.expected)} (מזומן ${ils(cr.cash)} − תווי קניה/צ'ק/הקפה ${ils(cr.nonCash)} − הוצאות ${ils(cr.expenses)})\n${zUrl(req, created.id)}`);
       }
     } catch { /* best-effort */ }
     // PRG: רענון לא יוסיף את הדוח (ואת ההתראות) פעם שנייה.
@@ -679,10 +675,10 @@ router.post('/zreports/:id', async (req, res, next) => {
     try {
       const cr = await cashReconciliation(id);
       const label = (d) => (d < 0 ? 'חוסר' : 'יתרה');
-      if (cr.diff !== 0) {
-        const changed = !crBefore || crBefore.diff !== cr.diff;
+      if (cr.hasDeposit && cr.diff !== 0) {
+        const changed = !crBefore || !crBefore.hasDeposit || crBefore.diff !== cr.diff;
         gapLine = `\n⚠️ פער מזומן: ${label(cr.diff)} ע"ס ${ils(Math.abs(cr.diff))}${changed ? '' : ' (ללא שינוי)'}`;
-      } else if (crBefore && crBefore.diff !== 0) {
+      } else if (crBefore && crBefore.hasDeposit && crBefore.diff !== 0) {
         gapLine = '\n✅ פער המזומן נסגר';
       }
     } catch { /* best-effort */ }

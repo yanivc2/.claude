@@ -69,7 +69,7 @@ export function bagReferences(bagNumber) {
  *
  * 🔴 העמודה הזו הראתה קודם את `recon_diff` (מה שהבנק זיכה מול מה שהוצהר), שהוא כמעט תמיד 0 או
  * ריק, ולכן היא נראתה ריקה מול דוח Z שאומר "יתרה ₪94.20". זה אותו כסף ושתי תשובות שונות.
- * כאן מחושב בדיוק הביטוי של `depositDiff`: הפקדה − (מזומן מגירה − הוצאות מזומן).
+ * כאן מחושב בדיוק הביטוי של `depositDiff`: הפקדה − (מזומן − (תווי קניה + צ׳ק + הקפה + הוצאות)).
  *
  * ההפרש הוא **של דוח ה-Z כולו**, לא של שקית בודדת: כל השקיות של אותו Z נסכמות, כי הן יחד
  * המזומן שיצא מהקופה. שתי שורות של אותו Z יציגו לכן את אותו הפרש — וזה נכון, זה הפרש אחד.
@@ -83,7 +83,7 @@ export async function depositZDiffs(deposits, x = getExecutor()) {
   const { depositDiff } = await import('./zreports.js');
 
   // שליפות פשוטות וסינון ב-JS — pg-mem מועד על IN מול טבלה מצורפת (ראה lib/scope.js#scopeClause).
-  const zRows = await x.many('SELECT id, drawer_cash FROM z_reports', []);
+  const zRows = await x.many('SELECT id, drawer_cash, drawer_check, drawer_hakafa, drawer_vouchers FROM z_reports', []);
   const zById = new Map(zRows.filter((z) => zIds.includes(Number(z.id))).map((z) => [Number(z.id), z]));
   const expRows = await x.many('SELECT z_report_id, amount FROM z_expenses', []);
   const depRows = await x.many('SELECT z_report_id, amount FROM deposits WHERE z_report_id IS NOT NULL', []);

@@ -98,7 +98,7 @@ test('Z expenses: add, total, delete', async () => {
   assert.equal(await expensesTotal(z.id, db), toAgorot('120'));
 });
 
-test('deposit computes from bill counts; cash reconciliation = drawer cash - deposit - expenses', async () => {
+test('deposit computes from bill counts; cash reconciliation = depositDiff (deposit − (cash − expenses))', async () => {
   const db = await freshDb();
   const store = await firstStore(db);
   const sec = await secretary(db);
@@ -110,8 +110,9 @@ test('deposit computes from bill counts; cash reconciliation = drawer cash - dep
   assert.equal(r.cash, toAgorot('1000'));
   assert.equal(r.deposit, toAgorot('900.50'));
   assert.equal(r.expenses, toAgorot('100'));
-  assert.equal(r.diff, toAgorot('1000') - toAgorot('900.50') - toAgorot('100'));
-  assert.ok(r.diff < 0);
+  assert.equal(r.expected, toAgorot('900'));
+  assert.equal(r.diff, toAgorot('0.50'), 'הופקד 900.50 מול 900 שאמורים להגיע לשקית → יתרה');
+  assert.ok(r.diff > 0);
 });
 
 test('credit-card report: brand total + debt-on-credit gap vs אשראי מגירה', async () => {

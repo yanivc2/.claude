@@ -140,12 +140,19 @@ export async function setDeposit(zReportId, { counts = {}, bag = null }, actor, 
  * Cash reconciliation for a Z report: drawer cash should equal deposit + expenses.
  * @returns {{cash:number, deposit:number, expenses:number, diff:number}}
  */
+// 🔴 הפער כאן הוא **בדיוק** `depositDiff` — אותו מספר שהטופס, רשימת ה-Z והיסטוריית ההפקדות מציגים.
+// קודם זו הייתה נוסחה שלישית (מזומן − הפקדה − הוצאות, הפוכת סימן, ומול העמודה הישנה
+// `deposit_amount` במקום שקיות ההפקדה), ולכן ההתראות דיווחו פער שהמסך לא הראה.
+// הפקדה = סכום שקיות ה-Z (טבלת deposits); בלי שקיות — העמודה הישנה `deposit_amount`.
 export async function cashReconciliation(zReportId, x = getExecutor()) {
   const zr = await getZReport(zReportId, x);
-  const deposit = zr.deposit_amount || 0;
+  const bags = await x.many('SELECT amount FROM deposits WHERE z_report_id = ?', [Number(zReportId)]);
+  const hasDeposit = bags.length > 0 || zr.deposit_amount != null;
+  const deposit = bags.length ? bags.reduce((n, b) => n + (Number(b.amount) || 0), 0) : (zr.deposit_amount || 0);
   const expenses = await expensesTotal(zReportId, x);
   const cash = zr.drawer_cash || 0;
-  return { cash, deposit, expenses, diff: cash - deposit - expenses };
+  const nonCash = (zr.drawer_vouchers || 0) + (zr.drawer_check || 0) + (zr.drawer_hakafa || 0);
+  return { cash, nonCash, deposit, expenses, hasDeposit, expected: depositBase(zr, expenses), diff: depositDiff(zr, expenses, deposit) };
 }
 
 /**
@@ -157,7 +164,7 @@ export async function zReconciliationStatus(zReportId, x = getExecutor()) {
   const cash = await cashReconciliation(zReportId, x);
   const cc = await ccReconciliation(zReportId, x);
   const issues = [];
-  if (zr.deposit_amount != null && cash.diff !== 0) {
+  if (cash.hasDeposit && cash.diff !== 0) {
     issues.push({ type: 'cash', label: cash.diff < 0 ? 'חוסר במזומן' : 'עודף במזומן', diff: cash.diff });
   }
   if (zr.cc_total != null && cc.debtOnCredit < 0) {
@@ -607,33 +614,34 @@ export async function cashPaymentsForInvoice(invoiceId, x = getExecutor()) {
 }
 
 /**
- * כמה מזומן **אמור** להגיע לשקית: **מזומן מדוח המגירה פחות הוצאות המזומן**.
+ * כמה מזומן **אמור** להגיע לשקית:
+ *   מזומן (דוח מגירה) − (תווי קניה + צ׳ק + הקפה + סה"כ הוצאות במזומן)
  *
- * 🔴 `drawer_cash`, לא `drawer_total`. הפקדת מזומן לבנק אין לה שום קשר לאשראי, לצ׳קים, להקפה או
- * לתווי קניה — השוואה מול סה"כ המגירה הראתה "חוסר" בגובה הכנסות האשראי בכל יום שבו היו כאלה,
- * כלומר כמעט תמיד.
+ * 🔴 זו ההגדרה של הבעלים (2026-10-04), והיא מחליפה את "מזומן − הוצאות". בדוח המגירה של הקופה
+ * צ׳ק, הקפה ותווי קניה **אינם כסף שנמצא בשקית**, ולכן הם מופחתים מהמזומן יחד עם ההוצאות.
+ * דוגמה מהמסך: מזומן 90,737.90 − (0 + 0 + 162.13 + 4,170.55) = 86,405.22 אמור להגיע לשקית;
+ * הופקד 86,371.00 → חוסר 34.22 (ולא 196.35 שהנוסחה הקודמת הראתה).
  *
- * 🔴 ההוצאות **מופחתות, לא מתווספות**. הכסף שיצא מהקופה כהוצאה כבר אינו בקופה, ולכן הוא לא יכול
- * להגיע לשקית: מה שנשאר להפקיד הוא המזומן פחות מה ששולם ממנו. החיבור הקודם ניפח את הבסיס בכפל
- * ההוצאות והציג "חוסר" בגודל הזה — במקרה שדווח, ₪2,039.80 במקום ₪39.80 אמיתיים.
+ * 🔴 אשראי **לא** נכנס: הוא אף פעם לא היה מזומן. וההוצאות **מופחתות**, לא מתווספות (כסף שיצא
+ * כהוצאה כבר אינו בקופה) — החיבור הקודם ניפח את ההפרש בכפל ההוצאות.
  *
- * זו הנוסחה של הבעלים, והיא מופיעה **פעמיים**: כאן (הרשימה והוואטסאפ) וב-`views/reports/_zform.ejs`
- * (החישוב החי בזמן ההקלדה). השתיים חייבות להישאר זהות — `test/zdeposit-base.test.js` נועל את זו.
+ * הנוסחה מופיעה **פעמיים**: כאן (הרשימה, היסטוריית ההפקדות והוואטסאפ) וב-`views/reports/_zform.ejs`
+ * (החישוב החי בזמן ההקלדה). השתיים חייבות להישאר זהות — `test/zdeposit-base.test.js` נועל זאת.
  *
- * @param {{drawer_cash?: number}} zr שורת ה-Z
+ * @param {{drawer_cash?, drawer_check?, drawer_hakafa?, drawer_vouchers?}} zr שורת ה-Z
  * @param {number} expenses סך הוצאות המזומן באגורות
  * @returns {number} אגורות
  */
 export function depositBase(zr, expenses = 0) {
-  return (Number(zr?.drawer_cash) || 0) - (Number(expenses) || 0);
+  const n = (v) => Number(v) || 0;
+  return n(zr?.drawer_cash) - (n(zr?.drawer_vouchers) + n(zr?.drawer_check) + n(zr?.drawer_hakafa) + n(expenses));
 }
 
 /**
- * ההפרש שמוצג כ"חוסר / יתרה": `סה"כ הופקד − (מזומן − הוצאות)`.
+ * ההפרש שמוצג כ"חוסר / יתרה": `סה"כ הופקד − depositBase`.
  *
- * 🔴 הכיוון, כפי שהבעלים הגדיר: **הפקידו פחות ממה שהיה בקופה → חוסר** (שלילי); הפקידו יותר
- * ממה שהיה בקופה → **יתרה** (חיובי). כלומר הכסף שהיה אמור להגיע לשקית ולא הגיע הוא חוסר.
- * הסימן (>0 יתרה · <0 חוסר) זהה לזה שכל הקוראים מצפים לו — הרשימה, הוואטסאפ והטופס.
+ * 🔴 הכיוון, כפי שהבעלים הגדיר: **הפקידו פחות ממה שהיה אמור להגיע לשקית → חוסר** (שלילי);
+ * הפקידו יותר → **יתרה** (חיובי). הסימן זהה לזה שכל הקוראים מצפים לו — הרשימה, הוואטסאפ והטופס.
  */
 export function depositDiff(zr, expenses, depositAmount) {
   return (Number(depositAmount) || 0) - depositBase(zr, expenses);

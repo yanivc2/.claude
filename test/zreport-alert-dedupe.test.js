@@ -20,7 +20,7 @@ test('שמירת דוח Z: התראה אחת, שמירה חוזרת זהה לא 
   const cookie = `session=${createSession(o.id)}`;
   const save = (drawerCash) => fetch(`${base}/reports/zreports/${zr.id}`, {
     method: 'POST', redirect: 'manual', headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ store_id: String(st.id), z_number: '3294', z_date: '2026-10-04', daily_total: '20000', drawer_cash: drawerCash, drawer_credit: '0' }).toString(),
+    body: new URLSearchParams({ store_id: String(st.id), z_number: '3294', z_date: '2026-10-04', daily_total: '20000', drawer_cash: drawerCash, drawer_credit: '0', dep_bag: '5551', dep_amount: '100' }).toString(),
   });
   const count = async () => (await db.one("SELECT COUNT(*) AS n FROM notifications WHERE title LIKE '%3294%'", [])).n;
 
@@ -29,7 +29,7 @@ test('שמירת דוח Z: התראה אחת, שמירה חוזרת זהה לא 
   assert.equal(r1.headers.get('location').split('?')[0], `/reports/zreports/${zr.id}`);
   assert.equal(Number(await count()), 1, 'התראה אחת — "עודכן" + הפער בתוכה');
   const n = await db.one("SELECT title, body FROM notifications WHERE title LIKE '%3294%'", []);
-  assert.match(`${n.title} ${n.body}`, /פער מזומן: יתרה ע"ס ₪19,920\.00/);
+  assert.match(`${n.title} ${n.body}`, /פער מזומן: חוסר ע"ס ₪19,820\.00/);
 
   await save('19920'); // שמירה חוזרת בלי שינוי (דאבל-קליק / רענון)
   assert.equal(Number(await count()), 1, 'אותה הודעה בדיוק — מדולגת');
@@ -38,7 +38,7 @@ test('שמירת דוח Z: התראה אחת, שמירה חוזרת זהה לא 
   assert.equal(r3.status, 303);
   assert.equal(Number(await count()), 2);
   const last = await db.one("SELECT title, body FROM notifications WHERE title LIKE '%3294%' ORDER BY id DESC LIMIT 1", []);
-  assert.match(`${last.title} ${last.body}`, /יתרה ע"ס ₪10,000\.00(?! \(ללא שינוי\))/, 'פער שהשתנה — בלי "(ללא שינוי)"');
+  assert.match(`${last.title} ${last.body}`, /חוסר ע"ס ₪9,900\.00(?! \(ללא שינוי\))/, 'פער שהשתנה — בלי "(ללא שינוי)"');
 
   const page = await fetch(`${base}${r1.headers.get('location')}`, { headers: { cookie } });
   assert.equal(page.status, 200);

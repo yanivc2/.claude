@@ -28,10 +28,11 @@ test('cash expenses: bulk replace, empties dropped, total feeds reconciliation',
   assert.equal(rows[0].purpose, null);
   assert.equal(await expensesTotal(z.id), 300);
 
-  // reconciliation: drawer cash − deposit − expenses
+  // reconciliation = depositDiff: deposit − (cash − (non-cash + expenses)); no deposit yet
   const recon = await cashReconciliation(z.id, db);
   assert.equal(recon.expenses, 300);
-  assert.equal(recon.diff, 50000 - 0 - 300);
+  assert.equal(recon.hasDeposit, false);
+  assert.equal(recon.diff, 0 - (50000 - 300));
 
   // a negative amount on a non-empty row is rejected
   await assert.rejects(() => replaceExpenses(z.id, [{ payerName: 'שלילי', amount: -5 }], ow, db), /לא-שלילי/);
