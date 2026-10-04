@@ -45,6 +45,8 @@ test('deposit: bags | total on the last bag row, then add button | gap', () => {
   const css = fs.readFileSync(path.join(process.cwd(), 'src/public/nocturne.css'), 'utf8');
   assert.match(css, /\.zdep-layout > \.zdep-total \{[^}]*align-self: end/, 'the total sits on the last bag row as bags are added');
   assert.match(css, /\.zpanel-body \{[^}]*max-height: \d+px; overflow-y: auto/, 'both rubrics share one max height');
+  assert.match(view, /<p class="muted zdep-intro"/);
+  assert.match(css, /\.zdep-intro \{ max-width: calc\(\(100% - var\(--space-4\)\) \/ 2\); \}/, 'the explanation stays within the right column');
 });
 
 test('entry moved into a dialog, and the rubric shows a summary in the credit table\'s shape', () => {

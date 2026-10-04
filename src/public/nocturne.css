@@ -1073,6 +1073,8 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
    מיושרים לתחתית, כך שקית נוספת מוסיפה שורה והסה"כ נשאר בשורה התחתונה. */
 .zdep-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-2) var(--space-4); align-items: start; }
 .zdep-layout > * { min-width: 0; }
+/* ההסבר שמעל השקיות נשאר בגבולות העמודה הימנית, כמו השקיות עצמן (בקשת הבעלים). */
+.zdep-intro { max-width: calc((100% - var(--space-4)) / 2); }
 .zdep-layout > .zdep-total { align-self: end; margin-bottom: var(--space-2); }   /* בשורת השקית האחרונה */
 .dep-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: var(--space-2); margin-bottom: var(--space-2); }
 .dep-field { min-width: 0; }
@@ -1082,6 +1084,7 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
 
 @media (max-width: 760px) {
   .zdrawer, .zdep-layout { grid-template-columns: minmax(0, 1fr); }   /* אחד מתחת לשני בנייד */
+  .zdep-intro { max-width: none; }
   .zdrawer-gap { display: none; }
   .dep-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .dep-actions { grid-column: 1 / -1; flex-direction: row; align-items: center; }
