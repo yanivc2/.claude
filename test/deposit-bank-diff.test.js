@@ -76,3 +76,21 @@ test('דוחות Z: every rubric starts collapsed, with a versioned state key', 
   const footer = await import('node:fs').then((fs) => fs.readFileSync('src/views/partials/footer.ejs', 'utf8'));
   assert.match(footer, /var pageKey = 'apCollapse:' \+ location\.pathname \+ \(_cdv \? ':' \+ _cdv : ''\);/);
 });
+
+test('דוחות Z: totals for "רשומות Z אחרונות" (signed gap) and "הפקדה שהוצהרה ולא הופקדה" (amount)', async () => {
+  const { createZReport } = await import('../src/services/zreports.js');
+  const { createDeposit: mk } = await import('../src/services/deposits.js');
+  const z1 = await createZReport({ storeId: 3, zNumber: '8101', zDate: '2026-09-20', dailyTotal: 100000, drawerCash: 100000 }, o, db);
+  const z2 = await createZReport({ storeId: 3, zNumber: '8102', zDate: '2026-09-21', dailyTotal: 100000, drawerCash: 100000 }, o, db);
+  await mk({ storeId: 3, zReportId: z1.id, depositDate: '2026-09-20', bagNumber: '81011', amount: 96960 }, o, db); // חוסר 30.40
+  await mk({ storeId: 3, zReportId: z2.id, depositDate: '2026-09-21', bagNumber: '81021', amount: 101290 }, o, db); // יתרה 12.90
+  const html = await (await fetch(`${base}/reports/zreports`, { headers: { cookie: `session=${createSession(o.id)}; ap_store=3` } })).text();
+  const zFoot = html.slice(html.indexOf('דוחות עם הפקדה') - 200, html.indexOf('דוחות עם הפקדה') + 400);
+  assert.match(zFoot, /חוסר ₪17\.50/, '−30.40 + 12.90 = −17.50');
+  const nd = html.slice(html.indexOf('הפקדה שהוצהרה ולא הופקדה'));
+  const foot = nd.slice(nd.indexOf('<tfoot>'), nd.indexOf('</tfoot>'));
+  const rows = [...nd.slice(0, nd.indexOf('<tfoot>')).matchAll(/<td class="right">₪([\d,]+\.\d\d)<\/td>/g)].map((m) => Number(m[1].replace(/,/g, '')));
+  const sum = rows.reduce((a, b) => a + b, 0);
+  assert.ok(rows.length >= 2);
+  assert.match(foot, new RegExp(`₪${sum.toLocaleString('en-US', { minimumFractionDigits: 2 }).replace(/\./g, '\\.')}`), 'amount total of the not-deposited bags');
+});

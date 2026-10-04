@@ -132,6 +132,19 @@
         </tr>
       <% }); %>
     </tbody>
+    <%# סה"כ "חוסר / יתרה" — רק דוחות עם הפקדה ("—" לא נספר כאפס). ב-tfoot ולא ב-tbody: משפרי
+        הטבלה ממיינים ומסננים את שורות ה-tbody. %>
+    <% var _zdN = 0, _zdSum = 0; zReports.forEach(function(z){ if (z.hasDeposit) { _zdN += 1; _zdSum += Number(z.depDiff) || 0; } }); %>
+    <tfoot><tr>
+      <th colspan="8">סה"כ <span class="muted" style="font-weight:400">(<%= _zdN %> דוחות עם הפקדה)</span></th>
+      <th class="right">
+        <% if (!_zdN) { %><span class="muted">—</span>
+        <% } else if (_zdSum === 0) { %><span style="color:var(--color-ok)">תואם</span>
+        <% } else if (_zdSum > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(_zdSum) %></strong>
+        <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-_zdSum) %></strong><% } %>
+      </th>
+      <th class="no-print"></th>
+    </tr></tfoot>
   </table>
   </div>
 </div>
@@ -196,6 +209,11 @@
             </tr>
           <% }); %>
         </tbody>
+        <tfoot><tr>
+          <th colspan="4">סה"כ <span class="muted" style="font-weight:400">(<%= notDeposited.length %> שקיות)</span></th>
+          <th class="right"><%= formatIls(notDeposited.reduce(function(n, d){ return n + (Number(d.amount) || 0); }, 0)) %></th>
+          <th class="no-print"></th>
+        </tr></tfoot>
       </table>
     </div>
   <% } %>
