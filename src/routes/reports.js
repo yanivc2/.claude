@@ -190,6 +190,7 @@ async function renderZReport(req, res, id, extra = {}) {
     closing,
     closerBreakdown,
     managerBreakdown,
+    openBills: false,
     error: null,
     notice: null,
     ...extra,
@@ -703,9 +704,10 @@ router.post('/zreports/:id/verify-bills', async (req, res, next) => {
       if (count > 0 || ok) data[d.key] = { count, ok };
     }
     await setManagerBreakdown(id, data, req.user);
-    await renderZReport(req, res, id, { notice: 'ספירת השטרות נשמרה.' });
+    // PRG, וחזרה לרובריקה פתוחה — היא מצומצמת כברירת מחדל, ובלי ?open=bills השמירה "נעלמת".
+    return res.redirect(303, `/reports/zreports/${id}?open=bills&notice=${encodeURIComponent('ספירת השטרות נשמרה.')}#bill-check`);
   } catch (err) {
-    if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
+    if (err instanceof RuleError) return res.redirect(303, `/reports/zreports/${id}?open=bills&err=${encodeURIComponent(err.message)}#bill-check`);
     next(err);
   }
 });
@@ -725,6 +727,7 @@ router.get('/zreports/:id', async (req, res, next) => {
     await renderZReport(req, res, Number(req.params.id), {
       ...(req.query.notice ? { notice: String(req.query.notice).slice(0, 200) } : {}),
       ...(req.query.err ? { error: String(req.query.err).slice(0, 300) } : {}),
+      openBills: req.query.open === 'bills',
     });
   } catch (err) {
     next(err);

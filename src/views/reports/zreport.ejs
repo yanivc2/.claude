@@ -14,13 +14,10 @@
   </p>
 </div>
 
-<div class="card no-print">
-  <h2>עריכת דוח</h2>
-  <%- include('_zform', { action: '/reports/zreports/' + zr.id, submitLabel: 'שמור שינויים', storeOptions: storeOptions, invoiceOptions: invoiceOptions, ccBrands: ccBrands, zr: zr, dep: dep, expenses: expenses }) %>
-</div>
-
-<div class="card no-print">
-  <div class="toolbar"><h2 style="margin:0">בדיקת שטרות מול סגירת Z</h2></div>
+<%# בדיקת שטרות — מעל עריכת הדוח, מצומצמת כברירת מחדל (בקשת הבעלים). <details> ולא .card עם h2:
+    האקורדיון הגלובלי של footer.ejs מדלג על <details>, כך שהמצב הוא של הדפדפן ותמיד מתחיל סגור. %>
+<details class="card collapse no-print" id="bill-check"<%= openBills ? ' open' : '' %>>
+  <summary><span class="caret">▸</span> <strong>בדיקת שטרות מול סגירת Z</strong><% if (!closing) { %> <span class="muted">(אין סגירה תואמת)</span><% } %></summary>
   <% if (!closing) { %>
     <p class="muted">לא נמצאה סגירת Z תואמת (אותה חנות + אותו מספר Z). כשתיווצר סגירה מתאימה — הספירה תופיע כאן להשוואה.</p>
   <% } else { %>
@@ -77,6 +74,11 @@
     })();
     </script>
   <% } %>
+</details>
+
+<div class="card no-print">
+  <h2>עריכת דוח</h2>
+  <%- include('_zform', { action: '/reports/zreports/' + zr.id, submitLabel: 'שמור שינויים', storeOptions: storeOptions, invoiceOptions: invoiceOptions, ccBrands: ccBrands, zr: zr, dep: dep, expenses: expenses }) %>
 </div>
 
 <div class="card no-print">

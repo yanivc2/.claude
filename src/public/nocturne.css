@@ -675,9 +675,6 @@ button:disabled, .btn:disabled { opacity: .45; cursor: not-allowed; }
 .row > div { flex: 1; min-width: 160px; }
 /* Deposit-declaration row: מספר שקית + סכום הפקדה share the right half, חוסר/יתרה takes the
    left half (aligns under 'סה"כ הוצאות במזומן'). Grid never overflows the page; stacks on phones. */
-.zdep-grid { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: var(--space-4); }
-.zdep-grid > div { min-width: 0; }
-@media (max-width: 640px) { .zdep-grid { grid-template-columns: 1fr; } }
 /* Wide tables scroll horizontally INSIDE their card (the page itself never scrolls sideways). */
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 .table-scroll > table { margin: 0; }
@@ -1053,40 +1050,41 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
 .zform-save .muted { font-size: 12px; }
 @media print { .zform-save { position: static; } }
 
-/* ── טופס ה-Z: שתי רובריקות זו לצד זו (views/reports/_zform.ejs) ───────────────────────────────
-   הוצאות במזומן מימין, הכנסות מאשראי משמאל. כל רובריקה היא <details> — הכותרת כולה היא הכפתור
-   (שטח לחיצה גדול, נגיש במקלדת), ולא אייקון עגול קטן לצדה. */
-.zpanels { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: var(--space-3); margin: 1.1rem 0 .4rem; }
-.zpanel { border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-2); }
-.zpanel > summary {
-  display: flex; align-items: center; gap: var(--space-2);
-  padding: var(--space-3); cursor: pointer; list-style: none; font-weight: 600;
-  border-radius: var(--radius-md);
-}
-.zpanel > summary::-webkit-details-marker { display: none; }
-.zpanel > summary::after { content: '▾'; margin-inline-start: auto; color: var(--color-muted); transition: transform .15s; }
-.zpanel[open] > summary::after { transform: rotate(180deg); }
-.zpanel > summary:hover { background: var(--color-surface-3, var(--color-surface)); }
-.zpanel > summary:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+/* ── טופס ה-Z: דוח מגירה (views/reports/_zform.ejs) ────────────────────────────────────────────
+   רשת של שתי עמודות; ב-RTL הילד הראשון בכל זוג הוא הימני. בשורה הראשונה שתי הרובריקות —
+   הכנסות מאשראי (ימין) והוצאות במזומן (שמאל) — **תמיד פתוחות**, באותו גובה מרבי, וגלילה פנימית
+   כשיש יותר שורות. אחריהן השדות בזוגות. */
+.zdrawer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-3) var(--space-4); align-items: start; margin: .4rem 0 .4rem; }
+.zdrawer > div { min-width: 0; }
+.zdrawer > .zpanel { align-self: stretch; }
+.zpanel { border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-2); display: flex; flex-direction: column; min-width: 0; }
+.zpanel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding: var(--space-3); font-weight: 600; }
 .zpanel-title { font-size: 14px; }
 .zpanel-sum { font-variant-numeric: tabular-nums; color: var(--color-muted); font-size: 13px; }
-.zpanel-body { padding: 0 var(--space-3) var(--space-3); }
+.zpanel-body { padding: 0 var(--space-3) var(--space-3); max-height: 330px; overflow-y: auto; }
 .zsum-table { width: 100%; }
 .zsum-table td, .zsum-table th { padding: 4px 6px; font-size: 13px; }
+.zsum-table input { min-height: 0; padding: 6px 8px; }
 
 /* חלון הזנת ההוצאות — רחב, כי שורת ההזנה נושאת שישה פקדים. */
 .cx-dialog { width: min(920px, 94vw); }
 
-/* שורת שקית הפקדה — הפקדה אחת מתפצלת לפעמים לכמה שקיות. */
-.dep-row { display: flex; align-items: flex-end; gap: var(--space-3); margin-bottom: var(--space-2); flex-wrap: wrap; }
-.dep-field { flex: 1 1 180px; min-width: 140px; }
-.dep-check { display: flex; align-items: center; gap: 6px; white-space: nowrap; padding-bottom: 8px; }
+/* הצהרה על הפקדה: השקיות בעמודה הימנית (רוחב עמודת המגירה), הסה"כ וחוסר/יתרה בשמאלית —
+   מיושרים לתחתית, כך שקית נוספת מוסיפה שורה והסה"כ נשאר בשורה התחתונה. */
+.zdep-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--space-2) var(--space-4); align-items: start; }
+.zdep-layout > * { min-width: 0; }
+.zdep-layout > .zdep-total { align-self: end; margin-bottom: var(--space-2); }   /* בשורת השקית האחרונה */
+.dep-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; gap: var(--space-2); margin-bottom: var(--space-2); }
+.dep-field { min-width: 0; }
+.dep-actions { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+.dep-check { display: flex; align-items: center; gap: 6px; white-space: nowrap; font-size: 13px; }
 .dep-check input { width: auto; min-height: 0; }
 
 @media (max-width: 760px) {
-  .zpanels { grid-template-columns: 1fr; }   /* אחת מתחת לשנייה בנייד */
-  .dep-row { flex-direction: column; align-items: stretch; }
-  .dep-row .dep-del { align-self: flex-start; }
+  .zdrawer, .zdep-layout { grid-template-columns: minmax(0, 1fr); }   /* אחד מתחת לשני בנייד */
+  .zdrawer-gap { display: none; }
+  .dep-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .dep-actions { grid-column: 1 / -1; flex-direction: row; align-items: center; }
 }
 
 /* "מעוקבת לתשלום" — חשבונית שמחכה לטיפול של הספק. כתום, כדי שלא יתבלבל עם האדום של R3/מוחזקת
