@@ -32,11 +32,12 @@ import { depositStatus } from './services/deposits.js';
 import { requiresAllocationNumber, zeroVatNeedsCheck } from './services/invoices.js';
 import { actionUrlFallback } from './middleware/actionUrlFallback.js';
 import { israelStamp } from './lib/loginHours.js';
+import { employeeFullName, matchEmployeeName } from './lib/employeeName.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-10-04·199';
+const BUILD_VERSION = '2026-10-04·200';
 
 export function createApp() {
   const app = express();
@@ -106,6 +107,8 @@ export function createApp() {
     // חותמת שמירה בשעון ישראל. `created_at`/`imported_at` נשמרים ב-UTC בשני הניבים, ולכן
     // הצגתם כמות שהם מזיזה כל שעת פעולה ב-2-3 שעות אחורה. ראה lib/loginHours.js.
     res.locals.israelStamp = israelStamp;
+    res.locals.employeeFullName = employeeFullName;
+    res.locals.matchEmployeeName = matchEmployeeName;
     // 'YYYY-MM-DD HH:MM:SS' (or ISO) -> 'DD/MM/YY HH:MM'. Leaves non-timestamps untouched.
     // 🔴 לא לשדות `created_at`/`updated_at` — הם ב-UTC; שם `israelStamp` (נצפה: דף ההתראות הציג 13:41
     // על אירוע של 16:41). formatDateTime רק מעצב, לא ממיר.

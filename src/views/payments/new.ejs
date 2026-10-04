@@ -8,12 +8,12 @@
   function payerField(sel){
     var emps = (typeof employeeOptions !== 'undefined' && employeeOptions) ? employeeOptions : [];
     if (!emps.length) return '<input name="payer_name" value="' + payerEsc(sel) + '" autocomplete="off">';
-    var found = false;
+    var pick = matchEmployeeName(emps, sel);
+    var found = !!pick;
     var h = '<select name="payer_name" class="js-combo"><option value="">— בחר עובד —</option>';
     emps.forEach(function(emp){
-      var full = emp.first_name + ' ' + emp.last_name;
-      if (full === sel) found = true;
-      h += '<option value="' + payerEsc(full) + '"' + (full === sel ? ' selected' : '') + '>' + payerEsc(full) + '</option>';
+      var full = employeeFullName(emp);
+      h += '<option value="' + payerEsc(full) + '"' + (full === pick ? ' selected' : '') + '>' + payerEsc(full) + '</option>';
     });
     if (sel && !found) h += '<option value="' + payerEsc(sel) + '" selected>' + payerEsc(sel) + ' (לא ברשימת העובדים)</option>';
     return h + '</select>';

@@ -34,11 +34,12 @@
   // name that is no longer an employee is re-added as an option so an old row never loses it.
   function cxPayerOptsFor(sel, extra){
     var h = '<option value="">— בחר עובד —</option>';
-    var found = false;
-    (typeof employeeOptions !== 'undefined' ? employeeOptions : []).forEach(function(emp){
-      var full = emp.first_name + ' ' + emp.last_name;
-      if (full === sel) found = true;
-      h += '<option value="' + cxEsc(full) + '" data-emp="' + emp.id + '"' + (full === sel ? ' selected' : '') + '>' + cxEsc(full) + '</option>';
+    var emps = typeof employeeOptions !== 'undefined' ? employeeOptions : [];
+    var pick = matchEmployeeName(emps, sel);
+    var found = !!pick;
+    emps.forEach(function(emp){
+      var full = employeeFullName(emp);
+      h += '<option value="' + cxEsc(full) + '" data-emp="' + emp.id + '"' + (full === pick ? ' selected' : '') + '>' + cxEsc(full) + '</option>';
     });
     if (extra && sel && !found) h += '<option value="' + cxEsc(sel) + '" selected>' + cxEsc(sel) + ' (לא ברשימת העובדים)</option>';
     return h;

@@ -42,14 +42,15 @@
     <div class="pe-row" data-m="cash"><label>שולם ע"י</label>
       <% var pEmps = (typeof employeeOptions !== 'undefined' && employeeOptions) ? employeeOptions : [];
          var pSel = payment.payer_name || '';
-         var pFound = pEmps.some(function(e){ return e.first_name + ' ' + e.last_name === pSel; }); %>
+         var pPick = matchEmployeeName(pEmps, pSel);
+         var pFound = !!pPick; %>
       <% if (!pEmps.length) { %>
         <input name="payer_name" value="<%= pSel %>" />
       <% } else { %>
         <select name="payer_name" class="js-combo">
           <option value="">— בחר עובד —</option>
-          <% pEmps.forEach(function(emp){ var full = emp.first_name + ' ' + emp.last_name; %>
-            <option value="<%= full %>" <%= full === pSel ? 'selected' : '' %>><%= full %></option>
+          <% pEmps.forEach(function(emp){ var full = employeeFullName(emp); %>
+            <option value="<%= full %>" <%= full === pPick ? 'selected' : '' %>><%= full %></option>
           <% }); %>
           <% if (pSel && !pFound) { %><option value="<%= pSel %>" selected><%= pSel %> (לא ברשימת העובדים)</option><% } %>
         </select>
