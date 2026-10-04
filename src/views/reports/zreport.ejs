@@ -9,8 +9,8 @@
 
 <div class="card">
   <p class="muted" style="margin:0">
-    נוצר: <strong><%= formatDateTime(zr.created_at) %></strong>
-    <% if (zr.updated_at) { %> · עודכן לאחרונה: <strong><%= formatDateTime(zr.updated_at) %></strong><% } else { %> · טרם נערך<% } %>
+    נוצר: <strong><%= israelStamp(zr.created_at) || formatDateTime(zr.created_at) %></strong>
+    <% if (zr.updated_at) { %> · עודכן לאחרונה: <strong><%= israelStamp(zr.updated_at) || formatDateTime(zr.updated_at) %></strong><% } else { %> · טרם נערך<% } %>
   </p>
 </div>
 

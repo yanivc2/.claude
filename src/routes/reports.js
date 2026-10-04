@@ -29,6 +29,8 @@ import { parseRevenueReport } from '../lib/revenueReportFile.js';
 import { importRevenueRows, listRevenue } from '../services/revenueReports.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
+import { getSetting, setSetting } from '../services/appSettings.js';
+import { createHash } from 'node:crypto';
 import { requirePageAccess, requirePermission } from '../middleware/requireOwner.js';
 import { RuleError, AuthError, NotFoundError } from '../lib/errors.js';
 import { scopeParam, assertInScope, assertStoreAllowed } from '../lib/scopeGuard.js';
@@ -118,6 +120,26 @@ async function invoicePickOptions(scope) {
 }
 
 // Fire a Telegram alert if a Z report is unmatched after a save. Best-effort — never throws.
+/**
+ * 🔴 התראה על דוח Z — **פעם אחת לכל תוכן**. נצפה: 4 התראות על אותו דוח בדקה — כל שמירה שלחה שתיים
+ * ("עודכן" + "פער מזומן"), והדוח נשמר פעמיים (שמירה חוזרת / רענון של דף שנשאר על כתובת ה-POST).
+ * אותה הודעה בדיוק על אותו דוח בתוך 10 דקות — מדולגת. הודעה שהשתנתה (פער אחר) — נשלחת.
+ */
+const Z_ALERT_DEDUPE_SEC = 600;
+async function notifyZOnce(zId, html) {
+  try {
+    const key = `z_alert_last:${zId}`;
+    const hash = createHash('sha256').update(html).digest('hex').slice(0, 16);
+    let prev = null;
+    try { prev = JSON.parse((await getSetting(key, null)) || 'null'); } catch { prev = null; }
+    if (prev && prev.hash === hash && Date.now() - Number(prev.at || 0) < Z_ALERT_DEDUPE_SEC * 1000) return false;
+    await setSetting(key, JSON.stringify({ hash, at: Date.now() }));
+  } catch { /* dedupe הוא best-effort — עדיף התראה כפולה על התראה שאבדה */ }
+  await notify(html);
+  return true;
+}
+
+
 async function alertIfUnmatched(req, id) {
   try {
     const st = await zReconciliationStatus(id);
@@ -291,7 +313,11 @@ async function renderZReports(req, res, extra = {}) {
 
 router.get('/zreports', requirePageAccess('nav_zreports'), async (req, res, next) => {
   try {
-    await renderZReports(req, res);
+    // ההודעה של PRG (אחרי הוספת דוח) חוזרת דרך ה-query.
+    await renderZReports(req, res, {
+      ...(req.query.notice ? { notice: String(req.query.notice).slice(0, 200) } : {}),
+      ...(req.query.err ? { error: String(req.query.err).slice(0, 300) } : {}),
+    });
   } catch (err) {
     next(err);
   }
@@ -604,10 +630,11 @@ router.post('/zreports', async (req, res, next) => {
       const cr = await cashReconciliation(created.id);
       if (cr.diff !== 0) {
         const label = cr.diff < 0 ? 'חוסר' : 'יתרה';
-        notify(`⚠️ <b>פער מזומן ב-Z ${b.z_number}</b>\n${label} ע"ס ${ils(Math.abs(cr.diff))}\nמזומן מגירה ${ils(cr.cash)} = הפקדה ${ils(cr.deposit)} + הוצאות ${ils(cr.expenses)}\n${zUrl(req, created.id)}`);
+        await notifyZOnce(created.id, `⚠️ <b>פער מזומן ב-Z ${b.z_number}</b>\n${label} ע"ס ${ils(Math.abs(cr.diff))}\nמזומן מגירה ${ils(cr.cash)} = הפקדה ${ils(cr.deposit)} + הוצאות ${ils(cr.expenses)}\n${zUrl(req, created.id)}`);
       }
     } catch { /* best-effort */ }
-    await renderZReports(req, res, { notice: 'דוח Z נוסף.' });
+    // PRG: רענון לא יוסיף את הדוח (ואת ההתראות) פעם שנייה.
+    return res.redirect(303, `/reports/zreports?notice=${encodeURIComponent('דוח Z נוסף.')}`);
   } catch (err) {
     if (err instanceof RuleError) return renderZReports(req, res, { error: err.message });
     next(err);
@@ -626,6 +653,9 @@ router.post('/zreports/:id', async (req, res, next) => {
     const { amounts: ccAmounts, total: ccTotal } = parseCc(b);
     const drawerCredit = toAgorot(b.drawer_credit);
     if (ccTotal !== drawerCredit) throw new RuleError('VALIDATION', 'אין התאמה בהכנסות מאשראי');
+    // הפער **לפני** השמירה — כדי שההתראה תגיד אם הוא נפתח, השתנה, או נסגר.
+    let crBefore = null;
+    try { crBefore = await cashReconciliation(id); } catch { crBefore = null; }
     await updateZReport(
       id,
       {
@@ -644,16 +674,21 @@ router.post('/zreports/:id', async (req, res, next) => {
     await setCreditCards(id, { amounts: ccAmounts }, req.user);
     await replaceExpenses(id, parseExpenseRows(b), req.user);
     await replaceDepositsForZ(id, parseDepositRows(b), { storeId, depositDate: b.z_date }, req.user);
-    // Push on edit (§ owner request), plus the cash-gap alert if one opened up.
-    notify(`✏️ <b>עודכן דוח Z ${b.z_number}</b>\n${zUrl(req, id)}`);
+    // התראה **אחת** לכל שמירה (§ בקשת הבעלים — עדכון דוח), עם מצב הפער בתוכה, במקום שתיים נפרדות.
+    let gapLine = '';
     try {
       const cr = await cashReconciliation(id);
+      const label = (d) => (d < 0 ? 'חוסר' : 'יתרה');
       if (cr.diff !== 0) {
-        const label = cr.diff < 0 ? 'חוסר' : 'יתרה';
-        notify(`⚠️ <b>פער מזומן ב-Z ${b.z_number}</b>\n${label} ע"ס ${ils(Math.abs(cr.diff))}\n${zUrl(req, id)}`);
+        const changed = !crBefore || crBefore.diff !== cr.diff;
+        gapLine = `\n⚠️ פער מזומן: ${label(cr.diff)} ע"ס ${ils(Math.abs(cr.diff))}${changed ? '' : ' (ללא שינוי)'}`;
+      } else if (crBefore && crBefore.diff !== 0) {
+        gapLine = '\n✅ פער המזומן נסגר';
       }
     } catch { /* best-effort */ }
-    await renderZReport(req, res, id, { notice: 'הדוח עודכן.' });
+    await notifyZOnce(id, `✏️ <b>עודכן דוח Z ${b.z_number}</b>${gapLine}\n${zUrl(req, id)}`);
+    // PRG: רענון אחרי שמירה לא ישמור (וישלח התראה) פעם נוספת.
+    return res.redirect(303, `/reports/zreports/${id}?notice=${encodeURIComponent('הדוח עודכן.')}`);
   } catch (err) {
     if (err instanceof RuleError) return renderZReport(req, res, id, { error: err.message });
     next(err);
@@ -691,7 +726,10 @@ router.post('/zreports/:id/delete', requirePermission('delete_zreport'), async (
 // Z report detail.
 router.get('/zreports/:id', async (req, res, next) => {
   try {
-    await renderZReport(req, res, Number(req.params.id));
+    await renderZReport(req, res, Number(req.params.id), {
+      ...(req.query.notice ? { notice: String(req.query.notice).slice(0, 200) } : {}),
+      ...(req.query.err ? { error: String(req.query.err).slice(0, 300) } : {}),
+    });
   } catch (err) {
     next(err);
   }

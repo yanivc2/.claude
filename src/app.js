@@ -36,7 +36,7 @@ import { israelStamp } from './lib/loginHours.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-10-04·198';
+const BUILD_VERSION = '2026-10-04·199';
 
 export function createApp() {
   const app = express();
@@ -107,6 +107,8 @@ export function createApp() {
     // הצגתם כמות שהם מזיזה כל שעת פעולה ב-2-3 שעות אחורה. ראה lib/loginHours.js.
     res.locals.israelStamp = israelStamp;
     // 'YYYY-MM-DD HH:MM:SS' (or ISO) -> 'DD/MM/YY HH:MM'. Leaves non-timestamps untouched.
+    // 🔴 לא לשדות `created_at`/`updated_at` — הם ב-UTC; שם `israelStamp` (נצפה: דף ההתראות הציג 13:41
+    // על אירוע של 16:41). formatDateTime רק מעצב, לא ממיר.
     res.locals.formatDateTime = (d) => {
       if (!d) return '';
       const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(String(d));

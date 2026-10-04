@@ -30,7 +30,7 @@ function chip(status){
             var c = chip(d.status);
           %>
           <tr>
-            <td><%= formatDateTime(d.created_at) %></td>
+            <td><%= israelStamp(d.created_at) || formatDateTime(d.created_at) %></td>
             <td><%= d.store_name %></td>
             <td><%= d.created_by_name || '—' %></td>
             <td><%= hd.supplierName || '—' %></td>
