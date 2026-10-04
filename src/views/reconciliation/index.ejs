@@ -413,6 +413,19 @@
     <button type="submit" class="btn-sm danger">🗑️ מחק נבחרות</button>
     <span class="muted" style="font-size:12px">סמן שורות (או את הכותרת לבחירת הכל) — שורה שכבר הותאמה לצ׳ק תדולג.</span>
   </form>
+  <%# שורות שלא הוסברו עד "תאריך תחילת העבודה" מוסתרות גם כאן (services/bankTransactions.js
+      #listTransactions → hidden_before_start). נפרע / שכר / הפקדה — תמיד מוצגים. %>
+  <% var _allTx = transactions; var _hidTx = _allTx.filter(function(t){ return t.hidden_before_start; }).length;
+     if (_hidTx && !(typeof showAllTxns !== 'undefined' && showAllTxns)) transactions = _allTx.filter(function(t){ return !t.hidden_before_start; }); %>
+  <% if (_hidTx) { %>
+    <p class="muted no-print" style="margin:0 0 .4rem">
+      <% if (typeof showAllTxns !== 'undefined' && showAllTxns) { %>
+        מוצגות גם <%= _hidTx %> שורות מלפני תחילת העבודה. <a href="/reconciliation?account=<%= accountId %>">הסתר אותן</a>
+      <% } else { %>
+        הוסתרו <%= _hidTx %> שורות שלא הוסברו עד <%= formatDate(hiddenUntil) %> (לפני תחילת העבודה). <a href="/reconciliation?account=<%= accountId %>&all=1">הצג אותן</a>
+      <% } %>
+    </p>
+  <% } %>
   <table class="sortable filterable">
     <thead><tr><th data-nosort data-nofilter class="no-print"><input type="checkbox" id="txn-all" style="width:auto;min-height:0" title="בחר הכל" /></th><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th><th>סטטוס</th><th data-nosort data-nofilter class="no-print">פעולות</th></tr></thead>
     <tbody>
@@ -441,6 +454,8 @@
               <span class="badge b-cleared">נפרע · <%= methodLabel(t.matched_method) %> <span class="mono"><%= t.matched_check_number %></span></span>
             <% } else if (t.salary_match) { %>
               <span class="badge b-cleared">נפרע · צ׳ק שכר <span class="mono"><%= t.salary_match.reference %></span> · <%= t.salary_match.name %></span>
+            <% } else if (t.deposit_match) { %>
+              <span class="badge b-cleared" title="זיכוי שקית הפקדה או תיקון שלה בבנק">הפקדה · שקית <span class="mono"><%= t.deposit_match.bag %></span></span>
             <% } else if (t.amount < 0) { %>
               <span class="badge b-issued">ממתין להתאמה</span>
             <% } else { %>

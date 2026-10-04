@@ -445,15 +445,33 @@ export async function setUnmatchedHiddenUntil(date, actor, x = getExecutor()) {
   return v || null;
 }
 
+/**
+ * אסמכתאות של הפקדות שכבר אותרו בבנק בחשבון הזה → מספר השקית. שורה באותה אסמכתה היא הזיכוי של
+ * השקית **או תיקון שלה** (הבנק מבטל ומזכה מחדש באותה אסמכתה — services/deposits.js
+ * #depositVerifications). חיוב-הביטוי של תיקון כזה הוצג כ"ממתין להתאמה" בין הצ׳קים, כאילו כסף
+ * יצא בלי הסבר.
+ */
+export async function depositRefsForAccount(bankAccountId, x = getExecutor()) {
+  const out = new Map();
+  const acc = await x.one('SELECT store_id FROM bank_accounts WHERE id = ?', [bankAccountId]);
+  if (!acc) return out;
+  const { bagReferences } = await import('./deposits.js');
+  const deps = await x.many('SELECT bag_number FROM deposits WHERE store_id = ? AND matched_txn_id IS NOT NULL', [acc.store_id]);
+  for (const d of deps) for (const r of bagReferences(d.bag_number)) out.set(r, d.bag_number);
+  return out;
+}
+const txnRef = (t) => plainNumber(String(t.raw_reference ?? '').trim());
+
 async function unmatchedAll(bankAccountId, x) {
   const { salaryLinkedTxnIds } = await import('./salaryPayments.js');
   const salaryTaken = await salaryLinkedTxnIds(x); // צ׳ק שכר שנפרע — מוסבר, לא "ממתין"
+  const depRefs = await depositRefsForAccount(bankAccountId, x); // תיקון הפקדה — מוסבר
   return (await x.many(
     `SELECT * FROM bank_transactions
       WHERE bank_account_id = ? AND matched_payment_id IS NULL AND amount < 0
       ORDER BY txn_date`,
     [bankAccountId],
-  )).filter((t) => !salaryTaken.has(Number(t.id)));
+  )).filter((t) => !salaryTaken.has(Number(t.id)) && !depRefs.has(txnRef(t)));
 }
 
 /** חיובים לא מותאמים — בלי אלה שעד "תאריך תחילת העבודה" (ראה unmatchedHiddenUntil). */
@@ -494,6 +512,20 @@ export async function listTransactions(bankAccountId, x = getExecutor()) {
     for (const r of rows) {
       const s = byTxn.get(Number(r.id));
       if (s) r.salary_match = { name: `${s.first_name || ''} ${s.last_name || ''}`.trim(), reference: s.reference };
+    }
+  }
+  // הפקדה שאותרה (זיכוי השקית ושורות התיקון שלה) — "הפקדה · שקית" ולא "ממתין להתאמה"/"זכות".
+  const depRefs = rows.length ? await depositRefsForAccount(bankAccountId, x) : new Map();
+  for (const r of rows) {
+    const bag = depRefs.get(txnRef(r));
+    if (bag && !r.matched_payment_id && !r.salary_match) r.deposit_match = { bag };
+  }
+  // "תאריך תחילת עבודה": שורה שלא הוסברה (לא צ׳ק/תשלום, לא שכר, לא הפקדה) עד התאריך מסומנת
+  // `hidden_before_start` — התצוגה מסתירה אותה; היא אינה נמחקת (ראה unmatchedHiddenUntil).
+  const until = rows.length ? await unmatchedHiddenUntil(x) : null;
+  if (until) {
+    for (const r of rows) {
+      if (!r.matched_payment_id && !r.salary_match && !r.deposit_match && String(r.txn_date).slice(0, 10) <= until) r.hidden_before_start = true;
     }
   }
   return rows;

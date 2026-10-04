@@ -128,6 +128,7 @@ async function renderPage(req, res, accountId, extra = {}) {
     classified,
     hiddenUntil,
     hiddenCount,
+    showAllTxns: req.query.all === '1',
     transactions: accountId ? await listTransactions(accountId) : [],
     // חשבוניות פתוחות של החנות שמאחורי החשבון הזה — המועמדות לשיוך של חיוב שאין לו צ׳ק.
     // נשלחות פעם אחת עם הדף ומשרתות דיאלוג אחד משותף לכל השורות (ולא דיאלוג לכל שורה).

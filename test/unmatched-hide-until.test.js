@@ -66,3 +66,31 @@ test('only the owner may set it', async () => {
   assert.notEqual(r.status, 303);
   assert.equal(await (await import('../src/services/bankTransactions.js')).unmatchedHiddenUntil(db), '2026-09-30');
 });
+
+test('"כל התנועות בחשבון": unexplained rows up to the date are hidden; cleared and deposit rows stay', async () => {
+  const { createDeposit } = await import('../src/services/deposits.js');
+  const { reconcileDeposits } = await import('../src/services/reconciliation.js');
+  const { listTransactions } = await import('../src/services/bankTransactions.js');
+  await createDeposit({ storeId: 1, depositDate: '2026-09-18', bagNumber: '216457968', amount: 100000 }, o, db);
+  await txn('2026-09-19', 100000, '216457968');   // the bag's credit
+  await txn('2026-09-22', -100000, '216457968');  // bank correction: reversal…
+  await txn('2026-09-22', 99000, '216457968');    // …and re-credit
+  await txn('2026-09-15', 5000, '555');           // an unexplained credit before the start
+  await reconcileDeposits(acc.id, o, db);
+  const rows = await listTransactions(acc.id, db);
+  const by = (ref) => rows.filter((r) => r.raw_reference === ref);
+  assert.ok(by('216457968').every((r) => r.deposit_match && !r.hidden_before_start), 'deposit lines are explained, never hidden');
+  assert.ok(by('27829')[0].matched_payment_id && !by('27829')[0].hidden_before_start, 'a cleared check stays');
+  assert.equal(by('27356')[0].hidden_before_start, true);
+  assert.equal(by('555')[0].hidden_before_start, true, 'credits too ("כל השורות שלא נפרעו")');
+  assert.ok(!by('27900')[0].hidden_before_start, 'after the date — shown');
+  // the deposit reversal is not an "unmatched debit" even after the date filter is cleared
+  await setUnmatchedHiddenUntil('', o, db);
+  assert.ok(!(await listUnmatched(acc.id, db)).some((t) => t.raw_reference === '216457968'));
+  await setUnmatchedHiddenUntil('2026-09-30', o, db);
+  const html = await (await fetch(`${base}/reconciliation?account=${acc.id}`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
+  assert.match(html, /הוסתרו 2 שורות שלא הוסברו עד 30\/09\/26/);
+  assert.match(html, /הפקדה · שקית <span class="mono">216457968/);
+  const all = await (await fetch(`${base}/reconciliation?account=${acc.id}&all=1`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
+  assert.match(all, /מוצגות גם 2 שורות מלפני תחילת העבודה/);
+});
