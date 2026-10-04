@@ -1,0 +1,81 @@
+<%- include('../partials/header') %>
+<div class="toolbar">
+  <h1>🔍 בדיקת שיוך לחשבון</h1>
+  <a class="btn btn-secondary" href="/reconciliation<%= account ? '?account=' + account.id : '' %>">← חזרה להתאמת בנק</a>
+</div>
+<% if (!account || !result) { %>
+  <div class="alert alert-warn">לא נבחר חשבון בנק.</div>
+<% } else { var r = result; var ok = !r.breaks.length && !r.duplicates.length && !r.foreignChecks.length; %>
+  <div class="card no-collapse">
+    <p style="margin:0 0 .4rem"><strong><%= account.display_name %></strong> ·
+      <%= r.rowsTotal %> תנועות<% if (r.firstDate) { %> מ-<%= formatDate(r.firstDate) %> עד <%= formatDate(r.lastDate) %><% } %>.</p>
+    <% if (ok) { %>
+      <div class="alert alert-ok" style="margin:0">✓ לא נמצא שום סימן לתנועה של חשבון אחר.
+        <% if (r.daysChecked) { %>רצף היתרות נבדק על פני <%= r.daysChecked %> ימים ומתיישב בכל אחד מהם.<% } %></div>
+    <% } else { %>
+      <div class="alert alert-warn" style="margin:0">נמצאו ממצאים שדורשים בדיקה — פירוט למטה.</div>
+    <% } %>
+    <% if (!r.rowsWithBalance && r.rowsTotal) { %>
+      <p class="muted" style="margin:.5rem 0 0">לתנועות בחשבון הזה אין "יתרה לאחר פעולה" (משיכה מהבנק או הזנה ידנית), ולכן רצף היתרות לא נבדק — רק שתי הבדיקות האחרות.</p>
+    <% } else if (r.rowsWithBalance < r.rowsTotal) { %>
+      <p class="muted" style="margin:.5rem 0 0"><%= r.rowsWithBalance %> מתוך <%= r.rowsTotal %> תנועות נושאות יתרה; ימים בלי יתרה נספרים בסכום אבל אינם נבדקים בעצמם.</p>
+    <% } %>
+  </div>
+
+  <div class="card no-collapse">
+    <h2 style="margin:0 0 .3rem">1. רצף היתרות</h2>
+    <p class="muted" style="margin:0 0 .5rem">בחשבון אחד היתרה בסוף כל יום = היתרה של היום הקודם + תנועות היום. שבר ברצף אומר שבאותו יום <strong>נכנסו תנועות שאינן של החשבון</strong> — או ש<strong>חסרות תנועות</strong> (תקופה שלא יובאה). ההפרש מראה בכמה.</p>
+    <% if (!r.breaks.length) { %><p style="margin:0">✓ <%= r.daysChecked ? 'הרצף שלם.' : 'אין מספיק יתרות כדי לבדוק.' %></p>
+    <% } else { %>
+      <div class="table-scroll"><table>
+        <thead><tr><th>תאריך</th><th class="right">יתרה צפויה</th><th class="right">יתרה בבנק</th><th class="right">הפרש</th><th>קבצים באותו יום</th></tr></thead>
+        <tbody>
+          <% r.breaks.forEach(function(b){ %>
+            <tr>
+              <td><%= formatDate(b.date) %></td>
+              <td class="right"><%= formatIls(b.expected) %></td>
+              <td class="right"><%= formatIls(b.found) %></td>
+              <td class="right" dir="ltr"><strong style="color:var(--color-bad)"><%= b.diff > 0 ? '+' : '' %><%= formatIls(b.diff) %></strong></td>
+              <td><%= b.files.join(' · ') || '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table></div>
+    <% } %>
+  </div>
+
+  <div class="card no-collapse">
+    <h2 style="margin:0 0 .3rem">2. אותה תנועה גם בחשבון אחר</h2>
+    <p class="muted" style="margin:0 0 .5rem">תאריך, סכום, אסמכתה ותיאור זהים בשני חשבונות — סימן שאותו קובץ יובא לשניהם.</p>
+    <% if (!r.duplicates.length) { %><p style="margin:0">✓ לא נמצאו.</p>
+    <% } else { %>
+      <div class="table-scroll"><table>
+        <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתה</th><th>קיימת גם ב</th><th>קובץ</th></tr></thead>
+        <tbody>
+          <% r.duplicates.forEach(function(d){ %>
+            <tr><td><%= formatDate(d.txn.txn_date) %></td><td class="right"><%= formatIls(d.txn.amount) %></td><td><%= d.txn.description || '' %></td>
+              <td class="mono"><%= d.txn.raw_reference %></td><td><strong><%= d.otherAccount %></strong></td><td><%= d.txn.file_name || '—' %></td></tr>
+          <% }); %>
+        </tbody>
+      </table></div>
+    <% } %>
+  </div>
+
+  <div class="card no-collapse">
+    <h2 style="margin:0 0 .3rem">3. צ׳ק מפנקס של חשבון אחר</h2>
+    <p class="muted" style="margin:0 0 .5rem">חיוב שהאסמכתה שלו היא מספר של צ׳ק שהונפק מחשבון אחר, באותו סכום.</p>
+    <% if (!r.foreignChecks.length) { %><p style="margin:0">✓ לא נמצאו.</p>
+    <% } else { %>
+      <div class="table-scroll"><table>
+        <thead><tr><th>תאריך</th><th class="right">סכום</th><th>צ׳ק</th><th>הונפק מ</th><th>קובץ</th></tr></thead>
+        <tbody>
+          <% r.foreignChecks.forEach(function(f){ %>
+            <tr><td><%= formatDate(f.txn.txn_date) %></td><td class="right"><%= formatIls(f.txn.amount) %></td>
+              <td class="mono"><a href="/payments/<%= f.paymentId %>"><%= f.checkNumber %></a></td><td><strong><%= f.otherAccount %></strong></td><td><%= f.txn.file_name || '—' %></td></tr>
+          <% }); %>
+        </tbody>
+      </table></div>
+    <% } %>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>

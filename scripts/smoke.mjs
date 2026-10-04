@@ -93,7 +93,7 @@ const routes = [
   // public + account (login/forgot/reset/invite hit WITHOUT auth — an authenticated user is redirected)
   ['page', '/login', true], ['page', '/forgot', true], ['page', '/privacy'], ['page', '/accessibility'],
   ['softAny', '/reset/DUMMYTOKEN', true], ['softAny', '/invite/DUMMYTOKEN', true],
-  ['page', '/account/password'], ['page', '/context/choose?return_to=%2F'],
+  ['page', '/account/password'], ['page', '/context/choose?return_to=%2F'], ['page', '/reconciliation/integrity'],
   // dashboard + approvals + audit + notifications
   ['page', '/'], ['page', '/approvals'], ['page', '/audit'], ['page', '/notifications'],
   // invoices

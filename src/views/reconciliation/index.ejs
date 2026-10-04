@@ -17,6 +17,7 @@
         <option value="<%= a.id %>" <%= a.id === accountId ? 'selected' : '' %>><%= a.display_name %></option>
       <% }); %>
     </select>
+    <% if (accountId) { %><a class="btn btn-secondary btn-sm" href="/reconciliation/integrity?account=<%= accountId %>">🔍 בדיקת שיוך לחשבון</a><% } %>
   </form>
 
   <% if (typeof financyReady !== 'undefined' && financyReady && accountId) { %>

@@ -39,6 +39,7 @@ import {
 import { requestSync, submitOtp, cancelSync, syncStatus } from '../services/bankSyncJobs.js';
 import { syncBankAccount } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
+import { accountIntegrity } from '../services/accountIntegrity.js';
 
 const router = Router();
 
@@ -220,6 +221,23 @@ async function bankSyncReply(req, res, fn, okNotice) {
     throw err;
   }
 }
+
+// 🔍 בדיקת שיוך לחשבון — האם כל התנועות בחשבון באמת שלו (רצף היתרות, אותה תנועה בחשבון אחר,
+// צ׳ק מפנקס של חשבון אחר). קריאה בלבד; services/accountIntegrity.js.
+router.get('/integrity', async (req, res, next) => {
+  try {
+    const accountId = await resolveAccountId(req);
+    const all = await accounts(req.scope);
+    const account = all.find((a) => a.id === accountId) || null;
+    res.render('reconciliation/integrity', {
+      title: 'בדיקת שיוך לחשבון',
+      account,
+      result: account ? await accountIntegrity(account.id) : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get('/bank-sync/status', requirePermission('import_bank'), async (req, res, next) => {
   try {
