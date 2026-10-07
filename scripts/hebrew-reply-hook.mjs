@@ -63,20 +63,30 @@ function main() {
   const s = hebrewShare(reply);
 
   const state = join(tmpdir(), `hebrew-reply-hook-${String(payload.session_id || 'x').replace(/[^\w-]/g, '')}.json`);
-  let count = 0;
-  try { count = JSON.parse(readFileSync(state, 'utf8')).count || 0; } catch { count = 0; }
+  let st = {};
+  try { st = JSON.parse(readFileSync(state, 'utf8')) || {}; } catch { st = {}; }
+  // The same hook can be configured twice (global ~/.claude settings + a project's). Both run on the
+  // same stop: the second repeats the first one's verdict as is — it neither counts nor re-decides.
+  const sameStop = st.len === lines.length;
+  if (sameStop && !st.blocked) return;
+  const count = st.count || 0;
+  if (sameStop) { console.log(JSON.stringify(blockMsg(s))); return; }
 
   if (s.total < MIN_LETTERS || s.share >= MIN_HEBREW || count >= MAX_BLOCKS) {
-    try { writeFileSync(state, JSON.stringify({ count: 0 })); } catch { /* ignore */ }
+    try { writeFileSync(state, JSON.stringify({ count: 0, len: lines.length, blocked: false })); } catch { /* ignore */ }
     return;
   }
-  try { writeFileSync(state, JSON.stringify({ count: count + 1 })); } catch { /* ignore */ }
-  console.log(JSON.stringify({
+  try { writeFileSync(state, JSON.stringify({ count: count + 1, len: lines.length, blocked: true })); } catch { /* ignore */ }
+  console.log(JSON.stringify(blockMsg(s)));
+}
+
+function blockMsg(s) {
+  return {
     decision: 'block',
     reason: `התשובה האחרונה נכתבה ברובה באנגלית (${Math.round(s.share * 100)}% עברית). הכלל: כל טקסט `
       + 'למשתמש בעברית — תשובות, עדכונים, שאלות וסיכומים. כתוב את אותה תשובה מחדש, במלואה, בעברית '
       + '(קוד, מזהים ופקודות נשארים באנגלית), בלי להתנצל ובלי להזכיר את הבדיקה הזו.',
-  }));
+  };
 }
 
 // pathToFileURL, not `file://${argv[1]}`: on Windows argv[1] is C:\\... and the naive form never matches.
