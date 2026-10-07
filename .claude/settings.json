@@ -8,6 +8,11 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/scripts/doc-sync-hook.mjs\"",
             "timeout": 60
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hebrew-reply-hook.mjs\"",
+            "timeout": 30
           }
         ]
       }
