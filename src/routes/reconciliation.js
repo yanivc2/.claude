@@ -43,6 +43,7 @@ import { requestSync, submitOtp, cancelSync, syncStatus } from '../services/bank
 import { syncBankAccount } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
 import { accountIntegrity } from '../services/accountIntegrity.js';
+import { inspectBankTxn } from '../services/txnInspect.js';
 
 const router = Router();
 
@@ -239,6 +240,19 @@ router.post('/hide-until', requireOwner, async (req, res, next) => {
     return backTo(res, accountId, { notice: v ? `חיובים לא מותאמים עד ${v.split('-').reverse().join('/')} (כולל) הוסתרו מהרשימה.` : 'ההסתרה בוטלה — כל החיובים הלא מותאמים מוצגים.' });
   } catch (err) {
     if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+// 🔎 בחינת תנועה — פרטי החיוב ומה יש במערכת עם אותו מספר (services/txnInspect.js). קריאה בלבד;
+// אישור פירעון מכאן עובר ב-POST /match הרגיל.
+router.get('/txn/:id', async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    await assertInScope('bankTxn', id, req.scope);
+    const info = await inspectBankTxn(id, req.grantedScope || req.scope);
+    res.render('reconciliation/txn', { title: 'בחינת תנועה', ...info });
+  } catch (err) {
     next(err);
   }
 });

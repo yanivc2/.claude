@@ -76,6 +76,9 @@ const closing = await x.one('SELECT id FROM z_closings ORDER BY id DESC LIMIT 1'
 await createEmployee({ firstName: 'סמוק', lastName: 'עובד', phone: '050-0000000' }, owner, x);
 await x.run("INSERT INTO products (supplier_id, name, barcode) VALUES (?, 'מוצר סמוק', '1234567890123')", [sup.id]);
 const prod = await x.one("SELECT id FROM products WHERE name = 'מוצר סמוק'", []);
+// a bank debit carrying the open check's number — the "בחינת תנועה" page needs a real row
+await x.run("INSERT INTO bank_transactions (bank_account_id, txn_date, amount, raw_reference, description, source) VALUES (?, '2026-08-12', -117000, '9001', 'שיק', 'csv')", [ba.id]);
+const btx = await x.one("SELECT id FROM bank_transactions WHERE raw_reference = '9001' ORDER BY id DESC LIMIT 1", []);
 const draft = await createDraft({ storeId: store.id, imageRefs: [imgRef], supplierId: sup.id }, owner, x);
 
 // category → predicate over {status, body}
@@ -93,7 +96,7 @@ const routes = [
   // public + account (login/forgot/reset/invite hit WITHOUT auth — an authenticated user is redirected)
   ['page', '/login', true], ['page', '/forgot', true], ['page', '/privacy'], ['page', '/accessibility'],
   ['softAny', '/reset/DUMMYTOKEN', true], ['softAny', '/invite/DUMMYTOKEN', true],
-  ['page', '/account/password'], ['page', '/context/choose?return_to=%2F'], ['page', '/reconciliation/integrity'],
+  ['page', '/account/password'], ['page', '/context/choose?return_to=%2F'], ['page', '/reconciliation/integrity'], ['page', `/reconciliation/txn/${btx.id}`],
   // dashboard + approvals + audit + notifications
   ['page', '/'], ['page', '/approvals'], ['page', '/audit'], ['page', '/notifications'],
   // invoices

@@ -41,7 +41,7 @@ test('the sorter understands DD/MM/YY, and an explicit data-sort wins', () => {
 test('the unmatched-transactions table opts into both, and excludes the action column', () => {
   const view = read('src/views/reconciliation/index.ejs');
   const head = view.slice(view.indexOf('תנועות לא מותאמות'), view.indexOf('</thead>', view.indexOf('תנועות לא מותאמות')));
-  assert.match(head, /<table class="sortable filterable">/);
+  assert.match(head, /<table class="sortable filterable(?: tbl-center)?">/);
   assert.match(head, /<th data-nosort data-nofilter>התאמה<\/th>/,
     'the match column is forms, not text — nothing to sort or filter by');
 });

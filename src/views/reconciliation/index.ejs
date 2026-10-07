@@ -233,9 +233,10 @@
   </div>
   <%# מיון A-Z + שורת סינון לכל עמודה (המשפרים הגלובליים ב-partials/footer.ejs). עמודת ההתאמה
       היא טפסים, לא טקסט — אין מה למיין או לסנן לפיה. %>
-  <table class="sortable filterable">
+  <%# .tbl-center — כל העמודות ממורכזות (בקשת הבעלים). האסמכתא היא קישור ל"בחינת תנועה". %>
+  <table class="sortable filterable tbl-center">
     <thead>
-      <tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th data-nosort data-nofilter>התאמה</th></tr>
+      <tr><th>תאריך</th><th>סכום</th><th>תיאור</th><th>אסמכתא</th><th data-nosort data-nofilter>התאמה</th></tr>
     </thead>
     <tbody>
       <% if (classified.length === 0) { %>
@@ -244,9 +245,10 @@
       <% classified.forEach(function(c){ %>
         <tr>
           <td><%= formatDate(c.txn.txn_date) %></td>
-          <td class="right neg"><%= formatIls(c.txn.amount) %></td>
+          <td class="neg"><%= formatIls(c.txn.amount) %></td>
           <td><%= c.txn.description || '' %></td>
-          <td class="mono"><%= c.txn.raw_reference || '—' %></td>
+          <td class="mono"><a href="/reconciliation/txn/<%= c.txn.id %>" title="בחינת התנועה ומה יש במערכת עם המספר הזה"><%= c.txn.raw_reference || '—' %></a>
+            <div><a class="btn btn-secondary small" href="/reconciliation/txn/<%= c.txn.id %>">🔎 בחן</a></div></td>
           <td>
             <% if (c.state === 'deterministic' || c.state === 'single') { %>
               <form method="post" action="/reconciliation/match" class="actions">

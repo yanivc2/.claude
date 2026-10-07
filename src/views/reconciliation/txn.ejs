@@ -1,0 +1,90 @@
+<%- include('../partials/header') %>
+<%
+  var STATUS = { issued: 'פתוח (טרם נפרע)', cleared: 'נפרע', voided: 'בוטל' };
+  var METHOD = { check: 'צ׳ק', transfer: 'העברה', standing_order: 'הוראת קבע', credit: 'אשראי', cash: 'מזומן', batch: 'מקבץ' };
+  var VERDICT = {
+    matchable: { cls: 'alert-ok', text: 'הצ׳ק פתוח, באותו חשבון ובאותו סכום — אפשר לאשר את הפירעון.' },
+    amount_differs: { cls: 'alert-warn', text: 'אותו מספר צ׳ק — אבל בסכום אחר. ייתכן שהסכום הוזן בטעות או שזה צ׳ק אחר.' },
+    cleared: { cls: 'alert-warn', text: 'הצ׳ק כבר מסומן כנפרע — כנראה הותאם לתנועה אחרת בבנק.' },
+    voided: { cls: 'alert-warn', text: 'הצ׳ק הזה מסומן במערכת כמבוטל — אבל הבנק פרע אותו.' },
+    other_account: { cls: 'alert-error', text: '🔴 הצ׳ק הונפק מחשבון בנק אחר — יש לבדוק עירבוב בין חשבונות.' },
+  };
+%>
+<div class="toolbar">
+  <h1>🔎 בחינת תנועה</h1>
+  <a class="btn btn-secondary" href="/reconciliation?account=<%= txn.bank_account_id %>">← חזרה להתאמת בנק</a>
+</div>
+
+<div class="card no-collapse">
+  <h2 style="margin:0 0 .5rem">מה הבנק רשם</h2>
+  <div class="table-scroll"><table class="no-enhance txn-facts">
+    <tbody>
+      <tr><th>תאריך</th><td><%= formatDate(txn.txn_date) %></td></tr>
+      <tr><th>סכום</th><td class="<%= txn.amount < 0 ? 'neg' : '' %>"><strong><%= formatIls(txn.amount) %></strong> <span class="muted"><%= txn.amount < 0 ? '(חובה)' : '(זכות)' %></span></td></tr>
+      <tr><th>תיאור</th><td><%= txn.description || '—' %></td></tr>
+      <tr><th>אסמכתא / מספר צ׳ק</th><td class="mono"><%= txn.raw_reference || '—' %></td></tr>
+      <tr><th>חשבון</th><td><%= txn.account_name %> · <%= txn.store_name %></td></tr>
+      <tr><th>מקור</th><td><%= txn.file_name ? 'קובץ "' + txn.file_name + '"' : (txn.source === 'scraper' ? 'משיכה מהבנק (סוכן מחשב המשרד)' : txn.source) %><% if (txn.imported_at) { %> · נקלט <%= israelStamp(txn.imported_at) %><% } %></td></tr>
+      <% if (txn.balance_after != null) { %><tr><th>יתרה אחרי הפעולה</th><td><%= formatIls(txn.balance_after) %></td></tr><% } %>
+      <tr><th>מצב</th><td><%= txn.matched_payment_id ? 'הותאם לתשלום #' + txn.matched_payment_id : 'לא הותאם' %></td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted" style="margin:.5rem 0 0;font-size:13px">צילום הצ׳ק עצמו אינו מגיע מהבנק לתוכנה — הוא זמין באתר הבנק לפי מספר הצ׳ק והתאריך.</p>
+</div>
+
+<div class="card no-collapse">
+  <h2 style="margin:0 0 .5rem">מה יש במערכת עם המספר <span class="mono"><%= txn.raw_reference || '—' %></span></h2>
+  <% if (!ref) { %>
+    <p style="margin:0">לתנועה אין אסמכתא — אין לפי מה לחפש.</p>
+  <% } else if (!payments.length && !salary.length) { %>
+    <div class="alert alert-warn" style="margin:0">לא נמצא במערכת צ׳ק או תשלום עם המספר הזה. כנראה שהצ׳ק הונפק לפני תחילת העבודה עם התוכנה, או שלא הוזן.
+      אפשר לשייך את החיוב לחשבוניות מדף התאמת הבנק ("🧾 שייך לחשבוניות").</div>
+  <% } %>
+
+  <% payments.forEach(function(p){ var v = VERDICT[p.verdict]; %>
+    <div class="alert <%= v.cls %>" style="margin:0 0 .5rem"><%= v.text %></div>
+    <div class="table-scroll"><table class="no-enhance txn-facts" style="margin-bottom:.8rem">
+      <tbody>
+        <tr><th>תשלום</th><td><a href="/payments/<%= p.id %>">#<%= p.id %></a> · <%= METHOD[p.method] || p.method %> <span class="mono"><%= p.check_number || p.reference || p.batch_number %></span></td></tr>
+        <tr><th>למי</th><td><%= p.supplier_name || '—' %></td></tr>
+        <tr><th>סכום</th><td><strong><%= formatIls(p.amount) %></strong><% if (!p.same_amount) { %> <span class="muted">(בבנק: <%= formatIls(amount) %>)</span><% } %></td></tr>
+        <tr><th>תאריך פירעון</th><td><%= formatDate(p.payment_date) %></td></tr>
+        <tr><th>חשבון</th><td><%= p.account_name %></td></tr>
+        <tr><th>סטטוס</th><td><%= STATUS[p.status] || p.status %><% if (p.cleared_date) { %> · <%= formatDate(p.cleared_date) %><% } %><% if (p.matched_txn) { %> · מותאם לתנועה מ-<%= formatDate(p.matched_txn.txn_date) %><% } %></td></tr>
+      </tbody>
+    </table></div>
+    <% if (p.verdict === 'matchable' && !txn.matched_payment_id) { %>
+      <form method="post" action="/reconciliation/match" style="margin:0 0 .8rem">
+        <input type="hidden" name="account_id" value="<%= txn.bank_account_id %>" />
+        <input type="hidden" name="txn_id" value="<%= txn.id %>" />
+        <input type="hidden" name="payment_id" value="<%= p.id %>" />
+        <button type="submit" class="ok">✓ אשר פירעון</button>
+      </form>
+    <% } %>
+  <% }); %>
+
+  <% salary.forEach(function(s){ %>
+    <div class="alert <%= Number(s.amount) === amount ? 'alert-ok' : 'alert-warn' %>" style="margin:0 0 .5rem">
+      צ׳ק שכר באותו מספר: <strong><%= s.first_name %> <%= s.last_name %></strong> · <%= formatIls(s.amount) %> · לתאריך <%= formatDate(s.due_date) %> · <%= s.store_name %>
+      <%= s.bank_txn_id ? ' · כבר מותאם לבנק' : (s.cashed ? ' · סומן שנפרט בקופה' : '') %>.
+      <a href="/employees">לדף עובדים ומשכורות</a>
+    </div>
+  <% }); %>
+</div>
+
+<% if (txn.amount < 0 && sameAmountOpen.length) { %>
+  <div class="card no-collapse">
+    <h2 style="margin:0 0 .3rem">צ׳קים פתוחים באותו סכום (מספר אחר)</h2>
+    <p class="muted" style="margin:0 0 .5rem">אולי מספר הצ׳ק נרשם בטעות. אם זה הצ׳ק — אפשר להתאים אותו לחיוב הזה.</p>
+    <% sameAmountOpen.forEach(function(p){ %>
+      <form method="post" action="/reconciliation/match" class="actions" style="margin:0 0 .4rem">
+        <input type="hidden" name="account_id" value="<%= txn.bank_account_id %>" />
+        <input type="hidden" name="txn_id" value="<%= txn.id %>" />
+        <input type="hidden" name="payment_id" value="<%= p.id %>" />
+        <span><a href="/payments/<%= p.id %>">#<%= p.id %></a> · מספר <span class="mono"><%= p.check_number || p.reference || '—' %></span> · פירעון <%= formatDate(p.payment_date) %></span>
+        <button type="submit" class="small" onclick="return confirm('להתאים את הצ׳ק לחיוב הזה ולסמן אותו כנפרע?')">🔗 התאם</button>
+      </form>
+    <% }); %>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>

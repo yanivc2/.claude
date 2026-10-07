@@ -1126,3 +1126,9 @@ tr.row-tracked:hover td { background: color-mix(in srgb, #f59e0b 18%, transparen
 /* טופס הזנה בלי חנות פעילה (partials/_needStore.ejs) ושדה החנות הנעול (partials/_formStore.ejs). */
 .need-store { border: 1px dashed var(--color-line); border-radius: var(--radius-md); padding: var(--space-4); background: var(--color-surface-2); }
 .need-store select { min-width: 240px; }
+
+/* טבלה ממורכזת (התאמת בנק — "תנועות לא מותאמות"): גם עמודות ה-.right, כולל שורת הסינון והפעולות. */
+table.tbl-center th, table.tbl-center td { text-align: center; }
+table.tbl-center td .actions, table.tbl-center td form.actions { justify-content: center; }
+/* "בחינת תנועה" — טבלת עובדות: כותרת משמאל-לימין צרה, ערך רחב. */
+table.txn-facts th { width: 170px; text-align: start; color: var(--color-muted, inherit); font-weight: 500; }
