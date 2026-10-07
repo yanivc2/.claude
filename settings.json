@@ -67,6 +67,16 @@
             "shell": "powershell"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME\\.claude\\hooks\\hebrew-reply-hook.mjs\"",
+            "shell": "powershell",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PreCompact": [

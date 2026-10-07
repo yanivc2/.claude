@@ -28,7 +28,11 @@ rules for any session:
    `AskUserQuestion` question text, headers, option labels and descriptions),
    every plan, and every summary (end-of-task recaps *and* context-compaction
    summaries). Code, file contents, commit messages, and identifiers stay in
-   English. Enforced also by `"language": "hebrew"` in `settings.json`.
+   English. Enforced also by `"language": "hebrew"` in `settings.json` **and by a Stop hook**
+   (`hooks/hebrew-reply-hook.mjs`, wired in `settings.json` and `.claude/settings.json`): a final
+   reply that is mostly English is blocked and must be rewritten in Hebrew (code/paths/URLs not
+   counted; at most 2 blocks in a row; any error allows the stop). Source of truth and tests:
+   `scripts/hebrew-reply-hook.mjs` + `test/hebrew-reply-hook.test.js` in the ap-control app repo.
 
 The active model is **`opus`** at **`effortLevel: xhigh`** (`settings.json`).
 

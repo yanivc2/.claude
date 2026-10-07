@@ -46,6 +46,15 @@
             "statusMessage": "מתעד סשן..."
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/hooks/hebrew-reply-hook.mjs\"",
+            "timeout": 30
+          }
+        ]
       }
     ],
     "PreCompact": [
