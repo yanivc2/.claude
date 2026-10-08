@@ -1,4 +1,4 @@
-// 🌙 מצב חיסכון של סוכן הבנק: מחוץ לשעות הפעילות הוא שואל רק פעם ב-N דקות (ברירת מחדל 10) —
+// 🌙 מצב חיסכון של סוכן הבנק: מחוץ לשעות הפעילות הוא שואל רק פעם ב-N דקות (ברירת מחדל 30) —
 // מספיק כדי לסנכרן בערב ובסוף שבוע, בלי לשאול את Vercel כל 30 שניות. בצד השרת: חלון התפיסה
 // מתארך ל-N דקות, והכרטיס אומר "מצב חיסכון" ולא "לא מחובר".
 import { test } from 'node:test';
@@ -10,8 +10,8 @@ import { requestSync, syncStatus, claimNext, claimWindowSec, CLAIM_WINDOW_SEC } 
 const MIN = 60_000;
 const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString().slice(0, 19).replace('T', ' ');
 
-test('offEveryMin: default 10, 0 = off, clamped to 2..120', () => {
-  assert.equal(offEveryMin({}), 10);
+test('offEveryMin: default 30 (owner\'s choice), 0 = off, clamped to 2..120', () => {
+  assert.equal(offEveryMin({}), 30);
   assert.equal(offEveryMin({ offHoursCheckMinutes: 0 }), 0);
   assert.equal(offEveryMin({ offHoursCheckMinutes: 1 }), 2);
   assert.equal(offEveryMin({ offHoursCheckMinutes: 500 }), 120);
@@ -31,13 +31,13 @@ test('schedule: in hours every 30s; off hours one request per N minutes; awake f
   assert.equal(w.waitMs, MIN);
   // right after a job at night: fast polling for a while (a retry after a missed SMS is picked up at once)
   assert.equal(agentSchedule({ inHours: false, now, offEvery: 10, awakeUntil: now + AFTER_JOB_AWAKE_MS, nextOffCheck: now + 9 * MIN }).mode, 'on');
-  // count: one night hour = 6 requests, not 120
+  // count with the default: one night hour = 2 requests, not 120
   let polls = 0; let next = 0;
   for (let t = now; t < now + 60 * MIN; t += 30_000) {
-    const p = agentSchedule({ inHours: false, now: t, offEvery: 10, nextOffCheck: next });
+    const p = agentSchedule({ inHours: false, now: t, offEvery: offEveryMin({}), nextOffCheck: next });
     if (p.action === 'poll') { polls += 1; next = t + p.waitMs; }
   }
-  assert.equal(polls, 6);
+  assert.equal(polls, 2);
 });
 
 test('server: economy heartbeat → card says economy, a request waits N minutes instead of 2', async () => {

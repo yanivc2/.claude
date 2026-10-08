@@ -40,10 +40,10 @@ function pollMs(cfg) {
   const n = Number(cfg.pollSeconds);
   return (Number.isFinite(n) && n >= 10 ? n : DEFAULT_POLL_SEC) * 1000;
 }
-// 🌙 מצב חיסכון — מחוץ לשעות הפעילות הסוכן שואל "יש סנכרון?" רק פעם ב-N דקות (ברירת מחדל 10),
-// כדי שאפשר יהיה לסנכרן גם בערב ובסוף שבוע בלי לשאול את Vercel כל 30 שניות. 6 בקשות בשעה במקום
-// 120. `"offHoursCheckMinutes": 0` מחזיר את ההתנהגות הקודמת: אפס בקשות מחוץ לשעות.
-const DEFAULT_OFF_EVERY_MIN = 10;
+// 🌙 מצב חיסכון — מחוץ לשעות הפעילות הסוכן שואל "יש סנכרון?" רק פעם ב-N דקות (ברירת מחדל 30 —
+// בחירת הבעלים), כדי שאפשר יהיה לסנכרן גם בערב ובסוף שבוע בלי לשאול את Vercel כל 30 שניות: 2 בקשות
+// בשעה במקום 120. `"offHoursCheckMinutes": 0` מחזיר את ההתנהגות הקודמת: אפס בקשות מחוץ לשעות.
+const DEFAULT_OFF_EVERY_MIN = 30;
 export function offEveryMin(cfg) {
   if (cfg.offHoursCheckMinutes === undefined || cfg.offHoursCheckMinutes === null || cfg.offHoursCheckMinutes === '') return DEFAULT_OFF_EVERY_MIN;
   const n = Number(cfg.offHoursCheckMinutes);
