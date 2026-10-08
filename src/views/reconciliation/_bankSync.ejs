@@ -10,6 +10,8 @@
     <% } else { %>
       <p id="bs-agent" style="margin:0 0 .5rem">
         <% if (bs.agentOnline) { %><span class="badge b-paid">● מחשב המשרד מחובר</span>
+        <% } else if (bs.agentEconomy) { %><span class="badge b-on_hold">🌙 מחשב המשרד במצב חיסכון</span>
+          <span class="muted" style="font-size:12px">מחוץ לשעות הפעילות<%= bs.agentHours ? ' (' + bs.agentHours + ')' : '' %> הסוכן בודק בקשות פעם ב-<%= bs.agentOffEvery %> דקות — בקשת סנכרון תיאסף תוך עד <%= bs.agentOffEvery %> דקות, ואז יגיע קוד SMS.</span>
         <% } else if (bs.agentSeenSec != null) { %><span class="badge b-on_hold">● מחשב המשרד לא מחובר</span>
           <span class="muted" style="font-size:12px"><% if (bs.agentHours) { %>הסוכן פעיל רק ב-<%= bs.agentHours %> (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.<% } else { %>נראה לאחרונה לפני <%= Math.round(bs.agentSeenSec / 60) %> דק׳ — ודא שהוא דלוק ושהסוכן רץ.<% } %></span>
         <% } else { %><span class="badge b-neutral">● מחשב המשרד עוד לא התחבר</span>
@@ -105,7 +107,13 @@
     var frag = document.createDocumentFragment();
     var p = el('p', { id: 'bs-agent', style: 'margin:0 0 .5rem' });
     if (s.agentOnline) p.appendChild(badge('b-paid', '● מחשב המשרד מחובר'));
-    else {
+    else if (s.agentEconomy) {
+      p.appendChild(badge('b-on_hold', '🌙 מחשב המשרד במצב חיסכון'));
+      p.appendChild(document.createTextNode(' '));
+      p.appendChild(el('span', { class: 'muted', style: 'font-size:12px' },
+        'מחוץ לשעות הפעילות' + (s.agentHours ? ' (' + s.agentHours + ')' : '') + ' הסוכן בודק בקשות פעם ב-' + s.agentOffEvery
+          + ' דקות — בקשת סנכרון תיאסף תוך עד ' + s.agentOffEvery + ' דקות, ואז יגיע קוד SMS.'));
+    } else {
       p.appendChild(badge(s.agentSeenSec != null ? 'b-on_hold' : 'b-neutral',
         s.agentSeenSec != null ? '● מחשב המשרד לא מחובר' : '● מחשב המשרד עוד לא התחבר'));
       p.appendChild(document.createTextNode(' '));

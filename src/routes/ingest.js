@@ -199,7 +199,7 @@ function agentError(res, err) {
 router.post('/bank-agent/ping', json(), async (req, res) => {
   if (!agentAuth(req, res)) return;
   try {
-    return res.json(await agentPing(agentName(req), undefined, { hours: req.body?.hours }));
+    return res.json(await agentPing(agentName(req), undefined, { hours: req.body?.hours, offEvery: req.body?.offEvery }));
   } catch (err) {
     return agentError(res, err);
   }
@@ -208,7 +208,7 @@ router.post('/bank-agent/ping', json(), async (req, res) => {
 router.post('/bank-agent/claim', json(), async (req, res) => {
   if (!agentAuth(req, res)) return;
   try {
-    return res.json({ ok: true, job: await claimNext(agentName(req), undefined, { hours: req.body?.hours }) });
+    return res.json({ ok: true, job: await claimNext(agentName(req), undefined, { hours: req.body?.hours, mode: req.body?.mode, offEvery: req.body?.offEvery }) });
   } catch (err) {
     return agentError(res, err);
   }

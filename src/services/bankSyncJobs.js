@@ -35,6 +35,28 @@ export const AGENT_ONLINE_SEC = 75; // הסוכן שואל כל 30 שניות �
 
 const HEARTBEAT_KEY = 'bank_agent_heartbeat';
 
+/**
+ * 🌙 מצב חיסכון של הסוכן: מחוץ לשעות הפעילות הוא שואל "יש סנכרון?" רק פעם ב-N דקות
+ * (`agent/bank-agent.mjs#agentSchedule`). מכאן שני דברים בצד השרת:
+ *  1. **חלון התפיסה מתארך** ל-N דקות + מרווח — אחרת בקשה שנוצרה בלילה הייתה פוקעת אחרי 2 דקות,
+ *     לפני שהסוכן בכלל שואל. החלון עדיין חסום (לא "עד הבוקר"), וזה הנימוק של CLAIM_WINDOW_SEC.
+ *  2. **הכרטיס אומר "מצב חיסכון — עד N דקות"** במקום "לא מחובר".
+ */
+async function readHeartbeat(x) {
+  const hb = await getSetting(HEARTBEAT_KEY, null, x);
+  try { return hb ? JSON.parse(hb) : null; } catch { return null; }
+}
+const ECONOMY_SLACK_SEC = 90;
+function economyEvery(agent) {
+  const n = Number(agent?.offEvery);
+  return agent?.mode === 'off' && Number.isFinite(n) && n > 0 ? n : 0;
+}
+/** כמה זמן בקשה ממתינה לסוכן לפני שהיא פוקעת. */
+export function claimWindowSec(agent) {
+  const every = economyEvery(agent);
+  return every ? Math.max(CLAIM_WINDOW_SEC, every * 60 + ECONOMY_SLACK_SEC) : CLAIM_WINDOW_SEC;
+}
+
 function ageSec(ts) {
   if (!ts) return Infinity;
   const t = Date.parse(`${String(ts).replace(' ', 'T')}Z`);
@@ -67,6 +89,7 @@ export function normalizeOtp(raw) {
  * החישוב ב-JS ולא ב-SQL: חשבון תאריכים שונה בין SQLite ל-Postgres, ויש כאן לכל היותר שורה או שתיים.
  */
 async function expireStale(x) {
+  const windowSec = claimWindowSec(await readHeartbeat(x));
   const rows = await x.many(
     `SELECT id, status, updated_at, requested_at FROM bank_sync_jobs WHERE status IN (?, ?, ?)`,
     ACTIVE,
@@ -74,9 +97,9 @@ async function expireStale(x) {
   for (const r of rows) {
     let next = null;
     let msg = null;
-    if (r.status === 'requested' && ageSec(r.requested_at) > CLAIM_WINDOW_SEC) {
+    if (r.status === 'requested' && ageSec(r.requested_at) > windowSec) {
       next = 'expired';
-      msg = 'מחשב המשרד לא הגיב תוך 2 דקות. ודא שהוא דלוק ושהסוכן רץ, ולחץ שוב.';
+      msg = `מחשב המשרד לא הגיב תוך ${Math.round(windowSec / 60)} דקות. ודא שהוא דלוק ושהסוכן רץ, ולחץ שוב.`;
     } else if (r.status === 'awaiting_otp' && ageSec(r.updated_at) > OTP_WAIT_SEC) {
       next = 'failed';
       msg = 'לא הוזן קוד SMS בזמן. לחץ "סנכרן" שוב כדי לקבל קוד חדש.';
@@ -106,6 +129,13 @@ async function getJob(id, x) {
  * "סנכרן עכשיו". בקשה פעילה אחת בכל רגע — שתי התחברויות מקבילות לאותו בנק הן בדיוק מה שמפעיל
  * את מנגנוני ההונאה שלו, ושתי הודעות SMS בבת אחת מבלבלות את מי שצריך להקליד אחת מהן.
  */
+async function waitingMessage(x) {
+  const every = economyEvery(await readHeartbeat(x));
+  return every
+    ? `ממתין למחשב המשרד — מצב חיסכון, הבקשה תיאסף תוך עד ${every} דקות ואז יגיע קוד SMS…`
+    : 'ממתין למחשב המשרד…';
+}
+
 export async function requestSync(user, x = getExecutor()) {
   if (!(await bankSyncReady(x))) {
     throw new RuleError('BANK_SYNC', 'נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים") לפני סנכרון בנק.');
@@ -123,7 +153,7 @@ export async function requestSync(user, x = getExecutor()) {
   const info = await x.run(
     `INSERT INTO bank_sync_jobs (status, login_key, requested_by, requested_at, updated_at, message)
      VALUES ('requested', ?, ?, ?, ?, ?)`,
-    [loginKeyFor(user), user?.id ?? null, ts, ts, 'ממתין למחשב המשרד…'],
+    [loginKeyFor(user), user?.id ?? null, ts, ts, await waitingMessage(x)],
   );
   await logAction(
     { userId: user?.id ?? null, action: 'bank_sync.request', entityType: 'bank_sync_job', entityId: info.lastInsertRowid },
@@ -179,13 +209,15 @@ export async function cancelSync(id, user, x = getExecutor()) {
  */
 export async function syncStatus(user, scope = null, x = getExecutor()) {
   const ready = await bankSyncReady(x);
-  const hb = await getSetting(HEARTBEAT_KEY, null, x);
-  let agent = null;
-  try { agent = hb ? JSON.parse(hb) : null; } catch { agent = null; }
+  const agent = await readHeartbeat(x);
   const agentAge = ageSec(agent?.at);
+  const every = economyEvery(agent);
   const base = {
     ready,
-    agentOnline: agentAge <= AGENT_ONLINE_SEC,
+    agentOnline: !every && agentAge <= AGENT_ONLINE_SEC,
+    // מצב חיסכון: הסוכן חי (שאל בתוך N דקות + מרווח) ובודק פעם ב-N דקות.
+    agentEconomy: every > 0 && agentAge <= every * 60 + ECONOMY_SLACK_SEC,
+    agentOffEvery: every || null,
     agentSeenSec: Number.isFinite(agentAge) ? Math.round(agentAge) : null,
     agentHours: agent?.hours || null,
     loginKey: loginKeyFor(user),
@@ -246,21 +278,24 @@ export async function syncStatus(user, scope = null, x = getExecutor()) {
 // ---------------------------------------------------------------- צד הסוכן (מחשב המשרד)
 
 /** פעימת חיים — כותבים רק אם הקודמת ישנה מ-20 שניות, כדי לא לכתוב למסד בכל בדיקה. */
-async function heartbeat(agentName, x, hours = undefined) {
-  const hb = await getSetting(HEARTBEAT_KEY, null, x);
-  let prev = null;
-  try { prev = hb ? JSON.parse(hb) : null; } catch { prev = null; }
+async function heartbeat(agentName, x, hours = undefined, meta = {}) {
+  const prev = await readHeartbeat(x);
   // שעות הפעילות של הסוכן (למשל "08:00-16:00") — מחוץ להן הוא לא שולח אף בקשה, והכרטיס אומר את זה
   // במקום "לא מחובר" סתמי. `undefined` = הפנייה לא מסרה שעות, נשארים עם הידוע.
   const h = hours === undefined ? (prev?.hours ?? null) : (/^[א-ת׳,–\- ]{0,24}(\d{2}:\d{2}-\d{2}:\d{2})?$/.test(String(hours || '')) && /\S/.test(String(hours || '')) ? String(hours).trim() : null);
-  if (!prev || ageSec(prev.at) > 20 || prev.agent !== agentName || (prev.hours ?? null) !== h) {
-    await setSetting(HEARTBEAT_KEY, JSON.stringify({ at: nowTs(), agent: agentName, hours: h }), x);
+  // מצב ומרווח החיסכון — רק ערכים מוכרים נשמרים (הגוף מגיע מהסוכן, לא סומכים עליו עיוור).
+  const mode = meta.mode === 'off' ? 'off' : meta.mode === 'on' ? 'on' : (prev?.mode ?? null);
+  const n = Number(meta.offEvery);
+  const offEvery = meta.offEvery === undefined ? (prev?.offEvery ?? null) : (Number.isFinite(n) && n >= 2 && n <= 120 ? Math.round(n) : null);
+  if (!prev || ageSec(prev.at) > 20 || prev.agent !== agentName || (prev.hours ?? null) !== h
+      || (prev.mode ?? null) !== mode || (prev.offEvery ?? null) !== offEvery) {
+    await setSetting(HEARTBEAT_KEY, JSON.stringify({ at: nowTs(), agent: agentName, hours: h, mode, offEvery }), x);
   }
 }
 
 /** בדיקת חיבור מהסוכן (npm run check במחשב המשרד): רק פעימת חיים, בלי לתפוס בקשה. */
-export async function agentPing(agentName, x = getExecutor(), { hours } = {}) {
-  await heartbeat(agentName, x, hours);
+export async function agentPing(agentName, x = getExecutor(), { hours, offEvery } = {}) {
+  await heartbeat(agentName, x, hours, { offEvery });
   return { ok: true, ready: await bankSyncReady(x) };
 }
 
@@ -269,8 +304,8 @@ export async function agentPing(agentName, x = getExecutor(), { hours } = {}) {
  * `changes`): שני סוכנים שרצים בטעות על שני מחשבים לא יתפסו את אותה בקשה — כלומר לא יתחברו
  * לבנק פעמיים במקביל.
  */
-export async function claimNext(agentName, x = getExecutor(), { hours } = {}) {
-  await heartbeat(agentName, x, hours);
+export async function claimNext(agentName, x = getExecutor(), { hours, mode, offEvery } = {}) {
+  await heartbeat(agentName, x, hours, { mode, offEvery });
   await expireStale(x);
   const busy = await x.one(`SELECT id FROM bank_sync_jobs WHERE status IN (?, ?) LIMIT 1`, ['running', 'awaiting_otp']);
   if (busy) return null; // אחד בכל פעם

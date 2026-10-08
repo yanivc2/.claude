@@ -20,7 +20,7 @@
 import os from 'node:os';
 import path from 'node:path';
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -39,6 +39,31 @@ const DAY_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש']; // 0 = ראשו�
 function pollMs(cfg) {
   const n = Number(cfg.pollSeconds);
   return (Number.isFinite(n) && n >= 10 ? n : DEFAULT_POLL_SEC) * 1000;
+}
+// 🌙 מצב חיסכון — מחוץ לשעות הפעילות הסוכן שואל "יש סנכרון?" רק פעם ב-N דקות (ברירת מחדל 10),
+// כדי שאפשר יהיה לסנכרן גם בערב ובסוף שבוע בלי לשאול את Vercel כל 30 שניות. 6 בקשות בשעה במקום
+// 120. `"offHoursCheckMinutes": 0` מחזיר את ההתנהגות הקודמת: אפס בקשות מחוץ לשעות.
+const DEFAULT_OFF_EVERY_MIN = 10;
+export function offEveryMin(cfg) {
+  if (cfg.offHoursCheckMinutes === undefined || cfg.offHoursCheckMinutes === null || cfg.offHoursCheckMinutes === '') return DEFAULT_OFF_EVERY_MIN;
+  const n = Number(cfg.offHoursCheckMinutes);
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return Math.min(Math.max(Math.round(n), 2), 120);
+}
+// אחרי סנכרון (גם מחוץ לשעות) הסוכן נשאר ער לכמה דקות: אם הקוד לא הגיע בזמן ולוחצים "סנכרן" שוב,
+// הבקשה החדשה נאספת מיד ולא בעוד 10 דקות.
+export const AFTER_JOB_AWAKE_MS = 10 * 60_000;
+
+/**
+ * מה לעשות עכשיו — פונקציה טהורה, כדי שאפשר יהיה לבדוק אותה בלי להריץ את הסוכן.
+ * @returns {{action:'poll'|'wait', mode:'on'|'off'|'sleep', waitMs:number}}
+ *   poll = לשלוח בקשה עכשיו; wait = לחכות waitMs בלי שום בקשה.
+ */
+export function agentSchedule({ inHours, now, awakeUntil = 0, nextOffCheck = 0, offEvery = 0, pollEveryMs = 30_000 }) {
+  if (inHours || now < awakeUntil) return { action: 'poll', mode: 'on', waitMs: pollEveryMs };
+  if (!offEvery) return { action: 'wait', mode: 'sleep', waitMs: 60_000 };
+  if (now >= nextOffCheck) return { action: 'poll', mode: 'off', waitMs: offEvery * 60_000 };
+  return { action: 'wait', mode: 'off', waitMs: Math.min(60_000, nextOffCheck - now) };
 }
 /** "א-ה" / "א,ב,ד" / "all" → קבוצת ימים (0-6), או null = כל יום. */
 function parseDays(raw) {
@@ -400,7 +425,7 @@ async function check() {
   if (cfg) {
     await step('חיבור לאפליקציה', async () => {
       const h = activeHours(cfg);
-      const r = await api(cfg, '/ingest/bank-agent/ping', { hours: h?.label || null });
+      const r = await api(cfg, '/ingest/bank-agent/ping', { hours: h?.label || null, offEvery: h ? offEveryMin(cfg) : 0 });
       return r.ready ? 'מחובר' : 'מחובר, אבל צריך ללחוץ "עדכן מסד נתונים" בהגדרות';
     });
   }
@@ -421,25 +446,43 @@ async function main() {
   let cfg = loadConfig();
   let hours = activeHours(cfg);
   log(`סוכן סנכרון הבנק פועל על "${NAME}" מול ${cfg.appUrl}. משאירים את החלון פתוח.`);
-  log(hours ? `שולח בקשות רק בשעות ${hours.label} (שעון ישראל), כל ${pollMs(cfg) / 1000} שניות.` : `שולח בקשות כל ${pollMs(cfg) / 1000} שניות, בכל שעה.`);
+  log(hours ? `שולח בקשות בשעות ${hours.label} (שעון ישראל), כל ${pollMs(cfg) / 1000} שניות.` : `שולח בקשות כל ${pollMs(cfg) / 1000} שניות, בכל שעה.`);
+  if (hours) {
+    const every = offEveryMin(cfg);
+    log(every ? `מחוץ לשעות — מצב חיסכון: בודק בקשות סנכרון פעם ב-${every} דקות.` : 'מחוץ לשעות — לא שולח בקשות בכלל.');
+  }
   let backoff = 0;
-  let sleeping = false;
+  let mode = null;
+  let awakeUntil = 0;
+  let nextOffCheck = 0;
   for (;;) {
-    if (!withinHours(hours)) {
-      if (!sleeping) { log(`מחוץ לשעות הפעילות (${hours.label}, שעון ישראל) — לא שולח בקשות עד תחילת הפעילות הבאה.`); sleeping = true; }
-      await sleep(60_000); // שעון מקומי בלבד — אף בקשה לא יוצאת
+    const every = offEveryMin(cfg);
+    const plan = agentSchedule({
+      inHours: withinHours(hours), now: Date.now(), awakeUntil, nextOffCheck, offEvery: every, pollEveryMs: pollMs(cfg),
+    });
+    if (plan.mode !== mode) {
+      if (plan.mode === 'on' && mode) log('בתוך שעות הפעילות — ממשיך.');
+      if (plan.mode === 'off') log(`מחוץ לשעות הפעילות (${hours.label}) — מצב חיסכון, בדיקה פעם ב-${every} דקות.`);
+      if (plan.mode === 'sleep') log(`מחוץ לשעות הפעילות (${hours.label}, שעון ישראל) — לא שולח בקשות עד תחילת הפעילות הבאה.`);
+      mode = plan.mode;
+    }
+    if (plan.action === 'wait') {
+      await sleep(plan.waitMs); // שעון מקומי בלבד — אף בקשה לא יוצאת
       try { cfg = loadConfig(); hours = activeHours(cfg); } catch { /* נשארים עם ההגדרות הקודמות */ }
       continue;
     }
-    if (sleeping) { log('בתוך שעות הפעילות — ממשיך.'); sleeping = false; }
+    if (plan.mode === 'off') nextOffCheck = Date.now() + plan.waitMs;
     try {
-      const { job } = await api(cfg, '/ingest/bank-agent/claim', { hours: hours?.label || null });
+      const { job } = await api(cfg, '/ingest/bank-agent/claim', {
+        hours: hours?.label || null, mode: plan.mode, offEvery: every,
+      });
       backoff = 0;
       if (job) {
         log(`→ #${job.id}: בקשת סנכרון (${job.loginKey})`);
         cfg = loadConfig(); // משתמש שנוסף ל-config.json נכנס לתוקף בלי להפעיל מחדש
         hours = activeHours(cfg);
         await runJob(cfg, job);
+        awakeUntil = Date.now() + AFTER_JOB_AWAKE_MS;
         continue;
       }
     } catch (e) {
@@ -448,9 +491,12 @@ async function main() {
       await sleep(backoff);
       continue;
     }
-    await sleep(pollMs(cfg));
+    if (plan.mode === 'on') await sleep(plan.waitMs);
   }
 }
 
-process.on('SIGINT', () => { log('הסוכן נעצר.'); process.exit(0); });
-main().catch((e) => { log(`✗ ${e.message}`); process.exit(1); });
+// רק כשמריצים את הקובץ (npm start / start-agent.bat) — ייבוא מבדיקה לא מפעיל את הסוכן.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.on('SIGINT', () => { log('הסוכן נעצר.'); process.exit(0); });
+  main().catch((e) => { log(`✗ ${e.message}`); process.exit(1); });
+}

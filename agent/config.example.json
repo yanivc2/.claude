@@ -12,5 +12,6 @@
   "showBrowser": false,
   "activeDays": "א-ה",
   "activeHours": "08:00-16:00",
-  "pollSeconds": 30
+  "pollSeconds": 30,
+  "offHoursCheckMinutes": 10
 }
