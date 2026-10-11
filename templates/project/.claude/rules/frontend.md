@@ -1,3 +1,15 @@
+---
+paths:
+  - "**/*.tsx"
+  - "**/*.jsx"
+  - "**/*.css"
+  - "**/*.scss"
+  - "**/components/**"
+  - "**/app/**/page.tsx"
+  - "**/app/**/layout.tsx"
+  - "**/tailwind.config.*"
+---
+
 # Frontend
 
 > **Applies to:** React / frontend UI work — components, hooks, styling, accessibility. Not relevant to backend-only changes.

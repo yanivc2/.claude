@@ -1,4 +1,18 @@
-﻿## 2026-07-11 14:10
+﻿## 2026-09-20 23:55
+- כיבוי 18 skills מסונכרנים דרך `skillOverrides` ב-`settings.json` (כולם `"off"`, בשמות בסיס ליישור עם מוסכמת `Skill(...)` שבקובץ) — 13 רעש + 5 כפילויות; שינוי הגדרות בלבד, הפיך (PR #111, `49a360b`)
+- הכנת גרסת גיבוי ב-`.claude/rules/skills-inventory.md`: בלוק `skillOverrides` מוכן־להדבקה עם מפתחות בקידומת `anthropic-skills:`, למקרה שהשמות ללא קידומת לא תופסים; כולל הסבר אימות (PR #112, `9a40502`)
+- אזהרות: חל רק אחרי `git pull` ל-`~/.claude`; לאימות `/skill-doctor`; להסרה מוחלטת (לא רק השבתה) לכבות ב-claude.ai
+
+## 2026-09-20 23:35
+- הוספת שרת MCP של 21st.dev ל-`.mcp.json` (`type: http`, `https://21st.dev/api/mcp`), המפתח מוזרק דרך `${input:st21_api_key}` (`promptString`, `password`) ולא נכתב בקובץ; לצד `github` ו-`playwright`
+- הרצת `/install-review` לפני ההוספה (verdict: התקן בזהירות — מפתח מחוץ ל-git, נקודת קצה חיצונית אחת); לא ב-`plugins/blocklist.json`
+- מיון ה-skills המסונכרנים מ-claude.ai לפי `/skill-doctor`: זוהה ש-`skills/` מוחרג ב-`.gitignore` ולכן לא ניתן לעריכה/מחיקה מהריפו, ומחיקה מקומית חוזרת בסנכרון (הבקרה: `/skills` או claude.ai). מומלץ לכבות 18 skills (13 רעש + 5 כפילויות)
+- יצירת קובץ עוגן `.claude/rules/skills-inventory.md` עם המיפוי (להשאיר/לכבות + אילוץ הסנכרון), עם הפניה מ-`config-repo.md`
+- הסביבה סופקה מחדש מ-main עדכני (`a468103`, PR #107/#108) באמצע העבודה; הענף `claude/plugins-rjq0x1` נבנה מחדש על main העדכני עם שני השינויים ופתרון קונפליקט `.mcp.json` מול שרת `playwright` שנוסף ב-main — בלי לאבד שינויים
+- נפתח PR #109, אומת שאין CI בריפו (0 workflows/checks) ומצב מיזוג `clean`, ומוזג ל-main (squash) בקומיט `02a418f`; המנוי וה-check-in נוקו
+- נותר בידי המשתמש: ייצור מפתח 21st.dev ב-`21st.dev/mcp` והזנה דרך `/mcp`, וכיבוי 18 ה-skills דרך `/skills`
+
+## 2026-07-11 14:10
 - בניית מערכת ניהול משאבי אנוש לשוק הישראלי בתיקייה `israeli-hr-system/` (Next.js App Router, Tailwind, Prisma, PostgreSQL, עברית + RTL מלא)
 - שלושה מודולים: עדכוני חקיקה (cron שבועי + משיכת RSS ומניעת כפילויות), צ'אטבוט התייעצות מבוסס RAG (Anthropic `claude-opus-4-8`, מסתמך רק על בסיס הידע במסד), ומחזור חיי עובד — קליטה (טופס 101 + העלאת ספח ת.ז + חתימה דיגיטלית), שימור (סקרי 30/60/90 יום), פיטורין (מחולל הזמנה לשימוע ומכתב פיטורין עם חישוב הודעה מוקדמת אוטומטי)
 - כולל סכמת Prisma, פריסת RTL, API routes, שני cron endpoints, seed לבסיס הידע, README
