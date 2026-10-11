@@ -98,6 +98,24 @@ async function scanContext(invoiceId) {
 
 // For the "save & add another" batch flow: the still-payable invoices already recorded
 // for one supplier at one store, so they can be paid together from the new-invoice screen.
+// The new-invoice form's own payment section: which typed fields belong to each method. Used to
+// carry a chosen method (and what was already typed for it) through "שמור והוסף עוד לספק" and
+// through `?pay=` links, so the payment is created once — on the last invoice — for all of them.
+const PAY_FIELDS = {
+  check: ['check_number', 'check_due_date'],
+  transfer: ['transfer_ref', 'transfer_date'],
+  cash: ['cash_payer', 'cash_date'],
+  credit: ['card_last4', 'credit_date'],
+  standing_order: ['so_ref', 'so_date'],
+};
+function payCarry(src) {
+  const pay = Object.hasOwn(PAY_FIELDS, src.pay) ? src.pay : null;
+  if (!pay) return {};
+  const out = { pay_method: pay };
+  for (const k of PAY_FIELDS[pay]) if (src[k]) out[k] = String(src[k]).slice(0, 64);
+  return out;
+}
+
 async function batchContext(supplierId, storeId, scope) {
   const sid = Number(supplierId);
   const stid = Number(storeId);
@@ -173,13 +191,14 @@ router.get('/new', async (req, res, next) => {
       // a credit); the user can still switch the doc type. Only that value is honored from the query.
       values: {
         ...(supplierId ? { supplier_id: supplierId, store_id: storeId || '', doc_type: req.query.doc === 'credit_note' ? 'credit_note' : undefined } : {}),
-        // "צור בקשת העברה" with no invoice ticked lands here (?pay=transfer): the payment method is
-        // preselected so the transfer's reference/date are typed right below the invoice.
-        ...(req.query.pay === 'transfer' ? { pay_method: 'transfer' } : {}),
+        // `?pay=` preselects the payment method (+ its typed fields): "צור בקשת העברה" with no invoice
+        // ticked lands here with pay=transfer, and "שמור והוסף עוד לספק" carries the chosen method on.
+        ...payCarry(req.query),
       },
       warnings: [],
       error: null,
       notice: req.query.partial ? String(req.query.partial)
+        : req.query.added && payCarry(req.query).pay_method ? 'החשבונית נשמרה. הזן את החשבונית הבאה — התשלום ייווצר בשמירה האחרונה, תשלום אחד לה ולכל החשבוניות המסומנות ב"שיוך לתשלום" למטה.'
         : req.query.added ? 'החשבונית נשמרה. אפשר להזין עוד חשבונית לאותו הספק, או לשייך את הכל לתשלום למטה.'
         : req.query.pay === 'transfer' ? 'חשבונית חדשה בתשלום בהעברה — מלא את פרטי החשבונית, ואת האסמכתה ותאריך הפירעון תחת "אמצעי תשלום".' : null,
       openInvoices,
@@ -253,6 +272,13 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
     await notePaid([invoice.id], b.pay_note, req.user);
     // Optional: the invoice was paid — create the payment (check/transfer/cash) and link it.
     const method = (b.pay_method || '').trim();
+    // "שמור והוסף עוד לספק" means more invoices of this payment are coming: never pay yet. Carry the
+    // method and what was typed for it to the next form; the last save pays them all at once.
+    if (method && b.action === 'add_another') {
+      const q = new URLSearchParams({ supplier: String(invoice.supplier_id), store: String(invoice.store_id), added: '1', doc: 'credit_note' });
+      for (const [k, v] of Object.entries(payCarry({ ...b, pay: method }))) q.set(k === 'pay_method' ? 'pay' : k, v);
+      return res.redirect(303, `/invoices/new?${q.toString()}`);
+    }
     if (method) {
       try {
         const ba = await getExecutor().one('SELECT id FROM bank_accounts WHERE store_id = ?', [invoice.store_id]);
@@ -272,6 +298,25 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
         } else if (method === 'standing_order') {
           payInput.reference = b.so_ref;
           payInput.paymentDate = b.so_date || invoice.invoice_date;
+        }
+        // Earlier invoices ticked in "שיוך לתשלום" below the form join THIS payment (owner, 2026-10-11:
+        // two invoices, one transfer). Only what that section could offer is honoured — same supplier
+        // family, same store, still open, in scope — so a posted id can't pull in anything else.
+        const withIds = [...new Set([].concat(b.with_invoice_ids || []).map(Number).filter(Boolean))]
+          .filter((id) => id !== Number(invoice.id));
+        if (withIds.length) {
+          for (const id of withIds) await assertInScope('invoice', id, req.scope);
+          const offered = new Set((await batchContext(invoice.supplier_id, invoice.store_id, req.scope)).batchInvoices.map((i) => Number(i.id)));
+          const extra = withIds.filter((id) => offered.has(id));
+          if (extra.length) {
+            const { payment } = await payInvoices(
+              { ...payInput, invoiceIds: [invoice.id, ...extra], supplierId: invoice.supplier_id }, req.user,
+            );
+            await matchPaymentNow(payment.id, req.user);
+            await notePaid(extra, b.pay_note, req.user);
+            const q = new URLSearchParams({ paid: String(payment.id), nsup: String(invoice.supplier_id), nstore: String(invoice.store_id) });
+            return res.redirect(303, `/invoices?${q.toString()}`);
+          }
         }
         const created = await createPayment(payInput, req.user);
         await matchPaymentNow(created.id, req.user); // שורת בנק שכבר נמשכה — מותאמת מיד

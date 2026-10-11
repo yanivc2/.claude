@@ -134,8 +134,14 @@
       <div id="pay_amount_wrap" style="margin-top:.5rem;max-width:280px" hidden>
         <label>סכום התשלום (₪)</label>
         <input id="pay_amount_disp" readonly value="" />
-        <small class="muted">מחושב אוטומטית מסכום החשבונית (תשלום = סכום החשבונית).</small>
+        <small class="muted" id="pay_amount_note">מחושב אוטומטית מסכום החשבונית (תשלום = סכום החשבונית).</small>
       </div>
+      <%# Earlier invoices ticked in "שיוך לתשלום" below join THIS payment — one transfer/check for all.
+          The ids are mirrored here by the script under that section; the server re-checks every one. %>
+      <% if (typeof batchInvoices !== 'undefined' && batchInvoices && batchInvoices.length) { %>
+        <p id="pay_with_note" class="alert alert-ok" style="margin:.5rem 0 0" hidden></p>
+        <div id="pay_with_ids"></div>
+      <% } %>
       <div class="pay-row" data-m="check">
         <div class="row">
           <div><label>מספר צ׳ק</label><input name="check_number" value="<%= values.check_number || '' %>" /></div>
@@ -181,13 +187,16 @@
           var before = document.getElementById('before_vat');
           var vat = document.getElementById('vat_amount');
           var total = document.getElementById('total_incl');
+          var docType = document.querySelector('select[name="doc_type"]');
           function invoiceTotal(){
             var t = parseFloat(total && total.value);
-            if (!isNaN(t)) return t;
-            var b = parseFloat(before && before.value) || 0, v = parseFloat(vat && vat.value) || 0;
-            return b + v;
+            if (isNaN(t)) t = (parseFloat(before && before.value) || 0) + (parseFloat(vat && vat.value) || 0);
+            return (docType && docType.value === 'credit_note') ? -Math.abs(t) : t;
           }
-          function syncAmount(){ if (amtDisp){ var t = invoiceTotal(); amtDisp.value = t ? t.toFixed(2) : ''; } }
+          // + the open balance of earlier invoices ticked below (set by the "שיוך לתשלום" script).
+          function syncAmount(){ if (amtDisp){ var t = invoiceTotal() + (window.apPayWithSum ? window.apPayWithSum() : 0) / 100; amtDisp.value = t ? t.toFixed(2) : ''; } }
+          window.apSyncPayAmount = syncAmount;
+          if (docType) docType.addEventListener('change', syncAmount);
           function upd(){
             document.querySelectorAll('.pay-row').forEach(function(r){ r.style.display = (r.dataset.m === sel.value) ? 'block' : 'none'; });
             if (amtWrap) amtWrap.hidden = !sel.value; // הצג את סכום התשלום רק כשנבחר אמצעי
@@ -233,7 +242,7 @@
         <tbody>
           <% batchInvoices.forEach(function(iv){ %>
             <tr>
-              <td><input type="checkbox" class="bp-check" name="invoice_ids" value="<%= iv.id %>" <%= (typeof pickIds !== 'undefined' && pickIds.indexOf(iv.id) !== -1) ? 'checked' : '' %> style="width:auto;min-height:0" /></td>
+              <td><input type="checkbox" class="bp-check" name="invoice_ids" value="<%= iv.id %>" data-num="<%= iv.invoice_number %>" data-open="<%= iv.open_amount == null ? iv.total_amount : iv.open_amount %>" <%= (typeof pickIds !== 'undefined' && pickIds.indexOf(iv.id) !== -1) ? 'checked' : '' %> style="width:auto;min-height:0" /></td>
               <td><%= iv.supplier_name %></td>
               <td class="mono"><a href="/invoices/<%= iv.id %>"><%= iv.invoice_number %></a></td>
               <td><%= formatDate(iv.invoice_date) %></td>
@@ -251,7 +260,7 @@
       </table>
 
       <label style="margin-top:.6rem">אמצעי תשלום</label>
-      <select name="pay_method" id="bp_method" data-sel="<%= pv.pay_method || 'check' %>">
+      <select name="pay_method" id="bp_method" data-sel="<%= pv.pay_method || values.pay_method || 'check' %>">
         <option value="check">צ׳ק</option>
         <option value="transfer">העברה</option>
         <option value="cash">מזומן</option>
@@ -373,6 +382,34 @@
       checks.forEach(function(c){ c.addEventListener('change', checkAmount); });
       recalc();
       checkAmount();
+
+      // The new invoice's own "אמצעי תשלום" pays it TOGETHER with what is ticked here: mirror the
+      // ticked ids into that form, add their open balance to its amount, and say so in words.
+      var withBox = document.getElementById('pay_with_ids');
+      var withNote = document.getElementById('pay_with_note');
+      var topSel = document.getElementById('pay_method');
+      function syncWith(){
+        if (!withBox) return;
+        var picked = checks.filter(function(c){ return c.checked; });
+        withBox.innerHTML = '';
+        picked.forEach(function(c){
+          var h = document.createElement('input');
+          h.type = 'hidden'; h.name = 'with_invoice_ids'; h.value = c.value;
+          withBox.appendChild(h);
+        });
+        window.apPayWithSum = function(){ var o = 0; picked.forEach(function(c){ o += Number(c.dataset.open) || 0; }); return o; };
+        if (withNote) {
+          withNote.hidden = !(picked.length && topSel && topSel.value);
+          var nums = picked.map(function(c){ return c.dataset.num; }).join(', ');
+          withNote.textContent = picked.length === 1
+            ? 'תשלום אחד גם לחשבונית ' + nums + ' שמסומנת ב"שיוך לתשלום" למטה — הסכום כולל אותה. להסרה — בטל את הסימון שם.'
+            : 'תשלום אחד גם ל-' + picked.length + ' החשבוניות שמסומנות ב"שיוך לתשלום" למטה (' + nums + ') — הסכום כולל אותן. להסרה — בטל את הסימון שם.';
+        }
+        if (window.apSyncPayAmount) window.apSyncPayAmount();
+      }
+      checks.forEach(function(c){ c.addEventListener('change', syncWith); });
+      if (topSel) topSel.addEventListener('change', syncWith);
+      syncWith();
       // Arriving here from "הנפק תשלום לנבחרים" (a ?pick= list) means the user wants to pay, not to
       // create a new invoice — jump straight to this section and the payment-method field so there's
       // no scrolling past the whole new-invoice form.

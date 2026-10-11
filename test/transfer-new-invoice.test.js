@@ -40,9 +40,10 @@ test('the new-invoice form arrives with the transfer method selected and its fie
   assert.ok(!/<option value="transfer" selected>/.test(plain), 'without ?pay the method stays empty');
 });
 
-test('only "transfer" is honoured from the query', async () => {
-  const html = await get('/invoices/new?pay=cash', o.id);
-  assert.ok(!/<option value="cash" selected>/.test(html));
+test('only a known payment method is honoured from the query', async () => {
+  const html = await get('/invoices/new?pay=bogus', o.id);
+  assert.ok(!/<option value="bogus"/.test(html));
+  assert.match(html, /<option value="" selected>— ללא —<\/option>/);
 });
 
 test('a user without the invoices page still gets the plain refusal, not a dead link', async () => {
