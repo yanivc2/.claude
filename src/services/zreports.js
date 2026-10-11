@@ -157,7 +157,7 @@ export async function cashReconciliation(zReportId, x = getExecutor()) {
   const deposit = bags.length ? bags.reduce((n, b) => n + (Number(b.amount) || 0), 0) : (zr.deposit_amount || 0);
   const expenses = await expensesTotal(zReportId, x);
   const cash = zr.drawer_cash || 0;
-  const nonCash = (zr.drawer_check || 0) + (zr.drawer_hakafa || 0);
+  const nonCash = zr.drawer_check || 0; // צ׳ק בלבד — הקפה לא בנוסחה (בעלים, 2026-10-12)
   return { cash, nonCash, deposit, expenses, hasDeposit, expected: depositBase(zr, expenses), diff: depositDiff(zr, expenses, deposit) };
 }
 
@@ -621,13 +621,13 @@ export async function cashPaymentsForInvoice(invoiceId, x = getExecutor()) {
 
 /**
  * כמה מזומן **אמור** להגיע לשקית:
- *   מזומן (דוח מגירה) − (צ׳ק + הקפה + סה"כ הוצאות במזומן)
+ *   מזומן (דוח מגירה) − (צ׳ק + סה"כ הוצאות במזומן)
  *
- * 🔴 זו ההגדרה של הבעלים (2026-10-04), והיא מחליפה את "מזומן − הוצאות". בדוח המגירה של הקופה
- * צ׳ק והקפה **אינם כסף שנמצא בשקית**, ולכן הם מופחתים מהמזומן יחד עם ההוצאות.
- * 🔴 **תווי קניה לא נכנסים** — הבעלים הוציא אותם מהנוסחה במפורש (גרסה קודמת באותו יום הפחיתה גם אותם).
- * דוגמה מהמסך: מזומן 90,737.90 − (0 + 162.13 + 4,170.55) = 86,405.22 אמור להגיע לשקית;
- * הופקד 86,371.00 → חוסר 34.22 (ולא 196.35 שהנוסחה הקודמת הראתה).
+ * 🔴 זו ההגדרה של הבעלים (2026-10-04, עודכנה 2026-10-12), והיא מחליפה את "מזומן − הוצאות". בדוח
+ * המגירה של הקופה צ׳ק **אינו כסף שנמצא בשקית**, ולכן הוא מופחת מהמזומן יחד עם ההוצאות.
+ * 🔴 **תווי קניה והקפה לא נכנסים** — הבעלים הוציא את שניהם מהנוסחה במפורש (תווי קניה ב-04/10,
+ * הקפה ב-12/10: "החישוב הנכון ללא הקפה"). השדות נשארים בטופס; הם רק לא חלק מהחישוב.
+ * דוגמה: מזומן 90,737.90 − (0 + 4,170.55) = 86,567.35 אמור להגיע לשקית; הופקד 86,371.00 → חוסר 196.35.
  *
  * 🔴 אשראי **לא** נכנס: הוא אף פעם לא היה מזומן. וההוצאות **מופחתות**, לא מתווספות (כסף שיצא
  * כהוצאה כבר אינו בקופה) — החיבור הקודם ניפח את ההפרש בכפל ההוצאות.
@@ -635,13 +635,13 @@ export async function cashPaymentsForInvoice(invoiceId, x = getExecutor()) {
  * הנוסחה מופיעה **פעמיים**: כאן (הרשימה, היסטוריית ההפקדות והוואטסאפ) וב-`views/reports/_zform.ejs`
  * (החישוב החי בזמן ההקלדה). השתיים חייבות להישאר זהות — `test/zdeposit-base.test.js` נועל זאת.
  *
- * @param {{drawer_cash?, drawer_check?, drawer_hakafa?}} zr שורת ה-Z
+ * @param {{drawer_cash?, drawer_check?}} zr שורת ה-Z
  * @param {number} expenses סך הוצאות המזומן באגורות
  * @returns {number} אגורות
  */
 export function depositBase(zr, expenses = 0) {
   const n = (v) => Number(v) || 0;
-  return n(zr?.drawer_cash) - (n(zr?.drawer_check) + n(zr?.drawer_hakafa) + n(expenses));
+  return n(zr?.drawer_cash) - (n(zr?.drawer_check) + n(expenses));
 }
 
 /**
