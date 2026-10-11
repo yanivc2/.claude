@@ -50,6 +50,9 @@
   </p>
   <% if (!invoiceOptions.length) { %>
     <p class="muted">אין כרגע חשבוניות מאושרות לתשלום. אשר חשבונית ב<a href="/invoices">חשבוניות</a> תחילה.</p>
+    <% if (canView('nav_invoices')) { %>
+      <div class="actions"><a class="btn" href="/invoices/new?pay=transfer">➕ חשבונית חדשה בתשלום בהעברה</a></div>
+    <% } %>
   <% } else { %>
     <form method="post" action="/transfers">
       <div class="table-scroll">
@@ -74,7 +77,7 @@
       </div>
       <div class="actions" style="margin-top:.6rem">
         <button type="submit">צור בקשת העברה</button>
-        <span class="muted">העברה אחת = ספק אחד וחנות אחת.</span>
+        <span class="muted">העברה אחת = ספק אחד וחנות אחת.<% if (canView('nav_invoices')) { %> לא סימנת חשבונית? הכפתור יפתח חשבונית חדשה עם אמצעי תשלום "העברה".<% } %></span>
       </div>
     </form>
   <% } %>

@@ -5,6 +5,7 @@ import {
   transfersReady, TRANSFER_STATUS, statusLabel, watchDefault,
 } from '../services/transfers.js';
 import { requireOwner } from '../middleware/requireOwner.js';
+import { canViewPage } from '../lib/permissions.js';
 import { effectiveStoreId } from '../lib/scope.js';
 import { assertInScope } from '../lib/scopeGuard.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -51,6 +52,12 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const ids = [].concat(req.body.invoice_ids || []).map(Number).filter(Boolean);
+    // Nothing ticked = the invoice isn't in the system yet (owner, 2026-10-11): open a new invoice
+    // with "העברה" preselected as its payment method instead of refusing. Only for a user who can
+    // reach the invoice form; anyone else still gets the plain "pick an invoice" refusal.
+    if (!ids.length && canViewPage(req.user, 'nav_invoices')) {
+      return res.redirect(303, '/invoices/new?pay=transfer');
+    }
     // Every id comes back through a form: re-check each one against the caller's scope before it
     // becomes an approvable request for money.
     for (const id of ids) await assertInScope('invoice', id, req.scope);

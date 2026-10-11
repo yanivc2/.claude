@@ -171,11 +171,17 @@ router.get('/new', async (req, res, next) => {
       ...(await formData(req.scope)),
       // "שמור והוסף עוד לספק" pre-selects a credit note by default (a charge is usually paired with
       // a credit); the user can still switch the doc type. Only that value is honored from the query.
-      values: supplierId ? { supplier_id: supplierId, store_id: storeId || '', doc_type: req.query.doc === 'credit_note' ? 'credit_note' : undefined } : {},
+      values: {
+        ...(supplierId ? { supplier_id: supplierId, store_id: storeId || '', doc_type: req.query.doc === 'credit_note' ? 'credit_note' : undefined } : {}),
+        // "צור בקשת העברה" with no invoice ticked lands here (?pay=transfer): the payment method is
+        // preselected so the transfer's reference/date are typed right below the invoice.
+        ...(req.query.pay === 'transfer' ? { pay_method: 'transfer' } : {}),
+      },
       warnings: [],
       error: null,
       notice: req.query.partial ? String(req.query.partial)
-        : req.query.added ? 'החשבונית נשמרה. אפשר להזין עוד חשבונית לאותו הספק, או לשייך את הכל לתשלום למטה.' : null,
+        : req.query.added ? 'החשבונית נשמרה. אפשר להזין עוד חשבונית לאותו הספק, או לשייך את הכל לתשלום למטה.'
+        : req.query.pay === 'transfer' ? 'חשבונית חדשה בתשלום בהעברה — מלא את פרטי החשבונית, ואת האסמכתה ותאריך הפירעון תחת "אמצעי תשלום".' : null,
       openInvoices,
       pickIds,
       ...ctx,
