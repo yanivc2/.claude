@@ -57,6 +57,65 @@ export function claimWindowSec(agent) {
   return every ? Math.max(CLAIM_WINDOW_SEC, every * 60 + ECONOMY_SLACK_SEC) : CLAIM_WINDOW_SEC;
 }
 
+// ---------------------------------------------------------------- סוכן ישן מחוץ לשעות
+// סוכן בלי מצב חיסכון (הגרסה הישנה, או `offHoursCheckMinutes: 0`) לא שואל בכלל מחוץ לשעות
+// הפעילות — בקשה שנוצרה אז הייתה ממתינה 2 דקות ונכשלת ב"לא הגיב", בלי להסביר למה. את השעות
+// יודעים מהתווית שהסוכן עצמו שולח בכל פנייה ("א׳–ה׳ 08:00-16:00", `agent/bank-agent.mjs#activeHours`),
+// ולכן אפשר לומר מראש שהבקשה לא תיאסף — ולמה.
+const DAY_LETTERS = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש']; // 0 = ראשון, כמו בסוכן
+function israelDayMinutes(now) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(now);
+  const get = (t) => parts.find((p) => p.type === t)?.value;
+  return {
+    day: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(get('weekday')),
+    minutes: Number(get('hour')) * 60 + Number(get('minute')),
+  };
+}
+/** האם עכשיו מחוץ לשעות שבתווית. `null` = אין תווית או שאי אפשר לפענח אותה (ואז לא מנחשים). */
+export function outsideAgentHours(label, now = new Date()) {
+  const s = String(label || '').replace(/[׳']/g, '').trim();
+  if (!s) return null;
+  const TIME = /(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/;
+  const tm = s.match(TIME);
+  const dayPart = s.replace(TIME, '').replace(/\s+/g, '').replace(/–/g, '-');
+  let days = null;
+  if (dayPart) {
+    days = new Set();
+    for (const part of dayPart.split(',')) {
+      const m = part.match(/^([א-ת])(?:-([א-ת]))?$/);
+      const a = m ? DAY_LETTERS.indexOf(m[1]) : -1;
+      const b = m ? (m[2] ? DAY_LETTERS.indexOf(m[2]) : a) : -1;
+      if (a < 0 || b < a) return null;
+      for (let d = a; d <= b; d += 1) days.add(d);
+    }
+  }
+  const { day, minutes } = israelDayMinutes(now);
+  if (days && !days.has(day)) return true;
+  if (!tm) return false;
+  const from = Number(tm[1]) * 60 + Number(tm[2]);
+  const to = Number(tm[3]) * 60 + Number(tm[4]);
+  const inside = from <= to ? minutes >= from && minutes < to : minutes >= from || minutes < to;
+  return !inside;
+}
+/**
+ * הסוכן לא יאסוף בקשה עכשיו: לא מחובר, לא במצב חיסכון, ועכשיו מחוץ לשעות שהוא עצמו דיווח.
+ * `legacy` = גרסה ישנה (פנייה בלי `mode` בכלל) — מה שמתקן אותה הוא עדכון הקובץ במחשב המשרד.
+ */
+export function agentAsleep(agent, now = new Date()) {
+  if (!agent || economyEvery(agent)) return null;
+  if (ageSec(agent.at) <= AGENT_ONLINE_SEC) return null;
+  if (outsideAgentHours(agent.hours, now) !== true) return null;
+  return { hours: agent.hours, legacy: !agent.mode };
+}
+export function asleepMessage(asleep) {
+  const why = asleep.legacy
+    ? 'הסוכן במחשב המשרד הוא הגרסה הישנה, שלא בודקת בקשות אחרי השעות. כדי לסנכרן גם בערב — עדכן את הקובץ bank-agent.mjs במחשב המשרד (מצב חיסכון).'
+    : 'הסוכן מוגדר בלי בדיקה אחרי השעות (offHoursCheckMinutes: 0 ב-config.json).';
+  return `עכשיו מחוץ לשעות הפעילות של הסוכן (${asleep.hours}, שעון ישראל), ולכן הבקשה לא תיאסף. ${why} אחרת — נסה שוב בשעות הפעילות.`;
+}
+
 function ageSec(ts) {
   if (!ts) return Infinity;
   const t = Date.parse(`${String(ts).replace(' ', 'T')}Z`);
@@ -149,6 +208,9 @@ export async function requestSync(user, x = getExecutor()) {
   if (active) {
     throw new RuleError('BANK_SYNC', `סנכרון כבר מתבצע${active.by_name ? ` (התחיל: ${active.by_name})` : ''} — המתן לסיומו.`);
   }
+  // נכשל מראש ובהסבר, במקום בקשה שממתינה 2 דקות ונכשלת ב"לא הגיב".
+  const asleep = agentAsleep(await readHeartbeat(x));
+  if (asleep) throw new RuleError('BANK_SYNC', asleepMessage(asleep));
   const ts = nowTs();
   const info = await x.run(
     `INSERT INTO bank_sync_jobs (status, login_key, requested_by, requested_at, updated_at, message)
@@ -220,6 +282,8 @@ export async function syncStatus(user, scope = null, x = getExecutor()) {
     agentOffEvery: every || null,
     agentSeenSec: Number.isFinite(agentAge) ? Math.round(agentAge) : null,
     agentHours: agent?.hours || null,
+    // הסוכן לא יאסוף בקשה עכשיו (מחוץ לשעות, בלי מצב חיסכון) — הכרטיס אומר זאת במקום כפתור שנכשל.
+    agentAsleepMsg: (() => { const a = agentAsleep(agent); return a ? asleepMessage(a) : null; })(),
     loginKey: loginKeyFor(user),
     job: null,
   };

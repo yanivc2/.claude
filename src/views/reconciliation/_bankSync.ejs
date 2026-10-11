@@ -13,7 +13,7 @@
         <% } else if (bs.agentEconomy) { %><span class="badge b-on_hold">🌙 מחשב המשרד במצב חיסכון</span>
           <span class="muted" style="font-size:12px">מחוץ לשעות הפעילות<%= bs.agentHours ? ' (' + bs.agentHours + ')' : '' %> הסוכן בודק בקשות פעם ב-<%= bs.agentOffEvery %> דקות — בקשת סנכרון תיאסף תוך עד <%= bs.agentOffEvery %> דקות, ואז יגיע קוד SMS.</span>
         <% } else if (bs.agentSeenSec != null) { %><span class="badge b-on_hold">● מחשב המשרד לא מחובר</span>
-          <span class="muted" style="font-size:12px"><% if (bs.agentHours) { %>הסוכן פעיל רק ב-<%= bs.agentHours %> (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.<% } else { %>נראה לאחרונה לפני <%= Math.round(bs.agentSeenSec / 60) %> דק׳ — ודא שהוא דלוק ושהסוכן רץ.<% } %></span>
+          <span class="muted" style="font-size:12px"><% if (bs.agentAsleepMsg) { %><%= bs.agentAsleepMsg %><% } else if (bs.agentHours) { %>הסוכן פעיל רק ב-<%= bs.agentHours %> (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.<% } else { %>נראה לאחרונה לפני <%= Math.round(bs.agentSeenSec / 60) %> דק׳ — ודא שהוא דלוק ושהסוכן רץ.<% } %></span>
         <% } else { %><span class="badge b-neutral">● מחשב המשרד עוד לא התחבר</span>
           <span class="muted" style="font-size:12px">הסוכן צריך לרוץ על מחשב המשרד (ראה הוראות ההתקנה).</span>
         <% } %>
@@ -66,9 +66,9 @@
           <% } %>
         <% } else { %>
           <form method="post" action="/reconciliation/bank-sync/request" class="js-bs-form" style="display:inline">
-            <button type="submit">🔄 סנכרן עכשיו</button>
+            <button type="submit"<%= bs.agentAsleepMsg ? ' disabled title="מחשב המשרד לא יאסוף בקשה עכשיו — ראה ההסבר למעלה"' : '' %>>🔄 סנכרן עכשיו</button>
           </form>
-          <span class="muted" style="font-size:12px">הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.</span>
+          <span class="muted" style="font-size:12px"><%= bs.agentAsleepMsg ? 'הכפתור ייפתח כשהסוכן יחזור לשעות הפעילות (או אחרי עדכון למצב חיסכון).' : 'הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.' %></span>
         <% } %>
       </div>
       <p class="muted" style="font-size:11px; margin:.5rem 0 0">
@@ -118,7 +118,7 @@
         s.agentSeenSec != null ? '● מחשב המשרד לא מחובר' : '● מחשב המשרד עוד לא התחבר'));
       p.appendChild(document.createTextNode(' '));
       p.appendChild(el('span', { class: 'muted', style: 'font-size:12px' },
-        s.agentHours ? ('הסוכן פעיל רק ב-' + s.agentHours + ' (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.')
+        s.agentAsleepMsg ? s.agentAsleepMsg : s.agentHours ? ('הסוכן פעיל רק ב-' + s.agentHours + ' (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.')
           : s.agentSeenSec != null ? 'ודא שהוא דלוק ושהסוכן רץ.' : 'הסוכן צריך לרוץ על מחשב המשרד.'));
     }
     frag.appendChild(p);
@@ -172,9 +172,13 @@
       }
     } else {
       var rf = el('form', { method: 'post', action: '/reconciliation/bank-sync/request', class: 'js-bs-form', style: 'display:inline' });
-      rf.appendChild(el('button', { type: 'submit' }, '🔄 סנכרן עכשיו'));
+      var btnAttrs = { type: 'submit' };
+      if (s.agentAsleepMsg) { btnAttrs.disabled = 'disabled'; btnAttrs.title = 'מחשב המשרד לא יאסוף בקשה עכשיו — ראה ההסבר למעלה'; }
+      rf.appendChild(el('button', btnAttrs, '🔄 סנכרן עכשיו'));
       acts.appendChild(rf);
-      acts.appendChild(el('span', { class: 'muted', style: 'font-size:12px' }, ' הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.'));
+      acts.appendChild(el('span', { class: 'muted', style: 'font-size:12px' }, s.agentAsleepMsg
+        ? ' הכפתור ייפתח כשהסוכן יחזור לשעות הפעילות (או אחרי עדכון למצב חיסכון).'
+        : ' הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.'));
     }
     frag.appendChild(acts);
     var help = el('p', { class: 'muted', style: 'font-size:11px; margin:.5rem 0 0' }, 'המפתח שלך במחשב המשרד: ');
