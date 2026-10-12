@@ -1,11 +1,12 @@
 {
+  "language": "hebrew",
   "hooks": {
     "SessionStart": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "Write-Output '{\"systemMessage\": \"⚠️ כללים קריטיים:\\n1. לפני כל התקנת סקיל/הוק — /install-review חובה\\n2. לא לעשות commit/push ללא בקשה מפורשת\\n3. הסברים תמיד בעברית\"}'",
+            "command": "Write-Output '{\"systemMessage\": \"⚠️ כללים קריטיים:\\n1. לפני כל התקנת סקיל/הוק — /install-review חובה\\n2. לא לעשות commit/push ללא בקשה מפורשת\\n3. כל טקסט למשתמש בעברית — תשובות, עדכוני ביניים, שאלות (כולל אפשרויות התשובה) וסיכומים\"}'",
             "shell": "powershell"
           }
         ]

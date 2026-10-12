@@ -68,7 +68,12 @@ Claude Code merges the nearest `.claude/settings.json` with the global one.
     project-root `rules/` directory exists, it emits a migration note (never deletes).
   - **Environment nudges:** warns on `package.json` without `node_modules`, or
     `.env.example` without `.env`.
-- **`Stop`** — completion chime and a `git diff HEAD --stat` summary.
+- **`Stop`** — completion chime and a `git diff HEAD --stat` summary, plus the
+  **Hebrew reply check** (`hooks/hebrew-reply-hook.mjs`, also wired in
+  `.claude/settings.json` for cloud sessions): a final reply under 50% Hebrew letters
+  (code/paths/URLs not counted) is blocked and rewritten; at most 2 blocks in a row;
+  any internal error lets the stop through. Source + tests live in the ap-control repo
+  (`scripts/hebrew-reply-hook.mjs`, `test/hebrew-reply-hook.test.js`) — keep in sync.
 - **`PreToolUse`**
   - **OneDrive write guard:** blocks any `Write`/`Edit`/`Bash` operation targeting a
     OneDrive path. This is the *only* real enforcement of that iron rule —

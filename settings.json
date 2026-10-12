@@ -1,4 +1,5 @@
 {
+  "language": "hebrew",
   "permissions": {
     "allow": [
       "PowerShell(gh auth status 2>&1)",
@@ -125,6 +126,16 @@
             "type": "command",
             "command": "if (Test-Path '.git') { $stat = git diff HEAD --stat 2>&1; if ($stat) { $lines = ($stat | Select-Object -First 12) -join '\\n'; $out = @{systemMessage = ('📝 ' + $lines)} | ConvertTo-Json -Compress; Write-Output $out } }; exit 0",
             "shell": "powershell"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME\\.claude\\hooks\\hebrew-reply-hook.mjs\"",
+            "shell": "powershell",
+            "timeout": 30
           }
         ]
       }
