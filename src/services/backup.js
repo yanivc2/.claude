@@ -2,6 +2,7 @@ import { getExecutor, tx, getBackend } from '../db/adapter.js';
 import { del as delStored } from '../lib/storage.js';
 import { RuleError } from '../lib/errors.js';
 import { logAction } from './audit.js';
+import { cashExpenseInvoiceIdsReady } from './cashExpenseInvoices.js';
 
 // Full logical backup + a "start fresh" reset for go-live. Both are owner-only (enforced at the
 // route). The backup is a complete JSON snapshot of every table; the reset clears transactional
@@ -139,11 +140,13 @@ export async function cleanStartInvoicesPaymentsZ(actor, x = getExecutor()) {
     catch { /* draft with malformed images — skip (at worst an orphan blob remains) */ }
   }
 
+  const withIds = await cashExpenseInvoiceIdsReady(x); // before the tx — a failed probe aborts a PG tx
   await tx(async (t) => {
     // 1) Null links FROM kept tables INTO rows we are about to delete (keep the row, drop the link).
     await t.run('UPDATE bank_transactions SET matched_payment_id = NULL WHERE matched_payment_id IS NOT NULL', []);
     await t.run('UPDATE product_prices SET invoice_id = NULL WHERE invoice_id IS NOT NULL', []);
     await t.run('UPDATE z_closing_expenses SET invoice_id = NULL WHERE invoice_id IS NOT NULL', []);
+    if (withIds) await t.run('UPDATE z_closing_expenses SET invoice_ids = NULL WHERE invoice_ids IS NOT NULL', []);
     await t.run('UPDATE deposits SET z_report_id = NULL WHERE z_report_id IS NOT NULL', []);
     // 2) Delete child-before-parent (cascades handle invoice_lines/invoice_ocr/payment_lines/z_expenses).
     await t.run('DELETE FROM invoice_drafts', []);

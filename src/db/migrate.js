@@ -35,6 +35,7 @@ export function migrate(db) {
   migrateTrackedInvoices(db);
   migrateBankImports(db);
   migrateSettledCashExpenses(db);
+  migrateCashExpenseInvoiceIds(db);
   migrateSalaryCashMatch(db);
   migrateBankSyncJobs(db);
 }
@@ -724,6 +725,16 @@ function migrateSettledCashExpenses(db) {
     const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
     if (!cols.includes('settled_at')) db.exec(`ALTER TABLE ${table} ADD COLUMN settled_at TEXT;`);
     if (!cols.includes('settled_by')) db.exec(`ALTER TABLE ${table} ADD COLUMN settled_by INTEGER REFERENCES users(id);`);
+  }
+}
+
+// הוצאת מזומן אחת ששילמה כמה חשבוניות — `invoice_ids` (",12,15,"), invoice_id נשאר הראשונה.
+function migrateCashExpenseInvoiceIds(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  for (const table of ['z_expenses', 'z_closing_expenses']) {
+    if (!has(table)) continue;
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    if (!cols.includes('invoice_ids')) db.exec(`ALTER TABLE ${table} ADD COLUMN invoice_ids TEXT;`);
   }
 }
 

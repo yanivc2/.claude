@@ -9,6 +9,20 @@
     });
     return h;
   }
+  // "עבור" של שורת חשבונית: כמה חשבוניות לשורה (בעלים, 2026-10-12). שדה מוסתר אחד "12,15" לשורה —
+  // השרת מצמיד את שדות השורות לפי אינדקס, ושדה לכל חשבונית היה מזיז את כל השורות שאחריו.
+  // התגיות נבנות ב-/cx-inv-picker.js. בלי "עדכן מסד נתונים" נשמרת רק הראשונה, וכך גם נאמר.
+  function cxInvBox(row){
+    var raw = row ? (row.invoice_ids || row.invoice_id || '') : '';
+    var ids = String(raw).split(',').map(function(s){ return s.trim(); }).filter(Boolean).join(',');
+    var multi = (typeof cxMultiReady === 'undefined') || !!cxMultiReady;
+    return '<div class="cx-inv-box" data-multi="' + (multi ? 1 : 0) + '">'
+      + '<input type="hidden" name="expense_invoice_id" class="cx-inv-ids" value="' + cxEsc(ids) + '">'
+      + '<div class="cx-inv-chips"></div>'
+      + '<select class="cx-inv" aria-label="הוסף חשבונית">' + cxInvOptsFor(null).replace('— ללא חשבונית —', multi ? '➕ הוסף חשבונית' : '— בחר חשבונית —') + '</select>'
+      + (multi ? '' : '<small class="muted">כמה חשבוניות לשורה — אחרי "עדכן מסד נתונים" בהגדרות.</small>')
+      + '</div>';
+  }
   function cxEmpOptsFor(sel){
     var h = '<option value="">— בחר עובד —</option>';
     (typeof employeeOptions !== 'undefined' ? employeeOptions : []).forEach(function(emp){
@@ -110,16 +124,16 @@
     <p class="muted" style="margin:.5rem 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · חשבונית. שכר/מפרעה משויכים לעובד; סוג 'חשבונית' משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
     <div id="cx-body" class="cx-list">
       <div class="cx-row">
-        <div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></div>
-        <div class="cx-field"><label>תאריך</label><input type="date" name="expense_date" /></div>
-        <div class="cx-field"><label>שם</label>
+        <div class="cx-field cx-f-kind"><label>סוג</label><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></div>
+        <div class="cx-field cx-f-date"><label>תאריך</label><input type="date" name="expense_date" /></div>
+        <div class="cx-field cx-f-name"><label>שם</label>
           <% if (empOpts.length) { %><select name="payer_name" class="cx-payer js-combo"><%- cxPayerOptsFor(null, false) %></select>
           <% } else { %><input name="payer_name" autocomplete="off" /><% } %>
         </div>
-        <div class="cx-field cx-details"><label>פרטים</label>
-          <input name="purpose" class="cx-purpose" placeholder="עבור" autocomplete="off" />
+        <div class="cx-field cx-details"><label>עבור</label>
+          <input name="purpose" class="cx-purpose" placeholder="פירוט" autocomplete="off" />
           <select name="expense_employee_id" class="cx-emp"><%- cxEmpOptsFor(null) %></select>
-          <select name="expense_invoice_id" class="cx-inv"><%- cxInvOptsFor(null) %></select>
+          <%- cxInvBox(null) %>
         </div>
         <div class="cx-field cx-amt-field"><label>סכום (₪)</label><input name="amount" class="cx-amt" inputmode="decimal" placeholder="0.00" /></div>
         <button type="button" class="btn btn-secondary small cx-del" onclick="cxDel(this)">✕ הסר</button>
@@ -252,7 +266,7 @@
 
   // Cash-expenses table: kind-toggle, live total, auto-add a fresh row when the last one is filled.
   var body = document.getElementById('cx-body');
-  var CX_INV_OPTS = <%- JSON.stringify(cxInvOptsFor(null)) %>;
+  var CX_INV_BOX = <%- JSON.stringify(cxInvBox(null)) %>;
   var CX_EMP_OPTS = <%- JSON.stringify(cxEmpOptsFor(null)) %>;
   var CX_KIND_OPTS = <%- JSON.stringify(cxKindOptsFor(null)) %>;
   var CX_PAYER_FIELD = <%- JSON.stringify(empOpts.length ? ('<select name="payer_name" class="cx-payer js-combo">' + cxPayerOptsFor(null, false) + '</select>') : '<input name="payer_name" autocomplete="off">') %>;
@@ -267,7 +281,7 @@
   }
   function applyKind(row){
     var kind = (row.querySelector('.cx-kind') || {}).value || 'manual';
-    var p = row.querySelector('.cx-purpose'), emp = row.querySelector('.cx-emp'), inv = row.querySelector('.cx-inv');
+    var p = row.querySelector('.cx-purpose'), emp = row.querySelector('.cx-emp'), inv = row.querySelector('.cx-inv-box');
     if (p) p.hidden = (kind !== 'manual');
     if (emp) emp.hidden = true;
     if (inv) inv.hidden = (kind !== 'invoice');
@@ -277,17 +291,18 @@
     var rows = body.querySelectorAll('.cx-row');
     if (rows.length > 1) btn.closest('.cx-row').remove();
     else btn.closest('.cx-row').querySelectorAll('input,select').forEach(function(i){ i.value=''; });
+    if (window.cxInvRender) window.cxInvRender(body);
     recalc();
   };
   function addRow(){
     var row = document.createElement('div');
     row.className = 'cx-row';
-    row.innerHTML = '<div class="cx-field"><label>סוג</label><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></div>'
-      + '<div class="cx-field"><label>תאריך</label><input type="date" name="expense_date"></div>'
-      + '<div class="cx-field"><label>שם</label>' + CX_PAYER_FIELD + '</div>'
-      + '<div class="cx-field cx-details"><label>פרטים</label><input name="purpose" class="cx-purpose" placeholder="עבור" autocomplete="off">'
+    row.innerHTML = '<div class="cx-field cx-f-kind"><label>סוג</label><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></div>'
+      + '<div class="cx-field cx-f-date"><label>תאריך</label><input type="date" name="expense_date"></div>'
+      + '<div class="cx-field cx-f-name"><label>שם</label>' + CX_PAYER_FIELD + '</div>'
+      + '<div class="cx-field cx-details"><label>עבור</label><input name="purpose" class="cx-purpose" placeholder="פירוט" autocomplete="off">'
       +   '<select name="expense_employee_id" class="cx-emp">' + CX_EMP_OPTS + '</select>'
-      +   '<select name="expense_invoice_id" class="cx-inv">' + CX_INV_OPTS + '</select></div>'
+      +   CX_INV_BOX + '</div>'
       + '<div class="cx-field cx-amt-field"><label>סכום (₪)</label><input name="amount" class="cx-amt" inputmode="decimal" placeholder="0.00"></div>'
       + '<button type="button" class="btn btn-secondary small cx-del" onclick="cxDel(this)">✕ הסר</button>';
     body.appendChild(row);
@@ -318,6 +333,7 @@
 })();
 </script>
 
+<script src="/cx-inv-picker.js?v=<%= encodeURIComponent(typeof buildVersion !== 'undefined' ? buildVersion : 'dev') %>" defer></script>
 <script>
 // "איזון קופות" — repeatable per-register cash count. Each block posts parallel arrays
 // (reg_first[]/reg_last[]/reg_number[]/reg_store[]/reg_count_<denom>[]) zipped by index server-side.

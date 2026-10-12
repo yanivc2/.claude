@@ -803,6 +803,11 @@ ALTER TABLE z_expenses         ADD COLUMN IF NOT EXISTS settled_by INTEGER REFER
 ALTER TABLE z_closing_expenses ADD COLUMN IF NOT EXISTS settled_at TEXT;
 ALTER TABLE z_closing_expenses ADD COLUMN IF NOT EXISTS settled_by INTEGER REFERENCES users(id);
 
+-- הוצאת מזומן אחת ששילמה כמה חשבוניות: כל המזהים ",12,15," (invoice_id נשאר הראשונה, כך שכל מי
+-- שקורא אותו ממשיך לעבוד). טקסט ולא טבלת קישור — השורות נמחקות ונוצרות מחדש בכל שמירה של הטופס.
+ALTER TABLE z_expenses         ADD COLUMN IF NOT EXISTS invoice_ids TEXT;
+ALTER TABLE z_closing_expenses ADD COLUMN IF NOT EXISTS invoice_ids TEXT;
+
 -- התאמת שכר להוצאה שהוזנה בטופס דוח ה-Z (מרחב מזהים אחר מזה של הסגירה), ודגל התראה חד-פעמית
 -- על צ׳ק שכר שנפרע בבנק לפני שהותאם להוצאת מזומן.
 ALTER TABLE salary_payments ADD COLUMN IF NOT EXISTS cash_z_expense_id INTEGER REFERENCES z_expenses(id) ON DELETE SET NULL;

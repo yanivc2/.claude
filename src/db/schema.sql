@@ -405,6 +405,7 @@ CREATE TABLE IF NOT EXISTS z_expenses (
   employee_id      INTEGER REFERENCES employees(id),  -- salary/advance → which employee
   amount           INTEGER NOT NULL DEFAULT 0,
   invoice_id       INTEGER REFERENCES invoices(id),  -- optional: cash expense matched to an invoice
+  invoice_ids      TEXT,             -- כל החשבוניות של השורה ",12,15," (invoice_id = הראשונה) — הוצאה אחת יכולה לשלם כמה
   image_path       TEXT,
   -- "טופל" ידני: הוצאה שלא תקבל חשבונית ולא קישור אוטומטי (פריטה שנאספה חזרה לקופה). זה מה
   -- שמוציא אותה מ"תשלום במזומן ללא התאמה" — סימון מפורש של אדם, הפיך, ולא ניחוש של המערכת.
@@ -463,6 +464,7 @@ CREATE TABLE IF NOT EXISTS z_closing_expenses (
   description_type TEXT,             -- kind: manual / salary / advance / invoice
   employee_id      INTEGER REFERENCES employees(id),  -- salary/advance → which employee
   invoice_id       INTEGER REFERENCES invoices(id),   -- invoice → cash expense matched to an invoice
+  invoice_ids      TEXT,                              -- ראה z_expenses.invoice_ids
   amount           INTEGER NOT NULL DEFAULT 0,
   settled_at       TEXT,                              -- ראה z_expenses.settled_at
   settled_by       INTEGER REFERENCES users(id),

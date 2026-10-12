@@ -52,6 +52,9 @@
           <td>
             <% if (e.description_type === 'invoice' && e.invoice_id) { %>
               <a href="/invoices/<%= e.invoice_id %>">חשבונית #<%= e.invoice_number %><%= e.invoice_supplier ? ' · ' + e.invoice_supplier : '' %></a>
+              <%# שורה ששילמה כמה חשבוניות (invoice_ids) — הקישור לראשונה, והמספר אומר שיש עוד. %>
+              <% var _more = String(e.invoice_ids || '').split(',').filter(Boolean).length - 1; %>
+              <% if (_more > 0) { %><span class="muted" style="font-size:12px">+ עוד <%= _more %></span><% } %>
             <% } else if ((e.description_type === 'salary' || e.description_type === 'advance') && (e.emp_first || e.emp_last)) { %>
               <%= ((e.emp_first || '') + ' ' + (e.emp_last || '')).trim() %>
             <% } else { %>

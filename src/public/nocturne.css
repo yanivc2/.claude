@@ -554,18 +554,35 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .cx-collapse > summary::before { content: '▸'; color: var(--color-muted); font-size: 13px; transition: transform .15s ease; }
 .cx-collapse[open] > summary::before { transform: rotate(90deg); }
 .cx-list { display: flex; flex-direction: column; gap: var(--space-3); }
-.cx-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--space-2) var(--space-3);
+.cx-row { display: grid; align-items: end; gap: var(--space-2) var(--space-3);
+  /* פריסת הבעלים (2026-10-12): "עבור" צר, מתחת ל"שם"; הסכום מתחת לסוג+תאריך, "הסר" בקצה. */
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  grid-template-areas: "kind date name ." "amt amt for del";
   padding: var(--space-3); border: 1px solid var(--color-line); border-radius: var(--radius);
   background: var(--color-surface-2); }
-.cx-row .cx-field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 150px; min-width: 130px; }
+.cx-row .cx-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cx-row .cx-field > label { font-size: 12px; color: var(--color-muted); }
 .cx-row .cx-field input, .cx-row .cx-field select { width: 100%; min-height: 42px; }
-.cx-row .cx-details { flex: 1 1 100%; gap: 6px; }        /* purpose + emp/invoice on their own row */
-.cx-row .cx-amt-field { flex: 1 1 120px; }
-.cx-row .cx-del { flex: 0 0 auto; align-self: flex-end; min-height: 42px; }
+.cx-row .cx-f-kind { grid-area: kind; }
+.cx-row .cx-f-date { grid-area: date; }
+.cx-row .cx-f-name { grid-area: name; }
+.cx-row .cx-details { grid-area: for; gap: 6px; }
+.cx-row .cx-amt-field { grid-area: amt; }
+.cx-row .cx-del { grid-area: del; align-self: end; min-height: 42px; }
+/* כמה חשבוניות לשורה: תגיות מעל בורר "➕ הוסף חשבונית" (public/cx-inv-picker.js). */
+.cx-inv-box { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cx-inv-box[hidden] { display: none; }   /* display:flex למעלה היה דורס את hidden */
+.cx-inv-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.cx-inv-chips:empty { display: none; }
+.cx-inv-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 3px 4px 3px 10px;
+  border: 1px solid var(--color-line); border-radius: 12px; background: var(--color-surface); font-size: 12px; line-height: 1.35; }
+.cx-inv-chip > span { overflow-wrap: anywhere; }   /* העמודה צרה — שבירת שורה ולא חיתוך, כדי שהסכום ייראה */
+.cx-inv-chip .cx-inv-x { all: unset; cursor: pointer; padding: 0 6px; color: var(--color-muted); line-height: 1.6; }
+.cx-inv-chip .cx-inv-x:hover { color: var(--color-bad); }
+.cx-inv-chip .cx-inv-x:focus-visible { outline: 2px solid var(--color-accent); border-radius: 4px; }
 .cx-total { margin-top: var(--space-3); text-align: left; font-size: 15px; font-weight: 500; }
 @media (max-width: 620px) {          /* phones: every field full-width, easy to tap */
-  .cx-row .cx-field, .cx-row .cx-amt-field { flex: 1 1 100%; }
+  .cx-row { grid-template-columns: minmax(0, 1fr); grid-template-areas: "kind" "date" "name" "for" "amt" "del"; }
   .cx-row .cx-del { width: 100%; }
 }
 

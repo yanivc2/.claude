@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { cashExpenseInvoiceIdsReady } from '../services/cashExpenseInvoices.js';
 import {
   createZClosing, listZClosings, getZClosing, updateZClosing, deleteZClosing,
   listClosingExpenses, recentClosingExpenses, CLOSING_DENOMS, israelNow,
@@ -90,6 +91,7 @@ async function render(req, res, extra = {}) {
     storeOptions: await storeOptionsFor(req),
     employeeOptions: await listEmployees({ scope: req.scope }),
     invoiceOptions: await invoicePickOptions(req.scope?.companyIds ?? null),
+    cxMultiReady: await cashExpenseInvoiceIdsReady(),
     startedAt: israelNow(),
     closings: await listZClosings({ limit: 30, scope: req.scope }),
     closingExpenses: await recentClosingExpenses(req.scope?.companyIds ?? null, 30),
@@ -137,6 +139,7 @@ async function renderEdit(req, res, id, extra = {}) {
     storeOptions: await storeOptionsFor(req),
     employeeOptions: await listEmployees({ scope: req.scope }),
     invoiceOptions: await invoicePickOptions(req.scope?.companyIds ?? null),
+    cxMultiReady: await cashExpenseInvoiceIdsReady(),
     error: null,
     notice: null,
     ...extra,

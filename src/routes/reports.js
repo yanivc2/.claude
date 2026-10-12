@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { cashExpenseInvoiceIdsReady } from '../services/cashExpenseInvoices.js';
 import { staleStoreFor, renderStaleStore, assertStoreMove } from '../lib/storeContext.js';
 import {
   outstandingChecks,
@@ -184,6 +185,7 @@ async function renderZReport(req, res, id, extra = {}) {
     store,
     storeOptions: await storeList(req),
     invoiceOptions: await invoicePickOptions(req.scope.companyIds),
+    cxMultiReady: await cashExpenseInvoiceIdsReady(),
     employeeOptions: await listEmployees({ scope: req.scope }),
     ccBrands: CC_BRANDS,
     dep: await depositForZ(id),
@@ -307,6 +309,7 @@ async function renderZReports(req, res, extra = {}) {
     zNoDeposit: await zReportsWithoutDeposit({ scope: req.scope, storeId: zStoreId }),
     notDeposited: await declaredNotDeposited({ scope: req.scope, storeId: zStoreId }),
     invoiceOptions: await invoicePickOptions(req.scope.companyIds),
+    cxMultiReady: await cashExpenseInvoiceIdsReady(),
     employeeOptions: await listEmployees({ scope: req.scope }),
     error: null,
     notice: null,

@@ -5,6 +5,7 @@ import { notify } from '../lib/notify.js';
 import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { logAction } from './audit.js';
 import { EXPENSE_KINDS } from './zreports.js';
+import { parseInvoiceIds, encodeInvoiceIds, cashExpenseInvoiceIdsReady } from './cashExpenseInvoices.js';
 
 // A shortage bigger than this (agorot) triggers a Telegram push to the owner.
 const SHORTAGE_ALERT_AGOROT = 2000; // ₪20
@@ -49,7 +50,9 @@ function normalizeExpenses(rows) {
     .map((r) => {
       let kind = EXPENSE_KINDS.has(r.kind) ? r.kind : null;
       if (!kind) kind = r.invoiceId ? 'invoice' : 'manual';
-      const invoiceId = kind === 'invoice' && r.invoiceId ? Number(r.invoiceId) : null;
+      // שורה אחת יכולה לשלם כמה חשבוניות ("12,15"): invoice_id = הראשונה, invoiceIds = כולן.
+      const invoiceIds = kind === 'invoice' ? parseInvoiceIds(r.invoiceIds ?? r.invoiceId) : [];
+      const invoiceId = invoiceIds[0] || null;
       const employeeId = (kind === 'salary' || kind === 'advance') && r.employeeId ? Number(r.employeeId) : null;
       return {
         expenseDate: r.expenseDate || null,
@@ -59,6 +62,7 @@ function normalizeExpenses(rows) {
         employeeId,
         amount: Number.isFinite(r.amount) ? r.amount : 0,
         invoiceId,
+        invoiceIds,
       };
     })
     .filter((r) => r.amount > 0 || r.payerName || r.purpose || r.invoiceId || r.employeeId);
@@ -139,13 +143,22 @@ async function resolveEmployeeNames(employeeId, fallbackFirst, fallbackLast, x) 
 }
 
 // Insert the itemized cash-expense rows for a closing (inside an open transaction executor `t`).
-async function insertExpenses(t, closingId, expenses) {
+// `withIds` = the invoice_ids column exists (probed BEFORE the transaction — see cashExpenseInvoices.js).
+async function insertExpenses(t, closingId, expenses, withIds = false) {
   for (const r of expenses) {
-    await t.run(
-      `INSERT INTO z_closing_expenses (closing_id, expense_date, payer_name, purpose, description_type, employee_id, invoice_id, amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [closingId, r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.invoiceId, r.amount],
-    );
+    if (withIds) {
+      await t.run(
+        `INSERT INTO z_closing_expenses (closing_id, expense_date, payer_name, purpose, description_type, employee_id, invoice_id, invoice_ids, amount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [closingId, r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.invoiceId, encodeInvoiceIds(r.invoiceIds), r.amount],
+      );
+    } else {
+      await t.run(
+        `INSERT INTO z_closing_expenses (closing_id, expense_date, payer_name, purpose, description_type, employee_id, invoice_id, amount)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [closingId, r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.invoiceId, r.amount],
+      );
+    }
   }
 }
 
@@ -159,6 +172,7 @@ export async function createZClosing(input, actor, x = getExecutor()) {
   const { first, last, employeeId, zNumber, drawerCash, storeId, breakdown, totalCash, expenses, totalExpenses, registers, grandTotal } = computeClosing(input);
   const names = await resolveEmployeeNames(employeeId, first, last, x);
   const regs = stampRegisterCounter(registers, names);
+  const withIds = await cashExpenseInvoiceIdsReady(x);
 
   const info = await tx(async (t) => {
     const r = await t.run(
@@ -167,7 +181,7 @@ export async function createZClosing(input, actor, x = getExecutor()) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [names.first, names.last, employeeId, storeId, zNumber, drawerCash, input.startedAt || null, israelNow(), JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, JSON.stringify(regs), actor?.id ?? null],
     );
-    await insertExpenses(t, r.lastInsertRowid, expenses);
+    await insertExpenses(t, r.lastInsertRowid, expenses, withIds);
     return r;
   });
   await logAction(
@@ -251,9 +265,10 @@ export async function listClosingExpenses(closingId, x = getExecutor()) {
  */
 export async function recentClosingExpenses(scope = null, limit = 30, x = getExecutor()) {
   const sc = scopeWhere(scope, 'st.company_id', 'st.id');
+  const withIds = await cashExpenseInvoiceIdsReady(x);
   return x.many(
     `SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.description_type, e.amount,
-            e.invoice_id, i.invoice_number, s.name AS invoice_supplier,
+            e.invoice_id,${withIds ? ' e.invoice_ids,' : ''} i.invoice_number, s.name AS invoice_supplier,
             emp.first_name AS emp_first, emp.last_name AS emp_last,
             zc.id AS closing_id, zc.z_number, st.name AS store_name
        FROM z_closing_expenses e
@@ -286,10 +301,17 @@ export async function matchClosingExpenseToInvoice(expenseId, invoiceId, actor, 
   }
   const inv = await x.one('SELECT id FROM invoices WHERE id = ?', [invoiceId]);
   if (!inv) throw new NotFoundError(`חשבונית ${invoiceId} לא נמצאה`);
-  await x.run(
-    "UPDATE z_closing_expenses SET invoice_id = ?, description_type = 'invoice' WHERE id = ?",
-    [invoiceId, expenseId],
-  );
+  if (await cashExpenseInvoiceIdsReady(x)) {
+    await x.run(
+      "UPDATE z_closing_expenses SET invoice_id = ?, invoice_ids = ?, description_type = 'invoice' WHERE id = ?",
+      [invoiceId, encodeInvoiceIds([invoiceId]), expenseId],
+    );
+  } else {
+    await x.run(
+      "UPDATE z_closing_expenses SET invoice_id = ?, description_type = 'invoice' WHERE id = ?",
+      [invoiceId, expenseId],
+    );
+  }
   await logAction(
     { userId: actor?.id ?? null, action: 'zclosing.match_cash', entityType: 'invoice', entityId: invoiceId, details: { expenseId } },
     x,
@@ -300,7 +322,9 @@ export async function matchClosingExpenseToInvoice(expenseId, invoiceId, actor, 
 /** Undo a cash-expense↔invoice match (back to a plain manual expense). */
 export async function unmatchClosingExpense(expenseId, actor, x = getExecutor()) {
   await x.run(
-    "UPDATE z_closing_expenses SET invoice_id = NULL, description_type = 'manual' WHERE id = ?",
+    (await cashExpenseInvoiceIdsReady(x))
+      ? "UPDATE z_closing_expenses SET invoice_id = NULL, invoice_ids = NULL, description_type = 'manual' WHERE id = ?"
+      : "UPDATE z_closing_expenses SET invoice_id = NULL, description_type = 'manual' WHERE id = ?",
     [expenseId],
   );
   await logAction({ userId: actor?.id ?? null, action: 'zclosing.unmatch_cash', entityType: 'z_closing_expense', entityId: expenseId }, x);
@@ -312,6 +336,7 @@ export async function updateZClosing(id, input, actor, x = getExecutor()) {
   const { first, last, employeeId, zNumber, drawerCash, storeId, breakdown, totalCash, expenses, totalExpenses, registers, grandTotal } = computeClosing(input);
   const names = await resolveEmployeeNames(employeeId, first, last, x);
   const regs = stampRegisterCounter(registers, names);
+  const withIds = await cashExpenseInvoiceIdsReady(x);
   await tx(async (t) => {
     await t.run(
       `UPDATE z_closings SET employee_first = ?, employee_last = ?, employee_id = ?, store_id = ?, z_number = ?, drawer_cash = ?,
@@ -319,7 +344,7 @@ export async function updateZClosing(id, input, actor, x = getExecutor()) {
       [names.first, names.last, employeeId, storeId, zNumber, drawerCash, JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, JSON.stringify(regs), id],
     );
     await t.run('DELETE FROM z_closing_expenses WHERE closing_id = ?', [id]);
-    await insertExpenses(t, id, expenses);
+    await insertExpenses(t, id, expenses, withIds);
   });
   await logAction({ userId: actor?.id ?? null, action: 'zclosing.update', entityType: 'z_closing', entityId: id }, x);
   return getZClosing(id, x);

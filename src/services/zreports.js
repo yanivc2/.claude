@@ -2,6 +2,7 @@ import { getExecutor, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
 import { logAction } from './audit.js';
+import { parseInvoiceIds, encodeInvoiceIds, likeInvoiceId, cashExpenseInvoiceIdsReady } from './cashExpenseInvoices.js';
 
 // Daily register (Z) close (priority 2). daily_total ("יומי Z") feeds the profitability report;
 // the drawer breakdown (cash/check/credit/hakafa/vouchers) sums to drawer_total ("סה"כ מגירה").
@@ -496,7 +497,11 @@ export async function matchCashExpenseToInvoice(source, id, invoiceId, actor, sc
     throw new NotFoundError(`חשבונית ${invoiceId} לא נמצאה`);
   }
 
-  await x.run(`UPDATE ${table} SET invoice_id = ?, description_type = 'invoice' WHERE id = ?`, [inv.id, Number(id)]);
+  if (await cashExpenseInvoiceIdsReady(x)) {
+    await x.run(`UPDATE ${table} SET invoice_id = ?, invoice_ids = ?, description_type = 'invoice' WHERE id = ?`, [inv.id, encodeInvoiceIds([inv.id]), Number(id)]);
+  } else {
+    await x.run(`UPDATE ${table} SET invoice_id = ?, description_type = 'invoice' WHERE id = ?`, [inv.id, Number(id)]);
+  }
   await logAction(
     { userId: actor?.id ?? null, action: 'cash_expense.match_invoice', entityType: 'invoice', entityId: inv.id,
       details: { source, expenseId: Number(id), amount: exp.amount } },
@@ -606,17 +611,21 @@ export async function settledCashExpenses(scope = null, limit = 30, storeId = nu
 
 /**
  * Cash payments (z_expenses) linked to a given invoice — so the invoice page can show
- * "שולם במזומן בדוח Z …" (§6). Newest first.
+ * "שולם במזומן בדוח Z …" (§6). Newest first. Includes a line that paid this invoice together with
+ * others (`invoice_ids`); `shared` = how many invoices that one cash amount covered.
  */
 export async function cashPaymentsForInvoice(invoiceId, x = getExecutor()) {
-  return x.many(
-    `SELECT e.id, e.amount, e.expense_date, z.id AS z_report_id, z.z_number, z.z_date, st.name AS store_name
+  const withIds = await cashExpenseInvoiceIdsReady(x);
+  const rows = await x.many(
+    `SELECT e.id, e.amount, e.expense_date, ${withIds ? 'e.invoice_ids,' : ''} z.id AS z_report_id, z.z_number, z.z_date, st.name AS store_name
        FROM z_expenses e
        JOIN z_reports z ON z.id = e.z_report_id
        JOIN stores st ON st.id = z.store_id
-      WHERE e.invoice_id = ? ORDER BY e.expense_date DESC, e.id DESC`,
-    [invoiceId],
+      WHERE (e.invoice_id = ?${withIds ? ' OR e.invoice_ids LIKE ?' : ''}) ORDER BY e.expense_date DESC, e.id DESC`,
+    withIds ? [invoiceId, likeInvoiceId(invoiceId)] : [invoiceId],
   );
+  for (const r of rows) r.shared = parseInvoiceIds(r.invoice_ids).length || 1;
+  return rows;
 }
 
 /**
@@ -704,8 +713,10 @@ export async function replaceExpenses(zReportId, rows, actor, x = getExecutor())
       // kind means an invoice payment — the pre-kind contract), otherwise a plain manual line.
       let kind = EXPENSE_KINDS.has(r.kind) ? r.kind : null;
       if (!kind) kind = r.invoiceId ? 'invoice' : 'manual';
-      // Normalize the target field to the kind — only one of employee/invoice is kept.
-      const invoiceId = kind === 'invoice' && r.invoiceId ? Number(r.invoiceId) : null;
+      // Normalize the target field to the kind — only one of employee/invoice is kept. A row may pay
+      // several invoices ("12,15"): invoice_id keeps the first, invoice_ids all of them.
+      const invoiceIds = kind === 'invoice' ? parseInvoiceIds(r.invoiceIds ?? r.invoiceId) : [];
+      const invoiceId = invoiceIds[0] || null;
       const employeeId = (kind === 'salary' || kind === 'advance') && r.employeeId ? Number(r.employeeId) : null;
       return {
         expenseDate: r.expenseDate || null,
@@ -715,20 +726,31 @@ export async function replaceExpenses(zReportId, rows, actor, x = getExecutor())
         employeeId,
         amount: Number.isFinite(r.amount) ? r.amount : 0,
         invoiceId,
+        invoiceIds,
       };
     })
     .filter((r) => r.amount > 0 || r.payerName || r.purpose || r.invoiceId || r.employeeId);
   for (const r of clean) {
     if (r.amount < 0) throw new RuleError('VALIDATION', 'סכום הוצאה חייב להיות מספר לא-שלילי');
   }
+  // לפני הטרנזקציה: probe שנכשל בתוכה היה מבטל אותה ב-Postgres.
+  const withIds = await cashExpenseInvoiceIdsReady(x);
   await tx(async (t) => {
     await t.run('DELETE FROM z_expenses WHERE z_report_id = ?', [zReportId]);
     for (const r of clean) {
-      await t.run(
-        `INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, description_type, employee_id, amount, invoice_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [zReportId, r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.amount, r.invoiceId],
-      );
+      if (withIds) {
+        await t.run(
+          `INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, description_type, employee_id, amount, invoice_id, invoice_ids)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [zReportId, r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.amount, r.invoiceId, encodeInvoiceIds(r.invoiceIds)],
+        );
+      } else {
+        await t.run(
+          `INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, description_type, employee_id, amount, invoice_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [zReportId, r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.amount, r.invoiceId],
+        );
+      }
     }
   });
   await logAction({ userId: actor.id, action: 'zexpense.replace', entityType: 'z_report', entityId: zReportId, details: { count: clean.length } }, x);

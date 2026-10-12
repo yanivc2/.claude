@@ -4,6 +4,7 @@ import { config } from '../config.js';
 import { AuthError, NotFoundError, RuleError } from '../lib/errors.js';
 import { userCan } from '../lib/permissions.js';
 import { scopeClause, scopeWhere } from '../lib/scope.js';
+import { parseInvoiceIds, likeInvoiceId, cashExpenseInvoiceIdsReady } from './cashExpenseInvoices.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 import { logAction } from './audit.js';
 
@@ -364,8 +365,12 @@ export async function updateInvoice(id, input, actor, x = getExecutor()) {
       [id],
     );
     if (paid) throw new RuleError('VALIDATION', 'לחשבונית יש תשלום מחשבון הבנק של החנות הנוכחית — לא ניתן להעביר אותה לחנות אחרת. בטל או נתק את התשלום קודם.');
-    const cash = (await x.one('SELECT id FROM z_expenses WHERE invoice_id = ? LIMIT 1', [id]))
-      || (await x.one('SELECT id FROM z_closing_expenses WHERE invoice_id = ? LIMIT 1', [id]));
+    // Also a line that paid this invoice together with others (invoice_ids).
+    const withIds = await cashExpenseInvoiceIdsReady(x);
+    const cashSql = (t) => `SELECT id FROM ${t} WHERE invoice_id = ?${withIds ? ' OR invoice_ids LIKE ?' : ''} LIMIT 1`;
+    const cashArgs = withIds ? [id, likeInvoiceId(id)] : [id];
+    const cash = (await x.one(cashSql('z_expenses'), cashArgs))
+      || (await x.one(cashSql('z_closing_expenses'), cashArgs));
     if (cash) throw new RuleError('VALIDATION', 'החשבונית מותאמת להוצאת מזומן מהקופה של החנות הנוכחית — לא ניתן להעביר אותה לחנות אחרת. נתק את ההתאמה קודם.');
   }
 
@@ -553,6 +558,18 @@ async function enrichPaidStatus(rows, x = getExecutor()) {
   const cashByInv = new Map();
   await countInto('z_closing_expenses', cashByInv);
   await countInto('z_expenses', cashByInv);
+  // A cash line that paid several invoices counts for each of them, not only its first (invoice_id).
+  if (await cashExpenseInvoiceIdsReady(x)) {
+    const want = new Set(ids.map(Number));
+    for (const table of ['z_closing_expenses', 'z_expenses']) {
+      for (const r of await x.many(`SELECT invoice_id, invoice_ids FROM ${table} WHERE invoice_ids IS NOT NULL`, [])) {
+        for (const invId of parseInvoiceIds(r.invoice_ids)) {
+          if (invId === Number(r.invoice_id) || !want.has(invId)) continue;
+          cashByInv.set(invId, (cashByInv.get(invId) || 0) + 1);
+        }
+      }
+    }
+  }
   for (const r of rows) {
     const p = payByInv.get(r.id);
     r.pay_id = p ? Number(p.pid) : null; // groups invoices paid together on the list

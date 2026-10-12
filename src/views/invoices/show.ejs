@@ -88,7 +88,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <% if (typeof cashPayments !== 'undefined' && cashPayments && cashPayments.length) { %>
   <div class="alert alert-ok">
     <strong>שולם במזומן</strong> —
-    <% cashPayments.forEach(function(cp, i){ %><%= i ? ' · ' : '' %><%= formatIls(cp.amount) %> בדוח <a href="/reports/zreports/<%= cp.z_report_id %>">Z <%= cp.z_number %></a> (<%= formatDate(cp.z_date) %>)<% }); %>
+    <% cashPayments.forEach(function(cp, i){ %><%= i ? ' · ' : '' %><%= formatIls(cp.amount) %> בדוח <a href="/reports/zreports/<%= cp.z_report_id %>">Z <%= cp.z_number %></a> (<%= formatDate(cp.z_date) %>)<% if (cp.shared > 1) { %> <span class="muted" style="font-size:12px">— סכום אחד ל-<%= cp.shared %> חשבוניות</span><% } %><% }); %>
   </div>
 <% } %>
 
