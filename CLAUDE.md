@@ -12,8 +12,10 @@ conservative and reviewed. It is not an application codebase — no build, no te
 
 1. **`/install-review` before installing any skill, hook, or plugin.** No exceptions.
 2. **Never `commit` or `push` without an explicit request.**
-3. **Explanations to the user are always in Hebrew.** Code, file contents, commit
-   messages, and identifiers stay in English.
+3. **Everything written to the user is in Hebrew** — replies, progress messages,
+   questions (incl. `AskUserQuestion` options), plans and summaries (incl. compaction
+   summaries). Code, file contents, commit messages, and identifiers stay in English.
+   Enforced by `"language": "hebrew"` and a Stop hook (`hooks/hebrew-reply-hook.mjs`).
 
 ## Iron rules for files and folders
 

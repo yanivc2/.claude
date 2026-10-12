@@ -25,7 +25,8 @@ paths:
 │
 ├── .claude/                     — repo-scoped config (active when cwd == this repo)
 │   ├── settings.json            — nested hooks/permissions for working *in* this repo
-│   └── rules/config-repo.md     — this file
+│   ├── rules/config-repo.md     — this file
+│   └── rules/skills-inventory.md — claude.ai-synced skills triage (keep/disable)
 │
 ├── commands/
 │   ├── install-review.md        — /install-review (implements operating rule #1)
@@ -43,7 +44,7 @@ paths:
 │       ├── .mcp.json            — GitHub MCP server for the new project
 │       ├── .gitignore           — standard Node/TS ignore set
 │       └── .claude/
-│           ├── settings.json    — per-project hooks (typecheck, lint, session log)
+│           ├── settings.json    — per-project hooks (typecheck, lint, commits-only session log)
 │           └── rules/           — path-scoped rule files (see below)
 │
 └── shell-snapshots/             — captured shell env (gitignored)
@@ -54,7 +55,7 @@ paths:
 | File | Scope | Purpose |
 |---|---|---|
 | `settings.json` (root) | **Global** — every session on this machine | Permission allowlist + deny rules, global hooks, model + effort. |
-| `.claude/settings.json` | **This repo only** | Local overrides while editing the config itself: extra permissions, critical-rules banner, agent-based session recorder, typecheck hook. |
+| `.claude/settings.json` | **This repo only** | Local overrides while editing the config itself: extra permissions, critical-rules banner, session recorder (command hook, commits-only), typecheck hook. |
 
 Claude Code merges the nearest `.claude/settings.json` with the global one.
 
@@ -67,22 +68,27 @@ Claude Code merges the nearest `.claude/settings.json` with the global one.
     project-root `rules/` directory exists, it emits a migration note (never deletes).
   - **Environment nudges:** warns on `package.json` without `node_modules`, or
     `.env.example` without `.env`.
-- **`Stop`** — completion chime, `git diff HEAD --stat` summary, prunes `deletions/`
-  older than 14 days.
-- **`PreCompact`** — reminds Claude to persist TODOs/decisions before context is lost,
-  and warns that path-scoped rules are dropped by `/compact`.
+- **`Stop`** — completion chime and a `git diff HEAD --stat` summary, plus the
+  **Hebrew reply check** (`hooks/hebrew-reply-hook.mjs`, also wired in
+  `.claude/settings.json` for cloud sessions): a final reply under 50% Hebrew letters
+  (code/paths/URLs not counted) is blocked and rewritten; at most 2 blocks in a row;
+  any internal error lets the stop through. Source + tests live in the ap-control repo
+  (`scripts/hebrew-reply-hook.mjs`, `test/hebrew-reply-hook.test.js`) — keep in sync.
 - **`PreToolUse`**
   - **OneDrive write guard:** blocks any `Write`/`Edit`/`Bash` operation targeting a
     OneDrive path. This is the *only* real enforcement of that iron rule —
     `Write()` entries in `permissions.deny` are accepted but never checked.
   - **Bash guard:** blocks `rm -rf`, `reset --hard`, `drop table`, and reads of
     `.env` / `session.json`.
-  - **Write backup:** copies a file into `deletions/<timestamp>_<name>` before overwrite.
-  - **Bash delete backup:** backs up `rm`/`Remove-Item` targets into `deletions/`.
 - **`PostToolUse`** — typecheck after editing `.ts`/`.tsx` in a repo with `tsconfig.json`.
 
-> `session-log.md` is auto-maintained by the Stop hook (kept under ~80 lines, entries
-> older than 30 days trimmed). Don't hand-edit it.
+> `session-log.md` is auto-maintained by the repo-scoped Stop hook — **only when the
+> session produced commits** (kept under ~80 lines). Don't hand-edit it.
+>
+> **Removed on purpose (2026-09-21):** the `deletions/` backup hooks and their prune —
+> `fileCheckpointingEnabled: true` already snapshots files before edits, so they were
+> pure duplication. `PreCompact` too: the harness summarizes context itself now, and
+> the hook pushed TODOs into `CLAUDE.md`, which is meant to stay lean.
 
 ## The project template (`templates/project/`)
 
@@ -158,6 +164,34 @@ robocopy exit codes 0–7 meaning success.
 input — never hard-code it) and `playwright`. MCP tool schemas are deferred by
 default, so servers cost little context; check per-server cost with `/mcp`.
 `mcp-needs-auth-cache.json` is ephemeral runtime state, not configuration.
+
+### The two `bf7c680d-…` entries in the allowlist
+
+`settings.json` allows exactly two tools on the Claude Code Remote MCP server:
+
+```
+mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__list_triggers
+mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__update_trigger
+```
+
+**Why:** the live text of a scheduled routine is stored service-side, not in any
+repo, so a session cannot fix a broken routine without these. That gap bit us
+once already — five routines needed the same one-line change after
+`micha-brain` split its pipeline dependencies out of `requirements.txt`, and the
+session that found the problem had no way to apply the fix.
+
+**Deliberately narrow.** The same server also exposes `create_trigger`,
+`delete_trigger`, `create_session` and `archive_session`. None of those are
+allowed: reading routines and editing their prompts is enough to repair one,
+and nothing here should be able to silently delete a schedule.
+
+**The server name is a UUID assigned by the platform**, not something declared
+in `.mcp.json`. If it ever changes, these entries stop matching and calls go
+back to `MCP error -32003: requires approval`. That error is the signal to
+re-check the name, not a sign the server broke.
+
+**Permissions are read when a session starts.** Adding an entry does not affect
+the session that added it.
 
 ## Plugin blocklist (`plugins/blocklist.json`)
 
