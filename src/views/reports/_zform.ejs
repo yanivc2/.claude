@@ -65,7 +65,7 @@
     return '<select name="payer_name" class="cx-payer js-combo">' + cxPayerOptsFor(sel, true) + '</select>';
   }
 %>
-<form method="post" action="<%= action %>" class="stack" data-zform>
+<form method="post" action="<%= action %>" class="stack" data-zform data-busy="שומר…">
   <%# החנות אינה בורר (כלל הבעלים): בהוספה — החנות הפעילה; בעריכה — חנות הדוח (העברה רק עם view_all_stores). %>
   <% if (z.id) { %>
     <%- include('../partials/_storeField', { currentStoreId: z.store_id }) %>

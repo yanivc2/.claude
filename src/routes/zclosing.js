@@ -3,6 +3,7 @@ import { cashExpenseInvoiceIdsReady } from '../services/cashExpenseInvoices.js';
 import {
   createZClosing, listZClosings, getZClosing, updateZClosing, deleteZClosing,
   listClosingExpenses, recentClosingExpenses, CLOSING_DENOMS, israelNow,
+  findRecentDuplicateClosing,
 } from '../services/zclosing.js';
 import { scopeClause } from '../lib/scope.js';
 import { toAgorot } from '../lib/money.js';
@@ -103,7 +104,8 @@ async function render(req, res, extra = {}) {
 
 router.get('/', async (req, res, next) => {
   try {
-    const notice = req.query.saved ? 'הסגירה נשמרה. תודה!' : (req.query.notice ? String(req.query.notice).slice(0, 200) : null);
+    const notice = req.query.dup ? 'הסגירה כבר נשמרה — הלחיצה הנוספת לא יצרה עותק.'
+      : req.query.saved ? 'הסגירה נשמרה. תודה!' : (req.query.notice ? String(req.query.notice).slice(0, 200) : null);
     await render(req, res, notice ? { notice } : {});
   } catch (err) {
     next(err);
@@ -115,9 +117,12 @@ router.post('/', async (req, res, next) => {
     // store_id is a form field, so it is attacker-controlled: a closer granted one store could
     // otherwise post another store's id and file a cash count against a register they can't see.
     if (req.body.store_id) await assertStoreAllowed(req.body.store_id, req.scope);
-    await createZClosing(closingInputFrom(req.body), req.user);
+    const input = closingInputFrom(req.body);
+    // A second click on a slow save: the closing is already there — say so instead of a copy.
+    const dup = await findRecentDuplicateClosing(input);
+    if (!dup) await createZClosing(input, req.user);
     // PRG: a reload after saving must not file the same count twice.
-    return res.redirect(303, '/zclosing?saved=1');
+    return res.redirect(303, dup ? '/zclosing?saved=1&dup=1' : '/zclosing?saved=1');
   } catch (err) {
     if (err instanceof RuleError) return render(req, res, { error: err.message });
     next(err);
@@ -174,7 +179,7 @@ router.post('/:id', requireOwner, async (req, res, next) => {
 router.post('/:id/delete', requireOwner, async (req, res, next) => {
   try {
     await deleteZClosing(Number(req.params.id), req.user);
-    await render(req, res, { notice: 'הסגירה נמחקה.' });
+    return res.redirect(303, `/zclosing?notice=${encodeURIComponent('הסגירה נמחקה.')}`); // PRG
   } catch (err) {
     next(err);
   }

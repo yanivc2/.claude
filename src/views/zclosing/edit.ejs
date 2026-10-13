@@ -70,7 +70,7 @@
 
 <div class="card no-print">
   <p class="muted" style="margin:0 0 .6rem">נשמר: <strong><%= closing.ended_at || '—' %></strong> · שעון ישראל</p>
-  <form method="post" action="/zclosing/<%= closing.id %>" class="stack" id="zclose-form">
+  <form method="post" action="/zclosing/<%= closing.id %>" class="stack" id="zclose-form" data-busy="שומר…">
     <% if (empOpts.length) { %>
       <input type="hidden" name="employee_first" value="<%= closing.employee_first || '' %>" />
       <input type="hidden" name="employee_last" value="<%= closing.employee_last || '' %>" />

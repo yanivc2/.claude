@@ -66,7 +66,7 @@
   <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
     <div style="margin-top:.8rem"><%- include('../partials/_needStore', { what: 'סגירת Z' }) %></div>
   <% } else { %>
-  <form method="post" action="/zclosing" class="stack" id="zclose-form" style="margin-top:.8rem">
+  <form method="post" action="/zclosing" class="stack" id="zclose-form" data-busy="שומר…" style="margin-top:.8rem">
     <input type="hidden" name="started_at" value="<%= startedAt %>" />
     <p class="muted" style="margin:0 0 .6rem">תחילת ספירה: <strong><%= startedAt %></strong> · שעון ישראל</p>
 
@@ -177,11 +177,15 @@
       <thead><tr><th>עובד</th><th>חנות</th><th>Z</th><th>סיום</th><th class="right">מגירה</th><th class="right">נספר</th><th class="right">הוצאות</th><th class="right">סה"כ</th><th class="right">חוסר / יתרה</th><% if (isOwner) { %><th class="no-print" data-nosort></th><% } %></tr></thead>
       <tbody>
         <% if (!closings || closings.length === 0) { %><tr><td colspan="<%= isOwner ? 10 : 9 %>" class="muted">אין סגירות עדיין.</td></tr><% } %>
+        <%# אותה סגירה (חנות + Z + מגירה + סכום) יותר מפעם אחת — כנראה לחיצה כפולה. מסומנת כדי
+            שיהיה ברור מה למחוק; המערכת לא מוחקת לבד, כי ייתכן שאחת מהן כבר נערכה. %>
+        <% var _dupKey = function (c) { return [c.store_id, c.z_number, c.drawer_cash, c.grand_total].join('|'); };
+           var _dupCount = {}; (closings || []).forEach(function (c) { var k = _dupKey(c); _dupCount[k] = (_dupCount[k] || 0) + 1; }); %>
         <% (closings || []).forEach(function(c){ %>
           <tr>
             <td><% if (isOwner) { %><a href="/zclosing/<%= c.id %>"><%= c.employee_first %> <%= c.employee_last %></a><% } else { %><%= c.employee_first %> <%= c.employee_last %><% } %></td>
             <td><%= c.store_name || '—' %></td>
-            <td class="mono"><%= c.z_number || '—' %></td>
+            <td class="mono"><%= c.z_number || '—' %><% if (_dupCount[_dupKey(c)] > 1) { %> <span class="badge b-on_hold" title="אותה סגירה נשמרה <%= _dupCount[_dupKey(c)] %> פעמים — אפשר למחוק את העותקים">⚠️ כפול ×<%= _dupCount[_dupKey(c)] %></span><% } %></td>
             <td class="mono"><%= c.ended_at || '—' %></td>
             <td class="right"><%= formatIls(c.drawer_cash) %></td>
             <td class="right"><%= formatIls(c.total_cash) %></td>

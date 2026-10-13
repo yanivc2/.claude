@@ -23,7 +23,7 @@
   <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
     <%- include('../partials/_needStore', { what: 'חשבונית' }) %>
   <% } else { %>
-  <form class="stack" method="post" action="/invoices" enctype="multipart/form-data">
+  <form class="stack" method="post" action="/invoices" enctype="multipart/form-data" data-busy="שומר…">
     <div class="row">
       <div>
         <label>ספק *</label>

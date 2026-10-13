@@ -34,14 +34,37 @@
   // "…" label so the round-trip doesn't look like nothing happened. Runs only for forms opted in with
   // data-busy or a /void action. The form data is already collected when 'submit' fires, so disabling
   // the button here drops no field.
+  //
+  // 🔴 It is also the double-submit guard of the entry forms (סגירת Z / דוח Z / חשבונית): a slow save
+  // (cold start) looked like nothing happened, and every extra tap filed another copy — one closing
+  // was saved 4 times in the same minute (13/10). So: a second submit while the first is in flight is
+  // swallowed, and every submit button of the form is disabled. A submit another handler already
+  // cancelled (a validator, a confirm() answered "no") is left alone, and coming Back to the page
+  // (bfcache) makes the form usable again.
   document.addEventListener('submit', function (e) {
     var f = e.target;
     if (!f || !f.matches || !f.matches('form[data-busy], form[action*="/void"]')) return;
-    var btn = f.querySelector('button[type="submit"], button:not([type]), [type="submit"]');
-    if (btn && !btn.disabled) {
-      var busy = f.getAttribute('data-busy') || 'מבטל…';
-      setTimeout(function () { btn.disabled = true; if ('textContent' in btn) btn.textContent = busy; }, 0);
-    }
+    if (e.defaultPrevented) return;
+    if (f.getAttribute('data-busy-sent')) { e.preventDefault(); return; }
+    f.setAttribute('data-busy-sent', '1');
+    var btns = f.querySelectorAll('button[type="submit"], button:not([type]), input[type="submit"]');
+    var label = e.submitter || btns[0];
+    var busy = f.getAttribute('data-busy') || 'מבטל…';
+    setTimeout(function () {
+      Array.prototype.forEach.call(btns, function (b) { b.disabled = true; });
+      if (label && label.tagName === 'BUTTON') { label.setAttribute('data-busy-orig', label.textContent); label.textContent = busy; }
+    }, 0);
+  });
+  window.addEventListener('pageshow', function () {
+    Array.prototype.forEach.call(document.querySelectorAll('form[data-busy-sent]'), function (f) {
+      f.removeAttribute('data-busy-sent');
+      Array.prototype.forEach.call(f.querySelectorAll('[disabled]'), function (b) {
+        if (b.matches('button, input[type="submit"]')) b.disabled = false;
+      });
+      Array.prototype.forEach.call(f.querySelectorAll('[data-busy-orig]'), function (b) {
+        b.textContent = b.getAttribute('data-busy-orig'); b.removeAttribute('data-busy-orig');
+      });
+    });
   });
   </script>
   <script>

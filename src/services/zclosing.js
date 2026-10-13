@@ -162,6 +162,34 @@ async function insertExpenses(t, closingId, expenses, withIds = false) {
   }
 }
 
+// 🔴 שמירה כפולה (בעלים, 13/10: אותה סגירת Z נשמרה 4 פעמים באותה דקה — לחיצות חוזרות כשהשמירה
+// הייתה איטית). הטופס חוסם לחיצה שנייה (data-busy ב-footer), וזו השכבה השנייה: אותה סגירה בדיוק —
+// חנות, Z, עובד, מגירה, סכומים ושורות הוצאה — שכבר נשמרה ב-15 הדקות האחרונות לא נשמרת שוב.
+// סגירה שונה (סכום אחר, שורה אחרת) נשמרת כרגיל; תיקון של סגירה קיימת נעשה בעריכה.
+export const DUPLICATE_CLOSING_WINDOW_SEC = 15 * 60;
+export async function findRecentDuplicateClosing(input, x = getExecutor()) {
+  const c = computeClosing(input);
+  const names = await resolveEmployeeNames(c.employeeId, c.first, c.last, x);
+  const rows = await x.many(
+    c.zNumber == null || c.zNumber === ''
+      ? 'SELECT * FROM z_closings WHERE z_number IS NULL'
+      : 'SELECT * FROM z_closings WHERE z_number = ?',
+    c.zNumber == null || c.zNumber === '' ? [] : [c.zNumber],
+  );
+  const now = Date.now();
+  const same = (a, b) => (a == null ? null : Number(a)) === (b == null ? null : Number(b));
+  const hit = rows.find((r) => {
+    const at = Date.parse(`${String(r.created_at || '').replace(' ', 'T')}Z`);
+    return Number.isFinite(at) && now - at <= DUPLICATE_CLOSING_WINDOW_SEC * 1000
+      && same(r.store_id, c.storeId)
+      && String(r.employee_first || '') === String(names.first || '')
+      && String(r.employee_last || '') === String(names.last || '')
+      && same(r.drawer_cash, c.drawerCash) && same(r.grand_total, c.grandTotal) && same(r.total_expenses, c.totalExpenses)
+      && String(r.expenses || '') === JSON.stringify(c.expenses);
+  });
+  return hit ? Number(hit.id) : null;
+}
+
 /**
  * Save a register closing. Totals are recomputed server-side from the counts/expenses (never
  * trusted from the client). ended_at is stamped in Israel time here; started_at is passed in.
@@ -170,6 +198,12 @@ async function insertExpenses(t, closingId, expenses, withIds = false) {
  */
 export async function createZClosing(input, actor, x = getExecutor()) {
   const { first, last, employeeId, zNumber, drawerCash, storeId, breakdown, totalCash, expenses, totalExpenses, registers, grandTotal } = computeClosing(input);
+  // אותה סגירה שכבר נשמרה הרגע — מחזירים אותה במקום עותק נוסף (וגם בלי התראת "חוסר" שנייה).
+  const dupId = await findRecentDuplicateClosing(input, x);
+  if (dupId) {
+    await logAction({ userId: actor?.id ?? null, action: 'zclosing.duplicate_ignored', entityType: 'z_closing', entityId: dupId }, x);
+    return dupId;
+  }
   const names = await resolveEmployeeNames(employeeId, first, last, x);
   const regs = stampRegisterCounter(registers, names);
   const withIds = await cashExpenseInvoiceIdsReady(x);
