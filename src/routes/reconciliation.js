@@ -43,6 +43,7 @@ import { requestSync, submitOtp, cancelSync, syncStatus } from '../services/bank
 import { syncBankAccount } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
 import { accountIntegrity } from '../services/accountIntegrity.js';
+import { findAccountDuplicates, mergeAccountDuplicates } from '../services/bankDuplicates.js';
 import { inspectBankTxn } from '../services/txnInspect.js';
 
 const router = Router();
@@ -268,8 +269,25 @@ router.get('/integrity', async (req, res, next) => {
       title: 'בדיקת שיוך לחשבון',
       account,
       result: account ? await accountIntegrity(account.id) : null,
+      dups: account ? await findAccountDuplicates(account.id) : null,
+      notice: req.query.notice ? String(req.query.notice).slice(0, 300) : null,
+      error: req.query.error ? String(req.query.error).slice(0, 300) : null,
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+// איחוד כפילויות קובץ↔משיכה שהוכחו ע"י רצף היתרות (services/bankDuplicates.js). מוחק שורות בנק,
+// ולכן בעלים בלבד; הרשימה מחושבת מחדש בשרת — הטופס נושא רק את החשבון.
+router.post('/integrity/merge', requireOwner, async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  const back = (q) => res.redirect(303, `/reconciliation/integrity?account=${accountId}&${q}`);
+  try {
+    const { merged, movedLinks } = await mergeAccountDuplicates(accountId, req.user);
+    return back(`notice=${encodeURIComponent(`אוחדו ${merged} כפילויות${movedLinks ? ` · ${movedLinks} התאמות עברו לשורה שנשארה` : ''}.`)}`);
+  } catch (err) {
+    if (err instanceof RuleError) return back(`error=${encodeURIComponent(err.message)}`);
     next(err);
   }
 });

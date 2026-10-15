@@ -3,6 +3,8 @@
   <h1>🔍 בדיקת שיוך לחשבון</h1>
   <a class="btn btn-secondary" href="/reconciliation<%= account ? '?account=' + account.id : '' %>">← חזרה להתאמת בנק</a>
 </div>
+<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <% if (!account || !result) { %>
   <div class="alert alert-warn">לא נבחר חשבון בנק.</div>
 <% } else { var r = result; var ok = !r.breaks.length && !r.duplicates.length && !r.foreignChecks.length; %>
@@ -43,6 +45,53 @@
       </table></div>
     <% } %>
   </div>
+
+  <%# 1א. כפילויות קובץ↔משיכה — הסיבה הנפוצה לשבר ברצף (services/bankDuplicates.js). זוג מוצע לאיחוד
+      רק כשהסרת העותק מאזנת את היום בדיוק; השאר מוצגים לבדיקה ולא נוגעים בהם. %>
+  <% var dp = (typeof dups !== 'undefined' && dups) ? dups : null; %>
+  <% if (dp && dp.pairs.length) { var unver = dp.pairs.filter(function(p){ return !(p.verified && !p.conflict); }); %>
+  <div class="card no-collapse">
+    <h2 style="margin:0 0 .3rem">1א. אותה תנועה פעמיים בחשבון הזה (קובץ + משיכה מהבנק)</h2>
+    <p class="muted" style="margin:0 0 .5rem">שורה שיובאה מקובץ אקסל ונמשכה שוב מהבנק — אותו סכום, עד 3 ימים הפרש. <strong>מוצע לאיחוד רק זוג שהסרת העותק שלו מאזנת את רצף היתרות של היום בדיוק</strong>, כלומר החשבון עצמו מוכיח שזו כפילות. באיחוד נשארת שורת הקובץ (עם היתרה), היא מקבלת את מזהה הבנק כדי שמשיכה הבאה לא תכפיל שוב, וכל התאמה שהייתה על העותק — תשלום, הפקדה, שכר — עוברת אליה.</p>
+    <% if (dp.mergeable.length) { %>
+      <p style="margin:0 0 .5rem"><strong><%= dp.mergeable.length %></strong> כפילויות מאומתות · שברים ברצף היתרות: <strong><%= dp.breaksBefore %></strong> עכשיו → <strong><%= dp.breaksAfter %></strong> אחרי האיחוד.</p>
+      <div class="table-scroll"><table>
+        <thead><tr><th>תאריך (קובץ)</th><th>תאריך (בנק)</th><th class="right">סכום</th><th>תיאור בקובץ</th><th>תיאור בבנק</th><th>התאמה על העותק</th></tr></thead>
+        <tbody>
+          <% dp.mergeable.forEach(function(p){ %>
+            <tr><td><%= formatDate(p.keep.txn_date) %></td><td><%= formatDate(p.drop.txn_date) %></td><td class="right"><%= formatIls(p.keep.amount) %></td>
+              <td><%= p.keep.description || '' %></td><td><%= p.drop.description || '' %></td><td><%= p.dropMatched ? 'כן — תעבור' : '—' %></td></tr>
+          <% }); %>
+        </tbody>
+      </table></div>
+      <% if (currentUser && currentUser.role === 'owner') { %>
+        <form method="post" action="/reconciliation/integrity/merge" data-busy="מאחד…" style="margin-top:.6rem"
+              onsubmit="return confirm('לאחד <%= dp.mergeable.length %> כפילויות? בכל זוג נשארת שורת הקובץ, והעותק מהמשיכה נמחק (ההתאמות שלו עוברות).');">
+          <input type="hidden" name="account_id" value="<%= account.id %>" />
+          <button type="submit">🧹 אחד <%= dp.mergeable.length %> כפילויות מאומתות</button>
+        </form>
+      <% } else { %>
+        <p class="muted" style="margin:.5rem 0 0">האיחוד מוחק שורות בנק ולכן נעשה ע"י הבעלים.</p>
+      <% } %>
+    <% } else { %>
+      <p style="margin:0">אין זוג שמאזן יום בדיוק — לא מוצע איחוד אוטומטי.</p>
+    <% } %>
+    <% if (unver.length) { %>
+      <details style="margin-top:.6rem">
+        <summary class="muted" style="cursor:pointer"><%= unver.length %> זוגות נוספים לא אומתו — לא יאוחדו</summary>
+        <div class="table-scroll" style="margin-top:.4rem"><table>
+          <thead><tr><th>תאריך (קובץ)</th><th>תאריך (בנק)</th><th class="right">סכום</th><th>תיאור בקובץ</th><th>למה לא</th></tr></thead>
+          <tbody>
+            <% unver.forEach(function(p){ %>
+              <tr><td><%= formatDate(p.keep.txn_date) %></td><td><%= formatDate(p.drop.txn_date) %></td><td class="right"><%= formatIls(p.keep.amount) %></td>
+                <td><%= p.keep.description || '' %></td><td class="muted"><%= p.conflict || p.reason %></td></tr>
+            <% }); %>
+          </tbody>
+        </table></div>
+      </details>
+    <% } %>
+  </div>
+  <% } %>
 
   <div class="card no-collapse">
     <h2 style="margin:0 0 .3rem">2. אותה תנועה גם בחשבון אחר</h2>

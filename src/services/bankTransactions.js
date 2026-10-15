@@ -35,11 +35,12 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
   let inserted = 0;
   let skipped = 0;
   let adopted = 0;
+  let merged = 0;
   await tx(async (t) => {
     // כל מה שכבר בחשבון נטען פעם אחת — בדיקת כפילות בזיכרון במקום SELECT לכל שורה. משיכה מהבנק
     // מביאה ~2,000 שורות, ושתי קריאות מסד לכל שורה מ-Vercel ל-Neon הן דקות.
     const existing = await t.many(
-      'SELECT id, txn_date, amount, description, raw_reference, external_id FROM bank_transactions WHERE bank_account_id = ?',
+      'SELECT id, txn_date, amount, description, raw_reference, external_id, balance_after FROM bank_transactions WHERE bank_account_id = ?',
       [bankAccountId],
     );
     const fieldKey = (date, amount, desc, ref) => `${date}|${amount}|${desc ?? ''}|${ref ?? ''}`;
@@ -50,7 +51,9 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
     // פעמיים. התיאור אינו מפתח כאן: הקובץ והאתר מנסחים אותו אחרת. ההתאמה: אותו סכום, עד 3 ימים
     // הפרש (תאריך ערך מול תאריך פעולה), אסמכתא זהה מועדפת, כל שורה ישנה נתפסת פעם אחת בלבד.
     const legacy = [];
+    const pulled = []; // שורות שהגיעו מהבנק (נושאות מזהה) — התאומות האפשריות של שורת קובץ
     for (const e of existing) {
+      if (e.external_id) pulled.push({ id: e.id, date: e.txn_date, amount: e.amount, ref: plainNumber(e.raw_reference ?? '') || null, balance: e.balance_after, taken: false });
       if (e.external_id) {
         byExternal.add(e.external_id);
         // מזהה סריקה בפורמט הישן (`scr:חברה:חשבון:אסמכתא`, לפני שנוספו תאריך+סכום): המזהה החדש של
@@ -92,6 +95,36 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
         if (hit) adoptedRow.set(r, hit);
       }
     }
+    // 🔴 הכיוון ההפוך (בעלים, 15/10): **קובץ** שמגיע אחרי שהבנק כבר נמשך. שורת קובץ אין לה מזהה,
+    // והתיאור שלה שונה מזה של האתר — בדיקת השדות המדויקת לא ראתה את התאומה, וכל חפיפה נקלטה
+    // פעמיים (במידנייט: רצף היתרות נשבר ב-25 ימים). אותו כלל כמו האימוץ: אותו סכום, עד 3 ימים,
+    // אסמכתא זהה מועדפת, תאריך זהה לפני טווח, כל שורה קיימת פעם אחת. רק לייבוא קובץ — הזנה ידנית
+    // היא החלטה של אדם ולא תיבלע.
+    const twinRow = new Map();
+    if (source === 'csv' && pulled.length) {
+      const claimPulled = (r, maxDays) => {
+        const ref = plainNumber(r.rawReference ?? '') || null;
+        let best = null;
+        let bestScore = Infinity;
+        for (const p of pulled) {
+          if (p.taken || Number(p.amount) !== Number(r.amount)) continue;
+          const d = dayDiff(p.date, r.txnDate);
+          if (!(d <= maxDays)) continue;
+          const score = d + (ref && p.ref === ref ? -10 : 0);
+          if (score < bestScore) { best = p; bestScore = score; }
+        }
+        if (best) best.taken = true;
+        return best;
+      };
+      for (const maxDays of [0, 3]) {
+        for (const r of rows) {
+          if (r.externalId || twinRow.has(r)) continue;
+          if (byFields.has(fieldKey(r.txnDate, r.amount, r.description ?? null, r.rawReference ?? null))) continue;
+          const hit = claimPulled(r, maxDays);
+          if (hit) twinRow.set(r, hit);
+        }
+      }
+    }
 
     for (const r of rows) {
       const desc = r.description ?? null;
@@ -102,6 +135,17 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
       // window is re-fetched on every sync. Rows without one (CSV / manual) keep the field-equality check.
       if (externalId ? byExternal.has(externalId) : byFields.has(fieldKey(r.txnDate, r.amount, desc, ref))) {
         skipped += 1;
+        continue;
+      }
+      const twin = twinRow.get(r);
+      if (twin) {
+        // השורה כבר נמשכה מהבנק. מה שהקובץ מוסיף הוא היתרה — היא נכנסת לשורה הקיימת (רק באותו
+        // תאריך: יתרה שייכת ליום שלה), וכך בדיקת רצף היתרות רואה גם את מה שהסוכן הביא.
+        if (Number.isFinite(r.balanceAfter) && twin.balance == null && String(twin.date).slice(0, 10) === String(r.txnDate).slice(0, 10)) {
+          await t.run('UPDATE bank_transactions SET balance_after = ? WHERE id = ? AND balance_after IS NULL', [r.balanceAfter, twin.id]);
+        }
+        skipped += 1;
+        merged += 1;
         continue;
       }
       const hit = adoptedRow.get(r);
@@ -127,10 +171,10 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
 
   await x.run('UPDATE bank_imports SET inserted = ?, skipped = ? WHERE id = ?', [inserted, skipped, importId]);
   await logAction(
-    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, adopted, importId, fileName } },
+    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, adopted, merged, importId, fileName } },
     x,
   );
-  return { inserted, skipped, adopted, importId };
+  return { inserted, skipped, adopted, merged, importId };
 }
 
 /**

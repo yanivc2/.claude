@@ -30,6 +30,50 @@ function anchorClose(rows, sum) {
 }
 
 /**
+ * רצף היתרות של חשבון אחד — פונקציה טהורה, כדי שגם איחוד הכפילויות (services/bankDuplicates.js)
+ * יבדוק "מה יקרה אחרי" באותו ביטוי בדיוק.
+ *
+ * כל יום שיש בו יתרה סוגר **חלון**: כל התנועות מאז יום-היתרה הקודם (כולל ימים בלי יתרה) נסכמות,
+ * והיתרה הצפויה = סגירת החלון הקודם + הסכום. `windowOf` = לאיזה יום-יתרה נבדק נספרה כל תנועה
+ * (תנועה לפני העוגן הראשון או אחרי היתרה האחרונה אינה בשום חלון נבדק).
+ * @param {Array<{id, txn_date, amount, balance_after, file_name?, source?}>} rows ממוינות לפי תאריך
+ */
+export function balanceBreaks(rows) {
+  const days = [];
+  for (const r of rows) {
+    const d = String(r.txn_date).slice(0, 10);
+    if (!days.length || days[days.length - 1].date !== d) days.push({ date: d, rows: [] });
+    days[days.length - 1].rows.push(r);
+  }
+  const breaks = [];
+  const windowOf = new Map();
+  let daysChecked = 0;
+  let close = null;
+  let pending = [];
+  for (const day of days) {
+    const sum = day.rows.reduce((n, r) => n + (Number(r.amount) || 0), 0);
+    const bals = day.rows.filter((r) => r.balance_after != null).map((r) => Number(r.balance_after));
+    if (!bals.length) { if (close != null) { close += sum; pending.push(...day.rows); } continue; }
+    if (close == null) { close = anchorClose(day.rows, sum); pending = []; continue; }
+    daysChecked += 1;
+    for (const r of [...pending, ...day.rows]) windowOf.set(Number(r.id), day.date);
+    pending = [];
+    const expected = close + sum;
+    if (bals.includes(expected)) { close = expected; continue; }
+    const found = anchorClose(day.rows, sum);
+    breaks.push({
+      date: day.date,
+      expected,
+      found,
+      diff: found - expected,
+      files: [...new Set(day.rows.map((r) => r.file_name || (r.source === 'csv' ? 'קובץ' : r.source)).filter(Boolean))],
+    });
+    close = found;
+  }
+  return { daysChecked, breaks, windowOf };
+}
+
+/**
  * @returns {Promise<{rowsTotal, rowsWithBalance, daysChecked, firstDate, lastDate,
  *   breaks: Array<{date, expected, found, diff, files}>, duplicates: Array, foreignChecks: Array}>}
  */
@@ -55,31 +99,9 @@ export async function accountIntegrity(bankAccountId, x = getExecutor()) {
   };
 
   // 1. רצף היתרות, יום אחרי יום.
-  const days = [];
-  for (const r of rows) {
-    const d = String(r.txn_date).slice(0, 10);
-    if (!days.length || days[days.length - 1].date !== d) days.push({ date: d, rows: [] });
-    days[days.length - 1].rows.push(r);
-  }
-  let close = null;
-  for (const day of days) {
-    const sum = day.rows.reduce((n, r) => n + (Number(r.amount) || 0), 0);
-    const bals = day.rows.filter((r) => r.balance_after != null).map((r) => Number(r.balance_after));
-    if (!bals.length) { if (close != null) close += sum; continue; }
-    if (close == null) { close = anchorClose(day.rows, sum); continue; }
-    out.daysChecked += 1;
-    const expected = close + sum;
-    if (bals.includes(expected)) { close = expected; continue; }
-    const found = anchorClose(day.rows, sum);
-    out.breaks.push({
-      date: day.date,
-      expected,
-      found,
-      diff: found - expected,
-      files: [...new Set(day.rows.map((r) => r.file_name || (r.source === 'csv' ? 'קובץ' : r.source)).filter(Boolean))],
-    });
-    close = found;
-  }
+  const chain = balanceBreaks(rows);
+  out.daysChecked = chain.daysChecked;
+  out.breaks = chain.breaks;
 
   if (!rows.length) return out;
   const others = await x.many(
