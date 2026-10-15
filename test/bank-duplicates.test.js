@@ -232,3 +232,68 @@ test('route: merging is owner-only, and the page shows the proposal', async () =
   assert.equal(r.status, 303);
   assert.match(decodeURIComponent(r.headers.get('location')), /אוחדו 2 כפילויות/);
 });
+
+// סופר על הדרך, 07/09: "תיקון (תאריך ערך 06/09)" — ‎-51,920 / ‎+51,905 ועמלת שטרי כסף ‎-22.38, אותה
+// אסמכתא. משיכה אחת החזירה 06/09 (ואימצה את שורות הקובץ), הבאה 07/09 — מזהה אחר, נקלט שוב.
+// הפער ברצף: ‎+37.38 בדיוק.
+const ID = (ref, date, amt) => `scr:hapoalimBiz:12-628-420244:${ref}:${date}:${amt}`;
+async function superShape() {
+  const a = await cleanAccount(0);
+  await ins(a, '2026-09-05', -100, 'עמלה', { bal: 100000, ext: ID('1', '2026-09-05', -100) });
+  for (const [amt, bal, desc] of [[-51920, 48080, 'תיקון'], [51905, 99985, 'תיקון'], [-2238, 97747, 'עמלת שטרי כסף']]) {
+    await ins(a, '2026-09-07', amt, desc, { bal, ext: ID('216404133', '2026-09-06', amt), ref: '216404133' }); // adopted on the 06/09 pull
+  }
+  for (const amt of [-51920, 51905, -2238]) {
+    await ins(a, '2026-09-07', amt, 'תיקון (תאריך ערך: 06/09)', { source: 'scraper', ext: ID('216404133', '2026-09-07', amt), ref: '216404133' });
+  }
+  return a;
+}
+
+test('Super al HaDerech: the break explains itself — three lines counted twice, +37.38 exactly', async () => {
+  const a = await superShape();
+  const r = await accountIntegrity(a, db);
+  assert.equal(r.breaks.length, 1);
+  assert.equal(r.breaks[0].diff, 2253);
+  assert.equal(r.breaks[0].suspects.length, 3);
+  assert.ok(r.breaks[0].suspects.every((x) => x.why === 'twice'));
+});
+
+test('…and 1א merges them: the file rows stay and take the NEWER id (the date the bank reports now)', async () => {
+  const a = await superShape();
+  const d = await findAccountDuplicates(a, db);
+  assert.equal(d.mergeable.length, 3);
+  assert.ok(d.mergeable.every((p) => p.replaceId));
+  await mergeAccountDuplicates(a, o, db);
+  assert.equal((await accountIntegrity(a, db)).breaks.length, 0, 'the chain is whole');
+  const ids = (await db.many("SELECT external_id FROM bank_transactions WHERE bank_account_id = ? AND txn_date = '2026-09-07'", [a])).map((x) => x.external_id).sort();
+  assert.deepEqual(ids, [ID('216404133', '2026-09-07', -2238), ID('216404133', '2026-09-07', -51920), ID('216404133', '2026-09-07', 51905)].sort());
+  // the next pull reports 07/09 again → recognised, nothing inserted
+  const again = await importTransactions(a, [-51920, 51905, -2238].map((amt) => ({ txnDate: '2026-09-07', amount: amt, description: 'x', rawReference: '216404133', externalId: ID('216404133', '2026-09-07', amt) })), 'scraper', o, db);
+  assert.equal(again.inserted, 0);
+});
+
+test('importer: a line whose date moved between pulls takes the new id instead of landing twice', async () => {
+  const a = await cleanAccount(0);
+  await ins(a, '2026-09-07', -2238, 'עמלה', { bal: 1, ext: ID('216404133', '2026-09-06', -2238), ref: '216404133' });
+  const pull = [
+    { txnDate: '2026-09-05', amount: -100, description: 'x', externalId: ID('1', '2026-09-05', -100) },
+    { txnDate: '2026-09-07', amount: -2238, description: 'עמלה', rawReference: '216404133', externalId: ID('216404133', '2026-09-07', -2238) },
+  ];
+  const r = await importTransactions(a, pull, 'scraper', o, db);
+  assert.equal(r.restated, 1);
+  assert.equal(r.inserted, 1, 'only the genuinely new line');
+  const row = await db.one('SELECT external_id FROM bank_transactions WHERE bank_account_id = ? AND amount = -2238', [a]);
+  assert.equal(row.external_id, ID('216404133', '2026-09-07', -2238));
+});
+
+test('importer: two REAL lines with the same reference and amount (both in the pull) are both kept', async () => {
+  const a = await cleanAccount(0);
+  await ins(a, '2026-09-06', -500, 'עמלה', { source: 'scraper', ext: ID('77', '2026-09-06', -500), ref: '77' });
+  const pull = [
+    { txnDate: '2026-09-06', amount: -500, description: 'עמלה', rawReference: '77', externalId: ID('77', '2026-09-06', -500) },
+    { txnDate: '2026-09-07', amount: -500, description: 'עמלה', rawReference: '77', externalId: ID('77', '2026-09-07', -500) },
+  ];
+  const r = await importTransactions(a, pull, 'scraper', o, db);
+  assert.equal(r.restated, 0, 'the old id is still reported → it is another transaction');
+  assert.equal(r.inserted, 1);
+});

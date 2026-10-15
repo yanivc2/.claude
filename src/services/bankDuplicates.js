@@ -30,6 +30,9 @@ const refOf = (v) => plainNumber(String(v ?? '').trim()) || null;
 // מזהה סריקה: `scr:<ערוץ>:<חשבון>:<אסמכתא>` ומאז 27/09 גם `:<תאריך>:<סכום>`.
 const TAIL_ID = /^scr:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*$/;
 const nsOf = (id) => { const m = /^scr:([^:]*):/.exec(String(id || '')); return m ? m[1] : null; };
+/** המזהה בלי רכיב התאריך — אותה תנועה שתאריכה השתנה בין משיכות (ראה importTransactions). */
+const undated = (id) => { const m = /^(scr:[^:]*:[^:]*:[^:]*):([^:]*):([^:]*)$/.exec(String(id || '')); return m ? `${m[1]}::${m[3]}` : null; };
+const datedPart = (id) => { const m = /^scr:[^:]*:[^:]*:[^:]*:([^:]*):[^:]*$/.exec(String(id || '')); return m ? m[1] : null; };
 
 /**
  * הערוץ שמושך היום את החשבון: הערוץ של שורת המשיכה האחרונה שנקלטה במזהה בפורמט הנוכחי. במידנייט
@@ -60,7 +63,8 @@ export function isStaleId(id, current) {
  *   • בלי מזהה (הייבוא מזהה אותה מול שורת הקובץ — `importTransactions`);
  *   • במזהה ישן או של ערוץ אחר (`isStaleId`);
  *   • במזהה נוכחי — רק כשהשורה שנשארת היא שורת קובץ בלי מזהה, שמקבלת אותו (`takeId`).
- * שתי שורות במזהה הערוץ הנוכחי לעולם לא מזווגות: אחת מהן הייתה חוזרת במשיכה הבאה.
+ * שתי שורות במזהה הערוץ הנוכחי לא מזווגות — אלא אם המזהים זהים פרט לתאריך (אותה תנועה שתאריכה
+ * השתנה בין משיכות), ואז העדכני עובר לשורת הקובץ (`replaceId`).
  */
 export function pairDuplicates(rows) {
   const cur = currentNamespace(rows);
@@ -77,8 +81,15 @@ export function pairDuplicates(rows) {
       if (!isFile(keep) && keep.external_id == null) return null;
       return { takeId: false };
     }
-    // העותק נושא מזהה נוכחי: מותר רק מול שורת קובץ בלי מזהה, שתקבל אותו.
-    return isFile(keep) && keep.external_id == null ? { takeId: true } : null;
+    // העותק נושא מזהה נוכחי: מותר מול שורת קובץ בלי מזהה, שתקבל אותו —
+    if (isFile(keep) && keep.external_id == null) return { takeId: true };
+    // — או מול שורת קובץ שאומצה במזהה **של אותה תנועה בתאריך אחר** (התאריך השתנה בין משיכות). העותק
+    // נקלט אחרי האימוץ, ולכן המזהה שלו הוא העדכני: הוא מחליף את זה של שורת הקובץ.
+    if (isFile(keep) && keep.external_id != null && undated(keep.external_id) != null
+      && undated(keep.external_id) === undated(drop.external_id) && datedPart(keep.external_id) !== datedPart(drop.external_id)) {
+      return { takeId: true, replaceId: true };
+    }
+    return null;
   };
   for (const maxDays of [0, MAX_DAYS]) {
     for (const drop of drops) {
@@ -99,7 +110,7 @@ export function pairDuplicates(rows) {
       if (best) {
         used.add(drop.id);
         used.add(best.keep.id);
-        pairs.push({ keep: best.keep, drop, takeId: best.takeId });
+        pairs.push({ keep: best.keep, drop, takeId: best.takeId, replaceId: !!best.replaceId });
       }
     }
   }
@@ -228,7 +239,7 @@ export async function mergeAccountDuplicates(accountId, actor, x = getExecutor()
       const d = cur.find((r) => Number(r.id) === drop);
       if (!k || !d || Number(k.amount) !== Number(d.amount) || Number(k.bank_account_id) !== Number(accountId)
         || Number(d.bank_account_id) !== Number(accountId)) continue;
-      if (p.takeId && k.external_id != null) continue; // השורה כבר קיבלה מזהה בינתיים — לא נוגעים
+      if (p.takeId && !p.replaceId && k.external_id != null) continue; // השורה כבר קיבלה מזהה בינתיים — לא נוגעים
       if (d.matched_payment_id != null && k.matched_payment_id == null) {
         await t.run('UPDATE bank_transactions SET matched_payment_id = NULL WHERE id = ?', [drop]);
         await t.run('UPDATE bank_transactions SET matched_payment_id = ? WHERE id = ?', [d.matched_payment_id, keep]);
@@ -243,7 +254,8 @@ export async function mergeAccountDuplicates(accountId, actor, x = getExecutor()
       await t.run('DELETE FROM bank_transactions WHERE id = ?', [drop]);
       // המזהה של המשיכה עובר לשורת הקובץ — אחרת המשיכה הבאה (60 יום אחורה) הייתה מכניסה אותה שוב.
       // מזהה נוכחי עובר לשורת הקובץ (המשיכה הבאה תזהה אותה); מזהה ישן לא — המשיכה הבאה תאמץ אותה במזהה של היום.
-      if (p.takeId && d.external_id != null) await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ? AND external_id IS NULL', [d.external_id, keep]);
+      if (p.replaceId && d.external_id != null) await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ?', [d.external_id, keep]);
+      else if (p.takeId && d.external_id != null) await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ? AND external_id IS NULL', [d.external_id, keep]);
       merged += 1;
     }
   });

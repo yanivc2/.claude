@@ -39,6 +39,7 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
   let skipped = 0;
   let adopted = 0;
   let merged = 0;
+  let restated = 0;
   await tx(async (t) => {
     // כל מה שכבר בחשבון נטען פעם אחת — בדיקת כפילות בזיכרון במקום SELECT לכל שורה. משיכה מהבנק
     // מביאה ~2,000 שורות, ושתי קריאות מסד לכל שורה מ-Vercel ל-Neon הן דקות.
@@ -93,11 +94,38 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
     }
     // שני מעברים: קודם התאמות באותו תאריך בדיוק, ורק אחר כך בטווח. אחרת עמלה קבועה שחוזרת כל יום
     // (אותו סכום) הייתה תופסת את השורה הישנה של אתמול, ושורת היום האמיתית הייתה נדחקת.
+    // 🔴 אותה תנועה במזהה חדש כי **התאריך שלה השתנה** בין משיכות (בעלים, 15/10, סופר על הדרך:
+    // "תיקון (תאריך ערך 06/09)" שנרשם ב-07/09 — משיכה אחת החזירה 06/09, הבאה 07/09, והמזהה כולל את
+    // התאריך → נקלטה פעמיים, ורצף היתרות נשבר ב-‎+37.38). מזהה ללא התאריך זהה (ערוץ, חשבון, אסמכתא,
+    // סכום), עד 3 ימים — **ורק אם המזהה הישן כבר לא מופיע במשיכה הזו** בתוך הטווח שהיא מכסה: אסמכתא
+    // חוזרת על עצמה בהפועלים, ושתי תנועות אמיתיות היו מופיעות שתיהן. השורה הקיימת מקבלת את המזהה החדש.
+    const undated = (id) => { const m = /^(scr:[^:]*:[^:]*:[^:]*):([^:]*):([^:]*)$/.exec(String(id || '')); return m ? `${m[1]}::${m[3]}` : null; };
+    const byUndated = new Map();
+    for (const e of existing) {
+      const k = undated(e.external_id);
+      if (!k) continue;
+      if (!byUndated.has(k)) byUndated.set(k, []);
+      byUndated.get(k).push({ rowId: e.id, ext: e.external_id, date: String(e.txn_date).slice(0, 10), claimed: false });
+    }
+    const batchIds = new Set(rows.map((r) => r.externalId).filter(Boolean));
+    const batchDates = rows.map((r) => String(r.txnDate || '').slice(0, 10)).filter(Boolean).sort();
+    const restatedRow = new Map();
+    if (byUndated.size && batchDates.length) {
+      const [minD, maxD] = [batchDates[0], batchDates[batchDates.length - 1]];
+      for (const r of rows) {
+        const ext = r.externalId ?? null;
+        if (!ext || byExternal.has(ext)) continue;
+        const cand = (byUndated.get(undated(ext)) || []).find((e) => !e.claimed && !batchIds.has(e.ext)
+          && e.date >= minD && e.date <= maxD && dayDiff(e.date, r.txnDate) <= 3);
+        if (cand) { cand.claimed = true; restatedRow.set(r, cand); }
+      }
+    }
+
     const adoptedRow = new Map();
     for (const maxDays of [0, 3]) {
       for (const r of rows) {
         const externalId = r.externalId ?? null;
-        if (!externalId || byExternal.has(externalId) || adoptedRow.has(r) || !legacy.length) continue;
+        if (!externalId || byExternal.has(externalId) || adoptedRow.has(r) || restatedRow.has(r) || !legacy.length) continue;
         const hit = claimFrom(legacy, r, maxDays);
         if (hit) adoptedRow.set(r, hit);
       }
@@ -134,6 +162,14 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
         skipped += 1;
         continue;
       }
+      const re = restatedRow.get(r);
+      if (re) {
+        await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ?', [externalId, re.rowId]);
+        byExternal.add(externalId);
+        skipped += 1;
+        restated += 1;
+        continue;
+      }
       const twin = twinRow.get(r);
       if (twin) {
         // השורה כבר נמשכה מהבנק. מה שהקובץ מוסיף הוא היתרה — היא נכנסת לשורה הקיימת (רק באותו
@@ -168,10 +204,10 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
 
   await x.run('UPDATE bank_imports SET inserted = ?, skipped = ? WHERE id = ?', [inserted, skipped, importId]);
   await logAction(
-    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, adopted, merged, importId, fileName } },
+    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, adopted, merged, restated, importId, fileName } },
     x,
   );
-  return { inserted, skipped, adopted, merged, importId };
+  return { inserted, skipped, adopted, merged, restated, importId };
 }
 
 /**

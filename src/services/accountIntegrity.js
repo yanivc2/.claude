@@ -29,6 +29,26 @@ function anchorClose(rows, sum) {
   return Number(bals[bals.length - 1].balance_after);
 }
 
+// מה מסביר שבר: (1) שורה אחת בחלון שהסרתה מאפסת את ההפרש; (2) שורות שנקלטו **פעמיים** בחלון (אותו
+// סכום ואותה אסמכתא) שהעותקים שלהן יחד מאפסים אותו — סופר על הדרך 07/09: ‎-51,920 / ‎+51,905 / ‎-22.38
+// ("תיקון, תאריך ערך 06/09") פעמיים = ‎-37.38 בדיוק.
+function suspectsFor(windowRows, diff) {
+  const pick = (r, why) => ({ id: r.id, date: r.txn_date, amount: r.amount, description: r.description, source: r.source, why });
+  const single = windowRows.filter((r) => Number(r.amount) === -diff);
+  if (single.length) return single.map((r) => pick(r, 'extra'));
+  const groups = new Map();
+  for (const r of windowRows) {
+    const ref = refKey(r.raw_reference);
+    if (!ref) continue;
+    const k = `${Number(r.amount)}|${ref}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  const extras = [...groups.values()].filter((g) => g.length > 1).flatMap((g) => g.slice(1));
+  const sum = extras.reduce((n, r) => n + Number(r.amount), 0);
+  return extras.length && sum === -diff ? extras.map((r) => pick(r, 'twice')) : [];
+}
+
 /**
  * רצף היתרות של חשבון אחד — פונקציה טהורה, כדי שגם איחוד הכפילויות (services/bankDuplicates.js)
  * יבדוק "מה יקרה אחרי" באותו ביטוי בדיוק.
@@ -89,8 +109,7 @@ export function balanceBreaks(rows) {
       diff,
       files: [...new Set(day.rows.map((r) => r.file_name || (r.source === 'csv' ? 'קובץ' : r.source)).filter(Boolean))],
       // מה זה כנראה: שורה בחלון שהסרתה מאפסת את ההפרש (מיותרת אצלנו); אחרת — חסרה תנועה של diff.
-      suspects: windowRows.filter((r) => Number(r.amount) === -diff)
-        .map((r) => ({ id: r.id, date: r.txn_date, amount: r.amount, description: r.description, source: r.source })),
+      suspects: suspectsFor(windowRows, diff),
     });
     close = found;
   }

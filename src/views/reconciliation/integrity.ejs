@@ -48,7 +48,9 @@
               <td><%= b.files.join(' · ') || '—' %></td>
               <td style="font-size:13px">
                 <%# ההפרש = מה שבבנק פחות מה שחושב. שורה בחלון בסכום ‎-הפרש = כנראה מיותרת אצלנו; אחרת חסרה תנועה. %>
-                <% if (b.suspects && b.suspects.length) { %>
+                <% if (b.suspects && b.suspects.length && b.suspects[0].why === 'twice') { %>
+                  שורות שנקלטו <strong>פעמיים</strong> (עותק אחד מיותר): <% b.suspects.forEach(function(x, i){ %><%= i ? ' · ' : '' %><%= formatDate(x.date) %> <%= x.description || '' %> <span dir="ltr"><%= formatIls(x.amount) %></span><% }); %>
+                <% } else if (b.suspects && b.suspects.length) { %>
                   שורה שכנראה <strong>מיותרת</strong> אצלנו: <% b.suspects.forEach(function(x, i){ %><%= i ? ' · ' : '' %><%= formatDate(x.date) %> <%= x.description || '' %> <span dir="ltr"><%= formatIls(x.amount) %></span><% }); %>
                 <% } else { %>
                   חסרה כנראה תנועה של <strong dir="ltr"><%= b.diff > 0 ? '+' : '-' %><%= formatIls(Math.abs(b.diff)) %></strong> (<%= b.diff > 0 ? 'זיכוי' : 'חיוב' %>) <%= range %> — לחפש אותה בדף הבנק.
