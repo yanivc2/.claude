@@ -1,4 +1,4 @@
-// איחוד כפילויות בתוך חשבון אחד — שורת קובץ (Excel/CSV) ותאומתה מהמשיכה מהבנק.
+// איחוד כפילויות בתוך חשבון אחד — אותה תנועה פעמיים: קובץ + משיכה, או שני ערוצי משיכה.
 //
 // עד 27/09 משיכה מהבנק שחפפה לקובץ שכבר יובא נקלטה שוב (התיאור באתר שונה מזה שבקובץ, ולכן
 // בדיקת השדות לא ראתה כפילות). התיקון עצר כפילויות חדשות, אבל הישנות נשארו: במידנייט רצף
@@ -27,36 +27,79 @@ const MAX_DAYS = 3;
 const dayDiff = (a, b) => Math.abs((Date.parse(String(a).slice(0, 10)) - Date.parse(String(b).slice(0, 10))) / 86_400_000);
 const refOf = (v) => plainNumber(String(v ?? '').trim()) || null;
 
+// מזהה סריקה: `scr:<ערוץ>:<חשבון>:<אסמכתא>` ומאז 27/09 גם `:<תאריך>:<סכום>`.
+const TAIL_ID = /^scr:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*$/;
+const nsOf = (id) => { const m = /^scr:([^:]*):/.exec(String(id || '')); return m ? m[1] : null; };
+
 /**
- * זיווג שורות קובץ (בלי מזהה) לשורות משיכה (עם מזהה) באותו חשבון — אותו סכום, עד 3 ימים,
- * תאריך זהה לפני טווח, אסמכתא זהה מועדפת, כל שורה פעם אחת. טהור.
+ * הערוץ שמושך היום את החשבון: הערוץ של שורת המשיכה האחרונה שנקלטה במזהה בפורמט הנוכחי. במידנייט
+ * עברו שני ערוצים על אותן תנועות — `scr:hapoalim:` (הסורק החיצוני, מ-06/09) ו-`scr:hapoalimBiz:`
+ * (הסוכן במחשב המשרד, מ-26/09) — ולכל אחד מזהה אחר לאותה תנועה, ולכן אף אחד מהם לא זיהה את השני.
+ */
+export function currentNamespace(rows) {
+  let best = null;
+  for (const r of rows) {
+    if (!PULL_SOURCES.has(r.source) || !TAIL_ID.test(String(r.external_id || ''))) continue;
+    if (!best || Number(r.import_id || 0) > Number(best.import_id || 0)) best = r;
+  }
+  return best ? nsOf(best.external_id) : null;
+}
+
+/** מזהה שהמשיכה של היום לעולם לא תפיק שוב: פורמט ישן (בלי תאריך+סכום) או ערוץ שכבר לא מושך. */
+export function isStaleId(id, current) {
+  if (!id || !/^scr:/.test(String(id))) return false;
+  return !TAIL_ID.test(String(id)) || (current != null && nsOf(id) !== current);
+}
+
+/**
+ * זיווג "אותה תנועה פעמיים" באותו חשבון — אותו סכום, עד 3 ימים, תאריך זהה לפני טווח, אסמכתא
+ * זהה מועדפת, כל שורה פעם אחת. טהור.
+ *
+ * **מה נשאר:** שורת קובץ (נושאת יתרה), או שורת משיכה במזהה של הערוץ הנוכחי.
+ * **מה נמחק:** רק שורת משיכה בלי יתרה, ורק כזו שהמשיכה הבאה לא תחזיר:
+ *   • בלי מזהה (הייבוא מזהה אותה מול שורת הקובץ — `importTransactions`);
+ *   • במזהה ישן או של ערוץ אחר (`isStaleId`);
+ *   • במזהה נוכחי — רק כשהשורה שנשארת היא שורת קובץ בלי מזהה, שמקבלת אותו (`takeId`).
+ * שתי שורות במזהה הערוץ הנוכחי לעולם לא מזווגות: אחת מהן הייתה חוזרת במשיכה הבאה.
  */
 export function pairDuplicates(rows) {
-  // הבנק לא תמיד מחזיר אסמכתא, ואז לשורת המשיכה אין מזהה — היא עדיין תאומה. מה שלא מתאחד: שתי
-  // שורות שלכל אחת מזהה בנק משלה (אחרי האיחוד המשיכה הבאה הייתה מחזירה את זו שנמחקה).
-  const files = rows.filter((r) => FILE_SOURCES.has(r.source));
-  const pulled = rows.filter((r) => PULL_SOURCES.has(r.source) && r.balance_after == null)
-    .map((r) => ({ r, taken: false }));
+  const cur = currentNamespace(rows);
+  const isFile = (r) => FILE_SOURCES.has(r.source);
+  const isCurrentPull = (r) => PULL_SOURCES.has(r.source) && r.external_id != null && !isStaleId(r.external_id, cur);
+  const keeps = rows.filter((r) => isFile(r) || isCurrentPull(r));
+  const drops = rows.filter((r) => PULL_SOURCES.has(r.source) && r.balance_after == null);
+  const used = new Set();
   const pairs = [];
-  const paired = new Set();
+  const allowed = (keep, drop) => {
+    if (keep.id === drop.id) return null;
+    if (drop.external_id == null || isStaleId(drop.external_id, cur)) {
+      // עותק שלא יחזור. נשאר: קובץ, או משיכה נוכחית (לא שתי שורות בלי מזהה — אין מי שיעיד).
+      if (!isFile(keep) && keep.external_id == null) return null;
+      return { takeId: false };
+    }
+    // העותק נושא מזהה נוכחי: מותר רק מול שורת קובץ בלי מזהה, שתקבל אותו.
+    return isFile(keep) && keep.external_id == null ? { takeId: true } : null;
+  };
   for (const maxDays of [0, MAX_DAYS]) {
-    for (const f of files) {
-      if (paired.has(f.id)) continue;
-      const ref = refOf(f.raw_reference);
+    for (const drop of drops) {
+      if (used.has(drop.id)) continue;
+      const ref = refOf(drop.raw_reference);
       let best = null;
       let bestScore = Infinity;
-      for (const p of pulled) {
-        if (p.taken || Number(p.r.amount) !== Number(f.amount)) continue;
-        if (f.external_id != null && p.r.external_id != null) continue;
-        const d = dayDiff(p.r.txn_date, f.txn_date);
+      for (const keep of keeps) {
+        if (used.has(keep.id) || Number(keep.amount) !== Number(drop.amount)) continue;
+        const ok = allowed(keep, drop);
+        if (!ok) continue;
+        const d = dayDiff(keep.txn_date, drop.txn_date);
         if (!(d <= maxDays)) continue;
-        const score = d + (ref && refOf(p.r.raw_reference) === ref ? -10 : 0);
-        if (score < bestScore) { best = p; bestScore = score; }
+        // שורת קובץ קודמת למשיכה נוכחית כשיש שתיהן: היא נושאת את היתרה.
+        const score = d + (ref && refOf(keep.raw_reference) === ref ? -10 : 0) + (isFile(keep) ? -0.5 : 0);
+        if (score < bestScore) { best = { keep, ...ok }; bestScore = score; }
       }
       if (best) {
-        best.taken = true;
-        paired.add(f.id);
-        pairs.push({ keep: f, drop: best.r });
+        used.add(drop.id);
+        used.add(best.keep.id);
+        pairs.push({ keep: best.keep, drop, takeId: best.takeId });
       }
     }
   }
@@ -145,6 +188,19 @@ export async function findAccountDuplicates(accountId, x = getExecutor()) {
     pulledRows: rows.filter((r) => PULL_SOURCES.has(r.source)).length,
     pulledNoId: rows.filter((r) => PULL_SOURCES.has(r.source) && r.external_id == null).length,
     pulledWithBalance: rows.filter((r) => PULL_SOURCES.has(r.source) && r.balance_after != null).length,
+    // לפי ערוץ — שני ערוצים על אותן תנועות הם המקור הנפוץ לכפילות שאף ערוץ לא מזהה.
+    channels: (() => {
+      const cur = currentNamespace(rows);
+      const m = new Map();
+      for (const r of rows) {
+        if (!PULL_SOURCES.has(r.source)) continue;
+        const ns = r.external_id == null ? 'בלי מזהה' : (nsOf(r.external_id) || r.source);
+        const key = ns + (r.external_id && !TAIL_ID.test(String(r.external_id)) && /^scr:/.test(String(r.external_id)) ? ' (פורמט ישן)' : '')
+          + (ns === cur ? ' — הנוכחי' : '');
+        m.set(key, (m.get(key) || 0) + 1);
+      }
+      return [...m.entries()].map(([name, n]) => ({ name, n }));
+    })(),
     pairs: checked,
     mergeable,
     breaksBefore: balanceBreaks(rows).breaks.length,
@@ -171,7 +227,8 @@ export async function mergeAccountDuplicates(accountId, actor, x = getExecutor()
       const k = cur.find((r) => Number(r.id) === keep);
       const d = cur.find((r) => Number(r.id) === drop);
       if (!k || !d || Number(k.amount) !== Number(d.amount) || Number(k.bank_account_id) !== Number(accountId)
-        || Number(d.bank_account_id) !== Number(accountId) || (k.external_id != null && d.external_id != null)) continue;
+        || Number(d.bank_account_id) !== Number(accountId)) continue;
+      if (p.takeId && k.external_id != null) continue; // השורה כבר קיבלה מזהה בינתיים — לא נוגעים
       if (d.matched_payment_id != null && k.matched_payment_id == null) {
         await t.run('UPDATE bank_transactions SET matched_payment_id = NULL WHERE id = ?', [drop]);
         await t.run('UPDATE bank_transactions SET matched_payment_id = ? WHERE id = ?', [d.matched_payment_id, keep]);
@@ -185,7 +242,8 @@ export async function mergeAccountDuplicates(accountId, actor, x = getExecutor()
       }
       await t.run('DELETE FROM bank_transactions WHERE id = ?', [drop]);
       // המזהה של המשיכה עובר לשורת הקובץ — אחרת המשיכה הבאה (60 יום אחורה) הייתה מכניסה אותה שוב.
-      if (d.external_id != null) await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ? AND external_id IS NULL', [d.external_id, keep]);
+      // מזהה נוכחי עובר לשורת הקובץ (המשיכה הבאה תזהה אותה); מזהה ישן לא — המשיכה הבאה תאמץ אותה במזהה של היום.
+      if (p.takeId && d.external_id != null) await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ? AND external_id IS NULL', [d.external_id, keep]);
       merged += 1;
     }
   });

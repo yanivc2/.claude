@@ -68,11 +68,11 @@ async function midnight() {
   // day 2: two real lines in the file, both pulled again
   await ins(a, '2026-08-13', -30000, 'העברה לספק', { bal: 70000 });
   await ins(a, '2026-08-13', 20000, 'הפקדה', { bal: 90000 });
-  const s1 = (await ins(a, '2026-08-13', -30000, 'העב׳ במקבץ-נט', { source: 'scraper', ext: 'scr:m:1' })).lastInsertRowid;
-  await ins(a, '2026-08-13', 20000, 'הפקדת מזומן', { source: 'scraper', ext: 'scr:m:2' });
+  const s1 = (await ins(a, '2026-08-13', -30000, 'העב׳ במקבץ-נט', { source: 'scraper', ext: 'scr:hapoalimBiz:12-628-1:5001:2026-08-13:-30000' })).lastInsertRowid;
+  await ins(a, '2026-08-13', 20000, 'הפקדת מזומן', { source: 'scraper', ext: 'scr:hapoalimBiz:12-628-1:5002:2026-08-13:20000' });
   // day 3: a clean day where two REAL lines of the same amount exist (file + its own pull is NOT a dup here)
   await ins(a, '2026-08-14', -500, 'עמלה', { bal: 89500 });
-  await ins(a, '2026-08-15', -500, 'עמלה', { source: 'scraper', ext: 'scr:m:3' }); // real, next day
+  await ins(a, '2026-08-15', -500, 'עמלה', { source: 'scraper', ext: 'scr:hapoalimBiz:12-628-1:5003:2026-08-15:-500' }); // real, next day
   await ins(a, '2026-08-15', 0, 'סגירה', { bal: 89000 });
   return { a, s1 };
 }
@@ -83,7 +83,7 @@ test('part 2: pairs are proposed only where the balance chain proves the duplica
   assert.equal(before.breaks.length, 1, 'day 2 is broken by the duplicates');
   const d = await findAccountDuplicates(a, db);
   assert.equal(d.mergeable.length, 2, 'both duplicates of the broken day');
-  const notDup = d.pairs.find((p) => p.drop.external_id === 'scr:m:3');
+  const notDup = d.pairs.find((p) => p.drop.external_id === 'scr:hapoalimBiz:12-628-1:5003:2026-08-15:-500');
   assert.ok(notDup && !notDup.verified, 'a same-amount pair on a balanced day is NOT a duplicate');
   assert.match(notDup.reason, /תקין/);
   assert.equal(d.breaksBefore, 1);
@@ -98,7 +98,7 @@ test('part 2: merge keeps the file row, gives it the bank id, moves matches, and
   )).lastInsertRowid;
   await db.run('UPDATE bank_transactions SET matched_payment_id = ? WHERE id = ?', [pay, s1]);
   const dep = (await db.run(
-    "INSERT INTO deposits (store_id, deposit_date, amount, deposited, created_by, matched_txn_id) VALUES (?, '2026-08-13', 20000, 1, ?, (SELECT id FROM bank_transactions WHERE external_id = 'scr:m:2'))",
+    "INSERT INTO deposits (store_id, deposit_date, amount, deposited, created_by, matched_txn_id) VALUES (?, '2026-08-13', 20000, 1, ?, (SELECT id FROM bank_transactions WHERE external_id = 'scr:hapoalimBiz:12-628-1:5002:2026-08-13:20000'))",
     [store.id, o.id],
   )).lastInsertRowid;
 
@@ -106,7 +106,7 @@ test('part 2: merge keeps the file row, gives it the bank id, moves matches, and
   assert.equal(r.merged, 2);
   assert.equal(r.movedLinks, 2);
   const keepT = await db.one("SELECT * FROM bank_transactions WHERE bank_account_id = ? AND description = 'העברה לספק'", [a]);
-  assert.equal(keepT.external_id, 'scr:m:1', 'the next pull recognises it and does not re-insert');
+  assert.equal(keepT.external_id, 'scr:hapoalimBiz:12-628-1:5001:2026-08-13:-30000', 'the next pull recognises it and does not re-insert');
   assert.equal(Number(keepT.matched_payment_id), Number(pay), 'the payment match moved to the row that stayed');
   const keepD = await db.one("SELECT * FROM bank_transactions WHERE bank_account_id = ? AND description = 'הפקדה'", [a]);
   assert.equal(Number((await db.one('SELECT matched_txn_id FROM deposits WHERE id = ?', [dep])).matched_txn_id), Number(keepD.id));
@@ -114,8 +114,8 @@ test('part 2: merge keeps the file row, gives it the bank id, moves matches, and
   assert.equal((await accountIntegrity(a, db)).breaks.length, 0, 'the balance chain is whole again');
   // a re-pull of the same lines does not bring them back
   const again = await importTransactions(a, [
-    { txnDate: '2026-08-13', amount: -30000, description: 'העב׳ במקבץ-נט', externalId: 'scr:m:1' },
-    { txnDate: '2026-08-13', amount: 20000, description: 'הפקדת מזומן', externalId: 'scr:m:2' },
+    { txnDate: '2026-08-13', amount: -30000, description: 'העב׳ במקבץ-נט', externalId: 'scr:hapoalimBiz:12-628-1:5001:2026-08-13:-30000' },
+    { txnDate: '2026-08-13', amount: 20000, description: 'הפקדת מזומן', externalId: 'scr:hapoalimBiz:12-628-1:5002:2026-08-13:20000' },
   ], 'scraper', o, db);
   assert.equal(again.inserted, 0);
   await assert.rejects(() => mergeAccountDuplicates(a, o, db), /אין כפילויות מאומתות/);
@@ -152,6 +152,39 @@ test('a pulled line WITHOUT a bank id (no reference from the bank) is a twin too
   assert.equal(fresh.inserted, 1);
 });
 
+test('the Midnight shape: the file row was adopted (current id) and an OLD channel pulled it again', async () => {
+  const a = await cleanAccount(3);
+  const cur = (ref, date, amt) => `scr:hapoalimBiz:12-628-432110:${ref}:${date}:${amt}`;
+  await ins(a, '2026-08-12', -1000, 'עמלה', { bal: 100000, ext: cur('9', '2026-08-12', -1000) });
+  // the file line, adopted by today's agent
+  await ins(a, '2026-08-13', -40000, 'העברה', { bal: 60000, ext: cur('77', '2026-08-13', -40000) });
+  // the same line from the old external scraper (another channel → another id)
+  const stale = (await ins(a, '2026-08-13', -40000, 'העב׳ במקבץ-נט', { source: 'scraper', ext: 'scr:hapoalim:432110:77:2026-08-13:-40000' })).lastInsertRowid;
+  // today's agent: a later import batch, so its channel is "current"
+  await db.run("UPDATE bank_transactions SET source = 'scraper', import_id = NULL WHERE bank_account_id = ? AND external_id LIKE 'scr:hapoalimBiz:%' AND balance_after IS NULL", [a]);
+  const imp = (await db.run("INSERT INTO bank_imports (bank_account_id, source, rows_total) VALUES (?, 'scraper', 1)", [a])).lastInsertRowid;
+  await ins(a, '2026-08-20', -5, 'עמלה', { source: 'scraper', ext: cur('8', '2026-08-20', -5) });
+  await db.run('UPDATE bank_transactions SET import_id = ? WHERE bank_account_id = ? AND txn_date = ?', [imp, a, '2026-08-20']);
+
+  const d = await findAccountDuplicates(a, db);
+  assert.equal(d.mergeable.length, 1, 'the stale copy is proposed');
+  assert.equal(Number(d.mergeable[0].drop.id), Number(stale));
+  assert.equal(d.mergeable[0].takeId, false, "an old channel's id is not handed on");
+  await mergeAccountDuplicates(a, o, db);
+  assert.equal((await accountIntegrity(a, db)).breaks.length, 0);
+  // today's agent pulls the line again — the file row already carries its id
+  const again = await importTransactions(a, [{ txnDate: '2026-08-13', amount: -40000, description: 'x', externalId: cur('77', '2026-08-13', -40000) }], 'scraper', o, db);
+  assert.equal(again.inserted, 0);
+});
+
+test('two rows that both carry the CURRENT channel id are never paired', async () => {
+  const rows = [
+    { id: 1, txn_date: '2026-08-13', amount: -500, source: 'scraper', external_id: 'scr:hapoalimBiz:1:a:2026-08-13:-500', balance_after: null, import_id: 2 },
+    { id: 2, txn_date: '2026-08-14', amount: -500, source: 'scraper', external_id: 'scr:hapoalimBiz:1:b:2026-08-14:-500', balance_after: null, import_id: 2 },
+  ];
+  assert.equal(pairDuplicates(rows).length, 0, 'two real fees of the same amount');
+});
+
 test('the page always says what it checked, even when there is nothing to merge', async () => {
   const a = await cleanAccount(2);
   const d = await findAccountDuplicates(a, db);
@@ -168,7 +201,7 @@ test('pairing is one-to-one and prefers the same date', () => {
   ];
   const pairs = pairDuplicates(rows).map((p) => [p.keep.id, p.drop.id]).sort();
   assert.deepEqual(pairs, [[1, 4], [2, 3]]);
-  // two rows that BOTH carry a bank id are never paired (merging would let the next pull re-insert one)
+  // a file row that already carries a current bank id is not paired with another current-id pull
   const both = pairDuplicates([
     { id: 1, txn_date: '2026-08-13', amount: -500, source: 'csv', external_id: 'x', balance_after: 1 },
     { id: 2, txn_date: '2026-08-13', amount: -500, source: 'scraper', external_id: 'y', balance_after: null },
