@@ -15,7 +15,11 @@
       <div class="alert alert-ok" style="margin:0">✓ לא נמצא שום סימן לתנועה של חשבון אחר.
         <% if (r.daysChecked) { %>רצף היתרות נבדק על פני <%= r.daysChecked %> ימים ומתיישב בכל אחד מהם.<% } %></div>
     <% } else { %>
-      <div class="alert alert-warn" style="margin:0">נמצאו ממצאים שדורשים בדיקה — פירוט למטה.</div>
+      <%# אומר **איפה** — הבאנר לבדו שלח את הבעלים לחפש בדף שבו רוב הסעיפים ירוקים. %>
+      <div class="alert alert-warn" style="margin:0">נמצאו ממצאים שדורשים בדיקה:
+        <%= [r.breaks.length ? 'סעיף 1 — ' + r.breaks.length + ' שברים ברצף היתרות' : null,
+             r.duplicates.length ? 'סעיף 2 — ' + r.duplicates.length + ' תנועות שקיימות גם בחשבון אחר' : null,
+             r.foreignChecks.length ? 'סעיף 3 — ' + r.foreignChecks.length + ' צ׳קים מפנקס של חשבון אחר' : null].filter(Boolean).join(' · ') %>. פירוט למטה.</div>
     <% } %>
     <% if (!r.rowsWithBalance && r.rowsTotal) { %>
       <p class="muted" style="margin:.5rem 0 0">לתנועות בחשבון הזה אין "יתרה לאחר פעולה" (משיכה מהבנק או הזנה ידנית), ולכן רצף היתרות לא נבדק — רק שתי הבדיקות האחרות.</p>
