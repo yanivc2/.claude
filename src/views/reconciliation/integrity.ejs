@@ -37,15 +37,23 @@
     <% if (!r.breaks.length) { %><p style="margin:0">✓ <%= r.daysChecked ? 'הרצף שלם.' : 'אין מספיק יתרות כדי לבדוק.' %></p>
     <% } else { %>
       <div class="table-scroll"><table>
-        <thead><tr><th>תאריך</th><th class="right">יתרה צפויה</th><th class="right">יתרה בבנק</th><th class="right">הפרש</th><th>קבצים באותו יום</th></tr></thead>
+        <thead><tr><th>תאריך</th><th class="right">יתרה צפויה</th><th class="right">יתרה בבנק</th><th class="right">הפרש</th><th>קבצים באותו יום</th><th>מה זה כנראה</th></tr></thead>
         <tbody>
-          <% r.breaks.forEach(function(b){ %>
+          <% r.breaks.forEach(function(b){ var range = (b.since && b.since !== b.date) ? ('בין ' + formatDate(b.since) + ' ל-' + formatDate(b.date)) : ('ב-' + formatDate(b.date)); %>
             <tr>
               <td><%= formatDate(b.date) %></td>
               <td class="right"><%= formatIls(b.expected) %></td>
               <td class="right"><%= formatIls(b.found) %></td>
               <td class="right" dir="ltr"><strong style="color:var(--color-bad)"><%= b.diff > 0 ? '+' : '' %><%= formatIls(b.diff) %></strong></td>
               <td><%= b.files.join(' · ') || '—' %></td>
+              <td style="font-size:13px">
+                <%# ההפרש = מה שבבנק פחות מה שחושב. שורה בחלון בסכום ‎-הפרש = כנראה מיותרת אצלנו; אחרת חסרה תנועה. %>
+                <% if (b.suspects && b.suspects.length) { %>
+                  שורה שכנראה <strong>מיותרת</strong> אצלנו: <% b.suspects.forEach(function(x, i){ %><%= i ? ' · ' : '' %><%= formatDate(x.date) %> <%= x.description || '' %> <span dir="ltr"><%= formatIls(x.amount) %></span><% }); %>
+                <% } else { %>
+                  חסרה כנראה תנועה של <strong dir="ltr"><%= b.diff > 0 ? '+' : '-' %><%= formatIls(Math.abs(b.diff)) %></strong> (<%= b.diff > 0 ? 'זיכוי' : 'חיוב' %>) <%= range %> — לחפש אותה בדף הבנק.
+                <% } %>
+              </td>
             </tr>
           <% }); %>
         </tbody>

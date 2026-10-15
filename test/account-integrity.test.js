@@ -85,3 +85,23 @@ test('a file holding only PART of a day (the rest pulled, no balance) is not a b
   assert.match(html, /ימים לא נבדקו ברצף היתרות/);
 });
 
+test('a break says what it probably is: a missing line in the window, or a row we have that the bank does not', async () => {
+  const D = await accountForStore(db, 4);
+  await txn(D, '2026-09-01', -100, 50000, 'a');
+  await txn(D, '2026-09-04', -200, 53538, 'b'); // the bank also had +₪37.38 we never imported
+  let r = await accountIntegrity(D.id, db);
+  const b1 = r.breaks.find((b) => b.date === '2026-09-04');
+  assert.ok(b1 && b1.since === '2026-09-01');
+  assert.equal(b1.diff, 3738);
+  assert.equal(b1.suspects.length, 0, 'nothing of ours explains it → a missing line');
+  // now the opposite: a stray debit of ours that the bank never had
+  await txn(D, '2026-09-08', -999, null, 'c');
+  await txn(D, '2026-09-09', -50, 53488, 'd'); // the bank: 53,538 − 50
+  r = await accountIntegrity(D.id, db);
+  const b2 = r.breaks.find((b) => b.date === '2026-09-09');
+  assert.ok(b2 && b2.suspects.some((x) => Number(x.amount) === -999), 'the stray row is named');
+  const html = await (await fetch(`${base}/reconciliation/integrity?account=${D.id}`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
+  assert.match(html, /חסרה כנראה תנועה של/);
+  assert.match(html, /שורה שכנראה <strong>מיותרת<\/strong> אצלנו/);
+});
+

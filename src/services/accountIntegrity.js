@@ -51,6 +51,7 @@ export function balanceBreaks(rows) {
   let daysChecked = 0;
   let close = null;
   let pending = [];
+  let lastBalDate = null; // יום-היתרה הקודם — תחילת החלון של השבר
   for (const day of days) {
     const sum = day.rows.reduce((n, r) => n + (Number(r.amount) || 0), 0);
     const bals = day.rows.filter((r) => r.balance_after != null).map((r) => Number(r.balance_after));
@@ -68,20 +69,28 @@ export function balanceBreaks(rows) {
       if (i < 0) { partial = true; break; }
       pool.splice(i, 1);
     }
-    if (partial) { partialDays.push(day.date); close = null; pending = []; continue; }
-    if (close == null) { close = anchorClose(day.rows, sum); pending = []; continue; }
+    if (partial) { partialDays.push(day.date); close = null; pending = []; lastBalDate = null; continue; }
+    if (close == null) { close = anchorClose(day.rows, sum); pending = []; lastBalDate = day.date; continue; }
     daysChecked += 1;
-    for (const r of [...pending, ...day.rows]) windowOf.set(Number(r.id), day.date);
+    const windowRows = [...pending, ...day.rows];
+    for (const r of windowRows) windowOf.set(Number(r.id), day.date);
     pending = [];
+    const since = lastBalDate;
+    lastBalDate = day.date;
     const expected = close + sum;
     if (bals.includes(expected)) { close = expected; continue; }
     const found = anchorClose(day.rows, sum);
+    const diff = found - expected;
     breaks.push({
       date: day.date,
+      since,
       expected,
       found,
-      diff: found - expected,
+      diff,
       files: [...new Set(day.rows.map((r) => r.file_name || (r.source === 'csv' ? 'קובץ' : r.source)).filter(Boolean))],
+      // מה זה כנראה: שורה בחלון שהסרתה מאפסת את ההפרש (מיותרת אצלנו); אחרת — חסרה תנועה של diff.
+      suspects: windowRows.filter((r) => Number(r.amount) === -diff)
+        .map((r) => ({ id: r.id, date: r.txn_date, amount: r.amount, description: r.description, source: r.source })),
     });
     close = found;
   }
