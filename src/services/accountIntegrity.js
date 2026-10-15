@@ -47,6 +47,7 @@ export function balanceBreaks(rows) {
   }
   const breaks = [];
   const windowOf = new Map();
+  const partialDays = [];
   let daysChecked = 0;
   let close = null;
   let pending = [];
@@ -54,6 +55,20 @@ export function balanceBreaks(rows) {
     const sum = day.rows.reduce((n, r) => n + (Number(r.amount) || 0), 0);
     const bals = day.rows.filter((r) => r.balance_after != null).map((r) => Number(r.balance_after));
     if (!bals.length) { if (close != null) { close += sum; pending.push(...day.rows); } continue; }
+    // 🔴 קובץ שמכיל רק **חלק** מתנועות היום (במידנייט: 66 שורות קובץ מול ~8 תנועות ביום מהסוכן).
+    // היתרה שבשורת קובץ היא היתרה **אחרי אותה פעולה** — באמצע היום, לא בסופו — ואת הסדר בתוך היום
+    // לא יודעים. השוואה לסוף היום נתנה "שבר" כמעט בכל יום, בהפרשים שמתקזזים מיום ליום, בלי שום
+    // תנועה זרה. לכן יום נבדק רק כשכל שורה בלי יתרה היא עותק אפשרי של שורת קובץ מאותו יום (אותו
+    // סכום) — זה המצב של כפילות, שעליו האיחוד נשען; אחרת היום לא נבדק, והעוגן מתחיל מחדש אחריו.
+    const pool = day.rows.filter((r) => r.balance_after != null).map((r) => Number(r.amount));
+    let partial = false;
+    for (const r of day.rows) {
+      if (r.balance_after != null) continue;
+      const i = pool.indexOf(Number(r.amount));
+      if (i < 0) { partial = true; break; }
+      pool.splice(i, 1);
+    }
+    if (partial) { partialDays.push(day.date); close = null; pending = []; continue; }
     if (close == null) { close = anchorClose(day.rows, sum); pending = []; continue; }
     daysChecked += 1;
     for (const r of [...pending, ...day.rows]) windowOf.set(Number(r.id), day.date);
@@ -70,7 +85,7 @@ export function balanceBreaks(rows) {
     });
     close = found;
   }
-  return { daysChecked, breaks, windowOf };
+  return { daysChecked, breaks, windowOf, partialDays };
 }
 
 /**
@@ -94,6 +109,7 @@ export async function accountIntegrity(bankAccountId, x = getExecutor()) {
     firstDate: rows[0]?.txn_date || null,
     lastDate: rows[rows.length - 1]?.txn_date || null,
     breaks: [],
+    partialDays: [],
     duplicates: [],
     foreignChecks: [],
   };
@@ -102,6 +118,7 @@ export async function accountIntegrity(bankAccountId, x = getExecutor()) {
   const chain = balanceBreaks(rows);
   out.daysChecked = chain.daysChecked;
   out.breaks = chain.breaks;
+  out.partialDays = chain.partialDays;
 
   if (!rows.length) return out;
   const others = await x.many(

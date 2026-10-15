@@ -84,8 +84,7 @@ test('part 2: pairs are proposed only where the balance chain proves the duplica
   const d = await findAccountDuplicates(a, db);
   assert.equal(d.mergeable.length, 2, 'both duplicates of the broken day');
   const notDup = d.pairs.find((p) => p.drop.external_id === 'scr:hapoalimBiz:12-628-1:5003:2026-08-15:-500');
-  assert.ok(notDup && !notDup.verified, 'a same-amount pair on a balanced day is NOT a duplicate');
-  assert.match(notDup.reason, /תקין/);
+  assert.ok(notDup && !notDup.verified, 'a same-amount pair across days is NOT proposed');
   assert.equal(d.breaksBefore, 1);
   assert.equal(d.breaksAfter, 0);
 });

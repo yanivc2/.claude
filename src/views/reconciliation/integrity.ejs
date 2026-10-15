@@ -22,6 +22,9 @@
     <% } else if (r.rowsWithBalance < r.rowsTotal) { %>
       <p class="muted" style="margin:.5rem 0 0"><%= r.rowsWithBalance %> מתוך <%= r.rowsTotal %> תנועות נושאות יתרה; ימים בלי יתרה נספרים בסכום אבל אינם נבדקים בעצמם.</p>
     <% } %>
+    <% if (r.partialDays && r.partialDays.length) { %>
+      <p class="muted" style="margin:.4rem 0 0"><%= r.partialDays.length %> ימים לא נבדקו ברצף היתרות: הקובץ שיובא כולל רק חלק מהתנועות של אותם ימים, ושאר התנועות הגיעו מהמשיכה בלי יתרה — כך שהיתרה שבקובץ היא באמצע היום ולא בסופו, ואין דרך להשוות. כדי שייבדקו: לייבא דף חשבון <strong>מלא</strong> לתקופה (כל התנועות), והיתרות ייכנסו לשורות הקיימות.</p>
+    <% } %>
   </div>
 
   <div class="card no-collapse">

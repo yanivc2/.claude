@@ -63,3 +63,25 @@ test('a debit that is a check from another account\'s checkbook is flagged; the 
   const clean = await (await fetch(`${base}/reconciliation/integrity?account=${(await accountForStore(db, 4)).id}`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
   assert.match(clean, /לא נמצא שום סימן לתנועה של חשבון אחר/);
 });
+
+// בעלים (15/10, מידנייט): 66 שורות קובץ מול ~8 תנועות ביום מהסוכן — הקובץ כלל רק חלק מכל יום,
+// והבדיקה הציגה "שבר" ב-25 ימים בהפרשים שמתקזזים, בלי שום תנועה זרה.
+test('a file holding only PART of a day (the rest pulled, no balance) is not a break — the day is not checked', async () => {
+  const C = await accountForStore(db, 2);
+  const pull = (date, amount) => db.run(
+    "INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, source, external_id) VALUES (?, ?, ?, 'x', 'scraper', ?)",
+    [C.id, date, amount, `scr:hapoalimBiz:1:${date}:${amount}:${Math.random()}`],
+  );
+  await txn(C, '2026-08-12', -1000, 100000, 'a');
+  // 13/08 in the bank: -500 (pulled), then -2000 (file, balance 97500), then +7000 (pulled) → close 104500
+  await pull('2026-08-13', -500);
+  await txn(C, '2026-08-13', -2000, 97500, 'b');
+  await pull('2026-08-13', 7000);
+  await txn(C, '2026-08-14', -100, 104400, 'c');
+  const r = await accountIntegrity(C.id, db);
+  assert.equal(r.breaks.length, 0, 'no false alarm');
+  assert.deepEqual(r.partialDays, ['2026-08-13']);
+  const html = await (await fetch(`${base}/reconciliation/integrity?account=${C.id}`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
+  assert.match(html, /ימים לא נבדקו ברצף היתרות/);
+});
+
