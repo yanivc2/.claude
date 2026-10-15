@@ -134,6 +134,31 @@ test('part 2: a pair whose two halves are matched to different payments is not m
   assert.ok(!d.mergeable.includes(p));
 });
 
+test('a pulled line WITHOUT a bank id (no reference from the bank) is a twin too — and stays merged', async () => {
+  const a = await cleanAccount(3);
+  await ins(a, '2026-08-12', -1000, 'עמלה', { bal: 100000 });
+  await ins(a, '2026-08-13', 25000, 'הפקדת מזומן', { bal: 125000 });
+  await ins(a, '2026-08-13', 25000, 'הפקדה בסניף', { source: 'scraper' }); // no external_id
+  const d = await findAccountDuplicates(a, db);
+  assert.equal(d.mergeable.length, 1);
+  assert.equal((await mergeAccountDuplicates(a, o, db)).merged, 1);
+  assert.equal((await accountIntegrity(a, db)).breaks.length, 0);
+  // the next pull brings the same id-less line again — it is recognised as the file row, not re-inserted
+  const again = await importTransactions(a, [{ txnDate: '2026-08-13', amount: 25000, description: 'הפקדה בסניף' }], 'scraper', o, db);
+  assert.equal(again.inserted, 0);
+  assert.equal(again.merged, 1);
+  // …while a genuinely new id-less line still lands
+  const fresh = await importTransactions(a, [{ txnDate: '2026-08-20', amount: 999, description: 'חדש' }], 'scraper', o, db);
+  assert.equal(fresh.inserted, 1);
+});
+
+test('the page always says what it checked, even when there is nothing to merge', async () => {
+  const a = await cleanAccount(2);
+  const d = await findAccountDuplicates(a, db);
+  assert.equal(d.pairs.length, 0);
+  assert.equal(typeof d.fileRows, 'number');
+});
+
 test('pairing is one-to-one and prefers the same date', () => {
   const rows = [
     { id: 1, txn_date: '2026-08-13', amount: -500, source: 'csv', external_id: null, balance_after: 1 },
@@ -143,6 +168,12 @@ test('pairing is one-to-one and prefers the same date', () => {
   ];
   const pairs = pairDuplicates(rows).map((p) => [p.keep.id, p.drop.id]).sort();
   assert.deepEqual(pairs, [[1, 4], [2, 3]]);
+  // two rows that BOTH carry a bank id are never paired (merging would let the next pull re-insert one)
+  const both = pairDuplicates([
+    { id: 1, txn_date: '2026-08-13', amount: -500, source: 'csv', external_id: 'x', balance_after: 1 },
+    { id: 2, txn_date: '2026-08-13', amount: -500, source: 'scraper', external_id: 'y', balance_after: null },
+  ]);
+  assert.equal(both.length, 0);
 });
 
 let server, base;
@@ -162,6 +193,7 @@ test('route: merging is owner-only, and the page shows the proposal', async () =
   });
   const page = await (await fetch(`${base}/reconciliation/integrity?account=${a}`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
   assert.match(page, /1א\. אותה תנועה פעמיים בחשבון הזה/);
+  assert.match(page, /נבדקו \d+ שורות מקובץ מול \d+ שורות שנמשכו מהבנק/);
   assert.match(page, /אחד 2 כפילויות מאומתות/);
   assert.ok([302, 303, 403].includes((await post(sec.id)).status) && (await db.one('SELECT COUNT(*) AS n FROM bank_transactions WHERE bank_account_id = ?', [a])).n == 8, 'a secretary cannot delete bank rows');
   const r = await post(o.id);

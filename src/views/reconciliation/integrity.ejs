@@ -49,11 +49,18 @@
   <%# 1א. כפילויות קובץ↔משיכה — הסיבה הנפוצה לשבר ברצף (services/bankDuplicates.js). זוג מוצע לאיחוד
       רק כשהסרת העותק מאזנת את היום בדיוק; השאר מוצגים לבדיקה ולא נוגעים בהם. %>
   <% var dp = (typeof dups !== 'undefined' && dups) ? dups : null; %>
-  <% if (dp && dp.pairs.length) { var unver = dp.pairs.filter(function(p){ return !(p.verified && !p.conflict); }); %>
+  <% if (dp) { var unver = dp.pairs.filter(function(p){ return !(p.verified && !p.conflict); }); %>
   <div class="card no-collapse">
     <h2 style="margin:0 0 .3rem">1א. אותה תנועה פעמיים בחשבון הזה (קובץ + משיכה מהבנק)</h2>
     <p class="muted" style="margin:0 0 .5rem">שורה שיובאה מקובץ אקסל ונמשכה שוב מהבנק — אותו סכום, עד 3 ימים הפרש. <strong>מוצע לאיחוד רק זוג שהסרת העותק שלו מאזנת את רצף היתרות של היום בדיוק</strong>, כלומר החשבון עצמו מוכיח שזו כפילות. באיחוד נשארת שורת הקובץ (עם היתרה), היא מקבלת את מזהה הבנק כדי שמשיכה הבאה לא תכפיל שוב, וכל התאמה שהייתה על העותק — תשלום, הפקדה, שכר — עוברת אליה.</p>
-    <% if (dp.mergeable.length) { %>
+    <p class="muted" style="margin:0 0 .5rem;font-size:12px">נבדקו <%= dp.fileRows %> שורות מקובץ מול <%= dp.pulledRows %> שורות שנמשכו מהבנק · נמצאו <%= dp.pairs.length %> זוגות אפשריים.
+      <%# פירוט לאבחון: מה יכול למנוע זיווג (שתי שורות עם מזהה בנק לא מזווגות; שורת משיכה עם יתרה לא נחשבת עותק). %>
+      (<%= dp.fileWithId %> משורות הקובץ נושאות מזהה בנק · <%= dp.pulledNoId %> משורות המשיכה בלי מזהה · <%= dp.pulledWithBalance %> משורות המשיכה עם יתרה)</p>
+    <% if (!dp.fileRows || !dp.pulledRows) { %>
+      <p style="margin:0">✓ אין בחשבון גם שורות מקובץ וגם שורות משיכה — אין כאן כפילויות מהסוג הזה.</p>
+    <% } else if (!dp.pairs.length) { %>
+      <p style="margin:0">✓ לא נמצאה שורת קובץ שיש לה תאומה מהמשיכה.</p>
+    <% } else if (dp.mergeable.length) { %>
       <p style="margin:0 0 .5rem"><strong><%= dp.mergeable.length %></strong> כפילויות מאומתות · שברים ברצף היתרות: <strong><%= dp.breaksBefore %></strong> עכשיו → <strong><%= dp.breaksAfter %></strong> אחרי האיחוד.</p>
       <div class="table-scroll"><table>
         <thead><tr><th>תאריך (קובץ)</th><th>תאריך (בנק)</th><th class="right">סכום</th><th>תיאור בקובץ</th><th>תיאור בבנק</th><th>התאמה על העותק</th></tr></thead>

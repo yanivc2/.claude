@@ -9,6 +9,9 @@ import { getSetting, setSetting } from './appSettings.js';
 // and are then reconciled against open checks by the R7 engine. Amounts are signed agorot
 // — a debit (charge, e.g. a cleared check) is negative, matching the scraper's chargedAmount.
 
+// Rows that came from the bank itself (agent/scraper, Open Banking) — as opposed to a file or a person.
+const PULL_SOURCES = new Set(['scraper', 'financy']);
+
 /**
  * Import a batch of transactions for one bank account. Idempotent on
  * (txn_date, amount, description, raw_reference).
@@ -40,7 +43,7 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
     // כל מה שכבר בחשבון נטען פעם אחת — בדיקת כפילות בזיכרון במקום SELECT לכל שורה. משיכה מהבנק
     // מביאה ~2,000 שורות, ושתי קריאות מסד לכל שורה מ-Vercel ל-Neon הן דקות.
     const existing = await t.many(
-      'SELECT id, txn_date, amount, description, raw_reference, external_id, balance_after FROM bank_transactions WHERE bank_account_id = ?',
+      'SELECT id, txn_date, amount, description, raw_reference, external_id, balance_after, source FROM bank_transactions WHERE bank_account_id = ?',
       [bankAccountId],
     );
     const fieldKey = (date, amount, desc, ref) => `${date}|${amount}|${desc ?? ''}|${ref ?? ''}`;
@@ -50,25 +53,29 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
     // בדיקה לפי מזהה בלבד לא רואה אותן, וכל החפיפה בין הקובץ האחרון למשיכה (60 יום) הייתה נקלטת
     // פעמיים. התיאור אינו מפתח כאן: הקובץ והאתר מנסחים אותו אחרת. ההתאמה: אותו סכום, עד 3 ימים
     // הפרש (תאריך ערך מול תאריך פעולה), אסמכתא זהה מועדפת, כל שורה ישנה נתפסת פעם אחת בלבד.
+    // רשומה אחת לכל שורה קיימת, משותפת לכל הרשימות — כך שורה שנתפסה ברשימה אחת תפוסה בכולן.
     const legacy = [];
-    const pulled = []; // שורות שהגיעו מהבנק (נושאות מזהה) — התאומות האפשריות של שורת קובץ
+    const pulled = [];   // שורות שהגיעו מהבנק (עם מזהה או בלי) — התאומות האפשריות של שורת קובץ
+    const fileRows = []; // שורות שהגיעו מקובץ — התאומות האפשריות של שורת משיכה **בלי** מזהה
     for (const e of existing) {
-      if (e.external_id) pulled.push({ id: e.id, date: e.txn_date, amount: e.amount, ref: plainNumber(e.raw_reference ?? '') || null, balance: e.balance_after, taken: false });
+      const entry = { id: e.id, date: e.txn_date, amount: e.amount, ref: plainNumber(e.raw_reference ?? '') || null, balance: e.balance_after, taken: false };
+      if (PULL_SOURCES.has(e.source)) pulled.push(entry);
+      if (e.source === 'csv') fileRows.push(entry);
+      if (!e.external_id) legacy.push(entry);
       if (e.external_id) {
         byExternal.add(e.external_id);
         // מזהה סריקה בפורמט הישן (`scr:חברה:חשבון:אסמכתא`, לפני שנוספו תאריך+סכום): המזהה החדש של
         // אותה שורה הוא בדיוק הישן + `:תאריך:סכום` — ולכן גוזרים אותו ממה שנשמר, ומשיכה חדשה מזהה אותה.
         if (/^scr:[^:]*:[^:]*:[^:]+$/.test(e.external_id)) byExternal.add(`${e.external_id}:${e.txn_date}:${e.amount}`);
       }
-      else legacy.push({ id: e.id, date: e.txn_date, amount: e.amount, ref: plainNumber(e.raw_reference ?? '') || null, taken: false });
       byFields.add(fieldKey(e.txn_date, e.amount, e.description, e.raw_reference));
     }
     const dayDiff = (a, b) => Math.abs((Date.parse(a) - Date.parse(b)) / 86_400_000);
-    const claimLegacy = (r, maxDays) => {
+    const claimFrom = (list, r, maxDays) => {
       const ref = plainNumber(r.rawReference ?? '') || null;
       let best = null;
       let bestScore = Infinity;
-      for (const l of legacy) {
+      for (const l of list) {
         if (l.taken || Number(l.amount) !== Number(r.amount)) continue;
         const d = dayDiff(l.date, r.txnDate);
         if (!(d <= maxDays)) continue;
@@ -91,36 +98,26 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
       for (const r of rows) {
         const externalId = r.externalId ?? null;
         if (!externalId || byExternal.has(externalId) || adoptedRow.has(r) || !legacy.length) continue;
-        const hit = claimLegacy(r, maxDays);
+        const hit = claimFrom(legacy, r, maxDays);
         if (hit) adoptedRow.set(r, hit);
       }
     }
-    // 🔴 הכיוון ההפוך (בעלים, 15/10): **קובץ** שמגיע אחרי שהבנק כבר נמשך. שורת קובץ אין לה מזהה,
-    // והתיאור שלה שונה מזה של האתר — בדיקת השדות המדויקת לא ראתה את התאומה, וכל חפיפה נקלטה
-    // פעמיים (במידנייט: רצף היתרות נשבר ב-25 ימים). אותו כלל כמו האימוץ: אותו סכום, עד 3 ימים,
-    // אסמכתא זהה מועדפת, תאריך זהה לפני טווח, כל שורה קיימת פעם אחת. רק לייבוא קובץ — הזנה ידנית
-    // היא החלטה של אדם ולא תיבלע.
+    // 🔴 שני כיוונים שהאימוץ למעלה לא ראה (בעלים, 15/10 — במידנייט רצף היתרות נשבר ב-25 ימים):
+    //   • **קובץ** שמגיע אחרי שהבנק כבר נמשך — לשורת קובץ אין מזהה, והתיאור שונה מזה של האתר;
+    //   • שורת **משיכה בלי מזהה** (הבנק לא תמיד מחזיר אסמכתא) מול שורת קובץ קיימת — האימוץ רץ
+    //     רק על שורות עם מזהה, ובדיקת השדות המדויקת נכשלת על התיאור.
+    // אותו כלל כמו האימוץ: אותו סכום, עד 3 ימים, תאריך זהה לפני טווח, אסמכתא זהה מועדפת, כל
+    // שורה קיימת פעם אחת. הזנה ידנית היא החלטה של אדם ולא תיבלע.
     const twinRow = new Map();
-    if (source === 'csv' && pulled.length) {
-      const claimPulled = (r, maxDays) => {
-        const ref = plainNumber(r.rawReference ?? '') || null;
-        let best = null;
-        let bestScore = Infinity;
-        for (const p of pulled) {
-          if (p.taken || Number(p.amount) !== Number(r.amount)) continue;
-          const d = dayDiff(p.date, r.txnDate);
-          if (!(d <= maxDays)) continue;
-          const score = d + (ref && p.ref === ref ? -10 : 0);
-          if (score < bestScore) { best = p; bestScore = score; }
-        }
-        if (best) best.taken = true;
-        return best;
-      };
+    const isPull = PULL_SOURCES.has(source);
+    if ((source === 'csv' && pulled.length) || (isPull && fileRows.length)) {
+      const list = source === 'csv' ? pulled : fileRows;
       for (const maxDays of [0, 3]) {
         for (const r of rows) {
+          // משיכה: רק שורה **בלי** מזהה — שורה עם מזהה כבר מטופלת באימוץ למעלה.
           if (r.externalId || twinRow.has(r)) continue;
           if (byFields.has(fieldKey(r.txnDate, r.amount, r.description ?? null, r.rawReference ?? null))) continue;
-          const hit = claimPulled(r, maxDays);
+          const hit = claimFrom(list, r, maxDays);
           if (hit) twinRow.set(r, hit);
         }
       }
@@ -141,7 +138,7 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
       if (twin) {
         // השורה כבר נמשכה מהבנק. מה שהקובץ מוסיף הוא היתרה — היא נכנסת לשורה הקיימת (רק באותו
         // תאריך: יתרה שייכת ליום שלה), וכך בדיקת רצף היתרות רואה גם את מה שהסוכן הביא.
-        if (Number.isFinite(r.balanceAfter) && twin.balance == null && String(twin.date).slice(0, 10) === String(r.txnDate).slice(0, 10)) {
+        if (source === 'csv' && Number.isFinite(r.balanceAfter) && twin.balance == null && String(twin.date).slice(0, 10) === String(r.txnDate).slice(0, 10)) {
           await t.run('UPDATE bank_transactions SET balance_after = ? WHERE id = ? AND balance_after IS NULL', [r.balanceAfter, twin.id]);
         }
         skipped += 1;

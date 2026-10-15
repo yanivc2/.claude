@@ -11,7 +11,8 @@
 // לבדיקה ידנית ולא מאוחדים. חלון שהיה תקין ונשבר אחרי ההסרה — הזוג פסול.
 //
 // האיחוד: נשארת **שורת הקובץ** (היא נושאת את היתרה ואת התאריך שהבנק דיווח), היא מקבלת את מזהה
-// המשיכה (כך שמשיכה הבאה מזהה אותה ולא מכפילה שוב), וכל מה שהיה קשור לעותק — התאמת תשלום,
+// המשיכה אם יש לו (כך שמשיכה הבאה מזהה אותה ולא מכפילה שוב; שורת משיכה בלי מזהה מזוהה בייבוא לפי
+// אותו כלל זיווג — `importTransactions`), וכל מה שהיה קשור לעותק — התאמת תשלום,
 // הפקדה, שכר — עובר אליה. זוג ששני חלקיו קשורים לדברים שונים לא מאוחד (`conflict`).
 import { getExecutor, tx } from '../db/adapter.js';
 import { plainNumber } from '../lib/numText.js';
@@ -31,8 +32,10 @@ const refOf = (v) => plainNumber(String(v ?? '').trim()) || null;
  * תאריך זהה לפני טווח, אסמכתא זהה מועדפת, כל שורה פעם אחת. טהור.
  */
 export function pairDuplicates(rows) {
-  const files = rows.filter((r) => r.external_id == null && FILE_SOURCES.has(r.source));
-  const pulled = rows.filter((r) => r.external_id != null && PULL_SOURCES.has(r.source) && r.balance_after == null)
+  // הבנק לא תמיד מחזיר אסמכתא, ואז לשורת המשיכה אין מזהה — היא עדיין תאומה. מה שלא מתאחד: שתי
+  // שורות שלכל אחת מזהה בנק משלה (אחרי האיחוד המשיכה הבאה הייתה מחזירה את זו שנמחקה).
+  const files = rows.filter((r) => FILE_SOURCES.has(r.source));
+  const pulled = rows.filter((r) => PULL_SOURCES.has(r.source) && r.balance_after == null)
     .map((r) => ({ r, taken: false }));
   const pairs = [];
   const paired = new Set();
@@ -44,6 +47,7 @@ export function pairDuplicates(rows) {
       let bestScore = Infinity;
       for (const p of pulled) {
         if (p.taken || Number(p.r.amount) !== Number(f.amount)) continue;
+        if (f.external_id != null && p.r.external_id != null) continue;
         const d = dayDiff(p.r.txn_date, f.txn_date);
         if (!(d <= maxDays)) continue;
         const score = d + (ref && refOf(p.r.raw_reference) === ref ? -10 : 0);
@@ -136,6 +140,11 @@ export async function findAccountDuplicates(accountId, x = getExecutor()) {
   const mergeable = checked.filter((p) => p.verified && !p.conflict);
   const dropIds = new Set(mergeable.map((p) => Number(p.drop.id)));
   return {
+    fileRows: rows.filter((r) => FILE_SOURCES.has(r.source)).length,
+    fileWithId: rows.filter((r) => FILE_SOURCES.has(r.source) && r.external_id != null).length,
+    pulledRows: rows.filter((r) => PULL_SOURCES.has(r.source)).length,
+    pulledNoId: rows.filter((r) => PULL_SOURCES.has(r.source) && r.external_id == null).length,
+    pulledWithBalance: rows.filter((r) => PULL_SOURCES.has(r.source) && r.balance_after != null).length,
     pairs: checked,
     mergeable,
     breaksBefore: balanceBreaks(rows).breaks.length,
@@ -162,7 +171,7 @@ export async function mergeAccountDuplicates(accountId, actor, x = getExecutor()
       const k = cur.find((r) => Number(r.id) === keep);
       const d = cur.find((r) => Number(r.id) === drop);
       if (!k || !d || Number(k.amount) !== Number(d.amount) || Number(k.bank_account_id) !== Number(accountId)
-        || Number(d.bank_account_id) !== Number(accountId) || k.external_id != null) continue;
+        || Number(d.bank_account_id) !== Number(accountId) || (k.external_id != null && d.external_id != null)) continue;
       if (d.matched_payment_id != null && k.matched_payment_id == null) {
         await t.run('UPDATE bank_transactions SET matched_payment_id = NULL WHERE id = ?', [drop]);
         await t.run('UPDATE bank_transactions SET matched_payment_id = ? WHERE id = ?', [d.matched_payment_id, keep]);
@@ -176,7 +185,7 @@ export async function mergeAccountDuplicates(accountId, actor, x = getExecutor()
       }
       await t.run('DELETE FROM bank_transactions WHERE id = ?', [drop]);
       // המזהה של המשיכה עובר לשורת הקובץ — אחרת המשיכה הבאה (60 יום אחורה) הייתה מכניסה אותה שוב.
-      await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ? AND external_id IS NULL', [d.external_id, keep]);
+      if (d.external_id != null) await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ? AND external_id IS NULL', [d.external_id, keep]);
       merged += 1;
     }
   });
