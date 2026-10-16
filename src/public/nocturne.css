@@ -329,6 +329,13 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
    the row without ever creating an implicit column that would overflow a narrow screen. */
 .stat-grid .oc-tile { grid-column: 1 / -1; }
 @media (min-width: 620px) { .stat-grid .oc-tile { grid-column: span 2; } }
+/* 🔎 בדיקת חשבונית בתוך אריח (לוח הבקרה): שם · מספר · "לא שולמו בלבד" · חפש — נשבר לשורות בנייד. */
+
+.lookup-tile:hover { transform: none; box-shadow: none; }
+.lookup-form { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+.lookup-form input:not([type=checkbox]) { flex: 1 1 140px; min-width: 0; }
+.lookup-unpaid { display: flex; align-items: center; gap: 6px; font-weight: 400; white-space: nowrap; font-size: 13px; }
+.lookup-unpaid input { width: auto; min-height: 0; }
 .stat { margin-bottom: 0; }
 .stat { display: block; background: var(--color-surface); border: 1px solid var(--color-line); border-radius: var(--radius-lg); padding: var(--space-4) var(--space-5); color: inherit; transition: transform .18s cubic-bezier(.22,1,.36,1), border-color .18s ease, box-shadow .18s ease; }
 .stat:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-line)); box-shadow: var(--shadow-md); text-decoration: none; }
@@ -634,6 +641,10 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .store-banner-switch { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 0 auto; }
 .store-banner-switch select { min-width: 150px; }
 .store-banner-lock { margin: 0 0 0 auto; font-size: 11px; }
+/* "אפשרויות" של לוח הבקרה — הכי שמאלי בפס, אחרי "החלף" (partials/_quickMenu.ejs). */
+.store-banner-quick { flex: 0 0 auto; }
+/* בנייד הפס נשבר לשתי שורות — "אפשרויות" נשאר בצד שמאל גם בשורה החדשה. */
+@media (max-width: 700px) { .store-banner-quick { margin-inline-start: auto; } }
 
 /* images blend into the dark ground */
 .lighten { mix-blend-mode: lighten; }
@@ -1134,6 +1145,9 @@ tr.row-tracked:hover td { background: color-mix(in srgb, #f59e0b 18%, transparen
 @media (max-width: 700px) {
   .cx-btn-long { display: none; }
 }
+/* כפתורי השורה (💬 · התאם · טופל) נשברים לשורה הבאה במקום לברוח מהמסך — בנייד הימני נחתך (בעלים, 16/10). */
+.cx-acts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.cx-acts form { margin: 0; }
 
 /* "בחירת חנות" (views/context/choose.ejs) — כפתור גדול לכל חנות. */
 .store-choose { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); }

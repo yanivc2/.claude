@@ -123,13 +123,15 @@ function cutQS(){
       <thead>
         <tr>
           <th>ספק</th><th>מס' חשבונית</th><th>תאריך חשבונית</th><th class="right">סכום חשבונית</th>
-          <th>מס' זיכוי</th><th class="right">סכום זיכוי</th><th>תאריך פירעון</th><th class="right">סכום</th>
+          <th>מס' זיכוי</th><th class="right">סכום זיכוי</th><th class="right">סכום</th><th>תאריך פירעון</th>
           <th class="no-print">התאמה בבנק לפי סכום</th>
-          <th class="no-print" data-nosort>פעולות</th>
+          <%# "סמן כנפרע" (הצ׳ק) ו"ערוך חשבונית" (החשבונית) בעמודות נפרדות — בעלים, 16/10: "תפריד, זה לא יפה". %>
+          <th class="no-print" data-nosort>פירעון</th>
+          <% if (currentUser.role === 'owner') { %><th class="no-print" data-nosort>חשבונית</th><% } %>
         </tr>
       </thead>
       <tbody>
-        <% if (detail.length === 0) { %><tr><td colspan="10" class="muted">אין צ׳קים פתוחים.</td></tr><% } %>
+        <% if (detail.length === 0) { %><tr><td colspan="<%= currentUser.role === 'owner' ? 11 : 10 %>" class="muted">אין צ׳קים פתוחים.</td></tr><% } %>
         <% detail.forEach(function(r){ %>
           <tr>
             <td><%= r.supplierName %><% if (r.isAdvance) { %> <span class="muted" style="font-size:11px">· על החשבון</span><% } %></td>
@@ -138,8 +140,8 @@ function cutQS(){
             <td class="right"><%= formatIls(r.invoiceAmount) %></td>
             <td class="mono"><%= r.creditNumbers || '—' %></td>
             <td class="right"><%= r.creditAmount ? '−' + formatIls(r.creditAmount) : '—' %></td>
-            <td data-sort="<%= r.dueDate %>"><%= formatDate(r.dueDate) %></td>
             <td class="right"><strong><%= formatIls(r.amount) %></strong></td>
+            <td data-sort="<%= r.dueDate %>"><%= formatDate(r.dueDate) %></td>
             <% var m = _bm.get(Number(r.paymentId)); %>
             <td class="no-print">
               <% if (!m || !m.candidates.length) { %><span class="muted">—</span>
@@ -160,15 +162,19 @@ function cutQS(){
               <% } %>
             </td>
             <td class="no-print">
-              <form method="post" action="/payments/<%= r.paymentId %>/clear" style="display:inline">
-                <button class="ok small" type="submit">סמן כנפרע</button>
+              <form method="post" action="/payments/<%= r.paymentId %>/clear" style="display:inline;margin:0">
+                <button class="ok small" type="submit">✓ סמן כנפרע</button>
               </form>
-              <% if (currentUser.role === 'owner') { %>
-                <% r.invoiceIds.forEach(function(iid){ %>
-                  <a class="btn secondary small" href="/invoices/<%= iid %>/edit">ערוך חשבונית</a>
-                <% }); %>
-              <% } %>
             </td>
+            <% if (currentUser.role === 'owner') { %>
+              <td class="no-print">
+                <div style="display:flex;flex-wrap:wrap;gap:4px">
+                  <% r.invoiceIds.forEach(function(iid){ %>
+                    <a class="btn secondary small" href="/invoices/<%= iid %>/edit">✏️ ערוך</a>
+                  <% }); %>
+                </div>
+              </td>
+            <% } %>
           </tr>
         <% }); %>
       </tbody>

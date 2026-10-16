@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { cashPanelExtras } from '../services/cashPanel.js';
 import {
   createPayment,
   updatePayment,
@@ -80,6 +81,8 @@ router.get('/', async (req, res, next) => {
       // אותה טבלה בדיוק של לוח הבקרה — partials/_unmatchedCash.ejs. שתי טבלאות שונות לאותו
       // דבר היו מבלבלות: אותה שורת כסף נראתה אחרת בכל דף.
       unmatchedCash: await withMatchCandidates(await unmatchedCashExpenses(scope, 50, storeId), scope, storeId),
+      // "הותאם ל" + אנשי קשר לוואטסאפ — services/cashPanel.js (מקור אחד לשני הדפים).
+      ...(await cashPanelExtras(scope, storeId)),
       settledCash: await settledCashExpenses(scope, 30, storeId),
       cashSettleReady: await cashSettleReady(),
       cashErr: req.query.cashErr ? String(req.query.cashErr) : null,

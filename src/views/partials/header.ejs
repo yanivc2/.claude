@@ -125,6 +125,7 @@
         <% } else { %>
           <span class="tag tag-outline store-banner-lock">נעול לחנות זו</span>
         <% } %>
+        <% if (typeof quickMenu !== 'undefined' && quickMenu) { %><%- include('_quickMenu') %><% } %>
       </div>
     <% } %>
     <% if (typeof scopeCompanies !== 'undefined' && scopeCompanies) { %>

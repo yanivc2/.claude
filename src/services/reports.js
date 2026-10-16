@@ -271,10 +271,14 @@ export async function outstandingBankCandidates(bankAccountId, detail, x = getEx
 /**
  * §7 "בדיקת חשבונית" — invoice lookup by invoice number, allocation number, or supplier name.
  */
-export async function invoiceLookup(query, { companyId = null, storeId = null, scope = null, unpaidOnly = false } = {}, x = getExecutor()) {
+export async function invoiceLookup(query, { companyId = null, storeId = null, scope = null, unpaidOnly = false, by = 'all' } = {}, x = getExecutor()) {
   const terms = parseSearchTerms(query);
   if (!terms.length) return [];
-  const m = anyTermLike(terms, ['i.invoice_number', 'i.allocation_number', 's.name']);
+  // `by`: 'number' (מספר חשבונית / הקצאה), 'name' (שם ספק) או 'all'. לוח הבקרה מחפש בשני שדות נפרדים
+  // (בעלים, 16/10: "הפרד חיפוש שמי מחיפוש של ברקוד") — מספר לא נתפס כחלק משם ספק, ולהפך.
+  const cols = by === 'number' ? ['i.invoice_number', 'i.allocation_number']
+    : by === 'name' ? ['s.name'] : ['i.invoice_number', 'i.allocation_number', 's.name'];
+  const m = anyTermLike(terms, cols);
   const params = [...m.params];
   let filter = '';
   if (unpaidOnly) filter += " AND i.status <> 'paid'";

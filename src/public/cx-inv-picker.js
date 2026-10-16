@@ -15,7 +15,8 @@
     var sel = box.querySelector('select.cx-inv');
     var opt = sel && sel.querySelector('option[value="' + String(id).replace(/"/g, '') + '"]');
     // "#58 · ספק · מספר · ₪סכום" — המזהה הפנימי הוא רעש בתגית צרה.
-    return opt ? opt.textContent.replace(/^#\d+\s*·\s*/, '') : 'חשבונית #' + id;
+    // ★/≈ הם סימני דירוג ברשימה (התאמת מזומן בלוח), לא חלק מהשם.
+    return opt ? opt.textContent.trim().replace(/^[★≈]\s*/, '').replace(/^#\d+\s*·\s*/, '') : 'חשבונית #' + id;
   }
   function render(box) {
     var chips = box.querySelector('.cx-inv-chips');

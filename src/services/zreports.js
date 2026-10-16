@@ -3,6 +3,7 @@ import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
 import { logAction } from './audit.js';
 import { parseInvoiceIds, encodeInvoiceIds, likeInvoiceId, cashExpenseInvoiceIdsReady } from './cashExpenseInvoices.js';
+import { rankInvoices, invoiceCombos, suppliersMentioned } from '../lib/cashInvoiceMatch.js';
 
 // Daily register (Z) close (priority 2). daily_total ("יומי Z") feeds the profitability report;
 // the drawer breakdown (cash/check/credit/hakafa/vouchers) sums to drawer_total ("סה"כ מגירה").
@@ -314,14 +315,69 @@ async function cashExpenseScope(source, id, x) {
  * ביטוי אחד לשני הדפים (לוח הבקרה ומרקורים) — שכפול היה מאפשר לשניים להיפרד בשקט.
  */
 export async function withMatchCandidates(rows, scope = null, storeId = null, x = getExecutor()) {
-  return Promise.all((rows || []).map(async (r) => ({
-    ...r,
-    petty: isPettyExpense(r),
-    candidates: isPettyExpense(r) ? []
-      : (r.description_type === 'salary' || r.description_type === 'advance')
-        ? await salaryMatchCandidates(r.amount, scope, storeId, 40, x)
-        : await invoiceMatchCandidates(r.amount, scope, storeId, 40, x),
-  })));
+  const list = rows || [];
+  const isSal = (r) => r.description_type === 'salary' || r.description_type === 'advance';
+  const forInvoices = list.filter((r) => !isPettyExpense(r) && !isSal(r));
+  // החשבוניות הפתוחות נטענות **פעם אחת** לכל הדף (קודם — שאילתה מלאה לכל שורה).
+  let payable = [];
+  let nearby = [];
+  if (forInvoices.length) {
+    const { listPayable } = await import('./invoices.js');
+    const all = await listPayable(scope, x);
+    payable = storeId ? all.filter((r) => Number(r.store_id) === Number(storeId)) : all;
+    nearby = await invoicesNearDates(forInvoices.map((r) => r.expense_date), scope, storeId, x);
+  }
+  // כל שמות הספקים — כדי לומר "לא הוזנה חשבונית של טרה" גם כשאין לטרה אף חשבונית בסביבה.
+  const supplierNames = forInvoices.length
+    ? (await x.many('SELECT name FROM suppliers', [])).map((r) => r.name).filter(Boolean)
+    : [];
+  return Promise.all(list.map(async (r) => {
+    if (isPettyExpense(r)) return { ...r, petty: true, candidates: [] };
+    if (isSal(r)) return { ...r, petty: false, candidates: await salaryMatchCandidates(r.amount, scope, storeId, 40, x) };
+    const candidates = rankInvoices(r, payable, 60);
+    return {
+      ...r,
+      petty: false,
+      candidates,
+      combos: invoiceCombos(r, candidates),
+      supplierCheck: supplierCheckFor(r, supplierNames, nearby, candidates),
+    };
+  }));
+}
+
+/**
+ * כל החשבוניות (בכל סטטוס) סביב תאריכי ההוצאות — כדי לומר למה חשבונית לא מופיעה ברשימה: לא הוזנה
+ * בכלל, או הוזנה וכבר מסומנת ששולמה. שאילתה אחת לטווח כולו.
+ */
+async function invoicesNearDates(dates, scope, storeId, x) {
+  const ds = dates.filter(Boolean).map((d) => String(d).slice(0, 10)).sort();
+  if (!ds.length) return [];
+  const shift = (d, n) => new Date(Date.parse(d) + n * 86_400_000).toISOString().slice(0, 10);
+  const sc = scopeWhere(scope, 'i.company_id', 'i.store_id');
+  return x.many(
+    `SELECT i.id, i.invoice_number, i.invoice_date, i.total_amount, i.status, i.store_id, s.name AS supplier_name
+       FROM invoices i JOIN suppliers s ON s.id = i.supplier_id
+      WHERE i.invoice_date >= ? AND i.invoice_date <= ?${storeId ? ' AND i.store_id = ?' : ''}${sc.sql}`,
+    [shift(ds[0], -2), shift(ds[ds.length - 1], 2), ...(storeId ? [Number(storeId)] : []), ...sc.params],
+  );
+}
+
+/**
+ * לכל ספק שההוצאה מזכירה בשמה: האם יש לו חשבונית סביב יום ההוצאה (±2 ימים), והאם היא ברשימה.
+ * "ביום הזנת ה-Z צריכה להיות מוזנת חשבונית מתאימה" (בעלים, 16/10) — כאן זה נאמר בקול כשאין.
+ * @returns {Array<{supplier, status:'listed'|'notOpen'|'missing', invoices:Array}>}
+ */
+function supplierCheckFor(expense, supplierNames, nearby, candidates) {
+  const date = expense.expense_date ? String(expense.expense_date).slice(0, 10) : null;
+  if (!date) return [];
+  const gap = (d) => Math.abs(Date.parse(String(d).slice(0, 10)) - Date.parse(date)) / 86_400_000;
+  const open = new Set(candidates.map((c) => Number(c.id)));
+  return suppliersMentioned(expense, supplierNames).map((supplier) => {
+    const invs = nearby.filter((i) => i.supplier_name === supplier && gap(i.invoice_date) <= 2);
+    if (!invs.length) return { supplier, status: 'missing', invoices: [] };
+    const listed = invs.filter((i) => open.has(Number(i.id)));
+    return listed.length ? { supplier, status: 'listed', invoices: listed } : { supplier, status: 'notOpen', invoices: invs };
+  });
 }
 
 /**
@@ -478,47 +534,60 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
  * מטפלת בשתיהן, מסמנת את החשבונית כשולמה במזומן, ומתריעה — התאמת מזומן היא הרגע שבו כסף
  * שיצא מהקופה מקבל הסבר, והבעלים ביקש לדעת עליה בזמן אמת.
  */
-export async function matchCashExpenseToInvoice(source, id, invoiceId, actor, scope = null, x = getExecutor()) {
+export async function matchCashExpenseToInvoice(source, id, invoiceIdOrIds, actor, scope = null, x = getExecutor()) {
   const table = SETTLE_TABLE[source];
   if (!table) throw new RuleError('VALIDATION', 'מקור הוצאה לא מוכר');
   await assertCashExpenseInScope(source, id, scope, x);
-  const { companyIds } = normalizeScope(scope);
+  const { companyIds, storeIds } = normalizeScope(scope);
+  // הוצאה אחת יכולה לשלם כמה חשבוניות — גם של ספקים שונים (בעלים, 16/10: "משלמת טרה וקולה יחד").
+  const ids = parseInvoiceIds(invoiceIdOrIds);
+  if (!ids.length) throw new RuleError('VALIDATION', 'יש לבחור חשבונית');
+  const multiOk = await cashExpenseInvoiceIdsReady(x);
+  if (ids.length > 1 && !multiOk) {
+    throw new RuleError('SCHEMA', 'התאמה לכמה חשבוניות — אחרי "עדכן מסד נתונים" בהגדרות. בינתיים בחר חשבונית אחת.');
+  }
 
   const exp = await x.one(`SELECT id, amount, payer_name, purpose FROM ${table} WHERE id = ?`, [Number(id)]);
   if (!exp) throw new NotFoundError(`הוצאת מזומן ${id} לא נמצאה`);
-  const inv = await x.one(
-    `SELECT i.id, i.invoice_number, i.total_amount, i.company_id, i.store_id, s.name AS supplier_name
-       FROM invoices i LEFT JOIN suppliers s ON s.id = i.supplier_id WHERE i.id = ?`,
-    [Number(invoiceId)],
-  );
-  if (!inv) throw new NotFoundError(`חשבונית ${invoiceId} לא נמצאה`);
-  // הצד השני של השיוך נבדק גם הוא — אחרת מזהה חשבונית מנוחש היה קושר הוצאה לחשבונית של חברה אחרת.
-  if (companyIds != null && inv.company_id != null && !companyIds.includes(Number(inv.company_id))) {
-    throw new NotFoundError(`חשבונית ${invoiceId} לא נמצאה`);
+  const invs = [];
+  for (const invoiceId of ids) {
+    const inv = await x.one(
+      `SELECT i.id, i.invoice_number, i.total_amount, i.company_id, i.store_id, s.name AS supplier_name
+         FROM invoices i LEFT JOIN suppliers s ON s.id = i.supplier_id WHERE i.id = ?`,
+      [Number(invoiceId)],
+    );
+    // הצד השני של השיוך נבדק גם הוא — אחרת מזהה חשבונית מנוחש היה קושר הוצאה לחשבונית של חברה/חנות אחרת.
+    const out = !inv
+      || (companyIds != null && inv.company_id != null && !companyIds.includes(Number(inv.company_id)))
+      || (storeIds != null && inv.store_id != null && !storeIds.includes(Number(inv.store_id)));
+    if (out) throw new NotFoundError(`חשבונית ${invoiceId} לא נמצאה`);
+    invs.push(inv);
   }
 
-  if (await cashExpenseInvoiceIdsReady(x)) {
-    await x.run(`UPDATE ${table} SET invoice_id = ?, invoice_ids = ?, description_type = 'invoice' WHERE id = ?`, [inv.id, encodeInvoiceIds([inv.id]), Number(id)]);
+  if (multiOk) {
+    await x.run(`UPDATE ${table} SET invoice_id = ?, invoice_ids = ?, description_type = 'invoice' WHERE id = ?`, [invs[0].id, encodeInvoiceIds(ids), Number(id)]);
   } else {
-    await x.run(`UPDATE ${table} SET invoice_id = ?, description_type = 'invoice' WHERE id = ?`, [inv.id, Number(id)]);
+    await x.run(`UPDATE ${table} SET invoice_id = ?, description_type = 'invoice' WHERE id = ?`, [invs[0].id, Number(id)]);
   }
   await logAction(
-    { userId: actor?.id ?? null, action: 'cash_expense.match_invoice', entityType: 'invoice', entityId: inv.id,
-      details: { source, expenseId: Number(id), amount: exp.amount } },
+    { userId: actor?.id ?? null, action: 'cash_expense.match_invoice', entityType: 'invoice', entityId: invs[0].id,
+      details: { source, expenseId: Number(id), amount: exp.amount, invoiceIds: ids } },
     x,
   );
   const { notify } = await import('../lib/notify.js');
   const { fromAgorot } = await import('../lib/money.js');
-  const diff = Number(inv.total_amount) - Number(exp.amount);
+  const total = invs.reduce((n, i) => n + Number(i.total_amount), 0);
+  const diff = total - Number(exp.amount);
+  const label = (inv) => `#${inv.invoice_number || inv.id}${inv.supplier_name ? ' · ' + inv.supplier_name : ''}`;
   await notify(
-    `💵 <b>הותאם תשלום במזומן לחשבונית</b>`
-      + `\nחשבונית #${inv.invoice_number || inv.id}${inv.supplier_name ? ' · ' + inv.supplier_name : ''}`
+    `💵 <b>הותאם תשלום במזומן ל${invs.length > 1 ? `-${invs.length} חשבוניות` : 'חשבונית'}</b>`
+      + `\n${invs.length > 1 ? 'חשבוניות' : 'חשבונית'} ${invs.map(label).join(' + ')}`
       + `\nהוצאה ${fromAgorot(exp.amount)} ₪${exp.purpose ? ' · ' + exp.purpose : ''}`
-      + (diff ? `\n⚠️ הפרש מול סכום החשבונית: ${fromAgorot(Math.abs(diff))} ₪` : '')
+      + (diff ? `\n⚠️ הפרש מול סכום ${invs.length > 1 ? 'החשבוניות' : 'החשבונית'}: ${fromAgorot(Math.abs(diff))} ₪` : '')
       + `\nמקור: ${source === 'zclosing' ? 'סגירת Z' : 'דוח Z'}`,
-    { kind: 'cash_match', link: `/invoices/${inv.id}`, storeId: inv.store_id ?? null },
+    { kind: 'cash_match', link: `/invoices/${invs[0].id}`, storeId: invs[0].store_id ?? null },
   );
-  return { source, id: Number(id), invoiceId: inv.id, diff };
+  return { source, id: Number(id), invoiceId: invs[0].id, invoiceIds: ids, diff };
 }
 
 /**
@@ -536,11 +605,9 @@ export async function invoiceMatchCandidates(amount, scope = null, storeId = nul
   // `scope` שכבר צומצם לחנות הפעילה מטפל ברוב המקרים ו-storeId הוא צמצום נוסף.
   const all = await listPayable(scope, x);
   const rows = storeId ? all.filter((r) => Number(r.store_id) === Number(storeId)) : all;
-  const target = Number(amount) || 0;
-  const scored = rows.map((r) => ({ ...r, sameAmount: Number(r.total_amount) === target }));
-  scored.sort((a, b) => (b.sameAmount ? 1 : 0) - (a.sameAmount ? 1 : 0)
-    || String(b.invoice_date || '').localeCompare(String(a.invoice_date || '')));
-  return scored.slice(0, limit);
+  // `amount` לבד (קורא ישן) או הוצאה שלמה — עם שם ותאריך הדירוג משתמש גם בהם (lib/cashInvoiceMatch.js).
+  const expense = typeof amount === 'object' && amount ? amount : { amount };
+  return rankInvoices(expense, rows, limit);
 }
 
 /**
@@ -607,6 +674,83 @@ export async function settledCashExpenses(scope = null, limit = 30, storeId = nu
      ORDER BY u.settled_at DESC, u.id DESC LIMIT ?`,
     [...scR.params, ...(storeId ? [storeId] : []), ...scC.params, ...(storeId ? [storeId] : []), limit],
   );
+}
+
+/**
+ * הוצאות מזומן **שהותאמו** — ולמה (בעלים, 16/10: "במידה ועושים התאמה שיופיע עמודה 'הותאם ל' — מספר
+ * החשבונית, ולחיצה מובילה לחשבונית"). שורה שהותאמה יורדת מ"ללא התאמה"; כאן רואים אותה, ואת מה
+ * שהיא שילמה. שני סוגי קישור: חשבוניות (`invoice_id`/`invoice_ids`) וצ׳ק שכר
+ * (`salary_payments.cash_expense_id` / `cash_z_expense_id`). האחרונות קודם.
+ * @returns {Promise<Array<{...expense, matchedTo: Array<{kind:'invoice'|'salary', id, label, href}>}>>}
+ */
+export async function matchedCashExpenses(scope = null, limit = 20, storeId = null, x = getExecutor()) {
+  const withIds = await cashExpenseInvoiceIdsReady(x);
+  const scR = scopeWhere(scope, 'st.company_id', 'z.store_id');
+  const scC = scopeWhere(scope, 'st.company_id', 'zc.store_id');
+  const stR = storeId ? ' AND z.store_id = ?' : '';
+  const stC = storeId ? ' AND zc.store_id = ?' : '';
+  const ids = withIds ? 'e.invoice_ids' : 'NULL';
+  const salR = await salaryLinked('cash_z_expense_id', x);
+  const salC = await salaryLinked('cash_expense_id', x);
+  // NOT (… NOT IN …) ולא IN — pg-mem נכשל על IN מול מזהה של טבלה בתוך join (CLAUDE.md · scopeClause).
+  const inList = (set) => (set.size ? ` OR NOT (e.id NOT IN (${[...set].map(Number).join(',')}))` : '');
+  const rows = await x.many(
+    `SELECT * FROM (
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type, e.created_at,
+              e.invoice_id, ${ids} AS invoice_ids, st.name AS store_name, z.z_number, 'zreport' AS source, z.id AS ref_id
+         FROM z_expenses e JOIN z_reports z ON z.id = e.z_report_id JOIN stores st ON st.id = z.store_id
+        WHERE e.amount > 0 AND (e.invoice_id IS NOT NULL${inList(salR)})${scR.sql}${stR}
+       UNION ALL
+       SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type, e.created_at,
+              e.invoice_id, ${ids} AS invoice_ids, st.name AS store_name, zc.z_number, 'zclosing' AS source, zc.id AS ref_id
+         FROM z_closing_expenses e JOIN z_closings zc ON zc.id = e.closing_id JOIN stores st ON st.id = zc.store_id
+        WHERE e.amount > 0 AND (e.invoice_id IS NOT NULL${inList(salC)})${scC.sql}${stC}
+     ) u
+     ORDER BY u.expense_date DESC, u.id DESC LIMIT ?`,
+    [...scR.params, ...(storeId ? [storeId] : []), ...scC.params, ...(storeId ? [storeId] : []), limit],
+  );
+  if (!rows.length) return [];
+  const invIds = [...new Set(rows.flatMap((r) => (parseInvoiceIds(r.invoice_ids).length ? parseInvoiceIds(r.invoice_ids) : parseInvoiceIds(r.invoice_id))))];
+  const invs = new Map();
+  if (invIds.length) {
+    for (const i of await x.many(
+      `SELECT i.id, i.invoice_number, s.name AS supplier_name FROM invoices i LEFT JOIN suppliers s ON s.id = i.supplier_id
+        WHERE NOT (i.id NOT IN (${invIds.map(() => '?').join(',')}))`,
+      invIds,
+    )) invs.set(Number(i.id), i);
+  }
+  const sal = new Map();
+  for (const [col, src] of [['cash_z_expense_id', 'zreport'], ['cash_expense_id', 'zclosing']]) {
+    try {
+      for (const r of await x.many(
+        `SELECT sp.${col} AS eid, sp.reference, e.first_name, e.last_name
+           FROM salary_payments sp JOIN employees e ON e.id = sp.employee_id WHERE sp.${col} IS NOT NULL`,
+        [],
+      )) sal.set(`${src}|${Number(r.eid)}`, r);
+    } catch { /* טבלה/עמודה שטרם נוצרה */ }
+  }
+  return rows.map((r) => {
+    const list = parseInvoiceIds(r.invoice_ids).length ? parseInvoiceIds(r.invoice_ids) : parseInvoiceIds(r.invoice_id);
+    const matchedTo = list.map((id) => {
+      const i = invs.get(Number(id));
+      return { kind: 'invoice', id, label: `#${i?.invoice_number || id}${i?.supplier_name ? ' · ' + i.supplier_name : ''}`, href: `/invoices/${id}` };
+    });
+    const sp = sal.get(`${r.source}|${Number(r.id)}`);
+    if (sp) {
+      matchedTo.push({ kind: 'salary', id: null,
+        label: `צ׳ק שכר${sp.reference ? ' ' + sp.reference : ''} · ${((sp.first_name || '') + ' ' + (sp.last_name || '')).trim()}`, href: '/employees' });
+    }
+    return { ...r, matchedTo };
+  });
+}
+
+/** מזהי ההוצאות שצ׳ק שכר נקשר אליהן (עמודה אחת לכל מקור). טבלה שטרם נוצרה → ריק. */
+async function salaryLinked(col, x) {
+  try {
+    return new Set((await x.many(`SELECT ${col} AS v FROM salary_payments WHERE ${col} IS NOT NULL`, [])).map((r) => Number(r.v)));
+  } catch {
+    return new Set();
+  }
 }
 
 /**

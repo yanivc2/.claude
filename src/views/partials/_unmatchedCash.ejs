@@ -28,6 +28,7 @@
       כדי לסמן הוצאה כטופלה (פריטה שנאספה) — הגדרות ← "עדכן מסד נתונים".
     </p>
   <% } %>
+  <div class="table-scroll">
   <table>
     <thead><tr><th>Z</th><th>תאריך</th><th>שם</th><th>עבור</th><th class="right">סכום</th><th class="no-print" data-nosort data-noexport>פעולה</th></tr></thead>
     <tbody>
@@ -57,13 +58,19 @@
             <% } else if (_emp && !_p) { %><%= _emp %><% } %>
           </td>
           <td>
+            <%# הסוג פעם אחת: התג ("שכר"/"מפרעה") ולא גם "שכר במזומן" לידו (בעלים, 16/10). %>
             <% if (e.description_type === 'salary' || e.description_type === 'advance') { %>
               <a href="/employees"><span class="badge b-on_hold"><%= e.description_type === 'salary' ? 'שכר' : 'מפרעה' %></span></a>
-            <% } %>
-            <%= e.purpose || (e.description_type === 'salary' ? 'שכר במזומן' : e.description_type === 'advance' ? 'מפרעה במזומן' : '—') %>
+              <%= e.purpose || '' %>
+            <% } else { %><%= e.purpose || '—' %><% } %>
           </td>
           <td class="right"><%= formatIls(e.amount) %></td>
           <td class="no-print">
+            <div class="cx-acts">
+            <%# 💬 וואטסאפ — לכל שורה: "נסעו במונית ולא הביאו חשבונית — אסביר שבפעם הבאה זה לא ישולם". %>
+            <button type="button" class="btn btn-secondary small cx-wa" title="שלח הודעת וואטסאפ על ההוצאה הזו" aria-label="וואטסאפ"
+                    data-amount="<%= formatIls(e.amount) %>" data-date="<%= formatDate(e.expense_date) %>" data-z="<%= e.z_number || '' %>"
+                    data-what="<%= [e.payer_name, e.purpose].filter(Boolean).join(' · ') %>">💬</button>
             <%# הכפתור נגזר מהסוג שנקלט, כי לכל סוג יש דרך יציאה אחרת:
                 פריטה  → נאספת חזרה לקופה, לעולם לא תקבל חשבונית → "טופל".
                 שכר/מפרעה → הצ׳ק שהוזן בדף עובדים ומשכורות → התאמה שגם מבטלת את הצ׳ק.
@@ -85,7 +92,7 @@
                 <p class="muted" style="margin:0 0 .6rem; font-size:12px">
                   <%= e.payer_name || '' %><%= e.purpose ? ' · ' + e.purpose : '' %> · <strong><%= formatIls(e.amount) %></strong>
                   · <%= formatDate(e.expense_date) %>
-                  <br /><%= _isSal ? 'הצ׳ק שיותאם יבוטל, אחרת ייפרע בבנק וישולם אותו שכר פעמיים.' : 'הרשימה מתחילה בחשבוניות באותו סכום.' %>
+                  <br /><%= _isSal ? 'הצ׳ק שיותאם יבוטל, אחרת ייפרע בבנק וישולם אותו שכר פעמיים.' : 'אפשר לבחור כמה חשבוניות — גם של ספקים שונים. ★ = אותו סכום, ≈ = הספק שבשם.' %>
                 </p>
                 <% if (!e.candidates || !e.candidates.length) { %>
                   <p class="muted" style="margin:0 0 .6rem">
@@ -93,25 +100,70 @@
                   </p>
                   <div class="actions"><a class="btn btn-secondary" href="<%= _isSal ? '/employees' : '/invoices' %>">פתח את הדף</a>
                     <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">סגור</button></div>
-                <% } else { var _same = e.candidates.filter(function(c){ return c.sameAmount; }); %>
+                <% } else if (_isSal) { var _same = e.candidates.filter(function(c){ return c.sameAmount; }); %>
                   <%# 🔴 מועמד בסכום זהה נבחר מראש. בלי זה הבורר נפתח ריק ("הקלד לחיפוש"), וכל הערך
                       של "אותו סכום קודם" מתבטל — המשתמש עדיין צריך לחפש ידנית את מה שכבר נמצא לו. %>
                   <p class="muted" style="margin:0 0 .5rem; font-size:12px">
                     <% if (_same.length === 1) { %>נמצאה התאמה אחת בדיוק באותו סכום — כבר נבחרה. לחץ "התאם" לאישור.
                     <% } else if (_same.length > 1) { %>נמצאו <%= _same.length %> באותו סכום (★) — הראשונה נבחרה.
-                    <% } else { %>אין <%= _isSal ? 'צ׳ק' : 'חשבונית' %> בסכום זהה — בחר מהרשימה.<% } %>
+                    <% } else { %>אין צ׳ק בסכום זהה — בחר מהרשימה.<% } %>
                   </p>
-                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/<%= _isSal ? 'match-salary' : 'match-invoice' %>" data-keep-scroll>
-                    <select name="<%= _isSal ? 'salary_payment_id' : 'invoice_id' %>" class="js-combo" required style="width:100%">
+                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/match-salary" data-keep-scroll>
+                    <select name="salary_payment_id" class="js-combo" required style="width:100%">
                       <option value=""></option>
                       <% e.candidates.forEach(function(c, ci){ %>
                         <option value="<%= c.id %>" <%= (ci === 0 && c.sameAmount) ? 'selected' : '' %>>
-                          <%= c.sameAmount ? '★ ' : '' %><%= formatIls(_isSal ? c.amount : c.total_amount) %>
-                          · <%= _isSal ? ((c.first_name || '') + ' ' + (c.last_name || '')).trim() : ('#' + (c.invoice_number || c.id) + ' · ' + (c.supplier_name || '')) %>
-                          · <%= formatDate(_isSal ? c.due_date : c.invoice_date) %>
+                          <%= c.sameAmount ? '★ ' : '' %><%= formatIls(c.amount) %>
+                          · <%= ((c.first_name || '') + ' ' + (c.last_name || '')).trim() %>
+                          · <%= formatDate(c.due_date) %>
                         </option>
                       <% }); %>
                     </select>
+                    <div class="actions" style="margin-top:.7rem">
+                      <button type="submit">התאם</button>
+                      <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">ביטול</button>
+                    </div>
+                  </form>
+                <% } else {
+                     // חשבוניות: אפשר לבחור **כמה** (גם של ספקים שונים — "משלמת טרה וקולה יחד"), והסכום שנבחר
+                     // מוצג מול סכום ההוצאה. בחירה מראש: חשבונית אחת בסכום זהה, ואם אין — צירוף יחיד.
+                     var _same = e.candidates.filter(function(c){ return c.sameAmount; });
+                     var _combos = e.combos || [];
+                     var _pre = _same.length ? String(_same[0].id) : (_combos.length === 1 ? _combos[0].ids.join(',') : '');
+                     var _checks = e.supplierCheck || []; %>
+                  <p class="muted" style="margin:0 0 .5rem; font-size:12px">
+                    <% if (_same.length === 1) { %>נמצאה חשבונית אחת בדיוק באותו סכום — כבר נבחרה. לחץ "התאם" לאישור.
+                    <% } else if (_same.length > 1) { %>נמצאו <%= _same.length %> באותו סכום (★) — הראשונה נבחרה.
+                    <% } else if (_combos.length) { %>אין חשבונית בודדת באותו סכום — אבל יש <strong>צירוף</strong> של חשבוניות מאותם ימים שסכומו שווה בדיוק:
+                    <% } else { %>אין חשבונית באותו סכום. הרשימה מתחילה בספק שמופיע בשם ובחשבוניות מיום ה-Z; אפשר לבחור כמה.<% } %>
+                  </p>
+                  <% _combos.forEach(function(cb){ %>
+                    <button type="button" class="btn btn-secondary small cxm-combo" data-ids="<%= cb.ids.join(',') %>" style="display:block;width:100%;text-align:start;margin:0 0 .35rem;white-space:normal">
+                      ★ <% cb.items.forEach(function(c, ci){ %><%= ci ? ' + ' : '' %><bdi><%= c.supplier_name || '' %> #<%= c.invoice_number || c.id %> (<%= formatIls(c.total_amount) %>)</bdi><% }); %> = <%= formatIls(e.amount) %>
+                    </button>
+                  <% }); %>
+                  <% _checks.forEach(function(ck){ %>
+                    <% if (ck.status === 'missing') { %>
+                      <p style="margin:.2rem 0 .4rem; font-size:12px; color:var(--color-bad)">⚠️ לא נמצאה חשבונית של <strong><%= ck.supplier %></strong> סביב <%= formatDate(e.expense_date) %> — כנראה לא הוזנה. ביום הזנת ה-Z צריכה להיות מוזנת חשבונית מתאימה.</p>
+                    <% } else if (ck.status === 'notOpen') { %>
+                      <p style="margin:.2rem 0 .4rem; font-size:12px">ℹ️ יש חשבונית של <strong><%= ck.supplier %></strong> מאותם ימים, אבל היא <strong>לא פתוחה לתשלום</strong> ולכן אינה ברשימה:
+                        <% ck.invoices.forEach(function(iv, ii){ %><%= ii ? ' · ' : '' %><a href="/invoices/<%= iv.id %>">#<%= iv.invoice_number || iv.id %></a> <%= formatIls(iv.total_amount) %> (<%= iv.status === 'paid' ? 'כבר שולמה' : iv.status === 'on_hold' ? 'מוחזקת' : iv.status %>)<% }); %>
+                      </p>
+                    <% } %>
+                  <% }); %>
+                  <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/match-invoice" data-keep-scroll
+                        onsubmit="if(!this.querySelector('.cx-inv-ids').value){ alert('בחר לפחות חשבונית אחת'); return false; }">
+                    <div class="cx-inv-box cxm-box" data-multi="1" data-target="<%= Number(e.amount) %>">
+                      <input type="hidden" name="invoice_ids" class="cx-inv-ids" value="<%= _pre %>" />
+                      <div class="cx-inv-chips"></div>
+                      <select class="cx-inv" aria-label="הוסף חשבונית" style="width:100%">
+                        <option value="">➕ הוסף חשבונית</option>
+                        <% e.candidates.forEach(function(c){ %>
+                          <option value="<%= c.id %>" data-amount="<%= Number(c.total_amount) %>"><%= c.sameAmount ? '★ ' : c.nameMatch ? '≈ ' : '' %><%= c.supplier_name || '' %> #<%= c.invoice_number || c.id %> · <%= formatIls(c.total_amount) %> · <%= formatDate(c.invoice_date) %></option>
+                        <% }); %>
+                      </select>
+                    </div>
+                    <p class="cxm-sum muted" style="margin:.4rem 0 0; font-size:12px"></p>
                     <div class="actions" style="margin-top:.7rem">
                       <button type="submit">התאם</button>
                       <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">ביטול</button>
@@ -129,11 +181,13 @@
                 </form>
               <% } %>
             <% } %>
+            </div>
           </td>
         </tr>
       <% }); %>
     </tbody>
   </table>
+  </div>
   <%# סימון שאי אפשר לבטל הוא מחיקה. השורות שסומנו נשארות כאן, מתחת, ונשלפות חזרה בלחיצה. %>
   <% var _settled = (typeof settled !== 'undefined' && settled) ? settled : []; %>
   <% if (_settled.length) { %>
@@ -146,7 +200,7 @@
             <% _settled.forEach(function(e){ %>
               <tr>
                 <td class="mono">
-                  Z <%= e.z_number %>
+                  <a href="<%= e.source === 'zclosing' ? '/zclosing/' + e.ref_id : '/reports/zreports/' + e.ref_id %>">Z <%= e.z_number %></a>
                   <div class="muted" style="font-size:11px"><%= _by(e) %></div>
                 </td>
                 <td>
@@ -177,3 +231,103 @@
       </div>
     </details>
   <% } %>
+<%# ── הותאמו לאחרונה — "הותאם ל" (בעלים, 16/10): שורה שהותאמה יורדת מהרשימה; כאן רואים למה היא
+    הותאמה. מספר החשבונית מוביל לחשבונית, מספר ה-Z ל-Z. ────────────────────────────────────── %>
+<% var _matched = (typeof matched !== 'undefined' && matched) ? matched : []; %>
+<% if (_matched.length) { %>
+  <details style="margin-top:.6rem">
+    <summary class="muted" style="font-size:12px; cursor:pointer">הותאמו לאחרונה (<%= _matched.length %>)</summary>
+    <div class="table-scroll" style="margin-top:.4rem">
+      <table class="no-enhance">
+        <thead><tr><th>Z</th><th>תאריך</th><th>שם</th><th class="right">סכום</th><th>הותאם ל</th></tr></thead>
+        <tbody>
+          <% _matched.forEach(function(e){ %>
+            <tr>
+              <td class="mono"><a href="<%= e.source === 'zclosing' ? '/zclosing/' + e.ref_id : '/reports/zreports/' + e.ref_id %>">Z <%= e.z_number %></a>
+                <div class="muted" style="font-size:11px"><%= e.store_name ? e.store_name + ' · ' : '' %><%= e.source === 'zclosing' ? 'סגירת Z' : 'דוח Z' %></div></td>
+              <td><%= formatDate(e.expense_date) %></td>
+              <td><%= [e.payer_name, e.purpose].filter(Boolean).join(' · ') || '—' %></td>
+              <td class="right"><%= formatIls(e.amount) %></td>
+              <td><% e.matchedTo.forEach(function(m, mi){ %><%= mi ? ' · ' : '' %><a href="<%= m.href %>"><bdi><%= m.label %></bdi></a><% }); %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  </details>
+<% } %>
+
+<%# ── 💬 וואטסאפ — חלון אחד לכל השורות. איש קשר מהרשימה (עובדים עם טלפון), מספר שמוקלד, או בלי —
+    ואז וואטסאפ עצמו פותח בורר אנשי קשר. ההודעה מוכנה וניתנת לעריכה. ───────────────────────────── %>
+<% var _contacts = (typeof contacts !== 'undefined' && contacts) ? contacts : []; %>
+<dialog id="cx-wa-dlg" style="max-width:480px; width:92vw">
+  <h3 tabindex="-1" autofocus style="margin:0 0 .5rem">💬 הודעת וואטסאפ על הוצאה</h3>
+  <label class="lbl">למי</label>
+  <select id="cx-wa-to" style="width:100%">
+    <option value="">בחירה בוואטסאפ (בורר אנשי הקשר של הטלפון)</option>
+    <% _contacts.forEach(function(c){ %><option value="<%= c.phone %>"><%= c.name %></option><% }); %>
+    <option value="__other">מספר אחר…</option>
+  </select>
+  <input id="cx-wa-num" type="tel" inputmode="tel" placeholder="050-0000000" style="width:100%; margin-top:.4rem" hidden />
+  <label class="lbl" style="margin-top:.6rem">הודעה</label>
+  <textarea id="cx-wa-msg" rows="6" style="width:100%"></textarea>
+  <div class="actions" style="margin-top:.7rem">
+    <button type="button" id="cx-wa-send">פתח בוואטסאפ</button>
+    <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">ביטול</button>
+  </div>
+</dialog>
+<script>
+(function(){
+  var dlg = document.getElementById('cx-wa-dlg');
+  if (!dlg) return;
+  var to = document.getElementById('cx-wa-to'), num = document.getElementById('cx-wa-num'), msg = document.getElementById('cx-wa-msg');
+  function phone(raw){ var d = String(raw || '').replace(/\D/g, ''); if (/^972\d{8,9}$/.test(d)) return d; if (/^0\d{8,9}$/.test(d)) return '972' + d.slice(1); return ''; }
+  to.addEventListener('change', function(){ num.hidden = to.value !== '__other'; if (!num.hidden) num.focus(); });
+  document.addEventListener('click', function(e){
+    var b = e.target && e.target.closest ? e.target.closest('.cx-wa') : null;
+    if (!b) return;
+    var what = b.getAttribute('data-what');
+    msg.value = 'שלום, לגבי הוצאה במזומן מהקופה: ' + b.getAttribute('data-amount')
+      + (what ? ' — ' + what : '') + ' (' + b.getAttribute('data-date') + (b.getAttribute('data-z') ? ', Z ' + b.getAttribute('data-z') : '') + ').\n'
+      + 'לא הגיעה אליי חשבונית או קבלה על ההוצאה הזו. מהפעם הבאה הוצאה בלי חשבונית לא תשולם.';
+    dlg.showModal();
+  });
+  document.getElementById('cx-wa-send').addEventListener('click', function(){
+    var p = to.value === '__other' ? phone(num.value) : to.value;
+    if (to.value === '__other' && !p) { alert('מספר טלפון לא תקין'); return; }
+    window.open('https://wa.me/' + (p || '') + '?text=' + encodeURIComponent(msg.value), '_blank');
+    dlg.close();
+  });
+})();
+</script>
+
+<%# בורר כמה חשבוניות (אותו קובץ של טופסי ה-Z) + סכום שנבחר מול סכום ההוצאה + כפתורי צירוף. %>
+<script src="/cx-inv-picker.js?v=<%= encodeURIComponent(typeof buildVersion !== 'undefined' ? buildVersion : 'dev') %>" defer></script>
+<script>
+(function(){
+  function fmt(a){ return '₪' + (a/100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+  function sum(box){
+    var ids = String((box.querySelector('.cx-inv-ids') || {}).value || '').split(',').filter(Boolean);
+    var total = 0;
+    ids.forEach(function(id){ var o = box.querySelector('select.cx-inv option[value="' + id + '"]'); if (o) total += Number(o.getAttribute('data-amount')) || 0; });
+    var target = Number(box.getAttribute('data-target')) || 0;
+    var out = box.parentNode.querySelector('.cxm-sum');
+    if (!out) return;
+    if (!ids.length) { out.textContent = 'לא נבחרה חשבונית.'; out.style.color = ''; return; }
+    var d = total - target;
+    out.textContent = 'נבחרו ' + ids.length + ' · ' + fmt(total) + ' מתוך ' + fmt(target) + (d === 0 ? ' — תואם בדיוק ✓' : ' — הפרש ' + fmt(Math.abs(d)));
+    out.style.color = d === 0 ? 'var(--color-ok)' : 'var(--color-warn)';
+  }
+  document.addEventListener('input', function(e){ var b = e.target && e.target.closest && e.target.closest('.cxm-box'); if (b) sum(b); }, true);
+  document.addEventListener('click', function(e){
+    var btn = e.target && e.target.closest ? e.target.closest('.cxm-combo') : null;
+    if (!btn) return;
+    var box = btn.closest('dialog').querySelector('.cxm-box');
+    box.querySelector('.cx-inv-ids').value = btn.getAttribute('data-ids');
+    if (window.cxInvRender) window.cxInvRender(box.parentNode);
+    sum(box);
+  });
+  function init(){ document.querySelectorAll('.cxm-box').forEach(sum); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+})();
+</script>

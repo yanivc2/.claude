@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { cashPanelExtras } from '../services/cashPanel.js';
 import {
   dashboardStats,
   invoiceLookup,
@@ -26,7 +27,7 @@ import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
 import { listRequests, approveRequest, rejectRequest, actionLabel } from '../services/changeRequests.js';
 import { getExecutor } from '../db/adapter.js';
-import { scopeClause, scopedStoreList, effectiveStoreId } from '../lib/scope.js';
+import { effectiveStoreId } from '../lib/scope.js';
 import { config } from '../config.js';
 import { requirePageAccess } from '../middleware/requireOwner.js';
 import { AuthError, RuleError, NotFoundError } from '../lib/errors.js';
@@ -44,69 +45,55 @@ const router = Router();
 
 router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
   try {
+    // בדיקת חשבונית: שני שדות — מספר (`q`: חשבונית / צ׳ק / הקצאה / אסמכתה) ושם (`name`: ספק).
     const q = (req.query.q || '').trim();
+    const name = (req.query.name || '').trim();
     const unpaidOnly = req.query.unpaid === '1';
-    let companyId = req.query.company ? Number(req.query.company) : null;
-    // Default the dashboard to the active-store context unless an explicit ?store= is given.
-    let storeId = effectiveStoreId(req, req.query.store);
+    // 🔒 רק החנות הפעילה (בעלים, 16/10: "בטל את האפשרות לבחור חנות או חברה") — אין יותר ?store= /
+    // ?company= / ?oc_store= בלוח. בלי חנות פעילה ("כל החנויות") — כל מה שבתחום ההרשאה.
+    const storeId = effectiveStoreId(req, null);
     const scope = req.scope; // {companyIds, storeIds} — scopeClause tolerates it; scopeWhere adds the store filter
-    const cScope = scopeClause(scope, 'id');
     const x = getExecutor();
-    const companies = await x.many(`SELECT id, name FROM companies WHERE 1 = 1${cScope.sql} ORDER BY name`, [...cScope.params]);
-    // Company scope alone used to list every store of a granted company here — including ones the
-    // user holds no per-store grant for. scopedStoreList filters on both dimensions.
-    const stores = (await scopedStoreList(scope, x)).map((s) => ({ id: Number(s.id), name: s.name, company_id: Number(s.company_id) }));
-    // A forged ?store= must not become a filter for a store we cannot see: drop it if unknown.
-    if (storeId && !stores.some((st) => st.id === storeId)) storeId = null;
 
-    // בחירת חנות משייכת אותה מיד לחברה שלה. בחירת חברה בלבד: אם יש חנות אחת בחברה
-    // היא נבחרת אוטומטית; אם יש שתיים או יותר, מחפשים בכל חנויות החברה (storeId נשאר ריק).
-    if (storeId) {
-      const s = stores.find((st) => st.id === storeId);
-      if (s) companyId = s.company_id;
-    } else if (companyId) {
-      const inCompany = stores.filter((st) => st.company_id === companyId);
-      if (inCompany.length === 1) storeId = inCompany[0].id;
-    }
-
-    // "צ׳קים בחוץ" tile — pick a store (oc_store) to see just its outstanding total,
-    // otherwise all stores combined. Reuses the per-account outstanding breakdown.
-    // Default the outstanding tile to the active-store context (unless an explicit oc_store is given).
-    const ocStore = req.query.oc_store ? Number(req.query.oc_store) : (storeId || null);
+    // "צ׳קים בחוץ" — החנות הפעילה, או כל החנויות. (היה כאן בורר חנות משלו — בוטל.)
     const { accounts: ocAccounts, totalOutstanding } = await outstandingChecks(scope);
-    const ocSelected = ocStore ? ocAccounts.find((a) => a.store_id === ocStore) : null;
-    const outstandingDisplay = ocSelected ? ocSelected.outstanding : totalOutstanding;
-    const ocBase = new URLSearchParams();
-    if (q) ocBase.set('q', q);
-    if (req.query.company) ocBase.set('company', String(req.query.company));
-    if (req.query.store) ocBase.set('store', String(req.query.store));
-    const ocLinkBase = ocBase.toString();
-
-    // "צ׳קים פתוחים" tile — the number of outstanding (issued, not-yet-cleared) checks,
-    // matching the "צ׳קים בחוץ" money tile's store selection.
-    const openChecksCount = ocSelected
-      ? Number(ocSelected.outstanding_count) || 0
+    const ocSelected = storeId ? ocAccounts.find((a) => a.store_id === storeId) : null;
+    const outstandingDisplay = storeId ? (ocSelected ? ocSelected.outstanding : 0) : totalOutstanding;
+    const openChecksCount = storeId
+      ? Number(ocSelected?.outstanding_count) || 0
       : ocAccounts.reduce((s, a) => s + (Number(a.outstanding_count) || 0), 0);
+
+    // תוצאות: מספר → חשבוניות לפי מספר/הקצאה + תשלומים; שם → חשבוניות לפי ספק + ספקים.
+    let invoiceResults = null;
+    if (q || name) {
+      const seen = new Set();
+      invoiceResults = [];
+      for (const [term, by] of [[q, 'number'], [name, 'name']]) {
+        if (!term) continue;
+        for (const r of await invoiceLookup(term, { storeId, scope, unpaidOnly, by })) {
+          const k = `${r.id}|${r.check_number || ''}`;
+          if (!seen.has(k)) { seen.add(k); invoiceResults.push(r); }
+        }
+      }
+    }
 
     const depositRows = await listDeposits({ scope, storeId, limit: 20 });
     res.render('dashboard', {
       title: 'לוח בקרה',
       stats: await dashboardStats(scope, storeId),
       q,
-      companyId,
+      name,
       storeId,
-      ocAccounts,
-      ocStore,
+      quickMenu: true,
       ocSelectedName: ocSelected ? ocSelected.store_name : null,
       outstandingDisplay,
-      ocLinkBase,
-      companies,
-      stores,
       unpaidOnly,
-      invoiceResults: q ? await invoiceLookup(q, { companyId, storeId, scope, unpaidOnly }) : null,
+      invoiceResults,
       checkResults: q ? await lookupChecks(q, scope) : null,
-      supplierResults: q ? await searchSuppliers(q, req.scope) : null,
+      supplierResults: name ? await searchSuppliers(name, req.scope) : null,
       unmatchedCash: await withMatchCandidates(await unmatchedCashExpenses(scope, 20, storeId), scope, storeId),
+      // "הותאם ל" + אנשי קשר לוואטסאפ — services/cashPanel.js (מקור אחד לשני הדפים).
+      ...(await cashPanelExtras(scope, storeId)),
       cashSettleReady: await cashSettleReady(),
       // 🔴 ההתראות על תנועות מזומן מוצגות **בלוח הבקרה עצמו**, לא רק בפעמון: אלה בדיוק
       // האירועים שהבעלים ביקש לראות (התאמת מזומן, וצ׳ק שכר שנפרע לפני התאמה), והפעמון נקרא
@@ -177,8 +164,9 @@ router.get('/approvals', ownerOnly, async (req, res, next) => {
 // חשבונית", ולכן זו דרך היציאה הרגילה מהרשימה.
 router.post('/cash-expenses/:source/:id/match-invoice', async (req, res, next) => {
   try {
+    // `invoice_ids` = "12,15" (כמה חשבוניות, גם של ספקים שונים); `invoice_id` — טופס ישן.
     await matchCashExpenseToInvoice(
-      req.params.source, Number(req.params.id), Number(req.body.invoice_id), req.user, req.scope,
+      req.params.source, Number(req.params.id), req.body.invoice_ids || req.body.invoice_id, req.user, req.scope,
     );
     return res.redirect(303, '/');
   } catch (err) {
