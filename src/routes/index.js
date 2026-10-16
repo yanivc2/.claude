@@ -15,7 +15,10 @@ import { markCashed } from '../services/salaryPayments.js';
 import { listNotifications, unscopedNotificationCount } from '../services/notifications.js';
 
 // שני סוגי ההתראה שהבעלים ביקש לראות בלוח עצמו ולא רק בפעמון.
-const CASH_ALERT_KINDS = ['cash_match', 'salary_cleared_unmatched'];
+// מה שכרטיס "התראות מזומן" בלוח מציג: רק מה שדורש תשומת לב — צ׳ק שכר שנפרע בבנק לפני שהותאם (אותו שכר
+// עלול לצאת פעמיים). התאמה שבוצעה (`cash_match`) כבר נסגרה — בעלים, 16/10: "אם זה הותאם אין טעם להציג
+// אותו"; היא נשארת בפעמון ובטלגרם.
+const CASH_ALERT_KINDS = ['salary_cleared_unmatched'];
 import { listDeposits, zReportsWithoutDeposit, declaredNotDeposited, depositVerifications, depositZDiffs } from '../services/deposits.js';
 import { voidedChecksSeenInBank } from '../services/reconciliation.js';
 import { searchSuppliers, listSuppliers } from '../services/suppliers.js';
@@ -111,10 +114,9 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       // 🔴 מסונן לחנות הפעילה. ההתראה נושאת `store_id` מרגע שנרשמה, ולכן התראה על מזומן של
       // סניף אחד אינה מוצגת תחת סניף אחר. התראות ישנות (לפני העמודה) נספרות בנפרד ומוצגות
       // בתצוגת "כל החנויות" — הן אינן נעלמות, הן פשוט לא נתלות על חנות שאולי אינה שלהן.
+      // …ורק כל עוד לא נקראה: "✓ ראיתי" בשורה מסמן אותה כנקראה והיא יוצאת מהלוח (נשארת ב-/notifications).
       cashAlerts: req.user?.role === 'owner'
-        ? (await listNotifications({ limit: 40, storeId }))
-            .filter((n) => n.kind === 'cash_match' || n.kind === 'salary_cleared_unmatched')
-            .slice(0, 8)
+        ? await listNotifications({ limit: 8, storeId, kinds: CASH_ALERT_KINDS, unreadOnly: true })
         : [],
       cashAlertsUnscoped: req.user?.role === 'owner' && storeId
         ? await unscopedNotificationCount(CASH_ALERT_KINDS)

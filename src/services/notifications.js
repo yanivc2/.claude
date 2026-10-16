@@ -53,15 +53,17 @@ export async function notificationStoreReady(x = getExecutor()) {
  * הסניף הלא-נכון נראית כמו חוב של הסניף הזה, ועדיף לא להציג מאשר להציג שקר. בתצוגת "כל החנויות"
  * (storeId ריק) הכול מוצג, ולכן שום התראה אינה נעלמת מהמערכת.
  */
-export async function listNotifications({ limit = 50, storeId = null } = {}, x = getExecutor()) {
+export async function listNotifications({ limit = 50, storeId = null, kinds = null, unreadOnly = false } = {}, x = getExecutor()) {
   try {
-    if (storeId) {
-      return await x.many(
-        'SELECT * FROM notifications WHERE store_id = ? ORDER BY id DESC LIMIT ?',
-        [Number(storeId), limit],
-      );
-    }
-    return await x.many('SELECT * FROM notifications ORDER BY id DESC LIMIT ?', [limit]);
+    const where = [];
+    const params = [];
+    if (storeId) { where.push('store_id = ?'); params.push(Number(storeId)); }
+    if (kinds && kinds.length) { where.push(`kind IN (${kinds.map(() => '?').join(', ')})`); params.push(...kinds); }
+    if (unreadOnly) where.push('read_at IS NULL');
+    return await x.many(
+      `SELECT * FROM notifications${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY id DESC LIMIT ?`,
+      [...params, limit],
+    );
   } catch {
     return [];
   }

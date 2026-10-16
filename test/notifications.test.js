@@ -69,3 +69,39 @@ test('a cash alert belongs to its store, and an untagged one is never hung on a 
   await db.run("UPDATE notifications SET read_at = '2026-10-16 10:00:00' WHERE store_id IS NULL", []);
   assert.equal(await unscopedNotificationCount(['cash_match', 'salary_cleared_unmatched'], db), 0);
 });
+
+// בעלים, 16/10: "אם זה הותאם אין טעם להציג אותו". כרטיס "התראות מזומן" בלוח = רק מה שדורש תשומת לב
+// (צ׳ק שכר שנפרע לפני התאמה), וכל עוד לא נקרא; "✓ ראיתי" מוציא אותו. התאמות — בפעמון בלבד.
+test('dashboard cash alerts: only unread "cleared before matching", never a done match', async () => {
+  const db = await freshDb();
+  const { owner, firstStore } = await import('./helpers.js');
+  const { createApp } = await import('../src/app.js');
+  const { createSession } = await import('../src/lib/auth.js');
+  const { once } = await import('node:events');
+  const o = await owner(db);
+  const st = await firstStore(db);
+  await recordNotification({ kind: 'cash_match', title: 'הותאם תשלום שכר במזומן', storeId: st.id }, db);
+  await recordNotification({ kind: 'salary_cleared_unmatched', title: 'צ׳ק שכר נפרע לפני התאמה', storeId: st.id }, db);
+  const kinds = ['salary_cleared_unmatched'];
+  const shown = await listNotifications({ limit: 8, storeId: st.id, kinds, unreadOnly: true }, db);
+  assert.deepEqual(shown.map((n) => n.title), ['צ׳ק שכר נפרע לפני התאמה']);
+
+  const server = createApp().listen(0); await once(server, 'listening');
+  try {
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const cookie = `session=${createSession(o.id)}; ap_store=${st.id}`;
+    const dash = await (await fetch(`${base}/`, { headers: { cookie } })).text();
+    assert.match(dash, /צ׳ק שכר נפרע לפני התאמה/);
+    assert.doesNotMatch(dash, /הותאם תשלום שכר במזומן/, 'a done match is not on the dashboard');
+    assert.match(dash, /✓ ראיתי/);
+    const r = await fetch(`${base}/notifications/${shown[0].id}/read`, {
+      method: 'POST', redirect: 'manual', headers: { cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ return_to: '/' }).toString(),
+    });
+    assert.equal(r.status, 303);
+    assert.equal(r.headers.get('location'), '/');
+    const after = await (await fetch(`${base}/`, { headers: { cookie } })).text();
+    assert.doesNotMatch(after, /צ׳ק שכר נפרע לפני התאמה/, 'seen → off the dashboard');
+    assert.equal((await listNotifications({ limit: 20 }, db)).length, 2, 'both still in the notifications list');
+  } finally { server.close(); }
+});

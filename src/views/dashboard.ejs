@@ -241,14 +241,16 @@
   </a>
 </div>
 
-<%# 🔴 התראות המזומן יושבות **בלוח הבקרה**, מעל הרשימה שהן מדברות עליה — לא רק בפעמון. אלה
-    שני האירועים שאסור לפספס: התאמת מזומן שנעשתה (הכסף קיבל הסבר), וצ׳ק שכר שנפרע בבנק לפני
-    שהותאם (אותו שכר עלול לצאת פעמיים). no-collapse — אזהרה לא נסגרת מאחורי אקורדיון. %>
+<%# 🔴 התראות המזומן יושבות **בלוח הבקרה**, מעל הרשימה שהן מדברות עליה — לא רק בפעמון. רק מה שדורש
+    תשומת לב: צ׳ק שכר שנפרע בבנק לפני שהותאם (אותו שכר עלול לצאת פעמיים), וכל עוד לא נקרא ("✓ ראיתי").
+    התאמה שבוצעה כבר נסגרה ולכן אינה כאן (בעלים, 16/10) — היא בפעמון ובטלגרם. no-collapse — אזהרה לא
+    נסגרת מאחורי אקורדיון. %>
 <% var _alerts = (typeof cashAlerts !== 'undefined' && cashAlerts) ? cashAlerts : []; %>
 <% var _alertsOld = (typeof cashAlertsUnscoped !== 'undefined' && cashAlertsUnscoped) ? Number(cashAlertsUnscoped) : 0; %>
 <% if (_alerts.length || _alertsOld) { %>
   <div class="card no-collapse" style="border-color:var(--color-warn)">
-    <h2 style="margin:0 0 .5rem">🔔 התראות מזומן</h2>
+    <h2 style="margin:0 0 .3rem">🔔 התראות מזומן</h2>
+    <p class="muted" style="margin:0 0 .5rem; font-size:12px">רק מה שדורש תשומת לב: צ׳ק שכר שנפרע בבנק <strong>לפני</strong> שהותאם — כדי שאותו שכר לא ייצא פעמיים. התאמות שבוצעו מופיעות בפעמון ובטלגרם.</p>
     <div class="table-scroll">
       <table class="no-enhance">
         <tbody>
@@ -261,7 +263,13 @@
                 <%= n.link ? '' : '' %><strong><%= n.title %></strong>
                 <% if (n.body) { %><div class="muted" style="font-size:12px; white-space:pre-line"><%= n.body %></div><% } %>
               </td>
-              <td style="width:1%"><% if (n.link) { %><a class="btn btn-secondary small" href="<%= n.link %>">פתח</a><% } %></td>
+              <td style="width:1%; white-space:nowrap">
+                <% if (n.link) { %><a class="btn btn-secondary small" href="<%= n.link %>">פתח</a><% } %>
+                <form method="post" action="/notifications/<%= n.id %>/read" data-keep-scroll style="display:inline;margin:0">
+                  <input type="hidden" name="return_to" value="/" />
+                  <button type="submit" class="btn btn-secondary small" title="סמן כנקרא — ההתראה יוצאת מהלוח ונשארת ברשימת ההתראות">✓ ראיתי</button>
+                </form>
+              </td>
             </tr>
           <% }); %>
         </tbody>
