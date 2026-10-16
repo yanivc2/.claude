@@ -148,10 +148,11 @@ happen only at merge. So:
   as the submitted value + enforce required on submit. (3) **collapsible rubrics** — every `.card` with a
   direct `<h2>` becomes collapsible (accordion: opening one closes the others on the page; state in
   localStorage); skips `<details>`, `.no-collapse`, and cards with a `[required]` control. Also handles
-  `<details data-accordion="grp">`. (4) **שחזור גלילה** — `form[data-keep-scroll]` שומר את מיקום הגלילה
-  ומשחזר אותו אחרי ה-redirect של PRG, כך שפעולה בטבלה ארוכה לא זורקת את המשתמש לראש הדף. (5) **חסימת
+  `<details data-accordion="grp">`. (4) **שחזור גלילה + רשימות פתוחות** — **כל** טופס POST שומר את מיקום הגלילה **ואת מצב ה-`<details>`**
+  ומשחזר אחרי ה-PRG (חזרה לאותו נתיב בלבד), כך שפעולה לא מקפיצה לראש הדף ולא מכווצת טבלה.  (5) **חסימת
   הגשה כפולה** — `form[data-busy]`: הגשה שנייה בזמן שהראשונה בדרך נבלעת והכפתורים ננעלים (סגירת Z נשמרה 4
-  פעמים מלחיצות חוזרות על שמירה איטית). 🔴 **טופס הזנה חדש = `data-busy="שומר…"`.**
+  פעמים מלחיצות חוזרות על שמירה איטית). 🔴 **טופס הזנה חדש = `data-busy="שומר…"`.** (6) **ניווט** — "→ חזרה" (מחסנית דפים שונים
+  ב-sessionStorage, בלי פרמטרים חולפים), "⬆" לראש דף ארוך, ופס גלילה לגרירה מימין (עכבר בלבד).
 
 ## Auth, permissions & scope
 - `middleware/currentUser.js` — auth gate: reads signed `session` cookie, loads user, sets

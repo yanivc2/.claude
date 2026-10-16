@@ -653,22 +653,60 @@
   // sessionStorage ולא URL: ה-fragment היה מחזיר לראש הכרטיס ולא לשורה, ומלכלך את הכתובת.
   // המיקום נמחק אחרי השימוש ופג אחרי 15 שניות, כך שכניסה מאוחרת לדף לא קופצת בלי סיבה.
   (function () {
+    // 🔴 בעלים, 16/10: "כשאני לוחץ על 'טופל' זה מקפיץ אותי לראש הדף ומצמצם את הטבלה. אם אני לוחץ על
+    // משהו שמבצע פעולה — שלא יקפוץ ולא יכווץ כלום". לכן: **כל** טופס POST (לא רק data-keep-scroll)
+    // שומר את מיקום הגלילה **ואת הרשימות הפתוחות** (<details>), ואחרי ה-PRG הדף פותח אותן מחדש ואז
+    // גולל. בלי הפתיחה — <details> נטען סגור, הדף מתקצר, והגלילה נוחתת בראש הדף.
+    // החזרה רק כשחוזרים לאותו נתיב (redirect לדף אחר לא מושפע), ולא כשיש #עוגן בכתובת.
     var KEY = 'apScroll:' + location.pathname;
+    function sig(d) {
+      if (d.id) return '#' + d.id;
+      var sm = d.querySelector('summary');
+      // בלי מספרים — "(5)" הופך ל-"(4)" אחרי שהשורה טופלה, והרשימה עדיין אותה רשימה.
+      return 's:' + (sm ? sm.textContent : '').replace(/[0-9₪,.()\s▸▾⏳✓]+/g, ' ').trim().slice(0, 60);
+    }
     document.addEventListener('submit', function (e) {
       var f = e.target;
-      if (!f || !f.matches || !f.matches('form[data-keep-scroll]')) return;
-      try { sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY, t: Date.now() })); } catch (err) {}
+      if (!f || !f.matches) return;
+      var post = String(f.getAttribute('method') || '').toLowerCase() === 'post';
+      if (!(post || f.matches('form[data-keep-scroll]')) || f.getAttribute('target')) return;
+      // מצב **כל** רשימה (פתוחה וגם סגורה) — רשימה שנפתחת כברירת מחדל ונסגרה ביד נשארת סגורה.
+      var open = [], closed = [];
+      document.querySelectorAll('details').forEach(function (d) { if (!d.closest('.menu')) (d.open ? open : closed).push(sig(d)); });
+      // קבוצות "סומנו כטופלו / הותאמו" שנפתחו בטבלת הוצאות המזומן (partials/_cashExpenses.ejs).
+      var groups = [];
+      document.querySelectorAll('table.cx-grouped').forEach(function (t, i) {
+        ['settled', 'matched'].forEach(function (g) { if (t.classList.contains('show-' + g)) groups.push(i + ':' + g); });
+      });
+      try { sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY, t: Date.now(), open: open, closed: closed, groups: groups })); } catch (err) {}
     }, true);
     try {
       var raw = sessionStorage.getItem(KEY);
       if (raw) {
         sessionStorage.removeItem(KEY);
         var v = JSON.parse(raw);
-        if (v && Date.now() - v.t < 15000 && v.y > 0) {
-          // אחרי שהמשפרים סיימו לשנות גבהים (טבלאות, אקורדיון), אחרת המיקום מפספס.
-          window.requestAnimationFrame(function () {
-            window.requestAnimationFrame(function () { window.scrollTo(0, v.y); });
+        if (v && Date.now() - v.t < 15000 && !location.hash) {
+          var want = v.open || [], shut = v.closed || [];
+          document.querySelectorAll('details').forEach(function (d) {
+            if (d.closest('.menu')) return;
+            var k = sig(d);
+            if (!d.open && want.indexOf(k) >= 0) d.open = true;
+            else if (d.open && shut.indexOf(k) >= 0) d.open = false;
           });
+          var tables = document.querySelectorAll('table.cx-grouped');
+          (v.groups || []).forEach(function (k) {
+            var parts = String(k).split(':'), t = tables[Number(parts[0])];
+            if (!t) return;
+            t.classList.add('show-' + parts[1]);
+            var b = t.querySelector('tr[data-group="' + parts[1] + '"] .cx-group-toggle');
+            if (b) { b.setAttribute('aria-expanded', 'true'); var c = b.querySelector('.caret'); if (c) c.textContent = '▾'; }
+          });
+          if (v.y > 0) {
+            // אחרי שהמשפרים סיימו לשנות גבהים (טבלאות, אקורדיון), אחרת המיקום מפספס.
+            window.requestAnimationFrame(function () {
+              window.requestAnimationFrame(function () { window.scrollTo(0, v.y); });
+            });
+          }
         }
       }
     } catch (err) {}
@@ -826,6 +864,122 @@
     }, { passive: true });
 
     window.addEventListener('touchcancel', function () { active = false; reset(); }, { passive: true });
+  })();
+  </script>
+  <script>
+  // ── ניווט ונוחות בכל דף (בעלים, 16/10) ─────────────────────────────────────────────
+  // (1) "→ חזרה" — תמיד אפשר לחזור לדף הקודם בלחיצה. לא history.back(): אחרי פעולה (POST→303) הדפדפן
+  //     רושם את אותו דף פעמיים, ו"אחורה" מחזיר לאותו דף לפני הפעולה. כאן נשמרת מחסנית של **דפים שונים**
+  //     (בלי פרמטרים חולפים כמו notice/cashErr), כך ש"חזרה" תמיד מוביל לדף אחר באמת.
+  // (2) "⬆" — בדף ארוך, כפתור צף שמקפיץ לראש הדף.
+  // (3) פס גלילה מצד ימין (מחשב, עכבר): גרירה שלו גוללת הרבה במהירות — ובתנועה איטית, לאט ובשליטה.
+  (function () {
+    var main = document.querySelector('main.page') || document.querySelector('main');
+    if (!main || /^\/(login|forgot|reset)/.test(location.pathname)) return;
+
+    // (1) חזרה
+    var TRANSIENT = /^(notice|err|error|cashErr|cashNote|saved|dup|paid|moved|nsup|nstore|noteerr|cb|open)$/;
+    function clean(u) {
+      var q = new URLSearchParams(u.search);
+      Array.from(q.keys()).forEach(function (k) { if (TRANSIENT.test(k)) q.delete(k); });
+      var qs = q.toString();
+      return u.pathname + (qs ? '?' + qs : '');
+    }
+    var NAVK = 'apNavStack';
+    var cur = clean(location);
+    var st = [];
+    try { st = JSON.parse(sessionStorage.getItem(NAVK) || '[]'); } catch (e) { st = []; }
+    if (st.length && st[st.length - 1] === cur) { /* אותו דף (פעולה/רענון) — לא נוסף */ }
+    else if (st.length >= 2 && st[st.length - 2] === cur) st.pop();         // חזרנו לדף הקודם
+    else { st.push(cur); if (st.length > 40) st = st.slice(-40); }
+    try { sessionStorage.setItem(NAVK, JSON.stringify(st)); } catch (e) {}
+    if (st.length >= 2) {
+      var bar = document.createElement('div');
+      bar.className = 'page-back no-print';
+      var a = document.createElement('a');
+      a.href = st[st.length - 2];
+      a.className = 'btn btn-secondary btn-sm';
+      a.textContent = '→ חזרה';
+      a.title = 'חזרה לדף הקודם';
+      bar.appendChild(a);
+      main.insertBefore(bar, main.firstChild);
+    }
+
+    // (2) לראש הדף
+    var top = document.createElement('button');
+    top.type = 'button';
+    top.className = 'to-top no-print';
+    top.setAttribute('aria-label', 'לראש הדף');
+    top.title = 'לראש הדף';
+    top.textContent = '⬆';
+    top.hidden = true;
+    top.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    document.body.appendChild(top);
+
+    // (3) פס גלילה מימין — רק עם עכבר, ורק כשהדף ארוך באמת.
+    var fine = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+    var rail = null, thumb = null;
+    if (fine) {
+      rail = document.createElement('div');
+      rail.className = 'scroll-rail no-print';
+      rail.setAttribute('aria-hidden', 'true');
+      thumb = document.createElement('div');
+      thumb.className = 'scroll-rail-thumb';
+      rail.appendChild(thumb);
+      document.body.appendChild(rail);
+      var drag = null;
+      thumb.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        drag = { y: e.clientY, top: thumb.offsetTop };
+        rail.classList.add('dragging');
+        document.body.classList.add('no-select');
+      });
+      document.addEventListener('mousemove', function (e) {
+        if (!drag) return;
+        var range = rail.clientHeight - thumb.offsetHeight;
+        var t = Math.max(0, Math.min(range, drag.top + (e.clientY - drag.y)));
+        var max = document.documentElement.scrollHeight - window.innerHeight;
+        window.scrollTo(0, range > 0 ? (t / range) * max : 0);
+      });
+      document.addEventListener('mouseup', function () {
+        if (!drag) return;
+        drag = null;
+        rail.classList.remove('dragging');
+        document.body.classList.remove('no-select');
+      });
+      // לחיצה על הפס עצמו (לא על הידית) — קפיצה למקום הזה.
+      rail.addEventListener('mousedown', function (e) {
+        if (e.target === thumb) return;
+        var r = rail.getBoundingClientRect();
+        var range = rail.clientHeight - thumb.offsetHeight;
+        var t = Math.max(0, Math.min(range, e.clientY - r.top - thumb.offsetHeight / 2));
+        var max = document.documentElement.scrollHeight - window.innerHeight;
+        window.scrollTo(0, range > 0 ? (t / range) * max : 0);
+      });
+    }
+
+    function update() {
+      var doc = document.documentElement;
+      var max = doc.scrollHeight - window.innerHeight;
+      top.hidden = window.scrollY < 600;
+      if (!rail) return;
+      var long = doc.scrollHeight > window.innerHeight * 1.8;
+      rail.hidden = !long;
+      if (!long) return;
+      // ליד הקצה הימני של התוכן (בדסקטופ — בין התוכן לתפריט הצד), לא מעל התפריט.
+      var mr = main.getBoundingClientRect();
+      var x = Math.min(window.innerWidth - 16, mr.right + 4);
+      rail.style.left = x + 'px';
+      var h = rail.clientHeight;
+      var th = Math.max(40, h * window.innerHeight / doc.scrollHeight);
+      thumb.style.height = th + 'px';
+      thumb.style.top = (max > 0 ? (window.scrollY / max) * (h - th) : 0) + 'px';
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    document.addEventListener('toggle', update, true);
+    window.addEventListener('load', update);
+    update();
   })();
   </script>
 </body>
