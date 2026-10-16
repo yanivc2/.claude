@@ -1199,3 +1199,17 @@ table.txn-facts th { width: 170px; text-align: start; color: var(--color-muted, 
 .scroll-rail.dragging .scroll-rail-thumb { cursor: grabbing; }
 body.no-select { user-select: none; }
 @media print { .page-back, .to-top, .scroll-rail { display: none !important; } }
+
+/* ── מירכוז כל הכתב (בעלים, 16/10: "תמרכז הכל — ואז אתן תיקונים") ──
+   🔴 גורף ובכוונה: כל טקסט בתוכן הדף ובסרגל הניווט ממורכז. ה-!important דורס יישור מקומי
+   (עמודות סכום `.right`, טבלאות עובדות וכו') — יישור אחר לאלמנט מסוים = חריגה מפורשת כאן. */
+.navmenu > .menu-panel a,
+.navmenu > .menu-panel button,
+.navmenu > .menu-panel form button { justify-content: center; text-align: center; }
+main.page, main.page * { text-align: center !important; }
+main.page .toolbar,
+main.page summary,
+main.page .actions,
+main.page .cx-acts,
+main.page .card-ctoggle,
+main.page .collapse-card > summary { justify-content: center !important; }

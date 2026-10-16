@@ -321,3 +321,5 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   הם שמות מתים — משתנה שאינו מוגדר אינו שגיאה, ההכרזה פשוט לא חלה והמסך נראה תקין ("חוסר" ו"יתרה" באותו
   צבע). `test/css-vars.test.js` סורק את זה; `var(--x, #fallback)` מותר.
 - Badge classes: `b-approved/paid/cleared/on_hold/blocked/voided/neutral` (no `b-warn`; use `b-on_hold`).
+- **כל הכתב בדפים ממורכז ב-`!important`** (`nocturne.css`, סוף הקובץ; החלטת בעלים 16/10) — `text-align` מקומי **לא יחול**.
+  יישור אחר לאלמנט מסוים = חריגה מפורשת אחרי הבלוק. INDEX.md · 🧭.
