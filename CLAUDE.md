@@ -13,6 +13,10 @@ messages stay in English. Also enforced by `"language": "hebrew"` in `.claude/se
 hook** (`scripts/hebrew-reply-hook.mjs`): a final reply that is mostly English is blocked and must be rewritten
 in Hebrew (code/paths/URLs not counted; at most 2 blocks in a row). `test/hebrew-reply-hook.test.js`.
 
+**🔴 כלל ברזל — מיקום בממשק לא מנחשים** (בעלים, 16/10: "פעם הבאה אל תנחש, תשאל אותי איפה לשים את
+הכפתור"). כשבקשה לא קובעת **איפה** כפתור/אלמנט חדש יושב (או לאן מזיזים קיים) — שואלים לפני שבונים
+(`AskUserQuestion`, בעברית, עם האפשרויות הממשיות שעל המסך), ולא בוחרים מיקום "סביר" לבד.
+
 > **Before changing any button/feature, read [`INDEX.md`](INDEX.md)** — a per-feature index of what
 > each button does, how it's wired, what it's coupled to, and what breaks if you delete/change/move it.
 >
