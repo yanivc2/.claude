@@ -138,6 +138,41 @@
   </div>
   <% } %>
 
+  <%# 1ב. אותה תנועה בשתי משיכות — לאבחון בלבד (bankDuplicates#pullTwinPairs). משיכה שהמזהה של התנועות
+      השתנה בה מכניסה אותן שוב; כאן רואים כמה, ואיזה חלק במזהה השתנה — לפני שמוחקים משהו. %>
+  <% if (dp) { var _pt = dp.pullTwins || []; %>
+  <div class="card no-collapse" id="pull-twins">
+    <h2 style="margin:0 0 .3rem">1ב. אותה תנועה בשתי משיכות מהבנק</h2>
+    <p class="muted" style="margin:0 0 .5rem">הסוכן מושך 60 יום אחורה, ולכן כל משיכה חוזרת על רוב התנועות של הקודמת ומדלגת עליהן לפי המזהה של הבנק. כאן — תנועות שנקלטו <strong>שוב</strong> במשיכה מאוחרת: אותו תאריך, סכום ואסמכתא כמו שורה מייבוא קודם שכבר כיסה את היום הזה. <strong>לאבחון בלבד — שום דבר לא נמחק.</strong></p>
+    <% if (!dp.pullTwinCount) { %>
+      <p style="margin:0">✓ לא נמצאה תנועה שנקלטה פעמיים בשתי משיכות.</p>
+    <% } else { %>
+      <p style="margin:0 0 .5rem"><strong><%= dp.pullTwinCount %></strong> תנועות נקלטו פעמיים. מה השתנה במזהה:
+        <% dp.pullTwinByDiff.forEach(function(d, i){ %><%= i ? ' · ' : '' %><strong><%= d.diff.replace('date','תאריך').replace('ref','אסמכתא').replace('acct','חשבון').replace('ns','ערוץ').replace('amount','סכום') %></strong> ×<%= d.n %><% }); %>
+      </p>
+      <div class="table-scroll"><table style="font-size:12px">
+        <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>עותק ראשון — ייבוא</th><th>עותק שני — ייבוא</th><th>מה השתנה</th><th>מזהה ראשון</th><th>מזהה שני</th></tr></thead>
+        <tbody>
+          <% _pt.forEach(function(p){ %>
+            <tr>
+              <td><%= formatDate(p.late.txn_date) %></td>
+              <td class="right" dir="ltr"><%= formatIls(p.late.amount) %></td>
+              <td><%= p.late.description || '' %></td>
+              <td dir="ltr"><%= p.late.raw_reference || '' %></td>
+              <td class="muted"><%= p.early.import_id == null ? 'לפני המעקב' : '#' + p.early.import_id + (p.early.imported_at ? ' · ' + (israelStamp(p.early.imported_at) || '') : '') %><%= p.early.matched_payment_id ? ' · מותאם' : '' %></td>
+              <td class="muted">#<%= p.late.import_id %><%= p.late.imported_at ? ' · ' + (israelStamp(p.late.imported_at) || '') : '' %><%= p.late.matched_payment_id ? ' · מותאם' : '' %></td>
+              <td><%= p.diff.join(', ').replace('date','תאריך').replace('ref','אסמכתא').replace('acct','חשבון').replace('ns','ערוץ').replace('amount','סכום') || 'זהה' %></td>
+              <td dir="ltr" class="mono" style="font-size:11px; word-break:break-all"><%= p.early.external_id || '—' %></td>
+              <td dir="ltr" class="mono" style="font-size:11px; word-break:break-all"><%= p.late.external_id || '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table></div>
+      <% if (dp.pullTwinCount > _pt.length) { %><p class="muted" style="margin:.4rem 0 0; font-size:12px">מוצגות <%= _pt.length %> ראשונות.</p><% } %>
+    <% } %>
+  </div>
+  <% } %>
+
   <div class="card no-collapse">
     <h2 style="margin:0 0 .3rem">2. אותה תנועה גם בחשבון אחר</h2>
     <p class="muted" style="margin:0 0 .5rem">תאריך, סכום, אסמכתה ותיאור זהים בשני חשבונות — סימן שאותו קובץ יובא לשניהם.</p>

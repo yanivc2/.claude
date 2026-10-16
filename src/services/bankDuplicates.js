@@ -168,10 +168,84 @@ export function chainProvenTwice(rows) {
   return out;
 }
 
+// ── אותה תנועה בשתי משיכות (בעלים, 16/10: "משהו קרה פה" — משיכה של 02/10 שמרה 403 שורות כשמשיכה
+// רגילה שומרת 10-90). הסוכן מושך 60 יום אחורה, ולכן כל משיכה חוזרת על ~90% מהקודמת ואמורה לדלג עליהן
+// לפי המזהה. 403 "חדשות" אומר שהמזהה של אותן תנועות **השתנה** בין משיכות. כאן רק **מזהים ומסבירים**
+// (איזה חלק במזהה השתנה) — בלי למחוק: מחיקה של מאות שורות בנק נעשית רק אחרי שרואים מה קרה.
+//
+// זוג = שורה ממשיכה B ושורה מייבוא קודם A: אותו תאריך, אותו סכום, אותה אסמכתא (מנורמלת, לא ריקה),
+// וייבוא A **כיסה את היום הזה במלואו** — משיכה שרצה לפחות יומיים אחרי התאריך (שורה זמנית של אחרי
+// סגירת יום כבר הפכה לסופית), או קובץ שיש בו גם ימים מאוחרים יותר. אילו היו אלה שתי תנועות אמיתיות,
+// A היה מביא את שתיהן.
+const ID_PARTS = ['ns', 'acct', 'ref', 'date', 'amount'];
+function idParts(id) {
+  const m = /^scr:([^:]*):([^:]*):([^:]*)(?::([^:]*):([^:]*))?$/.exec(String(id || ''));
+  return m ? { ns: m[1], acct: m[2], ref: m[3], date: m[4] ?? null, amount: m[5] ?? null } : null;
+}
+/** איזה חלק במזהה שונה בין שני העותקים — זה מה שמסביר למה המשיכה לא זיהתה את התנועה. */
+export function idDiff(a, b) {
+  const pa = idParts(a);
+  const pb = idParts(b);
+  if (!pa || !pb) return pa || pb ? ['בלי מזהה'] : ['בלי מזהה'];
+  if (pa.date == null || pb.date == null) return ['פורמט'];
+  return ID_PARTS.filter((k) => String(pa[k]) !== String(pb[k]));
+}
+
+const refKey = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').replace(/^0+/, '');
+const dayOf = (v) => String(v || '').slice(0, 10);
+
+/**
+ * הזוגות "אותה תנועה בשתי משיכות". טהור.
+ * @param rows שורות החשבון עם `import_id`, `import_source`, `imported_at`
+ * @returns {Array<{early, late, diff:string[]}>}
+ */
+export function pullTwinPairs(rows) {
+  // עד איזה יום כל ייבוא "ראה" את כל התנועות: משיכה — יומיים לפני שרצה; קובץ — היום האחרון שבו.
+  const imports = new Map();
+  for (const r of rows) {
+    const k = r.import_id == null ? 'legacy' : Number(r.import_id);
+    if (!imports.has(k)) imports.set(k, { maxDate: '', ranAt: r.imported_at || null, pull: PULL_SOURCES.has(r.import_source || r.source) });
+    const im = imports.get(k);
+    if (dayOf(r.txn_date) > im.maxDate) im.maxDate = dayOf(r.txn_date);
+  }
+  const shift = (d, n) => new Date(Date.parse(d) + n * 86_400_000).toISOString().slice(0, 10);
+  const coveredUntil = (k) => {
+    const im = imports.get(k);
+    if (!im) return '';
+    if (im.pull && im.ranAt) return shift(dayOf(im.ranAt), -2);
+    return im.maxDate ? shift(im.maxDate, -1) : ''; // קובץ: היום האחרון בו אולי חלקי
+  };
+  const order = (r) => (r.import_id == null ? -1 : Number(r.import_id));
+  const groups = new Map();
+  for (const r of rows) {
+    const ref = refKey(r.raw_reference);
+    if (!ref) continue;
+    const k = `${dayOf(r.txn_date)}|${Number(r.amount)}|${ref}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  const pairs = [];
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    g.sort((a, b) => order(a) - order(b) || Number(a.id) - Number(b.id));
+    const used = new Set();
+    for (let j = 1; j < g.length; j += 1) {
+      const late = g[j];
+      if (!PULL_SOURCES.has(late.source)) continue;
+      const early = g.slice(0, j).find((e) => !used.has(e.id) && order(e) < order(late)
+        && dayOf(late.txn_date) <= coveredUntil(e.import_id == null ? 'legacy' : Number(e.import_id)));
+      if (!early) continue;
+      used.add(early.id);
+      pairs.push({ early, late, diff: idDiff(early.external_id, late.external_id) });
+    }
+  }
+  return pairs;
+}
+
 async function loadRows(accountId, x) {
   return x.many(
     `SELECT bt.id, bt.txn_date, bt.amount, bt.description, bt.raw_reference, bt.balance_after, bt.source,
-            bt.external_id, bt.matched_payment_id, bt.import_id, bi.file_name
+            bt.external_id, bt.matched_payment_id, bt.import_id, bi.file_name, bi.imported_at, bi.source AS import_source
        FROM bank_transactions bt LEFT JOIN bank_imports bi ON bi.id = bt.import_id
       WHERE bt.bank_account_id = ?
       ORDER BY bt.txn_date, bt.id`,
@@ -229,7 +303,17 @@ export async function findAccountDuplicates(accountId, x = getExecutor()) {
   }
   const mergeable = checked.filter((p) => p.verified && !p.conflict);
   const dropIds = new Set(mergeable.map((p) => Number(p.drop.id)));
+  const twins = pullTwinPairs(rows);
+  const byDiff = new Map();
+  for (const t of twins) {
+    const k = t.diff.length ? t.diff.join('+') : 'זהה';
+    byDiff.set(k, (byDiff.get(k) || 0) + 1);
+  }
   return {
+    // "אותה תנועה בשתי משיכות" — לאבחון בלבד (ראה pullTwinPairs).
+    pullTwins: twins.slice(0, 60),
+    pullTwinCount: twins.length,
+    pullTwinByDiff: [...byDiff.entries()].map(([diff, n]) => ({ diff, n })),
     fileRows: rows.filter((r) => FILE_SOURCES.has(r.source)).length,
     fileWithId: rows.filter((r) => FILE_SOURCES.has(r.source) && r.external_id != null).length,
     pulledRows: rows.filter((r) => PULL_SOURCES.has(r.source)).length,

@@ -371,10 +371,39 @@ export async function listImports({ accountId = null, limit = 20 } = {}, x = get
   const withIds = await x.many('SELECT id, import_id FROM bank_transactions WHERE import_id IS NOT NULL', []);
   const depByImport = new Map();
   for (const r of withIds) if (depTxn.has(Number(r.id))) depByImport.set(Number(r.import_id), (depByImport.get(Number(r.import_id)) || 0) + 1);
+  // לחשבון אחד: טווח התאריכים של כל ייבוא, וכמה משורותיו הן **עותק** של תנועה שכבר נקלטה בייבוא קודם
+  // (בעלים, 16/10: משיכה ששמרה 403 כשרגיל 10-90 — האם אלה תנועות ישנות אמיתיות או אותן תנועות שוב?).
+  const range = new Map();
+  const lateTwins = new Map();
+  if (accountId) {
+    const acctRows = await x.many(
+      `SELECT bt.id, bt.txn_date, bt.amount, bt.raw_reference, bt.source, bt.external_id, bt.import_id,
+              bi.imported_at, bi.source AS import_source
+         FROM bank_transactions bt LEFT JOIN bank_imports bi ON bi.id = bt.import_id
+        WHERE bt.bank_account_id = ?`,
+      [Number(accountId)],
+    );
+    for (const r of acctRows) {
+      if (r.import_id == null) continue;
+      const k = Number(r.import_id);
+      const d = String(r.txn_date).slice(0, 10);
+      const cur = range.get(k) || { from: d, to: d };
+      if (d < cur.from) cur.from = d;
+      if (d > cur.to) cur.to = d;
+      range.set(k, cur);
+    }
+    const { pullTwinPairs } = await import('./bankDuplicates.js');
+    for (const p of pullTwinPairs(acctRows)) {
+      const k = Number(p.late.import_id);
+      lateTwins.set(k, (lateTwins.get(k) || 0) + 1);
+    }
+  }
   return imports.map((imp) => {
     const mine = rows.filter((r) => Number(r.import_id) === Number(imp.id));
     const matched = mine.filter((r) => r.matched_payment_id != null).length + (depByImport.get(Number(imp.id)) || 0);
     return {
+      range: range.get(Number(imp.id)) || null,
+      twinsOfEarlier: lateTwins.get(Number(imp.id)) || 0,
       ...imp,
       // שם שנשמר לפני שהפענוח היה קיים נשמר כג'יבריש; `decodeFileName` בטוחה לקריאה חוזרת ולכן
       // היא מיישרת גם אותו, בלי לכתוב מחדש שורה במסד ובלי לפגוע בשם שכבר תקין.

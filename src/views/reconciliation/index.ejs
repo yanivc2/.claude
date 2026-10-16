@@ -165,6 +165,7 @@
       <table class="sortable line-grid">
         <thead><tr>
           <th>מתי</th><th>קובץ</th><th>מקור</th><th class="right">נשמרו</th><th class="right">כפילויות</th>
+          <th>טווח תאריכים</th><th class="right" title="שורות שנקלטו כחדשות אבל אותה תנועה (תאריך, סכום, אסמכתא) כבר הייתה מייבוא קודם">כבר היו</th>
           <th>מצב</th><th>הועלה ע״י</th><th data-nosort>ביטול</th>
         </tr></thead>
         <tbody>
@@ -176,6 +177,12 @@
               <td data-label="מקור" class="muted"><%= im.source === 'csv' ? 'קובץ' : im.source === 'financy' ? 'משיכה מהבנק' : im.source === 'scraper' ? 'סריקה' : im.source %></td>
               <td data-label="נשמרו" class="right"><strong><%= im.inserted %></strong></td>
               <td data-label="כפילויות" class="right muted"><%= im.skipped || '—' %></td>
+              <%# טווח התאריכים של השורות שנשארו מהייבוא, וכמה מהן הן עותק של תנועה מייבוא קודם — מה שמבדיל
+                  "משיכה שהביאה היסטוריה ישנה" מ"משיכה שהכניסה את אותן תנועות שוב" (bankDuplicates#pullTwinPairs). %>
+              <td data-label="טווח תאריכים" class="muted" style="white-space:nowrap"><%= im.range ? formatDate(im.range.from) + '–' + formatDate(im.range.to) : '—' %></td>
+              <td data-label="כבר היו" class="right">
+                <% if (im.twinsOfEarlier) { %><a href="/reconciliation/integrity?account=<%= accountId %>#pull-twins" class="badge b-blocked" title="פירוט בבדיקת השיוך"><%= im.twinsOfEarlier %></a><% } else { %><span class="muted">—</span><% } %>
+              </td>
               <td data-label="מצב">
                 <% if (!im.present) { %><span class="badge b-neutral">אין שורות</span>
                 <% } else if (im.matched) { %><span class="badge b-paid"><%= im.matched %> הותאמו</span>

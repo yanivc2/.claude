@@ -406,3 +406,73 @@ test('route: the page shows the rows around the break and offers the two-file me
   assert.match(page, /קובץ קודם, תאריך אחר/);
   assert.match(page, /אחד 3 כפילויות מאומתות/);
 });
+
+// בעלים, 16/10 — "משהו קרה פה": משיכה של 02/10 שמרה 403 שורות כשמשיכה רגילה שומרת 10-90. הסוכן מושך
+// 60 יום אחורה, אז 403 "חדשות" אחרי 4 ימים = המזהה של אותן תנועות השתנה. אבחון בלבד: מה השתנה במזהה.
+import { pullTwinPairs, idDiff } from '../src/services/bankDuplicates.js';
+const PR = (id, imp, ranAt, date, amount, ref, ext) => ({ id, import_id: imp, imported_at: ranAt, import_source: 'scraper', source: 'scraper', txn_date: date, amount, raw_reference: ref, external_id: ext });
+
+test('pull twins: the same transaction again in a later pull (id changed) is found, and what changed is named', () => {
+  const rows = [
+    PR(1, 10, '2026-09-28 01:41:00', '2026-09-15', -5000, '777', 'scr:hapoalimBiz:12-628-1:777:2026-09-15:-5000'),
+    PR(2, 11, '2026-10-02 18:03:00', '2026-09-15', -5000, '777', 'scr:hapoalimBiz:628-1:777:2026-09-15:-5000'),
+  ];
+  const p = pullTwinPairs(rows);
+  assert.equal(p.length, 1);
+  assert.equal(p[0].late.id, 2);
+  assert.deepEqual(p[0].diff, ['acct']);
+});
+
+test('pull twins: a line dated the day the earlier pull ran (could still be pending then) is NOT a twin', () => {
+  const rows = [
+    PR(1, 10, '2026-09-16 09:00:00', '2026-09-15', -5000, '777', 'scr:x:a:777:2026-09-15:-5000'),
+    PR(2, 11, '2026-10-02 09:00:00', '2026-09-15', -5000, '777', 'scr:x:a:778:2026-09-15:-5000'),
+  ];
+  assert.equal(pullTwinPairs(rows).length, 0, 'the earlier pull may not have seen the second one yet');
+});
+
+test('pull twins: two identical lines in the SAME pull are two real transactions', () => {
+  const rows = [
+    PR(1, 10, '2026-10-02 09:00:00', '2026-09-15', -5000, '777', 'scr:x:a:777:2026-09-15:-5000'),
+    PR(2, 10, '2026-10-02 09:00:00', '2026-09-15', -5000, '777', 'scr:x:a:777b:2026-09-15:-5000'),
+  ];
+  assert.equal(pullTwinPairs(rows).length, 0);
+  assert.deepEqual(idDiff('scr:x:a:1:2026-09-15:-5', 'scr:x:a:1:2026-09-16:-5'), ['date']);
+});
+
+test('imports table: date range per import and how many of its rows were already there', async () => {
+  const a = await cleanAccount(0);
+  const imp = async (ranAt) => Number((await db.run(
+    "INSERT INTO bank_imports (bank_account_id, source, rows_total, imported_at) VALUES (?, 'scraper', 0, ?)", [a, ranAt],
+  )).lastInsertRowid);
+  const i1 = await imp('2026-09-28 01:41:00');
+  const i2 = await imp('2026-10-02 18:03:00');
+  const put = (imp2, date, amount, ref, ext) => db.run(
+    "INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, source, external_id, import_id) VALUES (?, ?, ?, 'x', ?, 'scraper', ?, ?)",
+    [a, date, amount, ref, ext, imp2],
+  );
+  await put(i1, '2026-09-10', -100, '1', 'scr:hapoalimBiz:A:1:2026-09-10:-100');
+  await put(i1, '2026-09-11', -200, '2', 'scr:hapoalimBiz:A:2:2026-09-11:-200');
+  await put(i2, '2026-09-10', -100, '1', 'scr:hapoalimBiz:B:1:2026-09-10:-100');
+  await put(i2, '2026-09-11', -200, '2', 'scr:hapoalimBiz:B:2:2026-09-11:-200');
+  await put(i2, '2026-10-01', -300, '3', 'scr:hapoalimBiz:B:3:2026-10-01:-300');
+  const { listImports } = await import('../src/services/bankTransactions.js');
+  const list = await listImports({ accountId: a }, db);
+  const second = list.find((r) => Number(r.id) === i2);
+  assert.equal(second.twinsOfEarlier, 2, 'two of its three rows were already there');
+  assert.deepEqual(second.range, { from: '2026-09-10', to: '2026-10-01' });
+  const d = await findAccountDuplicates(a, db);
+  assert.equal(d.pullTwinCount, 2);
+  assert.deepEqual(d.pullTwinByDiff, [{ diff: 'acct', n: 2 }]);
+});
+
+test('route: the integrity page explains the pull twins (read-only) and the imports table links to it', async () => {
+  const a = accts[0]; // left by the previous test: two twins whose ids differ in the account part
+  const cookie = `session=${createSession(o.id)}`;
+  const page = await (await fetch(`${base}/reconciliation/integrity?account=${a}`, { headers: { cookie } })).text();
+  assert.match(page, /1ב\. אותה תנועה בשתי משיכות מהבנק/);
+  assert.match(page, /<strong>2<\/strong> תנועות נקלטו פעמיים/);
+  assert.match(page, /<strong>חשבון<\/strong> ×2/);
+  const rec = await (await fetch(`${base}/reconciliation?account=${a}`, { headers: { cookie } })).text();
+  assert.match(rec, /#pull-twins" class="badge b-blocked"[^>]*>2</);
+});
