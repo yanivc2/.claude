@@ -253,7 +253,7 @@
 <% var balances = (typeof advanceBalances !== 'undefined' && advanceBalances) ? advanceBalances : []; %>
 <div class="card">
   <div class="toolbar" style="align-items:center;gap:.5rem;margin:0 0 .4rem">
-    <h2 style="margin:0">מפרעות והלוואות</h2>
+    <h2 style="margin:0">מעקב מפרעות והלוואות</h2>
     <% if (balances.length) { %>
       <span class="badge b-on_hold">חוב פתוח: <%= formatIls(balances.reduce(function(n,b){return n+b.balance;},0)) %></span>
     <% } %>
@@ -266,7 +266,8 @@
     <div class="alert alert-warn">נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים") כדי להשתמש במעקב המפרעות.</div>
   <% } else { %>
     <p class="muted" style="margin:0 0 .5rem">
-      מפרעה שיצאה מהקופה נמשכת לכאן מדוח ה-Z לבד. מפרעה שניתנה אחרת — הוסף אותה כאן.
+      <strong>כמה כל עובד חייב</strong> — כל מפרעה או הלוואה, ההחזרים שלה והיתרה. מפרעה שיצאה מהקופה נכנסת לכאן
+      לבד מדוח ה-Z; מפרעה שניתנה אחרת (העברה, צ׳ק, מהכיס) — הוסף אותה כאן.
       <strong>כל החזר שנרשם מוריד את היתרה</strong>, וכשהיא מתאפסת המפרעה נסגרת.
     </p>
     <%# מפרעה נרשמת קודם בסגירת Z (בחנות) ורק אחר כך בדוח ה-Z (במשרד), והספר הזה נבנה מדוח ה-Z בלבד —
@@ -275,10 +276,10 @@
        var cPend = cAdv.filter(function(r){ return r.status === 'pending'; });
        var cBad = cAdv.filter(function(r){ return r.status === 'missing' || r.status === 'kind'; }); %>
     <% if (cPend.length) { %>
-      <p style="margin:0 0 .4rem">⏳ <strong><%= cPend.length %></strong> מפרעות מסגירת Z (<%= formatIls(cPend.reduce(function(n,r){ return n + Number(r.amount); }, 0)) %>) ממתינות לדוח Z — ייכנסו לכאן כשהמשרד יזין את הדוח. פירוט ב"מעקב מפרעות ושכר".</p>
+      <p style="margin:0 0 .4rem">⏳ <strong><%= cPend.length %></strong> מפרעות מסגירת Z (<%= formatIls(cPend.reduce(function(n,r){ return n + Number(r.amount); }, 0)) %>) ממתינות לדוח Z — ייכנסו לכאן כשהמשרד יזין את הדוח. פירוט ב"תשלום מפרעות ושכר מהפדיון".</p>
     <% } %>
     <% if (cBad.length) { %>
-      <p style="margin:0 0 .4rem;color:var(--color-bad)">⚠️ <strong><%= cBad.length %></strong> מפרעות נרשמו בסגירת Z ו<strong>לא נרשמו כמפרעה בדוח Z</strong> של אותו Z — ולכן אינן כחוב כאן. לתקן בדוח ה-Z; פירוט ב"מעקב מפרעות ושכר".</p>
+      <p style="margin:0 0 .4rem;color:var(--color-bad)">⚠️ <strong><%= cBad.length %></strong> מפרעות נרשמו בסגירת Z ו<strong>לא נרשמו כמפרעה בדוח Z</strong> של אותו Z — ולכן אינן כחוב כאן. לתקן בדוח ה-Z; פירוט ב"תשלום מפרעות ושכר מהפדיון".</p>
     <% } %>
 
     <% if (balances.length) { %>
@@ -465,8 +466,8 @@
 </div>
 
 <div class="card">
-  <h2 style="margin:0 0 .5rem">מעקב מפרעות ושכר</h2>
-  <p class="muted" style="margin:0 0 .5rem">כל מפרעה או תשלום שכר שהוזן בדוח Z עבור עובד — מוצג כאן לפי תאריך. שורה מ<strong>סגירת Z</strong> מופיעה רק כשהיא עוד לא בדוח ה-Z של אותו Z (או שלא נרשמה בו כמו בסגירה) — אחרת זו אותה הוצאה פעמיים.</p>
+  <h2 style="margin:0 0 .5rem">תשלום מפרעות ושכר מהפדיון</h2>
+  <p class="muted" style="margin:0 0 .5rem"><strong>כסף ששולם לעובד מהפדיון</strong> (מזומן מהקופה) — מפרעה או שכר — כפי שהוזן בדוח ה-Z, לפי תאריך. רשימה בלבד, בלי יתרות ובלי החזרים: מפרעה מכאן נכנסת לבד ל"מעקב מפרעות והלוואות" שלמעלה, ושכר לא (הוא לא חוב). שורה מ<strong>סגירת Z</strong> מופיעה רק כשהיא עוד לא בדוח ה-Z של אותו Z (או שלא נרשמה בו כמו בסגירה) — אחרת זו אותה הוצאה פעמיים.</p>
   <%# דוח ה-Z (המשרד) הוא המקור; שורות סגירה שתואמות אותו (עובד + סכום + סוג) לא מוחזרות בכלל — closingEmployeeLines. %>
   <% var track = (ledger || []).map(function(r){ return Object.assign({ src: 'z' }, r); })
        .concat(((typeof closingLines !== 'undefined' && closingLines) || []).map(function(r){ return Object.assign({ src: 'closing' }, r); }))
