@@ -593,7 +593,8 @@ export async function accountDeletionHistory(accountId, limit = 30, x = getExecu
     const base = { at: r.timestamp, by: r.user_name || null, deleted: Number(d.deleted ?? d.merged ?? 0), released: Number(d.released ?? d.movedLinks ?? 0) };
     if (r.action === 'bank.import_delete') {
       const orig = imported.get(Number(d.importId)) || null;
-      out.push({ ...base, kind: 'import', what: { importId: d.importId, fileName: d.fileName || orig?.fileName || null, importedAt: orig?.at || null, source: orig?.source || null, inserted: orig?.inserted ?? null } });
+      // שם שנרשם ביומן לפני תיקון הפענוח נשמר כג'יבריש (×××.xlsx) — `decodeFileName` בטוחה לקריאה חוזרת.
+      out.push({ ...base, kind: 'import', what: { importId: d.importId, fileName: decodeFileName(d.fileName || orig?.fileName || null) || null, importedAt: orig?.at || null, source: orig?.source || null, inserted: orig?.inserted ?? null } });
     } else if (r.action === 'bank.txn_bulk_delete') {
       out.push({ ...base, kind: 'rows', what: null });
     } else {
