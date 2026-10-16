@@ -727,6 +727,7 @@ export async function replaceExpenses(zReportId, rows, actor, x = getExecutor())
         amount: Number.isFinite(r.amount) ? r.amount : 0,
         invoiceId,
         invoiceIds,
+        rowId: Number(r.rowId) || null,
       };
     })
     .filter((r) => r.amount > 0 || r.payerName || r.purpose || r.invoiceId || r.employeeId);
@@ -736,8 +737,34 @@ export async function replaceExpenses(zReportId, rows, actor, x = getExecutor())
   // לפני הטרנזקציה: probe שנכשל בתוכה היה מבטל אותה ב-Postgres.
   const withIds = await cashExpenseInvoiceIdsReady(x);
   await tx(async (t) => {
-    await t.run('DELETE FROM z_expenses WHERE z_report_id = ?', [zReportId]);
+    // 🔴 עדכון **במקום** לשורה שהטופס מחזיר עם המזהה שלה (`expense_row_id`), ולא מחיקה-ויצירה של
+    // הכל. כל שמירה של דוח Z (גם רק תיקון הפקדה) מחקה ויצרה מחדש את כל שורות ההוצאה, ואיתן כל מה
+    // שתלוי במזהה של שורה — נמדד: סימון "✓ טופל" נמחק, קישור צ׳ק שכר (`salary_payments.cash_z_expense_id`,
+    // ON DELETE SET NULL) התנתק, ומפרעה שנרשם עליה החזר **הוכפלה** (הישנה נשמרת בגלל ההחזר, והשורה
+    // החדשה נשקפת כמפרעה נוספת — `syncZAdvances`). שורה בלי מזהה (חדשה, או קורא ישן) נוספת; שורה
+    // קיימת שלא הוחזרה נמחקת — בדיוק כמו קודם.
+    const existing = new Set((await t.many('SELECT id FROM z_expenses WHERE z_report_id = ?', [zReportId])).map((e) => Number(e.id)));
+    const kept = new Set();
+    const fresh = [];
     for (const r of clean) {
+      if (!r.rowId || !existing.has(r.rowId) || kept.has(r.rowId)) { fresh.push(r); continue; }
+      kept.add(r.rowId);
+      if (withIds) {
+        await t.run(
+          `UPDATE z_expenses SET expense_date = ?, payer_name = ?, purpose = ?, description_type = ?, employee_id = ?, amount = ?, invoice_id = ?, invoice_ids = ?
+            WHERE id = ? AND z_report_id = ?`,
+          [r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.amount, r.invoiceId, encodeInvoiceIds(r.invoiceIds), r.rowId, zReportId],
+        );
+      } else {
+        await t.run(
+          `UPDATE z_expenses SET expense_date = ?, payer_name = ?, purpose = ?, description_type = ?, employee_id = ?, amount = ?, invoice_id = ?
+            WHERE id = ? AND z_report_id = ?`,
+          [r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.amount, r.invoiceId, r.rowId, zReportId],
+        );
+      }
+    }
+    for (const id of existing) if (!kept.has(id)) await t.run('DELETE FROM z_expenses WHERE id = ?', [id]);
+    for (const r of fresh) {
       if (withIds) {
         await t.run(
           `INSERT INTO z_expenses (z_report_id, expense_date, payer_name, purpose, description_type, employee_id, amount, invoice_id, invoice_ids)

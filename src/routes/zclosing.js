@@ -45,7 +45,10 @@ function closingInputFrom(b) {
   const invoiceIds = [].concat(b.expense_invoice_id || []);
   const kinds = [].concat(b.expense_kind || []);
   const employeeIds = [].concat(b.expense_employee_id || []);
+  // המזהה של שורה קיימת (טופס העריכה) — עדכון במקום ולא מחיקה-ויצירה (ראה saveClosingExpenses).
+  const rowIds = [].concat(b.expense_row_id || []);
   const expenses = amounts.map((a, i) => ({
+    rowId: rowIds[i] || null,
     expenseDate: dates[i] || null,
     payerName: names[i],
     purpose: purposes[i],

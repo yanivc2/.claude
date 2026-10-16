@@ -282,6 +282,7 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   בתנועות), והמשתמש מסיק שהמידע נעלם במקום ללחוץ "עדכן מסד נתונים". דפוס: `xxxReady()` שמריץ
   `SELECT` על העמודה/טבלה החדשה, והתצוגה מסתעפת עליו — `voidedChecksReady`, `salaryPaymentsReady`,
   `transfersReady`, `advancesReady`, `trackedReady`, `importsReady`.
+- **🔴 שורות-בן שמשהו מצביע על המזהה שלהן מתעדכנות במקומן, לא נמחקות ונוצרות** (הוצאות דוח/סגירת Z, שקיות הפקדה): הטופס שולח את מזהה השורה (`expense_row_id`/`dep_id`). מחיקה-ויצירה בכל שמירה הכפילה מפרעה עם החזר, מחקה "טופל" וניתקה קישורי שכר (ON DELETE SET NULL). INDEX.md · הוצאות.
 - `x.one` returns **undefined** (not null) when no row — assert with `!row`, not `=== null`.
 - **`x.run('INSERT…')` auto-appends `RETURNING id`** (`db/adapter.js`) — on a table whose PK isn't
   `id` (e.g. `app_settings.key`, `invoice_ocr.invoice_id`) the PG insert crashes. Add an explicit

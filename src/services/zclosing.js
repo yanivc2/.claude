@@ -63,10 +63,13 @@ function normalizeExpenses(rows) {
         amount: Number.isFinite(r.amount) ? r.amount : 0,
         invoiceId,
         invoiceIds,
+        rowId: Number(r.rowId) || null,
       };
     })
     .filter((r) => r.amount > 0 || r.payerName || r.purpose || r.invoiceId || r.employeeId);
 }
+// עותק ה-JSON שעל הסגירה (`z_closings.expenses`) — בלי מזהה השורה, שהוא של הטופס ולא של הנתון.
+const expensesJson = (list) => JSON.stringify(list.map(({ rowId, ...e }) => e));
 
 // Per-register cash balancing counted before the Z. Each register: which register (קופה), which
 // store, and a denomination breakdown → total (all agorot, computed server-side). Independent of
@@ -162,6 +165,35 @@ async function insertExpenses(t, closingId, expenses, withIds = false) {
   }
 }
 
+// 🔴 עריכת סגירה מעדכנת שורה קיימת **במקומה** (לפי `expense_row_id` מהטופס) ולא מוחקת ויוצרת הכל:
+// במחיקה-ויצירה כל מה שתלוי במזהה השורה אבד בכל שמירה — "✓ טופל", קישור צ׳ק שכר
+// (`salary_payments.cash_expense_id`) וצ׳ק שבוטל בגלל פריטה (`payments.void_cash_expense_id`), שניהם
+// ON DELETE SET NULL. שורה בלי מזהה נוספת; שורה קיימת שלא הוחזרה נמחקת.
+async function saveClosingExpenses(t, closingId, expenses, withIds) {
+  const existing = new Set((await t.many('SELECT id FROM z_closing_expenses WHERE closing_id = ?', [closingId])).map((e) => Number(e.id)));
+  const kept = new Set();
+  const fresh = [];
+  for (const r of expenses) {
+    if (!r.rowId || !existing.has(r.rowId) || kept.has(r.rowId)) { fresh.push(r); continue; }
+    kept.add(r.rowId);
+    if (withIds) {
+      await t.run(
+        `UPDATE z_closing_expenses SET expense_date = ?, payer_name = ?, purpose = ?, description_type = ?, employee_id = ?, invoice_id = ?, invoice_ids = ?, amount = ?
+          WHERE id = ? AND closing_id = ?`,
+        [r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.invoiceId, encodeInvoiceIds(r.invoiceIds), r.amount, r.rowId, closingId],
+      );
+    } else {
+      await t.run(
+        `UPDATE z_closing_expenses SET expense_date = ?, payer_name = ?, purpose = ?, description_type = ?, employee_id = ?, invoice_id = ?, amount = ?
+          WHERE id = ? AND closing_id = ?`,
+        [r.expenseDate, r.payerName, r.purpose, r.kind, r.employeeId, r.invoiceId, r.amount, r.rowId, closingId],
+      );
+    }
+  }
+  for (const eid of existing) if (!kept.has(eid)) await t.run('DELETE FROM z_closing_expenses WHERE id = ?', [eid]);
+  await insertExpenses(t, closingId, fresh, withIds);
+}
+
 // 🔴 שמירה כפולה (בעלים, 13/10: אותה סגירת Z נשמרה 4 פעמים באותה דקה — לחיצות חוזרות כשהשמירה
 // הייתה איטית). הטופס חוסם לחיצה שנייה (data-busy ב-footer), וזו השכבה השנייה: אותה סגירה בדיוק —
 // חנות, Z, עובד, מגירה, סכומים ושורות הוצאה — שכבר נשמרה ב-15 הדקות האחרונות לא נשמרת שוב.
@@ -185,7 +217,7 @@ export async function findRecentDuplicateClosing(input, x = getExecutor()) {
       && String(r.employee_first || '') === String(names.first || '')
       && String(r.employee_last || '') === String(names.last || '')
       && same(r.drawer_cash, c.drawerCash) && same(r.grand_total, c.grandTotal) && same(r.total_expenses, c.totalExpenses)
-      && String(r.expenses || '') === JSON.stringify(c.expenses);
+      && String(r.expenses || '') === expensesJson(c.expenses);
   });
   return hit ? Number(hit.id) : null;
 }
@@ -213,7 +245,7 @@ export async function createZClosing(input, actor, x = getExecutor()) {
       `INSERT INTO z_closings
          (employee_first, employee_last, employee_id, store_id, z_number, drawer_cash, started_at, ended_at, breakdown, total_cash, expenses, total_expenses, grand_total, registers, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [names.first, names.last, employeeId, storeId, zNumber, drawerCash, input.startedAt || null, israelNow(), JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, JSON.stringify(regs), actor?.id ?? null],
+      [names.first, names.last, employeeId, storeId, zNumber, drawerCash, input.startedAt || null, israelNow(), JSON.stringify(breakdown), totalCash, expensesJson(expenses), totalExpenses, grandTotal, JSON.stringify(regs), actor?.id ?? null],
     );
     await insertExpenses(t, r.lastInsertRowid, expenses, withIds);
     return r;
@@ -375,10 +407,9 @@ export async function updateZClosing(id, input, actor, x = getExecutor()) {
     await t.run(
       `UPDATE z_closings SET employee_first = ?, employee_last = ?, employee_id = ?, store_id = ?, z_number = ?, drawer_cash = ?,
          breakdown = ?, total_cash = ?, expenses = ?, total_expenses = ?, grand_total = ?, registers = ? WHERE id = ?`,
-      [names.first, names.last, employeeId, storeId, zNumber, drawerCash, JSON.stringify(breakdown), totalCash, JSON.stringify(expenses), totalExpenses, grandTotal, JSON.stringify(regs), id],
+      [names.first, names.last, employeeId, storeId, zNumber, drawerCash, JSON.stringify(breakdown), totalCash, expensesJson(expenses), totalExpenses, grandTotal, JSON.stringify(regs), id],
     );
-    await t.run('DELETE FROM z_closing_expenses WHERE closing_id = ?', [id]);
-    await insertExpenses(t, id, expenses, withIds);
+    await saveClosingExpenses(t, id, expenses, withIds);
   });
   await logAction({ userId: actor?.id ?? null, action: 'zclosing.update', entityType: 'z_closing', entityId: id }, x);
   return getZClosing(id, x);

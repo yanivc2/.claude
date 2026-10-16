@@ -148,6 +148,7 @@
     <div id="cx-body" class="cx-list">
       <% exRows.forEach(function(e){ %>
         <div class="cx-row">
+          <input type="hidden" name="expense_row_id" value="<%= e.id || '' %>" />
           <div class="cx-field cx-f-kind"><label>סוג</label><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(e.description_type) %></select></div>
           <div class="cx-field cx-f-date"><label>תאריך</label><input type="date" name="expense_date" value="<%= e.expense_date || '' %>" /></div>
           <div class="cx-field cx-f-name"><label>שם</label><%- cxPayerField(e.payer_name || '') %></div>
@@ -161,6 +162,7 @@
         </div>
       <% }); %>
       <div class="cx-row">
+        <input type="hidden" name="expense_row_id" value="" />
         <div class="cx-field cx-f-kind"><label>סוג</label><select name="expense_kind" class="cx-kind"><%- cxKindOptsFor(null) %></select></div>
         <div class="cx-field cx-f-date"><label>תאריך</label><input type="date" name="expense_date" /></div>
         <div class="cx-field cx-f-name"><label>שם</label><%- cxPayerField('') %></div>
@@ -383,7 +385,8 @@
   function addRow(){
     var row = document.createElement('div');
     row.className = 'cx-row';
-    row.innerHTML = '<div class="cx-field cx-f-kind"><label>סוג</label><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></div>'
+    row.innerHTML = '<input type="hidden" name="expense_row_id" value="">'
+      + '<div class="cx-field cx-f-kind"><label>סוג</label><select name="expense_kind" class="cx-kind">' + CX_KIND_OPTS + '</select></div>'
       + '<div class="cx-field cx-f-date"><label>תאריך</label><input type="date" name="expense_date"></div>'
       + '<div class="cx-field cx-f-name"><label>שם</label>' + CX_PAYER_FIELD + '</div>'
       + '<div class="cx-field cx-details"><label>עבור</label><input name="purpose" class="cx-purpose" placeholder="פירוט" autocomplete="off">'
