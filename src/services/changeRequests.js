@@ -31,6 +31,16 @@ const ACTIONS = {
     label: 'עריכת תנועת בנק',
     apply: (payload, actor, x) => editTransaction(payload.id, payload.fields, actor, x),
   },
+  // בעלים, 16/10: "טופל" של המזכירה **כבר בוצע** (ונעול) — האישור רק מאשר; דחייה מבטלת אותו.
+  'cash_expense.settle': {
+    label: 'סימון "טופל" להוצאת מזומן',
+    applied: true,
+    apply: async () => {},
+    revert: async (payload, actor, x) => {
+      const { revertCashExpenseSettle } = await import('./zreports.js');
+      return revertCashExpenseSettle(payload.source, payload.id, actor, x);
+    },
+  },
 };
 
 export function actionLabel(action) {
@@ -48,7 +58,12 @@ export async function submitRequest({ action, entityType, entityId, payload, sum
   );
   await logAction({ userId: actor?.id ?? null, action: 'change_request.submit', entityType: 'change_request', entityId: info.lastInsertRowid, details: { action } }, x);
   // Generic alert only — no amounts/names/diff (details stay inside the app under /approvals).
-  notify(`📝 <b>בקשת אישור עריכה חדשה</b>\nמאת ${actor?.name || 'משתמש'} · ${actionLabel(action)}\nהיכנס למערכת לצפייה ואישור.`);
+  // 🔴 await: on serverless a fire-and-forget notify is lost once the response is sent (CLAUDE.md).
+  // kind 'approval' + the request id in the link → the notifications page offers "אשר / דחה" in place.
+  await notify(
+    `📝 <b>בקשת אישור חדשה</b>\nמאת ${actor?.name || 'משתמש'} · ${actionLabel(action)}\nהיכנס למערכת לצפייה ואישור.`,
+    { kind: 'approval', link: `/approvals?req=${info.lastInsertRowid}` },
+  );
   return info.lastInsertRowid;
 }
 
@@ -98,7 +113,7 @@ export async function approveRequest(id, ownerActor, x = getExecutor()) {
   if (!spec) throw new RuleError('VALIDATION', `פעולה לא נתמכת: ${req.action}`);
 
   const payload = JSON.parse(req.payload);
-  const result = `אושר ובוצע: ${actionLabel(req.action)} — ${req.summary || ''}`;
+  const result = `${spec.applied ? 'אושר' : 'אושר ובוצע'}: ${actionLabel(req.action)} — ${req.summary || ''}`;
 
   await tx(async (t) => {
     // Re-check status inside the transaction to prevent a concurrent double-approve.
@@ -119,11 +134,18 @@ export async function approveRequest(id, ownerActor, x = getExecutor()) {
 export async function rejectRequest(id, ownerActor, note = null, x = getExecutor()) {
   const req = await getRequest(id, x);
   if (req.status !== 'pending') throw new RuleError('STATE', 'הבקשה כבר טופלה');
-  await x.run(
-    "UPDATE change_requests SET status = 'rejected', decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ?",
-    [ownerActor?.id ?? null, nowTs(), note, id],
-  );
-  await logAction({ userId: ownerActor?.id ?? null, action: 'change_request.reject', entityType: 'change_request', entityId: id, details: { note } }, x);
+  const spec = ACTIONS[req.action];
+  // פעולה שכבר בוצעה בזמן הבקשה (`applied`) — הדחייה מבטלת אותה, באותה טרנזקציה עם סימון הדחייה.
+  await tx(async (t) => {
+    const fresh = await t.one('SELECT status FROM change_requests WHERE id = ?', [id]);
+    if (!fresh || fresh.status !== 'pending') throw new RuleError('STATE', 'הבקשה כבר טופלה');
+    if (spec?.applied && spec.revert) await spec.revert(JSON.parse(req.payload), ownerActor, t);
+    await t.run(
+      "UPDATE change_requests SET status = 'rejected', decided_by = ?, decided_at = ?, decision_note = ? WHERE id = ?",
+      [ownerActor?.id ?? null, nowTs(), note, id],
+    );
+    await logAction({ userId: ownerActor?.id ?? null, action: 'change_request.reject', entityType: 'change_request', entityId: id, details: { note } }, t);
+  });
   notify(`⛔ <b>בקשת עריכה נדחתה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''})${note ? '\nסיבה: ' + note : ''}`);
   return getRequest(id, x);
 }

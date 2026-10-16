@@ -332,8 +332,11 @@ export async function listClosingExpenses(closingId, x = getExecutor()) {
 export async function recentClosingExpenses(scope = null, limit = 30, x = getExecutor()) {
   const sc = scopeWhere(scope, 'st.company_id', 'st.id');
   const withIds = await cashExpenseInvoiceIdsReady(x);
+  // "✓ טופל" בדף החשבוניות (בעלים, 16/10) צריך לדעת מה כבר סומן — רק אחרי שהעמודה קיימת (probe).
+  const { cashSettleReady } = await import('./zreports.js');
+  const withSettle = await cashSettleReady(x);
   return x.many(
-    `SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.description_type, e.amount,
+    `SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.description_type, e.amount,${withSettle ? ' e.settled_at,' : ''}
             e.invoice_id,${withIds ? ' e.invoice_ids,' : ''} i.invoice_number, s.name AS invoice_supplier,
             emp.first_name AS emp_first, emp.last_name AS emp_last,
             zc.id AS closing_id, zc.z_number, st.name AS store_name

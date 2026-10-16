@@ -156,12 +156,12 @@ test('הלוח מציג כפתור לפי סוג ואת כרטיס ההתראו�
   }
 });
 
-test('🔴 "טופל" לכל סוג הוצאה — לבעלים בלבד; והפעולה שומרת את מיקום הגלילה', () => {
+test('🔴 "טופל" לכל סוג הוצאה — לכולם, ומי שאינו הבעלים עובר דרך אישור; והפעולה שומרת את מיקום הגלילה', () => {
   const v = readFileSync(new URL('../src/views/partials/_unmatchedCash.ejs', import.meta.url), 'utf8');
-  // פריטה: "טופל" לכולם. שאר הסוגים: התאמה לכולם, ו"טופל" רק לבעלים — יש מקרים שאין למה
-  // להתאים, והשורה חייבת דרך יציאה; זו החלטה של הבעלים.
+  // בעלים, 16/10: גם המזכירה לוחצת "טופל" — הפעולה מתבצעת, ננעלת ונשלחת לאישור הבעלים (השרת אוכף).
   assert.match(v, /_isOwner\s*=\s*\(typeof currentUser[\s\S]{0,90}role === 'owner'\)/);
-  assert.match(v, /_settleOk && _isOwner[\s\S]{0,400}\/settle/, '"טופל" לשאר הסוגים מוגן בבעלים');
+  assert.match(v, /_isOwner \? 'סמן כטופל בלי התאמה' : 'יסומן כטופל ויישלח לאישור הבעלים'/, 'מי שאינו הבעלים יודע שזה עובר לאישור');
+  assert.match(v, /_isOwner \|\| e\.description_type === 'petty'[\s\S]{0,300}undo/, 'ביטול סימון של לא-פריטה — לבעלים בלבד (נעול)');
   // כל טופס פעולה בטבלה מסומן לשמירת מקום — PRG טוען דף חדש ומתחיל מלמעלה.
   // 🔴 **כל** טופס POST בטבלה — סימון, ביטול סימון והתאמה. אחד שנשכח קופץ לראש הדף, וזה בדיוק
   // מה שהמשתמש דיווח עליו. ספירה ולא regex על התגית: ה-action מכיל תגי EJS עם '>' בתוכם.
@@ -175,7 +175,7 @@ test('🔴 "טופל" לכל סוג הוצאה — לבעלים בלבד; והפ
   assert.match(footer, /window\.scrollTo\(0, v\.y\)/, 'ומוחזר בטעינה');
 });
 
-test('🔴 סימון "טופל" ללא התאמה נאכף בשרת — כפתור מוסתר הוא עיצוב, לא הרשאה', async () => {
+test('🔴 סימון "טופל" ללא התאמה נאכף בשרת — מזכירה: מתבצע + נעול + בקשת אישור; בעלים: מיד', async () => {
   const { setCashExpenseSettled } = await import('../src/services/zreports.js');
   const { secretary } = await import('./helpers.js');
   const x = await freshDb();
@@ -185,7 +185,11 @@ test('🔴 סימון "טופל" ללא התאמה נאכף בשרת — כפת�
 
   // פריטה — כל מי שרואה את הדף יכול לסגור (היא לעולם לא תקבל חשבונית)
   await setCashExpenseSettled('zclosing', petty, true, sec, null, x);
-  // כל השאר — בעלים בלבד, גם ב-POST ישיר
-  await assert.rejects(() => setCashExpenseSettled('zclosing', other, true, sec, null, x), /בעלים בלבד/);
-  await setCashExpenseSettled('zclosing', other, true, ow, null, x);
+  // כל השאר — מתבצע, אבל נפתחת בקשת אישור לבעלים, ומי שאינו הבעלים לא יכול לבטל (גם ב-POST ישיר)
+  const r = await setCashExpenseSettled('zclosing', other, true, sec, null, x);
+  assert.ok(r.pendingApproval, 'נשלח לאישור הבעלים');
+  await assert.rejects(() => setCashExpenseSettled('zclosing', other, false, sec, null, x), /רק הבעלים יכול לבטל/);
+  await setCashExpenseSettled('zclosing', other, false, ow, null, x);
+  const direct = await setCashExpenseSettled('zclosing', other, true, ow, null, x);
+  assert.ok(!direct.pendingApproval, 'הבעלים — בלי אישור');
 });

@@ -22,6 +22,9 @@
   <% if (typeof cashErr !== 'undefined' && cashErr) { %>
     <div class="alert alert-warn" style="margin:0 0 .6rem"><%= cashErr %></div>
   <% } %>
+  <% if (typeof cashNote !== 'undefined' && cashNote) { %>
+    <div class="alert alert-ok" style="margin:0 0 .6rem"><%= cashNote %></div>
+  <% } %>
   <%# הכפתור מופיע רק כשהעמודה קיימת במסד; אחרת אומרים במפורש מה חסר, ולא מציגים כפתור שייכשל. %>
   <% if (!_settleOk && rows && rows.length) { %>
     <p class="muted" style="margin:0 0 .6rem; font-size:12px">
@@ -172,13 +175,13 @@
                   </form>
                 <% } %>
               </dialog>
-              <%# "טופל" גם להוצאה שאינה פריטה — **לבעלים בלבד**. הדרך הרגילה היא התאמה, אבל יש
-                  מקרים שבהם אין למה להתאים והשורה חייבת דרך יציאה; זו החלטה של הבעלים ולכן
-                  הכפתור שלו. `_ownerCan` נבדק בשרת שוב (assertCashExpenseInScope + ההרשאה). %>
-              <% if (_settleOk && _isOwner) { %>
-                <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline" data-keep-scroll>
+              <%# "טופל" להוצאה שאינה פריטה: הבעלים — מיד. כל אחד אחר (בעלים, 16/10) — הפעולה מתבצעת,
+                  ננעלת (רק הבעלים מבטל), ונשלחת לבעלים בקשת אישור: פוש + התראה עם "אשר / דחה".
+                  השרת אוכף את זה (setCashExpenseSettled), לא רק הכפתור. %>
+              <% if (_settleOk) { %>
+                <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline" data-keep-scroll data-busy="מסמן…">
                   <input type="hidden" name="return_to" value="<%= _returnTo %>" />
-                  <button type="submit" class="btn btn-secondary small" title="סמן כטופל בלי התאמה — בעלים בלבד">✓ טופל</button>
+                  <button type="submit" class="btn btn-secondary small" title="<%= _isOwner ? 'סמן כטופל בלי התאמה' : 'יסומן כטופל ויישלח לאישור הבעלים' %>">✓ טופל</button>
                 </form>
               <% } %>
             <% } %>
@@ -214,16 +217,21 @@
                 <td><%= e.purpose || '—' %></td>
                 <td class="right"><%= formatIls(e.amount) %></td>
                 <%# מי סימן ומתי — סימון ידני הוא החלטה של אדם, ולכן הוא נושא שם. %>
+                <% var _pend = ((typeof pendingSettle !== 'undefined' && pendingSettle) || []).indexOf(e.source + '|' + e.id) >= 0; %>
                 <td class="muted" style="font-size:12px">
                   <%= israelStamp(e.settled_at) %>
                   <% if (e.settled_by_name) { %><div><%= e.settled_by_name %></div><% } %>
+                  <% if (_pend) { %><span class="badge b-on_hold" title="ממתין לאישור הבעלים — נעול">⏳ ממתין לאישור</span><% } %>
                 </td>
                 <td class="no-print">
+                  <%# נעול עד אישור: מי שאינו הבעלים לא מבטל סימון של הוצאה שאינה פריטה (גם השרת אוכף). %>
+                  <% if (_isOwner || e.description_type === 'petty') { %>
                   <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/settle" style="display:inline" data-keep-scroll>
                     <input type="hidden" name="undo" value="1" />
                     <input type="hidden" name="return_to" value="<%= _returnTo %>" />
                     <button type="submit" class="btn btn-secondary small" title="החזר לרשימת ההוצאות ללא התאמה">↩ בטל סימון</button>
                   </form>
+                  <% } %>
                 </td>
               </tr>
             <% }); %>

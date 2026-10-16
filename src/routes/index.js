@@ -200,21 +200,31 @@ router.post('/cash-expenses/:source/:id/match-salary', async (req, res, next) =>
 // קישור אוטומטי, ובלי הסימון הזה היא נשארת ב"תשלום במזומן ללא התאמה" לנצח.
 // PRG: כל POST מסתיים ב-303 חזרה ללוח הבקרה (ראה CLAUDE.md).
 router.post('/cash-expenses/:source/:id/settle', async (req, res, next) => {
+  // חזרה לדף שממנו נלחץ (לוח / מרקורים / חשבוניות) — רק נתיב פנימי.
+  const back = (String(req.body.return_to || '/').startsWith('/') && !String(req.body.return_to).startsWith('//')) ? String(req.body.return_to) : '/';
+  const withParam = (k, v) => `${back}${back.includes('?') ? '&' : '?'}${k}=${encodeURIComponent(v)}`;
   try {
-    await setCashExpenseSettled(req.params.source, Number(req.params.id), req.body.undo !== '1', req.user, req.scope);
-    return res.redirect(303, req.body.return_to || '/');
+    const r = await setCashExpenseSettled(req.params.source, Number(req.params.id), req.body.undo !== '1', req.user, req.scope);
+    // המזכירה: בוצע, ננעל, ונשלח לאישור הבעלים — הדף אומר את זה.
+    return res.redirect(303, r?.pendingApproval ? withParam('cashNote', 'סומן כטופל ונשלח לאישור הבעלים. עד האישור רק הבעלים יכול לבטל.') : back);
   } catch (err) {
     if (err instanceof RuleError || err instanceof NotFoundError) {
-      return res.redirect(303, '/?cashErr=' + encodeURIComponent(err.message));
+      return res.redirect(303, withParam('cashErr', err.message));
     }
     next(err);
   }
 });
 
+// "אשר / דחה" נלחצים גם מדף ההתראות — חוזרים לשם (נתיב פנימי בלבד).
+const approvalsBack = (req) => {
+  const b = String(req.body?.return_to || '');
+  return b.startsWith('/') && !b.startsWith('//') ? b : '/approvals';
+};
+
 router.post('/approvals/:id/approve', ownerOnly, async (req, res, next) => {
   try {
     await approveRequest(Number(req.params.id), req.user);
-    res.redirect(303, '/approvals');
+    res.redirect(303, approvalsBack(req));
   } catch (err) {
     if (err instanceof AuthError || err?.name === 'RuleError') {
       return res.render('approvals', {
@@ -234,7 +244,7 @@ router.post('/approvals/:id/approve', ownerOnly, async (req, res, next) => {
 router.post('/approvals/:id/reject', ownerOnly, async (req, res, next) => {
   try {
     await rejectRequest(Number(req.params.id), req.user, req.body.note || null);
-    res.redirect(303, '/approvals');
+    res.redirect(303, approvalsBack(req));
   } catch (err) {
     next(err);
   }

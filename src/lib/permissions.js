@@ -94,8 +94,9 @@ const NAV_KEYS = new Set(NAV_PAGES.map((p) => p.key));
 // can reach ONLY these paths and nothing else (all detail/action/CSV routes included).
 export const NAV_ALLOW = {
   nav_dashboard: ['/', '/reports/lookup', '/cash-expenses'],
-  nav_invoices: ['/invoices'],
-  nav_payments: ['/payments', '/reports/deposits'],
+  // "✓ טופל" על הוצאת מזומן נלחץ גם מדף החשבוניות ומהמרקורים (בעלים, 16/10) — ה-POST הוא /cash-expenses.
+  nav_invoices: ['/invoices', '/cash-expenses'],
+  nav_payments: ['/payments', '/reports/deposits', '/cash-expenses'],
   nav_zreports: ['/reports/zreports', '/reports/deposits', '/reports/zexpenses'],
   nav_outstanding: ['/reports/outstanding'],
   nav_reconciliation: ['/reconciliation'],

@@ -161,6 +161,13 @@ router.get('/', async (req, res, next) => {
         ? { paymentId: Number(req.query.paid), supplierId: Number(req.query.nsup) || null, storeId: Number(req.query.nstore) || null }
         : null,
       closingExpenses: await recentClosingExpenses(req.scope, 30),
+      // "✓ טופל" בהוצאות המזומן: האם העמודה קיימת, ואילו סימונים ממתינים לאישור הבעלים.
+      ...(await (async () => {
+        const { cashSettleReady, pendingSettleKeys } = await import('../services/zreports.js');
+        return { settleOk: await cashSettleReady(), pendingSettle: await pendingSettleKeys() };
+      })()),
+      cashErr: req.query.cashErr ? String(req.query.cashErr).slice(0, 300) : null,
+      cashNote: req.query.cashNote ? String(req.query.cashNote).slice(0, 300) : null,
       // Payable invoices (in scope) a cash expense can be matched to, for the "התאם לחשבונית" control.
       matchInvoices: await listPayable(req.scope),
       noteError: req.query.noteerr ? String(req.query.noteerr).slice(0, 300) : null,

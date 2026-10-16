@@ -22,6 +22,22 @@
               <% if (!n.read_at) { %><span class="badge b-on_hold">חדש</span> <% } %>
               <% if (n.link) { %><a href="<%= n.link %>"><%= n.title %></a><% } else { %><%= n.title %><% } %>
               <% if (n.body) { %><div class="muted" style="font-weight:400; white-space:pre-line"><%= n.body %></div><% } %>
+              <%# בקשת אישור שעדיין פתוחה — "אשר / דחה" כאן, בלי לעבור לדף האישורים. %>
+              <% var _rq = (n.kind === 'approval' && n.link) ? /req=(\d+)/.exec(n.link) : null;
+                 var _rid = _rq ? Number(_rq[1]) : null; %>
+              <% if (_rid && (typeof pendingReqs !== 'undefined') && pendingReqs.indexOf(_rid) >= 0) { %>
+                <div style="display:flex; gap:6px; margin-top:.4rem; font-weight:400">
+                  <form method="post" action="/approvals/<%= _rid %>/approve" style="margin:0" data-busy="מאשר…">
+                    <input type="hidden" name="return_to" value="/notifications" />
+                    <button type="submit" class="ok small">✓ אשר</button>
+                  </form>
+                  <form method="post" action="/approvals/<%= _rid %>/reject" style="margin:0" data-busy="דוחה…"
+                        onsubmit="return confirm('לדחות את הבקשה? פעולה שכבר בוצעה (כמו סימון טופל) תבוטל.')">
+                    <input type="hidden" name="return_to" value="/notifications" />
+                    <button type="submit" class="btn secondary small">✕ דחה</button>
+                  </form>
+                </div>
+              <% } else if (_rid) { %><div class="muted" style="font-size:12px; font-weight:400">הבקשה כבר טופלה.</div><% } %>
             </td>
             <td class="no-print">
               <% if (!n.read_at) { %>

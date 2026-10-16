@@ -8,7 +8,11 @@ router.use(requireOwner);
 
 router.get('/', async (req, res, next) => {
   try {
-    res.render('notifications/index', { title: 'התראות', notifications: await listNotifications({ limit: 100 }) });
+    // בקשות אישור שעדיין פתוחות — ההתראה שלהן מציעה "אשר / דחה" במקום (בעלים, 16/10).
+    const { listRequests } = await import('../services/changeRequests.js');
+    let pendingReqs = [];
+    try { pendingReqs = (await listRequests({ status: 'pending' })).map((r) => Number(r.id)); } catch { pendingReqs = []; }
+    res.render('notifications/index', { title: 'התראות', notifications: await listNotifications({ limit: 100 }), pendingReqs });
   } catch (err) {
     next(err);
   }

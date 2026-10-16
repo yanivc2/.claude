@@ -201,7 +201,7 @@
     <%# טבלה אחת משותפת ללוח הבקרה ולדף המרקורים — partials/_unmatchedCash.ejs. %>
     <%- include('partials/_unmatchedCash', {
           rows: unmatchedCash, settled: (typeof settledCash !== 'undefined' ? settledCash : []),
-          matched: (typeof matchedCash !== 'undefined' ? matchedCash : []), contacts: (typeof waContacts !== 'undefined' ? waContacts : []),
+          matched: (typeof matchedCash !== 'undefined' ? matchedCash : []), pendingSettle: (typeof pendingSettle !== 'undefined' ? pendingSettle : []), contacts: (typeof waContacts !== 'undefined' ? waContacts : []),
           settleOk: (typeof cashSettleReady !== 'undefined') && cashSettleReady, returnTo: '/',
         }) %>
   </div>

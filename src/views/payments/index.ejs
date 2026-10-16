@@ -31,7 +31,7 @@
   <div style="margin-top:.8rem">
     <%- include('../partials/_unmatchedCash', {
           rows: unmatchedCash, settled: (typeof settledCash !== 'undefined' ? settledCash : []),
-          matched: (typeof matchedCash !== 'undefined' ? matchedCash : []), contacts: (typeof waContacts !== 'undefined' ? waContacts : []),
+          matched: (typeof matchedCash !== 'undefined' ? matchedCash : []), pendingSettle: (typeof pendingSettle !== 'undefined' ? pendingSettle : []), contacts: (typeof waContacts !== 'undefined' ? waContacts : []),
           settleOk: (typeof cashSettleReady !== 'undefined') && cashSettleReady, returnTo: '/payments',
         }) %>
   </div>

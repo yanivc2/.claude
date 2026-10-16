@@ -413,12 +413,22 @@ export async function setCashExpenseSettled(source, id, settled, actor, scope = 
   }
   await assertCashExpenseInScope(source, id, scope, x);
 
-  // 🔴 סגירת שורה **בלי התאמה** היא החלטה של הבעלים, ונאכפת בשרת ולא רק בהסתרת הכפתור:
-  // כפתור מוסתר הוא עיצוב, לא הרשאה — POST ישיר היה עוקף אותו. פריטה היא היוצאת מן הכלל:
-  // היא נאספת חזרה לקופה ולעולם לא תקבל חשבונית, ולכן כל מי שרואה את הדף יכול לסגור אותה.
-  const row = await x.one(`SELECT description_type, purpose FROM ${table} WHERE id = ?`, [Number(id)]);
+  // 🔴 סגירת שורה **בלי התאמה** היא החלטה של הבעלים, ונאכפת בשרת ולא רק בהסתרת הכפתור. פריטה היא
+  // היוצאת מן הכלל: היא נאספת חזרה לקופה ולעולם לא תקבל חשבונית, ולכן כל מי שרואה את הדף סוגר אותה.
+  // בעלים, 16/10: גם המזכירה יכולה ללחוץ "טופל" — **הפעולה מתבצעת, ננעלת** (רק הבעלים יכול לבטל), ונשלחת
+  // לבעלים בקשת אישור (פוש + התראה עם "אשר / דחה"). דחייה מחזירה את ההוצאה לרשימה.
+  const row = await x.one(`SELECT description_type, purpose, settled_at FROM ${table} WHERE id = ?`, [Number(id)]);
   if (!isPettyExpense(row) && actor?.role !== 'owner') {
-    throw new RuleError('OWNER', 'סימון הוצאה שאינה פריטה כטופלה — בעלים בלבד. לשאר ההוצאות יש התאמה.');
+    if (!settled) throw new RuleError('OWNER', 'הסימון ממתין לאישור הבעלים — רק הבעלים יכול לבטל אותו.');
+    if (row?.settled_at) throw new RuleError('STATE', 'ההוצאה כבר סומנה כטופלה.');
+    await x.run(`UPDATE ${table} SET settled_at = ?, settled_by = ? WHERE id = ?`, [israelNowStamp(), actor?.id ?? null, Number(id)]);
+    await logAction({ userId: actor?.id ?? null, action: 'cash_expense.settle', entityType: 'cash_expense', entityId: Number(id), details: { source, pendingApproval: true } }, x);
+    const { submitRequest } = await import('./changeRequests.js');
+    const requestId = await submitRequest({
+      action: 'cash_expense.settle', entityType: SETTLE_ENTITY[source], entityId: Number(id),
+      payload: { source, id: Number(id) }, summary: await cashExpenseSummary(source, id, x),
+    }, actor, x);
+    return { source, id: Number(id), settled: true, pendingApproval: requestId };
   }
 
   await x.run(
@@ -431,6 +441,41 @@ export async function setCashExpenseSettled(source, id, settled, actor, scope = 
     x,
   );
   return { source, id: Number(id), settled };
+}
+
+/** סוג הישות של בקשת האישור, לפי מקור ההוצאה (שני מרחבי מזהים נפרדים). */
+export const SETTLE_ENTITY = { zreport: 'z_expense', zclosing: 'z_closing_expense' };
+
+/** "₪75.90 · מונית · נסיעה לספק · Z 3301 · ג׳וניור" — מה שהבעלים רואה בבקשת האישור. */
+async function cashExpenseSummary(source, id, x) {
+  const { fromAgorot } = await import('../lib/money.js');
+  const r = source === 'zclosing'
+    ? await x.one(`SELECT e.amount, e.payer_name, e.purpose, e.expense_date, zc.z_number, st.name AS store_name
+                     FROM z_closing_expenses e JOIN z_closings zc ON zc.id = e.closing_id LEFT JOIN stores st ON st.id = zc.store_id WHERE e.id = ?`, [Number(id)])
+    : await x.one(`SELECT e.amount, e.payer_name, e.purpose, e.expense_date, z.z_number, st.name AS store_name
+                     FROM z_expenses e JOIN z_reports z ON z.id = e.z_report_id LEFT JOIN stores st ON st.id = z.store_id WHERE e.id = ?`, [Number(id)]);
+  if (!r) return `הוצאת מזומן #${id}`;
+  return [`₪${fromAgorot(r.amount)}`, r.payer_name, r.purpose, r.z_number ? `Z ${r.z_number}` : null, r.store_name]
+    .filter(Boolean).join(' · ');
+}
+
+/** ביטול "טופל" כשהבעלים **דחה** את הבקשה — ההוצאה חוזרת ל"ללא התאמה". בלי בדיקת הרשאה: הבעלים החליט. */
+export async function revertCashExpenseSettle(source, id, actor, x = getExecutor()) {
+  const table = SETTLE_TABLE[source];
+  if (!table) throw new RuleError('VALIDATION', 'מקור הוצאה לא מוכר');
+  await x.run(`UPDATE ${table} SET settled_at = NULL, settled_by = NULL WHERE id = ?`, [Number(id)]);
+  await logAction({ userId: actor?.id ?? null, action: 'cash_expense.unsettle', entityType: 'cash_expense', entityId: Number(id), details: { source, rejected: true } }, x);
+}
+
+/** אילו הוצאות מחכות לאישור "טופל" — מפתחות `source|id`, כדי שהטבלאות יגידו "ממתין לאישור". */
+export async function pendingSettleKeys(x = getExecutor()) {
+  try {
+    const rows = await x.many("SELECT entity_type, entity_id FROM change_requests WHERE status = 'pending' AND action = 'cash_expense.settle'", []);
+    const back = Object.fromEntries(Object.entries(SETTLE_ENTITY).map(([k, v]) => [v, k]));
+    return rows.map((r) => `${back[r.entity_type]}|${Number(r.entity_id)}`);
+  } catch {
+    return [];
+  }
 }
 
 /** חותמת זמן לשמירה, באותו פורמט של `created_at` (UTC — התצוגה ממירה דרך israelStamp). */
