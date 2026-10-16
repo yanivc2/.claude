@@ -297,3 +297,112 @@ test('importer: two REAL lines with the same reference and amount (both in the p
   assert.equal(r.restated, 0, 'the old id is still reported → it is another transaction');
   assert.equal(r.inserted, 1);
 });
+
+// סופר על הדרך — המקרה האמיתי (בעלים, 16/10: אחרי ·228 השבר נשאר, ו-1א: "0 זוגות אפשריים", 270 מ-273
+// שורות הקובץ עם מזהה). אין עותק מהמשיכה: **שני קבצים** — הקודם הציג את ה"תיקון" ב-06/09, הבא ב-07/09.
+// היום של 06/09 עובר (לעותקים יתרה משלהם, והיתרה של העמלה היא בדיוק הצפויה), והשבר כולו ב-07/09.
+// המספרים מדף הבנק, באגורות: סגירת 06/09 ‎-154,076.45, סגירת 07/09 ‎-196,214.92.
+const mkImport = async (a, name) => Number((await db.run(
+  'INSERT INTO bank_imports (bank_account_id, source, file_name, rows_total) VALUES (?, ?, ?, ?)', [a, 'csv', name, 0],
+)).lastInsertRowid);
+const insImp = (a, imp, date, amount, desc, bal, { ref = null, ext = null } = {}) => db.run(
+  `INSERT INTO bank_transactions (bank_account_id, txn_date, amount, description, raw_reference, balance_after, source, external_id, import_id)
+   VALUES (?, ?, ?, ?, ?, ?, 'csv', ?, ?)`,
+  [a, date, amount, desc, ref, bal, ext, imp],
+);
+const FIX = [[-5192000, -20599645], [5190500, -15409145], [-2238, -15411383]];
+async function superTwoFiles() {
+  const a = await cleanAccount(0);
+  const f1 = await mkImport(a, 'על הדרך.xlsx');
+  const f2 = await mkImport(a, 'על הדרך.xlsx');
+  await insImp(a, f1, '2026-09-05', -10000, 'עמלה', -15396645, { ref: '1', ext: ID('1', '2026-09-05', -10000) });
+  await insImp(a, f1, '2026-09-06', -11000, 'שיק', -15407645, { ref: '26401', ext: ID('26401', '2026-09-06', -11000) });
+  for (const [amt, bal] of FIX) await insImp(a, f1, '2026-09-06', amt, 'תיקון', bal, { ref: '216404133' }); // the older export
+  for (const [amt, bal] of FIX) await insImp(a, f2, '2026-09-07', amt, 'תיקון (תאריך ערך: 06/09)', bal, { ref: '216404133', ext: ID('216404133', '2026-09-07', amt) });
+  await insImp(a, f2, '2026-09-07', -4210109, 'שיק', -19621492, { ref: '26478', ext: ID('26478', '2026-09-07', -4210109) });
+  return a;
+}
+
+test('Super, the real shape: two files a day apart — the break names the three lines counted twice', async () => {
+  const a = await superTwoFiles();
+  const r = await accountIntegrity(a, db);
+  assert.equal(r.breaks.length, 1);
+  const b = r.breaks[0];
+  assert.equal(b.date, '2026-09-07');
+  assert.equal(b.expected, -19625230, '‎-196,252.30 — as on the owner\'s screen');
+  assert.equal(b.found, -19621492, '‎-196,214.92');
+  assert.equal(b.diff, 3738);
+  assert.equal(b.suspects.length, 3);
+  assert.ok(b.suspects.every((x) => x.why === 'twice' && String(x.date).startsWith('2026-09-06')), 'the older copies (no bank id)');
+  assert.ok(b.around.length >= 8, 'the rows around the break are shown');
+});
+
+test('…1א proposes them (verified by the chain) and the merge keeps the 07/09 rows with their bank id', async () => {
+  const a = await superTwoFiles();
+  const d = await findAccountDuplicates(a, db);
+  assert.equal(d.mergeable.length, 3);
+  assert.ok(d.mergeable.every((p) => p.kind === 'days' && String(p.drop.txn_date).startsWith('2026-09-06')));
+  assert.equal(d.breaksBefore, 1);
+  assert.equal(d.breaksAfter, 0);
+  const m = await mergeAccountDuplicates(a, o, db);
+  assert.equal(m.merged, 3);
+  assert.equal((await accountIntegrity(a, db)).breaks.length, 0, 'the chain is whole');
+  const left = await db.many("SELECT txn_date, external_id FROM bank_transactions WHERE bank_account_id = ? AND raw_reference = '216404133'", [a]);
+  assert.equal(left.length, 3);
+  assert.ok(left.every((x) => String(x.txn_date).startsWith('2026-09-07') && x.external_id));
+});
+
+test('two REAL lines a day apart (same amount and reference) are not proposed — the chain is whole with both', async () => {
+  const a = await cleanAccount(0);
+  const f1 = await mkImport(a, 'a.xlsx');
+  const f2 = await mkImport(a, 'b.xlsx');
+  await insImp(a, f1, '2026-09-05', -100, 'עמלה', 100000, { ref: '9' });
+  await insImp(a, f1, '2026-09-06', -500, 'עמלה חודשית', 99500, { ref: '77' });
+  await insImp(a, f2, '2026-09-07', -500, 'עמלה חודשית', 99000, { ref: '77' });
+  const d = await findAccountDuplicates(a, db);
+  assert.equal(d.mergeable.length, 0);
+  assert.equal((await accountIntegrity(a, db)).breaks.length, 0);
+});
+
+test('importer: a second file that moved a line to the next day moves the existing row instead of adding it', async () => {
+  const a = await cleanAccount(0);
+  const row = (date, amount, description, balanceAfter, rawReference) => ({ txnDate: date, amount, description, balanceAfter, rawReference });
+  await importTransactions(a, [
+    row('2026-09-05', -10000, 'עמלה', -15396645, '1'),
+    row('2026-09-06', -11000, 'שיק', -15407645, '26401'),
+    ...FIX.map(([amt, bal]) => row('2026-09-06', amt, 'תיקון', bal, '216404133')),
+  ], 'csv', o, db, { fileName: 'על הדרך.xlsx' });
+  const r = await importTransactions(a, [
+    row('2026-09-06', -11000, 'שיק', -15407645, '26401'),
+    ...FIX.map(([amt, bal]) => row('2026-09-07', amt, 'תיקון (תאריך ערך: 06/09)', bal, '216404133')),
+    row('2026-09-07', -4210109, 'שיק', -19621492, '26478'),
+  ], 'csv', o, db, { fileName: 'על הדרך.xlsx' });
+  assert.equal(r.restated, 3);
+  assert.equal(r.inserted, 1, 'only the check');
+  assert.equal((await accountIntegrity(a, db)).breaks.length, 0, 'the chain is whole');
+  const fixes = await db.many("SELECT txn_date, description FROM bank_transactions WHERE bank_account_id = ? AND raw_reference = '216404133'", [a]);
+  assert.ok(fixes.every((x) => String(x.txn_date).startsWith('2026-09-07') && /תאריך ערך/.test(x.description)));
+  // the same second file again → nothing new
+  const again = await importTransactions(a, [row('2026-09-07', -4210109, 'שיק', -19621492, '26478'),
+    ...FIX.map(([amt, bal]) => row('2026-09-07', amt, 'תיקון (תאריך ערך: 06/09)', bal, '216404133'))], 'csv', o, db);
+  assert.equal(again.inserted, 0);
+});
+
+test('importer: a file that still lists the old line on its old date keeps both (two real lines)', async () => {
+  const a = await cleanAccount(0);
+  const row = (date, amount, balanceAfter) => ({ txnDate: date, amount, description: 'עמלה חודשית', balanceAfter, rawReference: '77' });
+  await importTransactions(a, [row('2026-09-06', -500, 99500)], 'csv', o, db);
+  const r = await importTransactions(a, [row('2026-09-06', -500, 99500), row('2026-09-07', -500, 99000)], 'csv', o, db);
+  assert.equal(r.restated, 0);
+  assert.equal(r.inserted, 1);
+  assert.equal((await db.one('SELECT COUNT(*) AS n FROM bank_transactions WHERE bank_account_id = ?', [a])).n, 2);
+});
+
+test('route: the page shows the rows around the break and offers the two-file merge', async () => {
+  const a = await superTwoFiles();
+  const page = await (await fetch(`${base}/reconciliation/integrity?account=${a}`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
+  assert.match(page, /שורות שנקלטו <strong>פעמיים<\/strong>/);
+  assert.match(page, /השורות אצלנו סביב השבר \(\d+\)/);
+  assert.match(page, /קובץ קודם, תאריך אחר/);
+  assert.match(page, /אחד 3 כפילויות מאומתות/);
+});

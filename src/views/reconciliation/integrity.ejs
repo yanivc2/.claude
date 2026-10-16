@@ -55,6 +55,24 @@
                 <% } else { %>
                   חסרה כנראה תנועה של <strong dir="ltr"><%= b.diff > 0 ? '+' : '-' %><%= formatIls(Math.abs(b.diff)) %></strong> (<%= b.diff > 0 ? 'זיכוי' : 'חיוב' %>) <%= range %> — לחפש אותה בדף הבנק.
                 <% } %>
+                <%# השורות עצמן — כדי שאפשר יהיה להשוות לדף הבנק שורה מול שורה. %>
+                <% if (b.around && b.around.length) { %>
+                  <details style="margin-top:.35rem">
+                    <summary class="muted" style="cursor:pointer">השורות אצלנו סביב השבר (<%= b.around.length %>)</summary>
+                    <div class="table-scroll" style="margin-top:.3rem"><table style="font-size:12px">
+                      <thead><tr><th>תאריך</th><th>תיאור</th><th>אסמכתא</th><th class="right">סכום</th><th class="right">יתרה</th><th>מקור</th></tr></thead>
+                      <tbody>
+                        <% b.around.forEach(function(x){ var dup = (b.suspects || []).some(function(s){ return Number(s.id) === Number(x.id); }); %>
+                          <tr<%- dup ? ' style="background:color-mix(in srgb, var(--color-bad) 14%, transparent)"' : '' %>>
+                            <td><%= formatDate(x.date) %></td><td><%= x.description || '' %></td><td dir="ltr"><%= x.ref || '' %></td>
+                            <td class="right" dir="ltr"><%= formatIls(x.amount) %></td><td class="right" dir="ltr"><%= x.balance == null ? '—' : formatIls(x.balance) %></td>
+                            <td class="muted"><%= x.source === 'csv' ? ('קובץ' + (x.file ? ' · ' + x.file : '')) : x.source === 'manual' ? 'ידני' : 'משיכה' %><%= x.hasId ? ' · מזהה בנק' : '' %></td>
+                          </tr>
+                        <% }); %>
+                      </tbody>
+                    </table></div>
+                  </details>
+                <% } %>
               </td>
             </tr>
           <% }); %>
@@ -68,30 +86,32 @@
   <% var dp = (typeof dups !== 'undefined' && dups) ? dups : null; %>
   <% if (dp) { var unver = dp.pairs.filter(function(p){ return !(p.verified && !p.conflict); }); %>
   <div class="card no-collapse">
-    <h2 style="margin:0 0 .3rem">1א. אותה תנועה פעמיים בחשבון הזה (קובץ + משיכה מהבנק)</h2>
-    <p class="muted" style="margin:0 0 .5rem">שורה שיובאה מקובץ אקסל ונמשכה שוב מהבנק — אותו סכום, עד 3 ימים הפרש. <strong>מוצע לאיחוד רק זוג שהסרת העותק שלו מאזנת את רצף היתרות של היום בדיוק</strong>, כלומר החשבון עצמו מוכיח שזו כפילות. באיחוד נשארת שורת הקובץ (עם היתרה), היא מקבלת את מזהה הבנק כדי שמשיכה הבאה לא תכפיל שוב, וכל התאמה שהייתה על העותק — תשלום, הפקדה, שכר — עוברת אליה.</p>
+    <h2 style="margin:0 0 .3rem">1א. אותה תנועה פעמיים בחשבון הזה</h2>
+    <p class="muted" style="margin:0 0 .5rem">שורה שיובאה מקובץ אקסל ונמשכה שוב מהבנק — או שהופיעה בשני קבצים בתאריכים שונים (הבנק הזיז את התאריך בין ייצוא לייצוא) — אותו סכום, עד 3 ימים הפרש. <strong>מוצע לאיחוד רק מה שהסרתו מאזנת את רצף היתרות בדיוק</strong>, כלומר החשבון עצמו מוכיח שזו כפילות. באיחוד נשארת השורה עם היתרה (ועם מזהה הבנק, כדי שמשיכה הבאה לא תכפיל שוב), וכל התאמה שהייתה על העותק — תשלום, הפקדה, שכר — עוברת אליה.</p>
     <p class="muted" style="margin:0 0 .5rem;font-size:12px">נבדקו <%= dp.fileRows %> שורות מקובץ מול <%= dp.pulledRows %> שורות שנמשכו מהבנק · נמצאו <%= dp.pairs.length %> זוגות אפשריים.
       <%# פירוט לאבחון: מה יכול למנוע זיווג (שתי שורות עם מזהה בנק לא מזווגות; שורת משיכה עם יתרה לא נחשבת עותק). %>
       (<%= dp.fileWithId %> משורות הקובץ נושאות מזהה בנק · <%= dp.pulledNoId %> משורות המשיכה בלי מזהה · <%= dp.pulledWithBalance %> משורות המשיכה עם יתרה)
       <% if (dp.channels && dp.channels.length) { %><br />ערוצי משיכה: <%= dp.channels.map(function(c){ return c.name + ' ×' + c.n; }).join(' · ') %><% } %></p>
-    <% if (!dp.fileRows || !dp.pulledRows) { %>
+    <% if (!dp.pairs.length && (!dp.fileRows || !dp.pulledRows)) { %>
       <p style="margin:0">✓ אין בחשבון גם שורות מקובץ וגם שורות משיכה — אין כאן כפילויות מהסוג הזה.</p>
     <% } else if (!dp.pairs.length) { %>
       <p style="margin:0">✓ לא נמצאה שורת קובץ שיש לה תאומה מהמשיכה.</p>
     <% } else if (dp.mergeable.length) { %>
       <p style="margin:0 0 .5rem"><strong><%= dp.mergeable.length %></strong> כפילויות מאומתות · שברים ברצף היתרות: <strong><%= dp.breaksBefore %></strong> עכשיו → <strong><%= dp.breaksAfter %></strong> אחרי האיחוד.</p>
       <div class="table-scroll"><table>
-        <thead><tr><th>תאריך (קובץ)</th><th>תאריך (בנק)</th><th class="right">סכום</th><th>תיאור בקובץ</th><th>תיאור בבנק</th><th>התאמה על העותק</th></tr></thead>
+        <thead><tr><th>תאריך — נשארת</th><th>תאריך — העותק</th><th class="right">סכום</th><th>תיאור — נשארת</th><th>תיאור — העותק</th><th>מאיפה העותק</th><th>התאמה על העותק</th></tr></thead>
         <tbody>
           <% dp.mergeable.forEach(function(p){ %>
             <tr><td><%= formatDate(p.keep.txn_date) %></td><td><%= formatDate(p.drop.txn_date) %></td><td class="right"><%= formatIls(p.keep.amount) %></td>
-              <td><%= p.keep.description || '' %></td><td><%= p.drop.description || '' %></td><td><%= p.dropMatched ? 'כן — תעבור' : '—' %></td></tr>
+              <td><%= p.keep.description || '' %></td><td><%= p.drop.description || '' %></td>
+              <td class="muted"><%= p.kind === 'days' ? ('קובץ קודם, תאריך אחר' + (p.drop.file_name ? ' · ' + p.drop.file_name : '')) : 'משיכה מהבנק' %></td>
+              <td><%= p.dropMatched ? 'כן — תעבור' : '—' %></td></tr>
           <% }); %>
         </tbody>
       </table></div>
       <% if (currentUser && currentUser.role === 'owner') { %>
         <form method="post" action="/reconciliation/integrity/merge" data-busy="מאחד…" style="margin-top:.6rem"
-              onsubmit="return confirm('לאחד <%= dp.mergeable.length %> כפילויות? בכל זוג נשארת שורת הקובץ, והעותק מהמשיכה נמחק (ההתאמות שלו עוברות).');">
+              onsubmit="return confirm('לאחד <%= dp.mergeable.length %> כפילויות? בכל זוג נשארת השורה עם היתרה, והעותק נמחק (ההתאמות שלו עוברות).');">
           <input type="hidden" name="account_id" value="<%= account.id %>" />
           <button type="submit">🧹 אחד <%= dp.mergeable.length %> כפילויות מאומתות</button>
         </form>

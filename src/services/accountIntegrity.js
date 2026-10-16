@@ -30,12 +30,10 @@ function anchorClose(rows, sum) {
 }
 
 // מה מסביר שבר: (1) שורה אחת בחלון שהסרתה מאפסת את ההפרש; (2) שורות שנקלטו **פעמיים** בחלון (אותו
-// סכום ואותה אסמכתא) שהעותקים שלהן יחד מאפסים אותו — סופר על הדרך 07/09: ‎-51,920 / ‎+51,905 / ‎-22.38
-// ("תיקון, תאריך ערך 06/09") פעמיים = ‎-37.38 בדיוק.
+// סכום ואותה אסמכתא) שהעותקים שלהן יחד מאפסים אותו.
 function suspectsFor(windowRows, diff) {
-  const pick = (r, why) => ({ id: r.id, date: r.txn_date, amount: r.amount, description: r.description, source: r.source, why });
   const single = windowRows.filter((r) => Number(r.amount) === -diff);
-  if (single.length) return single.map((r) => pick(r, 'extra'));
+  if (single.length) return single.map((r) => pickSuspect(r, 'extra'));
   const groups = new Map();
   for (const r of windowRows) {
     const ref = refKey(r.raw_reference);
@@ -46,7 +44,75 @@ function suspectsFor(windowRows, diff) {
   }
   const extras = [...groups.values()].filter((g) => g.length > 1).flatMap((g) => g.slice(1));
   const sum = extras.reduce((n, r) => n + Number(r.amount), 0);
-  return extras.length && sum === -diff ? extras.map((r) => pick(r, 'twice')) : [];
+  return extras.length && sum === -diff ? extras.map((r) => pickSuspect(r, 'twice')) : [];
+}
+const pickSuspect = (r, why) => ({ id: r.id, date: r.txn_date, amount: r.amount, description: r.description, source: r.source, why });
+
+const MAX_DAYS = 3;
+const dayOf = (r) => String(r.txn_date).slice(0, 10);
+const addDays = (d, n) => new Date(Date.parse(d) + n * 86_400_000).toISOString().slice(0, 10);
+const daysApart = (a, b) => Math.abs((Date.parse(a) - Date.parse(b)) / 86_400_000);
+
+/**
+ * אותה תנועה פעמיים **בשני תאריכים** — כל עותק ביום אחר, ולכן אף חלון לבדו לא רואה שתיים.
+ * בעלים (16/10, סופר על הדרך): "תיקון (תאריך ערך 06/09)" ‎-51,920 / ‎+51,905 ועמלת שטרי כסף ‎-22.38
+ * נרשמו בבנק ב-07/09, אבל קובץ שיוצא קודם הציג אותן ב-06/09. שני הקבצים יובאו, בדיקת הכפילות בייבוא
+ * משווה תאריך — ושתי הגרסאות נכנסו. היום של 06/09 **עבר** את הבדיקה (לעותקים יש יתרה משלהם, והיתרה
+ * של העמלה היא בדיוק הצפויה), והשבר כולו הופיע ב-07/09: ‎+37.38. טהור.
+ *
+ * זוג = אותו סכום ואותה אסמכתא (בלי אסמכתא: אותו תיאור), בתאריכים שונים עד 3 ימים, לא מאותו ייבוא
+ * (קובץ אחד לא מציג תנועה פעמיים), ולפחות עותק אחד בחלון השבור. נשארת השורה שנושאת יתרה, אחריה זו
+ * עם מזהה בנק (המשיכה הבאה תזהה אותה), ובתיקו — מהייבוא החדש יותר (התמונה העדכנית של הבנק).
+ * @returns {Array<{keep, drop}>} רק כשקבוצה **אחת** של עותקים מסתכמת בדיוק ב‎-diff; אחרת [].
+ */
+export function twiceAcrossDays(rows, brk) {
+  const to = brk.date;
+  const since = brk.since || brk.date;
+  const from = addDays(since, -MAX_DAYS);
+  const groups = new Map();
+  for (const r of rows) {
+    const d = dayOf(r);
+    if (d < from || d > to) continue;
+    const ref = refKey(r.raw_reference);
+    const desc = String(r.description || '').trim();
+    if (!ref && !desc) continue;
+    const k = `${Number(r.amount)}|${ref ? `r:${ref}` : `d:${desc}`}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(r);
+  }
+  const rank = (r) => (r.balance_after != null ? 2 : 0) + (r.external_id != null ? 1 : 0);
+  const pairs = [];
+  for (const g of groups.values()) {
+    if (g.length !== 2) continue;
+    const [a, b] = g;
+    const [da, db] = [dayOf(a), dayOf(b)];
+    if (da === db || daysApart(da, db) > MAX_DAYS) continue;
+    if (a.import_id != null && b.import_id != null && Number(a.import_id) === Number(b.import_id)) continue;
+    if (!(da > since || db > since) && since !== to) continue;
+    let keep = a;
+    let drop = b;
+    if (rank(b) > rank(a) || (rank(b) === rank(a) && Number(b.import_id || 0) > Number(a.import_id || 0))) [keep, drop] = [b, a];
+    pairs.push({ keep, drop });
+  }
+  if (!pairs.length || pairs.length > 12) return [];
+  let hit = null;
+  for (let m = 1; m < (1 << pairs.length); m += 1) {
+    let s = 0;
+    for (let i = 0; i < pairs.length; i += 1) if (m & (1 << i)) s += Number(pairs[i].drop.amount);
+    if (s !== -brk.diff) continue;
+    if (hit != null) return []; // שני הסברים — לא מנחשים
+    hit = m;
+  }
+  return hit == null ? [] : pairs.filter((_, i) => hit & (1 << i));
+}
+
+/** השורות סביב שבר — מה שצריך לראות כדי להבין אותו (מ-3 ימים לפני תחילת החלון ועד יום השבר). */
+function rowsAround(rows, since, date) {
+  const from = addDays(since || date, -MAX_DAYS);
+  return rows.filter((r) => { const d = dayOf(r); return d >= from && d <= date; }).slice(0, 80).map((r) => ({
+    id: r.id, date: dayOf(r), amount: r.amount, description: r.description, ref: r.raw_reference, balance: r.balance_after,
+    source: r.source, file: r.file_name || null, hasId: r.external_id != null,
+  }));
 }
 
 /**
@@ -108,8 +174,14 @@ export function balanceBreaks(rows) {
       found,
       diff,
       files: [...new Set(day.rows.map((r) => r.file_name || (r.source === 'csv' ? 'קובץ' : r.source)).filter(Boolean))],
-      // מה זה כנראה: שורה בחלון שהסרתה מאפסת את ההפרש (מיותרת אצלנו); אחרת — חסרה תנועה של diff.
-      suspects: suspectsFor(windowRows, diff),
+      // מה זה כנראה: שורה בחלון שהסרתה מאפסת את ההפרש (מיותרת אצלנו); שורות שנקלטו פעמיים — באותו
+      // חלון או בשני ימים סמוכים (`twiceAcrossDays`); אחרת — חסרה תנועה של diff.
+      suspects: (() => {
+        const inWindow = suspectsFor(windowRows, diff);
+        if (inWindow.length) return inWindow;
+        return twiceAcrossDays(rows, { date: day.date, since, diff }).map((p) => pickSuspect(p.drop, 'twice'));
+      })(),
+      around: rowsAround(rows, since, day.date),
     });
     close = found;
   }
@@ -124,7 +196,7 @@ export async function accountIntegrity(bankAccountId, x = getExecutor()) {
   const id = Number(bankAccountId);
   const rows = await x.many(
     `SELECT bt.id, bt.txn_date, bt.amount, bt.description, bt.raw_reference, bt.balance_after, bt.import_id, bt.source,
-            bi.file_name
+            bt.external_id, bi.file_name
        FROM bank_transactions bt LEFT JOIN bank_imports bi ON bi.id = bt.import_id
       WHERE bt.bank_account_id = ?
       ORDER BY bt.txn_date, bt.id`,

@@ -18,7 +18,7 @@ import { getExecutor, tx } from '../db/adapter.js';
 import { plainNumber } from '../lib/numText.js';
 import { RuleError } from '../lib/errors.js';
 import { logAction } from './audit.js';
-import { balanceBreaks } from './accountIntegrity.js';
+import { balanceBreaks, twiceAcrossDays } from './accountIntegrity.js';
 
 const FILE_SOURCES = new Set(['csv']);
 const PULL_SOURCES = new Set(['scraper', 'financy']);
@@ -138,6 +138,36 @@ export function verifyPairs(rows, pairs) {
   });
 }
 
+/**
+ * אותה תנועה פעמיים בשני תאריכים (בדרך כלל שני קבצים — `twiceAcrossDays`), **מוכחת ע"י רצף
+ * היתרות**: העותקים מוצעים רק כשהסרתם מעלימה את השבר ולא יוצרת שבר חדש באף יום. כאן שני הצדדים
+ * יכולים להיות שורות קובץ עם יתרה — הזיווג של `pairDuplicates` (קובץ↔משיכה) לא רואה אותם. טהור.
+ */
+export function chainProvenTwice(rows) {
+  const out = [];
+  let cur = rows;
+  const tried = new Set();
+  for (let guard = 0; guard < 60; guard += 1) {
+    const { breaks } = balanceBreaks(cur);
+    const b = breaks.find((x) => !tried.has(x.date));
+    if (!b) break;
+    tried.add(b.date);
+    const cand = twiceAcrossDays(cur, b);
+    if (!cand.length) continue;
+    const ids = new Set(cand.map((p) => Number(p.drop.id)));
+    const next = cur.filter((r) => !ids.has(Number(r.id)));
+    const was = new Set(breaks.map((x) => x.date));
+    const now = balanceBreaks(next).breaks.map((x) => x.date);
+    if (now.includes(b.date) || now.some((d) => !was.has(d))) continue;
+    for (const p of cand) {
+      out.push({ ...p, kind: 'days', window: b.date, verified: true, reason: null, replaceId: false,
+        takeId: p.keep.external_id == null && p.drop.external_id != null });
+    }
+    cur = next;
+  }
+  return out;
+}
+
 async function loadRows(accountId, x) {
   return x.many(
     `SELECT bt.id, bt.txn_date, bt.amount, bt.description, bt.raw_reference, bt.balance_after, bt.source,
@@ -177,7 +207,13 @@ async function linksFor(ids, x) {
  */
 export async function findAccountDuplicates(accountId, x = getExecutor()) {
   const rows = await loadRows(accountId, x);
-  const checked = verifyPairs(rows, pairDuplicates(rows));
+  const regular = verifyPairs(rows, pairDuplicates(rows)).map((p) => ({ ...p, kind: 'pull' }));
+  // מה שנשאר שבור אחרי זוגות הקובץ↔משיכה — אולי אותה תנועה בשני תאריכים (שני קבצים).
+  const regularDrops = new Set(regular.filter((p) => p.verified).map((p) => Number(p.drop.id)));
+  const used = new Set(regular.flatMap((p) => [Number(p.keep.id), Number(p.drop.id)]));
+  const days = chainProvenTwice(rows.filter((r) => !regularDrops.has(Number(r.id))))
+    .filter((p) => !used.has(Number(p.keep.id)) && !used.has(Number(p.drop.id)));
+  const checked = [...regular, ...days];
   const links = await linksFor(checked.flatMap((p) => [p.keep.id, p.drop.id]), x);
   for (const p of checked) {
     const k = Number(p.keep.id);

@@ -121,6 +121,28 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
       }
     }
 
+    // 🔴 אותו דבר בין **שני קבצים** (בעלים, 16/10, סופר על הדרך): קובץ שיוצא קודם הציג את ה"תיקון"
+    // ב-06/09, הקובץ הבא ב-07/09 — בדיקת השדות משווה תאריך, ושתי הגרסאות נכנסו (שבר ‎+37.38 ברצף).
+    // שורת קובץ קיימת עוברת לתאריך החדש (עם היתרה והתיאור של הקובץ החדש) רק כשהיא **נעלמה** מהקובץ
+    // החדש אף שהוא מכסה את התאריך שלה: אותו סכום ואותה אסמכתא, עד 3 ימים, ואין בקובץ החדש שורה
+    // באותו סכום ואסמכתא בתאריך הישן. שתי תנועות אמיתיות היו מופיעות שתיהן בקובץ שמכסה את שני הימים.
+    const movedRow = new Map();
+    if (source === 'csv' && batchDates.length) {
+      const refK = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').replace(/^0+/, '');
+      const [minD, maxD] = [batchDates[0], batchDates[batchDates.length - 1]];
+      const listed = new Set(rows.map((r) => `${String(r.txnDate).slice(0, 10)}|${Number(r.amount)}|${refK(r.rawReference)}`));
+      const olds = existing.filter((e) => e.source === 'csv' && refK(e.raw_reference))
+        .map((e) => ({ id: e.id, date: String(e.txn_date).slice(0, 10), amount: Number(e.amount), ref: refK(e.raw_reference), claimed: false }));
+      for (const r of rows) {
+        const ref = refK(r.rawReference);
+        if (!ref || byFields.has(fieldKey(r.txnDate, r.amount, r.description ?? null, r.rawReference ?? null))) continue;
+        const rd = String(r.txnDate).slice(0, 10);
+        const cand = olds.find((e) => !e.claimed && e.amount === Number(r.amount) && e.ref === ref && e.date !== rd
+          && dayDiff(e.date, rd) <= 3 && e.date >= minD && e.date <= maxD && !listed.has(`${e.date}|${e.amount}|${ref}`));
+        if (cand) { cand.claimed = true; movedRow.set(r, cand); }
+      }
+    }
+
     const adoptedRow = new Map();
     for (const maxDays of [0, 3]) {
       for (const r of rows) {
@@ -143,7 +165,7 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
       for (const maxDays of [0, 3]) {
         for (const r of rows) {
           // משיכה: רק שורה **בלי** מזהה — שורה עם מזהה כבר מטופלת באימוץ למעלה.
-          if (r.externalId || twinRow.has(r)) continue;
+          if (r.externalId || twinRow.has(r) || movedRow.has(r)) continue;
           if (byFields.has(fieldKey(r.txnDate, r.amount, r.description ?? null, r.rawReference ?? null))) continue;
           const hit = claimFrom(list, r, maxDays);
           if (hit) twinRow.set(r, hit);
@@ -160,6 +182,15 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
       // window is re-fetched on every sync. Rows without one (CSV / manual) keep the field-equality check.
       if (externalId ? byExternal.has(externalId) : byFields.has(fieldKey(r.txnDate, r.amount, desc, ref))) {
         skipped += 1;
+        continue;
+      }
+      const mv = movedRow.get(r);
+      if (mv) {
+        await t.run('UPDATE bank_transactions SET txn_date = ?, description = ?, raw_reference = ?, balance_after = COALESCE(?, balance_after) WHERE id = ?',
+          [r.txnDate, desc, ref, Number.isFinite(r.balanceAfter) ? r.balanceAfter : null, mv.id]);
+        byFields.add(fieldKey(r.txnDate, r.amount, desc, ref));
+        skipped += 1;
+        restated += 1;
         continue;
       }
       const re = restatedRow.get(r);
