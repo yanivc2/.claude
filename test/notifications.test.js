@@ -65,4 +65,7 @@ test('a cash alert belongs to its store, and an untagged one is never hung on a 
   const { unscopedNotificationCount, notificationStoreReady } = await import('../src/services/notifications.js');
   assert.equal(await unscopedNotificationCount(['cash_match', 'salary_cleared_unmatched'], db), 1);
   assert.equal(await notificationStoreReady(db), true);
+  // …ונעלמת כשהיא נקראה (בעלים, 16/10: "זה יעלם מתישהו?") — אחרת השורה נשארת בלוח הבקרה לתמיד.
+  await db.run("UPDATE notifications SET read_at = '2026-10-16 10:00:00' WHERE store_id IS NULL", []);
+  assert.equal(await unscopedNotificationCount(['cash_match', 'salary_cleared_unmatched'], db), 0);
 });

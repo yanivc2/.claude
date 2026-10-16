@@ -67,13 +67,17 @@ export async function listNotifications({ limit = 50, storeId = null } = {}, x =
   }
 }
 
-/** כמה התראות מסוג מסוים עדיין ללא שיוך לחנות — כדי שהרובריקה תוכל לומר שהן קיימות ולא להשתיקן. */
+/**
+ * כמה התראות מסוג מסוים, ללא שיוך לחנות, **עוד לא נקראו** — כדי שהרובריקה תוכל לומר שהן קיימות
+ * ולא להשתיקן. 🔴 רק שלא נקראו (בעלים, 16/10: "זה יעלם מתישהו?"): כשנספרו כולן, השורה נשארה בלוח
+ * הבקרה לתמיד — התראות לא נמחקות — ולא הייתה שום פעולה שמעלימה אותה. עכשיו הפעולה היא לקרוא אותן.
+ */
 export async function unscopedNotificationCount(kinds = [], x = getExecutor()) {
   if (!kinds.length) return 0;
   try {
     const marks = kinds.map(() => '?').join(', ');
     const r = await x.one(
-      `SELECT COUNT(*) AS n FROM notifications WHERE store_id IS NULL AND kind IN (${marks})`,
+      `SELECT COUNT(*) AS n FROM notifications WHERE store_id IS NULL AND read_at IS NULL AND kind IN (${marks})`,
       kinds,
     );
     return Number(r?.n || 0);
