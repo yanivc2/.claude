@@ -812,19 +812,21 @@ router.post('/zreports/:id/expenses-bulk', async (req, res, next) => {
   }
 });
 
-// Upload a scan of the printed Z slip (one image per Z report).
+// Upload a scan of the printed Z slip (one image per Z report) — the 📄/📷 buttons by the edit heading.
+// PRG: the page is a GET; rendering here left the browser on a POST-only URL.
 router.post('/zreports/:id/image', handleInvoiceImage, async (req, res, next) => {
   const id = Number(req.params.id);
+  const back = (key, msg) => res.redirect(303, `/reports/zreports/${id}?${key}=${encodeURIComponent(msg)}`);
   try {
     if (req.uploadError) {
       if (req.file) removeUpload(req.file.filename);
-      return renderZReport(req, res, id, { error: req.uploadError });
+      return back('err', req.uploadError);
     }
-    if (!req.file) return renderZReport(req, res, id, { error: 'לא נבחר קובץ.' });
+    if (!req.file) return back('err', 'לא נבחר קובץ.');
     const prev = await getZReport(id);
     await setZReportImage(id, req.file.filename, req.user);
     if (prev.image_path) removeUpload(prev.image_path);
-    await renderZReport(req, res, id, { notice: 'תמונת הדוח נשמרה.' });
+    back('notice', 'תמונת הדוח נשמרה.');
   } catch (err) {
     if (req.file) removeUpload(req.file.filename);
     next(err);

@@ -21,7 +21,7 @@ test('בדיקת שטרות: מעל עריכת הדוח, סגורה כברירת
 
   const html = await (await fetch(`${base}/reports/zreports/${zr.id}`, { headers: { cookie } })).text();
   const bills = html.indexOf('id="bill-check"');
-  const edit = html.indexOf('<h2>עריכת דוח</h2>');
+  const edit = html.indexOf('>עריכת דוח</h2>');
   assert.ok(bills > 0 && edit > 0 && bills < edit, 'בדיקת השטרות לפני עריכת הדוח');
   assert.match(html, /<details class="card collapse no-print" id="bill-check">/, 'סגורה — בלי open');
 

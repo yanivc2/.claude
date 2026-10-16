@@ -77,19 +77,56 @@
 </details>
 
 <div class="card no-print">
-  <h2>עריכת דוח</h2>
-  <%- include('_zform', { action: '/reports/zreports/' + zr.id, submitLabel: 'שמור שינויים', storeOptions: storeOptions, invoiceOptions: invoiceOptions, ccBrands: ccBrands, zr: zr, dep: dep, expenses: expenses }) %>
-</div>
-
-<div class="card no-print">
-  <div class="toolbar">
-    <h2 style="margin:0">תמונת הדוח</h2>
-    <% if (zr.image_path) { %><a href="/reports/zreports/<%= zr.id %>/image" target="_blank" class="btn btn-secondary btn-sm">צפה בתמונה</a><% } %>
+  <%# תמונת פתק ה-Z: שני כפתורים ליד הכותרת במקום כרטיס נפרד בתחתית (בקשת הבעלים). קלט קובץ אחד —
+      📷 מוסיף לו capture (מצלמה בנייד), 📄 מסיר אותו (בחירת קובץ); בחירה שולחת מיד. %>
+  <div class="toolbar" style="margin-bottom:.6rem">
+    <h2 style="margin:0">עריכת דוח</h2>
+    <div class="zimg-actions" style="display:flex;gap:.4rem;align-items:center">
+      <% if (zr.image_path) { %><a href="/reports/zreports/<%= zr.id %>/image" target="_blank" class="btn btn-secondary btn-sm" title="צפה בתמונת הדוח" aria-label="צפה בתמונת הדוח">🖼️</a><% } %>
+      <button type="button" class="btn btn-secondary btn-sm" data-zimg="file" title="העלה קובץ של פתק ה-Z (תמונה או PDF)" aria-label="העלה קובץ של פתק ה-Z">📄</button>
+      <button type="button" class="btn btn-secondary btn-sm" data-zimg="camera" title="צלם את פתק ה-Z" aria-label="צלם את פתק ה-Z">📷</button>
+    </div>
   </div>
-  <p class="muted">סריקה/צילום של פתק ה-Z המודפס.</p>
-  <form method="post" action="/reports/zreports/<%= zr.id %>/image" enctype="multipart/form-data" class="stack">
-    <input type="file" name="image" accept="image/*,application/pdf" required />
-    <div style="margin-top:.6rem"><button type="submit">📷 העלה תמונת דוח</button></div>
+  <form method="post" action="/reports/zreports/<%= zr.id %>/image" enctype="multipart/form-data" id="zimg-form" data-busy="מעלה…" hidden>
+    <input type="file" name="image" id="zimg-input" accept="image/*,application/pdf" />
   </form>
+  <script>
+  (function(){
+    var form = document.getElementById('zimg-form'), input = document.getElementById('zimg-input');
+    if (!form || !input) return;
+    document.querySelectorAll('[data-zimg]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if (btn.dataset.zimg === 'camera') { input.setAttribute('capture', 'environment'); input.accept = 'image/*'; }
+        else { input.removeAttribute('capture'); input.accept = 'image/*,application/pdf'; }
+        input.click();
+      });
+    });
+    function send(){ if (form.requestSubmit) form.requestSubmit(); else form.submit(); }
+    // צילום מהמצלמה בנייד שוקל 3-8MB, ו-Vercel דוחה גוף בקשה מעל ~4.5MB עוד לפני השרת (CLAUDE.md) —
+    // לכן תמונה גדולה מוקטנת בדפדפן ל-2000px לפני השליחה. PDF נשלח כמו שהוא.
+    function shrink(file, cb){
+      if (!/^image\//.test(file.type) || file.size < 1500000) return cb(null);
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function(){
+        var s = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+        var c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+        c.toBlob(function(b){ cb(b ? new File([b], 'z-slip.jpg', { type: 'image/jpeg' }) : null); }, 'image/jpeg', 0.88);
+      };
+      img.onerror = function(){ URL.revokeObjectURL(url); cb(null); };
+      img.src = url;
+    }
+    input.addEventListener('change', function(){
+      if (!input.files || !input.files.length) return;
+      document.querySelectorAll('[data-zimg]').forEach(function(b){ b.disabled = true; });
+      document.querySelector('[data-zimg="camera"]').textContent = '⏳';
+      shrink(input.files[0], function(small){
+        if (small) { try { var dt = new DataTransfer(); dt.items.add(small); input.files = dt.files; } catch (_) {} }
+        send();
+      });
+    });
+  })();
+  </script>
+  <%- include('_zform', { action: '/reports/zreports/' + zr.id, submitLabel: 'שמור שינויים', storeOptions: storeOptions, invoiceOptions: invoiceOptions, ccBrands: ccBrands, zr: zr, dep: dep, expenses: expenses }) %>
 </div>
 <%- include('../partials/footer') %>
