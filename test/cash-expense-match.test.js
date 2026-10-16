@@ -144,11 +144,12 @@ test('הלוח מציג כפתור לפי סוג ואת כרטיס ההתראו�
   const dash = readFileSync(new URL('../src/views/dashboard.ejs', import.meta.url), 'utf8');
   assert.match(dash, /התראות מזומן/);
   assert.match(dash, /card no-collapse/, 'כרטיס אזהרה לא נסגר מאחורי אקורדיון');
-  // נמדד בנייד: "התאם לצ׳ק שכר" נשבר לשלוש שורות בעמודת פעולה ברוחב 55px (כפתור בגובה 72px).
-  // הכיתוב המלא נשאר בדסקטופ ונחתך מתחת ל-700px — הכפתור חזר לשורה אחת בגובה 42px.
-  assert.match(v, /cx-btn-long/, 'הכיתוב הארוך מסומן כך שאפשר לחתוך אותו בנייד');
+  // "התאם לצ׳ק שכר" הרחיב את עמודת הפעולה עד ש"טופל" נחתך מחוץ למסך — גם בדסקטופ צר (בעלים, 16/10).
+  // עכשיו כיתוב קצר אחד לכל הסוגים (המטרה ב-title), והכפתורים נשברים לשורה בתוך `.cx-acts` צר.
+  assert.doesNotMatch(v, /<span class="cx-btn-long"> לצ׳ק שכר<\/span>/, 'אין כיתוב ארוך שמרחיב את העמודה');
+  assert.match(v, /title="<%= _isSal \? 'התאם לצ׳ק שכר'/, 'המטרה נאמרת ב-title');
   const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
-  assert.match(css, /\.cx-btn-long\s*\{\s*display:\s*none/, 'ה-CSS שמסתיר אותו בנייד קיים');
+  assert.match(css, /\.cx-acts \{[^}]*flex-wrap: wrap;[^}]*max-width/, 'הכפתורים נשברים לשורה ולא מרחיבים את הטבלה');
   for (const f of ['zclosing/index', 'zclosing/edit', 'reports/_zform']) {
     const t = readFileSync(new URL(`../src/views/${f}.ejs`, import.meta.url), 'utf8');
     assert.match(t, /\['petty','פריטה'\]/, `${f}: סוג פריטה קיים בבורר`);

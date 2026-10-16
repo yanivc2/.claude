@@ -1146,7 +1146,10 @@ tr.row-tracked:hover td { background: color-mix(in srgb, #f59e0b 18%, transparen
   .cx-btn-long { display: none; }
 }
 /* כפתורי השורה (💬 · התאם · טופל) נשברים לשורה הבאה במקום לברוח מהמסך — בנייד הימני נחתך (בעלים, 16/10). */
-.cx-acts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.cx-acts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; max-width: 210px; }
+/* טבלת המזומן משתמשת ב-.line-grid רק לקיפול לכרטיסים בנייד — בלי רוחב המינימום של העמודה הראשונה. */
+.cx-table.line-grid th:first-child, .cx-table.line-grid td:first-child { min-width: 0; }
+@media (max-width: 760px) { .cx-table .cx-acts { max-width: none; } .cx-table td.right { text-align: start; } }
 .cx-acts form { margin: 0; }
 
 /* "בחירת חנות" (views/context/choose.ejs) — כפתור גדול לכל חנות. */

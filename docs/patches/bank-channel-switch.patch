@@ -1,0 +1,123 @@
+diff --git a/src/services/bankTransactions.js b/src/services/bankTransactions.js
+index 304b01f..b959e22 100644
+--- a/src/services/bankTransactions.js
++++ b/src/services/bankTransactions.js
+@@ -40,6 +40,7 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
+   let adopted = 0;
+   let merged = 0;
+   let restated = 0;
++  let switched = 0;
+   await tx(async (t) => {
+     // כל מה שכבר בחשבון נטען פעם אחת — בדיקת כפילות בזיכרון במקום SELECT לכל שורה. משיכה מהבנק
+     // מביאה ~2,000 שורות, ושתי קריאות מסד לכל שורה מ-Vercel ל-Neon הן דקות.
+@@ -143,11 +144,40 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
+       }
+     }
+ 
++    // 🔴 **החלפת ערוץ משיכה** (בעלים, 16/10: מעבר לבנקאות פתוחה — Financy — כדי שהסנכרון יהיה יומי
++    // בלי קוד SMS). לכל ערוץ מזהה משלו לאותה תנועה: הסוכן `scr:hapoalimBiz:…`, Financy מזהה של הספק.
++    // בלי זה המשיכה הראשונה בערוץ החדש (90 יום) הייתה מכניסה פעם שנייה **כל** מה שהערוץ הקודם הביא —
++    // בדיוק מה שקרה במידנייט בין `scr:hapoalim` ל-`scr:hapoalimBiz`. שורה קיימת **מערוץ אחר** (גם שורת
++    // קובץ שאימצה מזהה של הסוכן) עם אותו סכום ואותה אסמכתא, עד 3 ימים (תאריך ערך מול תאריך פעולה),
++    // ושהמזהה שלה לא במשיכה הזו — מקבלת את המזהה החדש ולא נקלטת שוב (ההתאמות שלה נשארות). בלי
++    // אסמכתא משותפת — רק באותו יום ובאותו סכום. כל שורה קיימת נתפסת פעם אחת.
++    const channelOf = (id) => { const t = String(id || ''); if (!t) return null; const m = /^scr:([^:]*):/.exec(t); return m ? `scr:${m[1]}` : 'ext'; };
++    const switchedRow = new Map();
++    if (PULL_SOURCES.has(source)) {
++      const refK = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').replace(/^0+/, '');
++      const mine = new Set(rows.map((r) => channelOf(r.externalId)).filter(Boolean));
++      const others = existing
++        .filter((e) => e.external_id && !mine.has(channelOf(e.external_id)) && !batchIds.has(e.external_id))
++        .map((e) => ({ id: e.id, date: String(e.txn_date).slice(0, 10), amount: Number(e.amount), ref: refK(e.raw_reference), claimed: false }));
++      if (others.length) {
++        for (const maxDays of [0, 3]) {
++          for (const r of rows) {
++            const ext = r.externalId ?? null;
++            if (!ext || byExternal.has(ext) || restatedRow.has(r) || switchedRow.has(r)) continue;
++            const ref = refK(r.rawReference);
++            const pool = others.filter((e) => !e.claimed && e.amount === Number(r.amount) && dayDiff(e.date, r.txnDate) <= maxDays);
++            const cand = (ref && pool.find((e) => e.ref === ref)) || (maxDays === 0 ? pool.find((e) => !e.ref || !ref) : null);
++            if (cand) { cand.claimed = true; switchedRow.set(r, cand); }
++          }
++        }
++      }
++    }
++
+     const adoptedRow = new Map();
+     for (const maxDays of [0, 3]) {
+       for (const r of rows) {
+         const externalId = r.externalId ?? null;
+-        if (!externalId || byExternal.has(externalId) || adoptedRow.has(r) || restatedRow.has(r) || !legacy.length) continue;
++        if (!externalId || byExternal.has(externalId) || adoptedRow.has(r) || restatedRow.has(r) || switchedRow.has(r) || !legacy.length) continue;
+         const hit = claimFrom(legacy, r, maxDays);
+         if (hit) adoptedRow.set(r, hit);
+       }
+@@ -193,6 +223,14 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
+         restated += 1;
+         continue;
+       }
++      const sw = switchedRow.get(r);
++      if (sw) {
++        await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ?', [externalId, sw.id]);
++        byExternal.add(externalId);
++        skipped += 1;
++        switched += 1;
++        continue;
++      }
+       const re = restatedRow.get(r);
+       if (re) {
+         await t.run('UPDATE bank_transactions SET external_id = ? WHERE id = ?', [externalId, re.rowId]);
+@@ -235,10 +273,10 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
+ 
+   await x.run('UPDATE bank_imports SET inserted = ?, skipped = ? WHERE id = ?', [inserted, skipped, importId]);
+   await logAction(
+-    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, adopted, merged, restated, importId, fileName } },
++    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, adopted, merged, restated, switched, importId, fileName } },
+     x,
+   );
+-  return { inserted, skipped, adopted, merged, restated, importId };
++  return { inserted, skipped, adopted, merged, restated, switched, importId };
+ }
+ 
+ /**
+diff --git a/test/bank-duplicates.test.js b/test/bank-duplicates.test.js
+index 6ff828f..08ea8be 100644
+--- a/test/bank-duplicates.test.js
++++ b/test/bank-duplicates.test.js
+@@ -498,3 +498,36 @@ test('deletion history: a cancelled import is named (when, source, how many), wi
+   assert.match(page, /מה נמחק מהחשבון הזה/);
+   assert.match(page, /ביטול ייבוא<\/strong> — סריקה/);
+ });
++
++// בעלים, 16/10 — מעבר לבנקאות פתוחה (Financy) כדי שהסנכרון יהיה יומי בלי קוד SMS. לכל ערוץ מזהה
++// משלו לאותה תנועה; בלי הגנה המשיכה הראשונה ב-Financy (90 יום) הייתה מכניסה שוב כל מה שהסוכן הביא.
++test('channel switch: Financy pull takes over the agent\'s rows (and file rows with the agent id) — nothing doubled', async () => {
++  const a = await cleanAccount(0);
++  await ins(a, '2026-09-10', -5000, 'שיק', { source: 'scraper', ext: 'scr:hapoalimBiz:12-628-1:26401:2026-09-10:-5000', ref: '26401' });
++  await ins(a, '2026-09-11', -2238, 'עמלה', { bal: 1000, ext: 'scr:hapoalimBiz:12-628-1:9:2026-09-11:-2238', ref: '9' }); // file row adopted by the agent
++  await ins(a, '2026-09-12', 70000, 'הפקדה', { source: 'scraper', ext: 'scr:hapoalimBiz:12-628-1:0:2026-09-12:70000', ref: null });
++  const pull = [
++    { txnDate: '2026-09-10', amount: -5000, description: 'CHEQUE', rawReference: '26401', externalId: 'SK-1' },
++    { txnDate: '2026-09-12', amount: -2238, description: 'fee', rawReference: '9', externalId: 'SK-2' }, // value date 1 day later
++    { txnDate: '2026-09-12', amount: 70000, description: 'deposit', rawReference: null, externalId: 'SK-3' },
++    { txnDate: '2026-09-13', amount: -100, description: 'new', rawReference: '55', externalId: 'SK-4' },
++  ];
++  const r = await importTransactions(a, pull, 'financy', o, db);
++  assert.equal(r.switched, 3, 'three existing rows now carry the Financy id');
++  assert.equal(r.inserted, 1, 'only the genuinely new line');
++  assert.equal((await db.one('SELECT COUNT(*) AS n FROM bank_transactions WHERE bank_account_id = ?', [a])).n, 4);
++  const again = await importTransactions(a, pull, 'financy', o, db);
++  assert.equal(again.inserted, 0, 'the next Financy pull recognises them by id');
++  assert.equal(again.switched, 0);
++});
++
++test('channel switch: two real identical lines of the same day are not folded into one existing row', async () => {
++  const a = await cleanAccount(0);
++  await ins(a, '2026-09-10', -500, 'עמלה', { source: 'scraper', ext: 'scr:hapoalimBiz:A:77:2026-09-10:-500', ref: '77' });
++  const r = await importTransactions(a, [
++    { txnDate: '2026-09-10', amount: -500, description: 'fee', rawReference: '77', externalId: 'SK-a' },
++    { txnDate: '2026-09-10', amount: -500, description: 'fee', rawReference: '77', externalId: 'SK-b' },
++  ], 'financy', o, db);
++  assert.equal(r.switched, 1);
++  assert.equal(r.inserted, 1, 'the second real line is kept');
++});
