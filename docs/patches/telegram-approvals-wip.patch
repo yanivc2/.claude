@@ -1,0 +1,289 @@
+diff --git a/src/lib/notify.js b/src/lib/notify.js
+index 1693ba7..bd9cd72 100644
+--- a/src/lib/notify.js
++++ b/src/lib/notify.js
+@@ -19,7 +19,7 @@ export function telegramConfigured() {
+  * so a silent no-op becomes a visible reason. Never rejects.
+  * @returns {Promise<{ok:boolean, detail:string}>}
+  */
+-export async function sendTelegramDetailed(text) {
++export async function sendTelegramDetailed(text, extra = {}) {
+   const { botToken, chatId } = config.telegram;
+   if (!botToken) return { ok: false, detail: 'לא הוגדר TELEGRAM_BOT_TOKEN במשתני הסביבה של השרת (Vercel → Settings → Environment Variables). לאחר הוספה — צריך Redeploy.' };
+   if (!chatId) return { ok: false, detail: 'לא הוגדר TELEGRAM_CHAT_ID.' };
+@@ -27,7 +27,7 @@ export async function sendTelegramDetailed(text) {
+     const res = await fetch(`${TG_API}/bot${botToken}/sendMessage`, {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
++      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true, ...extra }),
+     });
+     let body = null;
+     try { body = await res.json(); } catch { /* non-JSON */ }
+@@ -61,9 +61,10 @@ export async function sendTelegramDetailed(text) {
+  * Send a Telegram message to the configured chat. Resolves to true if sent, false if skipped
+  * (no token) or failed. Never rejects.
+  * @param {string} text  message body (HTML parse mode — links allowed)
++ * @param {object} [extra]  more sendMessage fields (e.g. reply_markup for inline buttons)
+  */
+-export async function sendTelegram(text) {
+-  const r = await sendTelegramDetailed(text);
++export async function sendTelegram(text, extra = {}) {
++  const r = await sendTelegramDetailed(text, extra);
+   // eslint-disable-next-line no-console
+   if (!r.ok && config.telegram.botToken) console.error(`[notify] ${r.detail}`);
+   return r.ok;
+@@ -81,12 +82,14 @@ function toPlain(html) {
+ /**
+  * Fire-and-forget wrapper: push a Telegram alert AND record it to the in-app notification stream,
+  * without blocking the caller. Both paths are best-effort and never throw. `opts.link` (optional)
+- * makes the in-app notification clickable; `opts.kind` tags it.
++ * makes the in-app notification clickable; `opts.kind` tags it; `opts.replyMarkup` adds inline
++ * buttons to the Telegram copy only (see lib/telegramBot.js).
+  * @param {string} text  HTML message body
+- * @param {{kind?:string, link?:string, storeId?:number}} [opts]
++ * @param {{kind?:string, link?:string, storeId?:number, replyMarkup?:object}} [opts]
+  */
+ export function notify(text, opts = {}) {
+-  const tg = sendTelegram(text); // Telegram (no-op if unconfigured); never rejects
++  // Telegram (no-op if unconfigured); never rejects
++  const tg = sendTelegram(text, opts.replyMarkup ? { reply_markup: opts.replyMarkup } : {});
+   // In-app copy: first line → title, remainder → body. Dynamic import keeps this lib free of a
+   // static dependency on the service/DB layer (and avoids any import cycle).
+   const inApp = (async () => {
+diff --git a/src/lib/telegramBot.js b/src/lib/telegramBot.js
+new file mode 100644
+index 0000000..7e0211b
+--- /dev/null
++++ b/src/lib/telegramBot.js
+@@ -0,0 +1,90 @@
++// The Telegram bot as a two-way channel: approval requests go out with inline buttons
++// ("✓ אשר" / "✕ דחה"), and the owner's tap comes back to POST /ingest/telegram as a webhook.
++//
++// Trust model — every tap that reaches the app must clear two independent gates:
++//   1. the request carries X-Telegram-Bot-Api-Secret-Token = webhookSecret(). Telegram sends it
++//      only because setWebhook was told to; the value is derived from the bot token, so it needs
++//      no extra env var and changes by itself when the token is rotated;
++//   2. callback_query.from.id is the owner's Telegram id (config.telegram.chatId). A forwarded
++//      message or a group chat cannot make anyone else's tap count.
++// Nothing here throws into the request path; callers get {ok, ...} back.
++
++import { createHmac } from 'node:crypto';
++import { config } from '../config.js';
++
++const TG_API = 'https://api.telegram.org';
++
++/** Webhook secret_token: HMAC of the bot token (Telegram allows [A-Za-z0-9_-], 1-256 chars). */
++export function webhookSecret() {
++  const token = config.telegram.botToken;
++  if (!token) return null;
++  return createHmac('sha256', token).update('ap-control:telegram-webhook').digest('hex');
++}
++
++/** One Bot API call. Never rejects: resolves to {ok, result?, description?}. */
++export async function tgCall(method, body) {
++  const token = config.telegram.botToken;
++  if (!token) return { ok: false, description: 'no TELEGRAM_BOT_TOKEN' };
++  try {
++    const res = await fetch(`${TG_API}/bot${token}/${method}`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify(body || {}),
++    });
++    let json = null;
++    try { json = await res.json(); } catch { /* non-JSON */ }
++    if (json && json.ok) return { ok: true, result: json.result };
++    return { ok: false, description: (json && json.description) || `HTTP ${res.status}` };
++  } catch (err) {
++    return { ok: false, description: err.message };
++  }
++}
++
++/** The app's public origin for links inside a Telegram message, or null when unknown. */
++export function publicOrigin() {
++  if (config.mail.appUrl) return config.mail.appUrl.replace(/\/$/, '');
++  const prod = process.env.VERCEL_PROJECT_PRODUCTION_URL;
++  return prod ? `https://${prod.replace(/^https?:\/\//, '').replace(/\/$/, '')}` : null;
++}
++
++/** callback_data for an approval tap: `cr:a:<id>` approves, `cr:r:<id>` rejects. */
++export function parseApprovalData(data) {
++  const m = /^cr:([ar]):(\d+)$/.exec(String(data || ''));
++  return m ? { decision: m[1] === 'a' ? 'approve' : 'reject', requestId: Number(m[2]) } : null;
++}
++
++/** Inline keyboard sent with a new change request. */
++export function approvalKeyboard(requestId) {
++  const rows = [[
++    { text: '✓ אשר', callback_data: `cr:a:${requestId}` },
++    { text: '✕ דחה', callback_data: `cr:r:${requestId}` },
++  ]];
++  const base = publicOrigin();
++  if (base) rows.push([{ text: '🔎 פרטים במערכת', url: `${base}/approvals?req=${requestId}` }]);
++  return { inline_keyboard: rows };
++}
++
++/** What the buttons turn into once the request is decided — a single inert status button. */
++export function decidedKeyboard(label) {
++  return { inline_keyboard: [[{ text: label, callback_data: 'cr:done' }]] };
++}
++
++/**
++ * Point the bot's webhook at `${origin}/ingest/telegram` (owner's "חבר כפתורי אישור" button).
++ * Only callback_query updates are requested — a typed message to the bot is never delivered.
++ * @returns {Promise<{ok:boolean, detail:string}>}
++ */
++export async function registerWebhook(origin) {
++  if (!config.telegram.botToken) {
++    return { ok: false, detail: 'לא הוגדר TELEGRAM_BOT_TOKEN במשתני הסביבה של השרת — אין בוט לחבר.' };
++  }
++  const url = `${String(origin).replace(/\/$/, '')}/ingest/telegram`;
++  if (!/^https:\/\//.test(url)) {
++    return { ok: false, detail: `טלגרם מקבל רק כתובת https, והכתובת כאן היא ${url}. לחץ על הכפתור מתוך האתר החי.` };
++  }
++  const set = await tgCall('setWebhook', {
++    url, secret_token: webhookSecret(), allowed_updates: ['callback_query'], drop_pending_updates: true,
++  });
++  if (!set.ok) return { ok: false, detail: `טלגרם סירב לחבר את הכפתורים: ${set.description}` };
++  return { ok: true, detail: `כפתורי האישור בטלגרם חוברו (${url}). מעכשיו כל בקשת אישור תגיע עם "✓ אשר" / "✕ דחה".` };
++}
+diff --git a/src/services/changeRequests.js b/src/services/changeRequests.js
+index a5280e2..48e4757 100644
+--- a/src/services/changeRequests.js
++++ b/src/services/changeRequests.js
+@@ -1,6 +1,7 @@
+ import { getExecutor, nowTs, tx } from '../db/adapter.js';
+ import { NotFoundError, RuleError } from '../lib/errors.js';
+ import { notify } from '../lib/notify.js';
++import { approvalKeyboard } from '../lib/telegramBot.js';
+ import { logAction } from './audit.js';
+ import { updateInvoice, approveInvoiceForPayment, releaseHold } from './invoices.js';
+ import { updateSupplier } from './suppliers.js';
+@@ -59,10 +60,11 @@ export async function submitRequest({ action, entityType, entityId, payload, sum
+   await logAction({ userId: actor?.id ?? null, action: 'change_request.submit', entityType: 'change_request', entityId: info.lastInsertRowid, details: { action } }, x);
+   // Generic alert only — no amounts/names/diff (details stay inside the app under /approvals).
+   // 🔴 await: on serverless a fire-and-forget notify is lost once the response is sent (CLAUDE.md).
+-  // kind 'approval' + the request id in the link → the notifications page offers "אשר / דחה" in place.
++  // kind 'approval' + the request id in the link → the notifications page offers "אשר / דחה" in place;
++  // the Telegram copy carries the same two buttons (tap → POST /ingest/telegram).
+   await notify(
+-    `📝 <b>בקשת אישור חדשה</b>\nמאת ${actor?.name || 'משתמש'} · ${actionLabel(action)}\nהיכנס למערכת לצפייה ואישור.`,
+-    { kind: 'approval', link: `/approvals?req=${info.lastInsertRowid}` },
++    `📝 <b>בקשת אישור חדשה</b>\nמאת ${actor?.name || 'משתמש'} · ${actionLabel(action)}\nאפשר לאשר או לדחות כאן, או במערכת.`,
++    { kind: 'approval', link: `/approvals?req=${info.lastInsertRowid}`, replyMarkup: approvalKeyboard(info.lastInsertRowid) },
+   );
+   return info.lastInsertRowid;
+ }
+@@ -104,7 +106,7 @@ export async function getRequest(id, x = getExecutor()) {
+  * transaction, so a failure anywhere rolls back both — the change is never applied while the
+  * request stays "pending" (which would allow a second approval = double-apply). The status is
+  * re-checked inside the transaction to close the race. The Telegram alert fires only after the
+- * commit and is fire-and-forget, so a notification failure can never undo an applied approval.
++ * commit and notify never rejects, so a notification failure can never undo an applied approval.
+  */
+ export async function approveRequest(id, ownerActor, x = getExecutor()) {
+   const req = await getRequest(id, x);
+@@ -127,7 +129,7 @@ export async function approveRequest(id, ownerActor, x = getExecutor()) {
+     await logAction({ userId: ownerActor?.id ?? null, action: 'change_request.approve', entityType: 'change_request', entityId: id, details: { action: req.action } }, t);
+   });
+ 
+-  notify(`✅ <b>בקשת עריכה אושרה ובוצעה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''}). הפרטים במערכת.`);
++  await notify(`✅ <b>בקשת עריכה אושרה ובוצעה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''}). הפרטים במערכת.`);
+   return getRequest(id, x);
+ }
+ 
+@@ -146,6 +148,6 @@ export async function rejectRequest(id, ownerActor, note = null, x = getExecutor
+     );
+     await logAction({ userId: ownerActor?.id ?? null, action: 'change_request.reject', entityType: 'change_request', entityId: id, details: { note } }, t);
+   });
+-  notify(`⛔ <b>בקשת עריכה נדחתה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''})${note ? '\nסיבה: ' + note : ''}`);
++  await notify(`⛔ <b>בקשת עריכה נדחתה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''})${note ? '\nסיבה: ' + note : ''}`);
+   return getRequest(id, x);
+ }
+diff --git a/src/services/telegramApprovals.js b/src/services/telegramApprovals.js
+new file mode 100644
+index 0000000..64241ad
+--- /dev/null
++++ b/src/services/telegramApprovals.js
+@@ -0,0 +1,81 @@
++// The owner's tap on "✓ אשר" / "✕ דחה" under a Telegram approval request (see lib/telegramBot.js).
++// The decision runs through the very same approveRequest/rejectRequest the /approvals page uses —
++// same transaction, same re-check, same audit — so Telegram is only another place to press it.
++
++import { getExecutor } from '../db/adapter.js';
++import { config } from '../config.js';
++import { NotFoundError, RuleError } from '../lib/errors.js';
++import { tgCall, parseApprovalData, decidedKeyboard } from '../lib/telegramBot.js';
++import { approveRequest, rejectRequest } from './changeRequests.js';
++import { logAction } from './audit.js';
++
++const STATUS_LABEL = { approved: '✅ אושר', rejected: '⛔ נדחה' };
++
++/** The user a Telegram decision is recorded as: the first owner (the bot pushes to the owner only). */
++async function ownerActor(x) {
++  return x.one("SELECT id, name, role FROM users WHERE role = 'owner' ORDER BY id LIMIT 1", []);
++}
++
++/** Toast on the owner's phone + (optionally) swap the buttons for a status line. Best-effort. */
++async function reply(cq, toast, statusLabel, alert = false) {
++  await tgCall('answerCallbackQuery', { callback_query_id: cq.id, text: toast, show_alert: alert });
++  const msg = cq.message;
++  if (statusLabel && msg && msg.chat) {
++    await tgCall('editMessageReplyMarkup', {
++      chat_id: msg.chat.id, message_id: msg.message_id, reply_markup: decidedKeyboard(statusLabel),
++    });
++  }
++}
++
++/**
++ * Handle one webhook update. Returns what happened (for tests/logs); never throws for a bad tap.
++ * @returns {Promise<{handled:boolean, outcome?:string}>}
++ */
++export async function handleTelegramUpdate(update, x = getExecutor()) {
++  const cq = update && update.callback_query;
++  if (!cq || !cq.id) return { handled: false };
++
++  // Gate 2 (gate 1 = the webhook secret, checked by the route): only the owner's own tap counts.
++  if (String(cq.from && cq.from.id) !== String(config.telegram.chatId)) {
++    await reply(cq, 'אין לך הרשאה לאשר בקשות.', null, true);
++    return { handled: true, outcome: 'forbidden' };
++  }
++  if (cq.data === 'cr:done') {
++    await reply(cq, 'הבקשה כבר טופלה.', null);
++    return { handled: true, outcome: 'noop' };
++  }
++  const parsed = parseApprovalData(cq.data);
++  if (!parsed) {
++    await reply(cq, 'כפתור לא מוכר.', null);
++    return { handled: true, outcome: 'unknown' };
++  }
++
++  const owner = await ownerActor(x);
++  if (!owner) {
++    await reply(cq, 'לא נמצא משתמש בעלים במערכת.', null, true);
++    return { handled: true, outcome: 'no_owner' };
++  }
++
++  const { decision, requestId } = parsed;
++  try {
++    if (decision === 'approve') await approveRequest(requestId, owner, x);
++    else await rejectRequest(requestId, owner, null, x);
++    await logAction({ userId: owner.id, action: 'change_request.telegram', entityType: 'change_request', entityId: requestId, details: { decision } }, x);
++    const label = decision === 'approve' ? STATUS_LABEL.approved : STATUS_LABEL.rejected;
++    await reply(cq, decision === 'approve' ? '✅ אושר' : '⛔ נדחה — הפעולה בוטלה', label);
++    return { handled: true, outcome: decision === 'approve' ? 'approved' : 'rejected' };
++  } catch (err) {
++    if (err instanceof NotFoundError) {
++      await reply(cq, 'הבקשה לא נמצאה במערכת.', '— הבקשה לא קיימת');
++      return { handled: true, outcome: 'not_found' };
++    }
++    if (err instanceof RuleError && err.rule === 'STATE') {
++      // Decided elsewhere (the app, or a second tap) — show what it ended as.
++      const row = await x.one('SELECT status FROM change_requests WHERE id = ?', [requestId]);
++      await reply(cq, 'הבקשה כבר טופלה.', STATUS_LABEL[row?.status] || '✔ טופל');
++      return { handled: true, outcome: 'already' };
++    }
++    await reply(cq, `לא בוצע: ${err.message}`.slice(0, 190), null, true);
++    return { handled: true, outcome: 'error' };
++  }
++}

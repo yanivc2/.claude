@@ -86,6 +86,8 @@ router.get('/', async (req, res, next) => {
       settledCash: await settledCashExpenses(scope, 30, storeId),
       cashSettleReady: await cashSettleReady(),
       cashErr: req.query.cashErr ? String(req.query.cashErr) : null,
+      // "סומן כטופל ונשלח לאישור הבעלים" — בלי זה המזכירה לחצה בדף הזה ולא ראתה מה קרה.
+      cashNote: req.query.cashNote ? String(req.query.cashNote) : null,
       filter: req.query.status || '',
       companyId,
       storeId,

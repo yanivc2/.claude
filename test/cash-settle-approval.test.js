@@ -90,3 +90,16 @@ test('pages: the invoices page offers "טופל" and groups what is done; the no
   assert.equal(ok.status, 303);
   assert.equal(ok.headers.get('location'), '/notifications');
 });
+
+test('מרקורים: the secretary who presses "טופל" there sees that it went for approval', async () => {
+  const id = await anExpense('אינסטלטור');
+  const secCookie = `session=${createSession(sec.id)}; ap_store=${st.id}`;
+  const r = await fetch(`${base}/cash-expenses/zclosing/${id}/settle`, {
+    method: 'POST', redirect: 'manual', headers: { cookie: secCookie, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ return_to: '/payments' }).toString(),
+  });
+  assert.equal(r.status, 303);
+  assert.match(decodeURIComponent(r.headers.get('location')), /^\/payments\?cashNote=/);
+  const page = await (await fetch(`${base}${r.headers.get('location')}`, { headers: { cookie: secCookie } })).text();
+  assert.match(page, /סומן כטופל ונשלח לאישור הבעלים/);
+});
