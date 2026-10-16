@@ -12,7 +12,7 @@ import { RuleError, AuthError, NotFoundError } from '../lib/errors.js';
 import { requirePermission, requireOwner } from '../middleware/requireOwner.js';
 import {
   importTransactions,
-  listImports,
+  listImports, accountDeletionHistory,
   importsReady,
   untrackedSummary,
   deleteTransactions,
@@ -125,6 +125,8 @@ async function renderPage(req, res, accountId, extra = {}) {
     purge: null,
     importsReady: await importsReady(),
     imports: accountId ? await listImports({ accountId }) : [],
+    // מה נמחק מהחשבון (ביטולי ייבוא, מחיקת שורות, איחוד כפילויות) — מיומן הפעולות. ראה accountDeletionHistory.
+    deletions: accountId ? await accountDeletionHistory(accountId) : [],
     untracked: accountId ? await untrackedSummary(accountId) : null,
     oddRefs: accountId ? await oddReferences(accountId) : { count: 0, sample: [] },
     classified,

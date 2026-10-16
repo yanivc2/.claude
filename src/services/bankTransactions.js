@@ -557,6 +557,53 @@ export async function deleteImport(id, actor, { releaseMatched = false } = {}, x
   return { deleted: rows.length, released, kept: 0 };
 }
 
+/**
+ * מה **נמחק** מהחשבון — מיומן הפעולות (בעלים, 16/10: "זה לא הגיוני" — משיכה הביאה כחדשות תנועות
+ * שמשיכה קודמת זיהתה כקיימות). 🔴 ביטול ייבוא מוחק גם את שורת הייבוא עצמה (`deleteImport`), ולכן
+ * בטבלת הייבואים לא נשאר לו זכר: התנועות פשוט "חוזרות" במשיכה הבאה כחדשות, וההתאמות שלהן — שוחררו
+ * בביטול — מחכות שוב. היומן הוא המקום היחיד שזוכר את זה; כאן הוא נקרא לחשבון אחד ומוצג ליד הטבלה.
+ * @returns {Promise<Array<{at, kind, by, deleted, released, what}>>}
+ */
+export async function accountDeletionHistory(accountId, limit = 30, x = getExecutor()) {
+  let rows;
+  try {
+    rows = await x.many(
+      `SELECT a.id, a.action, a.timestamp, a.details, u.name AS user_name
+         FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
+        WHERE a.entity_type = 'bank_account' AND a.entity_id = ?
+          AND a.action IN ('bank.import', 'bank.import_delete', 'bank.txn_bulk_delete', 'bank.duplicates_merge')
+        ORDER BY a.id DESC`,
+      [Number(accountId)],
+    );
+  } catch {
+    return [];
+  }
+  const parse = (d) => { try { return JSON.parse(d || '{}') || {}; } catch { return {}; } };
+  // ייבוא שבוטל: מתי הוא נעשה, מאיזה מקור וכמה שמר — מרישום הייבוא המקורי ביומן.
+  const imported = new Map();
+  for (const r of rows) {
+    if (r.action !== 'bank.import') continue;
+    const d = parse(r.details);
+    if (d.importId != null) imported.set(Number(d.importId), { at: r.timestamp, source: d.source, inserted: d.inserted, fileName: d.fileName });
+  }
+  const out = [];
+  for (const r of rows) {
+    if (r.action === 'bank.import') continue;
+    const d = parse(r.details);
+    const base = { at: r.timestamp, by: r.user_name || null, deleted: Number(d.deleted ?? d.merged ?? 0), released: Number(d.released ?? d.movedLinks ?? 0) };
+    if (r.action === 'bank.import_delete') {
+      const orig = imported.get(Number(d.importId)) || null;
+      out.push({ ...base, kind: 'import', what: { importId: d.importId, fileName: d.fileName || orig?.fileName || null, importedAt: orig?.at || null, source: orig?.source || null, inserted: orig?.inserted ?? null } });
+    } else if (r.action === 'bank.txn_bulk_delete') {
+      out.push({ ...base, kind: 'rows', what: null });
+    } else {
+      out.push({ ...base, kind: 'merge', released: Number(d.movedLinks || 0), what: null });
+    }
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 /** Unmatched debit transactions for an account (candidates for check reconciliation). */
 /**
  * "תאריך תחילת עבודה" — חיובים לא מותאמים **עד התאריך הזה (כולל)** אינם מוצגים ב"תנועות לא

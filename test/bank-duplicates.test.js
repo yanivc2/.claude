@@ -476,3 +476,25 @@ test('route: the integrity page explains the pull twins (read-only) and the impo
   const rec = await (await fetch(`${base}/reconciliation?account=${a}`, { headers: { cookie } })).text();
   assert.match(rec, /#pull-twins" class="badge b-blocked"[^>]*>2</);
 });
+
+// בעלים, 16/10 — "זה לא הגיוני": משיכה של 02/10 הביאה כחדשות תנועות שמשיכה של 28/09 זיהתה כקיימות.
+// ביטול ייבוא מוחק גם את שורת הייבוא — בטבלה לא נשאר לו זכר. היומן זוכר; הדף מציג אותו לחשבון.
+test('deletion history: a cancelled import is named (when, source, how many), with released matches', async () => {
+  const a = await cleanAccount(1);
+  const { importTransactions, deleteImport, accountDeletionHistory } = await import('../src/services/bankTransactions.js');
+  const r = await importTransactions(a, [
+    { txnDate: '2026-09-20', amount: -100, description: 'x', externalId: 'scr:hapoalimBiz:A:1:2026-09-20:-100' },
+    { txnDate: '2026-09-21', amount: -200, description: 'y', externalId: 'scr:hapoalimBiz:A:2:2026-09-21:-200' },
+  ], 'scraper', o, db);
+  await deleteImport(r.importId, o, {}, db);
+  const h = await accountDeletionHistory(a, 30, db);
+  assert.equal(h[0].kind, 'import');
+  assert.equal(h[0].deleted, 2);
+  assert.equal(h[0].what.source, 'scraper');
+  assert.equal(h[0].what.inserted, 2);
+  assert.ok(h[0].what.importedAt, 'when it was imported — from the original log entry');
+  const cookie = `session=${createSession(o.id)}`;
+  const page = await (await fetch(`${base}/reconciliation?account=${a}`, { headers: { cookie } })).text();
+  assert.match(page, /מה נמחק מהחשבון הזה/);
+  assert.match(page, /ביטול ייבוא<\/strong> — סריקה/);
+});

@@ -205,6 +205,34 @@
       </table>
     </div>
   <% } %>
+  <%# 🔴 מה נמחק מהחשבון — מיומן הפעולות. ביטול ייבוא מוחק גם את השורה שלו מהטבלה למעלה, ולכן בלי זה
+      תנועות "חוזרות" כחדשות במשיכה הבאה בלי שום הסבר (בעלים, 16/10). bankTransactions#accountDeletionHistory. %>
+  <% var dels = (typeof deletions !== 'undefined' && deletions) ? deletions : []; %>
+  <% if (dels.length) { %>
+    <details style="margin-top:.7rem" <%= dels.some(function(d){ return d.kind === 'import'; }) ? 'open' : '' %>>
+      <summary style="cursor:pointer"><strong>מה נמחק מהחשבון הזה</strong> <span class="muted">(<%= dels.length %>) — ייבואים שבוטלו לא מופיעים בטבלה למעלה</span></summary>
+      <div class="table-scroll" style="margin-top:.4rem"><table class="no-enhance" style="font-size:13px">
+        <thead><tr><th>מתי</th><th>מה</th><th>ע״י</th><th class="right">תנועות שנמחקו</th><th class="right">התאמות ששוחררו / הועברו</th></tr></thead>
+        <tbody>
+          <% dels.forEach(function(d){ %>
+            <tr>
+              <td style="white-space:nowrap"><%= israelStamp(d.at) || String(d.at || '').slice(0, 16) %></td>
+              <td>
+                <% if (d.kind === 'import') { %>
+                  <strong>ביטול ייבוא</strong> — <%= d.what.fileName || (d.what.source === 'csv' ? 'קובץ' : 'סריקה') %><% if (d.what.importedAt) { %> מ-<%= israelStamp(d.what.importedAt) || String(d.what.importedAt).slice(0, 16) %><% } %><% if (d.what.inserted != null) { %> (נשמרו בו <%= d.what.inserted %>)<% } %>
+                  <div class="muted" style="font-size:11px">התנועות שלו נמחקו — משיכה מאוחרת יותר מביאה אותן שוב כ"חדשות", וההתאמות שלהן צריכות להיעשות מחדש.</div>
+                <% } else if (d.kind === 'rows') { %>מחיקת שורות נבחרות / ניקוי לפי קובץ
+                <% } else { %>איחוד כפילויות (בדיקת שיוך · 1א) — ההתאמות עברו לשורה שנשארה<% } %>
+              </td>
+              <td class="muted"><%= d.by || '—' %></td>
+              <td class="right"><%= d.deleted %></td>
+              <td class="right"><%= d.released || '—' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table></div>
+    </details>
+  <% } %>
   <% } %>
 </div>
 
