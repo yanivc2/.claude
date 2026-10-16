@@ -269,6 +269,17 @@
       מפרעה שיצאה מהקופה נמשכת לכאן מדוח ה-Z לבד. מפרעה שניתנה אחרת — הוסף אותה כאן.
       <strong>כל החזר שנרשם מוריד את היתרה</strong>, וכשהיא מתאפסת המפרעה נסגרת.
     </p>
+    <%# מפרעה נרשמת קודם בסגירת Z (בחנות) ורק אחר כך בדוח ה-Z (במשרד), והספר הזה נבנה מדוח ה-Z בלבד —
+        כדי לא לספור אותה פעמיים. מה שבסגירה ועוד לא (או לא) בדוח ה-Z נאמר כאן בקול. %>
+    <% var cAdv = ((typeof closingLines !== 'undefined' && closingLines) || []).filter(function(r){ return r.kind === 'advance'; });
+       var cPend = cAdv.filter(function(r){ return r.status === 'pending'; });
+       var cBad = cAdv.filter(function(r){ return r.status === 'missing' || r.status === 'kind'; }); %>
+    <% if (cPend.length) { %>
+      <p style="margin:0 0 .4rem">⏳ <strong><%= cPend.length %></strong> מפרעות מסגירת Z (<%= formatIls(cPend.reduce(function(n,r){ return n + Number(r.amount); }, 0)) %>) ממתינות לדוח Z — ייכנסו לכאן כשהמשרד יזין את הדוח. פירוט ב"מעקב מפרעות ושכר".</p>
+    <% } %>
+    <% if (cBad.length) { %>
+      <p style="margin:0 0 .4rem;color:var(--color-bad)">⚠️ <strong><%= cBad.length %></strong> מפרעות נרשמו בסגירת Z ו<strong>לא נרשמו כמפרעה בדוח Z</strong> של אותו Z — ולכן אינן כחוב כאן. לתקן בדוח ה-Z; פירוט ב"מעקב מפרעות ושכר".</p>
+    <% } %>
 
     <% if (balances.length) { %>
       <div class="table-scroll" style="margin-bottom:.6rem">
@@ -455,19 +466,32 @@
 
 <div class="card">
   <h2 style="margin:0 0 .5rem">מעקב מפרעות ושכר</h2>
-  <p class="muted" style="margin:0 0 .5rem">כל מפרעה או תשלום שכר שהוזן בדוח Z עבור עובד — מוצג כאן לפי תאריך.</p>
+  <p class="muted" style="margin:0 0 .5rem">כל מפרעה או תשלום שכר שהוזן בדוח Z עבור עובד — מוצג כאן לפי תאריך. שורה מ<strong>סגירת Z</strong> מופיעה רק כשהיא עוד לא בדוח ה-Z של אותו Z (או שלא נרשמה בו כמו בסגירה) — אחרת זו אותה הוצאה פעמיים.</p>
+  <%# דוח ה-Z (המשרד) הוא המקור; שורות סגירה שתואמות אותו (עובד + סכום + סוג) לא מוחזרות בכלל — closingEmployeeLines. %>
+  <% var track = (ledger || []).map(function(r){ return Object.assign({ src: 'z' }, r); })
+       .concat(((typeof closingLines !== 'undefined' && closingLines) || []).map(function(r){ return Object.assign({ src: 'closing' }, r); }))
+       .sort(function(a, b){ return String(b.expense_date || '').localeCompare(String(a.expense_date || '')); }); %>
   <div class="table-scroll">
   <table class="sortable">
     <thead><tr><th>תאריך</th><th>עובד</th><th>סוג</th><th>חנות</th><th>Z</th><th class="right">סכום</th></tr></thead>
     <tbody>
-      <% if (!ledger || ledger.length === 0) { %><tr><td colspan="6" class="muted">אין רישומים.</td></tr><% } %>
-      <% (ledger || []).forEach(function(r){ %>
+      <% if (!track.length) { %><tr><td colspan="6" class="muted">אין רישומים.</td></tr><% } %>
+      <% track.forEach(function(r){ %>
         <tr>
           <td><%= formatDate(r.expense_date) %></td>
           <td><%= r.first_name %> <%= r.last_name %></td>
           <td><% if (r.kind === 'advance') { %><span class="badge b-on_hold">מפרעה</span><% } else { %><span class="badge b-neutral">שכר</span><% } %></td>
           <td><%= r.store_name %></td>
-          <td class="mono"><a href="/reports/zreports/<%= r.z_report_id %>">Z <%= r.z_number %></a></td>
+          <% if (r.src === 'z') { %>
+            <td class="mono"><a href="/reports/zreports/<%= r.z_report_id %>">Z <%= r.z_number %></a></td>
+          <% } else { %>
+            <td>
+              <span class="mono"><% if (currentUser && currentUser.role === 'owner') { %><a href="/zclosing/<%= r.closing_id %>">סגירה · Z <%= r.z_number %></a><% } else { %>סגירה · Z <%= r.z_number %><% } %></span>
+              <% if (r.status === 'pending') { %><span class="badge b-on_hold">ממתין לדוח Z</span>
+              <% } else if (r.status === 'kind') { %><a href="/reports/zreports/<%= r.z_report_id %>" class="badge b-blocked">⚠️ בדוח Z נרשם כ<%= r.z_kind === 'advance' ? 'מפרעה' : 'שכר' %></a>
+              <% } else { %><a href="/reports/zreports/<%= r.z_report_id %>" class="badge b-blocked">⚠️ חסר בדוח Z</a><% } %>
+            </td>
+          <% } %>
           <td class="right"><strong><%= formatIls(r.amount) %></strong></td>
         </tr>
       <% }); %>

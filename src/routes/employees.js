@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import {
-  listEmployees, createEmployee, deleteEmployee, listEmployeeLedger, employeeTotals, importEmployees,
+  listEmployees, createEmployee, deleteEmployee, listEmployeeLedger, employeeTotals, importEmployees, closingEmployeeLines,
   setEmployeeStores,
 } from '../services/employees.js';
 import { scopedStoreList, assignmentScope, effectiveStoreId } from '../lib/scope.js';
@@ -94,6 +94,8 @@ async function render(req, res, extra = {}) {
     storeOptions: await scopedStoreList(assignmentScope(req)),
     totals: await scopedTotals(req.scope, storeId),
     ledger: await listEmployeeLedger({ storeId, scope: req.scope }),
+    // מפרעה/שכר מסגירת Z שלא נמצאים בדוח ה-Z של אותו Z (ממתין / חסר / בסוג אחר) — ראה closingEmployeeLines.
+    closingLines: await closingEmployeeLines({ storeId, scope: req.scope }),
     error: null,
     notice: null,
     ...extra,

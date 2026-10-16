@@ -144,6 +144,83 @@ export async function listEmployeeLedger(
 }
 
 /**
+ * מפרעה/שכר שנרשמו ב**סגירת Z** (בחנות) — מול דוח ה-Z (במשרד) של אותה חנות ואותו מספר Z.
+ *
+ * בעלים, 16/10: "עובד קיבל מפרעה במזומן בחנות → נרשם בדוח קופה → בסגירת ה-Z מזינים את ההוצאות →
+ * זה מגיע למשרד, נספר שוב ומוזן לדוח Z". כלומר **אותה מפרעה בשני הטפסים**, ודוח ה-Z (הספירה השנייה)
+ * הוא המקור — הוא מה ש"מעקב מפרעות ושכר" ו-`employee_advances` (`syncZAdvances`) קוראים. עד כאן
+ * שורות הסגירה לא הוצגו בכלל, ולכן מפרעה שיצאה מהקופה ולא הגיעה לדוח ה-Z נעלמה בשקט. שורת סגירה
+ * מוצגת רק כשהיא **לא** נמצאת בדוח ה-Z:
+ *   • `pending` — אין עדיין דוח Z לאותה חנות + מספר Z: הכסף יצא, המשרד עוד לא הזין. נספר בסיכום
+ *     (אין לו עותק אחר).
+ *   • `missing` — דוח ה-Z קיים ואין בו שורה לאותו עובד באותו סכום ("זה היה אמור להיות רשום שם").
+ *     לא נספר — אולי נרשם תחת עובד או סכום אחר; מסומן לבדיקה.
+ *   • `kind` — אותו עובד ואותו סכום, בסוג אחר (מפרעה בקופה, שכר במשרד) — ההבדל בין חוב לשכר. הסכום
+ *     כבר נספר דרך שורת דוח ה-Z.
+ * שורה שתואמת (עובד + סכום + סוג, אחד-לאחד) — לא מוחזרת: שורת דוח ה-Z היא אותו כסף. כשיש כמה סגירות
+ * לאותו Z (שמירה כפולה) נלקחת האחרונה, כמו `matchingClosing`.
+ */
+export async function closingEmployeeLines({ storeId = null, scope = null } = {}, x = getExecutor()) {
+  const sc = scopeWhere(scope, 'st.company_id', 'zc.store_id');
+  const params = [...sc.params];
+  let where = '';
+  if (storeId) { where += ' AND zc.store_id = ?'; params.push(Number(storeId)); }
+  const rows = await x.many(
+    `SELECT ce.id, ce.expense_date, ce.amount, ce.description_type AS kind, ce.purpose,
+            emp.id AS employee_id, emp.first_name, emp.last_name,
+            zc.id AS closing_id, zc.z_number, zc.store_id, st.name AS store_name
+       FROM z_closing_expenses ce
+       JOIN z_closings zc ON zc.id = ce.closing_id
+       JOIN employees emp ON emp.id = ce.employee_id
+       JOIN stores st ON st.id = zc.store_id
+      WHERE ce.employee_id IS NOT NULL AND ce.description_type IN ('advance','salary')
+            ${sc.sql}${where}
+      ORDER BY ce.expense_date DESC, ce.id DESC`,
+    params,
+  );
+  if (!rows.length) return [];
+  const zKey = (storeIdV, z) => `${Number(storeIdV)}|${String(z ?? '').trim()}`;
+  const latest = new Map();
+  for (const r of rows) {
+    const k = zKey(r.store_id, r.z_number);
+    if (!latest.has(k) || Number(r.closing_id) > latest.get(k)) latest.set(k, Number(r.closing_id));
+  }
+  const reports = new Map();
+  for (const z of await x.many('SELECT id, store_id, z_number FROM z_reports', [])) {
+    const k = zKey(z.store_id, z.z_number);
+    if (latest.has(k) && (!reports.has(k) || Number(z.id) > Number(reports.get(k)))) reports.set(k, Number(z.id));
+  }
+  const zLines = new Map();
+  for (const e of await x.many(
+    "SELECT z_report_id, employee_id, amount, description_type AS kind FROM z_expenses WHERE employee_id IS NOT NULL AND description_type IN ('advance','salary')",
+    [],
+  )) {
+    const id = Number(e.z_report_id);
+    if (!zLines.has(id)) zLines.set(id, []);
+    zLines.get(id).push({ employee: Number(e.employee_id), amount: Number(e.amount), kind: e.kind, claimed: false });
+  }
+  const live = rows.filter((r) => latest.get(zKey(r.store_id, r.z_number)) === Number(r.closing_id));
+  const claim = (list, r, sameKind) => {
+    const hit = list.find((l) => !l.claimed && l.employee === Number(r.employee_id) && l.amount === Number(r.amount)
+      && (sameKind ? l.kind === r.kind : l.kind !== r.kind));
+    if (hit) hit.claimed = true;
+    return hit;
+  };
+  const status = new Map();
+  for (const sameKind of [true, false]) {
+    for (const r of live) {
+      if (status.has(r)) continue;
+      const zId = reports.get(zKey(r.store_id, r.z_number));
+      if (!zId) { status.set(r, { status: 'pending', z_report_id: null }); continue; }
+      const hit = claim(zLines.get(zId) || [], r, sameKind);
+      if (hit) status.set(r, sameKind ? { status: 'matched', z_report_id: zId } : { status: 'kind', z_report_id: zId, z_kind: hit.kind });
+      else if (!sameKind) status.set(r, { status: 'missing', z_report_id: zId });
+    }
+  }
+  return live.map((r) => ({ ...r, ...status.get(r) })).filter((r) => r.status !== 'matched');
+}
+
+/**
  * Per-employee totals of advances and salary lines, for the summary table.
  * @returns {Promise<Array<{id, first_name, last_name, active, advances, salary, lines}>>}
  */
@@ -154,8 +231,11 @@ export async function employeeTotals({ storeId = null, scope = null } = {}, x = 
   // ואי אפשר היה לדעת שהוא לא שלה. מקור אחד = שתי הטבלאות לא יכולות להיפרד בשקט. (סיכום ב-JS ולא
   // ב-SQL גם עוקף את מגבלת pg-mem — GROUP BY מעל join.)
   const ledger = await listEmployeeLedger({ storeId, scope }, x);
+  // + שורות סגירת Z שעוד אין להן דוח Z (`pending`) — הן מוצגות בטבלה ואין להן עותק אחר. `missing`/`kind`
+  // מוצגות לבדיקה ולא נספרות: הסכום אולי כבר נספר דרך דוח ה-Z תחת עובד/סוג אחר.
+  const pending = (await closingEmployeeLines({ storeId, scope }, x)).filter((r) => r.status === 'pending');
   const byEmp = new Map();
-  for (const r of ledger) {
+  for (const r of [...ledger, ...pending]) {
     const cur = byEmp.get(Number(r.employee_id)) || { advances: 0, salary: 0, lines: 0 };
     if (r.kind === 'advance') cur.advances += Number(r.amount);
     else if (r.kind === 'salary') cur.salary += Number(r.amount);
