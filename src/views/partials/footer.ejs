@@ -656,6 +656,42 @@
   </script>
 
   <script>
+  // Grouped tables (table.cx-grouped — מזומן בחשבוניות, היסטוריית הפקדות בלוח): rows that are "done" sit in
+  // collapsed groups at the bottom ("▸ סומנו כטופלו (30)"). A click opens/closes a group; while the
+  // table search OR any column filter has a value, every group row is shown so the filter finds them.
+  (function () {
+    document.addEventListener('click', function (e) {
+      var b = e.target && e.target.closest ? e.target.closest('.cx-group-toggle') : null;
+      if (!b) return;
+      var tr = b.closest('tr'), table = b.closest('table'), g = tr.getAttribute('data-group');
+      var open = !table.classList.contains('show-' + g);
+      table.classList.toggle('show-' + g, open);
+      b.setAttribute('aria-expanded', String(open));
+      b.querySelector('.caret').textContent = open ? '▾' : '▸';
+    });
+    function searching(e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var table = null, any = false;
+      if (t.classList && t.classList.contains('tbl-search')) {
+        var tools = t.closest('.tbl-tools'), next = tools && tools.nextElementSibling;
+        table = next && (next.matches('table') ? next : next.querySelector('table'));
+      } else if (t.closest('.filter-row')) {
+        table = t.closest('table');
+      }
+      if (!table || !table.classList.contains('cx-grouped')) return;
+      var tools2 = (table.closest('.table-scroll') || table).previousElementSibling;
+      var box = tools2 && tools2.querySelector ? tools2.querySelector('.tbl-search') : null;
+      if (box && box.value.trim()) any = true;
+      table.querySelectorAll('.filter-row input, .filter-row select').forEach(function (i) { if (String(i.value).trim()) any = true; });
+      table.classList.toggle('cx-searching', any);
+    }
+    document.addEventListener('input', searching);
+    document.addEventListener('change', searching);
+  })();
+  </script>
+
+  <script>
   // Global collapsible rubrics + accordion. Two mechanisms, one behaviour ("open one → the others
   // in its group close"):
   //   1) Native <details data-accordion="grp"> (e.g. the Z-closing recents) — opening one closes

@@ -1153,6 +1153,7 @@ tr.row-tracked:hover td { background: color-mix(in srgb, #f59e0b 18%, transparen
 /* הוצאות מזומן בדף החשבוניות: מה שהותאם/סומן "טופל" מקובץ בתחתית ומכווץ; נפתח בלחיצה או בזמן חיפוש. */
 table.cx-grouped tr.cx-done { display: none; }
 table.cx-grouped.show-settled tr.cx-g-settled, table.cx-grouped.show-matched tr.cx-g-matched,
+table.cx-grouped.show-deposited tr.cx-g-deposited,
 table.cx-grouped.cx-searching tr.cx-done { display: table-row; }
 .cx-group-row td { padding: 6px 4px; background: transparent; }
 .cx-group-toggle { background: none; border: 0; padding: 2px 0; color: var(--color-muted); font-size: 13px; cursor: pointer; min-height: 0; }

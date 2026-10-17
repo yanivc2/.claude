@@ -153,27 +153,4 @@
   });
 })();
 </script>
-<% if (_grouped) { %>
-<script>
-(function(){
-  // פתיחה/סגירה של קבוצה, ופתיחה אוטומטית בזמן "חיפוש בטבלה" (החיפוש מסנן גם את השורות שבקבוצות).
-  if (window.__cxGroupInit) return; window.__cxGroupInit = true;
-  document.addEventListener('click', function(e){
-    var b = e.target && e.target.closest ? e.target.closest('.cx-group-toggle') : null;
-    if (!b) return;
-    var tr = b.closest('tr'), table = b.closest('table'), g = tr.getAttribute('data-group');
-    var open = !table.classList.contains('show-' + g);
-    table.classList.toggle('show-' + g, open);
-    b.setAttribute('aria-expanded', String(open));
-    b.querySelector('.caret').textContent = open ? '▾' : '▸';
-  });
-  document.addEventListener('input', function(e){
-    var t = e.target;
-    if (!t || !t.classList || !t.classList.contains('tbl-search')) return;
-    var tools = t.closest('.tbl-tools'), next = tools && tools.nextElementSibling;
-    var table = next && (next.matches('table') ? next : next.querySelector('table'));
-    if (table && table.classList.contains('cx-grouped')) table.classList.toggle('cx-searching', !!t.value.trim());
-  });
-})();
-</script>
-<% } %>
+<%# פתיחה/סגירה של הקבוצות + פתיחה בזמן חיפוש/סינון — גלובלי ב-partials/footer.ejs (cx-grouped). %>

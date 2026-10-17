@@ -9,6 +9,20 @@
   var _verify = (typeof verify !== 'undefined' && verify) ? verify : new Map();
   var _zdiff = (typeof zdiff !== 'undefined' && zdiff) ? zdiff : new Map();
   var _actions = (typeof actions !== 'undefined') ? actions : false;
+  // grouped (לוח הבקרה — בעלים, 17/10: "בהיסטוריית הפקדות צריך להציג את מה שלא הופקד, ואפשר לעשות את
+  // האפשרות למטה כמו שצילמתי"): מה שלא סומן כהופקד פתוח למעלה; מה שהופקד ומה שהותאם בבנק יורדים לשתי
+  // קבוצות מכווצות בתחתית — אותו מנגנון של טבלת המזומן (cx-grouped, footer.ejs).
+  var _grouped = (typeof grouped !== 'undefined') && grouped;
+  var _ordered = _rows, _gcls = {};
+  if (_grouped) {
+    var _gDep = _rows.filter(function(d){ return depositStatus(d).key === 'deposited'; });
+    var _gMat = _rows.filter(function(d){ return depositStatus(d).key === 'matched'; });
+    _ordered = _rows.filter(function(d){ return depositStatus(d).key === 'declared'; });
+    if (_gDep.length) _ordered = _ordered.concat([{ __group: 'deposited', n: _gDep.length }], _gDep);
+    if (_gMat.length) _ordered = _ordered.concat([{ __group: 'matched', n: _gMat.length }], _gMat);
+    _gDep.forEach(function(d){ _gcls[d.id] = 'cx-done cx-g-deposited'; });
+    _gMat.forEach(function(d){ _gcls[d.id] = 'cx-done cx-g-matched'; });
+  }
   var _cols = _actions ? 10 : 9;
   var _sum = _rows.reduce(function (n, d) { return n + (Number(d.amount) || 0); }, 0);
   // סה"כ "יתרה / חוסר" — רק שורות שיש להן הפרש מחושב (הפקדה ששויכה ל-Z); "—" לא נספר כאפס.
@@ -19,7 +33,7 @@
   _rows.forEach(function (d) { var v = _verify.get(Number(d.id)); if (v && v.state === 'corrected') { _vSum += Number(v.correctionTotal) || 0; _vN += 1; } });
 %>
 <div class="table-scroll">
-  <table class="sortable">
+  <table class="<%= _grouped ? 'cx-grouped' : 'sortable' %>">
     <thead><tr>
       <th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>שיוך ל-Z</th>
       <th class="right">יתרה / חוסר</th><th>סטטוס</th><th>תאריך סטטוס</th>
@@ -28,8 +42,17 @@
     </tr></thead>
     <tbody>
       <% if (!_rows.length) { %><tr><td colspan="<%= _cols %>" class="muted">אין הצהרות הפקדה.</td></tr><% } %>
-      <% _rows.forEach(function(d){ var v = _verify.get(Number(d.id)) || null; var zd = _zdiff.get(Number(d.id)); %>
-        <tr>
+      <% if (_grouped && _rows.length && !_ordered.some(function(d){ return !d.__group && !_gcls[d.id]; })) { %>
+        <tr><td colspan="<%= _cols %>" class="muted">אין הפקדות שלא הופקדו 👍</td></tr>
+      <% } %>
+      <% _ordered.forEach(function(d){
+           if (d.__group) { %>
+        <tr class="cx-group-row" data-group="<%= d.__group %>"><td colspan="<%= _cols %>">
+          <button type="button" class="cx-group-toggle" aria-expanded="false"><span class="caret">▸</span> <%= d.__group === 'deposited' ? 'הופקדו — ממתינות לבנק' : 'הותאמו בבנק' %> (<%= d.n %>)</button>
+        </td></tr>
+      <%   return; }
+         var v = _verify.get(Number(d.id)) || null; var zd = _zdiff.get(Number(d.id)); %>
+        <tr class="<%= _gcls[d.id] || '' %>">
           <td class="mono"><%= d.bag_number || '—' %></td>
           <td class="right"><%= formatIls(d.amount) %></td>
           <td><%= formatDate(d.deposit_date) %></td>
