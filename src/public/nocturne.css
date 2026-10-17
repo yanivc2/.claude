@@ -1203,9 +1203,16 @@ body.no-select { user-select: none; }
 /* ── מירכוז כל הכתב (בעלים, 16/10: "תמרכז הכל — ואז אתן תיקונים") ──
    🔴 גורף ובכוונה: כל טקסט בתוכן הדף ובסרגל הניווט ממורכז. ה-!important דורס יישור מקומי
    (עמודות סכום `.right`, טבלאות עובדות וכו') — יישור אחר לאלמנט מסוים = חריגה מפורשת כאן. */
+/* סרגל הניווט (בעלים, 17/10): האייקונים בעמודה ישרה אחת, בערך באמצע הסרגל, והמילים מתחילות
+   מהאייקון ונמשכות שמאלה. --nav-w = רוחב הפריט הארוך ביותר, נמדד בדף (header.ejs), כך שהקבוצה
+   כולה ממורכזת והפריט הארוך עדיין נכנס. */
 .navmenu > .menu-panel a,
 .navmenu > .menu-panel button,
-.navmenu > .menu-panel form button { justify-content: center; text-align: center; }
+.navmenu > .menu-panel form button {
+  justify-content: flex-start; text-align: start;
+  padding-inline-start: max(12px, calc((100% - var(--nav-w, 170px)) / 2));
+}
+@media (min-width: 1000px) { .nav-brand { justify-content: flex-start; } }   /* AP Control — לשמאל */
 main.page, main.page * { text-align: center !important; }
 main.page .toolbar,
 main.page summary,

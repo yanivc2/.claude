@@ -69,6 +69,24 @@
       function sync(){ if (mq.matches) d.setAttribute('open',''); else d.removeAttribute('open'); }
       (mq.addEventListener ? mq.addEventListener('change', sync) : mq.addListener(sync));
       sync();
+      /* --nav-w: the widest menu item (icon + label), measured — the CSS centers the whole group on
+         it, so the icons stand in one straight column and the longest label still fits. Count tags
+         (אישורים, התראות, "נעול") sit at the far end of their row and are left out of the measure. */
+      function measure(){
+        var panel = d.querySelector('.menu-panel'); if (!panel || !panel.offsetWidth) return;
+        var max = 0, r = document.createRange();
+        var tags = panel.querySelectorAll('.tag, .badge');
+        tags.forEach(function(t){ t.style.display = 'none'; });
+        panel.querySelectorAll(':scope > a, :scope > button, :scope > form > button').forEach(function(el){
+          r.selectNodeContents(el); var w = r.getBoundingClientRect().width; if (w > max) max = w;
+        });
+        tags.forEach(function(t){ t.style.display = ''; });
+        if (max) panel.style.setProperty('--nav-w', Math.ceil(max) + 'px');
+      }
+      d.addEventListener('toggle', measure);
+      window.addEventListener('resize', measure);
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure);
+      measure();
     })();
 
     /* Theme toggle (מצב בהיר/כהה). Persists to localStorage; the <head> script applies it on load.
