@@ -1059,6 +1059,7 @@ dialog.ndialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2p
   background: var(--color-surface-2); border: 1px solid var(--color-line); border-radius: var(--radius-sm);
 }
 .filter-row input::-webkit-search-cancel-button { cursor: pointer; }
+.filter-row select { width: 100%; min-height: 30px; padding: 3px 6px; font-size: 12.5px; }
 @media (max-width: 760px) {
   /* A stacked .line-grid card has no columns to filter against — the boxes would be meaningless. */
   .line-grid .filter-row { display: none; }

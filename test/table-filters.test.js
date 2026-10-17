@@ -15,8 +15,9 @@ import path from 'node:path';
 const read = (p) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const footer = read('src/views/partials/footer.ejs');
 
-test('the column filters live inside the search enhancer, not beside it', () => {
-  assert.match(footer, /table\.classList\.contains\('filterable'\)/);
+test('the column filters live inside the search enhancer, not beside it — and on EVERY table', () => {
+  // בעלים, 17/10: "בדף חשבוניות צור בטבלה מסננים, וכן בכל הטבלאות" — opt-out, not opt-in.
+  assert.match(footer, /if \(!table\.classList\.contains\('no-filter'\) && table\.tHead\.rows\.length === 1\)/);
   // One filter() decides visibility from BOTH the free-text search and the per-column boxes.
   const fn = footer.slice(footer.indexOf('function filter() {'));
   assert.match(fn.slice(0, 1200), /toks\.every/, 'the free-text search still applies');
@@ -54,4 +55,10 @@ test('the long Z form carries a save bar that stays reachable', () => {
   const rule = css.slice(css.indexOf('.zform-save {'), css.indexOf('}', css.indexOf('.zform-save {')));
   assert.match(rule, /position: sticky/, 'the button must not sink below four sections of form');
   assert.match(rule, /bottom: 0/);
+});
+
+test('few distinct values → a dropdown of exactly those values (exact match); otherwise a text box', () => {
+  assert.match(footer, /vals\.length >= 2 && vals\.length <= 12/);
+  assert.match(footer, /inp\.dataset\.exact = '1'/);
+  assert.match(footer, /colInputs\[idx\]\.dataset\.exact \? norm\(td\.textContent\) === q/);
 });
