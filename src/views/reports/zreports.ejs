@@ -85,7 +85,7 @@
   <%# בלי בורר חנות (בעלים, 17/10) — החנות הפעילה בסרגל העליון קובעת. %>
   <div style="overflow-x:auto">
   <table class="sortable">
-    <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מגירה</th><th class="right">סכום הפקדה</th><th>שקית הפקדה</th><th>סטטוס</th><th class="right">חוסר / יתרה</th><th class="no-print" data-nosort></th></tr></thead>
+    <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מזומן מגירה</th><th class="right">סכום הפקדה</th><th>שקית הפקדה</th><th>סטטוס</th><th class="right">חוסר / יתרה</th><th class="no-print" data-nosort></th></tr></thead>
     <tbody>
       <% if (zReports.length === 0) { %><tr><td colspan="10" class="muted">אין דוחות Z.</td></tr><% } %>
       <% zReports.forEach(function(z){ %>
@@ -94,7 +94,8 @@
           <td><%= formatDate(z.z_date) %></td>
           <td><%= z.store_name %></td>
           <td class="right"><%= formatIls(z.daily_total) %></td>
-          <td class="right"><%= formatIls(z.drawer_total) %></td>
+          <%# מזומן המגירה בלבד — לא סה"כ המגירה (מזומן+אשראי+…). בעלים, 17/10: "מזומן מגירה, לא מגירה כללי". %>
+          <td class="right"><%= formatIls(z.drawer_cash) %></td>
           <td class="right"><%= z.hasDeposit ? formatIls(z.depositTotal) : '—' %></td>
           <td class="mono"><%= z.depositBag || '—' %></td>
           <td>
