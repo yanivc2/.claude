@@ -43,7 +43,8 @@ say so briefly and stop again to clear the nudge.
 2. **CLAUDE.md — touch only if a STANDING RULE changed** (a new invariant, a new always-needed
    workflow step, a changed test/deploy command). Feature descriptions do **not** go in CLAUDE.md —
    they go in INDEX.md. If CLAUDE.md grew feature prose, move it to INDEX.md and leave a one-line
-   pointer.
+   pointer. **If the rule you changed is one of AGENTS.md's "Non-negotiables"** (the same core rules for
+   Codex/Cursor/Copilot), change it there too — the two files must never disagree.
 3. **Verify accuracy (never trust memory):** for every claim you wrote, confirm it against the code
    with grep/read — route exists, function name is real, permission/gate is what you said, FK
    cascade/nullability is correct. Fix any drift.

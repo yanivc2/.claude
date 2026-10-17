@@ -45,5 +45,23 @@ for (const doc of ['CLAUDE.md', 'INDEX.md']) {
   ok(`${doc}: ${paths.size} src paths checked`);
 }
 
+// 5) AGENTS.md — the same non-negotiables for non-Claude agents (Codex, Cursor, Copilot…). It must exist,
+//    point at the full rulebook + the feature map, and keep the core rules (a trim may not drop one).
+if (!existsSync(root + 'AGENTS.md')) fail('AGENTS.md exists');
+else {
+  const agents = read('AGENTS.md');
+  const REQUIRED_AGENTS = [
+    ['CLAUDE.md', 'pointer to CLAUDE.md'], ['INDEX.md', 'pointer to INDEX.md'], ['Hebrew', 'Hebrew-to-user rule'],
+    ['כלל ברזל', 'UI-placement iron rule'], ['apnew ap-control-split:main', 'push command'],
+    ['BUILD_VERSION', 'version bump rule'], ['TEST_PG=1', 'both-dialects test rule'],
+    ['עדכן מסד נתונים', 'DB-upgrade reminder'], ['assertStoreAllowed', 'store isolation rule'],
+    ['303', 'PRG rule'], ['await notify', 'awaited alerts rule'],
+  ];
+  for (const [needle, what] of REQUIRED_AGENTS) (agents.includes(needle) ? ok : fail)(`AGENTS.md keeps ${what}`);
+  const paths = new Set((agents.match(/\bsrc\/[A-Za-z0-9_./-]+\.(js|ejs|sql|css)\b/g) || []));
+  for (const p of paths) if (!existsSync(root + p)) fail(`AGENTS.md references missing ${p}`);
+  ok(`AGENTS.md: ${paths.size} src paths checked`);
+}
+
 console.log(bad ? `\n${bad} DOC CHECK FAILURE(S)` : '\nDOCS OK');
 process.exit(bad ? 1 : 0);
