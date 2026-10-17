@@ -82,14 +82,7 @@
 <%# <h2> ישיר (לא בתוך .toolbar) — זה מה שהופך את הכרטיס למתקפל (partials/footer.ejs). %>
 <div class="card">
   <h2>רשומות Z אחרונות<% if (unmatchedCount > 0) { %> <span class="badge b-on_hold"><%= unmatchedCount %> לא תואמים</span><% } %></h2>
-  <form method="get" action="/reports/zreports" class="no-print" style="margin:0 0 .6rem">
-    <select name="zstore" onchange="apAutoSubmit(this)" style="max-width:260px">
-      <option value="">כל החנויות</option>
-      <% storeOptions.forEach(function(st){ %>
-        <option value="<%= st.id %>" <%= zStoreId === st.id ? 'selected' : '' %>><%= st.name %></option>
-      <% }); %>
-    </select>
-  </form>
+  <%# בלי בורר חנות (בעלים, 17/10) — החנות הפעילה בסרגל העליון קובעת. %>
   <div style="overflow-x:auto">
   <table class="sortable">
     <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מגירה</th><th class="right">סכום הפקדה</th><th>שקית הפקדה</th><th>סטטוס</th><th class="right">חוסר / יתרה</th><th class="no-print" data-nosort></th></tr></thead>

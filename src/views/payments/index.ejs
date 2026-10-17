@@ -112,24 +112,7 @@
     <details class="menu up">
       <summary class="round-btn" style="list-style:none" aria-label="סינון">🔎</summary>
       <div class="menu-panel" style="min-width:250px; padding:12px">
-        <form method="get" action="/payments">
-          <label class="lbl">חברה</label>
-          <select name="company" onchange="apAutoSubmit(this)">
-            <option value="">כל החברות</option>
-            <% companies.forEach(function(c){ %>
-              <option value="<%= c.id %>" <%= companyId === c.id ? 'selected' : '' %>><%= c.name %></option>
-            <% }); %>
-          </select>
-          <label class="lbl" style="margin-top:10px">חנות / חשבון בנק</label>
-          <select name="store" onchange="apAutoSubmit(this)">
-            <option value="">כל החנויות (הכל יחד)</option>
-            <% stores.forEach(function(s){ %>
-              <option value="<%= s.id %>" <%= storeId === s.id ? 'selected' : '' %>><%= s.name %><%= s.bank_account_name ? ' · ' + s.bank_account_name : '' %></option>
-            <% }); %>
-          </select>
-          <input type="hidden" name="status" value="<%= filter %>" />
-        </form>
-        <div class="menu-sep"></div>
+        <%# אין כאן בורר חברה/חנות (בעלים, 17/10) — החנות הפעילה בסרגל העליון קובעת. %>
         <a href="/payments?status=&company=<%= cq %>&store=<%= sq %>" class="<%= !filter ? 'active' : '' %>">הכל</a>
         <a href="/payments?status=issued&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'issued' ? 'active' : '' %>">בחוץ</a>
         <a href="/payments?status=cleared&company=<%= cq %>&store=<%= sq %>" class="<%= filter === 'cleared' ? 'active' : '' %>">נפרעו</a>

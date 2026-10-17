@@ -10,15 +10,17 @@
 <% } %>
 
 <div class="card">
-  <form method="get" action="/reconciliation" class="actions">
-    <label style="margin:0">חשבון בנק:</label>
-    <select name="account" onchange="apAutoSubmit(this)" style="max-width:340px">
-      <% accounts.forEach(function(a){ %>
-        <option value="<%= a.id %>" <%= a.id === accountId ? 'selected' : '' %>><%= a.display_name %></option>
-      <% }); %>
-    </select>
-    <% if (accountId) { %><a class="btn btn-secondary btn-sm" href="/reconciliation/integrity?account=<%= accountId %>">🔍 בדיקת שיוך לחשבון</a><% } %>
-  </form>
+  <%# בעלים, 17/10: "לא יהיה אפשרות לבחור חנות בשום מקום חוץ מהסרגל העליון". חשבון בנק הוא 1:1 עם
+      חנות (bank_accounts.store_id UNIQUE), ולכן החנות הפעילה קובעת אותו — כאן רק השם, בלי בורר. %>
+  <% var _acct = (accounts || []).find(function(a){ return a.id === accountId; }); %>
+  <% if (!accountId) { %>
+    <%- include('../partials/_needStore', { what: 'התאמת בנק', verb: 'לראות' }) %>
+  <% } else { %>
+  <div class="actions">
+    <span>חשבון בנק: <strong><%= _acct ? _acct.display_name : '' %></strong></span>
+    <a class="btn btn-secondary btn-sm" href="/reconciliation/integrity?account=<%= accountId %>">🔍 בדיקת שיוך לחשבון</a>
+  </div>
+  <% } %>
 
   <% if (typeof financyReady !== 'undefined' && financyReady && accountId) { %>
     <% if (financyLinked) { %>
@@ -39,7 +41,7 @@
   <%# הכנסת התנועות היא הפעולה הראשונה בדף, ולכן היא יושבת כאן — ליד בורר החשבון והמשיכה מהבנק.
       קודם היא הייתה שני אייקונים עגולים בכרטיס בלי כותרת בתחתית הדף, מתחת לקפל גם בדסקטופ
       (נמדד: 916px) וגם בנייד (1355px). קיימת אך בלתי נראית. %>
-  <% if (typeof can === 'function' && can('import_bank')) { %>
+  <% if (accountId && typeof can === 'function' && can('import_bank')) { %>
     <div class="actions" style="margin-top:var(--space-4)">
       <button type="button" onclick="document.getElementById('csvDlg').showModal()">📄 ייבוא CSV / Excel</button>
       <button type="button" class="btn-secondary" onclick="document.getElementById('txnDlg').showModal()">➕ הוספת תנועה ידנית</button>

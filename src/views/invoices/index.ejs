@@ -58,7 +58,6 @@
   <div style="display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin:.7rem 0 .2rem">
     <span class="muted">סינון לפי:</span>
     <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" class="filt-toggle" data-t="sup" style="width:auto;min-height:0" <%= supplierId ? 'checked' : '' %> /> ספק</label>
-    <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" class="filt-toggle" data-t="store" style="width:auto;min-height:0" <%= storeId ? 'checked' : '' %> /> חנות</label>
     <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" class="filt-toggle" data-t="date" style="width:auto;min-height:0" <%= (from || to) ? 'checked' : '' %> /> תאריך</label>
   </div>
   <div class="row">
@@ -67,13 +66,6 @@
       <select name="supplier">
         <option value="">כל הספקים</option>
         <% suppliers.forEach(function(s){ %><option value="<%= s.id %>" <%= supplierId === s.id ? 'selected' : '' %>><%= s.name %></option><% }); %>
-      </select>
-    </div>
-    <div class="filt-field" data-t="store" style="<%= storeId ? '' : 'display:none' %>">
-      <label>חנות</label>
-      <select name="store">
-        <option value="">כל החנויות</option>
-        <% stores.forEach(function(st){ %><option value="<%= st.id %>" <%= storeId === st.id ? 'selected' : '' %>><%= st.name %> · <%= st.company_name %></option><% }); %>
       </select>
     </div>
   </div>

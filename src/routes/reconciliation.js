@@ -83,12 +83,14 @@ async function accounts(scope = null) {
 // authorized account, never acting cross-company. This is the single scope gate for account_id.
 async function resolveAccountId(req) {
   const all = await accounts(req.scope);
-  const requested = Number(req.body?.account_id) || Number(req.query.account);
+  const requested = Number(req.body?.account_id) || Number(req.body?.account) || Number(req.query.account);
   if (all.some((a) => a.id === requested)) return requested;
   // Nothing valid asked for: default to the ACTIVE store's account rather than the first one in
   // the list, so switching the active store actually changes what this page shows.
   const active = req.activeStoreId ? all.find((a) => Number(a.store_id) === Number(req.activeStoreId)) : null;
-  return (active || all[0])?.id;
+  // "כל החנויות" with several accounts: no picker on this page any more (בעלים, 17/10) — the view asks
+  // to choose a store in the top bar instead of silently showing the first account.
+  return (active || (all.length === 1 ? all[0] : null))?.id;
 }
 
 // אמצעי התשלום שחיוב בנק יכול להיות. צ׳ק אינו כאן: צ׳ק מותאם לפי מספרו במסלול הרגיל, ורישומו

@@ -1167,6 +1167,8 @@ table.cx-grouped.cx-searching tr.cx-done { display: table-row; }
 /* טופס הזנה בלי חנות פעילה (partials/_needStore.ejs) ושדה החנות הנעול (partials/_formStore.ejs). */
 .need-store { border: 1px dashed var(--color-line); border-radius: var(--radius-md); padding: var(--space-4); background: var(--color-surface-2); }
 .need-store select { min-width: 240px; }
+/* ערך שנקבע מהחנות הפעילה ומוצג בטופס במקום בורר (חשבון בנק בתשלום חדש). */
+.readonly-field { padding: .55rem .75rem; border: 1px solid var(--color-line); border-radius: var(--radius-md); background: var(--color-surface-2); }
 
 /* טבלה ממורכזת (התאמת בנק — "תנועות לא מותאמות"): גם עמודות ה-.right, כולל שורת הסינון והפעולות. */
 table.tbl-center th, table.tbl-center td { text-align: center; }

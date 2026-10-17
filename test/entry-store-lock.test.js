@@ -39,7 +39,10 @@ test('no active store ("כל החנויות") → every entry form is replaced b
   for (const [p, form, what] of FORMS) {
     const html = await get(p, null);
     assert.ok(!html.includes(form), `${p}: the entry form is not offered without an active store`);
-    assert.ok(html.includes(`כדי להזין ${what}, בחר חנות פעילה`), `${p}: says what to do instead`);
+    assert.ok(html.includes(`כדי להזין ${what}, בחר חנות פעילה בסרגל העליון`), `${p}: points at the top bar`);
+    // בעלים, 17/10: "שלא יהיה אפשרות לבחור חנות בשום מקום" חוץ מהסרגל העליון.
+    const box = html.slice(html.indexOf('class="need-store"'), html.indexOf('</div>', html.indexOf('class="need-store"')));
+    assert.ok(!/<select/.test(box), `${p}: no store picker in the page itself`);
   }
 });
 

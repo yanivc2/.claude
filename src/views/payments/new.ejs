@@ -157,10 +157,15 @@ const groupList = Object.values(groups);
       <input type="hidden" name="ctx_store" value="<%= activeStore.id %>" />
       <div class="row">
         <div>
-          <label>חשבון בנק *</label>
-          <select name="bank_account_id" required class="js-combo">
-            <% accounts.forEach(function(a){ %><option value="<%= a.id %>"><%= a.display_name %></option><% }); %>
-          </select>
+          <label>חשבון בנק</label>
+          <%# חשבון בנק = 1:1 עם החנות הפעילה — מוצג, לא נבחר (בעלים, 17/10: בורר רק בסרגל העליון). %>
+          <% var _acc = (accounts || []).find(function(a){ return Number(a.store_id) === Number(activeStore.id); }) || (accounts || [])[0]; %>
+          <% if (_acc) { %>
+            <input type="hidden" name="bank_account_id" value="<%= _acc.id %>" />
+            <div class="readonly-field"><strong><%= _acc.display_name %></strong></div>
+          <% } else { %>
+            <div class="alert alert-warn" style="margin:0">לחנות הזו אין חשבון בנק מוגדר — הגדרות ← חנויות.</div>
+          <% } %>
         </div>
         <div>
           <label>ספק *</label>
