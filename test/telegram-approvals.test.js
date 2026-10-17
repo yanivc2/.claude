@@ -68,8 +68,10 @@ test('a new approval request goes to Telegram with "✓ אשר" / "✕ דחה" b
   const { req } = await settleRequest('מונית');
   const msg = tg.find((c) => c.method === 'sendMessage' && /בקשת אישור חדשה/.test(c.body.text));
   assert.ok(msg, 'the alert was sent');
-  const [[ok, no]] = msg.body.reply_markup.inline_keyboard;
+  // Telegram lays a row out left-to-right: "✕ דחה" first puts "✓ אשר" on the right (בעלים, 17/10).
+  const [[no, ok]] = msg.body.reply_markup.inline_keyboard;
   assert.equal(ok.text, '✓ אשר');
+  assert.equal(no.text, '✕ דחה');
   assert.equal(ok.callback_data, `cr:a:${req.id}`);
   assert.equal(no.callback_data, `cr:r:${req.id}`);
   assert.deepEqual(parseApprovalData(`cr:r:${req.id}`), { decision: 'reject', requestId: Number(req.id) });

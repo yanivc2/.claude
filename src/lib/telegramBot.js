@@ -53,11 +53,12 @@ export function parseApprovalData(data) {
   return m ? { decision: m[1] === 'a' ? 'approve' : 'reject', requestId: Number(m[2]) } : null;
 }
 
-/** Inline keyboard sent with a new change request. */
+/** Inline keyboard sent with a new change request. Telegram lays a row out left-to-right even in a
+ *  Hebrew chat, so "✕ דחה" comes first to put "✓ אשר" on the RIGHT (בעלים, 17/10). */
 export function approvalKeyboard(requestId) {
   const rows = [[
-    { text: '✓ אשר', callback_data: `cr:a:${requestId}` },
     { text: '✕ דחה', callback_data: `cr:r:${requestId}` },
+    { text: '✓ אשר', callback_data: `cr:a:${requestId}` },
   ]];
   const base = publicOrigin();
   if (base) rows.push([{ text: '🔎 פרטים במערכת', url: `${base}/approvals?req=${requestId}` }]);
@@ -67,8 +68,8 @@ export function approvalKeyboard(requestId) {
 /** The sample sent by "בדוק טלגרם": real-looking buttons whose tap only proves the round trip works. */
 export function testKeyboard() {
   return { inline_keyboard: [[
-    { text: '✓ אשר', callback_data: 'cr:test' },
     { text: '✕ דחה', callback_data: 'cr:test' },
+    { text: '✓ אשר', callback_data: 'cr:test' },
   ]] };
 }
 
