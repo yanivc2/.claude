@@ -894,15 +894,24 @@
     else { st.push(cur); if (st.length > 40) st = st.slice(-40); }
     try { sessionStorage.setItem(NAVK, JSON.stringify(st)); } catch (e) {}
     if (st.length >= 2) {
-      var bar = document.createElement('div');
-      bar.className = 'page-back no-print';
       var a = document.createElement('a');
       a.href = st[st.length - 2];
       a.className = 'btn btn-secondary btn-sm';
       a.textContent = '→ חזרה';
       a.title = 'חזרה לדף הקודם';
-      bar.appendChild(a);
-      main.insertBefore(bar, main.firstChild);
+      // בעלים, 17/10 (בחר מתוך שתי הדמיות): בתוך פס החנות, בקצה הימני; שאר הפס ממורכז.
+      // דף בלי פס חנות — שורה משלו בראש התוכן, צמודה לימין.
+      var banner = main.querySelector(':scope > .store-banner');
+      if (banner) {
+        a.className += ' store-banner-back no-print';
+        banner.classList.add('has-back');
+        banner.insertBefore(a, banner.firstChild);
+      } else {
+        var bar = document.createElement('div');
+        bar.className = 'page-back no-print';
+        bar.appendChild(a);
+        main.insertBefore(bar, main.firstChild);
+      }
     }
 
     // (2) לראש הדף

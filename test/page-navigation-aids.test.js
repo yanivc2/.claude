@@ -30,3 +30,12 @@ test('to-top button and a draggable scroll rail (mouse only, long pages only)', 
   assert.match(css, /\.scroll-rail \{[^}]*position: fixed;/);
   assert.match(css, /\.to-top \{[^}]*position: fixed;/);
 });
+
+test('"→ חזרה" sits inside the store bar, at its right edge, and the bar is centered (owner, 17/10)', () => {
+  assert.match(footer, /var banner = main\.querySelector\(':scope > \.store-banner'\);/);
+  assert.match(footer, /banner\.insertBefore\(a, banner\.firstChild\);/, 'into the bar when there is one');
+  assert.match(footer, /bar\.className = 'page-back no-print';/, 'a page without the bar keeps its own row');
+  assert.match(css, /\.store-banner \{ justify-content: center; position: relative; \}/);
+  assert.match(css, /\.store-banner-back \{ position: absolute; inset-inline-start: 12px;/, 'inline-start = right in RTL');
+  assert.match(css, /main\.page \.page-back \{ text-align: start !important; \}/);
+});

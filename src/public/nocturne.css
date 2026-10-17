@@ -1213,3 +1213,16 @@ main.page .actions,
 main.page .cx-acts,
 main.page .card-ctoggle,
 main.page .collapse-card > summary { justify-content: center !important; }
+
+/* פס החנות ממורכז, ו"→ חזרה" בתוכו בקצה הימני (בעלים, 17/10 — אפשרות א מתוך שתי הדמיות).
+   הריפוד הסימטרי שומר את התוכן במרכז האמיתי של הפס גם כשהכפתור יושב בצד. */
+.store-banner { justify-content: center; position: relative; }
+.store-banner-switch, .store-banner-lock { margin: 0; }
+.store-banner.has-back { padding-inline: 120px; }
+.store-banner-back { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); }
+main.page .page-back { text-align: start !important; }
+/* בנייד אין מקום לצד: הכפתור נשאר בצד ימין, בשורה עליונה משלו בתוך הפס. */
+@media (max-width: 700px) {
+  .store-banner.has-back { padding-inline: var(--space-4); padding-top: 52px; }
+  .store-banner-back { top: 10px; transform: none; }
+}
