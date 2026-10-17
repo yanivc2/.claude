@@ -26,7 +26,7 @@ import { exportAll, resetTransactionalData, restoreAll, cleanStartInvoicesPaymen
 import { setScanEnabled } from '../services/appSettings.js';
 import { storageSelfTest } from '../lib/storage.js';
 import { sendTelegramDetailed, telegramConfigured } from '../lib/notify.js';
-import { registerWebhook } from '../lib/telegramBot.js';
+import { registerWebhook, testKeyboard } from '../lib/telegramBot.js';
 import { linkFinancyAccounts } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
@@ -515,6 +515,14 @@ router.post('/telegram-test', requireOwner, async (req, res, next) => {
     if (r.ok) {
       const w = await registerWebhook(origin(req));
       parts.push((w.ok ? '✅ ' : '⚠️ ') + w.detail);
+      // בעלים, 17/10: "קיבלתי את הודעת הבדיקה, אין לי כפתורים" — הכפתורים יושבים רק על בקשת אישור
+      // אמיתית, אז הבדיקה שולחת דוגמה שאפשר ללחוץ עליה ולראות שהחיבור עובד מקצה לקצה.
+      if (w.ok) {
+        await sendTelegramDetailed(
+          '🧪 <b>בדיקת כפתורי אישור</b>\nכך תיראה כל בקשת אישור. לחץ על אחד הכפתורים — אם הם מתחלפים ב"✅ הכפתורים עובדים", החיבור תקין.',
+          { reply_markup: testKeyboard() },
+        );
+      }
     }
     return done(res, parts.join(' · '));
   } catch (err) {

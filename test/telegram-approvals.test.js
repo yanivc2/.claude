@@ -136,6 +136,22 @@ test('"בדוק טלגרם" also connects the buttons: setWebhook → /ingest/te
   assert.match(set.body.url, /^https:\/\/127\.0\.0\.1:\d+\/ingest\/telegram$/);
   assert.equal(set.body.secret_token, webhookSecret());
   assert.deepEqual(set.body.allowed_updates, ['callback_query']);
+  // בעלים, 17/10: "אין לי כפתורים" — the test also sends a sample WITH buttons, after the webhook is set.
+  const sample = tg.find((c) => c.method === 'sendMessage' && /בדיקת כפתורי אישור/.test(c.body.text));
+  assert.ok(sample, 'a sample with buttons is sent');
+  assert.ok(tg.indexOf(sample) > tg.indexOf(set), 'only after the webhook was connected');
+  assert.deepEqual(sample.body.reply_markup.inline_keyboard[0].map((b) => b.callback_data), ['cr:test', 'cr:test']);
+});
+
+test('tapping the sample proves the round trip: "✅ הכפתורים עובדים", nothing decided', async () => {
+  tg.length = 0;
+  const before = (await listRequests({ status: 'pending' }, db)).length;
+  const r = await (await tap('cr:test')).json();
+  assert.equal(r.outcome, 'test_ok');
+  assert.ok(tg.some((c) => c.method === 'answerCallbackQuery' && /הכפתורים עובדים/.test(c.body.text)));
+  assert.equal(tg.find((c) => c.method === 'editMessageReplyMarkup').body.reply_markup.inline_keyboard[0][0].text, '✅ הכפתורים עובדים');
+  assert.equal((await listRequests({ status: 'pending' }, db)).length, before);
+  assert.equal((await (await tap('cr:test', '999')).json()).outcome, 'forbidden', 'still the owner only');
 });
 
 test('no bot token → the webhook is closed (503)', async () => {

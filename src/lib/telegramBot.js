@@ -64,6 +64,14 @@ export function approvalKeyboard(requestId) {
   return { inline_keyboard: rows };
 }
 
+/** The sample sent by "בדוק טלגרם": real-looking buttons whose tap only proves the round trip works. */
+export function testKeyboard() {
+  return { inline_keyboard: [[
+    { text: '✓ אשר', callback_data: 'cr:test' },
+    { text: '✕ דחה', callback_data: 'cr:test' },
+  ]] };
+}
+
 /** What the buttons turn into once the request is decided — a single inert status button. */
 export function decidedKeyboard(label) {
   return { inline_keyboard: [[{ text: label, callback_data: 'cr:done' }]] };

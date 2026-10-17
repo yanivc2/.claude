@@ -40,6 +40,11 @@ export async function handleTelegramUpdate(update, x = getExecutor()) {
     await reply(cq, 'אין לך הרשאה לאשר בקשות.', null, true);
     return { handled: true, outcome: 'forbidden' };
   }
+  if (cq.data === 'cr:test') {
+    // The sample from "בדוק טלגרם": reaching here means Telegram → webhook → app works end to end.
+    await reply(cq, '✅ הכפתורים עובדים — החיבור תקין', '✅ הכפתורים עובדים');
+    return { handled: true, outcome: 'test_ok' };
+  }
   if (cq.data === 'cr:done') {
     await reply(cq, 'הבקשה כבר טופלה.', null);
     return { handled: true, outcome: 'noop' };
