@@ -1,6 +1,7 @@
 import { getExecutor, nowTs, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { notify } from '../lib/notify.js';
+import { approvalKeyboard } from '../lib/telegramBot.js';
 import { logAction } from './audit.js';
 import { updateInvoice, approveInvoiceForPayment, releaseHold } from './invoices.js';
 import { updateSupplier } from './suppliers.js';
@@ -59,10 +60,11 @@ export async function submitRequest({ action, entityType, entityId, payload, sum
   await logAction({ userId: actor?.id ?? null, action: 'change_request.submit', entityType: 'change_request', entityId: info.lastInsertRowid, details: { action } }, x);
   // Generic alert only — no amounts/names/diff (details stay inside the app under /approvals).
   // 🔴 await: on serverless a fire-and-forget notify is lost once the response is sent (CLAUDE.md).
-  // kind 'approval' + the request id in the link → the notifications page offers "אשר / דחה" in place.
+  // kind 'approval' + the request id in the link → the notifications page offers "אשר / דחה" in place;
+  // the Telegram copy carries the same two buttons (tap → POST /ingest/telegram).
   await notify(
-    `📝 <b>בקשת אישור חדשה</b>\nמאת ${actor?.name || 'משתמש'} · ${actionLabel(action)}\nהיכנס למערכת לצפייה ואישור.`,
-    { kind: 'approval', link: `/approvals?req=${info.lastInsertRowid}` },
+    `📝 <b>בקשת אישור חדשה</b>\nמאת ${actor?.name || 'משתמש'} · ${actionLabel(action)}\nאפשר לאשר או לדחות כאן, או במערכת.`,
+    { kind: 'approval', link: `/approvals?req=${info.lastInsertRowid}`, replyMarkup: approvalKeyboard(info.lastInsertRowid) },
   );
   return info.lastInsertRowid;
 }
@@ -104,7 +106,7 @@ export async function getRequest(id, x = getExecutor()) {
  * transaction, so a failure anywhere rolls back both — the change is never applied while the
  * request stays "pending" (which would allow a second approval = double-apply). The status is
  * re-checked inside the transaction to close the race. The Telegram alert fires only after the
- * commit and is fire-and-forget, so a notification failure can never undo an applied approval.
+ * commit and notify never rejects, so a notification failure can never undo an applied approval.
  */
 export async function approveRequest(id, ownerActor, x = getExecutor()) {
   const req = await getRequest(id, x);
@@ -127,7 +129,7 @@ export async function approveRequest(id, ownerActor, x = getExecutor()) {
     await logAction({ userId: ownerActor?.id ?? null, action: 'change_request.approve', entityType: 'change_request', entityId: id, details: { action: req.action } }, t);
   });
 
-  notify(`✅ <b>בקשת עריכה אושרה ובוצעה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''}). הפרטים במערכת.`);
+  await notify(`✅ <b>בקשת עריכה אושרה ובוצעה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''}). הפרטים במערכת.`);
   return getRequest(id, x);
 }
 
@@ -146,6 +148,6 @@ export async function rejectRequest(id, ownerActor, note = null, x = getExecutor
     );
     await logAction({ userId: ownerActor?.id ?? null, action: 'change_request.reject', entityType: 'change_request', entityId: id, details: { note } }, t);
   });
-  notify(`⛔ <b>בקשת עריכה נדחתה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''})${note ? '\nסיבה: ' + note : ''}`);
+  await notify(`⛔ <b>בקשת עריכה נדחתה</b>\n${actionLabel(req.action)} (בקשת ${req.requested_by_name || ''})${note ? '\nסיבה: ' + note : ''}`);
   return getRequest(id, x);
 }

@@ -146,7 +146,10 @@ happen only at merge. So:
   every alert reaches the owner even without Telegram. Telegram needs **`TELEGRAM_BOT_TOKEN`** env
   (Vercel); `chatId` = `TELEGRAM_CHAT_ID` (default = owner's id). Verify via **הגדרות → "בדוק
   טלגרם"** (`POST /settings/telegram-test` → `sendTelegramDetailed` gives the real reason:
-  401=bad token / 403=press Start / 400=bad chat id / ok).
+  401=bad token / 403=press Start / 400=bad chat id / ok). **Approval buttons:** the same press also
+  calls `setWebhook` → `POST /ingest/telegram`; a change request goes out with ✓/✕ that run the very
+  same `approveRequest`/`rejectRequest`. Two gates: HMAC-of-token secret header + tapper = `TELEGRAM_CHAT_ID`.
+  INDEX.md · ✓/✕ בטלגרם.
 - **Dates:** stored ISO `YYYY-MM-DD`; `res.locals.formatDate` → `DD/MM/YY`.
 - **`partials/footer.ejs` global enhancers** (run on every page): (1) the **day-first date picker**
   replaces every `input[type=date]` — displays `DD/MM/YY`, and on pointer-fine (desktop) is **typable**

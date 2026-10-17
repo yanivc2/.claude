@@ -10,6 +10,8 @@ import { syncAllLinkedAccounts, importScrapedBatch } from '../services/bankSync.
 import { financyConfigured } from '../lib/financy.js';
 import { timingSafeEqual } from 'node:crypto';
 import { claimNext, reportState, takeOtp, completeWithAccounts, agentPing } from '../services/bankSyncJobs.js';
+import { webhookSecret } from '../lib/telegramBot.js';
+import { handleTelegramUpdate } from '../services/telegramApprovals.js';
 
 /** Yesterday in Israel time — the business day the nightly report covers. */
 function yesterdayInIsrael() {
@@ -242,6 +244,30 @@ router.post('/bank-agent/:id/result', json({ limit: '4mb' }), async (req, res) =
     return res.json({ ok: true, ...r });
   } catch (err) {
     return agentError(res, err);
+  }
+});
+
+// Telegram webhook — the owner tapped "✓ אשר" / "✕ דחה" under an approval request
+// (lib/telegramBot.js, services/telegramApprovals.js). Pre-session like the rest of this router:
+// Telegram is the caller, not a logged-in browser. Gate 1 is the secret_token Telegram echoes in
+// X-Telegram-Bot-Api-Secret-Token (set by setWebhook, derived from the bot token); gate 2 — that the
+// tap is the owner's own — is checked by the service. A bad tap still answers 200, or Telegram
+// would keep re-sending it.
+router.post('/telegram', json({ limit: '256kb' }), async (req, res) => {
+  const secret = webhookSecret();
+  if (!secret) return res.status(503).json({ ok: false, error: 'telegram not configured' });
+  const given = Buffer.from(String(req.get('x-telegram-bot-api-secret-token') || ''));
+  const want = Buffer.from(secret);
+  if (given.length !== want.length || !timingSafeEqual(given, want)) {
+    return res.status(401).json({ ok: false, error: 'bad secret' });
+  }
+  try {
+    const r = await handleTelegramUpdate(req.body || {});
+    return res.json({ ok: true, ...r });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[telegram webhook]', err);
+    return res.json({ ok: false });
   }
 });
 

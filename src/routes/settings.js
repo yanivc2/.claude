@@ -26,6 +26,7 @@ import { exportAll, resetTransactionalData, restoreAll, cleanStartInvoicesPaymen
 import { setScanEnabled } from '../services/appSettings.js';
 import { storageSelfTest } from '../lib/storage.js';
 import { sendTelegramDetailed, telegramConfigured } from '../lib/notify.js';
+import { registerWebhook } from '../lib/telegramBot.js';
 import { linkFinancyAccounts } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
@@ -505,10 +506,17 @@ router.post('/scan-toggle', requireOwner, async (req, res, next) => {
 
 // Telegram self-test (owner-only): send a test message and report the exact outcome, so a silent
 // no-op (missing token / user never pressed Start / wrong chat_id) becomes a visible reason.
+// The same press connects the approval buttons (setWebhook → /ingest/telegram, lib/telegramBot.js):
+// one button, both halves of "Telegram works", each with its own verdict.
 router.post('/telegram-test', requireOwner, async (req, res, next) => {
   try {
     const r = await sendTelegramDetailed(`בדיקת טלגרם מ-AP Control ✅ — אם קיבלת הודעה זו, ההתראות פעילות.`);
-    await render(req, res, { notice: (r.ok ? '✅ ' : '⚠️ ') + r.detail });
+    const parts = [(r.ok ? '✅ ' : '⚠️ ') + r.detail];
+    if (r.ok) {
+      const w = await registerWebhook(origin(req));
+      parts.push((w.ok ? '✅ ' : '⚠️ ') + w.detail);
+    }
+    return done(res, parts.join(' · '));
   } catch (err) {
     next(err);
   }

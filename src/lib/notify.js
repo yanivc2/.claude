@@ -19,7 +19,7 @@ export function telegramConfigured() {
  * so a silent no-op becomes a visible reason. Never rejects.
  * @returns {Promise<{ok:boolean, detail:string}>}
  */
-export async function sendTelegramDetailed(text) {
+export async function sendTelegramDetailed(text, extra = {}) {
   const { botToken, chatId } = config.telegram;
   if (!botToken) return { ok: false, detail: 'לא הוגדר TELEGRAM_BOT_TOKEN במשתני הסביבה של השרת (Vercel → Settings → Environment Variables). לאחר הוספה — צריך Redeploy.' };
   if (!chatId) return { ok: false, detail: 'לא הוגדר TELEGRAM_CHAT_ID.' };
@@ -27,7 +27,7 @@ export async function sendTelegramDetailed(text) {
     const res = await fetch(`${TG_API}/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true }),
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', disable_web_page_preview: true, ...extra }),
     });
     let body = null;
     try { body = await res.json(); } catch { /* non-JSON */ }
@@ -61,9 +61,10 @@ export async function sendTelegramDetailed(text) {
  * Send a Telegram message to the configured chat. Resolves to true if sent, false if skipped
  * (no token) or failed. Never rejects.
  * @param {string} text  message body (HTML parse mode — links allowed)
+ * @param {object} [extra]  more sendMessage fields (e.g. reply_markup for inline buttons)
  */
-export async function sendTelegram(text) {
-  const r = await sendTelegramDetailed(text);
+export async function sendTelegram(text, extra = {}) {
+  const r = await sendTelegramDetailed(text, extra);
   // eslint-disable-next-line no-console
   if (!r.ok && config.telegram.botToken) console.error(`[notify] ${r.detail}`);
   return r.ok;
@@ -81,12 +82,14 @@ function toPlain(html) {
 /**
  * Fire-and-forget wrapper: push a Telegram alert AND record it to the in-app notification stream,
  * without blocking the caller. Both paths are best-effort and never throw. `opts.link` (optional)
- * makes the in-app notification clickable; `opts.kind` tags it.
+ * makes the in-app notification clickable; `opts.kind` tags it; `opts.replyMarkup` adds inline
+ * buttons to the Telegram copy only (see lib/telegramBot.js).
  * @param {string} text  HTML message body
- * @param {{kind?:string, link?:string, storeId?:number}} [opts]
+ * @param {{kind?:string, link?:string, storeId?:number, replyMarkup?:object}} [opts]
  */
 export function notify(text, opts = {}) {
-  const tg = sendTelegram(text); // Telegram (no-op if unconfigured); never rejects
+  // Telegram (no-op if unconfigured); never rejects
+  const tg = sendTelegram(text, opts.replyMarkup ? { reply_markup: opts.replyMarkup } : {});
   // In-app copy: first line → title, remainder → body. Dynamic import keeps this lib free of a
   // static dependency on the service/DB layer (and avoids any import cycle).
   const inApp = (async () => {

@@ -29,7 +29,7 @@
       <form method="post" action="/settings/telegram-test" style="margin:0">
         <button type="submit" class="dial" style="width:100%">
           <span class="dial-ic">📨</span>
-          <span class="dial-txt"><strong>בדוק טלגרם — <%= (typeof telegramReady !== 'undefined' && telegramReady) ? 'מוגדר' : 'לא מוגדר' %></strong><small>שולח הודעת בדיקה ומראה אם ההתראות עובדות (ואם לא — למה).</small></span>
+          <span class="dial-txt"><strong>בדוק טלגרם — <%= (typeof telegramReady !== 'undefined' && telegramReady) ? 'מוגדר' : 'לא מוגדר' %></strong><small>שולח הודעת בדיקה ומראה אם ההתראות עובדות (ואם לא — למה), ומחבר את כפתורי "✓ אשר / ✕ דחה" בטלגרם.</small></span>
         </button>
       </form>
       <form method="post" action="/settings/financy-link" style="margin:0" data-busy>
