@@ -90,26 +90,30 @@
 <div class="table-scroll">
 <table class="sortable">
   <thead>
-    <tr><th class="no-print" data-nosort>✓</th><th>מספר חשבונית</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th><th>שולם</th><% if (invoiceNotesReady) { %><th data-nosort>הערות</th><% } %></tr>
+    <%# סדר העמודות מימין לשמאל — בעלים, 17/10. "תאריך חשבונית" = invoices.invoice_date; "תאריך לתשלום" =
+        payments.payment_date של התשלום (pay_date) — שני שדות נפרדים, אף פעם לא אותו אחד. %>
+    <tr><th class="no-print" data-nosort>✓</th><th>חנות</th><th>ספק</th><th>מספר חשבונית</th><th>תאריך חשבונית</th><th>אמצעי תשלום</th><th>מספר אסמכתא</th><th>תאריך לתשלום</th><th class="right">סכום לתשלום</th><th>סטטוס</th><% if (invoiceNotesReady) { %><th data-nosort>הערות</th><% } %></tr>
   </thead>
   <tbody>
     <% if (invoices.length === 0) { %>
-      <tr><td colspan="<%= invoiceNotesReady ? 8 : 7 %>" class="muted">אין חשבוניות להצגה.</td></tr>
+      <tr><td colspan="<%= invoiceNotesReady ? 11 : 10 %>" class="muted">אין חשבוניות להצגה.</td></tr>
     <% } %>
     <% invoices.forEach(function(i){ %>
       <%
-        // "שולם" cell: a real payment → its method+identifier; a matched Z cash expense →
-        // "שולם במזומן"; a cash payment with NO Z match → flagged (light-red row).
+        // אמצעי תשלום / מספר אסמכתא / תאריך לתשלום — מהתשלום האחרון שאינו מבוטל (enrichPaidStatus).
+        // הוצאת מזומן מהפדיון שהותאמה לחשבונית = "מזומן מהפדיון" (אין לה אסמכתא ותאריך תשלום משלה).
+        var payMethod = i.pay_method ? methodLabel(i.pay_method) : (i.cash_matches > 0 ? 'מזומן מהפדיון' : '');
+        var payRef = '';
+        if (i.pay_method === 'check') payRef = i.pay_check_number || '';
+        else if (i.pay_method === 'credit') payRef = i.pay_card_last4 ? '****' + i.pay_card_last4 : '';
+        else if (i.pay_method === 'cash') payRef = i.pay_payer_name || '';
+        else if (i.pay_method === 'batch') payRef = [i.pay_batch_number, i.pay_reference].filter(Boolean).join(' · ');
+        else if (i.pay_method) payRef = i.pay_reference || '';
+        // סטטוס (במקום "שולם"): שולם — בתשלום, במזומן מהפדיון או בסטטוס; אחרת מצב החשבונית עצמה.
         var paid = { label: 'לא שולם', cls: 'b-neutral' };
-        if (i.pay_method) {
-          paid = { label: paymentIdent({ method: i.pay_method, check_number: i.pay_check_number,
-            reference: i.pay_reference, batch_number: i.pay_batch_number, card_last4: i.pay_card_last4,
-            payer_name: i.pay_payer_name }), cls: 'b-paid' };
-        } else if (i.cash_matches > 0) {
-          paid = { label: 'שולם במזומן', cls: 'b-paid' };
-        } else if (i.status === 'paid') {
-          paid = { label: 'שולם', cls: 'b-paid' };
-        }
+        if (i.pay_method || i.cash_matches > 0 || i.status === 'paid') paid = { label: 'שולם', cls: 'b-paid' };
+        else if (i.status === 'on_hold') paid = { label: 'מוחזק', cls: 'b-on_hold' };
+        else if (i.status === 'approved_for_payment') paid = { label: 'מאושר לתשלום', cls: 'b-approved' };
         // A recorded cash payment counts as handled (per owner decision) — no "unmatched" flag.
         // "מעוקבת לתשלום" גובר על ההחזקה בצבע: הוא הדבר שדורש פעולה מולי ומול הספק, ולכן הוא
         // מה שהעין צריכה לתפוס. ראה services/trackedInvoices.js.
@@ -126,15 +130,18 @@
               data-supname="<%= i.supplier_name %>" data-amount="<%= i.total_amount %>" />
           <% } %>
         </td>
-        <td class="mono"><%= i.invoice_number %></td>
         <td><%= i.store_name %></td>
-        <td><%= formatDate(i.invoice_date) %></td>
-        <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
         <td><%= i.supplier_name %>
           <% if (i.supplier_status !== 'approved') { %>
             <span class="badge b-<%= i.supplier_status %>">ספק <%= i.supplier_status === 'pending' ? 'ממתין' : 'חסום' %></span>
           <% } %>
         </td>
+        <td class="mono"><%= i.invoice_number %></td>
+        <td class="inv-date"><%= formatDate(i.invoice_date) %></td>
+        <td><%= payMethod || '—' %></td>
+        <td class="mono"><%= payRef || '—' %></td>
+        <td class="pay-date"><%= i.pay_date ? formatDate(i.pay_date) : '—' %></td>
+        <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
         <td>
           <span class="badge <%= paid.cls %>"><%= paid.label %></span>
           <%# צבע לבדו אינו סטטוס — מי שלא מבחין בכתום חייב לקרוא את זה במילים. %>

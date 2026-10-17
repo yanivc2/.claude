@@ -540,7 +540,7 @@ async function enrichPaidStatus(rows, x = getExecutor()) {
   const ph = ids.map(() => '?').join(',');
   const payments = await x.many(
     `SELECT pl.invoice_id, p.id AS pid, p.method, p.check_number, p.reference,
-            p.batch_number, p.card_last4, p.payer_name, p.status
+            p.batch_number, p.card_last4, p.payer_name, p.status, p.payment_date
        FROM payment_lines pl JOIN payments p ON p.id = pl.payment_id
       WHERE p.status <> 'voided' AND pl.invoice_id IN (${ph})`,
     ids,
@@ -580,6 +580,8 @@ async function enrichPaidStatus(rows, x = getExecutor()) {
     r.pay_card_last4 = p ? p.card_last4 : null;
     r.pay_payer_name = p ? p.payer_name : null;
     r.pay_status = p ? p.status : null;
+    // "תאריך לתשלום" — the payment's own date (a check's due date). Never the invoice date.
+    r.pay_date = p ? p.payment_date : null;
     r.cash_matches = cashByInv.get(r.id) || 0;
   }
   return rows;

@@ -43,11 +43,11 @@ test('שירות: קביעה, מחיקה, אורך מקסימלי, והוספה 
   assert.equal(await appendInvoiceNote([inv.id], '   ', own, db), 0, 'הערה ריקה בתשלום לא נוגעת בחשבונית');
 });
 
-test('דף החשבוניות: עמודת "הערות" משמאל ל"שולם", 📝 כשיש הערה, והטקסט מוחרג (לא HTML)', async () => {
+test('דף החשבוניות: עמודת "הערות" משמאל ל"סטטוס", 📝 כשיש הערה, והטקסט מוחרג (לא HTML)', async () => {
   const inv = await newInvoice();
   await setInvoiceNote(inv.id, '<img src=x onerror=alert(1)> "ציטוט"', own, db);
   const html = await (await fetch(`${base}/invoices`, { headers: { cookie: cookie() } })).text();
-  assert.match(html, /<th>שולם<\/th><th data-nosort>הערות<\/th>/, 'הערות היא העמודה שאחרי שולם (משמאל לה ב-RTL)');
+  assert.match(html, /<th>סטטוס<\/th><th data-nosort>הערות<\/th>/, 'הערות היא העמודה שאחרי סטטוס (משמאל לה ב-RTL)');
   assert.match(html, /id="noteDlg"/);
   const btn = html.match(new RegExp(`<button type="button" class="note-btn has-note"[^>]*data-id="${inv.id}"[^>]*>`))?.[0];
   assert.ok(btn, 'יש כפתור 📝 לחשבונית עם הערה');
