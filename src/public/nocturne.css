@@ -1225,9 +1225,19 @@ main.page .collapse-card > summary { justify-content: center !important; }
    הריפוד הסימטרי שומר את התוכן במרכז האמיתי של הפס גם כשהכפתור יושב בצד. */
 .store-banner { justify-content: center; position: relative; }
 .store-banner-switch, .store-banner-lock { margin: 0; }
-.store-banner.has-back { padding-inline: 120px; }
+.store-banner.has-back { padding-inline: 104px; }
 .store-banner-back { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); }
 main.page .page-back { text-align: start !important; }
+/* במחשב הפס הוא שורה אחת בכל חנות (בעלים, 17/10 — צילום "סופר על הדרך": שם חברה ארוך שבר את
+   "אפשרויות" לשורה שנייה, וב"מידנייט" לא). מה שמתקצר כשאין מקום: שם החברה (…) והבורר — לא הכפתורים. */
+@media (min-width: 1000px) {
+  .store-banner { flex-wrap: nowrap; }
+  .store-banner > * { flex-shrink: 0; }
+  .store-banner > .store-banner-name { flex-shrink: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .store-banner > .store-banner-switch { flex-shrink: 1; }                 /* עד רוחב הבורר המינימלי + "החלף" */
+  .store-banner-switch select { min-width: 130px; max-width: 260px; flex: 0 1 auto; }
+  .store-banner-switch > button { flex-shrink: 0; }
+}
 /* בנייד אין מקום לצד: הכפתור נשאר בצד ימין, בשורה עליונה משלו בתוך הפס. */
 @media (max-width: 700px) {
   .store-banner.has-back { padding-inline: var(--space-4); padding-top: 52px; }

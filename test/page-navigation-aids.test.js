@@ -39,3 +39,11 @@ test('"→ חזרה" sits inside the store bar, at its right edge, and the bar i
   assert.match(css, /\.store-banner-back \{ position: absolute; inset-inline-start: 12px;/, 'inline-start = right in RTL');
   assert.match(css, /main\.page \.page-back \{ text-align: start !important; \}/);
 });
+
+test('desktop: the store bar is ONE row for every store — long names shrink, buttons never wrap (owner, 17/10)', () => {
+  const block = css.slice(css.indexOf('@media (min-width: 1000px) {\n  .store-banner { flex-wrap: nowrap; }'));
+  assert.ok(block.length > 0, 'nowrap on desktop');
+  assert.match(block, /\.store-banner > \.store-banner-name \{ flex-shrink: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; \}/);
+  assert.match(block, /\.store-banner-switch > button \{ flex-shrink: 0; \}/, '"החלף" keeps its size');
+  assert.match(css, /\.store-banner\.has-back \{ padding-inline: 104px; \}/);
+});
