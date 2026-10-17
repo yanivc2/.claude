@@ -45,6 +45,10 @@ import { financyConfigured } from '../lib/financy.js';
 import { accountIntegrity } from '../services/accountIntegrity.js';
 import { findAccountDuplicates, mergeAccountDuplicates } from '../services/bankDuplicates.js';
 import { inspectBankTxn } from '../services/txnInspect.js';
+import { revenueIngestSecret } from '../lib/revenueIngest.js';
+import { buildRevenueIngestScript } from '../lib/revenueIngestScript.js';
+import { listRevenue } from '../services/revenueReports.js';
+import { israelToday } from '../lib/loginHours.js';
 
 const router = Router();
 
@@ -140,6 +144,8 @@ async function renderPage(req, res, accountId, extra = {}) {
     // כרטיס סנכרון הבנק (סוכן מחשב המשרד) — רק למי שמורשה לייבא. המצב ההתחלתי מרונדר בשרת כדי
     // שהכרטיס יעבוד גם בלי JS; הסקריפט רק מרענן אותו בזמן אמת.
     bankSync: res.locals.can?.('import_bank') ? await syncStatus(req.user, req.scope) : null,
+    // "📈 קליטת דוח פדיון מהמייל" — משמאל ל"סנכרן עכשיו" (בעלים, 17/10). בעלים בלבד: הדף מציג סוד.
+    revenueIntake: req.user?.role === 'owner',
     payMethods: PAY_METHODS,
     // Open-Banking sync is offered only when the key is configured AND this account is linked.
     financyReady: financyConfigured(),
@@ -236,6 +242,26 @@ async function bankSyncReply(req, res, fn, okNotice) {
 
 // "תאריך תחילת עבודה" — הסתרת חיובים לא מותאמים עד תאריך (בעלים בלבד; ריק = ביטול). ראה
 // services/bankTransactions.js#unmatchedHiddenUntil — למה הסתרה ולא מחיקה.
+// 📈 קליטת דוח פדיון מהמייל — הסקריפט המוכן להדבקה ב-script.google.com + הוראות. בעלים בלבד:
+// הסקריפט נושא את סוד הקליטה (lib/revenueIngest.js), ולכן גם no-store. הכפתור יושב בכרטיס סנכרון
+// הבנק, משמאל ל"סנכרן עכשיו" (בעלים, 17/10) — שם יושבות שאר המשיכות האוטומטיות.
+router.get('/revenue-intake', requireOwner, async (req, res, next) => {
+  try {
+    const secret = revenueIngestSecret();
+    const https = req.secure || req.headers['x-forwarded-proto'] === 'https';
+    const origin = `${https ? 'https' : req.protocol}://${req.get('host')}`;
+    res.set('Cache-Control', 'no-store');
+    res.render('reconciliation/revenue-intake', {
+      title: 'קליטת דוח פדיון מהמייל',
+      script: secret ? buildRevenueIngestScript({ appUrl: origin, secret, generatedAt: israelToday() }) : null,
+      stores: await getExecutor().many('SELECT id, name FROM stores ORDER BY name', []),
+      recent: await listRevenue({ limit: 14 }),
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/hide-until', requireOwner, async (req, res, next) => {
   const accountId = await resolveAccountId(req);
   try {

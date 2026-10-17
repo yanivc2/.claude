@@ -118,7 +118,10 @@ happen only at merge. So:
   shapes: a per-day table (auto-detected Hebrew headers / manual mapping) and the **summary** shape
   (RTL label→value, one day, **no date in the file** — the caller supplies it; default = yesterday), `services/revenueReports.js`
   upserts one row per store/day (`revenue_reports`). Email ingestion: `POST /ingest/revenue-report`
-  (mounted BEFORE `currentUser`, guarded by **`REVENUE_INGEST_SECRET`** env — unset = 503).
+  (mounted BEFORE `currentUser`), fed hourly by a **Gmail Apps Script** the owner copies ready-made from
+  `/reconciliation/revenue-intake` (`lib/revenueIngestScript.js`). Secret = `REVENUE_INGEST_SECRET` env, else
+  **derived from `SESSION_SECRET`** (`lib/revenueIngest.js`; neither = 503). Store = POS branch name in the
+  subject matched to exactly ONE store (else 422 + alert — never guessed); day = POS file stamp / send time.
 - **Open Banking (Financy):** `POST /reconciliation/sync` pulls bank movements straight into
   `bank_transactions` (same pipeline as the CSV import, then `autoReconcile`). `lib/financy.js`
   (fetch, **read-only** — payment initiation deliberately not wired) + `lib/financyMap.js` (pure

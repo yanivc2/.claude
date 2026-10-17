@@ -5,67 +5,82 @@ import { config } from '../config.js';
 import { parseRevenueReport } from '../lib/revenueReportFile.js';
 import { importRevenueRows } from '../services/revenueReports.js';
 import { notify } from '../lib/notify.js';
-import { israelToday } from '../lib/loginHours.js';
 import { syncAllLinkedAccounts, importScrapedBatch } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
 import { timingSafeEqual } from 'node:crypto';
 import { claimNext, reportState, takeOtp, completeWithAccounts, agentPing } from '../services/bankSyncJobs.js';
 import { webhookSecret } from '../lib/telegramBot.js';
+import { revenueIngestSecret, reportDateFrom, pickReportFile, resolveStoreByBranch, branchFromSubject } from '../lib/revenueIngest.js';
+import { decodeFileName } from '../lib/decodeText.js';
 import { handleTelegramUpdate } from '../services/telegramApprovals.js';
 
-/** Yesterday in Israel time — the business day the nightly report covers. */
-function yesterdayInIsrael() {
-  const d = new Date(`${israelToday()}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() - 1);
-  return d.toISOString().slice(0, 10);
-}
-
-// Machine ingestion for the nightly "דוח פדיון" email. An inbound-email provider (Mailgun routes /
-// SendGrid Inbound Parse / CloudMailin) receives the report mail and POSTs it here as multipart with
-// the XLS attached. This router is mounted BEFORE the session gate — there is no logged-in user —
-// so it is protected by a shared secret and by naming the target store in the URL:
+// Machine ingestion for the nightly "דוח פדיון" email. A small Apps Script in the owner's Gmail
+// (lib/revenueIngestScript.js — the owner copies it, ready-made, from /reconciliation/revenue-intake)
+// finds the POS mail every hour and POSTs its "פדיון" sheet here as multipart, with the mail's
+// subject and send time. This router is mounted BEFORE the session gate — there is no logged-in
+// user — so it is protected by a shared secret (header x-ingest-secret):
 //
-//   POST /ingest/revenue-report?store=<storeId>&secret=<REVENUE_INGEST_SECRET>
+//   POST /ingest/revenue-report?subject=<POS subject>&sent=<ISO>&file_name=<name>   (or ?store=<id>&date=…)
 //
-// Without REVENUE_INGEST_SECRET set the endpoint is disabled (503), so it can never be open.
+// Store and day are resolved in lib/revenueIngest.js; an unmatched branch is refused and the owner
+// is told, never guessed. With no secret available (no env and no explicit SESSION_SECRET) → 503.
 const router = Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 10 } }).any();
 
-const isReportFile = (f) => /\.(xlsx?|csv)$/i.test(f.originalname || '') || /excel|spreadsheet|csv/i.test(f.mimetype || '');
-
 router.post('/revenue-report', (req, res) => {
   upload(req, res, async (uploadErr) => {
     try {
-      const secret = config.revenueIngestSecret;
-      if (!secret) return res.status(503).json({ ok: false, error: 'ingest disabled (no REVENUE_INGEST_SECRET)' });
-      const given = req.query.secret || req.get('x-ingest-secret') || (req.body && req.body.secret);
-      if (given !== secret) return res.status(401).json({ ok: false, error: 'bad secret' });
+      // REVENUE_INGEST_SECRET, or one derived from SESSION_SECRET (lib/revenueIngest.js) — the
+      // owner gets it inside the ready-made Gmail script and never has to touch Vercel.
+      const secret = revenueIngestSecret();
+      if (!secret) return res.status(503).json({ ok: false, error: 'ingest disabled (no secret)' });
+      const given = Buffer.from(String(req.get('x-ingest-secret') || req.query.secret || (req.body && req.body.secret) || ''));
+      const want = Buffer.from(secret);
+      if (given.length !== want.length || !timingSafeEqual(given, want)) return res.status(401).json({ ok: false, error: 'bad secret' });
       if (uploadErr) return res.status(400).json({ ok: false, error: 'upload failed' });
 
-      const storeId = Number(req.query.store || (req.body && req.body.store));
-      if (!storeId) return res.status(400).json({ ok: false, error: 'missing store' });
-      const store = await getExecutor().one('SELECT id, name FROM stores WHERE id = ?', [storeId]);
-      if (!store) return res.status(404).json({ ok: false, error: 'store not found' });
-
-      const file = (req.files || []).find(isReportFile);
+      const x = getExecutor();
+      // Hebrew attachment names arrive as latin1 bytes through multipart — decode before matching "פדיון".
+      const files = (req.files || []).map((f) => ({ ...f, originalname: decodeFileName(f.originalname) || f.originalname }));
+      const file = pickReportFile(files);
       if (!file) return res.status(400).json({ ok: false, error: 'no XLS/CSV attachment' });
 
-      // The POS summary report carries no date; the nightly mail arrives after 00:30 for the
-      // PREVIOUS business day. Accept an explicit ?date=, else default to yesterday (Israel).
-      const reportDate = String(req.query.date || '').trim() || yesterdayInIsrael();
+      // Store: an explicit id, or the POS branch named in the subject ("סניף: 3 מידנייט").
+      const branch = branchFromSubject(req.query.subject || (req.body && req.body.subject));
+      const branchName = String(req.query.branch_name || branch.name || '').trim();
+      let store;
+      const storeId = Number(req.query.store || (req.body && req.body.store));
+      if (storeId) {
+        store = await x.one('SELECT id, name FROM stores WHERE id = ?', [storeId]);
+        if (!store) return res.status(404).json({ ok: false, error: 'store not found' });
+      } else {
+        store = resolveStoreByBranch(await x.many('SELECT id, name FROM stores', []), branchName);
+        if (!store) {
+          await notify(
+            `⚠️ <b>דוח פדיון לא נקלט</b>\nהדוח של סניף ${branch.no || '?'} "${branchName || 'ללא שם'}" בקופה לא תואם לשם של אף חנות במערכת. שם החנות צריך להכיל את שם הסניף בקופה (או להפך).`,
+            { link: '/reconciliation/revenue-intake' },
+          );
+          return res.status(422).json({ ok: false, error: 'branch does not match a single store', branch: branchName });
+        }
+      }
+
+      // The POS summary report carries no date of its own — see reportDateFrom for the order.
+      const { date: reportDate, from: dateFrom } = reportDateFrom({
+        date: req.query.date, fileName: req.query.file_name || file.originalname, sent: req.query.sent,
+      });
       const { rows, warnings } = parseRevenueReport(file.buffer, { reportDate });
       if (!rows.length) {
-        notify(`⚠️ <b>דוח פדיון לא נקלט</b>\n${store.name}: לא זוהו שורות בקובץ שהגיע במייל. ${warnings.join(' ')}`, { link: '/reports/profitability' });
+        await notify(`⚠️ <b>דוח פדיון לא נקלט</b>\n${store.name}: לא זוהו שורות בקובץ שהגיע במייל. ${warnings.join(' ')}`, { link: '/reports/profitability' });
         return res.status(422).json({ ok: false, error: 'no rows parsed', warnings });
       }
-      const { inserted, updated } = await importRevenueRows(storeId, rows, 'email', null);
+      const { inserted, updated } = await importRevenueRows(store.id, rows, 'email', null);
       const last = rows[rows.length - 1];
-      notify(
+      await notify(
         `📈 <b>דוח פדיון נקלט</b>\n${store.name}: ${inserted} ימים חדשים, ${updated} עודכנו.\nאחרון ${last.date}: פדיון ${last.gross / 100} ₪ · אשראי ${last.credit / 100} ₪`,
         { kind: 'revenue', link: '/reports/profitability' },
       );
-      return res.json({ ok: true, inserted, updated, days: rows.length });
+      return res.json({ ok: true, store: store.name, date: reportDate, dateFrom, inserted, updated, days: rows.length });
     } catch (err) {
       return res.status(500).json({ ok: false, error: err.message });
     }

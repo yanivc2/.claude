@@ -1,0 +1,89 @@
+<%- include('../partials/header') %>
+<%# 📈 קליטת דוח פדיון מהמייל — routes/reconciliation.js#GET /revenue-intake (בעלים בלבד, no-store).
+    כל הכרטיסים no-collapse: זו רשימת צעדים, והאקורדיון היה סוגר שלב בזמן שקוראים את הבא. %>
+<h1>📈 קליטת דוח פדיון מהמייל</h1>
+<p class="muted">
+  הקופה שולחת כל לילה מייל לג׳ימייל שלך. סקריפט קטן בתוך הג׳ימייל (רץ בשרתים של גוגל — לא צריך מחשב דלוק)
+  בודק פעם בשעה אם הגיע דוח "פדיון", ושולח אותו לכאן. האפליקציה מזהה את החנות לפי שם הסניף שבנושא
+  המייל ואת היום לפי חותמת הזמן של הקופה, ותקבל התראה על כל דוח שנקלט — או שלא נקלט, ולמה.
+</p>
+
+<div class="card no-collapse">
+  <h2 style="margin:0 0 .4rem">1. בקופה (Aviv POS)</h2>
+  <p style="margin:0 0 .4rem">
+    להוסיף לדיוור הלילי של כל חנות את הדוח <strong>"פדיון-A4" בפורמט XLS</strong>, לכתובת שמגיעה לג׳ימייל הזה.
+    היום נשלחים בלילה רק קובצי PDF של דוחות אחרים, ואותם אי אפשר לקלוט. אם אין לך גישה להגדרה — תמיכת אביב.
+  </p>
+  <p class="muted" style="margin:0 0 .3rem">
+    שם הסניף בנושא המייל ("סניף: 3 מידנייט") צריך להופיע בשם החנות כאן (או להפך). החנויות במערכת:
+  </p>
+  <p style="margin:0">
+    <% stores.forEach(function(s){ %><span class="tag tag-outline" style="margin:2px"><%= s.name %></span><% }); %>
+  </p>
+</div>
+
+<div class="card no-collapse">
+  <h2 style="margin:0 0 .4rem">2. הסקריפט בג׳ימייל — פעם אחת</h2>
+  <% if (!script) { %>
+    <div class="alert alert-warn">
+      אין סוד קליטה זמין בשרת (לא הוגדר <span class="mono">SESSION_SECRET</span> וגם לא <span class="mono">REVENUE_INGEST_SECRET</span>
+      ב-Vercel), ולכן אי אפשר לבנות סקריפט בטוח.
+    </div>
+  <% } else { %>
+    <ol style="margin:0 0 .6rem; padding-inline-start:1.2rem; line-height:1.9">
+      <li>פתח את <a href="https://script.google.com/home/projects/create" target="_blank" rel="noopener">script.google.com ← פרויקט חדש</a>, מחובר לחשבון הג׳ימייל שאליו מגיעים הדוחות.</li>
+      <li>מחק את מה שכתוב שם, לחץ למטה על <strong>"📋 העתק את הסקריפט"</strong> והדבק. שמור (Ctrl+S).</li>
+      <li>בשורה העליונה בחר את הפונקציה <span class="mono">installTrigger</span> ולחץ <strong>Run / הפעלה</strong>.</li>
+      <li>גוגל יבקש הרשאה לג׳ימייל. אם מופיע "Google hasn't verified this app" — Advanced ← Go to … (זה הסקריפט שלך).</li>
+      <li>זהו. מעכשיו הוא רץ לבד כל שעה. מייל שנקלט מסומן בג׳ימייל בתווית <span class="mono">AP-imported</span>.</li>
+    </ol>
+    <p class="muted" style="margin:0 0 .4rem">🔒 בסקריפט יש סוד שמאפשר להכניס נתונים לאפליקציה — לא לשלוח אותו לאף אחד.</p>
+    <textarea id="revScript" readonly rows="12" class="mono" style="width:100%; direction:ltr; text-align:left !important; font-size:12px"><%= script %></textarea>
+    <div class="actions" style="margin-top:.5rem">
+      <button type="button" id="revCopy">📋 העתק את הסקריפט</button>
+      <span class="muted" id="revCopied" style="font-size:12px"></span>
+    </div>
+  <% } %>
+</div>
+
+<div class="card no-collapse">
+  <h2 style="margin:0 0 .4rem">3. בדיקה — ימים אחרונים שנקלטו</h2>
+  <% if (!recent || !recent.length) { %>
+    <p class="muted" style="margin:0">עדיין לא נקלט דוח פדיון. אחרי שהקופה תשלח את הדוח הלילי בפורמט XLS, הוא יופיע כאן תוך שעה.</p>
+  <% } else { %>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>תאריך</th><th>חנות</th><th class="right">פדיון</th><th class="right">אשראי</th><th>מקור</th></tr></thead>
+        <tbody>
+          <% recent.forEach(function(r){ %>
+            <tr>
+              <td><%= formatDate(r.report_date) %></td>
+              <td><%= r.store_name %></td>
+              <td class="right"><%= formatIls(r.gross_sales) %></td>
+              <td class="right"><%= formatIls(r.credit_total) %></td>
+              <td class="muted"><%= r.source === 'email' ? 'מייל' : 'העלאה' %></td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<% if (script) { %>
+<script>
+  (function () {
+    var btn = document.getElementById('revCopy');
+    var box = document.getElementById('revScript');
+    var msg = document.getElementById('revCopied');
+    if (!btn || !box) return;
+    btn.addEventListener('click', function () {
+      function done() { msg.textContent = '✓ הועתק — הדבק ב-script.google.com'; }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(box.value).then(done, function () { box.select(); document.execCommand('copy'); done(); });
+      } else { box.select(); document.execCommand('copy'); done(); }
+    });
+  })();
+</script>
+<% } %>
+<%- include('../partials/footer') %>

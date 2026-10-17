@@ -114,7 +114,8 @@ test('ingest endpoint: disabled without a secret, refuses a wrong one, imports w
     const body = form(['תאריך,פדיון,אשראי', '10/09/2026,300,120'].join('\n'));
     r = await fetch(`${base}/ingest/revenue-report?store=${st.id}&secret=s3cret`, { method: 'POST', body });
     assert.equal(r.status, 200);
-    assert.deepEqual(await r.json(), { ok: true, inserted: 1, updated: 0, days: 1 });
+    const j = await r.json();
+    assert.deepEqual({ ok: j.ok, inserted: j.inserted, updated: j.updated, days: j.days }, { ok: true, inserted: 1, updated: 0, days: 1 });
 
     const got = await revenueInRange('2026-09-10', '2026-09-10', db);
     assert.deepEqual(got.get(st.id), { sales: 30000, credit: 12000, days: 1 });

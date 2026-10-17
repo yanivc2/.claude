@@ -57,6 +57,9 @@
         <% } %>
       <% } %>
 
+      <%# "📈 קליטת דוח פדיון מהמייל" — משמאל ל"סנכרן עכשיו" (בעלים, 17/10), בעלים בלבד. גם הסקריפט
+          למטה בונה אותו (REV_INTAKE) — הכרטיס מתרענן מ-JSON שאינו יודע מי הבעלים. %>
+      <% var revLink = (typeof revenueIntake !== 'undefined' && revenueIntake); %>
       <div class="actions" style="margin-top:.4rem">
         <% if (active) { %>
           <% if (j.canCancel) { %>
@@ -64,10 +67,12 @@
               <button type="submit" class="secondary small">בטל</button>
             </form>
           <% } %>
+          <% if (revLink) { %><a class="btn btn-secondary rev-intake-link" href="/reconciliation/revenue-intake">📈 קליטת דוח פדיון מהמייל</a><% } %>
         <% } else { %>
           <form method="post" action="/reconciliation/bank-sync/request" class="js-bs-form" style="display:inline">
             <button type="submit"<%= bs.agentAsleepMsg ? ' disabled title="מחשב המשרד לא יאסוף בקשה עכשיו — ראה ההסבר למעלה"' : '' %>>🔄 סנכרן עכשיו</button>
           </form>
+          <% if (revLink) { %><a class="btn btn-secondary rev-intake-link" href="/reconciliation/revenue-intake">📈 קליטת דוח פדיון מהמייל</a><% } %>
           <span class="muted" style="font-size:12px"><%= bs.agentAsleepMsg ? 'הכפתור ייפתח כשהסוכן יחזור לשעות הפעילות (או אחרי עדכון למצב חיסכון).' : 'הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.' %></span>
         <% } %>
       </div>
@@ -86,6 +91,10 @@
   var card = document.getElementById('bank-sync');
   if (!card || !window.fetch) return;
   var ACTIVE = ['requested', 'running', 'awaiting_otp'];
+  var REV_INTAKE = <%- JSON.stringify(!!(typeof revenueIntake !== 'undefined' && revenueIntake)) %>;
+  function revLink() {
+    return el('a', { class: 'btn btn-secondary rev-intake-link', href: '/reconciliation/revenue-intake' }, '📈 קליטת דוח פדיון מהמייל');
+  }
   var lastStatus = <%- JSON.stringify(bs.job ? bs.job.status : null).replace(/</g, '\\u003c') %>;
   var timer = null;
 
@@ -170,12 +179,14 @@
         cf.appendChild(el('button', { type: 'submit', class: 'secondary small' }, 'בטל'));
         acts.appendChild(cf);
       }
+      if (REV_INTAKE) acts.appendChild(revLink());
     } else {
       var rf = el('form', { method: 'post', action: '/reconciliation/bank-sync/request', class: 'js-bs-form', style: 'display:inline' });
       var btnAttrs = { type: 'submit' };
       if (s.agentAsleepMsg) { btnAttrs.disabled = 'disabled'; btnAttrs.title = 'מחשב המשרד לא יאסוף בקשה עכשיו — ראה ההסבר למעלה'; }
       rf.appendChild(el('button', btnAttrs, '🔄 סנכרן עכשיו'));
       acts.appendChild(rf);
+      if (REV_INTAKE) acts.appendChild(revLink()); // משמאל ל"סנכרן עכשיו"
       acts.appendChild(el('span', { class: 'muted', style: 'font-size:12px' }, s.agentAsleepMsg
         ? ' הכפתור ייפתח כשהסוכן יחזור לשעות הפעילות (או אחרי עדכון למצב חיסכון).'
         : ' הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.'));

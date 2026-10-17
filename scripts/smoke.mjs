@@ -113,7 +113,7 @@ const routes = [
   ['page', '/reports/lookup'], ['csv', '/reports/lookup.csv?q=SMK'],
   ['page', '/reports/profitability'], ['csv', '/reports/profitability.csv'],
   // reconciliation
-  ['page', '/reconciliation'], ['json', '/reconciliation/bank-sync/status'],
+  ['page', '/reconciliation'], ['json', '/reconciliation/bank-sync/status'], ['page', '/reconciliation/revenue-intake'],
   // zclosing
   ['page', '/zclosing'], ['page', `/zclosing/${closing.id}`],
   // suppliers
