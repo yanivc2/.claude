@@ -28,6 +28,10 @@ test('the business day: explicit › POS stamp in the file name › send time �
 test('the store comes from the POS branch name — one clear match or nothing', () => {
   const stores = [{ id: 1, name: 'מידנייט' }, { id: 2, name: 'סופר על הדרך' }, { id: 3, name: 'פינק מרקט' }, { id: 4, name: "ג'וניור" }];
   assert.deepEqual(branchFromSubject('[ דו"ח ] 3: יומי סניף: 3 מידנייט '), { no: '3', name: 'מידנייט' });
+  // בעלים, 17/10: "סניף 1 זה ג'וניור" — the till never named it ("null").
+  assert.deepEqual(branchFromSubject('[ דו"ח ] 1: יומי סניף: 1 null '), { no: '1', name: "ג'וניור" });
+  assert.equal(resolveStoreByBranch(stores, branchFromSubject('[ דו"ח ] 1: יומי סניף: 1 null ').name).id, 4);
+  assert.deepEqual(branchFromSubject('[ דו"ח ] 9: יומי סניף: 9 null '), { no: '9', name: 'null' }, 'no alias → stays unnamed');
   assert.equal(resolveStoreByBranch(stores, 'מידנייט').id, 1);
   assert.equal(resolveStoreByBranch(stores, 'סופר').id, 2, 'the POS shortens names');
   assert.equal(resolveStoreByBranch(stores, 'פינק מרקט').id, 3);
@@ -107,7 +111,7 @@ test('a POS mail as the script sends it: store from the subject, day from the st
 
 test('a branch with no matching store is refused (422) and the owner is told — nothing imported', async () => {
   const before = await db.one('SELECT COUNT(*) AS n FROM revenue_reports', []);
-  const r = await post(`subject=${encodeURIComponent('[ דו"ח ] 1: יומי סניף: 1 null ')}&file_name=x.xls`, [['פדיון-A4.xls', realReport()]]);
+  const r = await post(`subject=${encodeURIComponent('[ דו"ח ] 9: יומי סניף: 9 null ')}&file_name=x.xls`, [['פדיון-A4.xls', realReport()]]);
   assert.equal(r.status, 422);
   const after = await db.one('SELECT COUNT(*) AS n FROM revenue_reports', []);
   assert.equal(Number(after.n), Number(before.n));
@@ -135,4 +139,16 @@ test('the intake page (owner only) hands over the ready script; the button sits 
   const sync = recon.indexOf('🔄 סנכרן עכשיו</button>');
   const link = recon.indexOf('href="/reconciliation/revenue-intake"');
   assert.ok(sync > 0 && link > sync, 'right after the sync button in the DOM = to its left in RTL');
+});
+
+test('"סניף: 1 null" lands on ג\'וניור (owner, 17/10)', async () => {
+  const jr = await db.one("SELECT id FROM stores WHERE name = ?", ["ג'וניור"]);
+  assert.ok(jr, "the seed has a store named ג'וניור");
+  const r = await post(`subject=${encodeURIComponent('[ דו"ח ] 1: יומי סניף: 1 null ')}&file_name=${encodeURIComponent('פדיון-A4_20261015235900_7.xls')}`,
+    [['פדיון-A4_20261015235900_7.xls', realReport()]]);
+  const j = await r.json();
+  assert.equal(r.status, 200, JSON.stringify(j));
+  assert.equal(j.store, "ג'וניור");
+  assert.equal(j.date, '2026-10-15');
+  assert.ok(await db.one('SELECT id FROM revenue_reports WHERE store_id = ? AND report_date = ?', [jr.id, '2026-10-15']));
 });

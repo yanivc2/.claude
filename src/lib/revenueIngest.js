@@ -93,8 +93,17 @@ export function resolveStoreByBranch(stores, branchName) {
   return hits.length === 1 ? hits[0] : null;
 }
 
-/** "[ דו"ח ] 3: יומי סניף: 3 מידנייט " → { no: '3', name: 'מידנייט' }. */
+/**
+ * POS branches the till never named. The subject then reads "סניף: 1 null", so the name cannot
+ * match a store — the owner said which store it is (17/10: "סניף 1 זה ג'וניור"). Consulted ONLY
+ * when the POS gives no name; the store is still found by name, so renaming it is caught (422).
+ */
+export const POS_BRANCH_ALIASES = { 1: "ג'וניור" };
+
+/** "[ דו"ח ] 3: יומי סניף: 3 מידנייט " → { no: '3', name: 'מידנייט' }; an unnamed branch → its alias. */
 export function branchFromSubject(subject) {
   const m = /סניף:\s*(\d+)\s*([^\n]*?)\s*$/.exec(String(subject || ''));
-  return m ? { no: m[1], name: m[2] } : { no: '', name: '' };
+  if (!m) return { no: '', name: '' };
+  const named = m[2] && normName(m[2]) !== 'null';
+  return { no: m[1], name: named ? m[2] : (POS_BRANCH_ALIASES[m[1]] || m[2]) };
 }
