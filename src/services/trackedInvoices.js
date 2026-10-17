@@ -7,6 +7,10 @@
 //   • עיקוב הוא **תזכורת מול הספק**, לא חסימה טכנית. חשבונית יכולה להיות מאושרת לתשלום, ואפילו
 //     משולמת, ועדיין לחכות לזיכוי — ואת זה `status` לא יודע לבטא.
 // לכן הדגל נדלק ונכבה רק בידיים, ושחרור מעיקוב מוציא את החשבונית מהדף הזה ותו לא.
+//
+// 🔴 בעלים, 17/10: "החשבוניות לא נמצאות במעוקבות לתשלום למרות שהן מסומנות כמוחזקות" → כן: הדף מציג
+// גם כל חשבונית **מוחזקת** (`status = 'on_hold'`) — **בלי לגעת בדגל**. הן נכנסות כי הן מוחזקות,
+// ויוצאות לבד כשההחזקה משתחררת (נוסף מספר הקצאה / שחרור ידני), אלא אם סומנו גם בידיים.
 import { getExecutor, nowTs } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeWhere } from '../lib/scope.js';
@@ -68,6 +72,12 @@ export async function setTrackedNote(id, note, actor, x = getExecutor()) {
 
 export const isTracked = (inv) => Number(inv?.tracked_for_payment) === 1;
 
+/** מוחזקת ולא מסומנת בידיים — בדף רק בזכות ההחזקה (אין לה "שחרור מעיקוב"; היא יוצאת עם ההחזקה). */
+export const isHeldOnly = (inv) => !isTracked(inv) && inv?.status === 'on_hold';
+
+/** החזקה של R3 = חסר מספר הקצאה (services/invoices.js#r3HoldReason). */
+export const isR3Hold = (inv) => inv?.status === 'on_hold' && typeof inv.hold_reason === 'string' && inv.hold_reason.startsWith('R3');
+
 /** התווית שמוצגת בעמודת הסטטוס. */
 export function trackedStatusLabel(inv) {
   if (isTracked(inv)) return { label: 'מעוקבת לתשלום', badge: 'b-tracked' };
@@ -109,7 +119,7 @@ export async function listTracked({ scope = null, filters = {} } = {}, x = getEx
        LEFT JOIN suppliers s ON s.id = i.supplier_id
        LEFT JOIN stores st ON st.id = i.store_id
        LEFT JOIN users u ON u.id = i.tracked_by
-      WHERE i.tracked_for_payment = 1${sc.sql}${where}
+      WHERE (i.tracked_for_payment = 1 OR i.status = 'on_hold')${sc.sql}${where}
       ORDER BY i.invoice_date DESC, i.id DESC`,
     params,
   );
@@ -129,6 +139,7 @@ export function trackedMessage(inv) {
       + `${inv.total_amount ? `, על סך ${money(inv.total_amount)}` : ''}:`,
   ];
   if (inv.tracked_note) lines.push('', inv.tracked_note);
+  else if (isR3Hold(inv)) lines.push('', 'לא נוכל לשלם את החשבונית ללא מספר הקצאה מרשות המסים. נבקש לשלוח חשבונית מתוקנת עם מספר הקצאה.');
   else lines.push('', 'החשבונית מעוכבת לתשלום עד להשלמת טיפול מצדכם.');
   lines.push('', 'נודה לחזרתכם בהקדם.');
   return lines.join('\n');

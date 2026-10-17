@@ -33,6 +33,7 @@
     </div>
     <p class="muted" style="margin:0 0 .5rem">
       חשבוניות שמחכות לטיפול של הספק. <strong>שחרור מעיקוב מוציא אותן מהדף הזה</strong> — ההסבר נשמר גם אחרי.
+      גם כל חשבונית <strong>מוחזקת</strong> מופיעה כאן, ויוצאת לבד כשההחזקה משתחררת (למשל כשמוסיפים מספר הקצאה).
     </p>
     <div class="table-scroll">
       <%# אותן עמודות של דף החשבוניות, עם שתי החלפות: במקום "חנות" — סטטוס; במקום "שולם" — הסבר. %>
@@ -59,7 +60,9 @@
                   <input name="note" value="<%= r.tracked_note || '' %>" placeholder="למשל: מחכים לזיכוי על 3 ארגזים שלא סופקו" autocomplete="off" />
                   <button type="submit" class="btn-sm">שמור</button>
                 </form>
-                <% if (r.tracked_at) { %>
+                <% if (r.heldOnly) { %>
+                  <span class="muted" style="font-size:11px">מוחזקת: <%= r.hold_reason || 'ללא סיבה' %><% if (r.r3Hold) { %> · <a href="/invoices/<%= r.id %>/edit">✏️ הוסף מספר הקצאה</a><% } %></span>
+                <% } else if (r.tracked_at) { %>
                   <span class="muted" style="font-size:11px">עוקב מ-<%= formatDate(r.tracked_at.slice(0,10)) %><%= r.tracked_by_name ? ' · ' + r.tracked_by_name : '' %></span>
                 <% } %>
               </td>
@@ -73,10 +76,12 @@
                 <a class="icon-btn <%= r.supplier_email ? '' : 'is-disabled' %>" href="<%= r.mailHref %>"
                    aria-label="שליחה במייל לספק"
                    title="<%= r.supplier_email || 'אין מייל לספק — הוסף אותו בכרטיס הספק' %>">✉️</a>
+                <% if (!r.heldOnly) { %>
                 <form method="post" action="/tracked-invoices/<%= r.id %>/release" style="display:inline"
                       onsubmit="return confirm('לשחרר את החשבונית מעיקוב? היא לא תופיע יותר בדף הזה.');">
                   <button type="submit" class="icon-btn" aria-label="שחרור מעיקוב" title="שחרור מעיקוב — החשבונית תיעלם מהדף">✓</button>
                 </form>
+                <% } %>
               </td>
             </tr>
           <% }); %>

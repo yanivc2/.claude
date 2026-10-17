@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   listTracked, trackInvoice, releaseInvoice, setTrackedNote, trackedReady,
-  trackedStatusLabel, trackedMessage, whatsappLink, mailtoLink,
+  trackedStatusLabel, trackedMessage, whatsappLink, mailtoLink, isHeldOnly, isR3Hold,
 } from '../services/trackedInvoices.js';
 import { assertInScope } from '../lib/scopeGuard.js';
 import { RuleError, AuthError } from '../lib/errors.js';
@@ -24,6 +24,8 @@ router.get('/', async (req, res, next) => {
       rows: rows.map((r) => ({
         ...r,
         statusInfo: trackedStatusLabel(r),
+        heldOnly: isHeldOnly(r),
+        r3Hold: isR3Hold(r),
         waHref: whatsappLink(r),
         mailHref: mailtoLink(r),
         messageText: trackedMessage(r),

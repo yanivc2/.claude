@@ -162,3 +162,29 @@ test('the message to the supplier is DERIVED from the invoice, never retyped', a
   assert.equal(waPhone('+972-50-123-4567'), '972501234567');
   assert.equal(waPhone(''), '');
 });
+
+// בעלים, 17/10: "החשבוניות לא נמצאות במעוקבות לתשלום למרות שהן מסומנות כמוחזקות" → "כן" (שהן יופיעו).
+test('a HELD invoice appears on the page by itself, and leaves when the hold is released — the flag is never touched', async () => {
+  const { db, ow, invoice } = await world();
+  const held = await invoice({ invoiceNumber: 'H-1', allocationNumber: null, amountBeforeVat: 10000000, vatAmount: 1800000 }); // VAT over threshold, no allocation → R3
+  assert.equal(held.status, 'on_hold');
+  const { isHeldOnly, isR3Hold } = await import('../src/services/trackedInvoices.js');
+  let rows = await listTracked({}, db);
+  const r = rows.find((x) => x.id === held.id);
+  assert.ok(r, 'on the page while held');
+  assert.equal(Number(r.tracked_for_payment), 0, 'not flagged — shown because it is held');
+  assert.ok(isHeldOnly(r) && isR3Hold(r));
+  assert.match(trackedMessage(r), /מספר הקצאה/, 'the supplier message asks for the allocation number');
+  await updateInvoice(held.id, { allocationNumber: '123456789' }, ow, db); // releases the R3 hold
+  rows = await listTracked({}, db);
+  assert.ok(!rows.some((x) => x.id === held.id), 'gone once the hold is released');
+});
+
+test('held AND flagged by hand: it stays after the hold is released (the manual flag wins)', async () => {
+  const { db, ow, invoice } = await world();
+  const held = await invoice({ invoiceNumber: 'H-2', allocationNumber: null, amountBeforeVat: 10000000, vatAmount: 1800000 });
+  await trackInvoice(held.id, { note: 'מחכים לזיכוי' }, ow, db);
+  await updateInvoice(held.id, { allocationNumber: '123456788' }, ow, db);
+  const rows = await listTracked({}, db);
+  assert.ok(rows.some((x) => x.id === held.id));
+});
