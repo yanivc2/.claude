@@ -43,7 +43,7 @@ test('both closing screens mark their count tables, including a register added a
 test('closing screens: count tables have no search / filter row; the new form shows no store field or start time', () => {
   for (const p of ['src/views/zclosing/index.ejs', 'src/views/zclosing/edit.ejs']) {
     const v = read(p);
-    assert.equal((v.match(/<table class="no-search no-filter" data-count-adjust>/g) || []).length, 2, p);
+    assert.equal((v.match(/<table class="no-search no-filter" data-count-adjust[ >]/g) || []).length, 2, p);
   }
   const v = read('src/views/zclosing/index.ejs').replace(/<%#[\s\S]*?%>/g, '');
   assert.doesNotMatch(v, /תחילת ספירה:/);
@@ -73,4 +73,17 @@ test('±bills buttons sit in the כמות header: ➕ right of it, ➖ left of i
   assert.match(js, /th\.setAttribute\('data-export-text', label\);/);
   const footer = read('src/views/partials/footer.ejs');
   assert.match(footer, /if \(cell && cell\.hasAttribute\('data-export-text'\)\) return cell\.getAttribute\('data-export-text'\);/);
+});
+
+// בעלים 18/10: "תעביר את כפתור הייצוא משמאל לשמור סגירה. תבטל את הצמצום של המזומן שיהיה תמיד פתוח
+// בלי יכולת לצמצם וכמו מקודם שנפתח עוד אפשרות למלא הוצאה".
+test('closing form: "הוצאות מזומן" is always open (no <details>), rows still auto-add; "ייצוא" sits left of "שמור סגירה"', () => {
+  const v = read('src/views/zclosing/index.ejs').replace(/<%#[\s\S]*?%>/g, '');
+  assert.doesNotMatch(v, /cx-collapse/);
+  assert.match(v, /<div class="cx-section">\s*<h3[^>]*>הוצאות מזומן<\/h3>/);
+  assert.match(v, /body\.addEventListener\('input', function\(e\)\{ recalc\(\); maybeAddRow\(e\.target\); \}\);/, 'filling the last row opens a new one');
+  assert.match(v, /<table class="no-search no-filter" data-count-adjust data-export-into="zc-export">/);
+  assert.match(v, /<div class="zc-save-row"><button type="submit">💾 שמור סגירה<\/button><span id="zc-export"><\/span><\/div>/,
+    'save first = right in RTL, the export slot to its left');
+  assert.doesNotMatch(read('src/public/nocturne.css'), /\.cx-collapse/);
 });

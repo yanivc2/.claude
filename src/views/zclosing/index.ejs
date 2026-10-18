@@ -103,7 +103,8 @@
     <%# הכותרת "ספירת מזומן" הוסרה (בעלים 18/10). %>
     <div class="table-scroll">
       <%# טבלת הזנה — בלי "חיפוש בטבלה…" ובלי שורת "סנן…" (בעלים 18/10: "תמחוק"). %>
-      <table class="no-search no-filter" data-count-adjust>
+      <%# "ייצוא" של הטבלה הזו — משמאל ל"שמור סגירה" (בעלים 18/10), לא בשורה משלו מתחת לטבלה. %>
+      <table class="no-search no-filter" data-count-adjust data-export-into="zc-export">
         <thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>
         <tbody>
           <% denoms.forEach(function(d){ %>
@@ -118,8 +119,9 @@
       </table>
     </div>
 
-    <details class="cx-collapse no-collapse">
-      <summary><h3 style="margin:0;display:inline">הוצאות מזומן</h3></summary>
+    <%# "הוצאות מזומן" — תמיד פתוח, בלי כיווץ (בעלים 18/10); שורה חדשה נוספת לבד כשממלאים את האחרונה. %>
+    <div class="cx-section">
+      <h3 style="margin:1.1rem 0 .2rem">הוצאות מזומן</h3>
     <p class="muted" style="margin:.5rem 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · חשבונית. שכר/מפרעה משויכים לעובד; סוג 'חשבונית' משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
     <div id="cx-body" class="cx-list">
       <div class="cx-row">
@@ -139,7 +141,7 @@
       </div>
     </div>
     <div class="cx-total">סה"כ הוצאות: <strong id="exp-total">₪0.00</strong></div>
-    </details>
+    </div>
 
     <div class="card" style="background:var(--color-surface-2);margin-top:1rem">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -156,7 +158,8 @@
       </div>
     </div>
 
-    <div style="margin-top:.8rem"><button type="submit">💾 שמור סגירה</button></div>
+    <%# RTL: "שמור סגירה" ראשון = מימין, "ייצוא" של טבלת הספירה משמאלו (footer.ejs#data-export-into). %>
+    <div class="zc-save-row"><button type="submit">💾 שמור סגירה</button><span id="zc-export"></span></div>
   </form>
   <% } %>
 </details>
