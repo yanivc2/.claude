@@ -49,6 +49,12 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
     const q = (req.query.q || '').trim();
     const name = (req.query.name || '').trim();
     const unpaidOnly = req.query.unpaid === '1';
+    // מתאריך / עד תאריך (בעלים, 18/10) — לפי תאריך החשבונית. ערך שאינו YYYY-MM-DD מתעלמים ממנו; טווח
+    // הפוך (מ > עד) מתהפך במקום להחזיר כלום.
+    const isoOr = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '').trim()) ? String(v).trim() : '');
+    let dateFrom = isoOr(req.query.from);
+    let dateTo = isoOr(req.query.to);
+    if (dateFrom && dateTo && dateFrom > dateTo) [dateFrom, dateTo] = [dateTo, dateFrom];
     // 🔒 רק החנות הפעילה (בעלים, 16/10: "בטל את האפשרות לבחור חנות או חברה") — אין יותר ?store= /
     // ?company= / ?oc_store= בלוח. בלי חנות פעילה ("כל החנויות") — כל מה שבתחום ההרשאה.
     const storeId = effectiveStoreId(req, null);
@@ -65,12 +71,14 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
 
     // תוצאות: מספר → חשבוניות לפי מספר/הקצאה + תשלומים; שם → חשבוניות לפי ספק + ספקים.
     let invoiceResults = null;
-    if (q || name) {
+    if (q || name || dateFrom || dateTo) {
       const seen = new Set();
       invoiceResults = [];
-      for (const [term, by] of [[q, 'number'], [name, 'name']]) {
-        if (!term) continue;
-        for (const r of await invoiceLookup(term, { storeId, scope, unpaidOnly, by })) {
+      // בלי שם ובלי מספר — הטווח לבדו: כל החשבוניות בו.
+      const searches = q || name ? [[q, 'number'], [name, 'name']] : [['', 'all']];
+      for (const [term, by] of searches) {
+        if (!term && by !== 'all') continue;
+        for (const r of await invoiceLookup(term, { storeId, scope, unpaidOnly, by, dateFrom, dateTo })) {
           const k = `${r.id}|${r.check_number || ''}`;
           if (!seen.has(k)) { seen.add(k); invoiceResults.push(r); }
         }
@@ -89,7 +97,9 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       outstandingDisplay,
       unpaidOnly,
       invoiceResults,
-      checkResults: q ? await lookupChecks(q, scope) : null,
+      dateFrom,
+      dateTo,
+      checkResults: q ? await lookupChecks(q, scope, undefined, { dateFrom, dateTo }) : null,
       supplierResults: name ? await searchSuppliers(name, req.scope) : null,
       // הצעות לשדה "שם ספק" (מצטמצמות עם כל אות — footer.ejs#data-suggest): רק ספקים שבתחום החנות
       // הפעילה, כמו תוצאות החיפוש עצמן.

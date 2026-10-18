@@ -56,12 +56,19 @@
       בנייד במקלדת מספרים (חשבונית / צ׳ק / הקצאה / אסמכתה — גם ברקוד שנסרק). %>
   <div class="stat oc-tile lookup-tile no-print">
     <div class="label" style="margin-bottom:.45rem">🔎 בדיקת חשבונית / אמצעי תשלום</div>
+    <%# בעלים, 18/10: שלוש עמודות — מימין שדות החיפוש זה מעל זה, באמצע מתאריך/עד תאריך זה מעל זה (לפי
+        תאריך החשבונית), משמאל "חפש" ומתחתיו "לא שולמו בלבד". %>
     <form method="get" action="/" class="lookup-form">
-      <%# הצעות שמצטמצמות עם כל אות; בחירה מחפשת מיד (footer.ejs#data-suggest). %>
-      <input name="name" value="<%= typeof name !== 'undefined' ? name : '' %>" placeholder="שם ספק" autocomplete="off" aria-label="חיפוש לפי שם ספק" data-suggest="sup-names" data-suggest-submit />
-      <script type="application/json" id="sup-names"><%- JSON.stringify(typeof supplierNames !== 'undefined' ? supplierNames : []).replace(/</g, '\\u003c') %></script>
-      <input name="q" value="<%= q %>" inputmode="numeric" placeholder="מספר חשבונית / צ׳ק" autocomplete="off" aria-label="חיפוש לפי מספר" />
-      <%# בעלים, 18/10: "חפש" משמאל לשדות החיפוש (באותה שורה), ו"לא שולמו בלבד" מתחתיו. %>
+      <div class="lookup-col lookup-terms">
+        <%# הצעות שמצטמצמות עם כל אות; בחירה מחפשת מיד (footer.ejs#data-suggest). %>
+        <input name="name" value="<%= typeof name !== 'undefined' ? name : '' %>" placeholder="שם ספק" autocomplete="off" aria-label="חיפוש לפי שם ספק" data-suggest="sup-names" data-suggest-submit />
+        <script type="application/json" id="sup-names"><%- JSON.stringify(typeof supplierNames !== 'undefined' ? supplierNames : []).replace(/</g, '\\u003c') %></script>
+        <input name="q" value="<%= q %>" inputmode="numeric" placeholder="מספר חשבונית / צ׳ק" autocomplete="off" aria-label="חיפוש לפי מספר" />
+      </div>
+      <div class="lookup-col lookup-dates">
+        <input type="date" name="from" value="<%= typeof dateFrom !== 'undefined' ? dateFrom : '' %>" placeholder="מתאריך" aria-label="מתאריך (תאריך חשבונית)" />
+        <input type="date" name="to" value="<%= typeof dateTo !== 'undefined' ? dateTo : '' %>" placeholder="עד תאריך" aria-label="עד תאריך (תאריך חשבונית)" />
+      </div>
       <div class="lookup-go">
         <button type="submit">חפש</button>
         <label class="lookup-unpaid"><input type="checkbox" name="unpaid" value="1" <%= typeof unpaidOnly !== 'undefined' && unpaidOnly ? 'checked' : '' %> /> לא שולמו בלבד</label>

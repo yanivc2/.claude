@@ -271,17 +271,23 @@ export async function outstandingBankCandidates(bankAccountId, detail, x = getEx
 /**
  * §7 "בדיקת חשבונית" — invoice lookup by invoice number, allocation number, or supplier name.
  */
-export async function invoiceLookup(query, { companyId = null, storeId = null, scope = null, unpaidOnly = false, by = 'all' } = {}, x = getExecutor()) {
+export async function invoiceLookup(query, { companyId = null, storeId = null, scope = null, unpaidOnly = false, by = 'all', dateFrom = null, dateTo = null } = {}, x = getExecutor()) {
   const terms = parseSearchTerms(query);
-  if (!terms.length) return [];
+  // טווח תאריכים (לוח הבקרה, בעלים 18/10) — לפי **תאריך החשבונית**. טווח לבדו (בלי שם/מספר) הוא חיפוש
+  // תקף: כל החשבוניות בטווח, בתחום החנות.
+  if (!terms.length && !dateFrom && !dateTo) return [];
   // `by`: 'number' (מספר חשבונית / הקצאה), 'name' (שם ספק) או 'all'. לוח הבקרה מחפש בשני שדות נפרדים
   // (בעלים, 16/10: "הפרד חיפוש שמי מחיפוש של ברקוד") — מספר לא נתפס כחלק משם ספק, ולהפך.
   const cols = by === 'number' ? ['i.invoice_number', 'i.allocation_number']
     : by === 'name' ? ['s.name'] : ['i.invoice_number', 'i.allocation_number', 's.name'];
-  const m = anyTermLike(terms, cols);
+  // בלי מונח (טווח בלבד) — תנאי ניטרלי. לא `1 = 1`: pg-mem זורק עליו "lookups on joins" כשאחריו בא תנאי
+  // על i (נמדד); `i.id > 0` זהה בתוצאה ועובר בשני הניבים.
+  const m = terms.length ? anyTermLike(terms, cols) : { sql: 'i.id > 0', params: [] };
   const params = [...m.params];
   let filter = '';
   if (unpaidOnly) filter += " AND i.status <> 'paid'";
+  if (dateFrom) { filter += ' AND i.invoice_date >= ?'; params.push(dateFrom); }
+  if (dateTo) { filter += ' AND i.invoice_date <= ?'; params.push(dateTo); }
   if (companyId) {
     filter += ' AND i.company_id = ?';
     params.push(companyId);

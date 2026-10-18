@@ -47,22 +47,39 @@ test('dashboard: "checks outside" first, no store picker in it; the lookup tile 
   assert.doesNotMatch(html, /רק שלא שולמו/);
 });
 
-test('dashboard lookup: "חפש" left of the two fields, "לא שולמו בלבד" under it, and a big button (owner, 18/10)', async () => {
+test('dashboard lookup: three columns — search fields stacked on the right, from/to dates stacked in the middle, a big "חפש" over "לא שולמו בלבד" on the left (owner, 18/10)', async () => {
   const html = await page();
   const form = html.slice(html.indexOf('class="lookup-form"'), html.indexOf('</form>', html.indexOf('class="lookup-form"')));
-  const q = form.indexOf('name="q"');
-  const go = form.indexOf('class="lookup-go"');
-  const btn = form.indexOf('>חפש</button>');
-  const unpaid = form.indexOf('לא שולמו בלבד');
-  assert.ok(q > 0 && go > q && btn > go && unpaid > btn, 'fields, then a column of [חפש] over [לא שולמו בלבד]');
+  const at = (needle) => form.indexOf(needle);
+  assert.ok(at('class="lookup-col lookup-terms"') > 0, 'right column');
+  assert.ok(at('name="name"') > at('lookup-terms') && at('name="q"') > at('name="name"'), 'name over number');
+  assert.ok(at('class="lookup-col lookup-dates"') > at('name="q"'), 'then the dates column');
+  assert.ok(at('<input type="date" name="from"') > at('lookup-dates') && at('<input type="date" name="to"') > at('name="from"'), 'from over to');
+  assert.match(form, /placeholder="מתאריך"/);
+  assert.match(form, /placeholder="עד תאריך"/);
+  assert.ok(at('class="lookup-go"') > at('name="to"') && at('>חפש</button>') > at('lookup-go') && at('לא שולמו בלבד') > at('>חפש</button>'), 'then [חפש] over [לא שולמו בלבד]');
   const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
-  assert.match(css, /\.lookup-form \{ display: flex; flex-wrap: nowrap;/, 'one row');
-  assert.match(css, /\.lookup-go \{ display: flex; flex-direction: column;/);
+  assert.match(css, /\.lookup-form \{ display: flex; flex-wrap: nowrap;/, 'one row of columns');
+  assert.match(css, /\.lookup-col \{ display: flex; flex-direction: column;/, 'each column stacks two fields');
+  assert.match(css, /\.lookup-go \{ display: grid; grid-template-rows: 1fr 1fr;/, 'button and checkbox line up with the two field rows');
   assert.match(css, /\.lookup-go button \{ width: 100%; min-width: 112px; min-height: 46px; font-size: 17px;/);
 });
 
-// SQLite בלבד: חיפוש מספר מריץ גם את lookupChecks, שתת-השאילתה המתואמת שלו אינה נתמכת ב-pg-mem
-// (ראה test/multi-search.test.js — אותו דילוג). ב-Postgres האמיתי היא רצה.
+test('dashboard lookup: the date range filters by INVOICE date, works alone and with a name; a reversed range is flipped (owner, 18/10)', async () => {
+  const sup = await db.one("SELECT id FROM suppliers WHERE name = 'טרה'", []);
+  for (const [n, d, a] of [['77001', '2026-09-20', 41000], ['77002', '2026-10-05', 42000], ['77003', '2026-10-16', 43000]]) {
+    await createInvoice({ supplierId: sup.id, storeId: st.id, invoiceNumber: n, invoiceDate: d, amountBeforeVat: a, vatAmount: 0, docType: 'tax_invoice' }, o, db);
+  }
+  const found = (html) => ['77001', '77002', '77003'].filter((n) => html.includes(`>${n}<`));
+  assert.deepEqual(found(await page('?from=2026-10-01&to=2026-10-31')), ['77002', '77003'], 'dates alone list the invoices in range');
+  assert.deepEqual(found(await page('?from=2026-10-31&to=2026-10-01')), ['77002', '77003'], 'from > to is flipped, not empty');
+  assert.deepEqual(found(await page('?name=' + encodeURIComponent('טרה') + '&from=2026-10-10')), ['77003'], 'name + from');
+  assert.deepEqual(found(await page('?to=2026-09-30')), ['77001'], 'to alone');
+  const html = await page('?from=2026-10-01&to=bad');
+  assert.match(html, /<input type="hidden" name="from" value="2026-10-01"|name="from" value="2026-10-01"/, 'the chosen dates stay in the fields');
+  assert.doesNotMatch(html, /name="to" value="bad"/, 'a malformed date is ignored');
+});
+
 test('dashboard: the name field finds by supplier, the number field by invoice number — not across', { skip: !!process.env.TEST_PG }, async () => {
   const byName = await page('?name=' + encodeURIComponent('טרה'));
   assert.match(byName, /תוצאות חיפוש/);

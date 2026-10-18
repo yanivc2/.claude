@@ -634,11 +634,16 @@ export async function listPayments({ status = null, companyId = null, storeId = 
 }
 
 /** Lookup payments by (last digits of) check number / transfer reference / batch number. */
-export async function lookupChecks(query, scope = null, x = getExecutor()) {
+export async function lookupChecks(query, scope = null, x = getExecutor(), { dateFrom = null, dateTo = null } = {}) {
   const terms = parseSearchTerms(query);
   if (!terms.length) return [];
   const m = anyTermLike(terms, ['p.check_number', 'p.reference', 'p.batch_number']);
   const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
+  // טווח התאריכים של לוח הבקרה: לצ׳ק — תאריך הפירעון (payment_date).
+  let range = '';
+  const rangeParams = [];
+  if (dateFrom) { range += ' AND p.payment_date >= ?'; rangeParams.push(dateFrom); }
+  if (dateTo) { range += ' AND p.payment_date <= ?'; rangeParams.push(dateTo); }
   // Correlated subquery for one supplier name -> one row per payment, portable across SQLite/Postgres.
   return x.many(
     `SELECT p.id, p.method, p.check_number, p.reference, p.batch_number,
@@ -652,9 +657,9 @@ export async function lookupChecks(query, scope = null, x = getExecutor()) {
               ORDER BY pl.id LIMIT 1) AS supplier_name
        FROM payments p
        JOIN bank_accounts ba ON ba.id = p.bank_account_id
-      WHERE ${m.sql}${sc.sql}
+      WHERE ${m.sql}${sc.sql}${range}
       ORDER BY p.id DESC`,
-    [...m.params, ...sc.params],
+    [...m.params, ...sc.params, ...rangeParams],
   );
 }
 
