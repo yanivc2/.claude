@@ -64,17 +64,17 @@ test('owner: settles directly, no request', async () => {
   assert.equal((await listRequests({ status: 'pending' }, db)).length, before);
 });
 
-test('pages: the invoices page offers "טופל" and groups what is done; the notification offers approve/reject', async () => {
+test('pages: the dashboard offers "טופל" and groups what is done; the notification offers approve/reject (the invoices-page rubric was removed, owner 18/10)', async () => {
   const id = await anExpense('חשמלאי');
   const secCookie = `session=${createSession(sec.id)}; ap_store=${st.id}`;
-  const inv = await (await fetch(`${base}/invoices`, { headers: { cookie: secCookie } })).text();
-  assert.match(inv, new RegExp(`/cash-expenses/zclosing/${id}/settle`), 'the secretary sees the button');
+  const dash = await (await fetch(`${base}/`, { headers: { cookie: secCookie } })).text();
+  assert.match(dash, new RegExp(`/cash-expenses/zclosing/${id}/settle`), 'the secretary sees the button');
   const r = await fetch(`${base}/cash-expenses/zclosing/${id}/settle`, {
     method: 'POST', redirect: 'manual', headers: { cookie: secCookie, 'content-type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ return_to: '/invoices' }).toString(),
+    body: new URLSearchParams({ return_to: '/' }).toString(),
   });
   assert.equal(r.status, 303);
-  assert.match(decodeURIComponent(r.headers.get('location')), /^\/invoices\?cashNote=.*לאישור הבעלים/);
+  assert.match(decodeURIComponent(r.headers.get('location')), /^\/\?cashNote=.*לאישור הבעלים/);
   const after = await (await fetch(`${base}${r.headers.get('location')}`, { headers: { cookie: secCookie } })).text();
   assert.match(after, /סומנו כטופלו \(\d+\)/, 'grouped at the bottom');
   assert.match(after, /⏳ ממתין לאישור/);

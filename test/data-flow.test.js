@@ -128,11 +128,12 @@ test('הפקדה → היסטוריית הפקדות + "הוצהרה ולא הו
   assert.ok(!noDep.some((z) => z.id === zB)); // zB got a declared deposit → out of the list
 });
 
-test('סגירת Z → מזומן ללא התאמה בלוח בקרה + רובריקה בדף חשבוניות', async () => {
+test('סגירת Z → מזומן ללא התאמה בלוח בקרה; לא ברובריקה נפרדת בדף חשבוניות (בעלים, 18/10)', async () => {
   const unmatched = await unmatchedCashExpenses(null, 30, store.id, db);
   assert.ok(unmatched.length >= 1);
+  assert.match(await GET('/', store.id), /שולם מהפדיון — יש להתאים/, 'the dashboard table is where cash rows are handled');
   const html = await GET('/invoices', store.id);
-  assert.match(html, /הוצאות מזומן/);
+  assert.doesNotMatch(html, /הוצאות מזומן \(מסגירות Z\)/, 'the invoices-page rubric was removed');
 });
 
 test('חנות פעילה → מסננת את לוח הבקרה (החלפה משנה נתונים)', async () => {

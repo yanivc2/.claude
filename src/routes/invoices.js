@@ -20,7 +20,7 @@ import {
 } from '../services/invoices.js';
 import { listSuppliers, supplierFamilyIds } from '../services/suppliers.js';
 import { cashPaymentsForInvoice } from '../services/zreports.js';
-import { recentClosingExpenses, matchClosingExpenseToInvoice, unmatchClosingExpense } from '../services/zclosing.js';
+import { matchClosingExpenseToInvoice, unmatchClosingExpense } from '../services/zclosing.js';
 import { runOcrForInvoice, compareToInvoice, getOcr, deleteOcr } from '../services/ocr.js';
 import { createEvent } from '../services/calendar.js';
 import { getExecutor } from '../db/adapter.js';
@@ -160,16 +160,6 @@ router.get('/', async (req, res, next) => {
       paidNotice: req.query.paid
         ? { paymentId: Number(req.query.paid), supplierId: Number(req.query.nsup) || null, storeId: Number(req.query.nstore) || null }
         : null,
-      closingExpenses: await recentClosingExpenses(req.scope, 30),
-      // "✓ טופל" בהוצאות המזומן: האם העמודה קיימת, ואילו סימונים ממתינים לאישור הבעלים.
-      ...(await (async () => {
-        const { cashSettleReady, pendingSettleKeys } = await import('../services/zreports.js');
-        return { settleOk: await cashSettleReady(), pendingSettle: await pendingSettleKeys() };
-      })()),
-      cashErr: req.query.cashErr ? String(req.query.cashErr).slice(0, 300) : null,
-      cashNote: req.query.cashNote ? String(req.query.cashNote).slice(0, 300) : null,
-      // Payable invoices (in scope) a cash expense can be matched to, for the "התאם לחשבונית" control.
-      matchInvoices: await listPayable(req.scope),
       noteError: req.query.noteerr ? String(req.query.noteerr).slice(0, 300) : null,
       // חזרה אחרי שמירת הערה — אותו סינון בדיוק (החלון נפתח מתוך הרשימה המסוננת).
       backUrl: req.originalUrl.replace(/([?&])noteerr=[^&]*&?/, '$1').replace(/[?&]$/, ''),

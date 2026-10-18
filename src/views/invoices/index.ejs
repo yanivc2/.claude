@@ -41,14 +41,8 @@
 </div>
 <p class="muted no-print" style="margin:.2rem 0">לחיצה על שורה פותחת את פרטי החשבונית. חשבונית מוחזקת (חסרה הקצאה) מסומנת באדום.</p>
 
-<% var _cxMsg = (typeof cashErr !== 'undefined' && cashErr) || (typeof cashNote !== 'undefined' && cashNote); %>
-<details class="card no-print collapse-card"<%= _cxMsg ? ' open' : '' %>>
-  <summary>הוצאות מזומן (מסגירות Z)</summary>
-  <% if (typeof cashErr !== 'undefined' && cashErr) { %><div class="alert alert-warn" style="margin:.6rem 0 0"><%= cashErr %></div><% } %>
-  <% if (typeof cashNote !== 'undefined' && cashNote) { %><div class="alert alert-ok" style="margin:.6rem 0 0"><%= cashNote %></div><% } %>
-  <div style="margin-top:.6rem"><%- include('../partials/_cashExpenses', { rows: closingExpenses, matchable: true, matchInvoices: matchInvoices,
-        settleOk: (typeof settleOk !== 'undefined') && settleOk, pendingSettle: (typeof pendingSettle !== 'undefined' ? pendingSettle : []), returnTo: '/invoices' }) %></div>
-</details>
+<%# "הוצאות מזומן (מסגירות Z)" הוסרה מדף החשבוניות (בעלים, 18/10: "את זה לבטל"). ההתאמה לחשבונית, "✓ טופל"
+    וביטול נעשים בטבלת "שולם מהפדיון — יש להתאים" בלוח הבקרה ובמרקורים (partials/_unmatchedCash.ejs). %>
 
 <form method="get" action="/invoices" class="card no-print" style="margin-bottom:1rem">
   <input type="hidden" name="status" value="<%= filter %>" />
