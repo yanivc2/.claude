@@ -5,8 +5,9 @@ import { once } from 'node:events';
 import { freshDb, owner, firstStore } from './helpers.js';
 import { createApp } from '../src/app.js';
 import { config } from '../src/config.js';
-import { parseRevenueReport, normalizeReportDate } from '../src/lib/revenueReportFile.js';
-import { importRevenueRows, revenueInRange, listRevenue } from '../src/services/revenueReports.js';
+import { parseRevenueReport, parseRevenueReportAny, reportRangeFromGrid, normalizeReportDate } from '../src/lib/revenueReportFile.js';
+import { importRevenueRows, revenueInRange, listRevenue, revenueChecks } from '../src/services/revenueReports.js';
+import { looksLikePdf, pdfGrid } from '../src/lib/pdfGrid.js';
 import { profitability } from '../src/services/reports.js';
 
 const csv = (s) => Buffer.from(s, 'utf8');
@@ -52,11 +53,11 @@ test('import is idempotent per day and the range column sums + drives profit', a
     { date: '2026-09-01', gross: 100000, credit: 60000 },
     { date: '2026-09-02', gross: 200000, credit: 150000 },
   ], 'upload', own, db);
-  assert.deepEqual(first, { inserted: 2, updated: 0 });
+  assert.deepEqual(first, { inserted: 2, updated: 0, detailsSaved: true });
 
   // Re-importing the same day replaces it (the report is the source of truth).
   const again = await importRevenueRows(st.id, [{ date: '2026-09-01', gross: 111000, credit: 61000 }], 'email', own, db);
-  assert.deepEqual(again, { inserted: 0, updated: 1 });
+  assert.deepEqual(again, { inserted: 0, updated: 1, detailsSaved: true });
 
   const inRange = await revenueInRange('2026-09-01', '2026-09-02', db);
   assert.deepEqual(inRange.get(st.id), { sales: 311000, credit: 211000, days: 2 });
@@ -140,16 +141,28 @@ test('legacy .xls (OLE2/BIFF) is recognised and decoded into a grid', () => {
   assert.ok(grid.some((r) => r.some((c) => String(c).includes('סה"כ פדיון'))));
 });
 
-test('the real midnight report yields פדיון / אשראי / מזומן, and needs a date from the caller', () => {
+// מידנייט, 31/08: sales incl. on-account ₪35,028.74 (+ ₪601 debts paid in cash → פדיון ₪35,455.84).
+const MIDNIGHT = {
+  gross: 3502874, credit: 2340164, cash: 1145320, onAccount: 17390, debtPayments: 60100, debtCredit: 0,
+  cards: [
+    { name: 'לאומי קארד', sales: 2238368, debt: 0, total: 2238368, count: 344 },
+    { name: 'כ.א.ל', sales: 67264, debt: 0, total: 67264, count: 11 },
+    { name: 'ישראכרט', sales: 34532, debt: 0, total: 34532, count: 6 },
+  ],
+  cardsTotal: 2340164, txnCount: 592, cancelAmount: 7500, cancelCount: 2,
+};
+
+test('the real midnight report: sales (incl. הקפה, NOT debts paid), tenders, acquirers, cancellations, transactions; needs a date', () => {
   const buf = realReport();
   const noDate = parseRevenueReport(buf);
   assert.equal(noDate.kind, 'summary');
-  assert.deepEqual(noDate.summary, { gross: 3545584, credit: 2340164, cash: 1145320 }); // ₪35,455.84 / ₪23,401.64 / ₪11,453.20
+  assert.deepEqual(noDate.summary, MIDNIGHT);
   assert.equal(noDate.rows.length, 0);
   assert.ok(noDate.warnings.some((w) => /תאריך/.test(w)));
 
   const withDate = parseRevenueReport(buf, { reportDate: '2026-08-31' });
-  assert.deepEqual(withDate.rows, [{ date: '2026-08-31', gross: 3545584, credit: 2340164 }]);
+  const { cardsTotal, ...row } = MIDNIGHT; // eslint-disable-line no-unused-vars
+  assert.deepEqual(withDate.rows, [{ date: '2026-08-31', ...row }]);
 });
 
 test('the real report imports and drives the profitability column', async () => {
@@ -161,8 +174,97 @@ test('the real report imports and drives the profitability column', async () => 
 
   const { stores } = await profitability('2026-08-31', '2026-08-31', null, db);
   const row = stores.find((s) => s.id === st.id);
-  assert.equal(row.revenueSales, 3545584);
+  assert.equal(row.revenueSales, 3502874, 'what was sold that day — debts collected for earlier sales are not counted again');
   assert.equal(row.revenueCredit, 2340164);
   assert.equal(row.usesRevenue, true);
-  assert.equal(row.sales, 3545584);
+  assert.equal(row.sales, 3502874);
+});
+
+// ---- the same Pidion_A4 report as PDF (ג'וניור, 17/10) — owner, 18/10: "שתהיה אפשרות גם לאקסל וגם לפידיאפ"
+const junior = (ext) => readFileSync(fileURLToPath(new URL(`./fixtures/revenue-junior.${ext}`, import.meta.url)));
+const JUNIOR = {
+  gross: 6666979, credit: 4009639, cash: 2657340, onAccount: 0, debtPayments: 0, debtCredit: 0,
+  cards: [
+    { name: 'לאומי קארד', sales: 3810716, debt: 0, total: 3810716, count: 677 },
+    { name: 'ישראכרט', sales: 104708, debt: 0, total: 104708, count: 23 },
+    { name: 'כ.א.ל', sales: 94215, debt: 0, total: 94215, count: 16 },
+  ],
+  cardsTotal: 4009639, txnCount: 1283, cancelAmount: 62584, cancelCount: 22,
+};
+
+test('PDF: the cells are rebuilt from text positions into the same grid as the XLS', async () => {
+  const buf = junior('pdf');
+  assert.equal(looksLikePdf(buf), true);
+  assert.equal(looksLikePdf(junior('xls')), false);
+  const grid = await pdfGrid(buf);
+  assert.ok(grid.some((r) => r.join('|') === '60.14 %|40096.39 ₪|716|כרטיס אשראי'), 'label right-most, figures to its left');
+  assert.deepEqual(reportRangeFromGrid(grid), { from: '2026-10-17', to: '2026-10-18', date: '2026-10-17' });
+});
+
+test('PDF and XLS of the same day parse to the same figures; the PDF also knows its day', async () => {
+  const pdf = await parseRevenueReportAny(junior('pdf'));
+  const xls = await parseRevenueReportAny(junior('xls'));
+  assert.deepEqual(pdf.summary, JUNIOR);
+  assert.deepEqual(xls.summary, JUNIOR);
+  assert.equal(pdf.fileDate, '2026-10-17');
+  assert.equal(pdf.rows.length, 1, 'no date needed from the caller');
+  assert.equal(pdf.rows[0].date, '2026-10-17');
+  assert.equal(xls.rows.length, 0, 'the XLS still has no date of its own');
+  // A caller's date that disagrees loses to the file, and says so.
+  const other = await parseRevenueReportAny(junior('pdf'), { reportDate: '2026-10-10' });
+  assert.equal(other.rows[0].date, '2026-10-17');
+  assert.ok(other.warnings.some((w) => /17\/10\/2026/.test(w) && /10\/10\/2026/.test(w)));
+});
+
+test('the report day: same date or to the next midnight = one day; longer = refused, never filed under one day', () => {
+  const g = (from, to) => [[to, 'עד:', from, 'מתאריך:']];
+  assert.equal(reportRangeFromGrid(g('17/10/26 00:00:00', '18/10/26 00:00:00')).date, '2026-10-17');
+  assert.equal(reportRangeFromGrid(g('16/10/26 00:00:00', '16/10/26 23:59:00')).date, '2026-10-16');
+  assert.equal(reportRangeFromGrid(g('15/10/26 00:00:00', '18/10/26 00:00:00')).date, null);
+  assert.equal(reportRangeFromGrid(g('17/10/26 00:00:00', '18/10/26 06:00:00')).date, null, 'past midnight = two business days');
+  assert.equal(reportRangeFromGrid([['דוח פדיון']]), null);
+});
+
+test('a PDF that is broken, has no text (a scan), or is another report is refused with a reason — never a 500', async () => {
+  const broken = await parseRevenueReportAny(junior('pdf').subarray(0, 0x400));
+  assert.deepEqual([broken.kind, broken.rows.length], ['unknown', 0]);
+  assert.match(broken.warnings[0], /פגום/);
+  const blank = Buffer.from('%PDF-1.4\n1 0 obj <</Type/Catalog/Pages 2 0 R>> endobj\n2 0 obj <</Type/Pages/Kids[3 0 R]/Count 1>> endobj\n3 0 obj <</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>> endobj\ntrailer <</Root 1 0 R>>\n%%EOF\n');
+  assert.match((await parseRevenueReportAny(blank)).warnings[0], /אין טקסט/);
+});
+
+test('the checks: drawer credit (card sales + card debts) against the acquirers, and debts paid', () => {
+  assert.deepEqual(revenueChecks({ credit_total: 4009639, debt_credit: 0, debt_payments: 0, cards: JSON.stringify(JUNIOR.cards) }).creditGap, 0);
+  const gap = revenueChecks({ credit_total: 4000000, debt_credit: 5000, debt_payments: 5000, cards: JSON.stringify(JUNIOR.cards) });
+  assert.equal(gap.creditGap, 4009639 - 4005000);
+  assert.equal(gap.debt, 5000);
+  assert.deepEqual(revenueChecks({ credit_total: 100, cards: null }), { cards: [], cardsTotal: null, creditGap: null, debt: 0 }, 'an old row: no check, not a false alarm');
+});
+
+test('details are stored and replaced with the day; a not-upgraded DB keeps פדיון+אשראי and says the rest was dropped', async () => {
+  const db = await freshDb();
+  const own = await owner(db);
+  const st = await firstStore(db);
+  const { rows } = await parseRevenueReportAny(junior('pdf'));
+  assert.deepEqual(await importRevenueRows(st.id, rows, 'upload', own, db), { inserted: 1, updated: 0, detailsSaved: true });
+  const [got] = await listRevenue({ storeId: st.id }, db);
+  assert.equal(Number(got.cash_total), 2657340);
+  assert.equal(Number(got.txn_count), 1283);
+  assert.equal(Number(got.cancel_amount), 62584);
+  assert.equal(Number(got.cancel_count), 22);
+  assert.deepEqual(got.checks.cards, JUNIOR.cards);
+  assert.equal(got.checks.creditGap, 0);
+  // A per-day table row for the same day replaces it — the stale details go too.
+  await importRevenueRows(st.id, [{ date: '2026-10-17', gross: 100, credit: 50 }], 'upload', own, db);
+  const [plain] = await listRevenue({ storeId: st.id }, db);
+  assert.equal(plain.cash_total, null);
+  assert.equal(plain.cards, null);
+
+  const oldDb = { ...db, one: db.one.bind(db), run: db.run.bind(db),
+    many: (sql, p) => (/cash_total/.test(sql) ? Promise.reject(new Error('no such column: cash_total')) : db.many(sql, p)) };
+  const res = await importRevenueRows(st.id, [{ ...rows[0], date: '2026-10-16' }], 'email', own, oldDb);
+  assert.deepEqual(res, { inserted: 1, updated: 0, detailsSaved: false });
+  const saved = await db.one('SELECT gross_sales, cash_total FROM revenue_reports WHERE store_id = ? AND report_date = ?', [st.id, '2026-10-16']);
+  assert.equal(Number(saved.gross_sales), 6666979);
+  assert.equal(saved.cash_total, null);
 });

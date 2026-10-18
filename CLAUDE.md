@@ -114,9 +114,12 @@ happen only at merge. So:
   כ-`res.locals.israelStamp`).
 - **דוח פדיון (revenue reports):** the nightly per-store sales+credit report is the **systematic
   sales source** for profitability (Z reports are irregular). `lib/revenueReportFile.js` parses it
-  (+ **`lib/xlsRead.js`** for the legacy OLE2/BIFF `.xls` the POS actually emits — NOT xlsx). Two
+  (+ **`lib/xlsRead.js`** for the legacy OLE2/BIFF `.xls` the POS actually emits — NOT xlsx; **or its PDF** via
+  `lib/pdfGrid.js` → `parseRevenueReportAny`: pdfjs-dist **lazy**, its worker **imported explicitly** into
+  `globalThis.pdfjsWorker` or the Vercel bundle lacks it). Two
   shapes: a per-day table (auto-detected Hebrew headers / manual mapping) and the **summary** shape
-  (RTL label→value, one day, **no date in the file** — the caller supplies it; default = yesterday), `services/revenueReports.js`
+  (RTL label→value, one day; the XLS has **no date** — the caller supplies it, default = yesterday; the PDF prints
+  its day and that wins). **Sales = "סה"כ מכירה (כולל הקפה)"**, never "פדיון (כולל ת.חוב)" (debts paid = earlier sales). `services/revenueReports.js`
   upserts one row per store/day (`revenue_reports`). Email ingestion: `POST /ingest/revenue-report`
   (mounted BEFORE `currentUser`), fed hourly by a **Gmail Apps Script** the owner copies ready-made from
   `/reconciliation/revenue-intake` (`lib/revenueIngestScript.js`). Secret = `REVENUE_INGEST_SECRET` env, else

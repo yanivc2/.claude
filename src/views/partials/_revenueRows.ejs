@@ -1,0 +1,42 @@
+<%#
+  "ימים אחרונים שנקלטו" — the revenue days table, shared by רווחיות (reports/profitability.ejs) and
+  קליטת דוח פדיון מהמייל (reconciliation/revenue-intake.ejs). rows = services/revenueReports.js#listRevenue
+  (each row carries .checks = revenueChecks). A row from a per-day table, or from before the detail
+  columns, has no details → "—".
+  The checks the owner reads a day by (17/10): אשראי במגירה = אשראי לפי חברה, and debts paid that day.
+%>
+<div class="table-scroll">
+  <table>
+    <thead><tr>
+      <th>תאריך</th><th>חנות</th><th class="right">מכירות</th><th class="right">מזומן</th><th class="right">אשראי</th>
+      <th>אשראי לפי חברה</th><th class="right">ביטולים</th><th class="right">עסקאות</th><th>מקור</th>
+    </tr></thead>
+    <tbody>
+      <% rows.forEach(function(r){ var c = r.checks || { cards: [], cardsTotal: null, creditGap: null, debt: 0 }; var has = r.cash_total !== null && r.cash_total !== undefined; %>
+        <tr>
+          <td><%= formatDate(r.report_date) %></td>
+          <td><%= r.store_name %></td>
+          <td class="right">
+            <%= formatIls(r.gross_sales) %>
+            <% if (Number(r.on_account) > 0) { %><div class="muted rev-sub">מתוכן הקפה <%= formatIls(r.on_account) %></div><% } %>
+            <% if (c.debt > 0) { %><div class="rev-sub rev-debt" title="תשלומי חוב על מכירות קודמות — לא נכללו במכירות של היום">ℹ️ שולמו חובות <%= formatIls(c.debt) %></div><% } %>
+          </td>
+          <td class="right"><%= has ? formatIls(r.cash_total) : '—' %></td>
+          <td class="right">
+            <%= formatIls(r.credit_total) %>
+            <% if (c.creditGap) { %><div class="rev-sub rev-gap" title="אשראי לפי חברה <%= formatIls(c.cardsTotal) %> לעומת אשראי במגירה <%= formatIls(Number(r.credit_total) + (Number(r.debt_credit) || 0)) %>">⚠️ פער <%= formatIls(c.creditGap) %></div><% } %>
+            <% if (Number(r.debt_credit) > 0) { %><div class="muted rev-sub">+ חוב באשראי <%= formatIls(r.debt_credit) %></div><% } %>
+          </td>
+          <td>
+            <% if (!c.cards.length) { %><span class="muted">—</span><% } else { c.cards.forEach(function(k){ %>
+              <div class="rev-card"><%= k.name %> <span class="mono"><%= formatIls(k.total) %></span></div>
+            <% }); } %>
+          </td>
+          <td class="right"><%= has ? formatIls(r.cancel_amount) + (r.cancel_count != null ? ' (' + r.cancel_count + ')' : '') : '—' %></td>
+          <td class="right"><%= r.txn_count != null ? r.txn_count : '—' %></td>
+          <td class="muted"><%= r.source === 'email' ? 'מייל' : 'העלאה' %></td>
+        </tr>
+      <% }); %>
+    </tbody>
+  </table>
+</div>

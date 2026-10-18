@@ -123,6 +123,14 @@ CREATE TABLE IF NOT EXISTS revenue_reports (
   credit_total BIGINT NOT NULL DEFAULT 0,
   source       TEXT NOT NULL DEFAULT 'upload',
   created_at   TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS'),
+  cash_total    BIGINT,
+  on_account    BIGINT,
+  debt_payments BIGINT,
+  debt_credit   BIGINT,
+  cancel_amount BIGINT,
+  cancel_count  INTEGER,
+  txn_count     INTEGER,
+  cards         TEXT,
   UNIQUE (store_id, report_date)
 );
 CREATE INDEX IF NOT EXISTS ix_revenue_reports_date ON revenue_reports(report_date);
@@ -835,3 +843,13 @@ CREATE TABLE IF NOT EXISTS bank_sync_jobs (
   finished_at   TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_bank_sync_jobs_status ON bank_sync_jobs(status, requested_at);
+
+-- 📈 פירוט דוח הפדיון המסוכם (Pidion_A4, XLS או PDF) — ראה schema.sql. NULL = שורה מלפני העמודות.
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS cash_total    BIGINT;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS on_account    BIGINT;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS debt_payments BIGINT;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS debt_credit   BIGINT;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS cancel_amount BIGINT;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS cancel_count  INTEGER;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS txn_count     INTEGER;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS cards         TEXT;

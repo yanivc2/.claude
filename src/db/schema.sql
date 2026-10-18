@@ -192,6 +192,15 @@ CREATE TABLE IF NOT EXISTS revenue_reports (
   credit_total INTEGER NOT NULL DEFAULT 0,       -- agorot — סליקות אשראי
   source       TEXT NOT NULL DEFAULT 'upload',   -- upload | email
   created_at   TEXT NOT NULL,
+  -- פירוט הדוח המסוכם (Pidion_A4). NULL = שורה מטבלה יומית / מלפני העמודות.
+  cash_total    INTEGER,                         -- agorot — מזומן (מכירות)
+  on_account    INTEGER,                         -- agorot — הקפה
+  debt_payments INTEGER,                         -- agorot — תשלומי חוב (לא נכללים ב-gross_sales)
+  debt_credit   INTEGER,                         -- agorot — מתוכם באשראי
+  cancel_amount INTEGER,                         -- agorot — ביטולים
+  cancel_count  INTEGER,
+  txn_count     INTEGER,                         -- מספר עסקאות
+  cards         TEXT,                            -- JSON [{name,sales,debt,total,count}] — אשראי לפי חברה
   UNIQUE (store_id, report_date)
 );
 CREATE INDEX IF NOT EXISTS ix_revenue_reports_date ON revenue_reports(report_date);

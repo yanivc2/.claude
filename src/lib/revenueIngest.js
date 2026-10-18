@@ -64,11 +64,18 @@ export function reportDateFrom({ date, fileName, sent, today } = {}) {
 }
 
 const isSheet = (f) => /\.(xlsx?|csv)$/i.test(f.originalname || '') || /excel|spreadsheet|csv/i.test(f.mimetype || '');
+const isPdf = (f) => /\.pdf$/i.test(f.originalname || '') || /pdf/i.test(f.mimetype || '');
+const named = (f) => /פדיון|pidion/i.test(f.originalname || '');
 
-/** The revenue file among the attachments: a sheet named "פדיון" first, else the first sheet. */
+/**
+ * The revenue file among the attachments: a sheet named "פדיון", else a PDF named "פדיון" (the
+ * same report — the POS can send either), else the first sheet. An unnamed PDF is never taken:
+ * the POS mails carry other PDFs too (z_####.pdf, other reports).
+ */
 export function pickReportFile(files) {
-  const sheets = (files || []).filter(isSheet);
-  return sheets.find((f) => /פדיון/.test(f.originalname || '')) || sheets[0] || null;
+  const list = files || [];
+  const sheets = list.filter(isSheet);
+  return sheets.find(named) || list.filter((f) => isPdf(f) && !isSheet(f)).find(named) || sheets[0] || null;
 }
 
 /** Comparison key for a store / branch name: no quotes, geresh, punctuation or spaces. */

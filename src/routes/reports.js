@@ -25,11 +25,11 @@ import { matchingClosing, CLOSING_DENOMS } from '../services/zclosing.js';
 import { listInvoices } from '../services/invoices.js';
 import { getExecutor } from '../db/adapter.js';
 import { scopedStoreList, effectiveStoreId } from '../lib/scope.js';
-import { toAgorot, fromAgorot } from '../lib/money.js';
+import { toAgorot, fromAgorot, formatIls } from '../lib/money.js';
 import { toCsv } from '../lib/csvExport.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import multer from 'multer';
-import { parseRevenueReport } from '../lib/revenueReportFile.js';
+import { parseRevenueReportAny } from '../lib/revenueReportFile.js';
 import { importRevenueRows, listRevenue } from '../services/revenueReports.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
@@ -579,8 +579,9 @@ router.get('/profitability', requirePageAccess('nav_profitability'), async (req,
 });
 
 // CSV export — "רווחיות"
-// "דוח פדיון" import — upload the nightly XLS/CSV for one store. Columns are auto-detected
-// (Hebrew headers vary by POS); an explicit mapping can be posted when detection fails.
+// "דוח פדיון" import — upload the nightly XLS/CSV (or the PDF of the same report) for one store.
+// Columns are auto-detected (Hebrew headers vary by POS); an explicit mapping can be posted when
+// detection fails. A PDF prints its own day, which beats the date field.
 const revenueUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } }).single('file');
 
 router.post('/profitability/revenue-import', requirePageAccess('nav_profitability'), (req, res, next) => {
@@ -600,13 +601,13 @@ router.post('/profitability/revenue-import', requirePageAccess('nav_profitabilit
         if (v !== undefined && v !== '') mapping[k] = Number(v);
       }
       const reportDate = (req.body.report_date || '').trim() || null;
-      const parsed = parseRevenueReport(req.file.buffer, { ...mapping, reportDate });
+      const parsed = await parseRevenueReportAny(req.file.buffer, { ...mapping, reportDate });
       const { rows, headers, detected, warnings, kind, summary } = parsed;
       if (!rows.length) {
         // A summary report parsed fine but has no date in it — show what we read and ask for the day.
         if (kind === 'summary' && summary) {
           return renderProfitability(req, res, {
-            error: `זוהה דוח יומי מסוכם (פדיון ${summary.gross / 100} ₪ · אשראי ${summary.credit / 100} ₪). בחר את תאריך הדוח ושלח שוב.`,
+            error: `זוהה דוח יומי מסוכם (מכירות ${formatIls(summary.gross)} · אשראי ${formatIls(summary.credit)}). ${warnings.join(' ')}`,
             revPreview: { headers, detected, storeId, summary },
           });
         }
@@ -615,9 +616,11 @@ router.post('/profitability/revenue-import', requirePageAccess('nav_profitabilit
           revPreview: { headers, detected, storeId },
         });
       }
-      const { inserted, updated } = await importRevenueRows(storeId, rows, 'upload', req.user);
+      const { inserted, updated, detailsSaved } = await importRevenueRows(storeId, rows, 'upload', req.user);
+      const notes = [...warnings];
+      if (!detailsSaved) notes.push('פירוט הדוח (מזומן, חברות אשראי, ביטולים, עסקאות) לא נשמר — צריך ללחוץ בהגדרות "עדכן מסד נתונים".');
       return renderProfitability(req, res, {
-        notice: `דוח פדיון נקלט: ${inserted} ימים חדשים, ${updated} עודכנו.${warnings.length ? ' ' + warnings.join(' ') : ''}`,
+        notice: `דוח פדיון נקלט: ${inserted} ימים חדשים, ${updated} עודכנו.${notes.length ? ' ' + notes.join(' ') : ''}`,
       });
     } catch (err) {
       if (err instanceof RuleError) return renderProfitability(req, res, { error: err.message });

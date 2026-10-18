@@ -2,8 +2,9 @@ import { Router, json } from 'express';
 import multer from 'multer';
 import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
-import { parseRevenueReport } from '../lib/revenueReportFile.js';
-import { importRevenueRows } from '../services/revenueReports.js';
+import { parseRevenueReportAny } from '../lib/revenueReportFile.js';
+import { importRevenueRows, revenueChecks } from '../services/revenueReports.js';
+import { formatIls } from '../lib/money.js';
 import { notify } from '../lib/notify.js';
 import { syncAllLinkedAccounts, importScrapedBatch } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
@@ -16,7 +17,7 @@ import { handleTelegramUpdate } from '../services/telegramApprovals.js';
 
 // Machine ingestion for the nightly "דוח פדיון" email. A small Apps Script in the owner's Gmail
 // (lib/revenueIngestScript.js — the owner copies it, ready-made, from /reconciliation/revenue-intake)
-// finds the POS mail every hour and POSTs its "פדיון" sheet here as multipart, with the mail's
+// finds the POS mail every hour and POSTs its "פדיון" file (XLS, or the PDF of it) here as multipart, with the mail's
 // subject and send time. This router is mounted BEFORE the session gate — there is no logged-in
 // user — so it is protected by a shared secret (header x-ingest-secret):
 //
@@ -27,6 +28,26 @@ import { handleTelegramUpdate } from '../services/telegramApprovals.js';
 const router = Router();
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 10 } }).any();
+
+/**
+ * The alert for an imported report: the day's figures, and the two things the owner checks a day
+ * by — the acquirers' total against the drawer's credit, and debts paid (not part of the sales).
+ */
+function revenueNotice(storeName, inserted, updated, last, detailsSaved) {
+  const dmy = last.date.split('-').reverse().join('/');
+  const lines = [`📈 <b>דוח פדיון נקלט</b>`, `${storeName}: ${inserted} ימים חדשים, ${updated} עודכנו.`];
+  let day = `${dmy}: מכירות ${formatIls(last.gross)} · אשראי ${formatIls(last.credit)}`;
+  if ('cash' in last) day += ` · מזומן ${formatIls(last.cash)}`;
+  if (last.txnCount) day += ` · ${last.txnCount} עסקאות`;
+  lines.push(day);
+  if ('cash' in last) {
+    const c = revenueChecks({ credit_total: last.credit, debt_credit: last.debtCredit, debt_payments: last.debtPayments, cards: JSON.stringify(last.cards || []) });
+    if (c.creditGap) lines.push(`⚠️ אשראי לפי חברה ${formatIls(c.cardsTotal)} ≠ אשראי במגירה ${formatIls(last.credit + (last.debtCredit || 0))}`);
+    if (c.debt) lines.push(`ℹ️ שולמו חובות ${formatIls(c.debt)} — לא נכללו במכירות`);
+  }
+  if (!detailsSaved) lines.push('⚠️ פירוט הדוח (מזומן, חברות אשראי, ביטולים, עסקאות) לא נשמר — צריך ללחוץ בהגדרות "עדכן מסד נתונים".');
+  return lines.join('\n');
+}
 
 router.post('/revenue-report', (req, res) => {
   upload(req, res, async (uploadErr) => {
@@ -44,7 +65,7 @@ router.post('/revenue-report', (req, res) => {
       // Hebrew attachment names arrive as latin1 bytes through multipart — decode before matching "פדיון".
       const files = (req.files || []).map((f) => ({ ...f, originalname: decodeFileName(f.originalname) || f.originalname }));
       const file = pickReportFile(files);
-      if (!file) return res.status(400).json({ ok: false, error: 'no XLS/CSV attachment' });
+      if (!file) return res.status(400).json({ ok: false, error: 'no XLS/CSV/PDF attachment' });
 
       // Store: an explicit id, or the POS branch named in the subject ("סניף: 3 מידנייט").
       const branch = branchFromSubject(req.query.subject || (req.body && req.body.subject));
@@ -65,22 +86,22 @@ router.post('/revenue-report', (req, res) => {
         }
       }
 
-      // The POS summary report carries no date of its own — see reportDateFrom for the order.
-      const { date: reportDate, from: dateFrom } = reportDateFrom({
+      // The XLS carries no date of its own — see reportDateFrom for the order. A PDF prints its
+      // day ("מתאריך … עד …"), and the file's own word beats a stamp or a send time.
+      const { date: guessedDate, from: guessedFrom } = reportDateFrom({
         date: req.query.date, fileName: req.query.file_name || file.originalname, sent: req.query.sent,
       });
-      const { rows, warnings } = parseRevenueReport(file.buffer, { reportDate });
+      const { rows, warnings, fileDate } = await parseRevenueReportAny(file.buffer, { reportDate: guessedDate });
+      const reportDate = fileDate || guessedDate;
+      const dateFrom = fileDate ? 'content' : guessedFrom;
       if (!rows.length) {
         await notify(`⚠️ <b>דוח פדיון לא נקלט</b>\n${store.name}: לא זוהו שורות בקובץ שהגיע במייל. ${warnings.join(' ')}`, { link: '/reports/profitability' });
         return res.status(422).json({ ok: false, error: 'no rows parsed', warnings });
       }
-      const { inserted, updated } = await importRevenueRows(store.id, rows, 'email', null);
+      const { inserted, updated, detailsSaved } = await importRevenueRows(store.id, rows, 'email', null);
       const last = rows[rows.length - 1];
-      await notify(
-        `📈 <b>דוח פדיון נקלט</b>\n${store.name}: ${inserted} ימים חדשים, ${updated} עודכנו.\nאחרון ${last.date}: פדיון ${last.gross / 100} ₪ · אשראי ${last.credit / 100} ₪`,
-        { kind: 'revenue', link: '/reports/profitability' },
-      );
-      return res.json({ ok: true, store: store.name, date: reportDate, dateFrom, inserted, updated, days: rows.length });
+      await notify(revenueNotice(store.name, inserted, updated, last, detailsSaved), { kind: 'revenue', link: '/reports/profitability' });
+      return res.json({ ok: true, store: store.name, date: reportDate, dateFrom, inserted, updated, days: rows.length, detailsSaved });
     } catch (err) {
       return res.status(500).json({ ok: false, error: err.message });
     }

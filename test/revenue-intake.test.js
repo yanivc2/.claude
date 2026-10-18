@@ -44,6 +44,10 @@ test('the "פדיון" sheet is picked out of a mail with other attachments', ()
   const f = (originalname) => ({ originalname, mimetype: 'application/octet-stream' });
   assert.equal(pickReportFile([f('גחנון.xls'), f('פדיון-A4_20261016235900_1.xls'), f('x.pdf')]).originalname, 'פדיון-A4_20261016235900_1.xls');
   assert.equal(pickReportFile([f('a.pdf')]), null);
+  // PDF too (owner, 18/10) — the same report; a sheet still wins, and an unnamed PDF (z_3318.pdf) is never taken.
+  assert.equal(pickReportFile([f('z_3318.pdf'), f('פדיון-A4_20261017235900_1.pdf')]).originalname, 'פדיון-A4_20261017235900_1.pdf');
+  assert.equal(pickReportFile([f('פדיון-A4_1.pdf'), f('פדיון-A4_1.xls')]).originalname, 'פדיון-A4_1.xls');
+  assert.equal(pickReportFile([f('z_3318.pdf'), f('תרומה-A4_20261017010000_156.pdf')]), null);
 });
 
 test('the secret: env first, else derived from an explicit SESSION_SECRET, else none', () => {
@@ -72,7 +76,9 @@ test('the Gmail script carries the app address and the secret, and only takes "�
   assert.match(src, /var SECRET = "abc\\"'def";/, 'JSON-escaped — a quote cannot break the script');
   assert.match(src, /function installTrigger\(\)/);
   assert.match(src, /everyHours\(1\)/);
-  assert.match(src, /if \(!\/פדיון\/\.test\(name\)/);
+  assert.match(src, /return \/פדיון\/\.test\(att\.getName\(\)\) && \/\\\.\(xlsx\?\|csv\|pdf\)\$\/i\.test\(att\.getName\(\)\);/, '"פדיון" files only — sheet or PDF');
+  assert.match(src, /\(sheets\.length \? sheets : reports\)\.forEach/, 'a mail with both posts the sheet only');
+  assert.match(src, /filename:csv OR filename:pdf\)/);
   assert.match(src, /'x-ingest-secret': SECRET/);
 });
 
@@ -107,6 +113,26 @@ test('a POS mail as the script sends it: store from the subject, day from the st
   assert.equal(Number(row.store_id), Number(st.id));
   assert.equal(row.source, 'email');
   assert.ok(Number(row.gross_sales) > 0);
+});
+
+test('the PDF of the report, as the script sends it: the day printed in the PDF wins, details stored, the alert carries them', async () => {
+  const pdf = readFileSync(fileURLToPath(new URL('./fixtures/revenue-junior.pdf', import.meta.url)));
+  const name = 'פדיון-A4_20261019003000_3.pdf'; // a stamp that would say the 18th — the PDF says the 17th
+  const r = await post(`subject=${encodeURIComponent(`[ דו"ח ] 3: יומי סניף: 3 ${st.name} `)}&sent=2026-10-18T21:30:00Z&file_name=${encodeURIComponent(name)}`,
+    [['z_3318.pdf', Buffer.from('%PDF-not this one')], [name, pdf]]);
+  const j = await r.json();
+  assert.equal(r.status, 200, JSON.stringify(j));
+  assert.deepEqual({ date: j.date, dateFrom: j.dateFrom, detailsSaved: j.detailsSaved }, { date: '2026-10-17', dateFrom: 'content', detailsSaved: true });
+  const row = await db.one('SELECT gross_sales, cash_total, txn_count, cards FROM revenue_reports WHERE store_id = ? AND report_date = ?', [st.id, '2026-10-17']);
+  assert.equal(Number(row.gross_sales), 6666979);
+  assert.equal(Number(row.cash_total), 2657340);
+  assert.equal(Number(row.txn_count), 1283);
+  assert.equal(JSON.parse(row.cards).length, 3);
+  const notes = await listNotifications({ limit: 5 }, db);
+  const n = notes.find((x) => /דוח פדיון נקלט/.test(x.title));
+  assert.ok(n, 'an alert was recorded');
+  assert.match(n.body, /17\/10\/2026: מכירות ₪66,669\.79 · אשראי ₪40,096\.39 · מזומן ₪26,573\.40 · 1283 עסקאות/);
+  assert.doesNotMatch(n.body, /⚠️/, 'credit matches the acquirers — no alarm');
 });
 
 test('a branch with no matching store is refused (422) and the owner is told — nothing imported', async () => {

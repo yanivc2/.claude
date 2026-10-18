@@ -119,8 +119,9 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
 <div class="card">
   <h2 style="margin:0 0 .3rem">📈 דוח פדיון<%= (typeof activeStore !== 'undefined' && activeStore) ? ' · ' + activeStore.name : '' %></h2>
   <p class="muted" style="margin:0 0 .6rem">
-    הדוח הלילי (סך המכירות + סליקות האשראי) מגיע כקובץ XLS במייל. העלה אותו כאן — או חבר קליטה
-    אוטומטית מהמייל. הנתונים מסוכמים לפי טווח התאריכים שנבחר למעלה ומשמשים לחישוב ההכנסות והרווח.
+    הדוח הלילי (מכירות, מזומן, אשראי לפי חברה, ביטולים ועסקאות) מגיע במייל כקובץ XLS או PDF. העלה אותו
+    כאן — או חבר קליטה אוטומטית מהמייל. המכירות מסוכמות לפי טווח התאריכים שנבחר למעלה ומשמשות לחישוב
+    ההכנסות והרווח.
   </p>
 
   <%# הקובץ עצמו אינו נושא שם חנות, ולכן הוא נקלט תמיד לחנות הפעילה. קודם היה כאן בורר עם ברירת
@@ -132,13 +133,13 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
     <div class="row">
       <div><%- include('../partials/_formStore') %></div>
       <div>
-        <label>קובץ הדוח (XLS / XLSX / CSV)</label>
-        <input type="file" name="file" accept=".xls,.xlsx,.csv,text/csv" required />
+        <label>קובץ הדוח (XLS / XLSX / CSV / PDF)</label>
+        <input type="file" name="file" accept=".xls,.xlsx,.csv,text/csv,.pdf,application/pdf" required />
       </div>
       <div>
         <label>תאריך הדוח</label>
         <input type="date" name="report_date" value="<%= typeof revDefaultDate !== 'undefined' ? revDefaultDate : '' %>" />
-        <small class="muted">הדוח היומי של הקופה אינו מכיל תאריך — ברירת המחדל היא אתמול (הדוח מגיע אחרי 00:30).</small>
+        <small class="muted">קובץ ה-XLS של הקופה אינו מכיל תאריך — ברירת המחדל היא אתמול (הדוח מגיע אחרי 00:30). ב-PDF התאריך כתוב בדוח, והוא שקובע.</small>
       </div>
     </div>
 
@@ -169,22 +170,7 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
   <% if (!revRows || !revRows.length) { %>
     <p class="muted" style="margin:0">עדיין לא נקלט דוח פדיון.</p>
   <% } else { %>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>תאריך</th><th>חנות</th><th class="right">פדיון</th><th class="right">אשראי</th><th>מקור</th></tr></thead>
-        <tbody>
-          <% revRows.forEach(function(r){ %>
-            <tr>
-              <td><%= formatDate(r.report_date) %></td>
-              <td><%= r.store_name %></td>
-              <td class="right"><%= formatIls(r.gross_sales) %></td>
-              <td class="right"><%= formatIls(r.credit_total) %></td>
-              <td class="muted"><%= r.source === 'email' ? 'מייל' : 'העלאה' %></td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    </div>
+    <%- include('../partials/_revenueRows', { rows: revRows }) %>
   <% } %>
 </div>
 

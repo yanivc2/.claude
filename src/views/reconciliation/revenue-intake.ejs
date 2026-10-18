@@ -5,14 +5,14 @@
 <p class="muted">
   הקופה שולחת כל לילה מייל לג׳ימייל שלך. סקריפט קטן בתוך הג׳ימייל (רץ בשרתים של גוגל — לא צריך מחשב דלוק)
   בודק פעם בשעה אם הגיע דוח "פדיון", ושולח אותו לכאן. האפליקציה מזהה את החנות לפי שם הסניף שבנושא
-  המייל ואת היום לפי חותמת הזמן של הקופה, ותקבל התראה על כל דוח שנקלט — או שלא נקלט, ולמה.
+  המייל ואת היום לפי התאריך שבדוח (ב-PDF) או חותמת הזמן של הקופה, ותקבל התראה על כל דוח שנקלט — או שלא נקלט, ולמה.
 </p>
 
 <div class="card no-collapse">
   <h2 style="margin:0 0 .4rem">1. בקופה (Aviv POS)</h2>
   <p style="margin:0 0 .4rem">
-    להוסיף לדיוור הלילי של כל חנות את הדוח <strong>"פדיון-A4" בפורמט XLS</strong>, לכתובת שמגיעה לג׳ימייל הזה.
-    היום נשלחים בלילה רק קובצי PDF של דוחות אחרים, ואותם אי אפשר לקלוט. אם אין לך גישה להגדרה — תמיכת אביב.
+    להוסיף לדיוור הלילי של כל חנות את הדוח <strong>"פדיון-A4"</strong> — בפורמט <strong>XLS או PDF</strong> (שניהם נקלטים),
+    לכתובת שמגיעה לג׳ימייל הזה. אם מגיעים שניהם באותו מייל, נקלט ה-XLS. אם אין לך גישה להגדרה — תמיכת אביב.
   </p>
   <p class="muted" style="margin:0 0 .3rem">
     שם הסניף בנושא המייל ("סניף: 3 מידנייט") צריך להופיע בשם החנות כאן (או להפך). החנויות במערכת:
@@ -49,24 +49,9 @@
 <div class="card no-collapse">
   <h2 style="margin:0 0 .4rem">3. בדיקה — ימים אחרונים שנקלטו</h2>
   <% if (!recent || !recent.length) { %>
-    <p class="muted" style="margin:0">עדיין לא נקלט דוח פדיון. אחרי שהקופה תשלח את הדוח הלילי בפורמט XLS, הוא יופיע כאן תוך שעה.</p>
+    <p class="muted" style="margin:0">עדיין לא נקלט דוח פדיון. אחרי שהקופה תשלח את הדוח הלילי (XLS או PDF), הוא יופיע כאן תוך שעה.</p>
   <% } else { %>
-    <div class="table-scroll">
-      <table>
-        <thead><tr><th>תאריך</th><th>חנות</th><th class="right">פדיון</th><th class="right">אשראי</th><th>מקור</th></tr></thead>
-        <tbody>
-          <% recent.forEach(function(r){ %>
-            <tr>
-              <td><%= formatDate(r.report_date) %></td>
-              <td><%= r.store_name %></td>
-              <td class="right"><%= formatIls(r.gross_sales) %></td>
-              <td class="right"><%= formatIls(r.credit_total) %></td>
-              <td class="muted"><%= r.source === 'email' ? 'מייל' : 'העלאה' %></td>
-            </tr>
-          <% }); %>
-        </tbody>
-      </table>
-    </div>
+    <%- include('../partials/_revenueRows', { rows: recent }) %>
   <% } %>
 </div>
 

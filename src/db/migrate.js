@@ -55,6 +55,12 @@ function migrateRevenueReports(db) {
      );`,
   );
   db.exec('CREATE INDEX IF NOT EXISTS ix_revenue_reports_date ON revenue_reports(report_date);');
+  // פירוט הדוח המסוכם (מזומן, הקפה, תשלומי חוב, אשראי לפי חברה, ביטולים, עסקאות).
+  const cols = db.prepare('PRAGMA table_info(revenue_reports)').all().map((c) => c.name);
+  for (const [c, t] of [['cash_total', 'INTEGER'], ['on_account', 'INTEGER'], ['debt_payments', 'INTEGER'], ['debt_credit', 'INTEGER'],
+    ['cancel_amount', 'INTEGER'], ['cancel_count', 'INTEGER'], ['txn_count', 'INTEGER'], ['cards', 'TEXT']]) {
+    if (!cols.includes(c)) db.exec(`ALTER TABLE revenue_reports ADD COLUMN ${c} ${t};`);
+  }
 }
 
 // In-app notification stream (bell + /notifications) — mirrors the Telegram alerts.
