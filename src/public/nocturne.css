@@ -1367,10 +1367,18 @@ main.page .page-back { text-align: start !important; }
     margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent;
   }
   .sb-start { justify-self: start; margin-inline-start: calc(max(0px, (100cqw - 1120px) / 2) + var(--space-6) - 18px); }
-  .sb-end { justify-self: end; gap: var(--space-3); }
+  /* בעלים, 18/10: "כמו כפתור החזרה — AP Control מעל צד שמאל של המסגרת של הוספת Z, ומימינו בורר החנויות".
+     אותו חישוב כמו .sb-start, במראה: הקבוצה השמאלית נדחפת פנימה עד הקצה השמאלי של .page, כך ש-"AP Control"
+     יושב מעל המסגרת השמאלית של הכרטיסים (רוחב מלא — "הוספת דוח Z"), והבורר צמוד אליו מימין. */
+  .sb-end { justify-self: end; gap: var(--space-3); margin-inline-end: calc(max(0px, (100cqw - 1120px) / 2) + var(--space-6) - 18px); }
   /* "אפשרויות" כבר לא הכי שמאלי: הרשימה נפתחת מהקצה הימני שלו פנימה, לא מעבר לקצה השורה אל הסרגל. */
   .topbar .store-banner-quick > .menu-panel { inset-inline-start: 0; inset-inline-end: auto; }
   .sb-center { overflow: hidden; }
+  /* עמודות קבועות: כש-.sb-start ריק (דף ראשון בסשן — אין עדיין "→ חזרה") הוא מוסתר (:empty), ובלי מיקום
+     מפורש שם הדף והקבוצה השמאלית זזו עמודה אחת ימינה — "AP Control" נחת באמצע השורה במקום מעל המסגרת. */
+  .topbar .sb-start { grid-column: 1; }
+  .topbar .sb-center { grid-column: 2; }
+  .topbar .sb-end { grid-column: 3; }
   .store-banner-switch select { min-width: 130px; max-width: 200px; flex: 0 1 auto; }
   .store-banner-name { white-space: nowrap; }
   .topbar-brand { display: inline-flex; margin: 0; padding: 0; }
