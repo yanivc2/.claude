@@ -37,3 +37,17 @@ test('both closing screens mark their count tables, including a register added a
     assert.match(v, /<script src="\/count-adjust\.js" defer><\/script>/, `${p}: the script is loaded`);
   }
 });
+
+// בעלים 18/10 ("תמחוק", צילומים של סגירת Z): טבלת ספירה היא טבלת הזנה — בלי "חיפוש בטבלה…" ובלי
+// שורת "סנן…"; ובטופס החדש אין שדה חנות גלוי ואין שורת "תחילת ספירה" (שניהם נשלחים נסתרים).
+test('closing screens: count tables have no search / filter row; the new form shows no store field or start time', () => {
+  for (const p of ['src/views/zclosing/index.ejs', 'src/views/zclosing/edit.ejs']) {
+    const v = read(p);
+    assert.equal((v.match(/<table class="no-search no-filter" data-count-adjust>/g) || []).length, 2, p);
+  }
+  const v = read('src/views/zclosing/index.ejs').replace(/<%#[\s\S]*?%>/g, '');
+  assert.doesNotMatch(v, /תחילת ספירה:/);
+  assert.match(v, /<input type="hidden" name="started_at" value="<%= startedAt %>" \/>/, 'still sent');
+  assert.match(v, /include\('\.\.\/partials\/_formStore', \{ label: false \}\)/, 'store_id + ctx_store still sent, no visible field');
+  assert.doesNotMatch(v, /include\('\.\.\/partials\/_formStore'\)/);
+});

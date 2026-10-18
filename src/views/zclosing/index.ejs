@@ -67,8 +67,10 @@
     <div style="margin-top:.8rem"><%- include('../partials/_needStore', { what: 'סגירת Z' }) %></div>
   <% } else { %>
   <form method="post" action="/zclosing" class="stack" id="zclose-form" data-busy="שומר…" style="margin-top:.8rem">
+    <%# "תחילת ספירה" ושדה החנות הוסרו מהמסך (בעלים 18/10: "תמחוק") — שניהם נשלחים כשדות נסתרים:
+        שעת ההתחלה נשמרת עם הסגירה, והחנות = החנות הפעילה שבבורר העליון (store_id + ctx_store). %>
     <input type="hidden" name="started_at" value="<%= startedAt %>" />
-    <p class="muted" style="margin:0 0 .6rem">תחילת ספירה: <strong><%= startedAt %></strong> · שעון ישראל</p>
+    <%- include('../partials/_formStore', { label: false }) %>
 
     <%# The counter is asked ONCE, first, and every register in "איזון קופות" inherits it. %>
     <% if (empOpts.length) { %>
@@ -95,16 +97,14 @@
     </details>
 
     <div class="row">
-      <div>
-        <%- include('../partials/_formStore') %>
-      </div>
       <div><label>מספר Z</label><input name="z_number" required autocomplete="off" /></div>
       <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required /></div>
     </div>
 
     <h3 style="margin:1.1rem 0 .2rem">ספירת מזומן</h3>
     <div class="table-scroll">
-      <table data-count-adjust>
+      <%# טבלת הזנה — בלי "חיפוש בטבלה…" ובלי שורת "סנן…" (בעלים 18/10: "תמחוק"). %>
+      <table class="no-search no-filter" data-count-adjust>
         <thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>
         <tbody>
           <% denoms.forEach(function(d){ %>
@@ -372,7 +372,7 @@
       + '<div class="row">'
       + '<div><label>קופה</label><select name="reg_number[]"><option value="1">קופה 1</option><option value="2">קופה 2</option><option value="3">קופה 3</option></select></div>'
       + '</div>'
-      + '<div class="table-scroll" style="margin-top:.4rem"><table data-count-adjust><thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>'
+      + '<div class="table-scroll" style="margin-top:.4rem"><table class="no-search no-filter" data-count-adjust><thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>'
       + '<tbody>' + denomRows() + '</tbody>'
       + '<tfoot><tr><th>סה"כ קופה ' + n + '</th><th></th><th class="right rc-total">₪0.00</th></tr></tfoot></table></div>'
       + '<div style="margin-top:.4rem"><button type="button" class="danger small" onclick="regDel(this)">הסר קופה</button></div>';
