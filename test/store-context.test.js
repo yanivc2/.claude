@@ -132,3 +132,15 @@ test('the active store filters צ׳קים בחוץ, its CSV, Z reports and bank 
   const reconForced = await (await get(`/reconciliation?account=${(await db.one('SELECT id FROM bank_accounts WHERE store_id = ?', [b.id])).id}`, withA)).text();
   assert.ok(!reconForced.includes(acctB.account_number), '?account= cannot reach another branch');
 });
+
+// בעלים, 17/10: "אני לא צריך שיהיה רשום פעמיים — לקצר אבל להבליט" (צילום: "מידנייט · יניב רום יזמות בע"מ"
+// גם כטקסט וגם בבורר). כשיש בורר — השם רק בתוכו, מודגש, ובלי שם החברה.
+test('store bar: with a picker the active store is named once — inside the bold picker, no company', async () => {
+  const st = await db.one('SELECT s.id, s.name, c.name AS company FROM stores s JOIN companies c ON c.id = s.company_id ORDER BY s.id LIMIT 1', []);
+  const html = await (await get('/', `${cookieFor(await owner(db))}; ap_store=${st.id}`)).text();
+  const bar = html.slice(html.indexOf('class="store-banner'), html.indexOf('</form>', html.indexOf('class="store-banner')));
+  assert.ok(!/class="store-banner-name"/.test(bar), 'no separate name text next to the picker');
+  assert.match(bar, /<select name="store_id" class="store-banner-pick"/);
+  const selected = bar.match(/<option value="\d+" selected>([^<]*)<\/option>/)[1];
+  assert.ok(!selected.includes('·'), `only the store name: "${selected}"`);
+});

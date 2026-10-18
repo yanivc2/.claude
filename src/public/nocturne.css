@@ -640,6 +640,11 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .store-banner-co { font-weight: 400; color: var(--color-muted); font-size: 13px; }
 .store-banner-switch { display: flex; align-items: center; gap: var(--space-2); margin: 0 0 0 auto; }
 .store-banner-switch select { min-width: 150px; }
+/* הבורר הוא שם החנות עצמו (לא כפילות שלו) — מודגש ובולט. */
+.store-banner-switch select.store-banner-pick {
+  font-weight: 700; font-size: 16px; color: var(--color-text);
+  border: 1.5px solid var(--color-accent); background: var(--color-surface);
+}
 .store-banner-lock { margin: 0 0 0 auto; font-size: 11px; }
 /* "אפשרויות" של לוח הבקרה — הכי שמאלי בפס, אחרי "החלף" (partials/_quickMenu.ejs). */
 .store-banner-quick { flex: 0 0 auto; }
@@ -1245,7 +1250,7 @@ main.page .page-back { text-align: start !important; }
   .store-banner > * { flex-shrink: 0; }
   .store-banner > .store-banner-name { flex-shrink: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .store-banner > .store-banner-switch { flex-shrink: 1; }                 /* עד רוחב הבורר המינימלי + "החלף" */
-  .store-banner-switch select { min-width: 130px; max-width: 260px; flex: 0 1 auto; }
+  .store-banner-switch select { min-width: 130px; max-width: 220px; flex: 0 1 auto; }
   .store-banner-switch > button { flex-shrink: 0; }
 }
 /* בנייד אין מקום לצד: הכפתור נשאר בצד ימין, בשורה עליונה משלו בתוך הפס. */
