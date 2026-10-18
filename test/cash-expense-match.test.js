@@ -149,7 +149,13 @@ test('הלוח מציג כפתור לפי סוג ואת כרטיס ההתראו�
   assert.doesNotMatch(v, /<span class="cx-btn-long"> לצ׳ק שכר<\/span>/, 'אין כיתוב ארוך שמרחיב את העמודה');
   assert.match(v, /title="<%= _isSal \? 'התאם לצ׳ק שכר'/, 'המטרה נאמרת ב-title');
   const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
-  assert.match(css, /\.cx-acts \{[^}]*flex-wrap: wrap;[^}]*max-width/, 'הכפתורים נשברים לשורה ולא מרחיבים את הטבלה');
+  // בעלים, 18/10: "התאם" מעל "טופל" (קצת יותר גדולים) ומימינם 💬 בגובה של שניהם — רשת של שתי עמודות, שתי
+  // שורות שוות. העמודה לא מתרחבת: שני כפתורים צרים זה מעל זה במקום שלושה בשורה.
+  assert.match(css, /\.cx-acts \{ display: grid; grid-template-columns: auto auto; grid-auto-rows: 1fr;/);
+  assert.match(css, /\.cx-acts:has\(> \.cx-match\) > \.cx-wa \{ grid-row: 1 \/ span 2; \}/, '💬 spans both rows');
+  assert.match(css, /\.cx-acts > :not\(\.cx-wa\) \{ grid-column: 2; \}/, 'match and settle stacked in one column');
+  assert.match(css, /\.cx-acts > button:not\(\.cx-wa\), \.cx-acts form button \{ width: 100%; min-height: 34px; font-size: 14px;[^}]*white-space: nowrap;/);
+  assert.match(v, /class="btn btn-secondary small cx-match"/);
   for (const f of ['zclosing/index', 'zclosing/edit', 'reports/_zform']) {
     const t = readFileSync(new URL(`../src/views/${f}.ejs`, import.meta.url), 'utf8');
     assert.match(t, /\['petty','פריטה'\]/, `${f}: סוג פריטה קיים בבורר`);

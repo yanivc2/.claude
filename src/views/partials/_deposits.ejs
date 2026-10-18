@@ -4,7 +4,7 @@
   // שונים (אחת עם "יתרה / זכות" שתמיד ריקה). אותה שקית נראתה אחרת בכל דף.
   //
   // locals: `rows` (מ-listDeposits), `verify` (Map מ-depositVerifications), `zdiff` (Map
-  //         מ-depositZDiffs), `actions` (להציג עמודת פעולות).
+  //         מ-depositZDiffs), `actions` (להציג עמודת פעולות), `noSearch` (בלי שורת "חיפוש בטבלה…" — מרקורים).
   var _rows = (typeof rows !== 'undefined' && rows) ? rows : [];
   var _verify = (typeof verify !== 'undefined' && verify) ? verify : new Map();
   var _zdiff = (typeof zdiff !== 'undefined' && zdiff) ? zdiff : new Map();
@@ -33,7 +33,7 @@
   _rows.forEach(function (d) { var v = _verify.get(Number(d.id)); if (v && v.state === 'corrected') { _vSum += Number(v.correctionTotal) || 0; _vN += 1; } });
 %>
 <div class="table-scroll">
-  <table class="<%= _grouped ? 'cx-grouped' : 'sortable' %>">
+  <table class="<%= _grouped ? 'cx-grouped' : 'sortable' %><%= (typeof noSearch !== 'undefined' && noSearch) ? ' no-search' : '' %>">
     <thead><tr>
       <th>מספר שקית</th><th class="right">סכום הפקדה</th><th>תאריך</th><th>שיוך ל-Z</th>
       <th class="right">יתרה / חוסר</th><th>סטטוס</th><th>תאריך סטטוס</th>

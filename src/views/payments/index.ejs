@@ -15,9 +15,9 @@
 
 <details class="card collapse" open style="margin-top:1rem">
   <summary><span class="caret">▸</span> הצהרות הפקדה <span class="muted">(<%= (deposits || []).length %>)</span></summary>
-  <p class="muted no-print" style="margin:.6rem 0 .2rem">הפקדות שהוצהרו בדוחות Z. "יתרה / חוסר" הוא אותו הפרש שדוח ה-Z מציג; "אימות ספירה" מתמלא כשהבנק כותב שורת תיקון אחרי שספר את השקית.</p>
+  <%# בלי שורת ההסבר ובלי "חיפוש בטבלה…" (בעלים, 18/10: "מחק את המלל והחיפוש") — מסנני העמודות נשארים. %>
   <%- include('../partials/_deposits', {
-        rows: deposits, verify: depVerify, zdiff: depZDiff, actions: true,
+        rows: deposits, verify: depVerify, zdiff: depZDiff, actions: true, noSearch: true,
       }) %>
 </details>
 

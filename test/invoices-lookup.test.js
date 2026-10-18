@@ -105,3 +105,11 @@ test('every table: the column-title row is bold, dark and tinted; the filter row
   assert.match(css, /thead tr:not\(\.filter-row\) th \{\n  color: var\(--color-text\); font-weight: 700; font-size: 13px;/);
   assert.match(css, /border-bottom: 2px solid color-mix\(in srgb, var\(--color-accent\) 45%, var\(--color-line\)\);/);
 });
+
+test('מרקורים → הצהרות הפקדה: no explanation line and no "חיפוש בטבלה…" (owner, 18/10)', () => {
+  const pay = readFileSync(new URL('../src/views/payments/index.ejs', import.meta.url), 'utf8').replace(/<%#[\s\S]*?%>/g, '');
+  assert.doesNotMatch(pay, /הפקדות שהוצהרו בדוחות Z/);
+  assert.match(pay, /rows: deposits, verify: depVerify, zdiff: depZDiff, actions: true, noSearch: true,/);
+  const dep = readFileSync(new URL('../src/views/partials/_deposits.ejs', import.meta.url), 'utf8');
+  assert.match(dep, /\(typeof noSearch !== 'undefined' && noSearch\) \? ' no-search' : ''/);
+});

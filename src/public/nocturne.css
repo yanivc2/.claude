@@ -1188,8 +1188,14 @@ tr.row-tracked:hover td { background: color-mix(in srgb, #f59e0b 18%, transparen
 @media (max-width: 700px) {
   .cx-btn-long { display: none; }
 }
-/* כפתורי השורה (💬 · התאם · טופל) נשברים לשורה הבאה במקום לברוח מהמסך — בנייד הימני נחתך (בעלים, 16/10). */
-.cx-acts { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; max-width: 210px; }
+/* כפתורי השורה (בעלים, 18/10): "התאם" מעל "טופל", קצת יותר גדולים, ומימינם "💬" בגובה של שניהם יחד. רשת של
+   שתי עמודות — 💬 בעמודה הראשונה (ימין ב-RTL) על פני שתי השורות, וכל השאר בעמודה השנייה זה מתחת לזה.
+   <dialog> סגור אינו מוצג ולכן אינו תופס תא. בפריטה יש רק "טופל" — 💬 פשוט בגובהו. */
+.cx-acts { display: grid; grid-template-columns: auto auto; grid-auto-rows: 1fr; gap: 5px; align-items: stretch; justify-content: center; }
+.cx-acts > .cx-wa { grid-column: 1; grid-row: 1; font-size: 20px; padding-inline: 12px; height: auto; }
+.cx-acts:has(> .cx-match) > .cx-wa { grid-row: 1 / span 2; }   /* שורות שוות (1fr) — "התאם" ו"טופל" באותו גובה */
+.cx-acts > :not(.cx-wa) { grid-column: 2; }
+.cx-acts > button:not(.cx-wa), .cx-acts form button { width: 100%; min-height: 34px; font-size: 14px; padding-inline: 12px; white-space: nowrap; }
 /* טבלת המזומן משתמשת ב-.line-grid רק לקיפול לכרטיסים בנייד — בלי רוחב המינימום של העמודה הראשונה. */
 .cx-table.line-grid th:first-child, .cx-table.line-grid td:first-child { min-width: 0; }
 /* הוצאות מזומן בדף החשבוניות: מה שהותאם/סומן "טופל" מקובץ בתחתית ומכווץ; נפתח בלחיצה או בזמן חיפוש. */
