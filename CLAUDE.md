@@ -160,7 +160,7 @@ happen only at merge. So:
   combobox** enhances `<select class="js-combo">` (type-to-filter); a free-text field gets narrowing suggestions with `<input data-suggest="<json-script-id>">` (both share `window.apPlacePopup`). Both keep a hidden/original control
   as the submitted value + enforce required on submit. (3) **collapsible rubrics** — every `.card` with a
   direct `<h2>` becomes collapsible (accordion: opening one closes the others on the page; state in
-  localStorage); skips `<details>`, `.no-collapse`, and cards with a `[required]` control. Also handles
+  localStorage); skips `<details>`, `.no-collapse`, and cards with a `[required]` control; the saved state is keyed by the h2 text — a heading carrying a changing count needs `data-ckey`. Also handles
   `<details data-accordion="grp">`. (4) **שחזור גלילה + רשימות פתוחות** — **כל** טופס POST שומר את מיקום הגלילה **ואת מצב ה-`<details>`**
   ומשחזר אחרי ה-PRG (חזרה לאותו נתיב בלבד), כך שפעולה לא מקפיצה לראש הדף ולא מכווצת טבלה.  (5) **חסימת
   הגשה כפולה** — `form[data-busy]`: הגשה שנייה בזמן שהראשונה בדרך נבלעת והכפתורים ננעלים (סגירת Z נשמרה 4

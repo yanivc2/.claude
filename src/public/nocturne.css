@@ -329,6 +329,12 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
    the row without ever creating an implicit column that would overflow a narrow screen. */
 .stat-grid .oc-tile { grid-column: 1 / -1; }
 @media (min-width: 620px) { .stat-grid .oc-tile { grid-column: span 2; } }
+/* "בדיקת חשבונית" גדלה למקום אריח "Z ללא הצהרת הפקדה" שהוסר (בעלים, 18/10): 3 עמודות כשבשורה יש 4
+   (רוחב הרשת ≥ 4×180 + 3 רווחים). שאילתת מיכל ולא מסך — מספר העמודות תלוי ברוחב הרשת, לא בחלון. */
+.stat-grid { container-type: inline-size; }
+@container (min-width: 768px) { .stat-grid .lookup-tile { grid-column: span 3; } }
+.z-nodep-badge { font-size: 13px; font-weight: 700; vertical-align: middle; text-decoration: none; }
+.z-nodep-badge:hover { text-decoration: none; filter: brightness(.95); }
 /* 🔎 בדיקת חשבונית בתוך אריח (לוח הבקרה): שם · מספר · "לא שולמו בלבד" · חפש — נשבר לשורות בנייד. */
 
 .lookup-tile:hover { transform: none; box-shadow: none; }

@@ -9,6 +9,7 @@ import { freshDb, owner, firstStore } from './helpers.js';
 import { createApp } from '../src/app.js';
 import { createSession } from '../src/lib/auth.js';
 import { createInvoice } from '../src/services/invoices.js';
+import { createZReport } from '../src/services/zreports.js';
 
 let db, o, st, server, base;
 before(async () => {
@@ -107,4 +108,17 @@ test('dashboard lookup: the supplier-name field suggests names that narrow with 
   assert.match(footer, /input\.addEventListener\('input', render\);/, 're-filtered on every letter');
   assert.match(footer, /else if \(e\.key === 'Enter'\) \{ if \(idx >= 0\) \{ e\.preventDefault\(\); pick\(shown\[idx\]\); \} else close\(\); \}/, 'Enter without a pick searches what was typed');
   assert.match(footer, /window\.apPlacePopup = function \(pop, input\) \{/, 'one placement shared with js-combo');
+});
+
+test('dashboard: "Z ללא הצהרת הפקדה" is a red count beside the "דוחות Z" heading, not a tile; the lookup grows into its place (owner, 18/10)', async () => {
+  const before = await page();
+  assert.doesNotMatch(before, /<div class="label">Z ללא הצהרת הפקדה<\/div>/, 'the tile is gone');
+  assert.doesNotMatch(before, /z-nodep-badge/, 'no badge while every Z has a declaration');
+  await createZReport({ storeId: st.id, zNumber: '9101', zDate: '2026-10-15', dailyTotal: 100000, drawerCash: 100000 }, o, db);
+  const html = await page();
+  assert.match(html, /<h2 style="margin:0 0 \.5rem" data-ckey="דוחות Z">דוחות Z <a class="badge b-blocked z-nodep-badge" href="\/reports\/zreports"[^>]*>1 ללא הצהרת הפקדה<\/a><\/h2>/, 'red, after the title (= on its left), the number follows the count');
+  const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
+  assert.match(css, /@container \(min-width: 768px\) \{ \.stat-grid \.lookup-tile \{ grid-column: span 3; \} \}/);
+  const footer = readFileSync(new URL('../src/views/partials/footer.ejs', import.meta.url), 'utf8');
+  assert.match(footer, /var key = \(h\.getAttribute\('data-ckey'\) \|\| h\.textContent \|\| ''\)/, 'a changing count does not reset the card\'s collapsed state');
 });

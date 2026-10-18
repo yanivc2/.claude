@@ -68,10 +68,8 @@
       </div>
     </form>
   </div>
-  <a class="stat <%= (typeof zNoDepositCount !== 'undefined' && zNoDepositCount) ? 'attn' : '' %>" href="/reports/zreports" title="דוחות Z שהוזנו ללא הצהרת הפקדה — לחץ להצהיר">
-    <div class="num"><%= typeof zNoDepositCount !== 'undefined' ? zNoDepositCount : 0 %></div>
-    <div class="label">Z ללא הצהרת הפקדה</div>
-  </a>
+  <%# "Z ללא הצהרת הפקדה" כבר אינו אריח (בעלים, 18/10) — הוא תג אדום ליד הכותרת "דוחות Z" למטה, ו"בדיקת
+      חשבונית" גדלה למקומו (nocturne.css: .lookup-tile ב-3 עמודות כשיש בשורה 4). %>
   <a class="stat <%= (typeof notDepositedCount !== 'undefined' && notDepositedCount) ? 'attn' : '' %>" href="/reports/zreports" title="הפקדות שהוצהרו וטרם הופקדו — לחץ לסמן הפקדה">
     <div class="num"><%= typeof notDepositedCount !== 'undefined' ? notDepositedCount : 0 %></div>
     <div class="label">הצהרות שלא הופקדו</div>
@@ -225,7 +223,9 @@
 </div>
 
 <div class="card">
-  <h2 style="margin:0 0 .5rem">דוחות Z</h2>
+  <%# בעלים, 18/10: "משמאל לדוחות Z בצבע אדום: N ללא הצהרת הפקדה" — רק כשיש. data-ckey: מפתח הכיווץ של
+      הכרטיס (footer.ejs) נשאר "דוחות Z" גם כשהמספר משתנה. הקישור לא מקפל את הכרטיס (stopPropagation). %>
+  <h2 style="margin:0 0 .5rem" data-ckey="דוחות Z">דוחות Z<% if (typeof zNoDepositCount !== 'undefined' && zNoDepositCount) { %> <a class="badge b-blocked z-nodep-badge" href="/reports/zreports" title="דוחות Z שהוזנו ללא הצהרת הפקדה — לחץ להצהיר" onclick="event.stopPropagation()" onkeydown="event.stopPropagation()"><%= zNoDepositCount %> ללא הצהרת הפקדה</a><% } %></h2>
   <% if (zStatus && zStatus.ok) { %>
     <p><span class="badge b-approved">תקין</span> — אין פערים ברצף מספרי ה-Z.</p>
   <% } else { %>
