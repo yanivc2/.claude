@@ -348,6 +348,12 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
 .lookup-go { display: grid; grid-template-rows: 1fr 1fr; gap: var(--space-2); align-items: center; justify-items: center; flex: 0 0 auto; }
 /* "חפש" גדול (בעלים, 18/10: "תגדיל את הכפתור חפש") — ברוחב העמודה ובגובה שדות החיפוש. */
 .lookup-go button { width: 100%; min-width: 112px; min-height: 46px; font-size: 17px; font-weight: 700; }
+/* דף החשבוניות: אותו אריח בכרטיס, ו"נקה" בשורה שלישית מתחת ל"לא שולמו בלבד" (בעלים, 18/10). שתי השורות
+   הראשונות בגובה השדות (47px), כדי ש"חיפוש" ו"לא שולמו בלבד" יישארו מול שתי שורות השדות. */
+.lookup-card { margin-bottom: 1rem; }
+.lookup-card .lookup-title { font-size: 13px; color: var(--color-muted); margin-bottom: .45rem; }
+.lookup-go.has-clear { grid-template-rows: 47px 47px auto; }
+.lookup-go .lookup-clear { width: 100%; justify-content: center; }
 .lookup-unpaid { display: flex; align-items: center; gap: 6px; font-weight: 400; white-space: nowrap; font-size: 13px; }
 .lookup-unpaid input { width: auto; min-height: 0; }
 /* טלפון: שלוש עמודות ברוחב ~310px — עמודת "חפש" צרה יותר והכתב בשדות קטן, כדי ש"עד תאריך" ו"מספר חשבונית"

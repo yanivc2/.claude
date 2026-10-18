@@ -137,7 +137,8 @@
   <div class="topbar">
     <div class="topbar-inner">
       <div class="store-banner<%= (typeof activeStore !== 'undefined' && activeStore) ? '' : ' is-all' %>">
-        <div class="sb-side sb-start"><% if (typeof quickMenu !== 'undefined' && quickMenu) { %><%- include('_quickMenu') %><% } %></div>
+        <%# topMenu: שם partial בתיקייה הזו שהדף מבקש לשים כאן (למשל '_newInvoiceMenu' בדף החשבוניות). %>
+        <div class="sb-side sb-start"><% if (typeof quickMenu !== 'undefined' && quickMenu) { %><%- include('_quickMenu') %><% } %><% if (typeof topMenu !== 'undefined' && topMenu) { %><%- include(topMenu) %><% } %></div>
         <div class="sb-center"><span class="topbar-title"><%= typeof title !== 'undefined' ? title : '' %></span></div>
         <div class="sb-side sb-end">
         <span class="sb-store">

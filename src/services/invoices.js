@@ -479,7 +479,7 @@ export async function getInvoiceDetail(id, x = getExecutor()) {
 
 /** List invoices with joined names, optional status filter. */
 export async function listInvoices(
-  { status = null, scope = null, supplierId = null, storeId = null, q = null, from = null, to = null } = {},
+  { status = null, scope = null, supplierId = null, storeId = null, q = null, name = null, unpaidOnly = false, from = null, to = null } = {},
   x = getExecutor(),
 ) {
   const base = `SELECT i.*, s.name AS supplier_name, s.status AS supplier_status,
@@ -497,6 +497,10 @@ export async function listInvoices(
   if (storeId) { sql += ' AND i.store_id = ?'; params.push(storeId); }
   const terms = parseSearchTerms(q);
   if (terms.length) { const m = anyTermLike(terms, ['i.invoice_number', 'i.allocation_number', 's.name']); sql += ` AND ${m.sql}`; params.push(...m.params); }
+  // שם ספק בשדה משלו (אריח החיפוש של דף החשבוניות) ו"לא שולמו בלבד" — מצטברים לסינון הסטטוס.
+  const nameTerms = parseSearchTerms(name);
+  if (nameTerms.length) { const m = anyTermLike(nameTerms, ['s.name']); sql += ` AND ${m.sql}`; params.push(...m.params); }
+  if (unpaidOnly) sql += " AND i.status <> 'paid'";
   if (from) { sql += ' AND i.invoice_date >= ?'; params.push(from); }
   if (to) { sql += ' AND i.invoice_date <= ?'; params.push(to); }
   sql += sc.sql; params.push(...sc.params);

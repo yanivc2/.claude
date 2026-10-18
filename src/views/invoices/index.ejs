@@ -27,16 +27,9 @@
         <a href="/invoices?status=paid" class="<%= filter === 'paid' ? 'active' : '' %>">שולמו</a>
       </div>
     </details>
-    <details class="menu">
-      <summary class="btn btn-primary">+ חשבונית חדשה <span class="caret">▾</span></summary>
-      <div class="menu-panel">
-        <a href="/invoices/new">+ חשבונית חדשה</a>
-        <div class="menu-sep"></div>
-        <a href="/payments/new?method=transfer">+ תשלום בהעברה</a>
-        <a href="/payments/new?method=cash">+ תשלום במזומן</a>
-        <a href="/payments/new?method=check">+ צ׳ק</a>
-      </div>
-    </details>
+    <%# "+ חשבונית חדשה" עבר לשורת הכותרת, משמאל ל"→ חזרה" (בעלים, 18/10 — partials/_newInvoiceMenu.ejs). רק בלי
+        שורת כותרת (משתמש בלי חנויות) הוא נשאר כאן, כדי שלא ייעלם. %>
+    <% if (!(typeof availableStores !== 'undefined' && availableStores && availableStores.length)) { %><%- include('../partials/_newInvoiceMenu') %><% } %>
   </div>
 </div>
 <p class="muted no-print" style="margin:.2rem 0">לחיצה על שורה פותחת את פרטי החשבונית. חשבונית מוחזקת (חסרה הקצאה) מסומנת באדום.</p>
@@ -44,34 +37,14 @@
 <%# "הוצאות מזומן (מסגירות Z)" הוסרה מדף החשבוניות (בעלים, 18/10: "את זה לבטל"). ההתאמה לחשבונית, "✓ טופל"
     וביטול נעשים בטבלת "שולם מהפדיון — יש להתאים" בלוח הבקרה ובמרקורים (partials/_unmatchedCash.ejs). %>
 
-<form method="get" action="/invoices" class="card no-print" style="margin-bottom:1rem">
-  <input type="hidden" name="status" value="<%= filter %>" />
-  <div class="row">
-    <div><label>חיפוש לפי מספר חשבונית / הקצאה / ספק</label><input name="q" value="<%= q %>" inputmode="text" placeholder="אפשר כמה מספרים מופרדים ברווח או פסיק" /></div>
-  </div>
-  <div style="display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin:.7rem 0 .2rem">
-    <span class="muted">סינון לפי:</span>
-    <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" class="filt-toggle" data-t="sup" style="width:auto;min-height:0" <%= supplierId ? 'checked' : '' %> /> ספק</label>
-    <label style="display:flex;align-items:center;gap:6px;margin:0"><input type="checkbox" class="filt-toggle" data-t="date" style="width:auto;min-height:0" <%= (from || to) ? 'checked' : '' %> /> תאריך</label>
-  </div>
-  <div class="row">
-    <div class="filt-field" data-t="sup" style="<%= supplierId ? '' : 'display:none' %>">
-      <label>ספק</label>
-      <select name="supplier">
-        <option value="">כל הספקים</option>
-        <% suppliers.forEach(function(s){ %><option value="<%= s.id %>" <%= supplierId === s.id ? 'selected' : '' %>><%= s.name %></option><% }); %>
-      </select>
-    </div>
-  </div>
-  <div class="row filt-field" data-t="date" style="<%= (from || to) ? '' : 'display:none' %>">
-    <div><label>מתאריך</label><input type="date" name="from" value="<%= from || '' %>" /></div>
-    <div><label>עד תאריך</label><input type="date" name="to" value="<%= to || '' %>" /></div>
-  </div>
-  <div style="margin-top:.7rem;display:flex;gap:.5rem">
-    <button type="submit">סנן</button>
-    <a href="/invoices<%= filter ? '?status=' + filter : '' %>" class="btn btn-secondary">נקה</a>
-  </div>
-</form>
+<%# חיפוש (בעלים, 18/10): אותו אריח של לוח הבקרה — partials/_lookupForm.ejs; הכפתור "חיפוש" (לא "סנן"), ו"נקה"
+    מתחת ל"לא שולמו בלבד". סינון הסטטוס ("סינון · …") נשמר ב-status. %>
+<div class="card lookup-card no-print">
+  <div class="lookup-title">🔎 חיפוש חשבונית</div>
+  <%- include('../partials/_lookupForm', { lk: { action: '/invoices', name: name, q: q, from: from, to: to, unpaid: unpaidOnly,
+        qPlaceholder: 'מספר חשבונית / הקצאה', submit: 'חיפוש', names: supplierNames, hidden: { status: filter },
+        clearHref: '/invoices' + (filter ? '?status=' + filter : '') } }) %>
+</div>
 
 <div class="table-scroll">
 <table class="sortable">
@@ -254,18 +227,4 @@
   })();
 </script>
 
-<script>
-  // Filter panel: checkboxes reveal the supplier / store / date-range controls (choose one up to all).
-  (function(){
-    document.querySelectorAll('.filt-toggle').forEach(function(cb){
-      cb.addEventListener('change', function(){
-        var t = cb.getAttribute('data-t');
-        document.querySelectorAll('.filt-field[data-t="' + t + '"]').forEach(function(el){
-          el.style.display = cb.checked ? '' : 'none';
-          if (!cb.checked) el.querySelectorAll('input,select').forEach(function(i){ i.value=''; });
-        });
-      });
-    });
-  })();
-</script>
 <%- include('../partials/footer') %>

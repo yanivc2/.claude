@@ -1,0 +1,13 @@
+<%# "+ חשבונית חדשה" של דף החשבוניות — בשורת הכותרת, משמאל ל"→ חזרה" (בעלים, 18/10). header.ejs מכליל
+    אותו ב-.sb-start כשהדף מעביר topMenu: '_newInvoiceMenu'. store-banner-quick = אותה התנהגות כמו "אפשרויות"
+    של הלוח (נפתח פנימה במחשב, open-in בטלפון). %>
+<details class="menu open-in store-banner-quick top-new-invoice no-print">
+  <summary class="btn btn-primary btn-sm">+ חשבונית חדשה <span class="caret">▾</span></summary>
+  <div class="menu-panel">
+    <a href="/invoices/new">+ חשבונית חדשה</a>
+    <div class="menu-sep"></div>
+    <a href="/payments/new?method=transfer">+ תשלום בהעברה</a>
+    <a href="/payments/new?method=cash">+ תשלום במזומן</a>
+    <a href="/payments/new?method=check">+ צ׳ק</a>
+  </div>
+</details>

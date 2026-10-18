@@ -137,15 +137,25 @@ async function batchContext(supplierId, storeId, scope) {
 router.get('/', async (req, res, next) => {
   try {
     const q = (req.query.q || '').trim();
+    // אריח החיפוש (בעלים, 18/10 — partials/_lookupForm.ejs): שם ספק בשדה משלו, "לא שולמו בלבד", וטווח
+    // תאריכי חשבונית (מ > עד מתהפך). ?supplier=<id> עדיין נתמך בכתובת, אבל הטופס כבר לא שולח אותו.
+    const name = (req.query.name || '').trim();
+    const unpaidOnly = req.query.unpaid === '1';
     const supplierId = req.query.supplier ? Number(req.query.supplier) : null;
     // Default to the active-store context unless an explicit ?store= overrides it.
     const storeId = effectiveStoreId(req, req.query.store);
-    const from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : null;
-    const to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : null;
+    let from = /^\d{4}-\d{2}-\d{2}$/.test(req.query.from || '') ? req.query.from : null;
+    let to = /^\d{4}-\d{2}-\d{2}$/.test(req.query.to || '') ? req.query.to : null;
+    if (from && to && from > to) [from, to] = [to, from];
     const { suppliers, stores } = await formData(req.scope);
     res.render('invoices/index', {
       title: 'חשבוניות',
-      invoices: await listInvoices({ status: req.query.status || null, scope: req.scope, supplierId, storeId, q, from, to }),
+      topMenu: '_newInvoiceMenu',
+      invoices: await listInvoices({ status: req.query.status || null, scope: req.scope, supplierId, storeId, q, name, unpaidOnly, from, to }),
+      name,
+      unpaidOnly,
+      // הצעות לשדה "שם ספק" — הספקים שבתחום החנות הפעילה (כמו בלוח הבקרה).
+      supplierNames: [...new Set(suppliers.map((s) => s.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he')),
       filter: req.query.status || '',
       q,
       supplierId,
