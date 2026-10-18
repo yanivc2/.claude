@@ -196,4 +196,5 @@ test('the page has no separate "חיפוש" card any more — filtering is the t
   assert.doesNotMatch(view, /נקה חיפוש/);
   assert.doesNotMatch(view, /חשבוניות שמחכות לטיפול של הספק/, 'no explanation line (owner, 18/10)');
   assert.match(view, /<table class="sortable filterable line-grid no-search">/, 'no free-text table search; column filters stay');
+  assert.doesNotMatch(view, /<h2[^>]*>מעוקבות \(/, 'no "מעוקבות (N)" heading either');
 });
