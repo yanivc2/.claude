@@ -150,7 +150,7 @@ test('wrong / missing secret → 401, before anything is read', async () => {
   assert.equal((await post('store=1', [['פדיון.xls', realReport()]], null)).status, 401);
 });
 
-test('the intake page (owner only) hands over the ready script; the button sits left of "סנכרן עכשיו"', async () => {
+test('the intake page (owner only) hands over the ready script; its button lives in הגדרות ← "סנכרון מהבנק"', async () => {
   const own = `session=${createSession(ow.id)}; ap_store=${st.id}`;
   const page = await fetch(`${base}/reconciliation/revenue-intake`, { headers: { cookie: own } });
   assert.equal(page.status, 200);
@@ -161,10 +161,15 @@ test('the intake page (owner only) hands over the ready script; the button sits 
   const sec = await secretary(db);
   const r = await fetch(`${base}/reconciliation/revenue-intake`, { headers: { cookie: `session=${createSession(sec.id)}; ap_store=${st.id}` }, redirect: 'manual' });
   assert.notEqual(r.status, 200, 'not for the secretary');
+  // בעלים 18/10: ההגדרות של הסנכרון עברו לרובריקה "סנכרון מהבנק" בהגדרות; "סנכרן עכשיו" נשאר בהתאמת בנק.
   const recon = await (await fetch(`${base}/reconciliation`, { headers: { cookie: own } })).text();
-  const sync = recon.indexOf('🔄 סנכרן עכשיו</button>');
-  const link = recon.indexOf('href="/reconciliation/revenue-intake"');
-  assert.ok(sync > 0 && link > sync, 'right after the sync button in the DOM = to its left in RTL');
+  assert.match(recon, /🔄 סנכרן עכשיו<\/button>/);
+  assert.doesNotMatch(recon, /href="\/reconciliation\/revenue-intake"/, 'no longer next to "סנכרן עכשיו"');
+  const settings = await (await fetch(`${base}/settings`, { headers: { cookie: own } })).text();
+  const rubric = settings.slice(settings.indexOf('id="bank-sync-settings"'), settings.indexOf('</details>', settings.indexOf('id="bank-sync-settings"')));
+  assert.match(rubric, /href="\/reconciliation\/revenue-intake"/);
+  const secSettings = await (await fetch(`${base}/settings`, { headers: { cookie: `session=${createSession(sec.id)}; ap_store=${st.id}` } })).text();
+  assert.doesNotMatch(secSettings, /href="\/reconciliation\/revenue-intake"/, 'the secret-bearing page is linked for the owner only');
 });
 
 test('"סניף: 1 null" lands on ג\'וניור (owner, 17/10)', async () => {

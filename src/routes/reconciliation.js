@@ -146,8 +146,6 @@ async function renderPage(req, res, accountId, extra = {}) {
     // כרטיס סנכרון הבנק (סוכן מחשב המשרד) — רק למי שמורשה לייבא. המצב ההתחלתי מרונדר בשרת כדי
     // שהכרטיס יעבוד גם בלי JS; הסקריפט רק מרענן אותו בזמן אמת.
     bankSync: res.locals.can?.('import_bank') ? await syncStatus(req.user, req.scope) : null,
-    // "📈 קליטת דוח פדיון מהמייל" — משמאל ל"סנכרן עכשיו" (בעלים, 17/10). בעלים בלבד: הדף מציג סוד.
-    revenueIntake: req.user?.role === 'owner',
     payMethods: PAY_METHODS,
     // Open-Banking sync is offered only when the key is configured AND this account is linked.
     financyReady: financyConfigured(),
@@ -245,8 +243,8 @@ async function bankSyncReply(req, res, fn, okNotice) {
 // "תאריך תחילת עבודה" — הסתרת חיובים לא מותאמים עד תאריך (בעלים בלבד; ריק = ביטול). ראה
 // services/bankTransactions.js#unmatchedHiddenUntil — למה הסתרה ולא מחיקה.
 // 📈 קליטת דוח פדיון מהמייל — הסקריפט המוכן להדבקה ב-script.google.com + הוראות. בעלים בלבד:
-// הסקריפט נושא את סוד הקליטה (lib/revenueIngest.js), ולכן גם no-store. הכפתור יושב בכרטיס סנכרון
-// הבנק, משמאל ל"סנכרן עכשיו" (בעלים, 17/10) — שם יושבות שאר המשיכות האוטומטיות.
+// הסקריפט נושא את סוד הקליטה (lib/revenueIngest.js), ולכן גם no-store. הכפתור יושב בהגדרות ←
+// "סנכרון מהבנק" (settings/_bankSyncSettings.ejs; עד 18/10 — ליד "סנכרן עכשיו" בהתאמת בנק).
 router.get('/revenue-intake', requireOwner, async (req, res, next) => {
   try {
     const secret = revenueIngestSecret();

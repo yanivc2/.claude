@@ -1,0 +1,31 @@
+<%#
+  רובריקת "סנכרון מהבנק" בהגדרות (בעלים 18/10) — ההגדרות של הסנכרון דרך מחשב המשרד: מצב הסוכן, המפתח
+  של המשתמש בסוכן, ו"קליטת דוח פדיון מהמייל" (בעלים בלבד — הדף מציג את סוד הקליטה). "🔄 סנכרן עכשיו"
+  ושדה קוד ה-SMS נשארו בהתאמת בנק (reconciliation/_bankSync.ejs), כי שם עובדים כשהקוד מגיע.
+  locals: bankSync = services/bankSyncJobs.js#syncStatus (null = אין הרשאת import_bank), revenueIntake.
+%>
+<% var bs = bankSync; var rev = (typeof revenueIntake !== 'undefined' && revenueIntake); %>
+<details class="section" id="bank-sync-settings">
+  <summary>סנכרון מהבנק</summary>
+  <div class="section-body">
+    <% if (bs && !bs.ready) { %>
+      <p class="muted">נדרש עדכון מסד נתונים: "עדכון מסד נתונים" למעלה.</p>
+    <% } else if (bs) { %>
+      <p style="margin:0 0 .5rem"><strong>מחשב המשרד (הפועלים לעסקים):</strong>
+        <% if (bs.agentOnline) { %><span class="badge b-paid">● מחובר</span>
+        <% } else if (bs.agentEconomy) { %><span class="badge b-on_hold">🌙 במצב חיסכון</span>
+          <span class="muted" style="font-size:12px">מחוץ לשעות הפעילות<%= bs.agentHours ? ' (' + bs.agentHours + ')' : '' %> הסוכן בודק בקשות פעם ב-<%= bs.agentOffEvery %> דקות — בקשת סנכרון תיאסף תוך עד <%= bs.agentOffEvery %> דקות, ואז יגיע קוד SMS.</span>
+        <% } else if (bs.agentSeenSec != null) { %><span class="badge b-on_hold">● לא מחובר</span>
+          <span class="muted" style="font-size:12px"><% if (bs.agentAsleepMsg) { %><%= bs.agentAsleepMsg %><% } else if (bs.agentHours) { %>הסוכן פעיל רק ב-<%= bs.agentHours %> (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.<% } else { %>נראה לאחרונה לפני <%= Math.round(bs.agentSeenSec / 60) %> דק׳ — ודא שהוא דלוק ושהסוכן רץ.<% } %></span>
+        <% } else { %><span class="badge b-neutral">● עוד לא התחבר</span>
+          <span class="muted" style="font-size:12px">הסוכן צריך לרוץ על מחשב המשרד (ראה הוראות ההתקנה).</span>
+        <% } %>
+      </p>
+      <p style="margin:0 0 .5rem">המפתח שלך במחשב המשרד: <span class="mono"><%= bs.loginKey %></span></p>
+      <p class="muted" style="margin:0 0 .6rem; font-size:12px">הסנכרון עצמו והזנת קוד ה-SMS — בדף התאמת בנק (🔄 סנכרן עכשיו).</p>
+    <% } %>
+    <% if (rev) { %>
+      <a class="btn btn-secondary rev-intake-link" href="/reconciliation/revenue-intake">📈 קליטת דוח פדיון מהמייל</a>
+    <% } %>
+  </div>
+</details>

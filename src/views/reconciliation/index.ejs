@@ -9,22 +9,37 @@
   <div class="alert alert-info"><%= notice %></div>
 <% } %>
 
-<div class="card">
+<%# הכרטיס העליון (בעלים 18/10, "סדר יותר נכון ויותר ברור"): שורת החשבון; שורת הפעולות היומיות —
+    🔄 סנכרן עכשיו · 📄 ייבוא CSV/Excel · ➕ תנועה ידנית; מתחתיה מצב הסנכרון וקוד ה-SMS; ושורת "כלים"
+    קטנה — ניקוי לפי קובץ · בדיקת שיוך. בלי טקסט הסבר. מצב מחשב המשרד, המפתח ו"קליטת דוח פדיון"
+    עברו להגדרות ← "סנכרון מהבנק". id="bank-sync" + no-collapse: הסקריפט של _bankSync מרענן בתוכו,
+    ושדה הקוד לא יוסתר באקורדיון. %>
+<% var _bs = (typeof bankSync !== 'undefined' && bankSync) ? bankSync : null;
+   var _canImport = !!(accountId && typeof can === 'function' && can('import_bank')); %>
+<div class="card no-collapse recon-head"<%- _bs ? ' id="bank-sync"' : '' %>>
   <%# בעלים, 17/10: "לא יהיה אפשרות לבחור חנות בשום מקום חוץ מהסרגל העליון". חשבון בנק הוא 1:1 עם
       חנות (bank_accounts.store_id UNIQUE), ולכן החנות הפעילה קובעת אותו — כאן רק השם, בלי בורר. %>
   <% var _acct = (accounts || []).find(function(a){ return a.id === accountId; }); %>
   <% if (!accountId) { %>
     <%- include('../partials/_needStore', { what: 'התאמת בנק', verb: 'לראות' }) %>
   <% } else { %>
-  <div class="actions">
-    <span>חשבון בנק: <strong><%= _acct ? _acct.display_name : '' %></strong></span>
-    <a class="btn btn-secondary btn-sm" href="/reconciliation/integrity?account=<%= accountId %>">🔍 בדיקת שיוך לחשבון</a>
-  </div>
+    <p class="recon-account">חשבון בנק: <strong><%= _acct ? _acct.display_name : '' %></strong></p>
   <% } %>
+
+  <% if (_bs || _canImport) { %>
+    <div class="actions recon-actions">
+      <% if (_bs) { %><%- include('_bankSync', { bankSync: _bs, part: 'action' }) %><% } %>
+      <% if (_canImport) { %>
+        <button type="button" class="btn-secondary" onclick="document.getElementById('csvDlg').showModal()">📄 ייבוא CSV / Excel</button>
+        <button type="button" class="btn-secondary" onclick="document.getElementById('txnDlg').showModal()">➕ הוספת תנועה ידנית</button>
+      <% } %>
+    </div>
+  <% } %>
+  <% if (_bs) { %><%- include('_bankSync', { bankSync: _bs, part: 'body' }) %><% } %>
 
   <% if (typeof financyReady !== 'undefined' && financyReady && accountId) { %>
     <% if (financyLinked) { %>
-      <form method="post" action="/reconciliation/sync" class="actions" style="margin-top:var(--space-4)" data-busy>
+      <form method="post" action="/reconciliation/sync" class="actions" style="margin-top:var(--space-3)" data-busy>
         <input type="hidden" name="account_id" value="<%= accountId %>" />
         <button type="submit">🏦 משוך תנועות מהבנק</button>
         <span class="muted" style="font-size:12px">
@@ -32,26 +47,20 @@
         </span>
       </form>
     <% } else { %>
-      <p class="muted" style="margin-top:var(--space-4); font-size:12px">
+      <p class="muted" style="margin-top:var(--space-3); font-size:12px">
         החשבון הזה עדיין לא מקושר ל-Financy. הגדרות ← "קשר חשבונות בנק" כדי לאפשר משיכה ישירה מהבנק.
       </p>
     <% } %>
   <% } %>
 
-  <%# הכנסת התנועות היא הפעולה הראשונה בדף, ולכן היא יושבת כאן — ליד בורר החשבון והמשיכה מהבנק.
-      קודם היא הייתה שני אייקונים עגולים בכרטיס בלי כותרת בתחתית הדף, מתחת לקפל גם בדסקטופ
-      (נמדד: 916px) וגם בנייד (1355px). קיימת אך בלתי נראית. %>
-  <% if (accountId && typeof can === 'function' && can('import_bank')) { %>
-    <div class="actions" style="margin-top:var(--space-4)">
-      <button type="button" onclick="document.getElementById('csvDlg').showModal()">📄 ייבוא CSV / Excel</button>
-      <button type="button" class="btn-secondary" onclick="document.getElementById('txnDlg').showModal()">➕ הוספת תנועה ידנית</button>
-      <button type="button" class="btn-secondary" onclick="document.getElementById('purgeDlg').showModal()">🧹 ניקוי לפי קובץ</button>
-      <span class="muted" style="font-size:12px">קובץ פעולות בחשבון מהבנק (CSV או Excel), או תנועה בודדת בהזנה ידנית.</span>
+  <% if (accountId) { %>
+    <div class="actions recon-tools">
+      <span class="muted">כלים:</span>
+      <% if (_canImport) { %><button type="button" class="btn-secondary btn-sm" onclick="document.getElementById('purgeDlg').showModal()">🧹 ניקוי לפי קובץ</button><% } %>
+      <a class="btn btn-secondary btn-sm" href="/reconciliation/integrity?account=<%= accountId %>">🔍 בדיקת שיוך לחשבון</a>
     </div>
   <% } %>
 </div>
-
-<% if (typeof bankSync !== 'undefined' && bankSync) { %><%- include('_bankSync', { bankSync: bankSync, revenueIntake: (typeof revenueIntake !== 'undefined' && revenueIntake) }) %><% } %>
 
 <%# אסמכתא שנשמרה בכתיב מדעי אינה רק מכוערת: היא לא שווה למספר הצ׳ק ולא למספר שקית ההפקדה,
     ולכן ההתאמה מולה נכשלת בשקט. לכן ההצעה כאן היא לתקן את הנתון, לא להסתיר אותו בעיצוב. %>
@@ -271,6 +280,7 @@
   <%# מיון A-Z + שורת סינון לכל עמודה (המשפרים הגלובליים ב-partials/footer.ejs). עמודת ההתאמה
       היא טפסים, לא טקסט — אין מה למיין או לסנן לפיה. %>
   <%# .tbl-center — כל העמודות ממורכזות (בקשת הבעלים). האסמכתא היא קישור ל"בחינת תנועה". %>
+  <div class="table-scroll"><%# בלי גלילה פנימית הטבלה מושכת את כל הדף הצידה בטלפון (430px מול 390). %>
   <table class="sortable filterable tbl-center">
     <thead>
       <tr><th>תאריך</th><th>סכום</th><th>תיאור</th><th>אסמכתא</th><th data-nosort data-nofilter>התאמה</th></tr>
@@ -328,6 +338,7 @@
       <% }); %>
     </tbody>
   </table>
+  </div>
 </div>
 
 <%# 🔴 דיאלוג אחד לכל השורות. אחד-לכל-שורה היה משכפל את רשימת החשבוניות פי מספר התנועות —
@@ -465,6 +476,7 @@
       <% } %>
     </p>
   <% } %>
+  <div class="table-scroll"><%# בלי גלילה פנימית הטבלה מושכת את כל הדף הצידה בטלפון (430px מול 390). %>
   <table class="sortable filterable">
     <thead><tr><th data-nosort data-nofilter class="no-print"><input type="checkbox" id="txn-all" style="width:auto;min-height:0" title="בחר הכל" /></th><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th><th>סטטוס</th><th data-nosort data-nofilter class="no-print">פעולות</th></tr></thead>
     <tbody>
@@ -534,6 +546,7 @@
       <% }); %>
     </tbody>
   </table>
+  </div>
   <script>
   (function(){
     // "בחר הכל" מסמן רק שורות שנראות — כלומר אחרי הסינון, וזה כל העניין: מסננים לשורות הזרות

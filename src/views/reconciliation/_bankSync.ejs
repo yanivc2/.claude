@@ -1,100 +1,88 @@
-<%# 🏦 סנכרון מהבנק דרך מחשב המשרד. no-collapse: כשהבנק מבקש קוד, השדה חייב להיות גלוי —
-    האקורדיון של footer.ejs מכווץ כרטיסים, ושדה קוד מוסתר ברגע שה-SMS מגיע = קוד שפג תוקפו.
-    המצב ההתחלתי מרונדר כאן (עובד בלי JS, עם PRG); הסקריפט למטה מרענן אותו בזמן אמת. %>
-<% var bs = bankSync; %>
-<div class="card no-collapse" id="bank-sync">
-  <h2 style="margin:0 0 .4rem">🏦 סנכרון מהבנק — הפועלים לעסקים</h2>
-  <div id="bs-body">
-    <% if (!bs.ready) { %>
-      <p class="muted">נדרש עדכון מסד נתונים: הגדרות ← "עדכן מסד נתונים".</p>
-    <% } else { %>
-      <p id="bs-agent" style="margin:0 0 .5rem">
-        <% if (bs.agentOnline) { %><span class="badge b-paid">● מחשב המשרד מחובר</span>
-        <% } else if (bs.agentEconomy) { %><span class="badge b-on_hold">🌙 מחשב המשרד במצב חיסכון</span>
-          <span class="muted" style="font-size:12px">מחוץ לשעות הפעילות<%= bs.agentHours ? ' (' + bs.agentHours + ')' : '' %> הסוכן בודק בקשות פעם ב-<%= bs.agentOffEvery %> דקות — בקשת סנכרון תיאסף תוך עד <%= bs.agentOffEvery %> דקות, ואז יגיע קוד SMS.</span>
-        <% } else if (bs.agentSeenSec != null) { %><span class="badge b-on_hold">● מחשב המשרד לא מחובר</span>
-          <span class="muted" style="font-size:12px"><% if (bs.agentAsleepMsg) { %><%= bs.agentAsleepMsg %><% } else if (bs.agentHours) { %>הסוכן פעיל רק ב-<%= bs.agentHours %> (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.<% } else { %>נראה לאחרונה לפני <%= Math.round(bs.agentSeenSec / 60) %> דק׳ — ודא שהוא דלוק ושהסוכן רץ.<% } %></span>
-        <% } else { %><span class="badge b-neutral">● מחשב המשרד עוד לא התחבר</span>
-          <span class="muted" style="font-size:12px">הסוכן צריך לרוץ על מחשב המשרד (ראה הוראות ההתקנה).</span>
-        <% } %>
+<%# 🏦 סנכרון מהבנק דרך מחשב המשרד — הצד שעובדים איתו בהתאמת בנק: "🔄 סנכרן עכשיו", מצב הבקשה, שדה קוד
+    ה-SMS והתוצאה. מצב הסוכן, המפתח ו"קליטת דוח פדיון מהמייל" עברו להגדרות ← "סנכרון מהבנק" (בעלים 18/10,
+    settings/_bankSyncSettings.ejs). כאן נשארה רק שורה קצרה כשהסוכן ישן/חוסך — כי אז הכפתור נעול או איטי,
+    ובלי הסבר במקום לא ברור למה.
+    part: 'action' = הכפתור (בשורת הפעולות של הכרטיס העליון, לפני הייבוא); 'body' = מצב + קוד + תוצאה +
+    הסקריפט; בלי part — שניהם. הכרטיס העוטף (#bank-sync, no-collapse — שדה הקוד חייב להישאר גלוי) הוא
+    הכרטיס העליון של reconciliation/index.ejs. המצב ההתחלתי מרונדר כאן (עובד בלי JS, עם PRG); הסקריפט
+    מרענן את שני החלקים בזמן אמת. %>
+<% var bs = bankSync; var _part = (typeof part !== 'undefined' && part) ? part : 'both';
+   var j = bs && bs.job; var active = j && ['requested','running','awaiting_otp'].indexOf(j.status) >= 0; %>
+
+<% if (_part === 'action' || _part === 'both') { %>
+<span id="bs-action" class="bs-action">
+  <% if (!bs.ready) { %>
+    <span class="muted" style="font-size:12px">סנכרון מהבנק: נדרש עדכון מסד נתונים.</span>
+  <% } else if (active) { %>
+    <button type="button" disabled>🔄 מסנכרן…</button>
+    <% if (j.canCancel) { %>
+      <form method="post" action="/reconciliation/bank-sync/<%= j.id %>/cancel" class="js-bs-form" style="display:inline">
+        <button type="submit" class="secondary small">בטל</button>
+      </form>
+    <% } %>
+  <% } else { %>
+    <form method="post" action="/reconciliation/bank-sync/request" class="js-bs-form" style="display:inline">
+      <button type="submit"<% if (bs.agentAsleepMsg) { %> disabled title="<%= bs.agentAsleepMsg %>"<% } %>>🔄 סנכרן עכשיו</button>
+    </form>
+  <% } %>
+</span>
+<% } %>
+
+<% if (_part === 'body' || _part === 'both') { %>
+<div id="bs-body" class="bs-body">
+  <% if (bs.ready) { %>
+    <% if (!active && bs.agentAsleepMsg) { %>
+      <p class="muted bs-note">🌙 <%= bs.agentAsleepMsg %></p>
+    <% } else if (!active && bs.agentEconomy) { %>
+      <p class="muted bs-note">🌙 מחשב המשרד במצב חיסכון — בקשת סנכרון תיאסף תוך עד <%= bs.agentOffEvery %> דקות, ואז יגיע קוד SMS.</p>
+    <% } %>
+    <% if (j) { %>
+      <p id="bs-msg" style="margin:0 0 .5rem">
+        <% if (j.status === 'done') { %><span class="badge b-paid">הושלם</span>
+        <% } else if (['failed','expired','cancelled'].indexOf(j.status) >= 0) { %><span class="badge b-blocked"><%= j.status === 'cancelled' ? 'בוטל' : 'נכשל' %></span>
+        <% } else { %><span class="badge b-on_hold">בתהליך</span><% } %>
+        <%= j.message || '' %>
+        <% if (j.byName && !j.mine) { %><span class="muted" style="font-size:12px">· התחיל: <%= j.byName %></span><% } %>
       </p>
 
-      <% var j = bs.job; var active = j && ['requested','running','awaiting_otp'].indexOf(j.status) >= 0; %>
-      <% if (j) { %>
-        <p id="bs-msg" style="margin:0 0 .5rem">
-          <% if (j.status === 'done') { %><span class="badge b-paid">הושלם</span>
-          <% } else if (['failed','expired','cancelled'].indexOf(j.status) >= 0) { %><span class="badge b-blocked"><%= j.status === 'cancelled' ? 'בוטל' : 'נכשל' %></span>
-          <% } else { %><span class="badge b-on_hold">בתהליך</span><% } %>
-          <%= j.message || '' %>
-          <% if (j.byName && !j.mine) { %><span class="muted" style="font-size:12px">· התחיל: <%= j.byName %></span><% } %>
-        </p>
-
-        <% if (j.canEnterOtp) { %>
-          <form method="post" action="/reconciliation/bank-sync/<%= j.id %>/otp" class="actions js-bs-form" style="margin:.4rem 0">
-            <%# autocomplete=one-time-code: בטלפון, המקלדת מציעה את הקוד מה-SMS בלחיצה אחת. %>
-            <input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 \-]{4,14}"
-                   maxlength="14" required placeholder="הקוד מה-SMS" style="width:10rem; font-size:1.1rem; letter-spacing:.15em" />
-            <button type="submit" class="ok">שלח קוד</button>
-          </form>
-        <% } %>
-
-        <% if (j.result && j.result.accounts && j.result.accounts.length) { %>
-          <table class="no-enhance" style="margin:.4rem 0">
-            <thead><tr><th>חשבון</th><th class="right">חדשות</th><th class="right">הותאמו</th></tr></thead>
-            <tbody>
-              <% j.result.accounts.forEach(function(a){ %>
-                <tr><td><%= a.displayName %></td><td class="right"><%= a.inserted %></td><td class="right"><%= a.matched %></td></tr>
-              <% }); %>
-            </tbody>
-          </table>
-        <% } %>
-        <% if (j.result && j.result.unmappedCount) { %>
-          <p class="muted" style="font-size:12px; margin:.2rem 0">
-            <%= j.result.unmappedCount %> חשבונות שנמשכו אינם רשומים באפליקציה ולא נקלטו
-            <% if (j.result.unmapped && j.result.unmapped.length) { %>(<%= j.result.unmapped.join(', ') %>)<% } %>
-            — אפשר להוסיף אותם בהגדרות.
-          </p>
-        <% } %>
+      <% if (j.canEnterOtp) { %>
+        <form method="post" action="/reconciliation/bank-sync/<%= j.id %>/otp" class="actions js-bs-form" style="margin:.4rem 0">
+          <%# autocomplete=one-time-code: בטלפון, המקלדת מציעה את הקוד מה-SMS בלחיצה אחת. %>
+          <input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 \-]{4,14}"
+                 maxlength="14" required placeholder="הקוד מה-SMS" style="width:10rem; font-size:1.1rem; letter-spacing:.15em" />
+          <button type="submit" class="ok">שלח קוד</button>
+        </form>
       <% } %>
 
-      <%# "📈 קליטת דוח פדיון מהמייל" — משמאל ל"סנכרן עכשיו" (בעלים, 17/10), בעלים בלבד. גם הסקריפט
-          למטה בונה אותו (REV_INTAKE) — הכרטיס מתרענן מ-JSON שאינו יודע מי הבעלים. %>
-      <% var revLink = (typeof revenueIntake !== 'undefined' && revenueIntake); %>
-      <div class="actions" style="margin-top:.4rem">
-        <% if (active) { %>
-          <% if (j.canCancel) { %>
-            <form method="post" action="/reconciliation/bank-sync/<%= j.id %>/cancel" class="js-bs-form" style="display:inline">
-              <button type="submit" class="secondary small">בטל</button>
-            </form>
-          <% } %>
-          <% if (revLink) { %><a class="btn btn-secondary rev-intake-link" href="/reconciliation/revenue-intake">📈 קליטת דוח פדיון מהמייל</a><% } %>
-        <% } else { %>
-          <form method="post" action="/reconciliation/bank-sync/request" class="js-bs-form" style="display:inline">
-            <button type="submit"<%= bs.agentAsleepMsg ? ' disabled title="מחשב המשרד לא יאסוף בקשה עכשיו — ראה ההסבר למעלה"' : '' %>>🔄 סנכרן עכשיו</button>
-          </form>
-          <% if (revLink) { %><a class="btn btn-secondary rev-intake-link" href="/reconciliation/revenue-intake">📈 קליטת דוח פדיון מהמייל</a><% } %>
-          <span class="muted" style="font-size:12px"><%= bs.agentAsleepMsg ? 'הכפתור ייפתח כשהסוכן יחזור לשעות הפעילות (או אחרי עדכון למצב חיסכון).' : 'הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.' %></span>
-        <% } %>
-      </div>
-      <p class="muted" style="font-size:11px; margin:.5rem 0 0">
-        המפתח שלך במחשב המשרד: <span class="mono"><%= bs.loginKey %></span>
-      </p>
+      <% if (j.result && j.result.accounts && j.result.accounts.length) { %>
+        <table class="no-enhance" style="margin:.4rem auto">
+          <thead><tr><th>חשבון</th><th class="right">חדשות</th><th class="right">הותאמו</th></tr></thead>
+          <tbody>
+            <% j.result.accounts.forEach(function(a){ %>
+              <tr><td><%= a.displayName %></td><td class="right"><%= a.inserted %></td><td class="right"><%= a.matched %></td></tr>
+            <% }); %>
+          </tbody>
+        </table>
+      <% } %>
+      <% if (j.result && j.result.unmappedCount) { %>
+        <p class="muted" style="font-size:12px; margin:.2rem 0">
+          <%= j.result.unmappedCount %> חשבונות שנמשכו אינם רשומים באפליקציה ולא נקלטו
+          <% if (j.result.unmapped && j.result.unmapped.length) { %>(<%= j.result.unmapped.join(', ') %>)<% } %>
+          — אפשר להוסיף אותם בהגדרות.
+        </p>
+      <% } %>
     <% } %>
-  </div>
+  <% } %>
 </div>
 
 <% if (bs.ready) { %>
 <script>
 (function () {
-  // מרענן את הכרטיס בזמן אמת. 🔴 הכול נבנה עם textContent ולא innerHTML: ההודעות מגיעות מהסוכן
-  // ומהמסד, ואסור שטקסט כזה יוכל להזריק HTML לדף.
+  // מרענן את הכפתור ואת אזור המצב בזמן אמת. 🔴 הכול נבנה עם textContent ולא innerHTML: ההודעות מגיעות
+  // מהסוכן ומהמסד, ואסור שטקסט כזה יוכל להזריק HTML לדף.
   var card = document.getElementById('bank-sync');
   if (!card || !window.fetch) return;
   var ACTIVE = ['requested', 'running', 'awaiting_otp'];
-  var REV_INTAKE = <%- JSON.stringify(!!(typeof revenueIntake !== 'undefined' && revenueIntake)) %>;
-  function revLink() {
-    return el('a', { class: 'btn btn-secondary rev-intake-link', href: '/reconciliation/revenue-intake' }, '📈 קליטת דוח פדיון מהמייל');
-  }
   var lastStatus = <%- JSON.stringify(bs.job ? bs.job.status : null).replace(/</g, '\\u003c') %>;
   var timer = null;
 
@@ -106,6 +94,29 @@
   }
   function badge(cls, text) { return el('span', { class: 'badge ' + cls }, text); }
 
+  function renderAction(s, j, active) {
+    var slot = document.getElementById('bs-action');
+    if (!slot) return;
+    var frag = document.createDocumentFragment();
+    if (active) {
+      frag.appendChild(el('button', { type: 'button', disabled: 'disabled' }, '🔄 מסנכרן…'));
+      if (j.canCancel) {
+        var cf = el('form', { method: 'post', action: '/reconciliation/bank-sync/' + j.id + '/cancel', class: 'js-bs-form', style: 'display:inline' });
+        cf.appendChild(el('button', { type: 'submit', class: 'secondary small' }, 'בטל'));
+        frag.appendChild(document.createTextNode(' '));
+        frag.appendChild(cf);
+      }
+    } else {
+      var rf = el('form', { method: 'post', action: '/reconciliation/bank-sync/request', class: 'js-bs-form', style: 'display:inline' });
+      var btnAttrs = { type: 'submit' };
+      if (s.agentAsleepMsg) { btnAttrs.disabled = 'disabled'; btnAttrs.title = s.agentAsleepMsg; }
+      rf.appendChild(el('button', btnAttrs, '🔄 סנכרן עכשיו'));
+      frag.appendChild(rf);
+    }
+    slot.textContent = '';
+    slot.appendChild(frag);
+  }
+
   function render(s) {
     var body = document.getElementById('bs-body');
     if (!body) return;
@@ -113,27 +124,16 @@
     var typing = document.activeElement && document.activeElement.name === 'otp';
     if (typing && s.job && s.job.status === 'awaiting_otp') return;
 
-    var frag = document.createDocumentFragment();
-    var p = el('p', { id: 'bs-agent', style: 'margin:0 0 .5rem' });
-    if (s.agentOnline) p.appendChild(badge('b-paid', '● מחשב המשרד מחובר'));
-    else if (s.agentEconomy) {
-      p.appendChild(badge('b-on_hold', '🌙 מחשב המשרד במצב חיסכון'));
-      p.appendChild(document.createTextNode(' '));
-      p.appendChild(el('span', { class: 'muted', style: 'font-size:12px' },
-        'מחוץ לשעות הפעילות' + (s.agentHours ? ' (' + s.agentHours + ')' : '') + ' הסוכן בודק בקשות פעם ב-' + s.agentOffEvery
-          + ' דקות — בקשת סנכרון תיאסף תוך עד ' + s.agentOffEvery + ' דקות, ואז יגיע קוד SMS.'));
-    } else {
-      p.appendChild(badge(s.agentSeenSec != null ? 'b-on_hold' : 'b-neutral',
-        s.agentSeenSec != null ? '● מחשב המשרד לא מחובר' : '● מחשב המשרד עוד לא התחבר'));
-      p.appendChild(document.createTextNode(' '));
-      p.appendChild(el('span', { class: 'muted', style: 'font-size:12px' },
-        s.agentAsleepMsg ? s.agentAsleepMsg : s.agentHours ? ('הסוכן פעיל רק ב-' + s.agentHours + ' (שעון ישראל) — מחוץ לזמנים האלה סנכרון לא יתבצע.')
-          : s.agentSeenSec != null ? 'ודא שהוא דלוק ושהסוכן רץ.' : 'הסוכן צריך לרוץ על מחשב המשרד.'));
-    }
-    frag.appendChild(p);
-
     var j = s.job;
     var active = j && ACTIVE.indexOf(j.status) >= 0;
+    renderAction(s, j, active);
+
+    var frag = document.createDocumentFragment();
+    if (!active && s.agentAsleepMsg) frag.appendChild(el('p', { class: 'muted bs-note' }, '🌙 ' + s.agentAsleepMsg));
+    else if (!active && s.agentEconomy) {
+      frag.appendChild(el('p', { class: 'muted bs-note' }, '🌙 מחשב המשרד במצב חיסכון — בקשת סנכרון תיאסף תוך עד '
+        + s.agentOffEvery + ' דקות, ואז יגיע קוד SMS.'));
+    }
     if (j) {
       var m = el('p', { id: 'bs-msg', style: 'margin:0 0 .5rem' });
       if (j.status === 'done') m.appendChild(badge('b-paid', 'הושלם'));
@@ -153,7 +153,7 @@
         frag.appendChild(f);
       }
       if (j.result && j.result.accounts && j.result.accounts.length) {
-        var t = el('table', { class: 'no-enhance', style: 'margin:.4rem 0' });
+        var t = el('table', { class: 'no-enhance', style: 'margin:.4rem auto' });
         var hr = el('tr');
         hr.appendChild(el('th', {}, 'חשבון'));
         hr.appendChild(el('th', { class: 'right' }, 'חדשות'));
@@ -171,30 +171,6 @@
         frag.appendChild(t);
       }
     }
-
-    var acts = el('div', { class: 'actions', style: 'margin-top:.4rem' });
-    if (active) {
-      if (j.canCancel) {
-        var cf = el('form', { method: 'post', action: '/reconciliation/bank-sync/' + j.id + '/cancel', class: 'js-bs-form', style: 'display:inline' });
-        cf.appendChild(el('button', { type: 'submit', class: 'secondary small' }, 'בטל'));
-        acts.appendChild(cf);
-      }
-      if (REV_INTAKE) acts.appendChild(revLink());
-    } else {
-      var rf = el('form', { method: 'post', action: '/reconciliation/bank-sync/request', class: 'js-bs-form', style: 'display:inline' });
-      var btnAttrs = { type: 'submit' };
-      if (s.agentAsleepMsg) { btnAttrs.disabled = 'disabled'; btnAttrs.title = 'מחשב המשרד לא יאסוף בקשה עכשיו — ראה ההסבר למעלה'; }
-      rf.appendChild(el('button', btnAttrs, '🔄 סנכרן עכשיו'));
-      acts.appendChild(rf);
-      if (REV_INTAKE) acts.appendChild(revLink()); // משמאל ל"סנכרן עכשיו"
-      acts.appendChild(el('span', { class: 'muted', style: 'font-size:12px' }, s.agentAsleepMsg
-        ? ' הכפתור ייפתח כשהסוכן יחזור לשעות הפעילות (או אחרי עדכון למצב חיסכון).'
-        : ' הבנק ישלח קוד SMS לטלפון של מי שלוחץ — הזן אותו כאן.'));
-    }
-    frag.appendChild(acts);
-    var help = el('p', { class: 'muted', style: 'font-size:11px; margin:.5rem 0 0' }, 'המפתח שלך במחשב המשרד: ');
-    help.appendChild(el('span', { class: 'mono' }, s.loginKey));
-    frag.appendChild(help);
 
     body.textContent = '';
     body.appendChild(frag);
@@ -250,4 +226,5 @@
   schedule({ job: lastStatus ? { status: lastStatus } : null });
 })();
 </script>
+<% } %>
 <% } %>

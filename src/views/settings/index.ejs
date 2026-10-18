@@ -184,6 +184,11 @@
     keeping them here meant every OTHER /settings/* page had the buttons but not the dialogs. %>
 
 
+<%# "סנכרון מהבנק" — מתחת ל"פעולות בעלים", ראשונה ברשימה (בעלים 18/10). %>
+<% if ((typeof bankSync !== 'undefined' && bankSync) || (typeof revenueIntake !== 'undefined' && revenueIntake)) { %>
+  <%- include('_bankSyncSettings') %>
+<% } %>
+
 <!-- ===== שלב 1: חברה חדשה ===== -->
 <details class="section">
   <summary><span class="step">1</span> הקמת חברה חדשה</summary>

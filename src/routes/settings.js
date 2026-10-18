@@ -28,6 +28,7 @@ import { storageSelfTest } from '../lib/storage.js';
 import { sendTelegramDetailed, telegramConfigured } from '../lib/notify.js';
 import { registerWebhook, testKeyboard } from '../lib/telegramBot.js';
 import { linkFinancyAccounts } from '../services/bankSync.js';
+import { syncStatus } from '../services/bankSyncJobs.js';
 import { financyConfigured } from '../lib/financy.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
 import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFile.js';
@@ -141,8 +142,18 @@ async function render(req, res, extra = {}) {
     // supplier_catalog may predate this feature on the live DB — "עדכן מסד נתונים" creates it.
     schemaWarning = schemaWarning || 'ייתכן שנדרש עדכון מסד נתונים — לחץ "עדכן מסד נתונים".';
   }
+  // "סנכרון מהבנק" (בעלים 18/10): מצב מחשב המשרד + המפתח — למי שמורשה לייבא דפי בנק; "קליטת דוח
+  // פדיון מהמייל" — לבעלים בלבד (הדף מציג סוד). syncStatus אומר בעצמו כשהמסד לא עודכן (ready=false).
+  let bankSync = null;
+  try {
+    bankSync = res.locals.can?.('import_bank') ? await syncStatus(req.user, req.scope) : null;
+  } catch (e) {
+    bankSync = { ready: false };
+  }
   res.render('settings/index', {
     title: 'הגדרות',
+    bankSync,
+    revenueIntake: req.user?.role === 'owner',
     companies,
     users,
     suppliersList,
