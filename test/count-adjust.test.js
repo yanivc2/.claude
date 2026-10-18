@@ -51,3 +51,26 @@ test('closing screens: count tables have no search / filter row; the new form sh
   assert.match(v, /include\('\.\.\/partials\/_formStore', \{ label: false \}\)/, 'store_id + ctx_store still sent, no visible field');
   assert.doesNotMatch(v, /include\('\.\.\/partials\/_formStore'\)/);
 });
+
+// בעלים 18/10: "שים את רובריקת עובד מבצע הספירה מימין למספר Z ותקטין אותם באופן שווה שיתאימו לשורה.
+// מתחת לזה תעביר את איזון קופות. את כפתורי הוספת השטרות שים מימין ושמאל לכמות. ומחק את 'ספירת
+// מזומן' ושנה את 'הזנת סגירת Z חדשה' ל'סגירת Z (קופות)'".
+test('closing form: counter · Z number · drawer cash in one equal row, then איזון קופות, no "ספירת מזומן" title', () => {
+  const v = read('src/views/zclosing/index.ejs').replace(/<%#[\s\S]*?%>/g, '');
+  assert.match(v, /<summary>סגירת Z \(קופות\)<\/summary>/);
+  assert.doesNotMatch(v, /הזנת סגירת Z חדשה/);
+  assert.doesNotMatch(v, /<h3[^>]*>ספירת מזומן<\/h3>/);
+  const row = v.slice(v.indexOf('<div class="row zc-top-row">'), v.indexOf('איזון קופות (ספירת'));
+  const at = (t) => row.indexOf(t);
+  assert.ok(at('עובד (מבצע הספירה)') > 0 && at('עובד (מבצע הספירה)') < at('מספר Z') && at('מספר Z') < at('סה"כ מזומן מגירה'),
+    'counter first (= right in RTL), then Z number, then drawer cash — and all before איזון קופות');
+  const css = read('src/public/nocturne.css');
+  assert.match(css, /\.zc-top-row > div \{ flex: 1 1 0; min-width: 0;/);
+});
+
+test('±bills buttons sit in the כמות header: ➕ right of it, ➖ left of it; the export still says "כמות"', () => {
+  assert.match(js, /head\.appendChild\(add\); head\.appendChild\(name\); head\.appendChild\(sub\);/);
+  assert.match(js, /th\.setAttribute\('data-export-text', label\);/);
+  const footer = read('src/views/partials/footer.ejs');
+  assert.match(footer, /if \(cell && cell\.hasAttribute\('data-export-text'\)\) return cell\.getAttribute\('data-export-text'\);/);
+});

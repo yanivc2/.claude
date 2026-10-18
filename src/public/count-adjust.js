@@ -103,6 +103,25 @@
     sub.type = 'button'; sub.className = 'btn-secondary btn-sm'; sub.textContent = '➖ החסר שטרות';
     add.addEventListener('click', function () { open(table, 'add'); });
     sub.addEventListener('click', function () { open(table, 'sub'); });
+    // בכותרת "כמות": ➕ מימין, ➖ משמאל (בעלים 18/10: "את כפתורי הוספת השטרות שים מימין ושמאל
+    // לכמות"). העמודה = זו שבה יושבות הכמויות (input[data-val]); הייצוא ממשיך לקרוא לה "כמות"
+    // (data-export-text — partials/footer.ejs#cellText). בלי כותרת כזו — שורה מעל הטבלה, כמו קודם.
+    var firstQty = table.querySelector('input[data-val]');
+    var td = firstQty && firstQty.closest('td');
+    var th = td && table.tHead && table.tHead.rows[0] ? table.tHead.rows[0].cells[td.cellIndex] : null;
+    if (th) {
+      var label = (th.textContent || '').trim();
+      var head = document.createElement('span');
+      head.className = 'ca-head';
+      var name = document.createElement('span');
+      name.className = 'ca-head-label'; name.textContent = label;
+      add.classList.add('no-print'); sub.classList.add('no-print');
+      head.appendChild(add); head.appendChild(name); head.appendChild(sub); // RTL: first = right
+      th.textContent = '';
+      th.setAttribute('data-export-text', label);
+      th.appendChild(head);
+      return;
+    }
     bar.appendChild(add); bar.appendChild(sub);
     var anchor = table.closest('.table-scroll') || table;
     anchor.parentNode.insertBefore(bar, anchor);

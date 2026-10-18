@@ -62,7 +62,7 @@
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
 <details class="card no-print collapse-card" open>
-  <summary>הזנת סגירת Z חדשה</summary>
+  <summary>סגירת Z (קופות)</summary>
   <% if (!(typeof activeStore !== 'undefined' && activeStore)) { %>
     <div style="margin-top:.8rem"><%- include('../partials/_needStore', { what: 'סגירת Z' }) %></div>
   <% } else { %>
@@ -72,36 +72,35 @@
     <input type="hidden" name="started_at" value="<%= startedAt %>" />
     <%- include('../partials/_formStore', { label: false }) %>
 
-    <%# The counter is asked ONCE, first, and every register in "איזון קופות" inherits it. %>
-    <% if (empOpts.length) { %>
-      <div>
-        <label>עובד (מבצע הספירה)</label>
-        <select name="employee_id" id="counter-emp" class="js-combo" required>
-          <option value="">בחר עובד…</option>
-          <% empOpts.forEach(function(emp){ %><option value="<%= emp.id %>"><%= emp.first_name %> <%= emp.last_name %></option><% }); %>
-        </select>
-      </div>
-    <% } else { %>
-      <div class="row">
+    <%# שורה אחת, ברוחב שווה (בעלים 18/10): עובד (מבצע הספירה) מימין, אחריו מספר Z וסה"כ מזומן מגירה.
+        The counter is asked ONCE, first, and every register in "איזון קופות" inherits it. %>
+    <div class="row zc-top-row">
+      <% if (empOpts.length) { %>
+        <div>
+          <label>עובד (מבצע הספירה)</label>
+          <select name="employee_id" id="counter-emp" class="js-combo" required>
+            <option value="">בחר עובד…</option>
+            <% empOpts.forEach(function(emp){ %><option value="<%= emp.id %>"><%= emp.first_name %> <%= emp.last_name %></option><% }); %>
+          </select>
+        </div>
+      <% } else { %>
         <div><label>שם פרטי</label><input name="employee_first" id="counter-first" required autocomplete="off" /></div>
         <div><label>שם משפחה</label><input name="employee_last" id="counter-last" required autocomplete="off" /></div>
-      </div>
-      <small class="muted">לבחירה מרשימת עובדים — הוסף עובדים בדף "עובדים ומשכורות".</small>
-    <% } %>
+      <% } %>
+      <div><label>מספר Z</label><input name="z_number" required autocomplete="off" /></div>
+      <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required /></div>
+    </div>
+    <% if (!empOpts.length) { %><small class="muted">לבחירה מרשימת עובדים — הוסף עובדים בדף "עובדים ומשכורות".</small><% } %>
 
-    <details class="card collapse-card" style="background:var(--color-surface-2);margin:0 0 1rem">
+    <%# "איזון קופות" מתחת לשורה הזו (בעלים 18/10). %>
+    <details class="card collapse-card" style="background:var(--color-surface-2);margin:1rem 0">
       <summary>איזון קופות (ספירת מזומן בכל קופה לפני ה-Z)</summary>
       <p class="muted" style="margin:.5rem 0 .6rem">ספור את המזומן בכל קופה. אפשר להוסיף קופה נוספת. הספירה נשמרת עם הסגירה ואינה משפיעה על טבלת המגירה למטה. <strong>הסופר הוא העובד שנבחר למעלה</strong> — אין צורך להזין שם שוב.</p>
       <div id="reg-list"></div>
       <button type="button" class="btn btn-secondary small" onclick="regAdd()">➕ הוסף קופה</button>
     </details>
 
-    <div class="row">
-      <div><label>מספר Z</label><input name="z_number" required autocomplete="off" /></div>
-      <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required /></div>
-    </div>
-
-    <h3 style="margin:1.1rem 0 .2rem">ספירת מזומן</h3>
+    <%# הכותרת "ספירת מזומן" הוסרה (בעלים 18/10). %>
     <div class="table-scroll">
       <%# טבלת הזנה — בלי "חיפוש בטבלה…" ובלי שורת "סנן…" (בעלים 18/10: "תמחוק"). %>
       <table class="no-search no-filter" data-count-adjust>

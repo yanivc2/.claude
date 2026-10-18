@@ -556,6 +556,8 @@
     }
     function cellText(cell) {
       // Prefer a link's text; collapse whitespace. Keeps numbers/×/— readable in the export.
+      // data-export-text: a header that carries buttons (כמות בספירת המזומן) exports its own name only.
+      if (cell && cell.hasAttribute('data-export-text')) return cell.getAttribute('data-export-text');
       return (cell ? cell.textContent : '').replace(/\s+/g, ' ').trim();
     }
     function buildMatrix(table) {
