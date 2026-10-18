@@ -450,6 +450,8 @@ input.input-hl-yellow:hover:not(:focus-visible) { border-color: #ffdd33; }
 .combo-opt { padding: 9px 11px; border-radius: var(--radius-sm); cursor: pointer; font-size: 14px; color: var(--color-body); }
 .combo-opt:hover, .combo-opt.active { background: color-mix(in srgb, var(--color-accent) 14%, transparent); color: var(--color-accent-200); }
 .combo-empty { padding: 9px 11px; color: var(--color-muted); font-size: 13px; }
+/* הרשימה יושבת על <body>, מחוץ ל-main.page — ולכן נכנסת לכלל "הכל ממורכז" במפורש (בעלים, 18/10). */
+.combo-pop .combo-opt, .combo-pop .combo-empty { text-align: center; }
 
 /* ---- custom day-first date picker (replaces the native month/year wheel) ---- */
 .dp-wrap { position: relative; display: block; }

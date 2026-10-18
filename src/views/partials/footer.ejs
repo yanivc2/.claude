@@ -338,6 +338,103 @@
     return d || document.body;
   };
 
+  // ממקם רשימה צפה (.combo-pop) מתחת לשדה — או מעליו כשאין מקום למטה. משותף לבורר המסנן (js-combo)
+  // ולהצעות ההשלמה (data-suggest).
+  window.apPlacePopup = function (pop, input) {
+    var host = window.apPopupHost(input);
+    if (pop.parentNode !== host) host.appendChild(pop);
+    var r = input.getBoundingClientRect();
+    var below = window.innerHeight - r.bottom;
+    var wanted = Math.min(300, pop.scrollHeight || 300);
+    // אין מקום למטה אך יש למעלה → נפתחת כלפי מעלה במקום להיחתך בתחתית המסך.
+    var up = below < Math.min(wanted, 160) && r.top > below;
+    // רוחב: לפחות כרוחב השדה, אבל לא צר מכדי לקרוא בו שם. בטבלה צרה בנייד השדה יוצא
+    // ברוחב 33px, ורשימה ברוחב הזה חסרת תועלת. גם לא רחב מהמסך.
+    var w = Math.min(Math.max(r.width, 240), window.innerWidth - 16);
+    pop.style.width = w + 'px';
+    pop.style.insetInlineStart = '';
+    // הצמדה לקצה השדה, ואם היא גולשת מהמסך — נדחפת פנימה במקום לצאת ממנו.
+    var left = document.dir === 'rtl' || document.documentElement.dir === 'rtl' ? r.right - w : r.left;
+    pop.style.left = Math.max(8, Math.min(left, window.innerWidth - w - 8)) + 'px';
+    pop.style.maxHeight = Math.max(120, (up ? r.top : below) - 12) + 'px';
+    if (up) { pop.style.top = ''; pop.style.bottom = (window.innerHeight - r.top + 4) + 'px'; }
+    else { pop.style.bottom = ''; pop.style.top = (r.bottom + 4) + 'px'; }
+  };
+
+  // הצעות השלמה לשדה טקסט חופשי (בעלים, 18/10: "כשאני רושם את שם הספק — שייתן אפשרויות ויצמצם עם
+  // כל אות"). <input data-suggest="<id>"> — ה-id של <script type="application/json"> עם רשימת השמות.
+  // בניגוד ל-js-combo השדה נשאר חופשי: Enter בלי בחירה מחפש את מה שהוקלד (גם חלקי). בחירה מהרשימה
+  // ממלאת את השדה, ועם data-suggest-submit גם שולחת את הטופס. ההתאמה: רצף אותיות בתוך השם (או כל
+  // מילה שהוקלדה) — בלי "אותיות לפי הסדר", כדי שהרשימה באמת תצטמצם; מה שמתחיל במה שהוקלד — ראשון.
+  (function () {
+    function norm(s){ return String(s == null ? '' : s).toLowerCase().replace(/["'׳״`.,\-]/g, '').replace(/\s+/g, ' ').trim(); }
+    function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;' }[c]; }); }
+    function rank(name, q){
+      var h = norm(name); if (!q) return -1;
+      if (h.indexOf(q) === 0) return 0;
+      if ((' ' + h).indexOf(' ' + q) !== -1) return 1;
+      if (h.indexOf(q) !== -1) return 2;
+      var toks = q.split(' ');
+      return toks.length > 1 && toks.every(function(t){ return h.indexOf(t) !== -1; }) ? 3 : -1;
+    }
+    function enhance(input){
+      if (input.dataset.suggestDone) return; input.dataset.suggestDone = '1';
+      var src = document.getElementById(input.getAttribute('data-suggest'));
+      var names = []; try { names = JSON.parse(src ? src.textContent : '[]') || []; } catch (e) {}
+      if (!names.length) return;
+      input.setAttribute('autocomplete', 'off');
+      input.setAttribute('role', 'combobox'); input.setAttribute('aria-autocomplete', 'list');
+      var pop = document.createElement('div'); pop.className = 'combo-pop suggest-pop'; pop.hidden = true;
+      pop.setAttribute('role', 'listbox');
+      document.body.appendChild(pop);
+      pop.__comboInput = input;   // אותו סגירה-בלחיצה-בחוץ של js-combo
+      var shown = [], idx = -1;
+      function close(){ pop.hidden = true; idx = -1; input.setAttribute('aria-expanded', 'false'); }
+      function paint(){
+        Array.prototype.forEach.call(pop.children, function(c){ c.classList.toggle('active', +c.dataset.i === idx); });
+        var a = pop.querySelector('.combo-opt.active'); if (a) a.scrollIntoView({ block: 'nearest' });
+      }
+      function render(){
+        var q = norm(input.value);
+        if (!q) { close(); return; }
+        shown = names.map(function(n){ return { n: n, r: rank(n, q) }; })
+          .filter(function(o){ return o.r >= 0; })
+          .sort(function(a, b){ return a.r - b.r || a.n.localeCompare(b.n, 'he'); })
+          .map(function(o){ return o.n; });
+        if (!shown.length) { close(); return; }
+        idx = -1;
+        pop.innerHTML = shown.map(function(n, i){ return '<div class="combo-opt" role="option" data-i="' + i + '">' + esc(n) + '</div>'; }).join('');
+        pop.hidden = false; input.setAttribute('aria-expanded', 'true');
+        window.apPlacePopup(pop, input);
+      }
+      function pick(n){
+        input.value = n; close();
+        if (input.hasAttribute('data-suggest-submit') && input.form) {
+          if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();
+        }
+      }
+      input.addEventListener('input', render);
+      input.addEventListener('keydown', function(e){
+        if (pop.hidden) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); idx = Math.min(idx + 1, shown.length - 1); paint(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); idx = Math.max(idx - 1, -1); paint(); }
+        else if (e.key === 'Enter') { if (idx >= 0) { e.preventDefault(); pick(shown[idx]); } else close(); }
+        else if (e.key === 'Escape') { close(); }
+      });
+      // mousedown + preventDefault: השדה לא מאבד פוקוס לפני שהבחירה נקלטה (כמו ב-js-combo).
+      pop.addEventListener('mousedown', function(e){
+        var t = e.target.closest ? e.target.closest('.combo-opt') : null; if (!t) return;
+        e.preventDefault(); pick(shown[+t.dataset.i]);
+      });
+      input.addEventListener('blur', function(){ setTimeout(close, 150); });
+      window.addEventListener('scroll', function(){ if (!pop.hidden) window.apPlacePopup(pop, input); }, true);
+      window.addEventListener('resize', function(){ if (!pop.hidden) window.apPlacePopup(pop, input); });
+    }
+    document.addEventListener('DOMContentLoaded', function(){
+      document.querySelectorAll('input[data-suggest]').forEach(enhance);
+    });
+  })();
+
   // Searchable combobox: enhance any <select class="js-combo"> into a type-to-filter field. Users
   // key part of a name (or a few letters, in order) and pick from the similar matches. The original
   // <select> stays the submitted control (hidden), so the server contract is unchanged.
@@ -375,26 +472,7 @@
       // overflow:auto) הרשימה נחתכה בגבול הגלילה ונראתה שבורה. fixed מול getBoundingClientRect
       // אינו תלוי באבות בכלל.
       document.body.appendChild(pop);
-      function place(){
-        var host = window.apPopupHost(input);
-        if (pop.parentNode !== host) host.appendChild(pop);
-        var r = input.getBoundingClientRect();
-        var below = window.innerHeight - r.bottom;
-        var wanted = Math.min(300, pop.scrollHeight || 300);
-        // אין מקום למטה אך יש למעלה → נפתחת כלפי מעלה במקום להיחתך בתחתית המסך.
-        var up = below < Math.min(wanted, 160) && r.top > below;
-        // רוחב: לפחות כרוחב השדה, אבל לא צר מכדי לקרוא בו שם. בטבלה צרה בנייד השדה יוצא
-        // ברוחב 33px, ורשימה ברוחב הזה חסרת תועלת. גם לא רחב מהמסך.
-        var w = Math.min(Math.max(r.width, 240), window.innerWidth - 16);
-        pop.style.width = w + 'px';
-        pop.style.insetInlineStart = '';
-        // הצמדה לקצה השדה, ואם היא גולשת מהמסך — נדחפת פנימה במקום לצאת ממנו.
-        var left = document.dir === 'rtl' || document.documentElement.dir === 'rtl' ? r.right - w : r.left;
-        pop.style.left = Math.max(8, Math.min(left, window.innerWidth - w - 8)) + 'px';
-        pop.style.maxHeight = Math.max(120, (up ? r.top : below) - 12) + 'px';
-        if (up) { pop.style.top = ''; pop.style.bottom = (window.innerHeight - r.top + 4) + 'px'; }
-        else { pop.style.bottom = ''; pop.style.top = (r.bottom + 4) + 'px'; }
-      }
+      function place(){ window.apPlacePopup(pop, input); }
       function closePop(){ pop.hidden = true; }
       // גלילה או שינוי גודל מזיזים את השדה — הרשימה חייבת לזוז איתו. capture, כדי לתפוס גם
       // גלילה של מיכל פנימי (למשל .table-scroll) ולא רק של החלון.

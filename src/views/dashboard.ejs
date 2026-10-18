@@ -57,7 +57,9 @@
   <div class="stat oc-tile lookup-tile no-print">
     <div class="label" style="margin-bottom:.45rem">🔎 בדיקת חשבונית / אמצעי תשלום</div>
     <form method="get" action="/" class="lookup-form">
-      <input name="name" value="<%= typeof name !== 'undefined' ? name : '' %>" placeholder="שם ספק" autocomplete="off" aria-label="חיפוש לפי שם ספק" />
+      <%# הצעות שמצטמצמות עם כל אות; בחירה מחפשת מיד (footer.ejs#data-suggest). %>
+      <input name="name" value="<%= typeof name !== 'undefined' ? name : '' %>" placeholder="שם ספק" autocomplete="off" aria-label="חיפוש לפי שם ספק" data-suggest="sup-names" data-suggest-submit />
+      <script type="application/json" id="sup-names"><%- JSON.stringify(typeof supplierNames !== 'undefined' ? supplierNames : []).replace(/</g, '\\u003c') %></script>
       <input name="q" value="<%= q %>" inputmode="numeric" placeholder="מספר חשבונית / צ׳ק" autocomplete="off" aria-label="חיפוש לפי מספר" />
       <%# בעלים, 18/10: "חפש" משמאל לשדות החיפוש (באותה שורה), ו"לא שולמו בלבד" מתחתיו. %>
       <div class="lookup-go">

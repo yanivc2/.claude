@@ -89,3 +89,22 @@ test('outstanding checks: amount before due date, and "mark cleared" apart from 
   assert.ok(clear > 0 && edit > clear);
   assert.ok(t.slice(clear, edit).includes('</td>'), 'separate cells');
 });
+
+test('dashboard lookup: the supplier-name field suggests names that narrow with each letter — only suppliers of the active store (owner, 18/10)', async () => {
+  const other = await db.one('SELECT id FROM stores WHERE id <> ? ORDER BY id LIMIT 1', [st.id]);
+  await db.run("INSERT INTO suppliers (name, status) VALUES ('ספק של חנות אחרת', 'approved')", []);
+  const foreign = await db.one("SELECT id FROM suppliers WHERE name = 'ספק של חנות אחרת'", []);
+  await db.run('INSERT INTO supplier_stores (supplier_id, store_id) VALUES (?, ?)', [foreign.id, other.id]);
+  const html = await page();
+  assert.match(html, /<input name="name"[^>]*data-suggest="sup-names" data-suggest-submit/);
+  const m = /<script type="application\/json" id="sup-names">([^<]*)<\/script>/.exec(html);
+  assert.ok(m, 'the names travel with the page');
+  const names = JSON.parse(m[1]);
+  assert.ok(names.includes('טרה'), 'a shared supplier (no store links) is offered');
+  assert.ok(!names.includes('ספק של חנות אחרת'), 'a supplier of another store is not');
+  const footer = readFileSync(new URL('../src/views/partials/footer.ejs', import.meta.url), 'utf8');
+  assert.match(footer, /document\.querySelectorAll\('input\[data-suggest\]'\)\.forEach\(enhance\);/);
+  assert.match(footer, /input\.addEventListener\('input', render\);/, 're-filtered on every letter');
+  assert.match(footer, /else if \(e\.key === 'Enter'\) \{ if \(idx >= 0\) \{ e\.preventDefault\(\); pick\(shown\[idx\]\); \} else close\(\); \}/, 'Enter without a pick searches what was typed');
+  assert.match(footer, /window\.apPlacePopup = function \(pop, input\) \{/, 'one placement shared with js-combo');
+});

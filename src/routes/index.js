@@ -91,6 +91,10 @@ router.get('/', requirePageAccess('nav_dashboard'), async (req, res, next) => {
       invoiceResults,
       checkResults: q ? await lookupChecks(q, scope) : null,
       supplierResults: name ? await searchSuppliers(name, req.scope) : null,
+      // הצעות לשדה "שם ספק" (מצטמצמות עם כל אות — footer.ejs#data-suggest): רק ספקים שבתחום החנות
+      // הפעילה, כמו תוצאות החיפוש עצמן.
+      supplierNames: [...new Set((await listSuppliers(null, x, { scope: req.scope })).map((s) => s.name).filter(Boolean))]
+        .sort((a, b) => a.localeCompare(b, 'he')),
       unmatchedCash: await withMatchCandidates(await unmatchedCashExpenses(scope, 20, storeId), scope, storeId),
       // "הותאם ל" + אנשי קשר לוואטסאפ — services/cashPanel.js (מקור אחד לשני הדפים).
       ...(await cashPanelExtras(scope, storeId)),
