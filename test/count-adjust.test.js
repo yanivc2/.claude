@@ -34,7 +34,7 @@ test('both closing screens mark their count tables, including a register added a
       `${p}: the drawer table and the register-block template`);
     assert.match(v, /if \(window\.apCountAdjust\) window\.apCountAdjust\(div\)/,
       `${p}: a register added after load must get the buttons too`);
-    assert.match(v, /<script src="\/count-adjust\.js" defer><\/script>/, `${p}: the script is loaded`);
+    assert.match(v, /<script src="\/count-adjust\.js\?v=<%= encodeURIComponent\(typeof buildVersion[^"]*" defer><\/script>/, `${p}: the script is loaded (versioned)`);
   }
 });
 

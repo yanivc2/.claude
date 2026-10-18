@@ -213,5 +213,5 @@
   <% } %>
 </div>
 
-<script src="/bag-scan.js"></script>
+<script src="/bag-scan.js?v=<%= encodeURIComponent(typeof buildVersion !== 'undefined' ? buildVersion : 'dev') %>"></script>
 <%- include('../partials/footer') %>

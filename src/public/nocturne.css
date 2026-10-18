@@ -1189,7 +1189,7 @@ tr.row-tracked:hover td { background: color-mix(in srgb, #f59e0b 18%, transparen
 /* min-width 0 = שלושתם נשארים בשורה גם בטלפון; תווית ארוכה נשברת, והשדות מיושרים לתחתית. */
 .zc-top-row { flex-wrap: nowrap; }
 /* "💾 שמור סגירה" ומשמאלו "ייצוא" של טבלת הספירה (בעלים 18/10). */
-.zc-save-row { display: flex; justify-content: center; align-items: center; gap: var(--space-3); margin-top: .8rem; flex-wrap: wrap; }
+.zc-save-row { display: flex; justify-content: center; align-items: center; gap: var(--space-3); margin-top: .8rem; flex-wrap: nowrap; }
 .zc-top-row > div { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; }
 .count-adjust-dlg { width: min(460px, 94vw); }
 

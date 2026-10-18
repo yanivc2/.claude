@@ -405,5 +405,5 @@
   regAdd(); // start with one register
 })();
 </script>
-<script src="/count-adjust.js" defer></script>
+<script src="/count-adjust.js?v=<%= encodeURIComponent(typeof buildVersion !== 'undefined' ? buildVersion : 'dev') %>" defer></script>
 <%- include('../partials/footer') %>
