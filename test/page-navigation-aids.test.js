@@ -31,23 +31,31 @@ test('to-top button and a draggable scroll rail (mouse only, long pages only)', 
   assert.match(css, /\.to-top \{[^}]*position: fixed;/);
 });
 
-test('the store bar is the header row: back on its right side, picker centred, logo far left, sidebar full height (owner, 17/10)', () => {
+test('the store bar is the header row: back far right then "אפשרויות", page name centred, picker next to the logo at the far left (owner, 18/10)', () => {
+  const header = readFileSync(new URL('../src/views/partials/header.ejs', import.meta.url), 'utf8').replace(/<%#[\s\S]*?%>/g, '');
   assert.match(footer, /var side = document\.querySelector\('\.store-banner \.sb-start'\);/);
-  assert.match(footer, /side\.appendChild\(a\);/, '"→ חזרה" joins the right side, left of "אפשרויות"');
+  assert.match(footer, /side\.insertBefore\(a, side\.firstChild\);/, '"→ חזרה" is the rightmost, "אפשרויות" after it');
   assert.match(footer, /bar\.className = 'page-back no-print';/, 'a page without the bar keeps its own row');
+  assert.doesNotMatch(header, /store-banner-ico|🏪/, 'no store icon');
+  assert.doesNotMatch(header.replace(/<noscript>[\s\S]*?<\/noscript>/g, ''), />החלף</, 'no "החלף" button — the picker switches on change');
+  assert.match(header, /<div class="sb-center"><span class="topbar-title">/, 'the page name in the centre');
+  const end = header.slice(header.indexOf('<div class="sb-side sb-end">'));
+  assert.ok(end.indexOf('store-banner-pick') > 0 && end.indexOf('topbar-brand') > end.indexOf('store-banner-pick'), 'the picker, then "AP Control" (leftmost in RTL)');
   const desk = css.slice(css.indexOf('@media (min-width: 1000px) {\n  .topbar {'));
   assert.ok(desk.length > 100, 'a desktop header-row block exists');
   assert.match(desk, /position: fixed; top: 0;[^}]*inset-inline-start: 250px; inset-inline-end: 0;/, 'over the content area only — the sidebar keeps its full height');
-  assert.match(desk, /\.topbar-inner \{ max-width: 1120px;[^}]*padding: 0 var\(--space-6\); \}/, 'same geometry as .page → "אפשרויות" right edge = the first tile right edge');
-  assert.match(desk, /grid-template-columns: 1fr auto 1fr;/, 'right side · centred picker · left side');
-  assert.match(desk, /\.topbar-brand \{ display: inline-flex; position: absolute; left: 18px;/, '"AP Control" at the far left');
+  assert.match(desk, /grid-template-columns: minmax\(max-content, 1fr\) minmax\(0, auto\) minmax\(max-content, 1fr\);/, 'equal sides → the name is centred over the page');
+  assert.match(desk, /\.sb-start \{ justify-self: start; margin-inline-start: calc\(max\(0px, \(100cqw - 1120px\) \/ 2\) \+ var\(--space-6\) - 18px\); \}/, 'right group edge = the first tile right edge');
+  assert.match(desk, /body:has\(\.topbar\) main\.page \.h1-in-header \{ display: none; \}/, 'the page h1 is not repeated on desktop either');
   assert.match(css, /main\.page \.page-back \{ text-align: start !important; \}/);
+  assert.match(css, /@media print \{\n  \.topbar \{ display: none !important; \}\n  main\.page \.h1-in-header \{ display: block !important; \}/, 'a printed page keeps its title');
 });
 
 test('phone: the page name sits in the centre of the header row and the page h1 is not repeated (owner, 17/10)', () => {
   const header = readFileSync(new URL('../src/views/partials/header.ejs', import.meta.url), 'utf8');
   assert.match(header, /<span class="nav-title">/);
-  assert.match(header, /t\.textContent = h\.textContent\.replace\(\/\\s\+\/g, ' '\)\.trim\(\); h\.classList\.add\('h1-in-header'\);/);
+  assert.match(header, /document\.querySelectorAll\('\.nav-title, \.topbar-title'\)\.forEach\(function \(t\) \{ t\.textContent = name;/);
+  assert.match(header, /h\.classList\.add\('h1-in-header'\);/);
   assert.match(css, /main\.page \.h1-in-header \{ display: none; \}/);
 });
 

@@ -72,11 +72,14 @@
       function sync(){ if (mq.matches) d.setAttribute('open',''); else d.removeAttribute('open'); }
       (mq.addEventListener ? mq.addEventListener('change', sync) : mq.addListener(sync));
       sync();
-      // שם הדף בשורת הכותרת בטלפון: כותרת ה-h1 הראשונה של הדף עולה לשם (ומוסתר בדף — CSS, רק בטלפון).
+      // שם הדף בשורת הכותרת: כותרת ה-h1 הראשונה של הדף עולה לשם — לכותרת הטלפון (.nav-title) ולמרכז שורת
+      // הכותרת במחשב (.topbar-title) — ומוסתרת בדף (CSS), כך שהשם לא מופיע פעמיים.
       document.addEventListener('DOMContentLoaded', function () {
-        var t = document.querySelector('.nav-title');
         var h = document.querySelector('main.page h1');
-        if (t && h) { t.textContent = h.textContent.replace(/\s+/g, ' ').trim(); h.classList.add('h1-in-header'); }
+        if (!h) return;
+        var name = h.textContent.replace(/\s+/g, ' ').trim();
+        document.querySelectorAll('.nav-title, .topbar-title').forEach(function (t) { t.textContent = name; t.title = name; });
+        h.classList.add('h1-in-header');
       });
       /* --nav-w: the widest menu item (icon + label), measured — the CSS centers the whole group on
          it, so the icons stand in one straight column and the longest label still fits. Count tags
@@ -119,22 +122,21 @@
     apSyncThemeLabel();
   </script>
 
-  <%# ── שורת הכותרת (בעלים, 17/10, אחרי הדמיה): פס החנות הוא שורת הכותרת של אזור התוכן.
-      מחשב: קבועה למעלה, "AP Control" בקצה השמאלי, הבורר במרכז, ו"אפשרויות" מימין — המסגרת הימנית שלו
-      בדיוק מעל המסגרת הימנית של אריח "צ׳קים בחוץ" (.topbar-inner = אותה גאומטריה של .page). "→ חזרה"
-      נכנס לצד הימני לידו (footer.ejs). טלפון: הפס נשאר מתחת לכותרת, והכותרת עצמה מציגה את שם הדף.
-      מחוץ ל-<main> בכוונה: ל-main יש אנימציית transform, ו-position:fixed בתוכו נמדד מול main. %>
+  <%# ── שורת הכותרת (בעלים, 17/10 + 18/10, אחרי הדמיה): פס החנות הוא שורת הכותרת של אזור התוכן.
+      מחשב: קבועה למעלה. מימין "→ חזרה" (הכי ימני, footer.ejs) ואחריו "אפשרויות" — הקצה הימני של הקבוצה
+      מעל המסגרת הימנית של אריח "צ׳קים בחוץ"; במרכז שם הדף (ה-h1, מתחלף בכל דף); משמאל "AP Control" והבורר
+      צמוד אליו. בלי 🏪 ובלי "החלף" — הבורר מחליף לבד (apAutoSubmit). טלפון: הפס מתחת לכותרת, ושם הדף
+      במרכז הכותרת עצמה (.nav-title). מחוץ ל-<main> בכוונה: ל-main יש אנימציית transform, ו-position:fixed
+      בתוכו נמדד מול main. %>
   <% if (typeof availableStores !== 'undefined' && availableStores && availableStores.length) { %>
   <div class="topbar">
-    <a href="/" class="nav-brand topbar-brand"><span class="mark">AP</span>Control</a>
     <div class="topbar-inner">
       <div class="store-banner<%= (typeof activeStore !== 'undefined' && activeStore) ? '' : ' is-all' %>">
         <div class="sb-side sb-start"><% if (typeof quickMenu !== 'undefined' && quickMenu) { %><%- include('_quickMenu') %><% } %></div>
-        <div class="sb-center">
-        <span class="store-banner-ico" aria-hidden="true">🏪</span>
+        <div class="sb-center"><span class="topbar-title"><%= typeof title !== 'undefined' ? title : '' %></span></div>
+        <div class="sb-side sb-end">
         <%# בעלים, 17/10: "אני לא צריך שיהיה רשום פעמיים — לקצר אבל להבליט". כשיש בורר, שם החנות מופיע
-            רק בתוכו (מודגש); הטקסט "חנות פעילה · שם · חברה" שחזר על אותו דבר לידו הוסר. בלי בורר (חנות
-            אחת) — השם לבדו, מודגש. %>
+            רק בתוכו (מודגש). בלי בורר (חנות אחת) — השם לבדו, מודגש. %>
         <% if (availableStores.length <= 1) { %>
         <strong class="store-banner-name">
           <% if (typeof activeStore !== 'undefined' && activeStore) { %>
@@ -147,9 +149,8 @@
         </strong>
         <% } %>
         <% if (availableStores.length > 1) { %>
-          <%# The button goes through the SAME fetch path as the select's onchange. A native POST
-              here answered with a redirect is what broke the installed PWA — it never navigated.
-              With JS off the native submit still works: the server answers 303 (see routes/context.js). %>
+          <%# בלי כפתור "החלף" (בעלים, 18/10: "זה מתחלף אוטומטית"): onchange שולח דרך apAutoSubmit (fetch —
+              POST מקורי שנענה בהפניה הוא מה ששבר את ה-PWA המותקן). <noscript> שומר החלפה גם בלי JS. %>
           <form method="post" action="/context/store" class="store-banner-switch"
                 onsubmit="if (window.apAutoSubmit) { apAutoSubmit(this); return false; } return true;">
             <input type="hidden" name="return_to" value="<%= path %>">
@@ -161,13 +162,13 @@
                 <option value="<%= s.id %>"<%= (typeof activeStore !== 'undefined' && activeStore && Number(activeStore.id) === Number(s.id)) ? ' selected' : '' %>><%= s.name %><%= _dupNames[s.name] > 1 ? ' · ' + s.company_name : '' %></option>
               <% }); %>
             </select>
-            <button type="submit" class="btn btn-secondary btn-sm">החלף</button>
+            <noscript><button type="submit" class="btn btn-secondary btn-sm">החלף</button></noscript>
           </form>
         <% } else { %>
           <span class="tag tag-outline store-banner-lock">נעול לחנות זו</span>
         <% } %>
+          <a href="/" class="nav-brand topbar-brand"><span class="mark">AP</span>Control</a>
         </div>
-        <div class="sb-side sb-end"></div>
       </div>
     </div>
   </div>

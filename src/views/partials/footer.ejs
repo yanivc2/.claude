@@ -976,13 +976,12 @@
       a.className = 'btn btn-secondary btn-sm';
       a.textContent = '→ חזרה';
       a.title = 'חזרה לדף הקודם';
-      // בעלים, 17/10: בצד הימני של שורת הכותרת (פס החנות), שאר הפס ממורכז.
+      // בעלים, 18/10: "את כפתור חזור שים הכי ימינה ואחריו את אפשרויות" — ראשון בצד הימני של שורת הכותרת.
       // דף בלי פס חנות — שורה משלו בראש התוכן, צמודה לימין.
       var side = document.querySelector('.store-banner .sb-start');
       if (side) {
-        // הצד הימני של שורת הכותרת, משמאל ל"אפשרויות" (כשיש) — בעלים, 17/10.
         a.className += ' store-banner-back no-print';
-        side.appendChild(a);
+        side.insertBefore(a, side.firstChild);
       } else {
         var bar = document.createElement('div');
         bar.className = 'page-back no-print';
