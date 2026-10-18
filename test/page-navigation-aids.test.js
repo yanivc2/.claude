@@ -80,8 +80,19 @@ test('phone: the menu button reads "AP Control" and sits on the right, where the
   assert.doesNotMatch(header, /☰ ניווט דפים/);
   assert.match(header, /<summary class="btn btn-secondary btn-sm" aria-label="ניווט דפים"[^>]*><span class="nav-brand navmenu-brand"><span class="mark">AP<\/span>Control<\/span> <span class="caret">▾<\/span><\/summary>/);
   const phone = css.slice(css.indexOf('@media (max-width: 999.98px) {\n  .topbar {'));
-  assert.match(phone, /\.nav \{ display: grid; grid-template-columns: minmax\(max-content, 1fr\) minmax\(0, auto\) 1fr; \}/);
+  assert.match(phone, /\.nav \{ display: grid; grid-template-columns: minmax\(max-content, 1fr\) minmax\(0, auto\) minmax\(max-content, 1fr\); column-gap: 8px; \}/, 'equal sides → the page name stays centred');
   assert.match(phone, /\.nav > \.nav-brand \{ display: none; \}/, 'no second logo');
   assert.match(phone, /\.navmenu \{ grid-column: 1; grid-row: 1; justify-self: start; \}/, 'first column = the right side in RTL');
   assert.match(phone, /\.navmenu > \.menu-panel \{ inset-inline-start: 0; inset-inline-end: auto; \}/, 'opens inward, not off the screen');
+});
+
+test('phone: the store picker is the leftmost item of the nav row — the same element, moved, never a copy (owner, 18/10)', () => {
+  const header = readFileSync(new URL('../src/views/partials/header.ejs', import.meta.url), 'utf8');
+  assert.match(header, /<span class="nav-store"><\/span>/, 'a slot in the nav row');
+  assert.match(header, /<span class="sb-store">/, 'the store part of the header row is one movable block');
+  assert.match(header, /if \(mq\.matches\) \{ if \(store\.parentNode !== slot\) slot\.appendChild\(store\); \}\n\s*else if \(store\.parentNode !== home\) home\.insertBefore\(store, home\.firstChild\);/, 'phone ↔ desktop, both ways');
+  assert.equal((header.match(/<select name="store_id" class="store-banner-pick"/g) || []).length, 1, 'one picker in the markup');
+  const phone = css.slice(css.indexOf('@media (max-width: 999.98px) {\n  .topbar {'));
+  assert.match(phone, /\.nav-store \{ grid-column: 3; grid-row: 1; justify-self: end;/, 'last column, end = the far left in RTL');
+  assert.match(phone, /\.topbar:not\(:has\(\.sb-start > \*\)\):not\(:has\(\.sb-store\)\) \{ display: none; \}/, 'an empty bar is not drawn');
 });

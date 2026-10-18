@@ -28,6 +28,9 @@
     <%# טלפון: שם הדף במרכז שורת הכותרת (בעלים, 17/10) — מתחלף בכל דף. השרת כותב את `title`, והסקריפט
         למטה מחליף בטקסט ה-<h1> של הדף ומסתיר אותו שם, כך שהשם לא מופיע פעמיים. במחשב — מוסתר. %>
     <span class="nav-title"><%= typeof title !== 'undefined' ? title : '' %></span>
+    <%# טלפון (בעלים, 18/10): "שים את בורר החנות משמאל, הכי שמאל ללוח הבקרה" — הסקריפט שאחרי .topbar מעביר
+        לכאן את .sb-store (הבורר עצמו, לא עותק) ובמחשב מחזיר אותו לשורת הכותרת. %>
+    <span class="nav-store"></span>
     <span class="spacer"></span>
     <details class="menu navmenu" id="navmenu">
       <%# טלפון (בעלים, 18/10): "במקום ניווט דפים יהיה רשום AP CONTROL — מימין, איפה ש-AP Control עכשיו".
@@ -137,6 +140,7 @@
         <div class="sb-side sb-start"><% if (typeof quickMenu !== 'undefined' && quickMenu) { %><%- include('_quickMenu') %><% } %></div>
         <div class="sb-center"><span class="topbar-title"><%= typeof title !== 'undefined' ? title : '' %></span></div>
         <div class="sb-side sb-end">
+        <span class="sb-store">
         <%# בעלים, 17/10: "אני לא צריך שיהיה רשום פעמיים — לקצר אבל להבליט". כשיש בורר, שם החנות מופיע
             רק בתוכו (מודגש). בלי בורר (חנות אחת) — השם לבדו, מודגש. %>
         <% if (availableStores.length <= 1) { %>
@@ -169,11 +173,29 @@
         <% } else { %>
           <span class="tag tag-outline store-banner-lock">נעול לחנות זו</span>
         <% } %>
+        </span>
           <a href="/" class="nav-brand topbar-brand"><span class="mark">AP</span>Control</a>
         </div>
       </div>
     </div>
   </div>
+  <script>
+    // בורר החנות: במחשב — בשורת הכותרת, צמוד ל-"AP Control"; בטלפון — הכי שמאלי בשורת הניווט, מול שם
+    // הדף. אותו אלמנט עובר בין שני המקומות (בלי עותק — "בורר יחיד"), מיד בטעינה ובכל מעבר רוחב.
+    (function () {
+      var store = document.querySelector('.topbar .sb-store');
+      var home = document.querySelector('.topbar .sb-end');
+      var slot = document.querySelector('.nav .nav-store');
+      if (!store || !home || !slot) return;
+      var mq = window.matchMedia('(max-width: 999.98px)');
+      function put() {
+        if (mq.matches) { if (store.parentNode !== slot) slot.appendChild(store); }
+        else if (store.parentNode !== home) home.insertBefore(store, home.firstChild);
+      }
+      put();
+      (mq.addEventListener ? mq.addEventListener('change', put) : mq.addListener(put));
+    })();
+  </script>
   <% } %>
   <main class="page fade-up">
     <% if (typeof scopeCompanies !== 'undefined' && scopeCompanies) { %>

@@ -1283,19 +1283,31 @@ main.page .page-back { text-align: start !important; }
   .sb-start { order: 0; width: 100%; }
   .sb-start > .store-banner-back { order: -1; margin-inline-end: auto; }   /* "→ חזרה" מימין, "אפשרויות" משמאל */
   .sb-center { display: none; }
-  .sb-end { order: 1; width: 100%; justify-content: center; flex-wrap: wrap; }
+  /* בורר החנות עבר לשורת הניווט (header.ejs מעביר את .sb-store) — בפס נשארו רק "→ חזרה" ו"אפשרויות",
+     ופס שאין בו אף אחד מהם לא מוצג בכלל. */
+  .sb-end:not(:has(.sb-store)) { display: none; }
+  .topbar:not(:has(.sb-start > *)):not(:has(.sb-store)) { display: none; }
   .nav-title { display: block; flex: 1 1 auto; min-width: 0; text-align: center; font-weight: 700; font-size: 17px;
     color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nav .spacer { display: none; }
   /* כפתור התפריט = "AP Control", מימין (בעלים, 18/10); שם הדף במרכז. רשת ולא flex: הצד השמאלי ריק,
      והעמודות השוות שומרות את שם הדף במרכז (עמודת הכפתור גדלה רק אם הוא רחב מחציה). */
-  .nav { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) 1fr; }
+  .nav { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr); column-gap: 8px; }
+  /* בורר החנות — הכי שמאלי בשורת הניווט (בעלים, 18/10). קומפקטי, כדי ששם הדף יישאר באמצע. */
+  .nav-store { grid-column: 3; grid-row: 1; justify-self: end; display: flex; align-items: center; min-width: 0; }
+  .nav-store:empty { display: none; }
+  .nav-store, .nav-store * { text-align: center !important; }
+  .nav-store .sb-store { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .nav-store .store-banner-switch select { min-width: 0; max-width: 108px; font-size: 14px; min-height: 36px; height: 36px;
+    padding-block: 0; padding-inline-start: 8px; text-align-last: center; }
+  .nav-store .store-banner-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 108px; }
+  .nav-store .store-banner-lock { display: none; }
   .nav > .nav-brand { display: none; }
   .navmenu { grid-column: 1; grid-row: 1; justify-self: start; }
   .nav-title { grid-column: 2; grid-row: 1; }
-  .navmenu > summary { padding-inline: 10px; }
-  .navmenu-brand { font-size: 15px; gap: 7px; }
-  .navmenu-brand .mark { width: 22px; height: 22px; font-size: 11px; }
+  .navmenu > summary { padding-inline: 8px; gap: 4px; }
+  .navmenu-brand { font-size: 14px; gap: 6px; }
+  .navmenu-brand .mark { width: 20px; height: 20px; font-size: 10px; }
   .navmenu > .menu-panel { inset-inline-start: 0; inset-inline-end: auto; }   /* הכפתור מימין → נפתח פנימה */
   main.page .h1-in-header { display: none; }
   main.page .toolbar:not(:has(> :not(.h1-in-header))) { display: none; }
