@@ -1245,7 +1245,9 @@ main.page .collapse-card > summary { justify-content: center !important; }
 .store-banner { justify-content: center; position: relative; }
 .store-banner-switch, .store-banner-lock { margin: 0; }
 .store-banner.has-back { padding-inline: 104px; }
-.store-banner-back { position: absolute; inset-inline-start: 12px; top: 50%; transform: translateY(-50%); }
+/* מירכוז אנכי בלי transform: לכל כפתור יש `:active { transform: translateY(1px) }`, והוא היה דורס את
+   translateY(-50%) — בלחיצה הכפתור "נפל" חצי גובה (בעלים, 17/10: "כשאני לוחץ עם העכבר זה יורד"). */
+.store-banner-back { position: absolute; inset-inline-start: 12px; top: 0; bottom: 0; margin-block: auto; height: fit-content; }
 main.page .page-back { text-align: start !important; }
 /* במחשב הפס הוא שורה אחת בכל חנות (בעלים, 17/10 — צילום "סופר על הדרך": שם חברה ארוך שבר את
    "אפשרויות" לשורה שנייה, וב"מידנייט" לא). מה שמתקצר כשאין מקום: שם החברה (…) והבורר — לא הכפתורים. */
@@ -1260,5 +1262,5 @@ main.page .page-back { text-align: start !important; }
 /* בנייד אין מקום לצד: הכפתור נשאר בצד ימין, בשורה עליונה משלו בתוך הפס. */
 @media (max-width: 700px) {
   .store-banner.has-back { padding-inline: var(--space-4); padding-top: 52px; }
-  .store-banner-back { top: 10px; transform: none; }
+  .store-banner-back { top: 10px; bottom: auto; margin-block: 0; }
 }

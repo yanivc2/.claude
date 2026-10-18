@@ -54,3 +54,11 @@ test('"למעלה" is unmistakable and never covers a sticky bottom bar (owner, 
   assert.match(footer, /top\.style\.bottom = lift \+ 'px';/);
   assert.match(css, /\.to-top \{[^}]*background: var\(--color-accent\); color: #fff;/);
 });
+
+test('"→ חזרה" does not drop when pressed — centred without transform (owner, 17/10)', () => {
+  // `button:active, .btn:active { transform: translateY(1px) }` replaced the centring translateY(-50%),
+  // so the button fell by half its height while the mouse was down.
+  const rule = css.slice(css.indexOf('.store-banner-back {'), css.indexOf('}', css.indexOf('.store-banner-back {')));
+  assert.ok(!/transform/.test(rule), 'no transform in the centring rule');
+  assert.match(rule, /top: 0; bottom: 0; margin-block: auto; height: fit-content;/);
+});
