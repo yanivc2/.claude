@@ -194,4 +194,6 @@ test('the page has no separate "חיפוש" card any more — filtering is the t
   const view = readFileSync(new URL('../src/views/tracked/index.ejs', import.meta.url), 'utf8').replace(/<%#[\s\S]*?%>/g, '');
   assert.doesNotMatch(view, /action="\/tracked-invoices">\s*<h2[^>]*>חיפוש<\/h2>/);
   assert.doesNotMatch(view, /נקה חיפוש/);
+  assert.doesNotMatch(view, /חשבוניות שמחכות לטיפול של הספק/, 'no explanation line (owner, 18/10)');
+  assert.match(view, /<table class="sortable filterable line-grid no-search">/, 'no free-text table search; column filters stay');
 });

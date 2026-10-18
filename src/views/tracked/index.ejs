@@ -14,13 +14,10 @@
     <div class="toolbar" style="align-items:center;margin:0 0 .4rem">
       <h2 style="margin:0">מעוקבות (<%= rows.length %>)</h2>
     </div>
-    <p class="muted" style="margin:0 0 .5rem">
-      חשבוניות שמחכות לטיפול של הספק. <strong>שחרור מעיקוב מוציא אותן מהדף הזה</strong> — ההסבר נשמר גם אחרי.
-      גם כל חשבונית <strong>מוחזקת</strong> מופיעה כאן, ויוצאת לבד כשההחזקה משתחררת (למשל כשמוסיפים מספר הקצאה).
-    </p>
+    <%# בלי שורת ההסבר ובלי "חיפוש בטבלה…" (בעלים, 18/10: "מחק את זה") — מסנני העמודות נשארים. %>
     <div class="table-scroll">
       <%# אותן עמודות של דף החשבוניות, עם שתי החלפות: במקום "חנות" — סטטוס; במקום "שולם" — הסבר. %>
-      <table class="sortable filterable line-grid">
+      <table class="sortable filterable line-grid no-search">
         <thead>
           <tr>
             <th>מספר חשבונית</th><th>סטטוס</th><th>תאריך</th><th class="right">סכום</th><th>ספק</th>
