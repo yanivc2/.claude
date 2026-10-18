@@ -13,14 +13,17 @@ import { logAction } from './audit.js';
  */
 export async function revenueDetailsReady(x = getExecutor()) {
   try {
-    await x.many('SELECT cash_total, txn_count, cards FROM revenue_reports LIMIT 1', []);
+    await x.many('SELECT cash_total, txn_count, cards, receipt_count, void_count FROM revenue_reports LIMIT 1', []);
     return true;
   } catch {
     return false;
   }
 }
 
-const DETAIL_COLS = ['cash_total', 'on_account', 'debt_payments', 'debt_credit', 'cancel_amount', 'cancel_count', 'txn_count', 'cards'];
+const DETAIL_COLS = [
+  'cash_total', 'on_account', 'debt_payments', 'debt_credit', 'cancel_amount', 'cancel_count', 'txn_count', 'cards',
+  'cash_count', 'credit_count', 'receipt_count', 'discount_amount', 'discount_count', 'void_amount', 'void_count',
+];
 const intOrNull = (v) => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v)) ? null : Math.round(Number(v)));
 
 /** A parsed row's details in DETAIL_COLS order; all NULL for a row from a per-day table. */
@@ -30,6 +33,8 @@ function detailValues(r) {
     intOrNull(r.cash), intOrNull(r.onAccount), intOrNull(r.debtPayments), intOrNull(r.debtCredit),
     intOrNull(r.cancelAmount), intOrNull(r.cancelCount), intOrNull(r.txnCount),
     Array.isArray(r.cards) ? JSON.stringify(r.cards) : null,
+    intOrNull(r.cashCount), intOrNull(r.creditCount), intOrNull(r.receiptCount),
+    intOrNull(r.discountAmount), intOrNull(r.discountCount), intOrNull(r.voidAmount), intOrNull(r.voidCount),
   ];
 }
 

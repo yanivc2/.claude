@@ -131,6 +131,13 @@ CREATE TABLE IF NOT EXISTS revenue_reports (
   cancel_count  INTEGER,
   txn_count     INTEGER,
   cards         TEXT,
+  cash_count      INTEGER,
+  credit_count    INTEGER,
+  receipt_count   INTEGER,
+  discount_amount BIGINT,
+  discount_count  INTEGER,
+  void_amount     BIGINT,
+  void_count      INTEGER,
   UNIQUE (store_id, report_date)
 );
 CREATE INDEX IF NOT EXISTS ix_revenue_reports_date ON revenue_reports(report_date);
@@ -853,3 +860,11 @@ ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS cancel_amount BIGINT;
 ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS cancel_count  INTEGER;
 ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS txn_count     INTEGER;
 ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS cards         TEXT;
+-- כמות קבלות לכל אמצעי תשלום, הנחות וקבלות מבוטלות (בעלים 18/10: "אלה הדברים החשובים מדוח פידיון").
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS cash_count      INTEGER;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS credit_count    INTEGER;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS receipt_count   INTEGER;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS discount_amount BIGINT;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS discount_count  INTEGER;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS void_amount     BIGINT;
+ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS void_count      INTEGER;

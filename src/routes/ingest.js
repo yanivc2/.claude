@@ -39,6 +39,7 @@ function revenueNotice(storeName, inserted, updated, last, detailsSaved) {
   let day = `${dmy}: מכירות ${formatIls(last.gross)} · אשראי ${formatIls(last.credit)}`;
   if ('cash' in last) day += ` · מזומן ${formatIls(last.cash)}`;
   if (last.txnCount) day += ` · ${last.txnCount} עסקאות`;
+  if (last.cancelAmount) day += ` · ביטולים ${formatIls(last.cancelAmount)}${last.cancelCount ? ` (${last.cancelCount})` : ''}`;
   lines.push(day);
   if ('cash' in last) {
     const c = revenueChecks({ credit_total: last.credit, debt_credit: last.debtCredit, debt_payments: last.debtPayments, cards: JSON.stringify(last.cards || []) });

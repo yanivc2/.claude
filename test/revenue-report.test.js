@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import { freshDb, owner, firstStore } from './helpers.js';
 import { createApp } from '../src/app.js';
 import { config } from '../src/config.js';
-import { parseRevenueReport, parseRevenueReportAny, reportRangeFromGrid, normalizeReportDate } from '../src/lib/revenueReportFile.js';
+import { parseRevenueReport, parseRevenueReportAny, parseSummaryGrid, reportRangeFromGrid, normalizeReportDate } from '../src/lib/revenueReportFile.js';
 import { importRevenueRows, revenueInRange, listRevenue, revenueChecks } from '../src/services/revenueReports.js';
 import { looksLikePdf, pdfGrid } from '../src/lib/pdfGrid.js';
 import { profitability } from '../src/services/reports.js';
@@ -149,6 +149,7 @@ const MIDNIGHT = {
     { name: 'ישראכרט', sales: 34532, debt: 0, total: 34532, count: 6 },
   ],
   cardsTotal: 2340164, txnCount: 592, cancelAmount: 7500, cancelCount: 2,
+  creditCount: 361, cashCount: 236, receiptCount: 600, discountAmount: 0, discountCount: 0, voidAmount: 0, voidCount: 0,
 };
 
 test('the real midnight report: sales (incl. הקפה, NOT debts paid), tenders, acquirers, cancellations, transactions; needs a date', () => {
@@ -244,7 +245,36 @@ const JUNIOR = {
     { name: 'כ.א.ל', sales: 94215, debt: 0, total: 94215, count: 16 },
   ],
   cardsTotal: 4009639, txnCount: 1283, cancelAmount: 62584, cancelCount: 22,
+  creditCount: 716, cashCount: 580, receiptCount: 1296, discountAmount: 0, discountCount: 0, voidAmount: 0, voidCount: 0,
 };
+
+// בעלים, 18/10 — "אלה הדברים החשובים מדוח פידיון": the tender table (₪ + כמות קבלות + אחוז), the
+// transaction-type table (כמות עסקאות) and the cancellations table (ביטולים / הנחות / קבלות מבוטלות).
+test('the important tables: receipts per tender, transactions, cancellations, discounts and cancelled receipts', () => {
+  const grid = [
+    ['אחוז תרומה', 'סכום', 'כמות קבלות', 'תיאור'],
+    ['60.00 %', '600.00 ₪', '7', 'כרטיס אשראי'],
+    ['40.00 %', '400.00 ₪', '5', 'מזומן'],
+    ['100.00 %', '1000.00₪', '12', 'סה"כ'],
+    ['% תרומה', 'ממוצע לעסקה', 'סכום', 'כמות עסקאות', 'מאמצעי תשלום'],
+    ['100.00 %', '100.00₪', '1000.00₪', '10', 'סה"כ'],
+    ['סכום', 'כמות', 'תיאור'],
+    ['30.00₪', '3', 'סהכ ביטולים'],
+    ['12.50₪', '2', 'סהכ הנחות'],
+    ['45.00₪', '1', 'סהכ קבלות מבוטלות'],
+    ['87.50₪', '6', 'סה"כ'],
+    ['1000.00₪', 'סה"כ מכירה(כולל הקפה)'],
+  ];
+  const sm = parseSummaryGrid(grid);
+  assert.deepEqual(
+    [sm.gross, sm.credit, sm.creditCount, sm.cash, sm.cashCount, sm.receiptCount, sm.txnCount],
+    [100000, 60000, 7, 40000, 5, 12, 10],
+  );
+  assert.deepEqual(
+    [sm.cancelAmount, sm.cancelCount, sm.discountAmount, sm.discountCount, sm.voidAmount, sm.voidCount],
+    [3000, 3, 1250, 2, 4500, 1],
+  );
+});
 
 test('PDF: the cells are rebuilt from text positions into the same grid as the XLS', async () => {
   const buf = junior('pdf');
@@ -306,6 +336,8 @@ test('details are stored and replaced with the day; a not-upgraded DB keeps פד
   assert.equal(Number(got.txn_count), 1283);
   assert.equal(Number(got.cancel_amount), 62584);
   assert.equal(Number(got.cancel_count), 22);
+  assert.deepEqual([got.cash_count, got.credit_count, got.receipt_count].map(Number), [580, 716, 1296]);
+  assert.deepEqual([got.discount_amount, got.void_amount].map(Number), [0, 0]);
   assert.deepEqual(got.checks.cards, JUNIOR.cards);
   assert.equal(got.checks.creditGap, 0);
   // A per-day table row for the same day replaces it — the stale details go too.

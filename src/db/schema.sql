@@ -201,6 +201,13 @@ CREATE TABLE IF NOT EXISTS revenue_reports (
   cancel_count  INTEGER,
   txn_count     INTEGER,                         -- מספר עסקאות
   cards         TEXT,                            -- JSON [{name,sales,debt,total,count}] — אשראי לפי חברה
+  cash_count     INTEGER,                        -- כמות קבלות במזומן
+  credit_count   INTEGER,                        -- כמות קבלות באשראי
+  receipt_count  INTEGER,                        -- כמות קבלות (סה"כ)
+  discount_amount INTEGER,                       -- agorot — הנחות
+  discount_count INTEGER,
+  void_amount    INTEGER,                        -- agorot — קבלות מבוטלות
+  void_count     INTEGER,
   UNIQUE (store_id, report_date)
 );
 CREATE INDEX IF NOT EXISTS ix_revenue_reports_date ON revenue_reports(report_date);

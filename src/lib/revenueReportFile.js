@@ -118,11 +118,11 @@ const isCount = (v) => /^\d+$/.test(v.replace(/,/g, ''));
  * Parse the POS "דוח פדיון" **summary** shape (Pidion_A4 — the same layout in XLS and PDF): one
  * business day laid out as label→value rows in RTL (the label is the right-most cell, its figures
  * sit to the left), in six tables:
- *   A  תקבולים בחתך אמצעי תשלום  כרטיס אשראי | מזומן | הקפה | סה"כ           (sales by tender)
+ *   A  תקבולים בחתך אמצעי תשלום  כרטיס אשראי | מזומן | הקפה | סה"כ: ₪ + כמות קבלות (sales by tender)
  *   B  (only when debts were paid) the same rows for תשלומי חוב                (debt by tender)
  *   C  פירוט כרטיסי אשראי בחתך סולק  per acquirer: ₪ מכירות · ₪ תשלומי חוב · ₪ סה"כ + counts
  *   D  מכירות בחתך סוג עסקה          ממוצע לעסקה · סכום · כמות עסקאות
- *   E  פירוט ביטולים והנחות          סהכ ביטולים: ₪ + כמות
+ *   E  פירוט ביטולים והנחות          סהכ ביטולים / סהכ הנחות / סהכ קבלות מבוטלות: ₪ + כמות
  *   F  פירוט מע"מ / totals           סה"כ מכירה(כולל הקפה) · … · סה"כ פדיון(כולל ת.חוב)
  * The XLS carries NO date; the PDF prints "מתאריך … עד …" (see reportRangeFromGrid).
  *
@@ -131,7 +131,8 @@ const isCount = (v) => /^\d+$/.test(v.replace(/,/g, ''));
  * @returns {null|{gross:number, credit:number, cash:number, onAccount:number, debtPayments:number,
  *   debtCredit:number, cards:Array<{name:string, sales:number, debt:number, total:number,
  *   count:number|null}>, cardsTotal:number, txnCount:number|null, cancelAmount:number,
- *   cancelCount:number|null}}
+ *   cancelCount:number|null, creditCount:number|null, cashCount:number|null, receiptCount:number|null,
+ *   discountAmount:number, discountCount:number, voidAmount:number, voidCount:number}}
  */
 export function parseSummaryGrid(grid) {
   const rows = [];
@@ -165,6 +166,7 @@ export function parseSummaryGrid(grid) {
   const cStart = rows.findIndex((r) => r.ils.length >= 3);
   const aTo = endA === -1 ? rows.length : endA;
   const tender = (key, from, to) => money(find((k) => k === key, from, to)) ?? 0;
+  const receipts = (key) => count(find((k) => k === key, 0, aTo)); // "כמות קבלות" of a tender in table A
   const debtCredit = endA !== -1 && cStart > endA ? tender('כרטיסאשראי', endA + 1, cStart) : 0;
 
   const cards = rows
@@ -177,12 +179,18 @@ export function parseSummaryGrid(grid) {
 
   // Table D's total is the only "סה"כ" with exactly two ₪ figures (ממוצע לעסקה + סכום).
   const txnRow = rows.find((r) => r.key === 'סהכ' && r.ils.length === 2);
+  // Table E. A line the POS left empty ("סהכ הנחות" with no figures) is dropped above → 0.
   const cancelRow = find((k) => k === 'סהכביטולים');
+  const discountRow = find((k) => k === 'סהכהנחות');
+  const voidRow = find((k) => k === 'סהכקבלותמבוטלות');
   return {
     gross,
     credit: tender('כרטיסאשראי', 0, aTo),
     cash: tender('מזומן', 0, aTo),
     onAccount: tender('הקפה', 0, aTo),
+    creditCount: receipts('כרטיסאשראי'),
+    cashCount: receipts('מזומן'),
+    receiptCount: endA === -1 ? null : count(rows[endA]),
     debtPayments: money(find((k) => k === 'סהכתשלומיחוב')) ?? 0,
     debtCredit,
     cards,
@@ -190,6 +198,10 @@ export function parseSummaryGrid(grid) {
     txnCount: count(txnRow),
     cancelAmount: money(cancelRow) ?? 0,
     cancelCount: cancelRow ? count(cancelRow) : null,
+    discountAmount: money(discountRow) ?? 0,
+    discountCount: discountRow ? count(discountRow) ?? 0 : 0,
+    voidAmount: money(voidRow) ?? 0,
+    voidCount: voidRow ? count(voidRow) ?? 0 : 0,
   };
 }
 
@@ -225,6 +237,8 @@ function summaryRow(sm) {
   return {
     gross: sm.gross, credit: sm.credit, cash: sm.cash, onAccount: sm.onAccount, debtPayments: sm.debtPayments,
     debtCredit: sm.debtCredit, cards: sm.cards, txnCount: sm.txnCount, cancelAmount: sm.cancelAmount, cancelCount: sm.cancelCount,
+    cashCount: sm.cashCount, creditCount: sm.creditCount, receiptCount: sm.receiptCount,
+    discountAmount: sm.discountAmount, discountCount: sm.discountCount, voidAmount: sm.voidAmount, voidCount: sm.voidCount,
   };
 }
 

@@ -4,6 +4,8 @@
   (each row carries .checks = revenueChecks). A row from a per-day table, or from before the detail
   columns, has no details → "—".
   The checks the owner reads a day by (17/10): אשראי במגירה = אשראי לפי חברה, and debts paid that day.
+  "אלה הדברים החשובים" (owner, 18/10 — the report's tender / transaction-type / cancellation tables): under
+  מזומן/אשראי their receipts + share, under עסקאות the average + receipts, under ביטולים הנחות + קבלות מבוטלות.
 %>
 <div class="table-scroll">
   <table>
@@ -12,7 +14,10 @@
       <th>אשראי לפי חברה</th><th class="right">ביטולים</th><th class="right">עסקאות</th><th>מקור</th>
     </tr></thead>
     <tbody>
-      <% rows.forEach(function(r){ var c = r.checks || { cards: [], cardsTotal: null, creditGap: null, debt: 0 }; var has = r.cash_total !== null && r.cash_total !== undefined; %>
+      <% rows.forEach(function(r){ var c = r.checks || { cards: [], cardsTotal: null, creditGap: null, debt: 0 }; var has = r.cash_total !== null && r.cash_total !== undefined;
+           var gross = Number(r.gross_sales) || 0;
+           // "כמות קבלות · אחוז תרומה" of a tender — the two other columns of the report's first table.
+           var tenderSub = function (amount, n) { var bits = []; if (n !== null && n !== undefined) bits.push(n + ' קבלות'); if (has && gross > 0) bits.push((Number(amount) / gross * 100).toFixed(1) + '%'); return bits.join(' · '); }; %>
         <tr>
           <td><%= formatDate(r.report_date) %></td>
           <td><%= r.store_name %></td>
@@ -21,9 +26,13 @@
             <% if (Number(r.on_account) > 0) { %><div class="muted rev-sub">מתוכן הקפה <%= formatIls(r.on_account) %></div><% } %>
             <% if (c.debt > 0) { %><div class="rev-sub rev-debt" title="תשלומי חוב על מכירות קודמות — לא נכללו במכירות של היום">ℹ️ שולמו חובות <%= formatIls(c.debt) %></div><% } %>
           </td>
-          <td class="right"><%= has ? formatIls(r.cash_total) : '—' %></td>
+          <td class="right">
+            <%= has ? formatIls(r.cash_total) : '—' %>
+            <% if (has && tenderSub(r.cash_total, r.cash_count)) { %><div class="muted rev-sub"><%= tenderSub(r.cash_total, r.cash_count) %></div><% } %>
+          </td>
           <td class="right">
             <%= formatIls(r.credit_total) %>
+            <% if (has && tenderSub(r.credit_total, r.credit_count)) { %><div class="muted rev-sub"><%= tenderSub(r.credit_total, r.credit_count) %></div><% } %>
             <% if (c.creditGap) { %><div class="rev-sub rev-gap" title="אשראי לפי חברה <%= formatIls(c.cardsTotal) %> לעומת אשראי במגירה <%= formatIls(Number(r.credit_total) + (Number(r.debt_credit) || 0)) %>">⚠️ פער <%= formatIls(c.creditGap) %></div><% } %>
             <% if (Number(r.debt_credit) > 0) { %><div class="muted rev-sub">+ חוב באשראי <%= formatIls(r.debt_credit) %></div><% } %>
           </td>
@@ -32,8 +41,16 @@
               <div class="rev-card"><%= k.name %> <span class="mono"><%= formatIls(k.total) %></span></div>
             <% }); } %>
           </td>
-          <td class="right"><%= has ? formatIls(r.cancel_amount) + (r.cancel_count != null ? ' (' + r.cancel_count + ')' : '') : '—' %></td>
-          <td class="right"><%= r.txn_count != null ? r.txn_count : '—' %></td>
+          <td class="right">
+            <%= has ? formatIls(r.cancel_amount) + (r.cancel_count != null ? ' (' + r.cancel_count + ')' : '') : '—' %>
+            <% if (Number(r.discount_amount) > 0) { %><div class="muted rev-sub">הנחות <%= formatIls(r.discount_amount) %><%= r.discount_count ? ' (' + r.discount_count + ')' : '' %></div><% } %>
+            <% if (Number(r.void_amount) > 0) { %><div class="muted rev-sub">קבלות מבוטלות <%= formatIls(r.void_amount) %><%= r.void_count ? ' (' + r.void_count + ')' : '' %></div><% } %>
+          </td>
+          <td class="right">
+            <%= r.txn_count != null ? r.txn_count : '—' %>
+            <% if (Number(r.txn_count) > 0) { %><div class="muted rev-sub">ממוצע <%= formatIls(Math.round(gross / Number(r.txn_count))) %></div><% } %>
+            <% if (r.receipt_count != null) { %><div class="muted rev-sub"><%= r.receipt_count %> קבלות</div><% } %>
+          </td>
           <td class="muted"><%= r.source === 'email' ? 'מייל' : 'העלאה' %></td>
         </tr>
       <% }); %>
