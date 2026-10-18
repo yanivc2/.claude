@@ -748,6 +748,12 @@ form.stack label { display: block; margin: var(--space-3) 0 4px; font-size: 12.5
 /* stat value alias (.num) */
 .stat .num { font-family: var(--font-heading); font-size: 28px; font-weight: 500; margin-top: 2px; }
 .stat.attn .num { color: var(--color-accent-200); }
+/* בעלים, 17/10: "בצ׳קים בחוץ הכתב יצא מהרובריקה — שלא ייצא בשום רובריקה". בטלפון רחב (430px) האריחים
+   יושבים שניים בשורה, ו-"₪184,500.03" ב-28px רחב מהאריח. המספר נשאר בשורה אחת, ו-footer.ejs מקטין
+   אותו **רק כשהוא לא נכנס** (מספר קצר נשאר בגודל מלא); תווית ארוכה נשברת לשורה. */
+.stat { min-width: 0; overflow-wrap: anywhere; }
+.stat .num, .stat .value { white-space: nowrap; overflow-wrap: normal; }
+@media (max-width: 760px) { .stat { padding: var(--space-3) var(--space-4); } }
 
 /* collapsible sections (settings) */
 details.section { border: 1px solid var(--color-line); border-radius: var(--radius-lg); background: var(--color-surface); margin-bottom: var(--space-4); }

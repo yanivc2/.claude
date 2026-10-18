@@ -656,6 +656,25 @@
   </script>
 
   <script>
+  // מספר באריח (.stat .num) — בגודל המלא כשהוא נכנס, ומתכווץ פיקסל-פיקסל רק כשהוא רחב מהאריח
+  // (בעלים, 17/10: "בצ׳קים בחוץ הכתב יצא מהרובריקה"). גודל inline מקורי (כמו 22px בתאריך ההתאמה)
+  // נשמר כנקודת ההתחלה. חוזר על עצמו בשינוי רוחב ואחרי טעינת הגופנים.
+  (function () {
+    function fit() {
+      document.querySelectorAll('.stat .num, .stat .value').forEach(function (el) {
+        if (el.dataset.fs0 === undefined) el.dataset.fs0 = el.style.fontSize || '';
+        el.style.fontSize = el.dataset.fs0;
+        var size = parseFloat(getComputedStyle(el).fontSize) || 28;
+        while (el.scrollWidth > el.clientWidth + 1 && size > 13) { size -= 1; el.style.fontSize = size + 'px'; }
+      });
+    }
+    fit();
+    window.addEventListener('resize', fit);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
+  })();
+  </script>
+
+  <script>
   // Grouped tables (table.cx-grouped — מזומן בחשבוניות, היסטוריית הפקדות בלוח): rows that are "done" sit in
   // collapsed groups at the bottom ("▸ סומנו כטופלו (30)"). A click opens/closes a group; while the
   // table search OR any column filter has a value, every group row is shown so the filter finds them.
