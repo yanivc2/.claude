@@ -997,7 +997,8 @@
     top.className = 'to-top no-print';
     top.setAttribute('aria-label', 'לראש הדף');
     top.title = 'לראש הדף';
-    top.textContent = '⬆';
+    // בעלים, 17/10: "זה לא מובן שזה חץ למעלה" — חץ מלא (SVG, לא תו שתלוי בגופן) + המילה "למעלה".
+    top.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 3l-8 8h5v10h6V11h5z"/></svg><span>למעלה</span>';
     top.hidden = true;
     top.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
     document.body.appendChild(top);
@@ -1048,6 +1049,14 @@
       var doc = document.documentElement;
       var max = doc.scrollHeight - window.innerHeight;
       top.hidden = window.scrollY < 600;
+      // פס שנדבק לתחתית המסך ("הנפק תשלום לנבחרים", שמירת דוח Z) — הכפתור עולה מעליו ולא מכסה אותו.
+      var lift = 18;
+      document.querySelectorAll('.pay-bar, .zform-save').forEach(function (b) {
+        if (b.offsetParent === null) return;
+        var r = b.getBoundingClientRect();
+        if (r.top < window.innerHeight && r.bottom > window.innerHeight - 4) lift = Math.max(lift, window.innerHeight - r.top + 10);
+      });
+      top.style.bottom = lift + 'px';
       if (!rail) return;
       var long = doc.scrollHeight > window.innerHeight * 1.8;
       rail.hidden = !long;

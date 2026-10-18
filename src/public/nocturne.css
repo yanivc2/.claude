@@ -1192,12 +1192,16 @@ table.txn-facts th { width: 170px; text-align: start; color: var(--color-muted, 
 /* ── ניווט ונוחות בכל דף (partials/footer.ejs, בעלים 16/10) ── */
 /* "→ חזרה" — שורה קטנה בראש התוכן. */
 .page-back { margin: 0 0 var(--space-2); }
-/* "⬆" — לראש הדף, צף בפינה השמאלית התחתונה (הימנית תפוסה בפס הגלילה). */
+/* "⬆ למעלה" — לראש הדף, צף בפינה השמאלית התחתונה (הימנית תפוסה בפס הגלילה). בעלים, 17/10: "לא מובן
+   שזה חץ למעלה" → חץ מלא + המילה, על רקע בולט; ומעל פס שנדבק לתחתית (footer.ejs מרים את bottom). */
 .to-top {
   position: fixed; bottom: 18px; left: 18px; z-index: 40;
-  width: 44px; height: 44px; min-height: 0; padding: 0; border-radius: 50%;
-  font-size: 18px; line-height: 1; box-shadow: var(--shadow-md);
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 44px; min-height: 0; padding: 0 16px 0 14px; border-radius: 22px;
+  font-size: 15px; font-weight: 700; line-height: 1;
+  background: var(--color-accent); color: #fff; border: 0; box-shadow: var(--shadow-md);
 }
+.to-top:hover { filter: brightness(1.08); }
 .to-top[hidden] { display: none; }
 /* פס גלילה לגרירה מימין — גרירת הידית גוללת את כל הדף לפי היחס (מהר בדף ארוך, עדין בתנועה איטית). */
 .scroll-rail {

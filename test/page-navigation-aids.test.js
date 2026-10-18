@@ -47,3 +47,10 @@ test('desktop: the store bar is ONE row for every store — long names shrink, b
   assert.match(block, /\.store-banner-switch > button \{ flex-shrink: 0; \}/, '"החלף" keeps its size');
   assert.match(css, /\.store-banner\.has-back \{ padding-inline: 104px; \}/);
 });
+
+test('"למעלה" is unmistakable and never covers a sticky bottom bar (owner, 17/10: "לא מובן שזה חץ למעלה")', () => {
+  assert.match(footer, /<path fill="currentColor" d="M12 3l-8 8h5v10h6V11h5z"\/><\/svg><span>למעלה<\/span>/, 'a solid arrow + the word');
+  assert.match(footer, /document\.querySelectorAll\('\.pay-bar, \.zform-save'\)/, 'lifted above "הנפק תשלום לנבחרים" / Z save bar');
+  assert.match(footer, /top\.style\.bottom = lift \+ 'px';/);
+  assert.match(css, /\.to-top \{[^}]*background: var\(--color-accent\); color: #fff;/);
+});
