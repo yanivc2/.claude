@@ -16,6 +16,6 @@ test('every tile: may shrink in the grid, labels wrap, the number stays on one l
 test('the number shrinks only while it overflows its tile, from its own starting size', () => {
   assert.match(footer, /document\.querySelectorAll\('\.stat \.num, \.stat \.value'\)/);
   assert.match(footer, /while \(el\.scrollWidth > el\.clientWidth \+ 1 && size > 13\)/);
-  assert.match(footer, /el\.dataset\.fs0 = el\.style\.fontSize \|\| ''/, 'an inline size (22px date) is the start, not lost');
+  assert.match(footer, /el\.dataset\.fs0 = el\.style\.fontSize \|\| ''/, 'an inline size (if a tile sets one) is the start, not lost');
   assert.match(footer, /window\.addEventListener\('resize', fit\)/);
 });

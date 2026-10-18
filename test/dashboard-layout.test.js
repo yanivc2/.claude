@@ -156,5 +156,6 @@ test('dashboard tiles: "נמשכו נתונים מהבנק" (was "התאמת ב�
   const pull = await lastBankPullFor(null, st.id, db);
   assert.ok(pull && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(pull.ts), 'the import time, not a transaction date');
   const html = await page();
-  assert.match(html, /<a class="stat" href="\/reconciliation" title="נמשכו נתונים מהבנק: \d{2}\/\d{2}\/\d{2} \d{2}:\d{2}">\s*<div class="num" style="font-size:22px">\d{2}\/\d{2}\/\d{2}<\/div>/, 'date on the tile, full Israel time on hover');
+  assert.match(html, /<a class="stat" href="\/reconciliation" title="נמשכו נתונים מהבנק: \d{2}\/\d{2}\/\d{2} \d{2}:\d{2}">[\s\S]*?<div class="num">\d{2}\/\d{2}\/\d{2}<\/div>/, 'date on the tile, full Israel time on hover');
+  assert.doesNotMatch(html, /<div class="(num|value)"[^>]*style="[^"]*font-size/, 'every tile number has the same size (owner, 18/10)');
 });

@@ -38,7 +38,8 @@
   <%# בעלים, 18/10: הוחלף מקום עם "ספקים ממתינים לאישור", והשם — "נמשכו נתונים מהבנק": מתי הגיעו לאחרונה
       תנועות מהבנק (bank_imports.imported_at, שעון ישראל), ולא תאריך התנועה המותאמת האחרונה. %>
   <a class="stat" href="/reconciliation"<% var _pull = stats.lastBankPull && stats.lastBankPull.ts ? israelStamp(stats.lastBankPull.ts) : ''; if (_pull) { %> title="נמשכו נתונים מהבנק: <%= _pull %>"<% } %>>
-    <div class="num" style="font-size:22px"><%= _pull ? _pull.slice(0, 8) : '—' %></div>
+    <%# בלי גודל משלו (בעלים, 18/10: "למה הגודל שונה, שתהיה התאמה") — כמו כל אריח; footer.ejs מקטין רק כשלא נכנס. %>
+    <div class="num"><%= _pull ? _pull.slice(0, 8) : '—' %></div>
     <div class="label">נמשכו נתונים מהבנק<%
       // When no single store is active ("all stores"), name which store the latest pull belongs to;
       // with an active store the header already says which store, so the name is omitted.
