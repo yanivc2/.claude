@@ -59,8 +59,11 @@
     <form method="get" action="/" class="lookup-form">
       <input name="name" value="<%= typeof name !== 'undefined' ? name : '' %>" placeholder="שם ספק" autocomplete="off" aria-label="חיפוש לפי שם ספק" />
       <input name="q" value="<%= q %>" inputmode="numeric" placeholder="מספר חשבונית / צ׳ק" autocomplete="off" aria-label="חיפוש לפי מספר" />
-      <label class="lookup-unpaid"><input type="checkbox" name="unpaid" value="1" <%= typeof unpaidOnly !== 'undefined' && unpaidOnly ? 'checked' : '' %> /> לא שולמו בלבד</label>
-      <button type="submit">חפש</button>
+      <%# בעלים, 18/10: "חפש" משמאל לשדות החיפוש (באותה שורה), ו"לא שולמו בלבד" מתחתיו. %>
+      <div class="lookup-go">
+        <button type="submit">חפש</button>
+        <label class="lookup-unpaid"><input type="checkbox" name="unpaid" value="1" <%= typeof unpaidOnly !== 'undefined' && unpaidOnly ? 'checked' : '' %> /> לא שולמו בלבד</label>
+      </div>
     </form>
   </div>
   <a class="stat <%= (typeof zNoDepositCount !== 'undefined' && zNoDepositCount) ? 'attn' : '' %>" href="/reports/zreports" title="דוחות Z שהוזנו ללא הצהרת הפקדה — לחץ להצהיר">

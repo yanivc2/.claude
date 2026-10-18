@@ -46,6 +46,20 @@ test('dashboard: "checks outside" first, no store picker in it; the lookup tile 
   assert.doesNotMatch(html, /רק שלא שולמו/);
 });
 
+test('dashboard lookup: "חפש" left of the two fields, "לא שולמו בלבד" under it, and a big button (owner, 18/10)', async () => {
+  const html = await page();
+  const form = html.slice(html.indexOf('class="lookup-form"'), html.indexOf('</form>', html.indexOf('class="lookup-form"')));
+  const q = form.indexOf('name="q"');
+  const go = form.indexOf('class="lookup-go"');
+  const btn = form.indexOf('>חפש</button>');
+  const unpaid = form.indexOf('לא שולמו בלבד');
+  assert.ok(q > 0 && go > q && btn > go && unpaid > btn, 'fields, then a column of [חפש] over [לא שולמו בלבד]');
+  const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
+  assert.match(css, /\.lookup-form \{ display: flex; flex-wrap: nowrap;/, 'one row');
+  assert.match(css, /\.lookup-go \{ display: flex; flex-direction: column;/);
+  assert.match(css, /\.lookup-go button \{ width: 100%; min-width: 112px; min-height: 46px; font-size: 17px;/);
+});
+
 // SQLite בלבד: חיפוש מספר מריץ גם את lookupChecks, שתת-השאילתה המתואמת שלו אינה נתמכת ב-pg-mem
 // (ראה test/multi-search.test.js — אותו דילוג). ב-Postgres האמיתי היא רצה.
 test('dashboard: the name field finds by supplier, the number field by invoice number — not across', { skip: !!process.env.TEST_PG }, async () => {

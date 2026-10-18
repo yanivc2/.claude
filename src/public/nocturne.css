@@ -332,8 +332,12 @@ hr, .hr { border: 0; height: 1px; margin: var(--space-6) 0;
 /* 🔎 בדיקת חשבונית בתוך אריח (לוח הבקרה): שם · מספר · "לא שולמו בלבד" · חפש — נשבר לשורות בנייד. */
 
 .lookup-tile:hover { transform: none; box-shadow: none; }
-.lookup-form { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
-.lookup-form input:not([type=checkbox]) { flex: 1 1 140px; min-width: 0; }
+/* שורה אחת: [שם ספק][מספר] ומשמאלם "חפש", ו"לא שולמו בלבד" מתחתיו (בעלים, 18/10). */
+.lookup-form { display: flex; flex-wrap: nowrap; gap: var(--space-2); align-items: center; }
+.lookup-form input:not([type=checkbox]) { flex: 1 1 0; min-width: 0; }
+.lookup-go { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 0 0 auto; }
+/* "חפש" גדול (בעלים, 18/10: "תגדיל את הכפתור חפש") — ברוחב העמודה ובגובה שדות החיפוש. */
+.lookup-go button { width: 100%; min-width: 112px; min-height: 46px; font-size: 17px; font-weight: 700; }
 .lookup-unpaid { display: flex; align-items: center; gap: 6px; font-weight: 400; white-space: nowrap; font-size: 13px; }
 .lookup-unpaid input { width: auto; min-height: 0; }
 .stat { margin-bottom: 0; }
@@ -1232,6 +1236,11 @@ body.no-select { user-select: none; }
 }
 @media (min-width: 1000px) { .nav-brand { justify-content: flex-start; } }   /* AP Control — לשמאל */
 main.page, main.page * { text-align: center !important; }
+/* שורת הכותרת (.topbar) יושבת מחוץ ל-<main>, ולכן נכנסת לכלל במפורש (בעלים, 18/10: "אמרנו הכל ממורכז —
+   לא לגעת בסרגל צד"). בבורר (select) הערך המוצג מתיישר לפי text-align-last. */
+.topbar, .topbar * { text-align: center !important; }
+main.page select, .topbar select { text-align-last: center; }
+.topbar .menu-panel a { justify-content: center; }
 main.page .toolbar,
 main.page summary,
 main.page .actions,
@@ -1296,6 +1305,8 @@ main.page .page-back { text-align: start !important; }
   }
   .sb-start { justify-self: start; margin-inline-start: calc(max(0px, (100cqw - 1120px) / 2) + var(--space-6) - 18px); }
   .sb-end { justify-self: end; gap: var(--space-3); }
+  /* "אפשרויות" כבר לא הכי שמאלי: הרשימה נפתחת מהקצה הימני שלו פנימה, לא מעבר לקצה השורה אל הסרגל. */
+  .topbar .store-banner-quick > .menu-panel { inset-inline-start: 0; inset-inline-end: auto; }
   .sb-center { overflow: hidden; }
   .store-banner-switch select { min-width: 130px; max-width: 200px; flex: 0 1 auto; }
   .store-banner-name { white-space: nowrap; }
