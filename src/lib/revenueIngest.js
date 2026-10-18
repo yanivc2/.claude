@@ -114,3 +114,15 @@ export function branchFromSubject(subject) {
   const named = m[2] && normName(m[2]) !== 'null';
   return { no: m[1], name: named ? m[2] : (POS_BRANCH_ALIASES[m[1]] || m[2]) };
 }
+
+/**
+ * The PDF prints the store it was issued for ("ג'וניור בעיר", "פינק מרקט י. ר. בע"מ"). When that name
+ * points at ONE store and it is not the store the report is being filed under, the file is someone
+ * else's: a branch's whole month would land on the wrong store. Returns that other store, else null
+ * (no title, or a title that matches nothing — "על הדרך 24 שעות בע"מ" vs "סופר על הדרך" — is allowed).
+ */
+export function storeTitleConflict(stores, title, storeId) {
+  if (!title) return null;
+  const hit = resolveStoreByBranch(stores, title);
+  return hit && Number(hit.id) !== Number(storeId) ? hit : null;
+}

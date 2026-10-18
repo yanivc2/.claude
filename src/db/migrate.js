@@ -63,6 +63,21 @@ function migrateRevenueReports(db) {
     ['discount_count', 'INTEGER'], ['void_amount', 'INTEGER'], ['void_count', 'INTEGER']]) {
     if (!cols.includes(c)) db.exec(`ALTER TABLE revenue_reports ADD COLUMN ${c} ${t};`);
   }
+  // דוח פדיון תקופתי — טווח ימים בשורה אחת (ראה schema.sql).
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS revenue_periods (
+       id           INTEGER PRIMARY KEY AUTOINCREMENT,
+       store_id     INTEGER NOT NULL REFERENCES stores(id),
+       date_from    TEXT NOT NULL,
+       date_to      TEXT NOT NULL,
+       gross_sales  INTEGER NOT NULL DEFAULT 0,
+       credit_total INTEGER NOT NULL DEFAULT 0,
+       details      TEXT,
+       source       TEXT NOT NULL DEFAULT 'upload',
+       created_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+       UNIQUE (store_id, date_from, date_to)
+     );`,
+  );
 }
 
 // In-app notification stream (bell + /notifications) — mirrors the Telegram alerts.

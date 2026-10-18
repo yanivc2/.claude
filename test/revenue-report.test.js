@@ -6,7 +6,7 @@ import { freshDb, owner, firstStore } from './helpers.js';
 import { createApp } from '../src/app.js';
 import { config } from '../src/config.js';
 import { parseRevenueReport, parseRevenueReportAny, parseSummaryGrid, reportRangeFromGrid, normalizeReportDate } from '../src/lib/revenueReportFile.js';
-import { importRevenueRows, revenueInRange, listRevenue, revenueChecks } from '../src/services/revenueReports.js';
+import { importRevenueRows, revenueInRange, listRevenue, revenueChecks, importRevenuePeriod, listRevenueWithPeriods } from '../src/services/revenueReports.js';
 import { looksLikePdf, pdfGrid } from '../src/lib/pdfGrid.js';
 import { profitability } from '../src/services/reports.js';
 import { createZReport } from '../src/services/zreports.js';
@@ -282,7 +282,7 @@ test('PDF: the cells are rebuilt from text positions into the same grid as the X
   assert.equal(looksLikePdf(junior('xls')), false);
   const grid = await pdfGrid(buf);
   assert.ok(grid.some((r) => r.join('|') === '60.14 %|40096.39 ₪|716|כרטיס אשראי'), 'label right-most, figures to its left');
-  assert.deepEqual(reportRangeFromGrid(grid), { from: '2026-10-17', to: '2026-10-18', date: '2026-10-17' });
+  assert.deepEqual(reportRangeFromGrid(grid), { from: '2026-10-17', to: '2026-10-18', lastDay: '2026-10-17', date: '2026-10-17' });
 });
 
 test('PDF and XLS of the same day parse to the same figures; the PDF also knows its day', async () => {
@@ -353,4 +353,85 @@ test('details are stored and replaced with the day; a not-upgraded DB keeps פד
   const saved = await db.one('SELECT gross_sales, cash_total FROM revenue_reports WHERE store_id = ? AND report_date = ?', [st.id, '2026-10-16']);
   assert.equal(Number(saved.gross_sales), 6666979);
   assert.equal(saved.cash_total, null);
+});
+
+// ---- דוח פדיון תקופתי (בעלים 18/10: "הנה דוחות הפידיון" — 01/10 עד 16/10 לכל חנות) ----------------
+// 🔴 "עד 16/10/26 00:00:00" נגמר בתחילת ה-16 — היום האחרון בדוח הוא ה-15 (הדוח של ה-17 לבדו נקרא
+// "17/10 00:00 עד 18/10 00:00").
+const juniorPeriod = () => readFileSync(fileURLToPath(new URL('./fixtures/revenue-junior-period.pdf', import.meta.url)));
+
+test('a period PDF parses as ONE period, the midnight end exclusive, with the store it was printed for', async () => {
+  const r = await parseRevenueReportAny(juniorPeriod(), { reportDate: '2026-10-17' });
+  assert.equal(r.kind, 'period');
+  assert.deepEqual(r.rows, [], 'never filed under one day');
+  assert.equal(r.storeTitle, "ג'וניור בעיר");
+  assert.equal(r.period.from, '2026-10-01');
+  assert.equal(r.period.to, '2026-10-15', '"עד 16/10 00:00:00" = through the 15th');
+  assert.equal(r.period.gross, 74034447);
+  assert.equal(r.period.credit, 46397547);
+  assert.equal(r.period.cash, 27597320);
+  assert.equal(r.period.txnCount, 16026);
+  assert.equal(revenueChecks({ credit_total: r.period.credit, debt_credit: 0, cards: JSON.stringify(r.period.cards) }).creditGap, 0,
+    'the report is 1 agora off (its own rounding) — not a gap');
+});
+
+test('profitability counts a period only inside the range, never twice with a day inside it; the rest is missing', async () => {
+  const db = await freshDb();
+  const own = await owner(db);
+  const st = await firstStore(db);
+  const { period } = await parseRevenueReportAny(juniorPeriod());
+  await importRevenuePeriod(st.id, period, 'upload', own, db);
+  await importRevenueRows(st.id, [
+    { date: '2026-10-10', gross: 999900, credit: 0 }, // inside the period — already in its total
+    { date: '2026-10-17', gross: 6666979, credit: 4009639 },
+  ], 'upload', own, db);
+
+  const oct = await profitability('2026-10-01', '2026-10-17', null, db, { today: '2026-10-18' });
+  const row = oct.stores.find((s) => s.id === st.id);
+  assert.equal(row.sales, 74034447 + 6666979, 'the period + the 17th; the 10th is not added again');
+  assert.deepEqual(row.missingDays, ['2026-10-16']);
+  assert.equal(row.revenueDays, 16);
+
+  // A range that cuts the period cannot use it: its days stay missing, and the page names the report.
+  const week = await profitability('2026-10-05', '2026-10-11', null, db, { today: '2026-10-18' });
+  const w = week.stores.find((s) => s.id === st.id);
+  assert.equal(w.sales, 999900, 'only the day row of the 10th');
+  assert.deepEqual(w.outsidePeriods, [{ from: '2026-10-01', to: '2026-10-15' }]);
+  assert.equal(w.missingDays.length, 6);
+});
+
+test('a new period replaces an overlapping one of the same store; another store is untouched', async () => {
+  const db = await freshDb();
+  const own = await owner(db);
+  const [a, b] = await db.many('SELECT id FROM stores ORDER BY id LIMIT 2', []);
+  const p = (from, to, gross) => ({ from, to, gross, credit: 0 });
+  await importRevenuePeriod(a.id, p('2026-10-01', '2026-10-15', 100), 'upload', own, db);
+  await importRevenuePeriod(b.id, p('2026-10-01', '2026-10-15', 200), 'upload', own, db);
+  const r = await importRevenuePeriod(a.id, p('2026-10-01', '2026-10-17', 300), 'upload', own, db);
+  assert.deepEqual(r.replaced, [{ from: '2026-10-01', to: '2026-10-15' }]);
+  const rows = await db.many('SELECT store_id, date_from, date_to, gross_sales FROM revenue_periods ORDER BY store_id', []);
+  assert.deepEqual(rows.map((x) => [Number(x.store_id), x.date_to, Number(x.gross_sales)]), [[a.id, '2026-10-17', 300], [b.id, '2026-10-15', 200]]);
+  const listed = await listRevenueWithPeriods({ limit: 10 }, db);
+  assert.ok(listed.some((x) => x.period_to === '2026-10-17' && x.store_id === a.id));
+});
+
+test('upload: a period PDF lands on the active store; a PDF of another branch is refused by its printed name', async () => {
+  const db = await freshDb();
+  const own = await owner(db);
+  const junior = await db.one("SELECT id FROM stores WHERE name = ?", ["ג'וניור"]);
+  const midnight = await db.one("SELECT id FROM stores WHERE name = 'מידנייט'", []);
+  const send = (storeId) => {
+    const fd = new FormData();
+    fd.append('store_id', String(storeId));
+    fd.append('ctx_store', String(storeId));
+    fd.append('file', new Blob([juniorPeriod()], { type: 'application/pdf' }), 'period.pdf');
+    return fetch(`${base}/reports/profitability/revenue-import`, { method: 'POST', body: fd, headers: { cookie: `session=${createSession(own.id)}; ap_store=${storeId}` } });
+  };
+  const wrong = await (await send(midnight.id)).text();
+  assert.match(wrong, /הדוח הוא של &#34;ג&#39;וניור בעיר&#34;/);
+  assert.equal(Number((await db.one('SELECT COUNT(*) AS n FROM revenue_periods', [])).n), 0, 'nothing filed under מידנייט');
+  const ok = await (await send(junior.id)).text();
+  assert.match(ok, /דוח פדיון תקופתי נקלט: 01\/10\/2026–15\/10\/2026/);
+  const row = await db.one('SELECT store_id, date_from, date_to FROM revenue_periods', []);
+  assert.deepEqual([Number(row.store_id), row.date_from, row.date_to], [junior.id, '2026-10-01', '2026-10-15']);
 });

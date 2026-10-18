@@ -211,6 +211,20 @@ CREATE TABLE IF NOT EXISTS revenue_reports (
   UNIQUE (store_id, report_date)
 );
 CREATE INDEX IF NOT EXISTS ix_revenue_reports_date ON revenue_reports(report_date);
+-- דוח פדיון תקופתי (בעלים 18/10): דוח אחד לטווח ימים — להשלמת ימים שלפני הקליטה הלילית. אי אפשר
+-- לפצל אותו לימים, ולכן הוא נשמר כשורה אחת והרווחיות סופרת אותו רק בטווח שמכיל את כולו.
+CREATE TABLE IF NOT EXISTS revenue_periods (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id     INTEGER NOT NULL REFERENCES stores(id),
+  date_from    TEXT NOT NULL,                    -- 'YYYY-MM-DD' — היום הראשון
+  date_to      TEXT NOT NULL,                    -- 'YYYY-MM-DD' — היום האחרון (כולל)
+  gross_sales  INTEGER NOT NULL DEFAULT 0,       -- agorot — סה"כ מכירה (כולל הקפה)
+  credit_total INTEGER NOT NULL DEFAULT 0,       -- agorot
+  details      TEXT,                             -- JSON — שאר הדוח (מזומן, חברות אשראי, ביטולים…)
+  source       TEXT NOT NULL DEFAULT 'upload',
+  created_at   TEXT NOT NULL,
+  UNIQUE (store_id, date_from, date_to)
+);
 
 -- §4 invoices -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoices (

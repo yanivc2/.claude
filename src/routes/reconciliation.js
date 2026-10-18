@@ -47,7 +47,7 @@ import { findAccountDuplicates, mergeAccountDuplicates } from '../services/bankD
 import { inspectBankTxn } from '../services/txnInspect.js';
 import { revenueIngestSecret } from '../lib/revenueIngest.js';
 import { buildRevenueIngestScript } from '../lib/revenueIngestScript.js';
-import { listRevenue } from '../services/revenueReports.js';
+import { listRevenueWithPeriods } from '../services/revenueReports.js';
 import { israelToday } from '../lib/loginHours.js';
 
 const router = Router();
@@ -255,7 +255,7 @@ router.get('/revenue-intake', requireOwner, async (req, res, next) => {
       title: 'קליטת דוח פדיון מהמייל',
       script: secret ? buildRevenueIngestScript({ appUrl: origin, secret, generatedAt: israelToday() }) : null,
       stores: await getExecutor().many('SELECT id, name FROM stores ORDER BY name', []),
-      recent: await listRevenue({ limit: 14 }),
+      recent: await listRevenueWithPeriods({ limit: 14 }),
     });
   } catch (err) {
     next(err);

@@ -1,6 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
-import { revenueInRange, revenueDatesInRange } from './revenueReports.js';
+import { revenueCoverage } from './revenueReports.js';
 import { israelToday } from '../lib/loginHours.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 
@@ -359,19 +359,23 @@ export async function profitability(fromDate, toDate, scope = null, x = getExecu
     [fromDate, toDate],
   );
   const purchaseByStore = new Map(purchaseRows.map((r) => [Number(r.store_id), Number(r.amt) || 0]));
-  const revenueByStore = await revenueInRange(fromDate, toDate, x);
-  const revenueDates = await revenueDatesInRange(fromDate, toDate, x);
+  // Day reports + period reports (a period counts only when the range holds all of it, and a day row
+  // inside such a period is not added twice) — services/revenueReports.js#revenueCoverage.
+  const coverage = await revenueCoverage(fromDate, toDate, x);
   const lastExpected = toDate < today ? toDate : minusOneDay(today); // tonight's report is not late yet
   const expectedDays = daysBetween(fromDate, lastExpected);
 
   const stores = storeRows.map((r) => {
     const purchases = purchaseByStore.get(Number(r.id)) || 0;
-    const rev = revenueByStore.get(Number(r.id)) || null;
+    const rev = coverage.get(Number(r.id)) || null;
     const revenueSales = rev ? rev.sales : 0;
     const revenueCredit = rev ? rev.credit : 0;
-    const revenueDays = rev ? rev.days : 0;
-    const have = revenueDates.get(Number(r.id)) || new Set();
+    const have = rev ? rev.days : new Set();
+    const revenueDays = have.size;
     const missingDays = expectedDays.filter((d) => !have.has(d));
+    // A period report that reaches outside the range cannot be split — named under the store's sales
+    // so a "missing" day there is understood ("קיים דוח 01/10–16/10, החורג מהטווח").
+    const outsidePeriods = rev ? rev.outside : [];
     const hasSales = revenueDays > 0;
     const sales = revenueSales;
     const grossProfit = hasSales ? sales - purchases : null;
@@ -379,7 +383,7 @@ export async function profitability(fromDate, toDate, scope = null, x = getExecu
     const markupPct = hasSales && purchases > 0 ? (grossProfit / purchases) * 100 : null;
     return {
       ...r, purchases, sales, revenueSales, revenueCredit, revenueDays, expectedDays: expectedDays.length,
-      missingDays, complete: hasSales && missingDays.length === 0, grossProfit, marginPct, markupPct,
+      missingDays, outsidePeriods, complete: hasSales && missingDays.length === 0, grossProfit, marginPct, markupPct,
     };
   });
 

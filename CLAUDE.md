@@ -114,7 +114,9 @@ happen only at merge. So:
   כ-`res.locals.israelStamp`).
 - **דוח פדיון (revenue reports):** the nightly per-store sales+credit report is the **ONLY sales
   source** for profitability — 🔴 never fall back to Z (owner, 18/10: a Z is closed Thursday then Sunday, so
-  a week/month cut through it is wrong); a day with no report is **listed as missing** (re-issue it at the till). `lib/revenueReportFile.js` parses it
+  a week/month cut through it is wrong); a day with no report is **listed as missing** (re-issue it at the till).
+  A **period report** (PDF for several days) is ONE `revenue_periods` row, never split, counted only in a range
+  that holds all of it; 🔴 its "עד DD/MM 00:00:00" is **exclusive** (ends at the start of that day). INDEX.md · דוח פדיון. `lib/revenueReportFile.js` parses it
   (+ **`lib/xlsRead.js`** for the legacy OLE2/BIFF `.xls` the POS actually emits — NOT xlsx; **or its PDF** via
   `lib/pdfGrid.js` → `parseRevenueReportAny`: pdfjs-dist **lazy**, its worker **imported explicitly** into
   `globalThis.pdfjsWorker` or the Vercel bundle lacks it). Two

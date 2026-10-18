@@ -30,7 +30,8 @@ import { toCsv } from '../lib/csvExport.js';
 import { handleInvoiceImage } from '../middleware/upload.js';
 import multer from 'multer';
 import { parseRevenueReportAny } from '../lib/revenueReportFile.js';
-import { importRevenueRows, listRevenue } from '../services/revenueReports.js';
+import { importRevenueRows, importRevenuePeriod, listRevenueWithPeriods } from '../services/revenueReports.js';
+import { storeTitleConflict } from '../lib/revenueIngest.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { notify } from '../lib/notify.js';
 import { getSetting, setSetting } from '../services/appSettings.js';
@@ -257,7 +258,7 @@ async function renderProfitability(req, res, extra = {}) {
     stores,
     totals,
     // "דוח פדיון מידנייט" rubric: the store picker + the most recent imported days.
-    revRows: await listRevenue({ limit: 20, scope: req.scope }),
+    revRows: await listRevenueWithPeriods({ limit: 20, scope: req.scope }),
     // The nightly mail lands after 00:30 for the PREVIOUS business day → default to yesterday.
     revDefaultDate: yesterdayInIsrael(),
     error: null,
@@ -603,6 +604,22 @@ router.post('/profitability/revenue-import', requirePageAccess('nav_profitabilit
       const reportDate = (req.body.report_date || '').trim() || null;
       const parsed = await parseRevenueReportAny(req.file.buffer, { ...mapping, reportDate });
       const { rows, headers, detected, warnings, kind, summary } = parsed;
+      // The PDF names its store — refuse a file that belongs to another branch (lib/revenueIngest.js).
+      const other = storeTitleConflict(await getExecutor().many('SELECT id, name FROM stores', []), parsed.storeTitle, storeId);
+      if (other) {
+        throw new RuleError('VALIDATION', `הדוח הוא של "${parsed.storeTitle}" (${other.name}) — לא של החנות הפעילה. בחר את ${other.name} בבורר העליון ושלח שוב.`);
+      }
+      if (kind === 'period') {
+        // Several days in one report (owner, 18/10) — kept as one period, never split into days.
+        const p = parsed.period;
+        const { replaced } = await importRevenuePeriod(storeId, p, 'upload', req.user);
+        const dm = (d) => d.split('-').reverse().join('/');
+        return renderProfitability(req, res, {
+          notice: `דוח פדיון תקופתי נקלט: ${dm(p.from)}–${dm(p.to)} · מכירות ${formatIls(p.gross)} · אשראי ${formatIls(p.credit)}.`
+            + (replaced.length ? ` החליף דוח קודם (${replaced.map((r) => dm(r.from) + '–' + dm(r.to)).join(', ')}).` : '')
+            + ' הרווחיות סופרת אותו בטווח שמכיל את כל ימיו.',
+        });
+      }
       if (!rows.length) {
         // A summary report parsed fine but has no date in it — show what we read and ask for the day.
         if (kind === 'summary' && summary) {

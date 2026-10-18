@@ -72,8 +72,14 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
                   <% if (s.missingDays.length) { %>
                     <div class="prof-missing" title="<%= s.missingDays.map(_dm).join(', ') %>">⚠️ חסרים: <%= s.missingDays.slice(0, MISSING_SHOWN).map(_dm).join(', ') %><%= s.missingDays.length > MISSING_SHOWN ? ' ועוד ' + (s.missingDays.length - MISSING_SHOWN) : '' %></div>
                   <% } %>
+                  <% (s.outsidePeriods || []).forEach(function(p){ %>
+                    <div class="muted rev-sub">דוח <%= _dm(p.from) %>–<%= _dm(p.to) %> חורג מהטווח ולא נספר</div>
+                  <% }); %>
                 <% } else { %>
                   <span class="<%= s.expectedDays ? 'prof-missing' : 'muted' %>"><%= s.expectedDays ? '⚠️ ' : '' %>אין דוח פדיון בטווח</span>
+                  <% (s.outsidePeriods || []).forEach(function(p){ %>
+                    <div class="muted rev-sub">דוח <%= _dm(p.from) %>–<%= _dm(p.to) %> חורג מהטווח ולא נספר</div>
+                  <% }); %>
                 <% } %>
               </td>
               <td class="right"><% if (s.revenueDays) { %><%= formatIls(s.revenueCredit) %><% } else { %><span class="muted">—</span><% } %></td>

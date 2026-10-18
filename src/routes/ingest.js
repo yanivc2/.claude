@@ -3,7 +3,7 @@ import multer from 'multer';
 import { getExecutor } from '../db/adapter.js';
 import { config } from '../config.js';
 import { parseRevenueReportAny } from '../lib/revenueReportFile.js';
-import { importRevenueRows, revenueChecks } from '../services/revenueReports.js';
+import { importRevenueRows, importRevenuePeriod, revenueChecks } from '../services/revenueReports.js';
 import { formatIls } from '../lib/money.js';
 import { notify } from '../lib/notify.js';
 import { syncAllLinkedAccounts, importScrapedBatch } from '../services/bankSync.js';
@@ -11,7 +11,7 @@ import { financyConfigured } from '../lib/financy.js';
 import { timingSafeEqual } from 'node:crypto';
 import { claimNext, reportState, takeOtp, completeWithAccounts, agentPing } from '../services/bankSyncJobs.js';
 import { webhookSecret } from '../lib/telegramBot.js';
-import { revenueIngestSecret, reportDateFrom, pickReportFile, resolveStoreByBranch, branchFromSubject } from '../lib/revenueIngest.js';
+import { revenueIngestSecret, reportDateFrom, pickReportFile, resolveStoreByBranch, branchFromSubject, storeTitleConflict } from '../lib/revenueIngest.js';
 import { decodeFileName } from '../lib/decodeText.js';
 import { handleTelegramUpdate } from '../services/telegramApprovals.js';
 
@@ -92,7 +92,21 @@ router.post('/revenue-report', (req, res) => {
       const { date: guessedDate, from: guessedFrom } = reportDateFrom({
         date: req.query.date, fileName: req.query.file_name || file.originalname, sent: req.query.sent,
       });
-      const { rows, warnings, fileDate } = await parseRevenueReportAny(file.buffer, { reportDate: guessedDate });
+      const parsed = await parseRevenueReportAny(file.buffer, { reportDate: guessedDate });
+      const { rows, warnings, fileDate } = parsed;
+      // The PDF names its store; a file of another branch is refused, never filed (lib/revenueIngest.js).
+      const other = storeTitleConflict(await x.many('SELECT id, name FROM stores', []), parsed.storeTitle, store.id);
+      if (other) {
+        await notify(`⚠️ <b>דוח פדיון לא נקלט</b>\nהמייל של ${store.name} נשא דוח של "${parsed.storeTitle}" (${other.name}).`, { link: '/reconciliation/revenue-intake' });
+        return res.status(422).json({ ok: false, error: 'report belongs to another store', title: parsed.storeTitle });
+      }
+      if (parsed.kind === 'period') {
+        const p = parsed.period;
+        const { replaced } = await importRevenuePeriod(store.id, p, 'email', null);
+        const dm = (d) => d.split('-').reverse().join('/');
+        await notify(`📈 <b>דוח פדיון תקופתי נקלט</b>\n${store.name}: ${dm(p.from)}–${dm(p.to)} · מכירות ${formatIls(p.gross)} · אשראי ${formatIls(p.credit)}`, { kind: 'revenue', link: '/reports/profitability' });
+        return res.json({ ok: true, store: store.name, period: { from: p.from, to: p.to }, replaced: replaced.length });
+      }
       const reportDate = fileDate || guessedDate;
       const dateFrom = fileDate ? 'content' : guessedFrom;
       if (!rows.length) {

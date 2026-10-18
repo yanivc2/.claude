@@ -6,6 +6,7 @@
   The checks the owner reads a day by (17/10): אשראי במגירה = אשראי לפי חברה, and debts paid that day.
   "אלה הדברים החשובים" (owner, 18/10 — the report's tender / transaction-type / cancellation tables): under
   מזומן/אשראי their receipts + share, under עסקאות the average + receipts, under ביטולים הנחות + קבלות מבוטלות.
+  A period report (period_to set — services/revenueReports.js#listRevenuePeriods) shows its range + "דוח תקופתי".
 %>
 <div class="table-scroll">
   <table>
@@ -19,7 +20,10 @@
            // "כמות קבלות · אחוז תרומה" of a tender — the two other columns of the report's first table.
            var tenderSub = function (amount, n) { var bits = []; if (n !== null && n !== undefined) bits.push(n + ' קבלות'); if (has && gross > 0) bits.push((Number(amount) / gross * 100).toFixed(1) + '%'); return bits.join(' · '); }; %>
         <tr>
-          <td><%= formatDate(r.report_date) %></td>
+          <td>
+            <%= r.period_to ? formatDate(r.report_date) + ' – ' + formatDate(r.period_to) : formatDate(r.report_date) %>
+            <% if (r.period_to) { %><div class="muted rev-sub">דוח תקופתי</div><% } %>
+          </td>
           <td><%= r.store_name %></td>
           <td class="right">
             <%= formatIls(r.gross_sales) %>

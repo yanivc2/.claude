@@ -206,10 +206,12 @@ export function parseSummaryGrid(grid) {
 }
 
 /**
- * The business day a PDF report covers, from its "מתאריך: … עד: …" line (RTL, so each date is the
- * cell to the LEFT of its label). One day = from and to on the same date, or to = the next
- * midnight. Anything longer is a multi-day summary and cannot be filed under one day.
- * @returns {null|{from:string, to:string, date:string|null}}
+ * The days a PDF report covers, from its "מתאריך: … עד: …" line (RTL, so each date is the cell to
+ * the LEFT of its label). 🔴 The end is EXCLUSIVE when it is a midnight: "עד 17/10/26 00:00:00"
+ * stops at the start of the 17th, so the last day is the 16th — measured on the POS: the report for
+ * the 17th alone reads "17/10 00:00 עד 18/10 00:00". An end with a time of day (23:59) is that day.
+ * One day = `date`; longer = a period report (`date` null, `lastDay` = its last day).
+ * @returns {null|{from:string, to:string, lastDay:string, date:string|null}}
  */
 export function reportRangeFromGrid(grid) {
   for (const row of grid || []) {
@@ -223,13 +225,23 @@ export function reportRangeFromGrid(grid) {
     const from = f && normalizeReportDate(f[1]);
     const to = t && normalizeReportDate(t[1]);
     if (!from || !to) continue;
-    const next = new Date(`${from}T00:00:00Z`);
-    next.setUTCDate(next.getUTCDate() + 1);
     const toMidnight = t[2] !== undefined && Number(t[2]) === 0 && Number(t[3]) === 0;
-    const oneDay = to === from || (to === next.toISOString().slice(0, 10) && toMidnight);
-    return { from, to, date: oneDay ? from : null };
+    let lastDay = to;
+    if (toMidnight && to > from) {
+      const d = new Date(`${to}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() - 1);
+      lastDay = d.toISOString().slice(0, 10);
+    }
+    if (lastDay < from) lastDay = from;
+    return { from, to, lastDay, date: lastDay === from ? from : null };
   }
   return null;
+}
+
+/** The store the PDF is printed for — its first line ("ג'וניור בעיר", "פינק מרקט י. ר. בע"מ"). */
+function pdfStoreTitle(grid) {
+  const first = (grid || []).find((r) => r && r.length && !/דוח|מתאריך/.test(r.join(' ')));
+  return first ? first.join(' ').trim() : null;
 }
 
 /** The fields of a summary that become one revenue_reports row (besides the date). */
@@ -248,20 +260,28 @@ const dmy = (iso) => iso.split('-').reverse().join('/');
  * A parsed summary → the parse result. The day comes from the file when it prints one (PDF) —
  * the file is the authority on what it reports — else from the caller (XLS has no date).
  */
-function summaryResult(summary, { reportDate, range, headers = [], detected = { date: -1, sales: -1, credit: -1 } }) {
+function summaryResult(summary, { reportDate, range, storeTitle = null, headers = [], detected = { date: -1, sales: -1, credit: -1 } }) {
   const warnings = [];
   let date = reportDate || null;
+  if (range && !range.date) {
+    // A period report (owner, 18/10: "הנה דוחות הפידיון" — 01/10–16/10 per store, to fill the days
+    // before the nightly intake). Its totals cannot be split into days, so it is kept as ONE period
+    // (services/revenueReports.js#importRevenuePeriod) and profitability counts it only for a range
+    // that contains all of it.
+    return {
+      kind: 'period', summary, fileDate: null, storeTitle,
+      period: { from: range.from, to: range.lastDay, ...summaryRow(summary) },
+      rows: [], headers, detected, warnings,
+    };
+  }
   if (range && range.date) {
     if (reportDate && reportDate !== range.date) warnings.push(`בקובץ כתוב ${dmy(range.date)} — הדוח נקלט לתאריך שבקובץ ולא ל-${dmy(reportDate)}.`);
     date = range.date;
-  } else if (range) {
-    date = null; // a multi-day summary cannot be filed under one business day
-    warnings.push(`הדוח מכסה כמה ימים (${dmy(range.from)}–${dmy(range.to)}) — אפשר לקלוט רק דוח של יום אחד.`);
   } else if (!reportDate) {
     warnings.push('דוח יומי מסוכם — הקובץ אינו מכיל תאריך. בחר את תאריך הדוח.');
   }
   return {
-    kind: 'summary', summary, fileDate: range ? range.date : null,
+    kind: 'summary', summary, fileDate: range ? range.date : null, storeTitle,
     rows: date ? [{ date, ...summaryRow(summary) }] : [], headers, detected, warnings,
   };
 }
@@ -314,7 +334,7 @@ export async function parseRevenueReportAny(buf, opts = {}) {
       ? 'קובץ ה-PDF אינו דוח פדיון מוכר (Pidion_A4) — לא נמצאה בו שורת "סה"כ מכירה".'
       : 'בקובץ ה-PDF אין טקסט (כנראה סריקה) — שלח את הדוח מהקופה או את קובץ ה-XLS.');
   }
-  return summaryResult(summary, { reportDate, range: reportRangeFromGrid(grid) });
+  return summaryResult(summary, { reportDate, range: reportRangeFromGrid(grid), storeTitle: pdfStoreTitle(grid) });
 }
 
 function parseTabularOrSummary(all, mapping, reportDate) {
