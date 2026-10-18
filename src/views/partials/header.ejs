@@ -30,7 +30,9 @@
     <span class="nav-title"><%= typeof title !== 'undefined' ? title : '' %></span>
     <span class="spacer"></span>
     <details class="menu navmenu" id="navmenu">
-      <summary class="btn btn-secondary btn-sm">☰ ניווט דפים <span class="caret">▾</span></summary>
+      <%# טלפון (בעלים, 18/10): "במקום ניווט דפים יהיה רשום AP CONTROL — מימין, איפה ש-AP Control עכשיו".
+          הכפתור שפותח את התפריט הוא הלוגו עצמו; הלוגו הנפרד מוסתר בטלפון. במחשב הכפתור מוסתר (הסרגל פתוח). %>
+      <summary class="btn btn-secondary btn-sm" aria-label="ניווט דפים" title="ניווט דפים"><span class="nav-brand navmenu-brand"><span class="mark">AP</span>Control</span> <span class="caret">▾</span></summary>
       <div class="menu-panel">
         <% function nav(key){ return typeof canView !== 'function' || canView(key); } %>
         <% if (nav('nav_dashboard')) { %><a href="/" class="<%= path === '/' ? 'active' : '' %>"><span class="mi-ic">🏠</span>לוח בקרה</a><% } %>

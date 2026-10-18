@@ -1287,6 +1287,16 @@ main.page .page-back { text-align: start !important; }
   .nav-title { display: block; flex: 1 1 auto; min-width: 0; text-align: center; font-weight: 700; font-size: 17px;
     color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .nav .spacer { display: none; }
+  /* כפתור התפריט = "AP Control", מימין (בעלים, 18/10); שם הדף במרכז. רשת ולא flex: הצד השמאלי ריק,
+     והעמודות השוות שומרות את שם הדף במרכז (עמודת הכפתור גדלה רק אם הוא רחב מחציה). */
+  .nav { display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) 1fr; }
+  .nav > .nav-brand { display: none; }
+  .navmenu { grid-column: 1; grid-row: 1; justify-self: start; }
+  .nav-title { grid-column: 2; grid-row: 1; }
+  .navmenu > summary { padding-inline: 10px; }
+  .navmenu-brand { font-size: 15px; gap: 7px; }
+  .navmenu-brand .mark { width: 22px; height: 22px; font-size: 11px; }
+  .navmenu > .menu-panel { inset-inline-start: 0; inset-inline-end: auto; }   /* הכפתור מימין → נפתח פנימה */
   main.page .h1-in-header { display: none; }
   main.page .toolbar:not(:has(> :not(.h1-in-header))) { display: none; }
   body:has(.topbar) main.page { padding-top: var(--space-4); }

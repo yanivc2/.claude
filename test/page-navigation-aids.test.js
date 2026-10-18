@@ -74,3 +74,14 @@ test('"→ חזרה" does not drop when pressed — no transform-based positioni
   assert.ok(!/transform/.test(rule), 'no transform on the back button');
   assert.ok(!/\.store-banner-back \{[^}]*translateY/.test(css));
 });
+
+test('phone: the menu button reads "AP Control" and sits on the right, where the logo was; the page name stays centred (owner, 18/10)', () => {
+  const header = readFileSync(new URL('../src/views/partials/header.ejs', import.meta.url), 'utf8');
+  assert.doesNotMatch(header, /☰ ניווט דפים/);
+  assert.match(header, /<summary class="btn btn-secondary btn-sm" aria-label="ניווט דפים"[^>]*><span class="nav-brand navmenu-brand"><span class="mark">AP<\/span>Control<\/span> <span class="caret">▾<\/span><\/summary>/);
+  const phone = css.slice(css.indexOf('@media (max-width: 999.98px) {\n  .topbar {'));
+  assert.match(phone, /\.nav \{ display: grid; grid-template-columns: minmax\(max-content, 1fr\) minmax\(0, auto\) 1fr; \}/);
+  assert.match(phone, /\.nav > \.nav-brand \{ display: none; \}/, 'no second logo');
+  assert.match(phone, /\.navmenu \{ grid-column: 1; grid-row: 1; justify-self: start; \}/, 'first column = the right side in RTL');
+  assert.match(phone, /\.navmenu > \.menu-panel \{ inset-inline-start: 0; inset-inline-end: auto; \}/, 'opens inward, not off the screen');
+});
