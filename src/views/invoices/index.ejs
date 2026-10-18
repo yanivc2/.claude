@@ -36,7 +36,7 @@
   <thead>
     <%# סדר העמודות מימין לשמאל — בעלים, 17/10. "תאריך חשבונית" = invoices.invoice_date; "תאריך לתשלום" =
         payments.payment_date של התשלום (pay_date) — שני שדות נפרדים, אף פעם לא אותו אחד. %>
-    <tr><th class="no-print" data-nosort>✓</th><th>חנות</th><th>ספק</th><th>מספר חשבונית</th><th>תאריך חשבונית</th><th>אמצעי תשלום</th><th>מספר אסמכתא</th><th>תאריך לתשלום</th><th class="right">סכום לתשלום</th><th>סטטוס</th><% if (invoiceNotesReady) { %><th data-nosort>הערות</th><% } %></tr>
+    <tr><th class="no-print pick-head" data-nosort role="button" tabindex="0" aria-pressed="false" title="הצג רק חשבוניות שאפשר לסמן לתשלום (לחיצה נוספת — הכל)">✓</th><th>חנות</th><th>ספק</th><th>מספר חשבונית</th><th>תאריך חשבונית</th><th>אמצעי תשלום</th><th>מספר אסמכתא</th><th>תאריך לתשלום</th><th class="right">סכום לתשלום</th><th>סטטוס</th><% if (invoiceNotesReady) { %><th data-nosort>הערות</th><% } %></tr>
   </thead>
   <tbody>
     <% if (invoices.length === 0) { %>
@@ -66,7 +66,7 @@
         // Selectable for a combined payment: payable (recorded/approved) and not already paid.
         var selectable = (i.status === 'recorded' || i.status === 'approved_for_payment') && !i.pay_method && !(i.cash_matches > 0);
       %>
-      <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= rowCls %>">
+      <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= rowCls %><%= selectable ? '' : ' not-pickable' %>">
         <%# בחירה לתשלום מרוכז (בעלים, 18/10: "הסימון קטן מדי, ובסלולרי לפעמים צריך ללחוץ פעמיים"): תיבה גדולה,
             וכל התא מסמן — לחיצה ליד התיבה נבלעה עד עכשיו ב-stopPropagation ולא עשתה כלום. לא <label>: הוא
             היה מסמן פעמיים יחד עם הטיפול של התא. %>
@@ -208,6 +208,19 @@
       } else { bar.hidden = true; }
     }
     boxes.forEach(function(b){ b.addEventListener('change', refresh); });
+    // "✓" בראש העמודה (בעלים, 18/10): מסנן לחשבוניות שאפשר לסמן לתשלום; לחיצה נוספת — הכל. שורה שאי אפשר
+    // לסמן נושאת not-pickable מהשרת, וה-CSS מסתיר אותה — כך זה מצטבר למסנני העמודות ולמיון.
+    var head = document.querySelector('th.pick-head');
+    if (head) {
+      var table = head.closest('table');
+      var flip = function () {
+        var on = !table.classList.contains('only-pickable');
+        table.classList.toggle('only-pickable', on);
+        head.setAttribute('aria-pressed', String(on));
+      };
+      head.addEventListener('click', flip);
+      head.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); } });
+    }
     document.getElementById('payClear').addEventListener('click', function(){ boxes.forEach(function(b){ b.checked = false; }); refresh(); });
     document.getElementById('payBtn').addEventListener('click', function(){
       var sel = picked(); if (!sel.length) return;

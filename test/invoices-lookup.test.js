@@ -86,3 +86,22 @@ test('the URL still filters: supplier name, invoice-date range (flipped when rev
   assert.deepEqual(found(await page('?unpaid=1')), ['6001', '6002', '6003']);
   assert.deepEqual(found(await page('?status=paid&unpaid=1')), [], 'unpaid-only adds to the status filter');
 });
+
+test('"✓" at the head of the pick column filters to the invoices that can be picked; again = all (owner, 18/10)', async () => {
+  const html = await page();
+  assert.match(html, /<th class="no-print pick-head" data-nosort role="button" tabindex="0" aria-pressed="false"/);
+  const rows = html.match(/<tr onclick="location='\/invoices\/\d+'"[^>]*>/g) || [];
+  assert.ok(rows.length >= 3 && rows.every((r) => !/not-pickable/.test(r)), 'unpaid invoices stay visible under the filter');
+  const view = readFileSync(new URL('../src/views/invoices/index.ejs', import.meta.url), 'utf8');
+  assert.match(view, /class="<%= rowCls %><%= selectable \? '' : ' not-pickable' %>"/, 'the server marks what cannot be picked');
+  assert.match(view, /table\.classList\.toggle\('only-pickable', on\);/);
+  const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
+  assert.match(css, /table\.only-pickable tbody tr\.not-pickable \{ display: none; \}/);
+  assert.match(css, /th\.pick-head\[aria-pressed="true"\] \{ background: var\(--color-accent\); color: #fff; \}/);
+});
+
+test('every table: the column-title row is bold, dark and tinted; the filter row under it stays quiet (owner, 18/10)', () => {
+  const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
+  assert.match(css, /thead tr:not\(\.filter-row\) th \{\n  color: var\(--color-text\); font-weight: 700; font-size: 13px;/);
+  assert.match(css, /border-bottom: 2px solid color-mix\(in srgb, var\(--color-accent\) 45%, var\(--color-line\)\);/);
+});

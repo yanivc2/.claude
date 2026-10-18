@@ -1366,3 +1366,17 @@ main.page .page-back { text-align: start !important; }
   body:has(.topbar) main.page .h1-in-header { display: none; }
   body:has(.topbar) main.page .toolbar:not(:has(> :not(.h1-in-header))) { display: none; }
 }
+
+/* ── שורת הכותרות של כל טבלה (בעלים, 18/10: "שיהיה יותר מודגש וויזואלי", בכל הטבלאות) — מודגשת, כהה ועל רקע
+   בגוון האפליקציה, עם קו תחתון חזק; שורת המסננים שמתחתיה נשארת שקטה. רק ב-<thead> (לא th של שורה בגוף). */
+thead tr:not(.filter-row) th {
+  color: var(--color-text); font-weight: 700; font-size: 13px; letter-spacing: 0;
+  background: color-mix(in srgb, var(--color-accent) 9%, var(--color-surface));
+  border-bottom: 2px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-line));
+  padding-block: 11px;
+}
+/* "✓" בטבלת החשבוניות — כפתור סינון: רק מה שאפשר לסמן לתשלום (views/invoices/index.ejs). */
+th.pick-head { cursor: pointer; user-select: none; font-size: 16px; }
+th.pick-head:hover { background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface)); }
+th.pick-head[aria-pressed="true"] { background: var(--color-accent); color: #fff; }
+table.only-pickable tbody tr.not-pickable { display: none; }

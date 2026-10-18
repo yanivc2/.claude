@@ -188,3 +188,10 @@ test('held AND flagged by hand: it stays after the hold is released (the manual 
   const rows = await listTracked({}, db);
   assert.ok(rows.some((x) => x.id === held.id));
 });
+
+test('the page has no separate "חיפוש" card any more — filtering is the table\'s own (owner, 18/10)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const view = readFileSync(new URL('../src/views/tracked/index.ejs', import.meta.url), 'utf8').replace(/<%#[\s\S]*?%>/g, '');
+  assert.doesNotMatch(view, /action="\/tracked-invoices">\s*<h2[^>]*>חיפוש<\/h2>/);
+  assert.doesNotMatch(view, /נקה חיפוש/);
+});

@@ -7,25 +7,8 @@
   <% if (notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
   <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
-  <%# חיפוש בראש הדף — צמצום השרת. הסינון לכל עמודה בטבלה עצמה הוא כלי אחר: הוא עובד על מה
-      שכבר מוצג, בלי סבב לשרת. השניים משלימים ולא מתחרים. %>
-  <form class="card" method="get" action="/tracked-invoices">
-    <h2 style="margin:0 0 .5rem">חיפוש</h2>
-    <div class="row">
-      <div><label>ספק</label><input name="supplier" value="<%= filters.supplier %>" autocomplete="off" placeholder="שם הספק" /></div>
-      <%# inputmode="numeric" — בנייד נפתחת מקלדת מספרים לשדות שהם מספר, ולא מקלדת מלאה. %>
-      <div><label>מספר חשבונית</label><input name="number" value="<%= filters.number %>" inputmode="numeric" autocomplete="off" /></div>
-      <div><label>סכום (₪)</label><input name="amount" value="<%= filters.amount %>" inputmode="decimal" autocomplete="off" placeholder="סכום מדויק" /></div>
-    </div>
-    <div class="row" style="margin-top:.5rem">
-      <div><label>מתאריך</label><input type="date" name="from" value="<%= filters.from %>" /></div>
-      <div><label>עד תאריך</label><input type="date" name="to" value="<%= filters.to %>" /></div>
-    </div>
-    <div class="actions" style="margin-top:.6rem">
-      <button type="submit">חפש</button>
-      <% if (filtered) { %><a class="btn btn-secondary" href="/tracked-invoices">נקה חיפוש</a><% } %>
-    </div>
-  </form>
+  <%# כרטיס "חיפוש" שהיה כאן הוסר (בעלים, 18/10: "גם את טבלת החיפוש הזאת מחק") — הסינון הוא בטבלה עצמה. הכתובת
+      עדיין מסננת בשרת (supplier/number/amount/from/to — routes/trackedInvoices.js). %>
 
   <div class="card">
     <div class="toolbar" style="align-items:center;margin:0 0 .4rem">

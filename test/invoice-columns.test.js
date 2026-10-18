@@ -29,7 +29,8 @@ const cellsOf = (html, marker) => {
 
 test('column order (right → left) and "סטטוס" instead of "שולם"', async () => {
   const html = await (await fetch(`${base}/invoices`, { headers: { cookie: `session=${createSession(ow.id)}; ap_store=${store.id}` } })).text();
-  const head = html.match(/<tr><th class="no-print" data-nosort>✓<\/th>([\s\S]*?)<\/tr>/)[1];
+  // "✓" is also the "only what can be picked" filter (owner, 18/10) — its own attributes don't matter here.
+  const head = html.match(/<tr><th class="no-print pick-head"[^>]*>✓<\/th>([\s\S]*?)<\/tr>/)[1];
   const names = [...head.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
   assert.deepEqual(names.slice(0, 9), ['חנות', 'ספק', 'מספר חשבונית', 'תאריך חשבונית', 'אמצעי תשלום', 'מספר אסמכתא', 'תאריך לתשלום', 'סכום לתשלום', 'סטטוס']);
   assert.ok(!names.includes('שולם'));
