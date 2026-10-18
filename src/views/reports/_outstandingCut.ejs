@@ -1,0 +1,33 @@
+<%#
+  "חתך לפי תאריך פירעון" של צ׳קים בחוץ — הכל / חתך תאריכים / חתך חודשים. מוצג בכותרת "פירוט צ׳קים שלא
+  נפרעו" כשנבחר חשבון, ובכרטיס משלו בראש הדף כשלא (reports/outstanding.ejs). ocShowCut מוגדר שם.
+  locals: allLink (+ months, cut, from, to, selMonths, detailAccountId של הדף).
+%>
+  <label class="lbl" style="margin:0 0 .5rem">חתך לפי תאריך פירעון</label>
+  <div class="actions" style="flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem">
+    <a class="chip <%= cut === 'all' ? 'active' : '' %>" href="<%= allLink %>">הכל</a>
+    <button type="button" class="chip <%= cut === 'date' ? 'active' : '' %>" onclick="ocShowCut('date')">חתך תאריכים</button>
+    <button type="button" class="chip <%= cut === 'months' ? 'active' : '' %>" onclick="ocShowCut('months')">חתך חודשים</button>
+  </div>
+
+  <form method="get" action="/reports/outstanding" id="oc-date" class="oc-cut no-enhance" style="<%= cut === 'date' ? '' : 'display:none' %>">
+    <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
+    <input type="hidden" name="cut" value="date" />
+    <div class="row">
+      <div><label>מתאריך</label><input type="date" name="from" value="<%= from || '' %>" /></div>
+      <div><label>עד תאריך</label><input type="date" name="to" value="<%= to || '' %>" /></div>
+    </div>
+    <div style="margin-top:.5rem"><button type="submit">הצג</button></div>
+  </form>
+
+  <form method="get" action="/reports/outstanding" id="oc-months" class="oc-cut" style="<%= cut === 'months' ? '' : 'display:none' %>">
+    <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
+    <input type="hidden" name="cut" value="months" />
+    <p class="muted" style="margin:0 0 .5rem">סמן אילו חודשים להציג (רק חודשים שיש בהם צ׳קים פתוחים):</p>
+    <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.6rem">
+      <% months.forEach(function(mo){ %>
+        <label style="display:flex;align-items:center;gap:5px;margin:0"><input type="checkbox" name="months" value="<%= mo.value %>" style="width:auto;min-height:0" <%= (selMonths || []).includes(mo.value) ? 'checked' : '' %> /> <%= mo.label %></label>
+      <% }); %>
+    </div>
+    <button type="submit">הצג נבחרים</button>
+  </form>

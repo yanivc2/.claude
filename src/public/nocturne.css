@@ -1405,3 +1405,7 @@ th.pick-head { cursor: pointer; user-select: none; font-size: 16px; }
 th.pick-head:hover { background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface)); }
 th.pick-head[aria-pressed="true"] { background: var(--color-accent); color: #fff; }
 table.only-pickable tbody tr.not-pickable { display: none; }
+/* צ׳קים בחוץ: חתך התאריכים בכותרת "פירוט צ׳קים שלא נפרעו", משמאל לה (בעלים 18/10). */
+.oc-detail-head { align-items: flex-start; }
+.oc-cut-box { display: flex; flex-direction: column; align-items: center; }
+.oc-cut-box .oc-cut { width: 100%; }

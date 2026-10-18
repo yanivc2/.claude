@@ -18,48 +18,22 @@ function cutQS(){
   return p.length ? '&' + p.join('&') : '';
 }
 %>
-<% if (months && months.length) { %>
-<div class="card no-print">
-  <label class="lbl" style="margin:0 0 .5rem">חתך לפי תאריך פירעון</label>
-  <div class="actions" style="flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem">
-    <a class="chip <%= cut === 'all' ? 'active' : '' %>" href="<%= ocAllLink() %>">הכל</a>
-    <button type="button" class="chip <%= cut === 'date' ? 'active' : '' %>" onclick="ocShowCut('date')">חתך תאריכים</button>
-    <button type="button" class="chip <%= cut === 'months' ? 'active' : '' %>" onclick="ocShowCut('months')">חתך חודשים</button>
-  </div>
-
-  <form method="get" action="/reports/outstanding" id="oc-date" class="oc-cut no-enhance" style="<%= cut === 'date' ? '' : 'display:none' %>">
-    <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
-    <input type="hidden" name="cut" value="date" />
-    <div class="row">
-      <div><label>מתאריך</label><input type="date" name="from" value="<%= from || '' %>" /></div>
-      <div><label>עד תאריך</label><input type="date" name="to" value="<%= to || '' %>" /></div>
-    </div>
-    <div style="margin-top:.5rem"><button type="submit">הצג</button></div>
-  </form>
-
-  <form method="get" action="/reports/outstanding" id="oc-months" class="oc-cut" style="<%= cut === 'months' ? '' : 'display:none' %>">
-    <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
-    <input type="hidden" name="cut" value="months" />
-    <p class="muted" style="margin:0 0 .5rem">סמן אילו חודשים להציג (רק חודשים שיש בהם צ׳קים פתוחים):</p>
-    <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.6rem">
-      <% months.forEach(function(mo){ %>
-        <label style="display:flex;align-items:center;gap:5px;margin:0"><input type="checkbox" name="months" value="<%= mo.value %>" style="width:auto;min-height:0" <%= (selMonths || []).includes(mo.value) ? 'checked' : '' %> /> <%= mo.label %></label>
-      <% }); %>
-    </div>
-    <button type="submit">הצג נבחרים</button>
-  </form>
-</div>
+<%# "חתך לפי תאריך פירעון" (reports/_outstandingCut.ejs) — כשנבחר חשבון הוא יושב בכותרת "פירוט צ׳קים שלא
+    נפרעו", במקום "ייצוא CSV מפורט" (בעלים 18/10); בלי חשבון נבחר אין כותרת כזו, ולכן הוא נשאר כאן. %>
+<% if (months && months.length && !detailAccountId) { %>
+<div class="card no-print"><%- include('_outstandingCut', { allLink: ocAllLink() }) %></div>
+<% } %>
 <script>
   function ocShowCut(m){
     document.querySelectorAll('.oc-cut').forEach(function(f){ f.style.display = 'none'; });
     var el = document.getElementById('oc-' + m); if (el) el.style.display = '';
   }
 </script>
-<% } %>
 
 <div class="card">
   <% if (month) { %><p class="muted" style="margin:0 0 .6rem">מציג צ׳קים שתאריך פירעונם ב־<strong><%= (months.find(function(x){return x.value===month;})||{}).label || month %></strong>.</p><% } %>
-  <table>
+  <%# בלי "חיפוש בטבלה…" בשתי הטבלאות בדף (בעלים 18/10: "למחוק"). %>
+  <table class="no-search">
     <thead>
       <tr><th>חברה</th><th>חנות / חשבון</th><th class="right">צ׳קים פתוחים</th><th class="right">סכום בחוץ</th><th class="no-print">ייצוא</th></tr>
     </thead>
@@ -99,9 +73,11 @@ function cutQS(){
      var _withCand = 0, _unique = 0;
      detail.forEach(function(r){ var m = _bm.get(Number(r.paymentId)); if (m && m.candidates.length) { _withCand += 1; if (m.unique) _unique += 1; } }); %>
   <div class="card">
-    <div class="toolbar">
-      <h2 style="margin:0">פירוט צ׳קים שלא נפרעו — החשבון הנבחר</h2>
-      <a class="btn secondary no-print" href="/reports/outstanding-detail.csv?account=<%= detailAccountId %><%= cutQS() %>">ייצוא CSV מפורט</a>
+    <%# בעלים 18/10: בלי "— החשבון הנבחר"; משמאל לכותרת — חתך התאריכים במקום "ייצוא CSV מפורט". הקובץ
+        המפורט עדיין זמין מ"ייצוא ▾ ← 📄 ייצוא CSV" בשורת החשבון (אותה כתובת בדיוק). %>
+    <div class="toolbar oc-detail-head">
+      <h2 style="margin:0">פירוט צ׳קים שלא נפרעו</h2>
+      <% if (months && months.length) { %><div class="oc-cut-box no-print"><%- include('_outstandingCut', { allLink: ocAllLink() }) %></div><% } %>
     </div>
     <%# "התאמה לפי סכום": חיוב בבנק באותו סכום שעוד לא הותאם (services/reports.js#outstandingBankCandidates).
         הצעה בלבד — סכום זהה לבדו אינו הוכחה, ולכן ההתאמה בלחיצה. %>
@@ -119,7 +95,9 @@ function cutQS(){
         <span>🔎 לא נמצא חיוב בבנק באותו סכום לאף צ׳ק פתוח בחשבון הזה (בדף הבנק שיובא עד היום).</span>
       <% } %>
     </div>
-    <table class="sortable">
+    <%# גלילה בתוך הטבלה: 11 עמודות — בלי העטיפה הדף כולו נמתח ל-922px בטלפון ונגרר הצידה. %>
+    <div class="table-scroll">
+    <table class="sortable no-search">
       <thead>
         <tr>
           <th>ספק</th><th>מס' חשבונית</th><th>תאריך חשבונית</th><th class="right">סכום חשבונית</th>
@@ -179,6 +157,7 @@ function cutQS(){
         <% }); %>
       </tbody>
     </table>
+    </div>
     <% if (currentUser.role !== 'owner') { %><p class="muted no-print">עריכת חשבוניות זמינה לבעלים בלבד.</p><% } %>
   </div>
 <% } %>
