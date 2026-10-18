@@ -1,11 +1,10 @@
 <%#
-  טופס החיפוש של לוח הבקרה ושל דף החשבוניות — אותו טופס בשני הדפים (בעלים, 18/10: "נחליף את שדה החיפוש
-  לכזה"). שלוש עמודות: מימין שם ספק מעל מספר, באמצע מתאריך מעל עד תאריך (תאריך החשבונית), משמאל כפתור
-  החיפוש ומתחתיו "לא שולמו בלבד" — ובדף החשבוניות גם "נקה" מתחתיו (בעלים בחר).
-  lk = { action, name, q, from, to, unpaid, qPlaceholder, submit, names, hidden: {k: v}, clearHref }
+  טופס החיפוש של לוח הבקרה ("בדיקת חשבונית"). שלוש עמודות: מימין שם ספק מעל מספר, באמצע מתאריך מעל עד
+  תאריך (תאריך החשבונית), משמאל כפתור החיפוש ומתחתיו "לא שולמו בלבד". (היה גם בדף החשבוניות — הוסר שם,
+  בעלים 18/10.)
+  lk = { action, name, q, from, to, unpaid, qPlaceholder, submit, names }
 %>
 <form method="get" action="<%= lk.action %>" class="lookup-form">
-  <% Object.keys(lk.hidden || {}).forEach(function (k) { if (lk.hidden[k]) { %><input type="hidden" name="<%= k %>" value="<%= lk.hidden[k] %>" /><% } }); %>
   <div class="lookup-col lookup-terms">
     <%# הצעות שמצטמצמות עם כל אות; בחירה מחפשת מיד (footer.ejs#data-suggest). %>
     <input name="name" value="<%= lk.name || '' %>" placeholder="שם ספק" autocomplete="off" aria-label="חיפוש לפי שם ספק" data-suggest="sup-names" data-suggest-submit />
@@ -16,9 +15,8 @@
     <input type="date" name="from" value="<%= lk.from || '' %>" placeholder="מתאריך" aria-label="מתאריך (תאריך חשבונית)" />
     <input type="date" name="to" value="<%= lk.to || '' %>" placeholder="עד תאריך" aria-label="עד תאריך (תאריך חשבונית)" />
   </div>
-  <div class="lookup-go<%= lk.clearHref ? ' has-clear' : '' %>">
+  <div class="lookup-go">
     <button type="submit"><%= lk.submit %></button>
     <label class="lookup-unpaid"><input type="checkbox" name="unpaid" value="1" <%= lk.unpaid ? 'checked' : '' %> /> לא שולמו בלבד</label>
-    <% if (lk.clearHref) { %><a href="<%= lk.clearHref %>" class="btn btn-secondary btn-sm lookup-clear">נקה</a><% } %>
   </div>
 </form>

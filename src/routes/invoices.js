@@ -137,8 +137,8 @@ async function batchContext(supplierId, storeId, scope) {
 router.get('/', async (req, res, next) => {
   try {
     const q = (req.query.q || '').trim();
-    // אריח החיפוש (בעלים, 18/10 — partials/_lookupForm.ejs): שם ספק בשדה משלו, "לא שולמו בלבד", וטווח
-    // תאריכי חשבונית (מ > עד מתהפך). ?supplier=<id> עדיין נתמך בכתובת, אבל הטופס כבר לא שולח אותו.
+    // שם ספק, "לא שולמו בלבד" וטווח תאריכי חשבונית (מ > עד מתהפך) — נתמכים בכתובת. אריח החיפוש שהציג
+    // אותם בדף הוסר (בעלים, 18/10); החיפוש בדף הוא זה שעל הטבלה.
     const name = (req.query.name || '').trim();
     const unpaidOnly = req.query.unpaid === '1';
     const supplierId = req.query.supplier ? Number(req.query.supplier) : null;
@@ -152,10 +152,6 @@ router.get('/', async (req, res, next) => {
       title: 'חשבוניות',
       topMenu: '_newInvoiceMenu',
       invoices: await listInvoices({ status: req.query.status || null, scope: req.scope, supplierId, storeId, q, name, unpaidOnly, from, to }),
-      name,
-      unpaidOnly,
-      // הצעות לשדה "שם ספק" — הספקים שבתחום החנות הפעילה (כמו בלוח הבקרה).
-      supplierNames: [...new Set(suppliers.map((s) => s.name).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he')),
       filter: req.query.status || '',
       q,
       supplierId,

@@ -37,14 +37,8 @@
 <%# "הוצאות מזומן (מסגירות Z)" הוסרה מדף החשבוניות (בעלים, 18/10: "את זה לבטל"). ההתאמה לחשבונית, "✓ טופל"
     וביטול נעשים בטבלת "שולם מהפדיון — יש להתאים" בלוח הבקרה ובמרקורים (partials/_unmatchedCash.ejs). %>
 
-<%# חיפוש (בעלים, 18/10): אותו אריח של לוח הבקרה — partials/_lookupForm.ejs; הכפתור "חיפוש" (לא "סנן"), ו"נקה"
-    מתחת ל"לא שולמו בלבד". סינון הסטטוס ("סינון · …") נשמר ב-status. %>
-<div class="card lookup-card no-print">
-  <div class="lookup-title">🔎 חיפוש חשבונית</div>
-  <%- include('../partials/_lookupForm', { lk: { action: '/invoices', name: name, q: q, from: from, to: to, unpaid: unpaidOnly,
-        qPlaceholder: 'מספר חשבונית / הקצאה', submit: 'חיפוש', names: supplierNames, hidden: { status: filter },
-        clearHref: '/invoices' + (filter ? '?status=' + filter : '') } }) %>
-</div>
+<%# אריח החיפוש שהיה כאן הוסר (בעלים, 18/10: "בטל את זה") — החיפוש בדף הוא "חיפוש בטבלה…" ומסנני העמודות
+    שעל הטבלה עצמה. הכתובת עדיין מכבדת name/q/from/to/unpaid (listInvoices). %>
 
 <div class="table-scroll">
 <table class="sortable">
@@ -82,9 +76,12 @@
         var selectable = (i.status === 'recorded' || i.status === 'approved_for_payment') && !i.pay_method && !(i.cash_matches > 0);
       %>
       <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= rowCls %>">
-        <td class="no-print" onclick="event.stopPropagation()">
+        <%# בחירה לתשלום מרוכז (בעלים, 18/10: "הסימון קטן מדי, ובסלולרי לפעמים צריך ללחוץ פעמיים"): תיבה גדולה,
+            וכל התא מסמן — לחיצה ליד התיבה נבלעה עד עכשיו ב-stopPropagation ולא עשתה כלום. לא <label>: הוא
+            היה מסמן פעמיים יחד עם הטיפול של התא. %>
+        <td class="no-print inv-pick-cell" onclick="event.stopPropagation(); if (event.target.classList.contains('inv-pick')) return; var c = this.querySelector('.inv-pick'); if (c && !c.disabled) { c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true })); }">
           <% if (selectable) { %>
-            <input type="checkbox" class="inv-pick" style="width:auto;min-height:0"
+            <input type="checkbox" class="inv-pick" aria-label="סמן לתשלום מרוכז"
               data-id="<%= i.id %>" data-sup="<%= i.supplier_id %>" data-store="<%= i.store_id %>"
               data-supname="<%= i.supplier_name %>" data-amount="<%= i.total_amount %>" />
           <% } %>

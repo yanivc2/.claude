@@ -638,8 +638,9 @@
       menu.appendChild(xls); menu.appendChild(csv); menu.appendChild(pdf);
       exportWrap.appendChild(exportBtn); exportWrap.appendChild(menu);
       tools.appendChild(search); tools.appendChild(count);
-      var spacer = document.createElement('span'); spacer.style.marginInlineStart = 'auto'; tools.appendChild(spacer);
-      tools.appendChild(exportWrap);
+      // "ייצוא" מתחת לטבלה, בשורה משלו (בעלים, 18/10: "את כפתור הייצוא שים למטה" — בכל הטבלאות).
+      var foot = document.createElement('div'); foot.className = 'tbl-foot no-print';
+      foot.appendChild(exportWrap);
 
       function closeMenu() { menu.hidden = true; exportBtn.setAttribute('aria-expanded', 'false'); }
       exportBtn.addEventListener('click', function (e) {
@@ -653,9 +654,10 @@
       document.addEventListener('click', function (e) { if (!exportWrap.contains(e.target)) closeMenu(); });
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
 
-      // place the toolbar just before the table (or its scroll wrapper)
+      // the search row just before the table (or its scroll wrapper), the export row just after it
       var anchor = table.closest('.table-scroll') || table;
       anchor.parentNode.insertBefore(tools, anchor);
+      anchor.parentNode.insertBefore(foot, anchor.nextSibling);
 
       var rows = dataRows(table.tBodies[0]);
 
