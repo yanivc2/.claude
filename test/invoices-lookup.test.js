@@ -27,12 +27,24 @@ after(() => server && server.close());
 const page = async (qs = '') => (await fetch(`${base}/invoices${qs}`, { headers: { cookie: `session=${createSession(o.id)}; ap_store=${st.id}` } })).text();
 const found = (html) => ['6001', '6002', '6003'].filter((n) => html.includes(`>${n}<`));
 
-test('no search tile on the invoices page (owner removed it); the table carries the search', async () => {
+test('above the list: no search tile, no "סינון · …", no hint line, no "חיפוש בטבלה…" — only the column filters (owner, 18/10)', async () => {
   const html = await page();
   assert.doesNotMatch(html, /class="lookup-form"/);
   assert.doesNotMatch(html, />סנן</);
   assert.doesNotMatch(html, /filt-toggle/, 'the old checkbox panel is gone too');
-  assert.match(html, /<table class="sortable">/, 'the enhanced table (search + column filters) is there');
+  assert.doesNotMatch(html, /סינון · /, 'no status menu');
+  assert.doesNotMatch(html, /לחיצה על שורה פותחת את פרטי החשבונית/, 'no hint line');
+  assert.match(html, /<table class="sortable no-search" data-export-into="payExport">/, 'no free-text search row; export goes to the bottom bar');
+  assert.match(html, /<h1>חשבוניות<\/h1>/);
+  assert.match(await page('?status=on_hold'), /<h1>חשבוניות · מוחזקות<\/h1>/, 'a ?status= link still filters, and the title says so');
+});
+
+test('"ייצוא" of the invoices table sits in the bottom bar, before "בטל בחירה" (owner, 18/10)', async () => {
+  const html = await page();
+  const bar = html.slice(html.indexOf('id="payBar"'), html.indexOf('</div>', html.indexOf('id="payClear"')));
+  assert.ok(bar.indexOf('<span id="payExport"></span>') > 0 && bar.indexOf('<span id="payExport"></span>') < bar.indexOf('id="payClear"'), 'the slot comes first in the button group');
+  const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
+  assert.match(css, /\.tbl-foot \.tbl-export-menu, \.pay-bar \.tbl-export-menu \{ top: auto; bottom: calc\(100% \+ 4px\);/, 'opens upward there too');
 });
 
 test('picking an invoice for a combined payment: a big box, and the whole cell toggles it (one tap)', async () => {
@@ -48,11 +60,12 @@ test('picking an invoice for a combined payment: a big box, and the whole cell t
 test('"ייצוא" sits under every table, in its own centred row; the menu opens upward (owner, 18/10)', () => {
   const footer = readFileSync(new URL('../src/views/partials/footer.ejs', import.meta.url), 'utf8');
   assert.match(footer, /var foot = document\.createElement\('div'\); foot\.className = 'tbl-foot no-print';\n\s*foot\.appendChild\(exportWrap\);/);
-  assert.match(footer, /anchor\.parentNode\.insertBefore\(tools, anchor\);\n\s*anchor\.parentNode\.insertBefore\(foot, anchor\.nextSibling\);/);
+  assert.match(footer, /if \(!table\.classList\.contains\('no-search'\)\) anchor\.parentNode\.insertBefore\(tools, anchor\);/, 'search above (unless no-search)');
+  assert.match(footer, /if \(exportSlot\) exportSlot\.appendChild\(exportWrap\);\n\s*else anchor\.parentNode\.insertBefore\(foot, anchor\.nextSibling\);/, 'export below, or into the element the table names');
   assert.doesNotMatch(footer, /tools\.appendChild\(exportWrap\)/, 'not in the search row any more');
   const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
   assert.match(css, /\.tbl-foot \{ display: flex; justify-content: center;/);
-  assert.match(css, /\.tbl-foot \.tbl-export-menu \{ top: auto; bottom: calc\(100% \+ 4px\);/);
+  assert.match(css, /\.tbl-foot \.tbl-export-menu, \.pay-bar \.tbl-export-menu \{ top: auto; bottom: calc\(100% \+ 4px\);/);
 });
 
 test('"+ חשבונית חדשה" sits in the header row (right side, after "→ חזרה"), not in the page toolbar', async () => {

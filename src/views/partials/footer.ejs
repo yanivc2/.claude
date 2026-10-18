@@ -656,8 +656,13 @@
 
       // the search row just before the table (or its scroll wrapper), the export row just after it
       var anchor = table.closest('.table-scroll') || table;
-      anchor.parentNode.insertBefore(tools, anchor);
-      anchor.parentNode.insertBefore(foot, anchor.nextSibling);
+      // class="no-search": בלי שורת "חיפוש בטבלה…" (דף החשבוניות, בעלים 18/10); מסנני העמודות נשארים.
+      if (!table.classList.contains('no-search')) anchor.parentNode.insertBefore(tools, anchor);
+      // data-export-into="<id>": "ייצוא" נכנס לאלמנט הזה (בדף החשבוניות — הסרגל שלמטה, לפני "בטל בחירה";
+      // בעלים 18/10) במקום שורה משלו מתחת לטבלה.
+      var exportSlot = table.getAttribute('data-export-into') && document.getElementById(table.getAttribute('data-export-into'));
+      if (exportSlot) exportSlot.appendChild(exportWrap);
+      else anchor.parentNode.insertBefore(foot, anchor.nextSibling);
 
       var rows = dataRows(table.tBodies[0]);
 

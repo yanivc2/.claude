@@ -13,26 +13,17 @@
     <a class="btn secondary small" href="/invoices/new">➕ חשבונית חדשה</a>
   </div>
 <% } %>
+<%# בעלים, 18/10 ("בטל את זה"): בלי כפתור "סינון · …", בלי שורת ההסבר ובלי "חיפוש בטבלה…" — סינון הסטטוס הוא
+    המסנן של עמודת "סטטוס" בטבלה. ?status= (למשל מאריח "חשבוניות מוחזקות" בלוח) עדיין מסנן בשרת, ולכן שם הסינון
+    נכתב בכותרת — אחרת רשימה מסוננת נראית כמו כל הרשימה. %>
 <div class="toolbar">
-  <h1>חשבוניות</h1>
-  <div class="actions no-print">
-    <details class="menu">
-      <summary class="btn btn-secondary">סינון · <%= filterLabel %> <span class="caret">▾</span></summary>
-      <div class="menu-panel">
-        <a href="/invoices" class="<%= !filter ? 'active' : '' %>">הכל</a>
-        <a href="/invoices?status=recorded" class="<%= filter === 'recorded' ? 'active' : '' %>">נרשמו</a>
-        <a href="/invoices?status=on_hold" class="<%= filter === 'on_hold' ? 'active' : '' %>">מוחזקות</a>
-        <a href="/invoices?status=approved_for_payment" class="<%= filter === 'approved_for_payment' ? 'active' : '' %>">מאושרות לתשלום</a>
-        <a href="/invoices?status=unpaid" class="<%= filter === 'unpaid' ? 'active' : '' %>">לא שולמו</a>
-        <a href="/invoices?status=paid" class="<%= filter === 'paid' ? 'active' : '' %>">שולמו</a>
-      </div>
-    </details>
-    <%# "+ חשבונית חדשה" עבר לשורת הכותרת, משמאל ל"→ חזרה" (בעלים, 18/10 — partials/_newInvoiceMenu.ejs). רק בלי
-        שורת כותרת (משתמש בלי חנויות) הוא נשאר כאן, כדי שלא ייעלם. %>
-    <% if (!(typeof availableStores !== 'undefined' && availableStores && availableStores.length)) { %><%- include('../partials/_newInvoiceMenu') %><% } %>
-  </div>
+  <h1>חשבוניות<%= filter ? ' · ' + filterLabel : '' %></h1>
+  <%# "+ חשבונית חדשה" בשורת הכותרת, משמאל ל"→ חזרה" (partials/_newInvoiceMenu.ejs). רק בלי שורת כותרת (משתמש
+      בלי חנויות) הוא נשאר כאן, כדי שלא ייעלם. %>
+  <% if (!(typeof availableStores !== 'undefined' && availableStores && availableStores.length)) { %>
+  <div class="actions no-print"><%- include('../partials/_newInvoiceMenu') %></div>
+  <% } %>
 </div>
-<p class="muted no-print" style="margin:.2rem 0">לחיצה על שורה פותחת את פרטי החשבונית. חשבונית מוחזקת (חסרה הקצאה) מסומנת באדום.</p>
 
 <%# "הוצאות מזומן (מסגירות Z)" הוסרה מדף החשבוניות (בעלים, 18/10: "את זה לבטל"). ההתאמה לחשבונית, "✓ טופל"
     וביטול נעשים בטבלת "שולם מהפדיון — יש להתאים" בלוח הבקרה ובמרקורים (partials/_unmatchedCash.ejs). %>
@@ -41,7 +32,7 @@
     שעל הטבלה עצמה. הכתובת עדיין מכבדת name/q/from/to/unpaid (listInvoices). %>
 
 <div class="table-scroll">
-<table class="sortable">
+<table class="sortable no-search" data-export-into="payExport">
   <thead>
     <%# סדר העמודות מימין לשמאל — בעלים, 17/10. "תאריך חשבונית" = invoices.invoice_date; "תאריך לתשלום" =
         payments.payment_date של התשלום (pay_date) — שני שדות נפרדים, אף פעם לא אותו אחד. %>
@@ -186,6 +177,8 @@
 <div id="payBar" class="pay-bar no-print" hidden>
   <span>נבחרו <strong id="payCount">0</strong> חשבוניות · ספק <strong id="paySup"></strong> · נטו לתשלום <strong id="payNet">₪0.00</strong></span>
   <div style="display:flex;gap:.5rem;margin-inline-start:auto">
+    <%# "ייצוא" של הטבלה נכנס לכאן (footer.ejs, data-export-into) — לפני "בטל בחירה" (בעלים, 18/10). %>
+    <span id="payExport"></span>
     <button type="button" id="payClear" class="btn btn-secondary btn-sm">בטל בחירה</button>
     <button type="button" id="payBtn" class="btn btn-primary btn-sm">💳 הנפק תשלום לנבחרים</button>
   </div>

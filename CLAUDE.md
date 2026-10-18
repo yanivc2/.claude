@@ -161,7 +161,7 @@ happen only at merge. So:
   as the submitted value + enforce required on submit. (3) **collapsible rubrics** — every `.card` with a
   direct `<h2>` becomes collapsible (accordion: opening one closes the others on the page; state in
   localStorage); skips `<details>`, `.no-collapse`, and cards with a `[required]` control; the saved state is keyed by the h2 text — a heading carrying a changing count needs `data-ckey`. Also handles
-  `<details data-accordion="grp">`. (4) **שחזור גלילה + רשימות פתוחות** — **כל** טופס POST שומר את מיקום הגלילה **ואת מצב ה-`<details>`**
+  `<details data-accordion="grp">`. Tables get search above + "ייצוא" below (`no-search`, `data-export-into` switch them). (4) **שחזור גלילה + רשימות פתוחות** — **כל** טופס POST שומר את מיקום הגלילה **ואת מצב ה-`<details>`**
   ומשחזר אחרי ה-PRG (חזרה לאותו נתיב בלבד), כך שפעולה לא מקפיצה לראש הדף ולא מכווצת טבלה.  (5) **חסימת
   הגשה כפולה** — `form[data-busy]`: הגשה שנייה בזמן שהראשונה בדרך נבלעת והכפתורים ננעלים (סגירת Z נשמרה 4
   פעמים מלחיצות חוזרות על שמירה איטית). 🔴 **טופס הזנה חדש = `data-busy="שומר…"`.** (6) **ניווט** — "→ חזרה" (מחסנית דפים שונים

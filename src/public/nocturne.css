@@ -646,7 +646,8 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .tbl-export-item:hover, .tbl-export-item:focus { background: var(--color-surface-2); outline: none; }
 /* "ייצוא" מתחת לטבלה (בעלים, 18/10), ממורכז; התפריט נפתח כלפי מעלה — בתחתית הדף אין לו מקום למטה. */
 .tbl-foot { display: flex; justify-content: center; margin: var(--space-2) 0 0; }
-.tbl-foot .tbl-export-menu { top: auto; bottom: calc(100% + 4px); inset-inline-end: auto; inset-inline-start: 0; }
+.tbl-foot .tbl-export-menu, .pay-bar .tbl-export-menu { top: auto; bottom: calc(100% + 4px); inset-inline-end: auto; inset-inline-start: 0; }
+#payExport:empty { display: none; }
 
 /* בחירת חשבונית לתשלום מרוכז: תיבה גדולה, וכל התא לוחץ (הטיפול ב-onclick של התא). */
 .inv-pick-cell { cursor: pointer; min-width: 52px; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
