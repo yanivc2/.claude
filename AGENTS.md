@@ -40,6 +40,9 @@ framework. SQLite locally/tests, Postgres (Neon) in production. **Live:** https:
     (gitignored); tokens/keys are Vercel env vars. Never print, commit or request them.
 12. **All page text is centered with `!important`** (`src/public/nocturne.css`, end of file — owner's decision). A local
     `text-align` will not apply; a different alignment is an explicit exception placed after that block.
+13. **Profitability sales come ONLY from the nightly revenue report ("דוח פדיון")** — never fall back to Z totals
+    (owner's decision: a Z is not closed every day, so a week/month cut through it is wrong). A day with no report is
+    listed as missing, so it can be re-issued at the till. `services/reports.js#profitability`.
 
 ## Keeping the docs true
 After any change to a feature/button/route/view/schema: update the matching section of `INDEX.md`; update `CLAUDE.md`

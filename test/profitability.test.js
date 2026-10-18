@@ -5,6 +5,7 @@ import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
 import { createInvoice } from '../src/services/invoices.js';
 import { createZReport, listZReports, missingZNumbers, addExpense, expensesTotal, deleteExpense, setDeposit, cashReconciliation, setCreditCards, ccReconciliation, zReconciliationStatus } from '../src/services/zreports.js';
 import { profitability } from '../src/services/reports.js';
+import { importRevenueRows } from '../src/services/revenueReports.js';
 import { toAgorot } from '../src/lib/money.js';
 
 async function invoice(db, sup, store, over) {
@@ -28,7 +29,7 @@ async function getZReportAmount(db, id) {
   return (await db.one('SELECT deposit_amount FROM z_reports WHERE id = ?', [id])).deposit_amount;
 }
 
-test('profitability: net purchases vs sales, gross profit and margin per store, range-filtered', async () => {
+test('profitability: net purchases vs revenue-report sales, gross profit and margin per store, range-filtered', async () => {
   const db = await freshDb();
   const store = await firstStore(db);
   const sec = await secretary(db);
@@ -39,9 +40,13 @@ test('profitability: net purchases vs sales, gross profit and margin per store, 
   await invoice(db, sup, store, { invoiceNumber: 'C1', invoiceDate: '2026-07-12', beforeVat: toAgorot('100'), vat: toAgorot('17'), docType: 'credit_note' });
   await invoice(db, sup, store, { invoiceNumber: 'P3', invoiceDate: '2026-08-02', beforeVat: toAgorot('2000'), vat: toAgorot('340') });
 
-  await createZReport({ storeId: store.id, zNumber: '101', zDate: '2026-07-03', dailyTotal: toAgorot('5000'), drawerCash: toAgorot('5000') }, sec, db);
-  await createZReport({ storeId: store.id, zNumber: '102', zDate: '2026-07-31', dailyTotal: toAgorot('3000'), drawerCash: toAgorot('3000') }, sec, db);
-  await createZReport({ storeId: store.id, zNumber: '103', zDate: '2026-08-01', dailyTotal: toAgorot('9999'), drawerCash: toAgorot('9999') }, sec, db);
+  // Sales = the nightly revenue report (owner, 18/10) — a Z in the range is NOT sales.
+  await importRevenueRows(store.id, [
+    { date: '2026-07-03', gross: toAgorot('5000'), credit: 0 },
+    { date: '2026-07-31', gross: toAgorot('3000'), credit: 0 },
+    { date: '2026-08-01', gross: toAgorot('9999'), credit: 0 },
+  ], 'upload', sec, db);
+  await createZReport({ storeId: store.id, zNumber: '101', zDate: '2026-07-03', dailyTotal: toAgorot('7777'), drawerCash: toAgorot('7777') }, sec, db);
 
   const { stores, totals } = await profitability('2026-07-01', '2026-07-31', null, db);
   const row = stores.find((s) => s.id === store.id);

@@ -9,6 +9,8 @@ import { parseRevenueReport, parseRevenueReportAny, reportRangeFromGrid, normali
 import { importRevenueRows, revenueInRange, listRevenue, revenueChecks } from '../src/services/revenueReports.js';
 import { looksLikePdf, pdfGrid } from '../src/lib/pdfGrid.js';
 import { profitability } from '../src/services/reports.js';
+import { createZReport } from '../src/services/zreports.js';
+import { createSession } from '../src/lib/auth.js';
 
 const csv = (s) => Buffer.from(s, 'utf8');
 
@@ -64,19 +66,16 @@ test('import is idempotent per day and the range column sums + drives profit', a
   // A narrower range sums only its days.
   assert.equal((await revenueInRange('2026-09-02', '2026-09-02', db)).get(st.id).sales, 200000);
 
-  // Profitability: the store now reports revenue, so הכנסות/רווח come from it (not the Z totals).
+  // Profitability: sales and profit come from the revenue report.
   const { stores } = await profitability('2026-09-01', '2026-09-02', null, db);
   const row = stores.find((s) => s.id === st.id);
   assert.equal(row.revenueSales, 311000);
   assert.equal(row.revenueCredit, 211000);
   assert.equal(row.revenueDays, 2);
-  assert.equal(row.usesRevenue, true);
   assert.equal(row.sales, 311000);
   assert.equal(row.grossProfit, 311000 - row.purchases);
-
-  // A store with no report keeps the Z-based behaviour (no regression).
-  const other = stores.find((s) => s.id !== st.id);
-  if (other) { assert.equal(other.usesRevenue, false); assert.equal(other.sales, other.zSales); }
+  assert.deepEqual(row.missingDays, []);
+  assert.equal(row.complete, true);
 
   assert.equal((await listRevenue({ storeId: st.id }, db)).length, 2);
 });
@@ -176,8 +175,63 @@ test('the real report imports and drives the profitability column', async () => 
   const row = stores.find((s) => s.id === st.id);
   assert.equal(row.revenueSales, 3502874, 'what was sold that day — debts collected for earlier sales are not counted again');
   assert.equal(row.revenueCredit, 2340164);
-  assert.equal(row.usesRevenue, true);
   assert.equal(row.sales, 3502874);
+});
+
+// בעלים, 18/10: "אתה לא יכול לחשב ריווחיות מדוחות הזד" — Z is closed Thursday, then Sunday; a week
+// or a month cut through it is wrong. The revenue report exists for EVERY day and a missed one can
+// be re-issued, so a missing day is listed, never filled from Z.
+test('profitability: sales from the revenue report ONLY — Z is ignored, missing days are listed, no report = no profit', async () => {
+  const db = await freshDb();
+  const own = await owner(db);
+  const st = await firstStore(db);
+  const other = await db.one('SELECT id FROM stores WHERE id <> ? ORDER BY id LIMIT 1', [st.id]);
+  await createZReport({ storeId: st.id, zNumber: '700', zDate: '2026-10-03', dailyTotal: 900000, drawerCash: 900000 }, own, db);
+  await createZReport({ storeId: other.id, zNumber: '701', zDate: '2026-10-03', dailyTotal: 800000, drawerCash: 800000 }, own, db);
+  await importRevenueRows(st.id, [
+    { date: '2026-10-01', gross: 100000, credit: 50000 },
+    { date: '2026-10-02', gross: 200000, credit: 50000 },
+    { date: '2026-10-05', gross: 300000, credit: 50000 },
+  ], 'upload', own, db);
+
+  // A range in the past: every day is expected.
+  const past = await profitability('2026-10-01', '2026-10-06', null, db, { today: '2026-10-18' });
+  const a = past.stores.find((s) => s.id === st.id);
+  assert.equal(a.sales, 600000, 'the Z of the 3rd (₪9,000) is not added');
+  assert.deepEqual(a.missingDays, ['2026-10-03', '2026-10-04', '2026-10-06']);
+  assert.equal(a.complete, false);
+  assert.equal(a.expectedDays, 6);
+  assert.equal(a.grossProfit, 600000 - a.purchases, 'still computed — flagged partial on the page');
+  const b = past.stores.find((s) => s.id === other.id);
+  assert.equal(b.sales, 0, 'its Z does not become sales');
+  assert.equal(b.grossProfit, null, 'no report → no profit, not "minus the purchases"');
+  assert.equal(b.marginPct, null);
+  assert.equal(past.totals.complete, false);
+  assert.ok(past.totals.storesWithoutSales >= 1);
+
+  // The current month: today and later are not expected yet (tonight's report is not late).
+  const now = await profitability('2026-10-01', '2026-10-31', null, db, { today: '2026-10-06' });
+  assert.equal(now.stores.find((s) => s.id === st.id).expectedDays, 5);
+  assert.deepEqual(now.stores.find((s) => s.id === st.id).missingDays, ['2026-10-03', '2026-10-04']);
+});
+
+test('the profitability page: no Z column, missing days shown under the sales, no-report store shows "—"', async () => {
+  const db = await freshDb();
+  const own = await owner(db);
+  const st = await firstStore(db);
+  await importRevenueRows(st.id, [{ date: '2026-09-01', gross: 100000, credit: 50000 }], 'upload', own, db);
+  const html = await (await fetch(`${base}/reports/profitability?from=2026-09-01&to=2026-09-03`, {
+    headers: { cookie: `session=${createSession(own.id)}; ap_store=${st.id}` },
+  })).text();
+  assert.doesNotMatch(html, /מכירות \(Z\)/);
+  assert.doesNotMatch(html, /נפילה חזרה/);
+  assert.match(html, /1\/3 ימים/);
+  assert.match(html, /⚠️ חסרים: 02\/09, 03\/09/);
+  const csv = await (await fetch(`${base}/reports/profitability.csv?from=2026-09-01&to=2026-09-03`, {
+    headers: { cookie: `session=${createSession(own.id)}; ap_store=${st.id}` },
+  })).text();
+  assert.match(csv, /ימים חסרים/);
+  assert.match(csv, /2026-09-02 2026-09-03/);
 });
 
 // ---- the same Pidion_A4 report as PDF (ג'וניור, 17/10) — owner, 18/10: "שתהיה אפשרות גם לאקסל וגם לפידיאפ"

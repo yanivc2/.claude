@@ -114,6 +114,19 @@ export async function revenueInRange(fromDate, toDate, x = getExecutor()) {
   return new Map(rows.map((r) => [Number(r.store_id), { sales: Number(r.sales) || 0, credit: Number(r.credit) || 0, days: Number(r.days) || 0 }]));
 }
 
+/** The days each store HAS a report for in a range → Map<store_id, Set<'YYYY-MM-DD'>> (the
+ * profitability page lists the days that are missing, so they can be re-issued at the till). */
+export async function revenueDatesInRange(fromDate, toDate, x = getExecutor()) {
+  const rows = await x.many('SELECT store_id, report_date FROM revenue_reports WHERE report_date BETWEEN ? AND ?', [fromDate, toDate]);
+  const out = new Map();
+  for (const r of rows) {
+    const id = Number(r.store_id);
+    if (!out.has(id)) out.set(id, new Set());
+    out.get(id).add(String(r.report_date).slice(0, 10));
+  }
+  return out;
+}
+
 /** Recent daily rows for the "ימים אחרונים שנקלטו" tables (newest first), each with its checks. */
 export async function listRevenue({ storeId = null, limit = 30, scope = null } = {}, x = getExecutor()) {
   const sc = scopeWhere(scope, 'st.company_id', 'st.id');

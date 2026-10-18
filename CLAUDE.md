@@ -112,8 +112,9 @@ happen only at merge. So:
   🔴 **`created_at`/`imported_at` נשמרים ב-UTC** בשני הניבים (`strftime('now')` / `to_char(now(), …)`) — הצגתם
   כמות שהם מזיזה כל שעת פעולה 2-3 שעות אחורה. להצגה: **`israelStamp(stored)`** (`lib/loginHours.js`, חשוף
   כ-`res.locals.israelStamp`).
-- **דוח פדיון (revenue reports):** the nightly per-store sales+credit report is the **systematic
-  sales source** for profitability (Z reports are irregular). `lib/revenueReportFile.js` parses it
+- **דוח פדיון (revenue reports):** the nightly per-store sales+credit report is the **ONLY sales
+  source** for profitability — 🔴 never fall back to Z (owner, 18/10: a Z is closed Thursday then Sunday, so
+  a week/month cut through it is wrong); a day with no report is **listed as missing** (re-issue it at the till). `lib/revenueReportFile.js` parses it
   (+ **`lib/xlsRead.js`** for the legacy OLE2/BIFF `.xls` the POS actually emits — NOT xlsx; **or its PDF** via
   `lib/pdfGrid.js` → `parseRevenueReportAny`: pdfjs-dist **lazy**, its worker **imported explicitly** into
   `globalThis.pdfjsWorker` or the Vercel bundle lacks it). Two

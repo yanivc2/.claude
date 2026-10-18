@@ -1,6 +1,7 @@
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
-import { revenueInRange } from './revenueReports.js';
+import { revenueInRange, revenueDatesInRange } from './revenueReports.js';
+import { israelToday } from '../lib/loginHours.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 
 /**
@@ -316,11 +317,32 @@ export async function invoiceLookup(query, { companyId = null, storeId = null, s
   );
 }
 
+/** Every 'YYYY-MM-DD' from `from` to `to`, inclusive ([] when to < from). */
+function daysBetween(from, to) {
+  const out = [];
+  const d = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  if (Number.isNaN(d.getTime()) || Number.isNaN(end.getTime())) return out;
+  while (d <= end && out.length < 1000) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
 /**
- * §7 "רווחיות" — per-store gross profit for a date range: purchases (net invoices) vs sales
- * (register Z totals). Gross profit = sales − purchases; margin = gross profit / sales.
+ * §7 "רווחיות" — per-store gross profit for a date range: purchases (invoices) vs sales.
+ *
+ * 🔴 Sales come ONLY from the nightly "דוח פדיון" (owner, 18/10: "אתה לא יכול לחשב ריווחיות
+ * מדוחות הזד") — a Z is closed at irregular intervals (Thursday, then Sunday), so a Z total does
+ * not belong to the days of the range and a week or month cut through it is wrong. The revenue
+ * report is produced every day, and a missed one is easy to re-issue at the till — so instead of
+ * falling back, every day of the range with no report is LISTED (missingDays) for the owner to
+ * fetch. Days that cannot have a report yet (today and later) are not expected.
+ * A store with no report in the range has no sales figure → grossProfit/margins = null, not
+ * "−purchases".
  */
-export async function profitability(fromDate, toDate, scope = null, x = getExecutor()) {
+export async function profitability(fromDate, toDate, scope = null, x = getExecutor(), { today = israelToday() } = {}) {
   // Aggregate purchases and sales per store separately, then merge in JS — avoids correlated
   // subqueries (portable across SQLite/Postgres and cheaper than a per-store subquery).
   const sc = scopeWhere(scope, 'c.id', 'st.id');
@@ -336,49 +358,55 @@ export async function profitability(fromDate, toDate, scope = null, x = getExecu
       WHERE invoice_date BETWEEN ? AND ? GROUP BY store_id`,
     [fromDate, toDate],
   );
-  const salesRows = await x.many(
-    `SELECT store_id, COALESCE(SUM(daily_total),0) AS amt FROM z_reports
-      WHERE z_date BETWEEN ? AND ? GROUP BY store_id`,
-    [fromDate, toDate],
-  );
-  const purchaseByStore = new Map(purchaseRows.map((r) => [r.store_id, r.amt]));
-  const salesByStore = new Map(salesRows.map((r) => [r.store_id, r.amt]));
-  // "דוח פדיון" — the nightly revenue report. It is the systematic sales source (Z reports are
-  // entered irregularly), so when a store has report days in range its revenue drives the profit;
-  // stores with no report fall back to the Z totals, unchanged.
+  const purchaseByStore = new Map(purchaseRows.map((r) => [Number(r.store_id), Number(r.amt) || 0]));
   const revenueByStore = await revenueInRange(fromDate, toDate, x);
+  const revenueDates = await revenueDatesInRange(fromDate, toDate, x);
+  const lastExpected = toDate < today ? toDate : minusOneDay(today); // tonight's report is not late yet
+  const expectedDays = daysBetween(fromDate, lastExpected);
 
   const stores = storeRows.map((r) => {
-    const purchases = purchaseByStore.get(r.id) || 0;
-    const zSales = salesByStore.get(r.id) || 0;
+    const purchases = purchaseByStore.get(Number(r.id)) || 0;
     const rev = revenueByStore.get(Number(r.id)) || null;
     const revenueSales = rev ? rev.sales : 0;
     const revenueCredit = rev ? rev.credit : 0;
     const revenueDays = rev ? rev.days : 0;
-    const usesRevenue = revenueDays > 0;
-    const sales = usesRevenue ? revenueSales : zSales; // profit basis
-    const grossProfit = sales - purchases;
-    const marginPct = sales > 0 ? (grossProfit / sales) * 100 : null;
-    const markupPct = purchases > 0 ? (grossProfit / purchases) * 100 : null;
-    return { ...r, purchases, sales, zSales, revenueSales, revenueCredit, revenueDays, usesRevenue, grossProfit, marginPct, markupPct };
+    const have = revenueDates.get(Number(r.id)) || new Set();
+    const missingDays = expectedDays.filter((d) => !have.has(d));
+    const hasSales = revenueDays > 0;
+    const sales = revenueSales;
+    const grossProfit = hasSales ? sales - purchases : null;
+    const marginPct = hasSales && sales > 0 ? (grossProfit / sales) * 100 : null;
+    const markupPct = hasSales && purchases > 0 ? (grossProfit / purchases) * 100 : null;
+    return {
+      ...r, purchases, sales, revenueSales, revenueCredit, revenueDays, expectedDays: expectedDays.length,
+      missingDays, complete: hasSales && missingDays.length === 0, grossProfit, marginPct, markupPct,
+    };
   });
 
-  const totals = stores.reduce(
-    (acc, s) => {
-      acc.purchases += s.purchases;
-      acc.sales += s.sales;
-      acc.zSales += s.zSales;
-      acc.revenueSales += s.revenueSales;
-      acc.revenueCredit += s.revenueCredit;
-      acc.grossProfit += s.grossProfit;
-      return acc;
-    },
-    { purchases: 0, sales: 0, zSales: 0, revenueSales: 0, revenueCredit: 0, grossProfit: 0 },
-  );
-  totals.marginPct = totals.sales > 0 ? (totals.grossProfit / totals.sales) * 100 : null;
-  totals.markupPct = totals.purchases > 0 ? (totals.grossProfit / totals.purchases) * 100 : null;
+  // Profit totals cover only the stores that have sales — adding a store's purchases with no
+  // sales against them would show a loss that is really a missing report.
+  const withSales = stores.filter((s) => s.grossProfit !== null);
+  const sum = (list, k) => list.reduce((n, s) => n + s[k], 0);
+  const totals = {
+    purchases: sum(stores, 'purchases'),
+    sales: sum(stores, 'sales'),
+    revenueSales: sum(stores, 'revenueSales'),
+    revenueCredit: sum(stores, 'revenueCredit'),
+    grossProfit: withSales.length ? sum(withSales, 'grossProfit') : null,
+    profitPurchases: sum(withSales, 'purchases'),
+    storesWithoutSales: stores.length - withSales.length,
+    complete: stores.length > 0 && stores.every((s) => s.complete),
+  };
+  totals.marginPct = totals.grossProfit !== null && totals.sales > 0 ? (totals.grossProfit / totals.sales) * 100 : null;
+  totals.markupPct = totals.grossProfit !== null && totals.profitPurchases > 0 ? (totals.grossProfit / totals.profitPurchases) * 100 : null;
 
-  return { stores, totals };
+  return { stores, totals, expectedDays: expectedDays.length };
+}
+
+function minusOneDay(iso) {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 /** Small counters for the dashboard. `storeId` (the active-store context) narrows the store-bound

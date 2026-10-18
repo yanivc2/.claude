@@ -107,10 +107,11 @@ test('תנועת בנק → צ׳ק סומן נפרע + "התאמת בנק אחר
   assert.ok(rec && rec.ts);
 });
 
-test('דוח Z → מכירות ברווחיות + שכר בספר העובד + דוח ללא הפקדה', async () => {
+test('דוח Z → שכר בספר העובד + דוח ללא הפקדה — אבל לא מכירות ברווחיות (בעלים 18/10)', async () => {
+  // Z is closed at irregular intervals — the profitability sales come from the revenue report only.
   const prof = await profitability('2026-08-01', '2026-08-31', null, db);
   const sp = prof.stores.find((s) => s.id === store.id);
-  assert.ok(sp && sp.sales >= 900000); // zA 500k + zB 400k
+  assert.ok(sp && sp.sales === 0 && sp.grossProfit === null, 'zA 500k + zB 400k are NOT sales');
   const ledger = await listEmployeeLedger({ employeeId: emp.id }, db);
   assert.ok(ledger.some((l) => Number(l.amount) === 30000));
   const noDep = await zReportsWithoutDeposit({ scope: null, storeId: store.id }, db);

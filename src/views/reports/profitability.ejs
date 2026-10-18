@@ -2,10 +2,15 @@
 <%
 // Plain-text summary of the report, for sharing via WhatsApp / email.
 var _lines = ['דוח רווחיות', 'תקופה: ' + from + ' — ' + to, ''];
+var _profit = function (v) { return v === null ? '— (אין דוח פדיון)' : formatIls(v); };
 stores.forEach(function (s) {
-  _lines.push(s.store_name + ': מכירות ' + formatIls(s.sales) + ' · קניות ' + formatIls(s.purchases) + ' · רווח ' + formatIls(s.grossProfit));
+  _lines.push(s.store_name + ': מכירות ' + formatIls(s.sales) + ' · קניות ' + formatIls(s.purchases) + ' · רווח ' + _profit(s.grossProfit)
+    + (s.revenueDays && s.missingDays.length ? ' (חסרים ' + s.missingDays.length + ' ימי פדיון)' : ''));
 });
-_lines.push('', 'סה"כ: מכירות ' + formatIls(totals.sales) + ' · קניות ' + formatIls(totals.purchases) + ' · רווח ' + formatIls(totals.grossProfit));
+_lines.push('', 'סה"כ: מכירות ' + formatIls(totals.sales) + ' · קניות ' + formatIls(totals.purchases) + ' · רווח ' + _profit(totals.grossProfit));
+// dd/mm of a missing day, and the list shown under a store's sales (the first few — the count says the rest).
+var _dm = function (d) { return d.slice(8, 10) + '/' + d.slice(5, 7); };
+var MISSING_SHOWN = 6;
 var reportText = _lines.join('\n');
 var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
 %>
@@ -47,22 +52,32 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
 
 <div>
     <div class="card">
-      <p class="muted">תקופה: <%= from %> — <%= to %>. ההכנסות מחושבות מ<strong>דוח הפדיון</strong> כשהוא קיים לטווח (מקור שיטתי, מגיע כל לילה); אחרת נפילה חזרה ל<strong>דוחות Z</strong>.</p>
+      <%# 🔴 המכירות — מדוח הפדיון בלבד (בעלים 18/10): Z לא נסגר כל יום, ולכן סכום Z לא שייך לימי הטווח.
+          יום בלי דוח לא "מושלם" מ-Z — הוא מוצג כחסר, כדי שיונפק בקופה ויועלה. services/reports.js#profitability %>
+      <p class="muted">תקופה: <%= from %> — <%= to %>. המכירות והרווח מחושבים מ<strong>דוח הפדיון</strong> בלבד (מופק כל יום ונשלח במייל) — דוחות Z לא נסגרים כל יום ולכן לא משמשים לרווחיות. יום שחסר בו דוח מסומן ⚠️: אפשר להנפיק אותו בקופה ולהעלות למטה.</p>
       <div class="table-scroll">
       <table>
         <thead>
-          <tr><th>חברה</th><th>חנות</th><th class="right">קניות</th><th class="right">דוח פדיון</th><th class="right"><small class="muted">מזה אשראי</small></th><th class="right">מכירות (Z)</th><th class="right">רווח גולמי</th><th class="right">רווח מלמעלה<br><small class="muted">% מהמכירות</small></th><th class="right">רווח מלמטה<br><small class="muted">% מהעלות</small></th></tr>
+          <tr><th>חברה</th><th>חנות</th><th class="right">קניות</th><th class="right">מכירות<br><small class="muted">דוח פדיון</small></th><th class="right"><small class="muted">מזה אשראי</small></th><th class="right">רווח גולמי</th><th class="right">רווח מלמעלה<br><small class="muted">% מהמכירות</small></th><th class="right">רווח מלמטה<br><small class="muted">% מהעלות</small></th></tr>
         </thead>
         <tbody>
-          <% stores.forEach(function(s){ %>
+          <% stores.forEach(function(s){ var partial = s.grossProfit !== null && !s.complete; %>
             <tr>
               <td><%= s.company_name %></td>
               <td><%= s.store_name %></td>
               <td class="right"><%= formatIls(s.purchases) %></td>
-              <td class="right"><% if (s.revenueDays) { %><strong><%= formatIls(s.revenueSales) %></strong><br><small class="muted"><%= s.revenueDays %> ימים</small><% } else { %><span class="muted">—</span><% } %></td>
+              <td class="right">
+                <% if (s.revenueDays) { %>
+                  <strong><%= formatIls(s.revenueSales) %></strong><br><small class="muted"><%= s.revenueDays %>/<%= s.expectedDays %> ימים</small>
+                  <% if (s.missingDays.length) { %>
+                    <div class="prof-missing" title="<%= s.missingDays.map(_dm).join(', ') %>">⚠️ חסרים: <%= s.missingDays.slice(0, MISSING_SHOWN).map(_dm).join(', ') %><%= s.missingDays.length > MISSING_SHOWN ? ' ועוד ' + (s.missingDays.length - MISSING_SHOWN) : '' %></div>
+                  <% } %>
+                <% } else { %>
+                  <span class="<%= s.expectedDays ? 'prof-missing' : 'muted' %>"><%= s.expectedDays ? '⚠️ ' : '' %>אין דוח פדיון בטווח</span>
+                <% } %>
+              </td>
               <td class="right"><% if (s.revenueDays) { %><%= formatIls(s.revenueCredit) %><% } else { %><span class="muted">—</span><% } %></td>
-              <td class="right <%= s.usesRevenue ? 'muted' : '' %>"><%= formatIls(s.zSales) %></td>
-              <td class="right <%= s.grossProfit < 0 ? 'neg' : '' %>"><strong><%= formatIls(s.grossProfit) %></strong></td>
+              <td class="right <%= s.grossProfit !== null && s.grossProfit < 0 ? 'neg' : '' %>"><% if (s.grossProfit === null) { %><span class="muted">—</span><% } else { %><strong><%= formatIls(s.grossProfit) %></strong><% if (partial) { %><br><small class="muted">חלקי</small><% } %><% } %></td>
               <td class="right"><%= s.marginPct === null ? '—' : s.marginPct.toFixed(1) + '%' %></td>
               <td class="right"><%= s.markupPct === null ? '—' : s.markupPct.toFixed(1) + '%' %></td>
             </tr>
@@ -74,8 +89,7 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
             <th class="right"><%= formatIls(totals.purchases) %></th>
             <th class="right"><%= formatIls(totals.revenueSales) %></th>
             <th class="right"><%= formatIls(totals.revenueCredit) %></th>
-            <th class="right muted"><%= formatIls(totals.zSales) %></th>
-            <th class="right <%= totals.grossProfit < 0 ? 'neg' : '' %>"><%= formatIls(totals.grossProfit) %></th>
+            <th class="right <%= totals.grossProfit !== null && totals.grossProfit < 0 ? 'neg' : '' %>"><%= totals.grossProfit === null ? '—' : formatIls(totals.grossProfit) %><% if (totals.grossProfit !== null && totals.storesWithoutSales) { %><br><small class="muted">בלי <%= totals.storesWithoutSales %> חנויות ללא דוח</small><% } %></th>
             <th class="right"><%= totals.marginPct === null ? '—' : totals.marginPct.toFixed(1) + '%' %></th>
             <th class="right"><%= totals.markupPct === null ? '—' : totals.markupPct.toFixed(1) + '%' %></th>
           </tr>

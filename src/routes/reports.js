@@ -632,14 +632,17 @@ router.post('/profitability/revenue-import', requirePageAccess('nav_profitabilit
 router.get('/profitability.csv', async (req, res, next) => {
   try {
     const { from, to } = resolveRange(req);
-    const { stores, totals } = await profitability(from, to);
+    // Scoped like the page — the CSV used to list every store regardless of who asked.
+    const { stores, totals } = await profitability(from, to, req.scope);
     const pct = (v) => (v == null ? '' : `${v.toFixed(1)}%`);
+    const money = (v) => (v == null ? '' : fromAgorot(v));
     const rows = stores.map((s) => [
       s.company_name, s.store_name, fromAgorot(s.purchases), fromAgorot(s.sales),
-      fromAgorot(s.grossProfit), pct(s.marginPct), pct(s.markupPct),
+      `${s.revenueDays}/${s.expectedDays}`, s.missingDays.join(' '),
+      money(s.grossProfit), pct(s.marginPct), pct(s.markupPct),
     ]);
-    rows.push(['', 'סה"כ', fromAgorot(totals.purchases), fromAgorot(totals.sales), fromAgorot(totals.grossProfit), pct(totals.marginPct), pct(totals.markupPct)]);
-    sendCsv(res, `profitability-${from}_${to}.csv`, ['חברה', 'חנות', 'קניות', 'מכירות', 'רווח גולמי', 'רווח מלמעלה (% מהמכירות)', 'רווח מלמטה (% מהעלות)'], rows);
+    rows.push(['', 'סה"כ', fromAgorot(totals.purchases), fromAgorot(totals.sales), '', '', money(totals.grossProfit), pct(totals.marginPct), pct(totals.markupPct)]);
+    sendCsv(res, `profitability-${from}_${to}.csv`, ['חברה', 'חנות', 'קניות', 'מכירות (דוח פדיון)', 'ימי דוח', 'ימים חסרים', 'רווח גולמי', 'רווח מלמעלה (% מהמכירות)', 'רווח מלמטה (% מהעלות)'], rows);
   } catch (err) {
     next(err);
   }
