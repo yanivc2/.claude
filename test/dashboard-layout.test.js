@@ -5,11 +5,13 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { once } from 'node:events';
-import { freshDb, owner, firstStore } from './helpers.js';
+import { freshDb, owner, firstStore, accountForStore } from './helpers.js';
 import { createApp } from '../src/app.js';
 import { createSession } from '../src/lib/auth.js';
 import { createInvoice } from '../src/services/invoices.js';
 import { createZReport } from '../src/services/zreports.js';
+import { importTransactions } from '../src/services/bankTransactions.js';
+import { lastBankPullFor } from '../src/services/reports.js';
 
 let db, o, st, server, base;
 before(async () => {
@@ -138,4 +140,21 @@ test('dashboard: "Z ללא הצהרת הפקדה" is a red count beside the "ד�
   assert.match(css, /@container \(min-width: 768px\) \{ \.stat-grid \.lookup-tile \{ grid-column: span 3; \} \}/);
   const footer = readFileSync(new URL('../src/views/partials/footer.ejs', import.meta.url), 'utf8');
   assert.match(footer, /var key = \(h\.getAttribute\('data-ckey'\) \|\| h\.textContent \|\| ''\)/, 'a changing count does not reset the card\'s collapsed state');
+});
+
+test('dashboard tiles: "נמשכו נתונים מהבנק" (was "התאמת בנק אחרונה") swapped with "ספקים ממתינים לאישור"; it shows when bank data last arrived (owner, 18/10)', async () => {
+  const before = await page();
+  assert.doesNotMatch(before, /התאמת בנק אחרונה/);
+  const iOut = before.indexOf('צ׳קים בחוץ ·');
+  const iPull = before.indexOf('נמשכו נתונים מהבנק');
+  const iHold = before.indexOf('>חשבוניות מוחזקות<');
+  const iPend = before.indexOf('>ספקים ממתינים לאישור<');
+  assert.ok(iOut > 0 && iPull > iOut && iHold > iPull && iPend > iHold, 'order: checks out · bank pull · on hold · pending suppliers');
+  assert.equal(await lastBankPullFor(null, st.id, db), null, 'nothing pulled yet');
+  const acct = await accountForStore(db, st.id);
+  await importTransactions(acct.id, [{ txnDate: '2026-10-01', amount: -12345, description: 'משיכה' }], 'manual', o, db);
+  const pull = await lastBankPullFor(null, st.id, db);
+  assert.ok(pull && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(pull.ts), 'the import time, not a transaction date');
+  const html = await page();
+  assert.match(html, /<a class="stat" href="\/reconciliation" title="נמשכו נתונים מהבנק: \d{2}\/\d{2}\/\d{2} \d{2}:\d{2}">\s*<div class="num" style="font-size:22px">\d{2}\/\d{2}\/\d{2}<\/div>/, 'date on the tile, full Israel time on hover');
 });

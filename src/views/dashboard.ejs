@@ -35,21 +35,23 @@
     <div class="num"><%= formatIls(outstandingDisplay) %></div>
     <div class="label">צ׳קים בחוץ · <%= typeof openChecksCount !== 'undefined' ? openChecksCount : 0 %> צ׳קים<%= storeId ? '' : ' · כל החנויות' %></div>
   </a>
-  <a class="stat <%= stats.pendingSuppliers ? 'attn' : '' %>" href="/suppliers?status=pending">
-    <div class="num"><%= stats.pendingSuppliers %></div>
-    <div class="label">ספקים ממתינים לאישור</div>
+  <%# בעלים, 18/10: הוחלף מקום עם "ספקים ממתינים לאישור", והשם — "נמשכו נתונים מהבנק": מתי הגיעו לאחרונה
+      תנועות מהבנק (bank_imports.imported_at, שעון ישראל), ולא תאריך התנועה המותאמת האחרונה. %>
+  <a class="stat" href="/reconciliation"<% var _pull = stats.lastBankPull && stats.lastBankPull.ts ? israelStamp(stats.lastBankPull.ts) : ''; if (_pull) { %> title="נמשכו נתונים מהבנק: <%= _pull %>"<% } %>>
+    <div class="num" style="font-size:22px"><%= _pull ? _pull.slice(0, 8) : '—' %></div>
+    <div class="label">נמשכו נתונים מהבנק<%
+      // When no single store is active ("all stores"), name which store the latest pull belongs to;
+      // with an active store the header already says which store, so the name is omitted.
+      var _actStore = (typeof activeStore !== 'undefined' && activeStore);
+      if (!_actStore && stats.lastBankPull && stats.lastBankPull.storeName) { %> · <%= stats.lastBankPull.storeName %><% } %></div>
   </a>
   <a class="stat <%= stats.onHoldInvoices ? 'attn' : '' %>" href="/invoices?status=on_hold">
     <div class="num"><%= stats.onHoldInvoices %></div>
     <div class="label">חשבוניות מוחזקות</div>
   </a>
-  <a class="stat" href="/reconciliation">
-    <div class="num" style="font-size:22px"><%= (stats.lastReconciled && stats.lastReconciled.ts) ? formatDate(String(stats.lastReconciled.ts).slice(0,10)) : '—' %></div>
-    <div class="label">התאמת בנק אחרונה<%
-      // When no single store is active ("all stores"), name which store the latest reconciliation
-      // belongs to; with an active store the banner already says which store, so the name is omitted.
-      var _actStore = (typeof activeStore !== 'undefined' && activeStore);
-      if (!_actStore && stats.lastReconciled && stats.lastReconciled.storeName) { %> · <%= stats.lastReconciled.storeName %><% } %></div>
+  <a class="stat <%= stats.pendingSuppliers ? 'attn' : '' %>" href="/suppliers?status=pending">
+    <div class="num"><%= stats.pendingSuppliers %></div>
+    <div class="label">ספקים ממתינים לאישור</div>
   </a>
   <%# 🔎 בדיקת חשבונית — במקום אריח "צ׳קים בחוץ" שעבר להתחלה (בעלים, 16/10: "בטל את הרובריקה ושים
       במקום הצ׳קים בחוץ"). רק החנות הפעילה (בלי בורר חנות/חברה). שם ומספר בשדות נפרדים; המספר נפתח

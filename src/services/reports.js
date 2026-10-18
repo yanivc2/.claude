@@ -392,7 +392,8 @@ export async function dashboardStats(scope = null, storeId = null, x = getExecut
   const approvedInvoices = (await x.one(`SELECT COUNT(*) AS n FROM invoices WHERE status = 'approved_for_payment'${sc.sql}${st}`, [...sc.params, ...stp])).n;
   const { totalOutstanding } = await outstandingChecks(scope, { storeId }, x);
   const lastReconciled = await lastReconciliationFor(scope, storeId, x);
-  return { pendingSuppliers, onHoldInvoices, approvedInvoices, totalOutstanding, lastReconciled };
+  const lastBankPull = await lastBankPullFor(scope, storeId, x);
+  return { pendingSuppliers, onHoldInvoices, approvedInvoices, totalOutstanding, lastReconciled, lastBankPull };
 }
 
 /**
@@ -429,6 +430,12 @@ export async function lastReconciliationFor(scope = null, storeId = null, x = ge
       GROUP BY ba.store_id, ba.company_id, st.name`,
     [],
   );
+  return latestInScope(rows, scope, storeId);
+}
+
+/** Per-store rows `{store_id, company_id, store_name, ts}` → the active store's own row, or (no active
+ * store) the most recent across the stores the scope allows — with its store name. */
+function latestInScope(rows, scope, storeId) {
   const { companyIds, storeIds } = normalizeScope(scope);
   const allowCompany = companyIds == null ? null : new Set(companyIds.map(Number));
   const allowStore = storeIds == null ? null : new Set(storeIds.map(Number));
@@ -443,4 +450,28 @@ export async function lastReconciliationFor(scope = null, storeId = null, x = ge
   let best = null;
   for (const r of byStore.values()) if (!best || String(r.ts) > String(best.ts)) best = r;
   return best;
+}
+
+/**
+ * מתי נמשכו לאחרונה נתונים מהבנק — לאריח "נמשכו נתונים מהבנק" בלוח הבקרה (בעלים, 18/10; היה "התאמת בנק
+ * אחרונה" = תאריך התנועה המותאמת האחרונה, שאינו אומר מתי הגיע מידע מהבנק). כל משיכה — קובץ, סנכרון,
+ * סוכן המשרד או סקרייפר — עוברת ב-`importTransactions` ונרשמת ב-`bank_imports.imported_at` (UTC; להצגה
+ * `israelStamp`). מסד שלפני "עדכן מסד נתונים" (אין `bank_imports`) → null, ודף התאמת הבנק מתריע על כך.
+ * @returns {Promise<{ts:string, storeName:string} | null>}
+ */
+export async function lastBankPullFor(scope = null, storeId = null, x = getExecutor()) {
+  let rows;
+  try {
+    rows = await x.many(
+      `SELECT ba.store_id AS store_id, ba.company_id AS company_id, st.name AS store_name, MAX(bi.imported_at) AS ts
+         FROM bank_imports bi
+         JOIN bank_accounts ba ON ba.id = bi.bank_account_id
+         JOIN stores st ON st.id = ba.store_id
+        GROUP BY ba.store_id, ba.company_id, st.name`,
+      [],
+    );
+  } catch {
+    return null;
+  }
+  return latestInScope(rows, scope, storeId);
 }
