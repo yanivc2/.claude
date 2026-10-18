@@ -314,6 +314,7 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   שום z-index לא עוזר) ואינו ניתן ללחיצה. לכן ההורה נבחר ברגע הפתיחה: דיאלוג פתוח שמכיל את השדה,
   אחרת `<body>`, והמיקום מחושב מול `getBoundingClientRect` + מאזין `scroll` ב-capture.
   `test/popup-anchoring.test.js`.
+- **`position: fixed` בתוך `main.page` אינו קבוע למסך** — ל-`main` יש אנימציית `transform` (`fade-up`), ולכן הוא נמדד מול main. אלמנט קבוע (שורת הכותרת `.topbar`, "⬆ למעלה") יושב **מחוץ ל-`<main>`**.
 - The custom date picker (`partials/footer.ejs`) enhances `input[type=date]` only — `type=time`/`month`
   stay native.
 - **`scopeClause` emits `AND NOT (col NOT IN (…))`, not `AND col IN (…)` — do not "simplify" it.**

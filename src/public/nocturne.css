@@ -1240,27 +1240,58 @@ main.page .cx-acts,
 main.page .card-ctoggle,
 main.page .collapse-card > summary { justify-content: center !important; }
 
-/* פס החנות ממורכז, ו"→ חזרה" בתוכו בקצה הימני (בעלים, 17/10 — אפשרות א מתוך שתי הדמיות).
-   הריפוד הסימטרי שומר את התוכן במרכז האמיתי של הפס גם כשהכפתור יושב בצד. */
+/* ── שורת הכותרת = פס החנות (בעלים, 17/10, אחרי הדמיה) — header.ejs .topbar ──────────────────────
+   שלושה אזורים: .sb-start (ימין: "אפשרויות", ואז "→ חזרה") · .sb-center (🏪 + הבורר — השם פעם אחת)
+   · .sb-end (שמאל, ריק — "AP Control" יושב בקצה הפס במחשב). */
 .store-banner { justify-content: center; position: relative; }
 .store-banner-switch, .store-banner-lock { margin: 0; }
-.store-banner.has-back { padding-inline: 104px; }
-/* מירכוז אנכי בלי transform: לכל כפתור יש `:active { transform: translateY(1px) }`, והוא היה דורס את
-   translateY(-50%) — בלחיצה הכפתור "נפל" חצי גובה (בעלים, 17/10: "כשאני לוחץ עם העכבר זה יורד"). */
-.store-banner-back { position: absolute; inset-inline-start: 12px; top: 0; bottom: 0; margin-block: auto; height: fit-content; }
+.sb-center { display: flex; align-items: center; justify-content: center; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
+.sb-side { display: flex; align-items: center; gap: var(--space-2); }
+.sb-side:empty { display: none; }
+.sb-start .store-banner-quick { margin: 0; }
 main.page .page-back { text-align: start !important; }
-/* במחשב הפס הוא שורה אחת בכל חנות (בעלים, 17/10 — צילום "סופר על הדרך": שם חברה ארוך שבר את
-   "אפשרויות" לשורה שנייה, וב"מידנייט" לא). מה שמתקצר כשאין מקום: שם החברה (…) והבורר — לא הכפתורים. */
+.topbar-brand { display: none; }
+.nav-title { display: none; }
+
+/* טלפון/טאבלט: הפס מתחת לכותרת, באותם שוליים של התוכן; בשורה העליונה שלו — "→ חזרה" מימין,
+   "אפשרויות" משמאל; הבורר בשורה שמתחת, ממורכז. שם הדף עולה למרכז שורת הכותרת (.nav-title). */
+@media (max-width: 999.98px) {
+  .topbar { max-width: 1120px; margin: 0 auto; padding: var(--space-4) calc(var(--space-6) + env(safe-area-inset-right, 0px)) 0 calc(var(--space-6) + env(safe-area-inset-left, 0px)); position: relative; z-index: 2; }
+  .topbar .store-banner { margin: 0; flex-wrap: wrap; }
+  .sb-start { order: 0; width: 100%; }
+  .sb-start > .store-banner-back { order: -1; margin-inline-end: auto; }   /* "→ חזרה" מימין, "אפשרויות" משמאל */
+  .sb-center { order: 1; width: 100%; }
+  .sb-end { display: none; }
+  .nav-title { display: block; flex: 1 1 auto; min-width: 0; text-align: center; font-weight: 700; font-size: 17px;
+    color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .nav .spacer { display: none; }
+  main.page .h1-in-header { display: none; }
+  main.page .toolbar:not(:has(> :not(.h1-in-header))) { display: none; }
+  body:has(.topbar) main.page { padding-top: var(--space-4); }
+}
+
+/* מחשב: שורת כותרת קבועה מעל אזור התוכן (מהקצה השמאלי עד הסרגל), והסרגל עולה למלא את כל הגובה.
+   .topbar-inner מקבל בדיוק את הגאומטריה של .page (max-width 1120 + אותו ריפוד) — ולכן "אפשרויות"
+   בקצה הימני שלו יושב בדיוק מעל המסגרת הימנית של אריח "צ׳קים בחוץ". "AP Control" — בקצה השמאלי. */
 @media (min-width: 1000px) {
-  .store-banner { flex-wrap: nowrap; }
-  .store-banner > * { flex-shrink: 0; }
-  .store-banner > .store-banner-name { flex-shrink: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .store-banner > .store-banner-switch { flex-shrink: 1; }                 /* עד רוחב הבורר המינימלי + "החלף" */
+  .topbar {
+    position: fixed; top: 0; z-index: 25; height: 64px;
+    inset-inline-start: 250px; inset-inline-end: 0;
+    background: color-mix(in srgb, var(--color-accent) 10%, var(--color-surface));
+    border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 45%, var(--color-line));
+  }
+  .topbar-inner { max-width: 1120px; height: 100%; margin: 0 auto; padding: 0 var(--space-6); }
+  .topbar .store-banner {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 100%;
+    margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent;
+  }
+  .sb-start { justify-self: start; }
+  .sb-end { justify-self: end; }
+  .sb-center { flex-wrap: nowrap; }
   .store-banner-switch select { min-width: 130px; max-width: 220px; flex: 0 1 auto; }
   .store-banner-switch > button { flex-shrink: 0; }
-}
-/* בנייד אין מקום לצד: הכפתור נשאר בצד ימין, בשורה עליונה משלו בתוך הפס. */
-@media (max-width: 700px) {
-  .store-banner.has-back { padding-inline: var(--space-4); padding-top: 52px; }
-  .store-banner-back { top: 10px; bottom: auto; margin-block: 0; }
+  .store-banner-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .topbar-brand { display: inline-flex; position: absolute; left: 18px; top: 0; bottom: 0; margin-block: auto; height: fit-content; } /* left ולא inset-inline: ל-.nav-brand יש direction:ltr */
+  body:has(.topbar) .nav > .nav-brand { display: none; }
+  body:has(.topbar) main.page { padding-top: calc(64px + var(--space-6)); }
 }

@@ -25,6 +25,9 @@
 
   <header class="nav">
     <a href="/" class="nav-brand"><span class="mark">AP</span>Control</a>
+    <%# טלפון: שם הדף במרכז שורת הכותרת (בעלים, 17/10) — מתחלף בכל דף. השרת כותב את `title`, והסקריפט
+        למטה מחליף בטקסט ה-<h1> של הדף ומסתיר אותו שם, כך שהשם לא מופיע פעמיים. במחשב — מוסתר. %>
+    <span class="nav-title"><%= typeof title !== 'undefined' ? title : '' %></span>
     <span class="spacer"></span>
     <details class="menu navmenu" id="navmenu">
       <summary class="btn btn-secondary btn-sm">☰ ניווט דפים <span class="caret">▾</span></summary>
@@ -69,6 +72,12 @@
       function sync(){ if (mq.matches) d.setAttribute('open',''); else d.removeAttribute('open'); }
       (mq.addEventListener ? mq.addEventListener('change', sync) : mq.addListener(sync));
       sync();
+      // שם הדף בשורת הכותרת בטלפון: כותרת ה-h1 הראשונה של הדף עולה לשם (ומוסתר בדף — CSS, רק בטלפון).
+      document.addEventListener('DOMContentLoaded', function () {
+        var t = document.querySelector('.nav-title');
+        var h = document.querySelector('main.page h1');
+        if (t && h) { t.textContent = h.textContent.replace(/\s+/g, ' ').trim(); h.classList.add('h1-in-header'); }
+      });
       /* --nav-w: the widest menu item (icon + label), measured — the CSS centers the whole group on
          it, so the icons stand in one straight column and the longest label still fits. Count tags
          (אישורים, התראות, "נעול") sit at the far end of their row and are left out of the measure. */
@@ -110,10 +119,18 @@
     apSyncThemeLabel();
   </script>
 
-  <main class="page fade-up">
-    <%# Active-store context banner — always visible so the user knows which store they're on. %>
-    <% if (typeof availableStores !== 'undefined' && availableStores && availableStores.length) { %>
+  <%# ── שורת הכותרת (בעלים, 17/10, אחרי הדמיה): פס החנות הוא שורת הכותרת של אזור התוכן.
+      מחשב: קבועה למעלה, "AP Control" בקצה השמאלי, הבורר במרכז, ו"אפשרויות" מימין — המסגרת הימנית שלו
+      בדיוק מעל המסגרת הימנית של אריח "צ׳קים בחוץ" (.topbar-inner = אותה גאומטריה של .page). "→ חזרה"
+      נכנס לצד הימני לידו (footer.ejs). טלפון: הפס נשאר מתחת לכותרת, והכותרת עצמה מציגה את שם הדף.
+      מחוץ ל-<main> בכוונה: ל-main יש אנימציית transform, ו-position:fixed בתוכו נמדד מול main. %>
+  <% if (typeof availableStores !== 'undefined' && availableStores && availableStores.length) { %>
+  <div class="topbar">
+    <a href="/" class="nav-brand topbar-brand"><span class="mark">AP</span>Control</a>
+    <div class="topbar-inner">
       <div class="store-banner<%= (typeof activeStore !== 'undefined' && activeStore) ? '' : ' is-all' %>">
+        <div class="sb-side sb-start"><% if (typeof quickMenu !== 'undefined' && quickMenu) { %><%- include('_quickMenu') %><% } %></div>
+        <div class="sb-center">
         <span class="store-banner-ico" aria-hidden="true">🏪</span>
         <%# בעלים, 17/10: "אני לא צריך שיהיה רשום פעמיים — לקצר אבל להבליט". כשיש בורר, שם החנות מופיע
             רק בתוכו (מודגש); הטקסט "חנות פעילה · שם · חברה" שחזר על אותו דבר לידו הוסר. בלי בורר (חנות
@@ -149,9 +166,13 @@
         <% } else { %>
           <span class="tag tag-outline store-banner-lock">נעול לחנות זו</span>
         <% } %>
-        <% if (typeof quickMenu !== 'undefined' && quickMenu) { %><%- include('_quickMenu') %><% } %>
+        </div>
+        <div class="sb-side sb-end"></div>
       </div>
-    <% } %>
+    </div>
+  </div>
+  <% } %>
+  <main class="page fade-up">
     <% if (typeof scopeCompanies !== 'undefined' && scopeCompanies) { %>
       <div class="scope-strip">
         <span class="tag tag-outline">חברות מורשות</span>

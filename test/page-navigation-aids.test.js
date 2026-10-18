@@ -31,21 +31,24 @@ test('to-top button and a draggable scroll rail (mouse only, long pages only)', 
   assert.match(css, /\.to-top \{[^}]*position: fixed;/);
 });
 
-test('"→ חזרה" sits inside the store bar, at its right edge, and the bar is centered (owner, 17/10)', () => {
-  assert.match(footer, /var banner = main\.querySelector\(':scope > \.store-banner'\);/);
-  assert.match(footer, /banner\.insertBefore\(a, banner\.firstChild\);/, 'into the bar when there is one');
+test('the store bar is the header row: back on its right side, picker centred, logo far left, sidebar full height (owner, 17/10)', () => {
+  assert.match(footer, /var side = document\.querySelector\('\.store-banner \.sb-start'\);/);
+  assert.match(footer, /side\.appendChild\(a\);/, '"→ חזרה" joins the right side, left of "אפשרויות"');
   assert.match(footer, /bar\.className = 'page-back no-print';/, 'a page without the bar keeps its own row');
-  assert.match(css, /\.store-banner \{ justify-content: center; position: relative; \}/);
-  assert.match(css, /\.store-banner-back \{ position: absolute; inset-inline-start: 12px;/, 'inline-start = right in RTL');
+  const desk = css.slice(css.indexOf('@media (min-width: 1000px) {\n  .topbar {'));
+  assert.ok(desk.length > 100, 'a desktop header-row block exists');
+  assert.match(desk, /position: fixed; top: 0;[^}]*inset-inline-start: 250px; inset-inline-end: 0;/, 'over the content area only — the sidebar keeps its full height');
+  assert.match(desk, /\.topbar-inner \{ max-width: 1120px;[^}]*padding: 0 var\(--space-6\); \}/, 'same geometry as .page → "אפשרויות" right edge = the first tile right edge');
+  assert.match(desk, /grid-template-columns: 1fr auto 1fr;/, 'right side · centred picker · left side');
+  assert.match(desk, /\.topbar-brand \{ display: inline-flex; position: absolute; left: 18px;/, '"AP Control" at the far left');
   assert.match(css, /main\.page \.page-back \{ text-align: start !important; \}/);
 });
 
-test('desktop: the store bar is ONE row for every store — long names shrink, buttons never wrap (owner, 17/10)', () => {
-  const block = css.slice(css.indexOf('@media (min-width: 1000px) {\n  .store-banner { flex-wrap: nowrap; }'));
-  assert.ok(block.length > 0, 'nowrap on desktop');
-  assert.match(block, /\.store-banner > \.store-banner-name \{ flex-shrink: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; \}/);
-  assert.match(block, /\.store-banner-switch > button \{ flex-shrink: 0; \}/, '"החלף" keeps its size');
-  assert.match(css, /\.store-banner\.has-back \{ padding-inline: 104px; \}/);
+test('phone: the page name sits in the centre of the header row and the page h1 is not repeated (owner, 17/10)', () => {
+  const header = readFileSync(new URL('../src/views/partials/header.ejs', import.meta.url), 'utf8');
+  assert.match(header, /<span class="nav-title">/);
+  assert.match(header, /t\.textContent = h\.textContent\.replace\(\/\\s\+\/g, ' '\)\.trim\(\); h\.classList\.add\('h1-in-header'\);/);
+  assert.match(css, /main\.page \.h1-in-header \{ display: none; \}/);
 });
 
 test('"למעלה" is unmistakable and never covers a sticky bottom bar (owner, 17/10: "לא מובן שזה חץ למעלה")', () => {
@@ -55,10 +58,11 @@ test('"למעלה" is unmistakable and never covers a sticky bottom bar (owner, 
   assert.match(css, /\.to-top \{[^}]*background: var\(--color-accent\); color: #fff;/);
 });
 
-test('"→ חזרה" does not drop when pressed — centred without transform (owner, 17/10)', () => {
-  // `button:active, .btn:active { transform: translateY(1px) }` replaced the centring translateY(-50%),
-  // so the button fell by half its height while the mouse was down.
-  const rule = css.slice(css.indexOf('.store-banner-back {'), css.indexOf('}', css.indexOf('.store-banner-back {')));
-  assert.ok(!/transform/.test(rule), 'no transform in the centring rule');
-  assert.match(rule, /top: 0; bottom: 0; margin-block: auto; height: fit-content;/);
+test('"→ חזרה" does not drop when pressed — no transform-based positioning (owner, 17/10)', () => {
+  // `button:active, .btn:active { transform: translateY(1px) }` once replaced a centring translateY(-50%),
+  // so the button fell by half its height while the mouse was down. It now sits in the flow of the bar.
+  const i = css.indexOf('.store-banner-back {');
+  const rule = i >= 0 ? css.slice(i, css.indexOf('}', i)) : '';
+  assert.ok(!/transform/.test(rule), 'no transform on the back button');
+  assert.ok(!/\.store-banner-back \{[^}]*translateY/.test(css));
 });

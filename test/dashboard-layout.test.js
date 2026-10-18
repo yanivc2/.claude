@@ -1,4 +1,4 @@
-// לוח הבקרה לפי בקשת הבעלים (16/10): בלי "פעולות מהירות" ("אפשרויות" עבר לפס החנות, משמאל ל"החלף"),
+// לוח הבקרה לפי בקשת הבעלים (16/10): בלי "פעולות מהירות" ("אפשרויות" עבר לשורת הכותרת, בצד ימין — 18/10),
 // "צ׳קים בחוץ" במקום "צ׳קים פתוחים" ובלי בורר חנות משלו, בדיקת חשבונית באריח — חנות פעילה בלבד, שם
 // ומספר בשדות נפרדים (מקלדת מספרים), "לא שולמו בלבד"; "העברה בבנק ללא תיעוד" בתחתית ומכווץ.
 import { test, before, after } from 'node:test';
@@ -23,13 +23,14 @@ before(async () => {
 after(() => server && server.close());
 const page = async (qs = '') => (await fetch(`${base}/${qs}`, { headers: { cookie: `session=${createSession(o.id)}; ap_store=${st.id}` } })).text();
 
-test('dashboard: no quick-actions card, the options menu sits in the store bar after "החלף"', async () => {
+test('dashboard: no quick-actions card; "אפשרויות" sits on the RIGHT side of the header bar (owner, 17/10)', async () => {
   const html = await page();
   assert.doesNotMatch(html, /פעולות מהירות/);
-  const swap = html.indexOf('>החלף</button>');
+  const start = html.indexOf('class="sb-side sb-start"');
   const menu = html.indexOf('store-banner-quick');
-  assert.ok(swap > 0 && menu > swap, 'אפשרויות comes after החלף (to its left in RTL)');
-  assert.ok(menu < html.indexOf('<h1'), 'in the banner, above the page title');
+  const center = html.indexOf('class="sb-center"');
+  assert.ok(start > 0 && menu > start && menu < center, 'in the right-hand side of the bar, before the centred picker');
+  assert.ok(menu < html.indexOf('<h1'), 'in the bar, above the page title');
 });
 
 test('dashboard: "checks outside" first, no store picker in it; the lookup tile has no store/company picker', async () => {
