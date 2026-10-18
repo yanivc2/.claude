@@ -113,3 +113,8 @@ test('מרקורים → הצהרות הפקדה: no explanation line and no "ח
   const dep = readFileSync(new URL('../src/views/partials/_deposits.ejs', import.meta.url), 'utf8');
   assert.match(dep, /\(typeof noSearch !== 'undefined' && noSearch\) \? ' no-search' : ''/);
 });
+
+test('the invoices table sits in a card — the same frame as the tracked page (owner, 18/10)', async () => {
+  const html = await page();
+  assert.match(html, /<div class="card">\s*<div class="table-scroll">\s*<table class="sortable no-search" data-export-into="payExport">/);
+});
