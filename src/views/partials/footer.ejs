@@ -534,11 +534,13 @@
   </script>
 
   <script>
-  // Global table tools: for every data table (a <table> with a <thead> and ≥2 body rows), add a
-  // compact toolbar with (a) a live per-keystroke search that filters rows across ALL columns, and
-  // (b) Excel + CSV export of the currently-visible rows. Columns whose header is .no-print or
-  // [data-noexport] (action/checkbox/ייצוא columns) are excluded from the export. Opt out with
-  // class "no-enhance" on the table.
+  // Global table tools: for every data table (a <table> with a <thead> and ≥2 body rows) — (a) a
+  // filter row under the column titles ("סנן…" / a dropdown of the column's values), and (b) "ייצוא"
+  // (Excel / CSV / PDF of the currently-visible rows) under the table. Columns whose header is
+  // .no-print or [data-noexport] (action/checkbox/ייצוא columns) are excluded from the export. Opt
+  // out with class "no-enhance" on the table.
+  // 🔴 אין יותר "חיפוש בטבלה…" מעל טבלאות (בעלים 19/10: "תמחק" — מכל הטבלאות, אחרי שנמחק דף-דף
+  // בחשבוניות, מעוקבות, הצהרות הפקדה, צ׳קים בחוץ וסגירת Z). הסינון = מסנני העמודות.
   (function () {
     var main = document.querySelector('main') || document.body;
     function norm(s) { return (s == null ? '' : String(s)).replace(/\s+/g, ' ').trim().toLowerCase(); }
@@ -621,12 +623,6 @@
       if (dataRows(table.tBodies[0]).length < 2) return; // nothing worth searching/exporting
       table.dataset.toolsDone = '1';
 
-      var tools = document.createElement('div');
-      tools.className = 'tbl-tools no-print';
-      var search = document.createElement('input');
-      search.type = 'search'; search.className = 'tbl-search';
-      search.placeholder = 'חיפוש בטבלה…'; search.autocomplete = 'off';
-      var count = document.createElement('span'); count.className = 'tbl-count muted';
       // A single "ייצוא" button that opens a small menu with the three formats (Excel / CSV / PDF),
       // instead of three separate buttons cluttering every table toolbar.
       var exportWrap = document.createElement('div'); exportWrap.className = 'tbl-export';
@@ -639,7 +635,6 @@
       var pdf = document.createElement('button'); pdf.type = 'button'; pdf.className = 'tbl-export-item'; pdf.textContent = 'PDF';
       menu.appendChild(xls); menu.appendChild(csv); menu.appendChild(pdf);
       exportWrap.appendChild(exportBtn); exportWrap.appendChild(menu);
-      tools.appendChild(search); tools.appendChild(count);
       // "ייצוא" מתחת לטבלה, בשורה משלו (בעלים, 18/10: "את כפתור הייצוא שים למטה" — בכל הטבלאות).
       var foot = document.createElement('div'); foot.className = 'tbl-foot no-print';
       foot.appendChild(exportWrap);
@@ -656,10 +651,8 @@
       document.addEventListener('click', function (e) { if (!exportWrap.contains(e.target)) closeMenu(); });
       document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
 
-      // the search row just before the table (or its scroll wrapper), the export row just after it
+      // the export row just after the table (or its scroll wrapper)
       var anchor = table.closest('.table-scroll') || table;
-      // class="no-search": בלי שורת "חיפוש בטבלה…" (דף החשבוניות, בעלים 18/10); מסנני העמודות נשארים.
-      if (!table.classList.contains('no-search')) anchor.parentNode.insertBefore(tools, anchor);
       // data-export-into="<id>": "ייצוא" נכנס לאלמנט הזה (בדף החשבוניות — הסרגל שלמטה, לפני "בטל בחירה";
       // בעלים 18/10) במקום שורה משלו מתחת לטבלה.
       var exportSlot = table.getAttribute('data-export-into') && document.getElementById(table.getAttribute('data-export-into'));
@@ -671,9 +664,9 @@
       // Per-column filter row — on EVERY enhanced table (בעלים, 17/10: "בדף חשבוניות צור בטבלה מסננים,
       // וכן בכל הטבלאות"; עד אז רק class="filterable"). Opt out with class="no-filter"; a table that
       // already carries its own filter row (two header rows, e.g. מרקורים) keeps it. It lives INSIDE
-      // this enhancer on purpose: the free-text search above already owns row visibility, and a second
-      // mechanism that hid rows on its own would fight it (one sets style.display, the other .hidden,
-      // and an empty box would no longer reveal what the other had hidden). One decision, all inputs.
+      // this enhancer on purpose: one function (filter) owns row visibility — a second mechanism that hid
+      // rows on its own would fight it (one sets style.display, the other .hidden, and an empty box would
+      // no longer reveal what the other had hidden). One decision, all inputs.
       // A column with few distinct values (סטטוס, אמצעי תשלום, חנות…) gets a dropdown of exactly those
       // values (exact match); any other column a free-text box (contains).
       var colInputs = [];
@@ -711,29 +704,17 @@
       }
 
       function filter() {
-        var toks = norm(search.value).split(' ').filter(Boolean);
-        var active = toks.length > 0;
-        var cols = colInputs.map(function (inp) {
-          var q = inp ? norm(inp.value) : '';
-          if (q) active = true;
-          return q;
-        });
-        var shown = 0;
+        var cols = colInputs.map(function (inp) { return inp ? norm(inp.value) : ''; });
         rows.forEach(function (r) {
-          var hay = norm(r.textContent);
-          var ok = toks.every(function (t) { return hay.indexOf(t) !== -1; })
-            && cols.every(function (q, idx) {
-              if (!q) return true;
-              var td = r.cells[idx];
-              if (!td) return false;
-              return colInputs[idx].dataset.exact ? norm(td.textContent) === q : norm(td.textContent).indexOf(q) !== -1;
-            });
+          var ok = cols.every(function (q, idx) {
+            if (!q) return true;
+            var td = r.cells[idx];
+            if (!td) return false;
+            return colInputs[idx].dataset.exact ? norm(td.textContent) === q : norm(td.textContent).indexOf(q) !== -1;
+          });
           r.style.display = ok ? '' : 'none';
-          if (ok) shown++;
         });
-        count.textContent = active ? (shown + ' / ' + rows.length) : '';
       }
-      search.addEventListener('input', filter);
       colInputs.forEach(function (inp) { if (inp) { inp.addEventListener('input', filter); inp.addEventListener('change', filter); } });
       xls.addEventListener('click', function () { exportExcel(table, baseName(table)); });
       csv.addEventListener('click', function () { exportCsv(table, baseName(table)); });
@@ -763,8 +744,8 @@
 
   <script>
   // Grouped tables (table.cx-grouped — מזומן בחשבוניות, היסטוריית הפקדות בלוח): rows that are "done" sit in
-  // collapsed groups at the bottom ("▸ סומנו כטופלו (30)"). A click opens/closes a group; while the
-  // table search OR any column filter has a value, every group row is shown so the filter finds them.
+  // collapsed groups at the bottom ("▸ סומנו כטופלו (30)"). A click opens/closes a group; while any
+  // column filter has a value, every group row is shown so the filter finds them.
   (function () {
     document.addEventListener('click', function (e) {
       var b = e.target && e.target.closest ? e.target.closest('.cx-group-toggle') : null;
@@ -778,17 +759,8 @@
     function searching(e) {
       var t = e.target;
       if (!t || !t.closest) return;
-      var table = null, any = false;
-      if (t.classList && t.classList.contains('tbl-search')) {
-        var tools = t.closest('.tbl-tools'), next = tools && tools.nextElementSibling;
-        table = next && (next.matches('table') ? next : next.querySelector('table'));
-      } else if (t.closest('.filter-row')) {
-        table = t.closest('table');
-      }
+      var table = t.closest('.filter-row') ? t.closest('table') : null, any = false;
       if (!table || !table.classList.contains('cx-grouped')) return;
-      var tools2 = (table.closest('.table-scroll') || table).previousElementSibling;
-      var box = tools2 && tools2.querySelector ? tools2.querySelector('.tbl-search') : null;
-      if (box && box.value.trim()) any = true;
       table.querySelectorAll('.filter-row input, .filter-row select').forEach(function (i) { if (String(i.value).trim()) any = true; });
       table.classList.toggle('cx-searching', any);
     }
@@ -1052,6 +1024,17 @@
     }
     var NAVK = 'apNavStack';
     var cur = clean(location);
+    // הודעת תוצאה ("נמחקה: …", שגיאה) מוצגת פעם אחת: אחרי שהדף הציג אותה היא יורדת מהכתובת. אחרת רענון,
+    // או חזרה לאפליקציה (ה-PWA משחזר את הכתובת האחרונה), מציגים שוב "נמחקה" ימים אחרי — בעלים, 19/10:
+    // "איזה סגירה נמחקה?". רק פרמטרי הודעה — שאר הפרמטרים החולפים משמשים את הדף עצמו.
+    try {
+      var q0 = new URLSearchParams(location.search), had = false;
+      ['notice', 'err', 'error'].forEach(function (k) { if (q0.has(k)) { q0.delete(k); had = true; } });
+      if (had && history.replaceState) {
+        var qs0 = q0.toString();
+        history.replaceState(history.state, '', location.pathname + (qs0 ? '?' + qs0 : '') + location.hash);
+      }
+    } catch (e) { /* אין history — ההודעה פשוט נשארת בכתובת */ }
     var st = [];
     try { st = JSON.parse(sessionStorage.getItem(NAVK) || '[]'); } catch (e) { st = []; }
     if (st.length && st[st.length - 1] === cur) { /* אותו דף (פעולה/רענון) — לא נוסף */ }

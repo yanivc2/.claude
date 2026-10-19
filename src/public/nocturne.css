@@ -621,9 +621,6 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
 .bag-scan-actions { display: flex; gap: var(--space-3); }
 
 /* global table tools toolbar (live search + Excel/CSV export) */
-.tbl-tools { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; margin: 0 0 var(--space-2); }
-.tbl-tools .tbl-search { max-width: 260px; min-height: 0; padding: 6px 10px; }
-.tbl-tools .tbl-count { font-size: 12px; }
 /* One "ייצוא" button that reveals Excel / CSV / PDF in a small menu below it. */
 .tbl-export { position: relative; }
 .tbl-export-menu {

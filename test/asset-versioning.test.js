@@ -31,3 +31,14 @@ test('the save row keeps "שמור סגירה" and "ייצוא" side by side', (
   const css = readFileSync(path.join(process.cwd(), 'src/public/nocturne.css'), 'utf8');
   assert.match(css, /\.zc-save-row \{ display: flex;[^}]*flex-wrap: nowrap; \}/);
 });
+
+// בעלים 19/10 ("תמחק", צילום של "חיפוש בטבלה…" — "מכל הטבלאות"): שום טבלה לא מקבלת יותר שורת חיפוש
+// חופשי מעליה. הסינון = מסנני העמודות, ו"ייצוא" נשאר מתחת.
+test('no "חיפוש בטבלה…" above any table — the column filters and "ייצוא" stay', () => {
+  const footer = readFileSync(path.join(process.cwd(), 'src/views/partials/footer.ejs'), 'utf8');
+  assert.doesNotMatch(footer, /className = 'tbl-search'|placeholder = 'חיפוש בטבלה…'/);
+  assert.match(footer, /inp\.placeholder = 'סנן…'/, 'the column filters stay');
+  assert.match(footer, /foot\.className = 'tbl-foot no-print'/, '"ייצוא" stays under the table');
+  const css = readFileSync(path.join(process.cwd(), 'src/public/nocturne.css'), 'utf8');
+  assert.doesNotMatch(css, /\.tbl-search|\.tbl-tools/, 'no dead CSS for it');
+});

@@ -6,7 +6,8 @@ import {
   findRecentDuplicateClosing,
 } from '../services/zclosing.js';
 import { scopeClause } from '../lib/scope.js';
-import { toAgorot } from '../lib/money.js';
+import { toAgorot, formatIls } from '../lib/money.js';
+import { israelStamp } from '../lib/loginHours.js';
 import { listInvoices } from '../services/invoices.js';
 import { listEmployees } from '../services/employees.js';
 import { requireOwner } from '../middleware/requireOwner.js';
@@ -181,8 +182,12 @@ router.post('/:id', requireOwner, async (req, res, next) => {
 
 router.post('/:id/delete', requireOwner, async (req, res, next) => {
   try {
-    await deleteZClosing(Number(req.params.id), req.user);
-    return res.redirect(303, `/zclosing?notice=${encodeURIComponent('הסגירה נמחקה.')}`); // PRG
+    const z = await deleteZClosing(Number(req.params.id), req.user);
+    // The notice names the closing (owner, 19/10: "איזה סגירה נמחקה?").
+    const who = `${z.employee_first || ''} ${z.employee_last || ''}`.trim();
+    const what = [`סגירת Z ${z.z_number || ''}`.trim(), z.store_name, `מגירה ${formatIls(z.drawer_cash)}`, who && `ספר/ה ${who}`,
+      z.created_at && `נשמרה ${israelStamp(z.created_at)}`].filter(Boolean).join(' · ');
+    return res.redirect(303, `/zclosing?notice=${encodeURIComponent(`נמחקה: ${what}.`)}`); // PRG
   } catch (err) {
     next(err);
   }

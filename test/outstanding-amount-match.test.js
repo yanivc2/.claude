@@ -97,8 +97,7 @@ test('outstanding page: no table search; the due-date cut sits in the detail hea
   assert.ok(head.indexOf('פירוט צ׳קים שלא נפרעו</h2>') > 0 && head.indexOf('חתך לפי תאריך פירעון') > head.indexOf('</h2>'),
     'heading first (= right in RTL), the cut after it (= left)');
   assert.equal((html.match(/id="oc-date"/g) || []).length, 1, 'the cut is rendered once — not also in the top card');
-  assert.equal((html.match(/<table class="(?:sortable )?no-search"/g) || []).length, 2, 'both tables opt out of "חיפוש בטבלה…"');
-  assert.match(html, /<div class="table-scroll">\s*<table class="sortable no-search">/, 'the 11-column table scrolls inside itself on a phone');
+  assert.match(html, /<div class="table-scroll">\s*<table class="sortable">/, 'the 11-column table scrolls inside itself on a phone');
   // No account picked → the cut stays in its own card at the top (there is no detail heading).
   const top = await (await fetch(`${base}/reports/outstanding`, { headers: { cookie: ck() } })).text();
   assert.equal((top.match(/id="oc-date"/g) || []).length, 1);

@@ -418,14 +418,28 @@ export async function updateZClosing(id, input, actor, x = getExecutor()) {
   return getZClosing(id, x);
 }
 
+/**
+ * Delete a closing. The row is gone afterwards, so the audit entry carries WHAT was deleted (store, Z,
+ * drawer, total, counter, when it was saved) — owner, 19/10: "איזה סגירה נמחקה?" — the entry used to
+ * hold only the internal id, which points at nothing once the row is deleted.
+ * @returns {Promise<object>} the deleted closing (for the notice)
+ */
 export async function deleteZClosing(id, actor, x = getExecutor()) {
-  await getZClosing(id, x);
+  const row = await getZClosing(id, x);
   // Child expense rows cascade on FK; delete explicitly too so it works if FKs are off.
   await tx(async (t) => {
     await t.run('DELETE FROM z_closing_expenses WHERE closing_id = ?', [id]);
     await t.run('DELETE FROM z_closings WHERE id = ?', [id]);
   });
-  await logAction({ userId: actor?.id ?? null, action: 'zclosing.delete', entityType: 'z_closing', entityId: id }, x);
+  await logAction({
+    userId: actor?.id ?? null, action: 'zclosing.delete', entityType: 'z_closing', entityId: id,
+    details: {
+      store: row.store_name || null, z_number: row.z_number || null,
+      drawer_cash: Number(row.drawer_cash) || 0, grand_total: Number(row.grand_total) || 0,
+      counted_by: `${row.employee_first || ''} ${row.employee_last || ''}`.trim() || null, saved_at: row.created_at || null,
+    },
+  }, x);
+  return row;
 }
 
 /**

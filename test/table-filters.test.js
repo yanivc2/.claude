@@ -1,7 +1,7 @@
 // סינון ומיון בטבלאות — המשפרים הגלובליים ב-partials/footer.ejs.
 //
 // שני דברים נעולים כאן:
-//   • **החלטה אחת על נראוּת שורה.** לטבלאות כבר היה "חיפוש בטבלה" גלובלי שמסתיר שורות. שורת
+//   • **החלטה אחת על נראוּת שורה.** (עד 19/10) לטבלאות היה "חיפוש בטבלה" גלובלי שמסתיר שורות. שורת
 //     הסינון לפי עמודה נבנית בתוך אותו משפר ומזינה את אותה פונקציה — שני מנגנוני הסתרה נפרדים
 //     על אותה טבלה נלחמים זה בזה (אחד מסתיר ב-style.display, השני ב-hidden), ותיבה שרוקנת לא
 //     הייתה מחזירה שורה שהשני הסתיר.
@@ -15,13 +15,14 @@ import path from 'node:path';
 const read = (p) => fs.readFileSync(path.join(process.cwd(), p), 'utf8');
 const footer = read('src/views/partials/footer.ejs');
 
-test('the column filters live inside the search enhancer, not beside it — and on EVERY table', () => {
+test('the column filters live inside the table enhancer, not beside it — and on EVERY table', () => {
   // בעלים, 17/10: "בדף חשבוניות צור בטבלה מסננים, וכן בכל הטבלאות" — opt-out, not opt-in.
   assert.match(footer, /if \(!table\.classList\.contains\('no-filter'\) && table\.tHead\.rows\.length === 1\)/);
-  // One filter() decides visibility from BOTH the free-text search and the per-column boxes.
+  // One filter() decides visibility from the per-column boxes (the free-text "חיפוש בטבלה…" is gone
+  // since 19/10 — owner: "תמחק", from every table).
   const fn = footer.slice(footer.indexOf('function filter() {'));
-  assert.match(fn.slice(0, 1200), /toks\.every/, 'the free-text search still applies');
-  assert.match(fn.slice(0, 1200), /cols\.every/, 'and the column boxes apply in the same pass');
+  assert.match(fn.slice(0, 1200), /cols\.every/, 'the column boxes decide visibility');
+  assert.doesNotMatch(fn.slice(0, 1200), /toks\.every|search\.value/, 'no free-text search any more');
   assert.ok(
     !/document\.querySelectorAll\('table\.filterable'\)\.forEach/.test(footer),
     'no second, independent pass over filterable tables',

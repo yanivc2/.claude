@@ -17,7 +17,7 @@
   <summary><span class="caret">▸</span> הצהרות הפקדה <span class="muted">(<%= (deposits || []).length %>)</span></summary>
   <%# בלי שורת ההסבר ובלי "חיפוש בטבלה…" (בעלים, 18/10: "מחק את המלל והחיפוש") — מסנני העמודות נשארים. %>
   <%- include('../partials/_deposits', {
-        rows: deposits, verify: depVerify, zdiff: depZDiff, actions: true, noSearch: true,
+        rows: deposits, verify: depVerify, zdiff: depZDiff, actions: true,
       }) %>
 </details>
 

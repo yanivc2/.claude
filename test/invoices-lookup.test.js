@@ -34,7 +34,7 @@ test('above the list: no search tile, no "סינון · …", no hint line, no "
   assert.doesNotMatch(html, /filt-toggle/, 'the old checkbox panel is gone too');
   assert.doesNotMatch(html, /סינון · /, 'no status menu');
   assert.doesNotMatch(html, /לחיצה על שורה פותחת את פרטי החשבונית/, 'no hint line');
-  assert.match(html, /<table class="sortable no-search" data-export-into="payExport">/, 'no free-text search row; export goes to the bottom bar');
+  assert.match(html, /<table class="sortable" data-export-into="payExport">/, 'export goes to the bottom bar');
   assert.match(html, /<h1>חשבוניות<\/h1>/);
   assert.match(await page('?status=on_hold'), /<h1>חשבוניות · מוחזקות<\/h1>/, 'a ?status= link still filters, and the title says so');
 });
@@ -60,7 +60,7 @@ test('picking an invoice for a combined payment: a big box, and the whole cell t
 test('"ייצוא" sits under every table, in its own centred row; the menu opens upward (owner, 18/10)', () => {
   const footer = readFileSync(new URL('../src/views/partials/footer.ejs', import.meta.url), 'utf8');
   assert.match(footer, /var foot = document\.createElement\('div'\); foot\.className = 'tbl-foot no-print';\n\s*foot\.appendChild\(exportWrap\);/);
-  assert.match(footer, /if \(!table\.classList\.contains\('no-search'\)\) anchor\.parentNode\.insertBefore\(tools, anchor\);/, 'search above (unless no-search)');
+  assert.doesNotMatch(footer, /tbl-search|חיפוש בטבלה…'/, 'no free-text search row above any table (owner, 19/10)');
   assert.match(footer, /if \(exportSlot\) exportSlot\.appendChild\(exportWrap\);\n\s*else anchor\.parentNode\.insertBefore\(foot, anchor\.nextSibling\);/, 'export below, or into the element the table names');
   assert.doesNotMatch(footer, /tools\.appendChild\(exportWrap\)/, 'not in the search row any more');
   const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
@@ -109,12 +109,11 @@ test('every table: the column-title row is bold, dark and tinted; the filter row
 test('מרקורים → הצהרות הפקדה: no explanation line and no "חיפוש בטבלה…" (owner, 18/10)', () => {
   const pay = readFileSync(new URL('../src/views/payments/index.ejs', import.meta.url), 'utf8').replace(/<%#[\s\S]*?%>/g, '');
   assert.doesNotMatch(pay, /הפקדות שהוצהרו בדוחות Z/);
-  assert.match(pay, /rows: deposits, verify: depVerify, zdiff: depZDiff, actions: true, noSearch: true,/);
+  assert.match(pay, /rows: deposits, verify: depVerify, zdiff: depZDiff, actions: true,/);
   const dep = readFileSync(new URL('../src/views/partials/_deposits.ejs', import.meta.url), 'utf8');
-  assert.match(dep, /\(typeof noSearch !== 'undefined' && noSearch\) \? ' no-search' : ''/);
 });
 
 test('the invoices table sits in a card — the same frame as the tracked page (owner, 18/10)', async () => {
   const html = await page();
-  assert.match(html, /<div class="card">\s*<div class="table-scroll">\s*<table class="sortable no-search" data-export-into="payExport">/);
+  assert.match(html, /<div class="card">\s*<div class="table-scroll">\s*<table class="sortable" data-export-into="payExport">/);
 });
