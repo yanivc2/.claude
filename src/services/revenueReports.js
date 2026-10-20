@@ -2,6 +2,9 @@ import { getExecutor, nowTs } from '../db/adapter.js';
 import { scopeWhere } from '../lib/scope.js';
 import { logAction } from './audit.js';
 import { RuleError } from '../lib/errors.js';
+import { parseRevenueReportAny } from '../lib/revenueReportFile.js';
+import { resolveStoreByTitle } from '../lib/revenueIngest.js';
+import { formatIls } from '../lib/money.js';
 
 // "דוח פדיון" — the nightly per-store revenue report (total sales + credit clearing). This is the
 // SYSTEMATIC sales source for profitability: Z reports are entered at irregular hours and not every
@@ -280,4 +283,51 @@ export async function listRevenueWithPeriods({ limit = 20, scope = null } = {}, 
   const periods = await listRevenuePeriods({ limit, scope }, x);
   const end = (r) => r.period_to || r.report_date;
   return [...days, ...periods].sort((a, b) => String(end(b)).localeCompare(String(end(a)))).slice(0, limit);
+}
+
+/**
+ * קליטה מרוכזת של דוחות פדיון — בעלים 20/10, בהגדרות ← סנכרון מהבנק: כמה קבצים בבת אחת, וכל קובץ נקלט לחנות
+ * ששמה מודפס בו (`resolveStoreByTitle`). אותה קליטה כמו העלאה בדף רווחיות: דוח תקופתי → `importRevenuePeriod`
+ * (שורה אחת, לא מפוצל), דוח יומי עם תאריך → `importRevenueRows`. קובץ בלי שם חנות (XLS — גם בלי תאריך) או ששמו לא
+ * מצביע על חנות אחת בדיוק — נדחה עם הסבר, ולא מנוחש. כל קובץ עומד לבד: כשל באחד לא עוצר את האחרים.
+ * @param {Array<{name:string, buffer:Buffer}>} files
+ * @returns {Promise<Array<{file:string, ok:boolean, storeId?:number, text:string}>>}
+ */
+export async function importRevenueFiles(files, actor = null, x = getExecutor()) {
+  const stores = await x.many('SELECT id, name FROM stores', []);
+  const dm = (d) => String(d).split('-').reverse().join('/');
+  const out = [];
+  for (const f of files || []) {
+    const file = f.name || 'קובץ';
+    try {
+      const parsed = await parseRevenueReportAny(f.buffer, {});
+      if (!parsed.storeTitle) {
+        out.push({ file, ok: false, text: `${file}: אין בקובץ שם חנות — העלה אותו בדף רווחיות כשהחנות שלו פעילה` });
+        continue;
+      }
+      const store = resolveStoreByTitle(stores, parsed.storeTitle);
+      if (!store) {
+        out.push({ file, ok: false, text: `${file}: השם "${parsed.storeTitle}" לא מזהה חנות אחת — העלה אותו בדף רווחיות כשהחנות שלו פעילה` });
+        continue;
+      }
+      if (parsed.kind === 'period') {
+        const p = parsed.period;
+        const { replaced } = await importRevenuePeriod(store.id, p, 'upload', actor, x);
+        out.push({ file, ok: true, storeId: store.id,
+          text: `${store.name}: ${dm(p.from)}–${dm(p.to)} · מכירות ${formatIls(p.gross)}${replaced.length ? ' (החליף דוח קודם)' : ''}` });
+        continue;
+      }
+      if (!parsed.rows.length) {
+        out.push({ file, ok: false, text: `${file}: לא נמצא תאריך בדוח — העלה אותו בדף רווחיות` });
+        continue;
+      }
+      await importRevenueRows(store.id, parsed.rows, 'upload', actor, x);
+      out.push({ file, ok: true, storeId: store.id,
+        text: `${store.name}: ${parsed.rows.map((r) => dm(r.date)).join(', ')} · מכירות ${formatIls(parsed.rows.reduce((n, r) => n + (Number(r.gross) || 0), 0))}` });
+    } catch (err) {
+      if (!(err instanceof RuleError)) throw err;
+      out.push({ file, ok: false, text: `${file}: ${err.message}` });
+    }
+  }
+  return out;
 }

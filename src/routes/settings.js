@@ -29,6 +29,7 @@ import { sendTelegramDetailed, telegramConfigured } from '../lib/notify.js';
 import { registerWebhook, testKeyboard } from '../lib/telegramBot.js';
 import { linkFinancyAccounts } from '../services/bankSync.js';
 import { syncStatus } from '../services/bankSyncJobs.js';
+import { importRevenueFiles } from '../services/revenueReports.js';
 import { financyConfigured } from '../lib/financy.js';
 import { importCatalogItems } from '../services/masterCatalog.js';
 import { parseCatalogFile, parseCatalogRows, mapHeaders } from '../lib/catalogFile.js';
@@ -576,6 +577,25 @@ router.post('/clean-start', requireOwner, async (req, res, next) => {
 
 // Restore from a backup JSON (owner-only). REPLACES all data with the file's snapshot,
 // atomically. Guarded by a typed confirmation because it overwrites everything.
+// קליטה מרוכזת של דוחות פדיון (בעלים 20/10, הגדרות ← סנכרון מהבנק): כמה קבצים בבת אחת, כל קובץ לחנות ששמה מודפס בו
+// (services/revenueReports.js#importRevenueFiles). 🔴 Vercel דוחה גוף בקשה מעל ~4.5MB לפני Express — קובץ PDF של
+// דוח פדיון שוקל ~80KB, ולכן 12 קבצים רחוקים מהגבול. multer מפענח שם קובץ כ-latin1; השם בעברית מוחזר ל-UTF-8.
+const revenueBulkUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 12 } }).array('files', 12);
+router.post('/revenue-bulk', requireOwner, (req, res, next) => {
+  revenueBulkUpload(req, res, async (uploadErr) => {
+    try {
+      if (uploadErr) return done(res, 'קליטה מרוכזת: העלאת הקבצים נכשלה (עד 12 קבצים בבת אחת).');
+      const files = (req.files || []).map((f) => ({ name: Buffer.from(f.originalname || '', 'latin1').toString('utf8'), buffer: f.buffer }));
+      if (!files.length) return done(res, 'קליטה מרוכזת: לא נבחרו קבצים.');
+      const results = await importRevenueFiles(files, req.user);
+      const ok = results.filter((r) => r.ok).length;
+      return done(res, `קליטה מרוכזת: ${ok} מתוך ${results.length} נקלטו. ` + results.map((r) => (r.ok ? '✓ ' : '✗ ') + r.text).join(' · '));
+    } catch (err) {
+      next(err);
+    }
+  });
+});
+
 const backupUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024, files: 1 } }).single('backup');
 router.post('/restore', requireOwner, (req, res, next) => {
   backupUpload(req, res, async (uploadErr) => {

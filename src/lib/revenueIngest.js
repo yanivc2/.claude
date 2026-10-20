@@ -100,6 +100,26 @@ export function resolveStoreByBranch(stores, branchName) {
   return hits.length === 1 ? hits[0] : null;
 }
 
+// מילים שאינן מזהות חנות — "בע"מ", "שעות" ("24 שעות") — לא נספרות כהתאמה.
+const TITLE_STOP = new Set(['בעמ', 'עמ', 'שעות']);
+const titleWords = (s) => String(s || '').split(/[\s,.\-_/()]+/).map(normName).filter((w) => w.length >= 3 && !TITLE_STOP.has(w));
+
+/**
+ * The one store a name PRINTED IN A REPORT refers to, or null. The PDF prints the company's legal name, which is
+ * not the store's name in the app — measured on the four real period reports (20/10): "מידנייט" and "ג'וניור בעיר"
+ * resolve by `resolveStoreByBranch`, but "פינק מרקט י. ר. בע"מ" (פינק רשל"צ) and "על הדרך 24 שעות בע"מ" (סופר על
+ * הדרך) do not. So after it: a distinctive word shared with exactly ONE store ("פינק", "הדרך"). Two candidates, or
+ * none, = null — the caller refuses; never a guess.
+ */
+export function resolveStoreByTitle(stores, title) {
+  const direct = resolveStoreByBranch(stores, title);
+  if (direct) return direct;
+  const t = new Set(titleWords(title));
+  if (!t.size) return null;
+  const hits = (stores || []).filter((s) => titleWords(s.name).some((w) => t.has(w)));
+  return hits.length === 1 ? hits[0] : null;
+}
+
 /**
  * POS branches the till never named. The subject then reads "סניף: 1 null", so the name cannot
  * match a store — the owner said which store it is (17/10: "סניף 1 זה ג'וניור"). Consulted ONLY
@@ -119,10 +139,11 @@ export function branchFromSubject(subject) {
  * The PDF prints the store it was issued for ("ג'וניור בעיר", "פינק מרקט י. ר. בע"מ"). When that name
  * points at ONE store and it is not the store the report is being filed under, the file is someone
  * else's: a branch's whole month would land on the wrong store. Returns that other store, else null
- * (no title, or a title that matches nothing — "על הדרך 24 שעות בע"מ" vs "סופר על הדרך" — is allowed).
+ * (no title, or a title that matches no single store, is allowed). Resolved by `resolveStoreByTitle`, so a legal
+ * name ("על הדרך 24 שעות בע"מ") is recognised too — until 20/10 it matched nothing and was let through anywhere.
  */
 export function storeTitleConflict(stores, title, storeId) {
   if (!title) return null;
-  const hit = resolveStoreByBranch(stores, title);
+  const hit = resolveStoreByTitle(stores, title);
   return hit && Number(hit.id) !== Number(storeId) ? hit : null;
 }

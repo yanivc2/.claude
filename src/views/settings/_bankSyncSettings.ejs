@@ -26,6 +26,14 @@
     <% } %>
     <% if (rev) { %>
       <a class="btn btn-secondary rev-intake-link" href="/reconciliation/revenue-intake">📈 קליטת דוח פדיון מהמייל</a>
+      <%# קליטה מרוכזת (בעלים 20/10: "בהגדרות"): כמה קובצי PDF בבת אחת, כל קובץ לחנות ששמה מודפס בו
+          (services/revenueReports.js#importRevenueFiles). אין כאן חנות פעילה — החנות נקבעת מהקובץ. %>
+      <form method="post" action="/settings/revenue-bulk" enctype="multipart/form-data" class="rev-bulk" data-busy="קולט…">
+        <label for="rev-bulk-files">📥 קליטה מרוכזת של דוחות פדיון (PDF)</label>
+        <input type="file" id="rev-bulk-files" name="files" accept=".pdf,application/pdf" multiple required />
+        <small class="muted">כמה קבצים בבת אחת (עד 12) — כל קובץ נקלט לחנות ששמה מודפס בו, יומי או תקופתי. קובץ שהשם בו לא מזהה חנות אחת בדיוק — נדחה, עם הסבר.</small>
+        <button type="submit">קלוט</button>
+      </form>
     <% } %>
   </div>
 </details>
