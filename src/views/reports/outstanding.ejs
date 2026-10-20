@@ -3,6 +3,27 @@
   <h1>צ׳קים בחוץ</h1>
 </div>
 <p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7).<% if (accounts.length !== 1) { %> לחץ על שורה לפירוט.<% } %></p>
+<%# "התאמה לפי סכום": חיוב בבנק באותו סכום שעוד לא הותאם (services/reports.js#outstandingBankCandidates). הצעה
+    בלבד — סכום זהה לבדו אינו הוכחה, ולכן ההתאמה בלחיצה. בעלים 21/10: בלי התיבה הירוקה — שורה מתחת למשפט הפתיחה. %>
+<% var _bm = (typeof bankMatches !== 'undefined' && bankMatches) ? bankMatches : new Map();
+   var _withCand = 0, _unique = 0;
+   detail.forEach(function(r){ var m = _bm.get(Number(r.paymentId)); if (m && m.candidates.length) { _withCand += 1; if (m.unique) _unique += 1; } }); %>
+<% if (detailAccountId) { %>
+  <div class="oc-bank-hint no-print<%= _withCand ? ' is-found' : ' muted' %>">
+    <% if (_withCand) { %>
+      <span>🔎 נמצאו חיובים בבנק <strong>באותו סכום</strong> ל-<strong><%= _withCand %></strong> מתוך <%= detail.length %> צ׳קים פתוחים<%= _unique ? ' — ' + _unique + ' מהם חד-משמעיים' : '' %>. ייתכן שהם כבר נפרעו.</span>
+      <% if (_unique) { %>
+        <form method="post" action="/reports/outstanding/match-unique" style="margin:0"
+              onsubmit="return confirm('להתאים <%= _unique %> צ׳קים לחיובים בבנק לפי סכום ולסמן אותם כנפרעו?')">
+          <input type="hidden" name="account" value="<%= detailAccountId %>" />
+          <button type="submit" class="ok small">🔗 התאם את כל החד-משמעיים (<%= _unique %>)</button>
+        </form>
+      <% } %>
+    <% } else { %>
+      <span>🔎 לא נמצא חיוב בבנק באותו סכום לאף צ׳ק פתוח בחשבון הזה (בדף הבנק שיובא עד היום).</span>
+    <% } %>
+  </div>
+<% } %>
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
@@ -69,9 +90,6 @@ function cutQS(){
 <% } %>
 
 <% if (detailAccountId) { %>
-  <% var _bm = (typeof bankMatches !== 'undefined' && bankMatches) ? bankMatches : new Map();
-     var _withCand = 0, _unique = 0;
-     detail.forEach(function(r){ var m = _bm.get(Number(r.paymentId)); if (m && m.candidates.length) { _withCand += 1; if (m.unique) _unique += 1; } }); %>
   <div class="card">
     <%# בעלים 18/10: בלי "— החשבון הנבחר"; משמאל לכותרת — חתך התאריכים במקום "ייצוא CSV מפורט". הקובץ
         המפורט עדיין זמין מ"ייצוא ▾ ← 📄 ייצוא CSV" בשורת החשבון (אותה כתובת בדיוק). %>
@@ -81,22 +99,6 @@ function cutQS(){
     <%# בלי טבלת החשבונות (חשבון אחד) — הסיכום שלה עובר לכאן, כדי שהסכום בחוץ לא ייעלם. %>
     <% var _acc = accounts.find(function(a){ return a.id === detailAccountId; }); %>
     <% if (_acc && accounts.length === 1) { %><p class="muted oc-total" style="margin:0 0 .6rem"><%= _acc.display_name %> · <%= _acc.outstanding_count %> צ׳קים פתוחים · <strong><%= formatIls(_acc.outstanding) %></strong> בחוץ</p><% } %>
-    <%# "התאמה לפי סכום": חיוב בבנק באותו סכום שעוד לא הותאם (services/reports.js#outstandingBankCandidates).
-        הצעה בלבד — סכום זהה לבדו אינו הוכחה, ולכן ההתאמה בלחיצה. %>
-    <div class="alert <%= _withCand ? 'alert-warn' : 'alert-ok' %> no-print" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-      <% if (_withCand) { %>
-        <span>🔎 נמצאו חיובים בבנק <strong>באותו סכום</strong> ל-<strong><%= _withCand %></strong> מתוך <%= detail.length %> צ׳קים פתוחים<%= _unique ? ' — ' + _unique + ' מהם חד-משמעיים' : '' %>. ייתכן שהם כבר נפרעו.</span>
-        <% if (_unique) { %>
-          <form method="post" action="/reports/outstanding/match-unique" style="margin:0"
-                onsubmit="return confirm('להתאים <%= _unique %> צ׳קים לחיובים בבנק לפי סכום ולסמן אותם כנפרעו?')">
-            <input type="hidden" name="account" value="<%= detailAccountId %>" />
-            <button type="submit" class="ok small">🔗 התאם את כל החד-משמעיים (<%= _unique %>)</button>
-          </form>
-        <% } %>
-      <% } else { %>
-        <span>🔎 לא נמצא חיוב בבנק באותו סכום לאף צ׳ק פתוח בחשבון הזה (בדף הבנק שיובא עד היום).</span>
-      <% } %>
-    </div>
     <%# גלילה בתוך הטבלה: 11 עמודות — בלי העטיפה הדף כולו נמתח ל-922px בטלפון ונגרר הצידה. %>
     <div class="table-scroll">
     <table class="sortable">

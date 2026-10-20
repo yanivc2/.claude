@@ -1496,4 +1496,8 @@ main.page .oc-bar { display: flex; align-items: center; justify-content: space-b
 main.page .oc-bar .oc-cuts { display: flex; gap: .4rem; flex-wrap: wrap; }
 main.page .oc-bar .oc-out { display: flex; gap: .5rem; flex-wrap: wrap; margin-inline-start: auto; }
 main.page .oc-bar-card .oc-cut { margin-top: .8rem; }
+/* בעלים 21/10: "התאמה לפי סכום" של צ׳קים בחוץ — שורה מתחת למשפט הפתיחה, בלי תיבה. נמצא = בצבע אזהרה. */
+main.page .oc-bank-hint { display: flex; align-items: center; justify-content: center; gap: .6rem; flex-wrap: wrap; margin: -.4rem 0 1rem; }
+main.page .oc-bank-hint.is-found { color: var(--color-warn); }
+main.page .oc-bank-hint form { margin: 0; }
 
