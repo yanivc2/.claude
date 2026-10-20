@@ -658,6 +658,8 @@ dialog.dlg::backdrop { background: rgba(0,0,0,.6); backdrop-filter: blur(2px); }
   background: color-mix(in srgb, var(--color-accent) 12%, var(--color-surface));
   border: 1px solid var(--color-accent); border-radius: var(--radius);
   box-shadow: 0 -4px 12px rgba(0, 0, 0, .18); }
+.pay-bar .pay-actions { display: flex; gap: .5rem; margin-inline-start: auto; }
+#invExportNarrow:empty { display: none; }
 
 /* active-store context banner — bold, always-visible "which store am I on" indicator */
 .store-banner { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap;
@@ -1456,4 +1458,13 @@ table.only-pickable tbody tr.not-pickable { display: none; }
   main.page table.inv-cards td.c-note { grid-area: note; display: flex; justify-content: center; align-items: center; }
   main.page table.inv-cards td.c-store { grid-area: store; font-size: 12px; color: var(--color-muted); text-align: start !important; }
   main.page table.inv-cards.one-store td.c-store { display: none; }
+  /* הפס התחתון (בעלים 20/10: "תבנה את ב׳, רק בטלפון"): מופיע רק כשמסומנת חשבונית — במחשב .pay-bar גובר על
+     hidden בכוונה (שם הוא מחזיק את "ייצוא") — ובשתי שורות: הסיכום, ואז "הנפק" הרחב ו"בטל בחירה". */
+  main.page .pay-bar[hidden] { display: none; }
+  main.page .pay-bar { flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 12px; }
+  main.page .pay-bar .pb-long { display: none; }
+  main.page .pay-bar .pay-sum { font-size: 14px; }
+  main.page .pay-bar .pay-actions { margin: 0; gap: 8px; }
+  main.page .pay-bar #payBtn { flex: 1 1 auto; padding: 10px; font-size: 15px; }
+  main.page .pay-bar #payClear { flex: 0 0 auto; padding: 10px 14px; }
 }

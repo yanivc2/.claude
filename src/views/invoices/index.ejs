@@ -121,6 +121,8 @@
 </table>
 </div>
 </div>
+<%# "ייצוא" בטלפון — מתחת לרשימה, כי שם הפס התחתון מוסתר כשלא מסומן כלום (ראה הפס, למטה). במחשב ריק ומוסתר. %>
+<div id="invExportNarrow" class="tbl-foot no-print"></div>
 
 <% if (invoiceNotesReady) { %>
 <% if (typeof noteError !== 'undefined' && noteError) { %><div class="alert alert-error no-print"><%= noteError %></div><% } %>
@@ -186,9 +188,12 @@
 <% } %>
 
 
+<%# הפס התחתון. במחשב — מוצג תמיד: הוא גם מחזיק את "ייצוא" של הטבלה (בעלים, 18/10), ו-.pay-bar { display:flex }
+    גובר על hidden בכוונה. בטלפון (עד 760px) — רק כשמסומנת חשבונית (בעלים 20/10, אחרי הדמיה: "תבנה את ב׳, רק
+    בטלפון"): שתי שורות, הסיכום בלי "נבחרו"/"ספק"/"לתשלום" (.pb-long), ו"ייצוא" יורד ל-#invExportNarrow. %>
 <div id="payBar" class="pay-bar no-print" hidden>
-  <span>נבחרו <strong id="payCount">0</strong> חשבוניות · ספק <strong id="paySup"></strong> · נטו לתשלום <strong id="payNet">₪0.00</strong></span>
-  <div style="display:flex;gap:.5rem;margin-inline-start:auto">
+  <span class="pay-sum"><span class="pb-long">נבחרו </span><strong id="payCount">0</strong> חשבוניות · <span class="pb-long">ספק </span><strong id="paySup"></strong> · נטו<span class="pb-long"> לתשלום</span> <strong id="payNet">₪0.00</strong></span>
+  <div class="pay-actions">
     <%# "ייצוא" של הטבלה נכנס לכאן (footer.ejs, data-export-into) — לפני "בטל בחירה" (בעלים, 18/10). %>
     <span id="payExport"></span>
     <button type="button" id="payClear" class="btn btn-secondary btn-sm">בטל בחירה</button>
@@ -217,7 +222,15 @@
         // Net = sum of the selected invoices in agorot; credit notes are negative and net out.
         var net = sel.reduce(function(s, b){ return s + (parseInt(b.dataset.amount, 10) || 0); }, 0);
         document.getElementById('payNet').textContent = fmtAg(net);
-      } else { bar.hidden = true; }
+      } else {
+        bar.hidden = true;
+        // במחשב הפס נשאר גלוי — בלי זה הוא המשיך להציג את הבחירה הקודמת ("נבחרו 2 … ₪4,366.00") אחרי "בטל בחירה".
+        document.getElementById('payCount').textContent = '0';
+        document.getElementById('paySup').textContent = '';
+        document.getElementById('payNet').textContent = fmtAg(0);
+      }
+      // "⬆ למעלה" (footer.ejs) עולה מעל פס גלוי ומחשב את זה בגלילה — בטלפון הפס מופיע ונעלם בלי גלילה.
+      window.dispatchEvent(new Event('scroll'));
     }
     boxes.forEach(function(b){ b.addEventListener('change', refresh); });
     // "✓" בראש העמודה (בעלים, 18/10): מסנן לחשבוניות שאפשר לסמן לתשלום; לחיצה נוספת — הכל. שורה שאי אפשר
@@ -239,6 +252,22 @@
       var ids = sel.map(function(b){ return b.dataset.id; }).join(',');
       location = '/invoices/new?supplier=' + sel[0].dataset.sup + '&store=' + sel[0].dataset.store + '&pick=' + ids;
     });
+  })();
+</script>
+
+<script>
+  // "ייצוא" בטלפון: הפס התחתון מוסתר כשלא מסומן כלום, ולכן "ייצוא" יורד מתחת לרשימה (#invExportNarrow), ועולה
+  // חזרה לפס כשהמסך רחב. רץ ב-DOMContentLoaded — אחרי ה-footer, שבו "ייצוא" נוצר ונכנס ל-#payExport. נפרד
+  // מסקריפט הבחירה, כי גם בלי אף חשבונית שאפשר לסמן צריך את "ייצוא".
+  (function () {
+    var mq = window.matchMedia('(max-width: 760px)');
+    function place() {
+      var exp = document.querySelector('#payExport > .tbl-export, #invExportNarrow > .tbl-export');
+      var to = document.getElementById(mq.matches ? 'invExportNarrow' : 'payExport');
+      if (exp && to && exp.parentNode !== to) to.appendChild(exp);
+    }
+    document.addEventListener('DOMContentLoaded', place);
+    if (mq.addEventListener) mq.addEventListener('change', place); else if (mq.addListener) mq.addListener(place);
   })();
 </script>
 

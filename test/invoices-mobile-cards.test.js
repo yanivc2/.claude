@@ -76,3 +76,27 @@ test('a paid row carries is-paid and its payment line; an unpaid row does not; t
 
   assert.match(await page(null), /<table class="sortable inv-cards"/, '"כל החנויות" — the store shows on each card');
 });
+
+// בעלים 20/10, אחרי הדמיה של הפס התחתון: "תבנה את ב׳, רק בטלפון". בטלפון הפס מופיע רק כשמסומנת חשבונית, בשתי
+// שורות, ו"ייצוא" יורד מתחת לרשימה; במחשב הפס נשאר תמיד (הוא מחזיק את "ייצוא", בעלים 18/10).
+test('pay bar: hidden until something is picked — on a phone only; "ייצוא" moves under the list there', () => {
+  const css = read('src/public/nocturne.css');
+  const mobile = css.slice(css.indexOf('דף החשבוניות בסלולרי = כרטיסים'));
+  assert.match(mobile, /main\.page \.pay-bar\[hidden\] \{ display: none; \}/);
+  assert.match(mobile, /main\.page \.pay-bar \{ flex-direction: column; align-items: stretch;/, 'two rows: the sum, then the buttons');
+  assert.match(mobile, /main\.page \.pay-bar \.pb-long \{ display: none; \}/, 'the short sum on a phone');
+  const desktop = css.slice(0, css.indexOf('דף החשבוניות בסלולרי = כרטיסים'));
+  assert.doesNotMatch(desktop, /\.pay-bar\[hidden\]/, 'on a desktop the bar stays (display:flex wins over hidden on purpose)');
+  assert.match(desktop, /\.pay-bar \{ position: sticky; bottom: 0; z-index: 20; display: flex;/);
+  assert.match(desktop, /#invExportNarrow:empty \{ display: none; \}/);
+
+  const v = read('src/views/invoices/index.ejs');
+  assert.match(v, /<span class="pay-sum"><span class="pb-long">נבחרו <\/span><strong id="payCount">0<\/strong> חשבוניות · <span class="pb-long">ספק <\/span><strong id="paySup"><\/strong> · נטו<span class="pb-long"> לתשלום<\/span> <strong id="payNet">₪0\.00<\/strong><\/span>/,
+    'desktop text unchanged ("נבחרו N חשבוניות · ספק X · נטו לתשלום ₪"); phone: "N חשבוניות · X · נטו ₪"');
+  assert.match(v, /<\/table>\n<\/div>\n<\/div>\n<%#[^%]*%>\n<div id="invExportNarrow" class="tbl-foot no-print"><\/div>/, 'the phone export slot sits right under the list');
+  assert.match(v, /var mq = window\.matchMedia\('\(max-width: 760px\)'\);/);
+  assert.match(v, /var to = document\.getElementById\(mq\.matches \? 'invExportNarrow' : 'payExport'\);/);
+  assert.match(v, /document\.addEventListener\('DOMContentLoaded', place\);/, 'after the footer has created the export');
+  assert.match(v, /window\.dispatchEvent\(new Event\('scroll'\)\);/, '"⬆ למעלה" re-lifts when the bar appears/disappears');
+  assert.match(v, /document\.getElementById\('payNet'\)\.textContent = fmtAg\(0\);/, '"בטל בחירה" also clears the figures (the desktop bar stays visible)');
+});
