@@ -189,6 +189,24 @@ router.all('/voided-checks', async (req, res) => {
   }
 });
 
+// Daily bank-sync reminder (owner, 20/10: 12:00 Israel time, Sun–Thu, only when nobody synced today) —
+// services/bankSyncJobs.js#bankSyncReminder. Vercel Cron calls it twice (09:00 and 10:00 UTC); it sends only on
+// the run where Israel's clock reads 12, once a day. Same CRON_SECRET guard as the routes above.
+//
+//   GET /ingest/bank-sync-reminder   (Authorization: Bearer <CRON_SECRET>)
+router.all('/bank-sync-reminder', async (req, res) => {
+  try {
+    if (!config.cronSecret) return res.status(503).json({ ok: false, error: 'reminder disabled (no CRON_SECRET)' });
+    const bearer = (req.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+    const given = String(req.query.key || req.get('x-cron-secret') || bearer || '');
+    if (given !== config.cronSecret) return res.status(401).json({ ok: false, error: 'bad secret' });
+    const { bankSyncReminder } = await import('../services/bankSyncJobs.js');
+    return res.json({ ok: true, ...(await bankSyncReminder()) });
+  } catch (err) {
+    return res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Scraped-transaction intake — the second bank channel, for accounts Open Banking doesn't cover
 // (or doesn't cover affordably). An EXTERNAL runner (scripts/scrape-push.mjs, on a GitHub Actions
 // cron or any machine with a browser) logs into the bank with israeli-bank-scrapers and POSTs the

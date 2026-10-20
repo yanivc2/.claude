@@ -19,6 +19,20 @@ export function israelToday(now = new Date()) {
   return fmt.format(now); // en-CA formats as YYYY-MM-DD
 }
 
+/** Day of week in Israel, 0 = Sunday … 6 = Saturday (Asia/Jerusalem). */
+export function israelWeekday(now = new Date()) {
+  const d = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short' }).format(now);
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(d);
+}
+
+/** A stored UTC stamp ('YYYY-MM-DD HH:MM:SS', see nowTs) → its day in Israel 'YYYY-MM-DD', or '' if unparseable. */
+export function israelDayOf(stored) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(stored ?? '').trim());
+  if (!m) return '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)));
+  return Number.isNaN(d.getTime()) ? '' : israelToday(d);
+}
+
 /** Parse 'HH:MM' → minutes since midnight, or null if not a valid time. */
 export function parseHhmm(v) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || '').trim());

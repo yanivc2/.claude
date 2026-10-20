@@ -20,6 +20,14 @@
     {
       "path": "/ingest/voided-checks",
       "schedule": "30 5 * * *"
+    },
+    {
+      "path": "/ingest/bank-sync-reminder",
+      "schedule": "0 9 * * 0-4"
+    },
+    {
+      "path": "/ingest/bank-sync-reminder",
+      "schedule": "0 10 * * 0-4"
     }
   ]
 }

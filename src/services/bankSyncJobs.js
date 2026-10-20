@@ -18,6 +18,8 @@ import { getExecutor, nowTs } from '../db/adapter.js';
 import { RuleError, NotFoundError } from '../lib/errors.js';
 import { logAction } from './audit.js';
 import { getSetting, setSetting } from './appSettings.js';
+import { israelClock, israelToday, israelWeekday, israelDayOf } from '../lib/loginHours.js';
+import { notify } from '../lib/notify.js';
 
 export const ACTIVE = ['requested', 'running', 'awaiting_otp'];
 
@@ -494,4 +496,35 @@ export async function completeWithAccounts(id, payload, agentName, x = getExecut
     x,
   );
   return { ok: true, summary };
+}
+
+/**
+ * תזכורת סנכרון יומית — בעלים 20/10 ("תזכורת יומית לסנכרון בנק בשעה קבועה" → 12:00, א׳–ה׳, רק אם עוד לא סונכרן
+ * היום). בכל כניסה לבנק נדרש קוד SMS, ולכן הסנכרון לא יכול לרוץ לבד — התזכורת אומרת למי שצריך ללחוץ.
+ * נקרא מ-GET /ingest/bank-sync-reminder (Vercel Cron, פעמיים: 09:00 ו-10:00 UTC). 🔴 Vercel מתזמן ב-UTC, וישראל
+ * עוברת בין +2 ל-+3: מריצה אחת הייתה זזה ל-11:00 או 13:00 לחצי שנה. לכן שתי ריצות, ונשלח רק בריצה שבה
+ * בישראל השעה 12, ופעם אחת ביום (`bank_sync_reminder_day`).
+ * "סונכרן היום" = סנכרון שהסתיים בהצלחה היום (שעון ישראל), או סנכרון שרץ עכשיו. סנכרון שנכשל — עדיין מזכירים.
+ * @returns {Promise<{sent:boolean, reason?:string}>}
+ */
+export async function bankSyncReminder({ now = new Date() } = {}, x = getExecutor()) {
+  const day = israelToday(now);
+  const dow = israelWeekday(now);
+  if (dow < 0 || dow > 4) return { sent: false, reason: 'not Sun–Thu in Israel' };
+  if (Math.floor(israelClock(now).minutes / 60) !== 12) return { sent: false, reason: 'not 12:00 in Israel' };
+  if ((await getSetting('bank_sync_reminder_day', null, x)) === day) return { sent: false, reason: 'already reminded today' };
+  let jobs = [];
+  try {
+    const since = new Date(now.getTime() - 36 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    jobs = await x.many('SELECT status, requested_at, finished_at FROM bank_sync_jobs WHERE requested_at >= ?', [since]);
+  } catch {
+    jobs = []; // לפני "עדכון מסד נתונים" אין טבלה — הסנכרון ממילא לא עובד, והתזכורת מובילה לדף שאומר זאת
+  }
+  const syncedToday = jobs.some((j) => (j.status === 'done' && israelDayOf(j.finished_at || j.requested_at) === day)
+    || (ACTIVE.includes(j.status) && israelDayOf(j.requested_at) === day));
+  if (syncedToday) return { sent: false, reason: 'synced today' };
+  await setSetting('bank_sync_reminder_day', day, x);
+  await notify('🏦 <b>תזכורת: סנכרון בנק</b>\nהיום עוד לא סונכרן הבנק. בהתאמת בנק ← "🔄 סנכרן עכשיו", ואז הקוד מה-SMS.',
+    { kind: 'bank', link: '/reconciliation' });
+  return { sent: true };
 }
