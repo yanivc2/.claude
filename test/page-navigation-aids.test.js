@@ -15,6 +15,15 @@ test('every POST form keeps the scroll AND the open lists — not only data-keep
   assert.match(footer, /!location\.hash/, 'an #anchor in the URL wins');
 });
 
+// בעלים 21/10: "כשאני לוחץ הצג אותן הוא זורק אותי בתחילת העמוד".
+test('a view-switching link with data-keep-scroll keeps the place too (plain click only)', () => {
+  assert.match(footer, /e\.target\.closest\('a\[data-keep-scroll\]'\)/);
+  assert.match(footer, /e\.button !== 0 \|\| e\.metaKey \|\| e\.ctrlKey/, 'a new-tab click saves nothing');
+  const recon = readFileSync(new URL('../src/views/reconciliation/index.ejs', import.meta.url), 'utf8');
+  assert.match(recon, /&all=1" data-keep-scroll>הצג אותן<\/a>/);
+  assert.match(recon, /" data-keep-scroll>הסתר אותן<\/a>/);
+});
+
 test('a back button on every page, built from a stack of DIFFERENT pages (an action does not count)', () => {
   assert.match(footer, /var NAVK = 'apNavStack';/);
   assert.match(footer, /st\[st\.length - 1\] === cur\) \{ \/\* אותו דף/, 'the same page after POST→303 is not pushed again');

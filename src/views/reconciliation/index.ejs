@@ -471,9 +471,9 @@
   <% if (_hidTx) { %>
     <p class="muted no-print" style="margin:0 0 .4rem">
       <% if (typeof showAllTxns !== 'undefined' && showAllTxns) { %>
-        מוצגות גם <%= _hidTx %> שורות מלפני תחילת העבודה. <a href="/reconciliation?account=<%= accountId %>">הסתר אותן</a>
+        מוצגות גם <%= _hidTx %> שורות מלפני תחילת העבודה. <a href="/reconciliation?account=<%= accountId %>" data-keep-scroll>הסתר אותן</a>
       <% } else { %>
-        הוסתרו <%= _hidTx %> שורות שלא הוסברו עד <%= formatDate(hiddenUntil) %> (לפני תחילת העבודה). <a href="/reconciliation?account=<%= accountId %>&all=1">הצג אותן</a>
+        הוסתרו <%= _hidTx %> שורות שלא הוסברו עד <%= formatDate(hiddenUntil) %> (לפני תחילת העבודה). <a href="/reconciliation?account=<%= accountId %>&all=1" data-keep-scroll>הצג אותן</a>
       <% } %>
     </p>
   <% } %>

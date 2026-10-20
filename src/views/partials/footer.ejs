@@ -806,6 +806,16 @@
       if (!f || !f.matches) return;
       var post = String(f.getAttribute('method') || '').toLowerCase() === 'post';
       if (!(post || f.matches('form[data-keep-scroll]')) || f.getAttribute('target')) return;
+      saveScroll();
+    }, true);
+    // 🔴 גם קישור שמחליף תצוגה באותו דף (בעלים 21/10: "הצג אותן" בהתאמת בנק זרק לראש הדף) —
+    // `<a data-keep-scroll>`, לחיצה רגילה בלבד (לא לשונית חדשה). השחזור הוא אותו שחזור: אותו נתיב.
+    document.addEventListener('click', function (e) {
+      var a = e.target && e.target.closest ? e.target.closest('a[data-keep-scroll]') : null;
+      if (!a || e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || a.getAttribute('target')) return;
+      saveScroll();
+    }, true);
+    function saveScroll() {
       // מצב **כל** רשימה (פתוחה וגם סגורה) — רשימה שנפתחת כברירת מחדל ונסגרה ביד נשארת סגורה.
       var open = [], closed = [];
       document.querySelectorAll('details').forEach(function (d) { if (!d.closest('.menu')) (d.open ? open : closed).push(sig(d)); });
@@ -815,7 +825,7 @@
         ['settled', 'matched'].forEach(function (g) { if (t.classList.contains('show-' + g)) groups.push(i + ':' + g); });
       });
       try { sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY, t: Date.now(), open: open, closed: closed, groups: groups })); } catch (err) {}
-    }, true);
+    }
     try {
       var raw = sessionStorage.getItem(KEY);
       if (raw) {
