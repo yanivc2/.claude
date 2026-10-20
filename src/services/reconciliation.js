@@ -35,13 +35,32 @@ export async function findCandidates(txn, x = getExecutor()) {
   const ref = (txn.raw_reference ?? '').trim();
   const haystack = `${txn.description ?? ''} ${txn.raw_reference ?? ''}`;
   const ids = (p) => [p.check_number, p.reference, p.batch_number].filter(Boolean);
-  const deterministic =
+  let deterministic =
     (ref && candidates.find((p) => ids(p).some((v) => v === ref))) ||
     candidates.find((p) => ids(p).some((v) => haystack.includes(v))) ||
     null;
 
+  // 🔴 אותו מספר ואותו סכום — גם מחוץ לחלון. צ׳ק תקף חצי שנה, וספק שמפקיד מאוחר הוא דבר שקורה
+  // (בעלים 21/10: צ׳ק 32159 של מידנייט נפרע ב-27/09, מעל 60 יום אחרי התאריך שלו, וההתאמה לא ראתה
+  // אותו). החלון נועד להתאמה לפי סכום בלבד; מספר זהה הוא הראיה בעצמו.
+  const refK = numKey(ref);
+  if (!deterministic && refK) {
+    const far = await x.many(
+      `SELECT * FROM payments
+        WHERE bank_account_id = ? AND status = 'issued' AND amount = ?
+          AND payment_date BETWEEN ? AND ?
+        ORDER BY payment_date`,
+      [txn.bank_account_id, matchAmount, addDaysIso(txn.txn_date, -FAR_WINDOW_DAYS), addDaysIso(txn.txn_date, FAR_WINDOW_DAYS)],
+    );
+    deterministic = far.find((p) => ids(p).some((v) => numKey(v) === refK)) || null;
+    if (deterministic && !candidates.some((p) => p.id === deterministic.id)) candidates.push(deterministic);
+  }
+
   return { candidates, deterministic };
 }
+
+/** חלון לצ׳ק שמספרו וסכומו זהים לחיוב: חצי שנה תוקף + מרווח. */
+const FAR_WINDOW_DAYS = 200;
 
 /**
  * Unmatched bank debits on an account that correspond to a VOIDED payment — same amount AND the

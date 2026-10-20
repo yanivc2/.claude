@@ -76,3 +76,30 @@ test('integrity section 4 lists a match made before the rule — and only that o
   assert.match(html, /4\. צ׳ק שהותאם לפי סכום בלבד/);
   assert.match(html, new RegExp(`<a href="/payments/${payment.id}">32159</a>`));
 });
+
+// בעלים 21/10: אחרי ביטול ההתאמה השגויה, צ׳ק 32159 (תאריך יולי) לא הותאם לחיוב האמיתי שלו מ-27/09 —
+// מעל 60 יום, מחוץ לחלון. מספר + סכום זהים = התאמה גם מחוץ לחלון (עד חצי שנה + מרווח); לפי סכום בלבד — לא.
+test('same number and amount match beyond the 60-day window; amount alone does not', async () => {
+  const st = await firstStore(db);
+  const sup = await approveSupplier((await createSupplier({ name: 'ספק מאוחר' }, sec, db)).id, o, db);
+  const mk = async (n, num, net = 50000) => {
+    const { invoice } = await createInvoice(
+      { supplierId: sup.id, storeId: st.id, invoiceNumber: n, invoiceDate: '2026-07-20', amountBeforeVat: net, vatAmount: 9000, docType: 'tax_invoice' },
+      sec, db,
+    );
+    await approveInvoiceForPayment(invoice.id, sec, db);
+    return createPayment({ bankAccountId: acct, checkNumber: num, paymentDate: '2026-07-20', invoiceIds: [invoice.id] }, sec, db);
+  };
+  const late = await mk('LATE-1', '40001');
+  await importTransactions(acct, [{ txnDate: '2026-09-27', amount: -late.amount, description: 'שיק', rawReference: '0040001' }], 'csv', sec, db);
+  const res = await autoReconcile(acct, sec, db);
+  assert.equal(res.matched, 1);
+  const p = await db.one('SELECT status, cleared_date FROM payments WHERE id=?', [late.id]);
+  assert.equal(p.status, 'cleared');
+  assert.equal(p.cleared_date, '2026-09-27');
+
+  const other = await mk('LATE-2', '40002', 61000);
+  await importTransactions(acct, [{ txnDate: '2026-09-28', amount: -other.amount, description: 'שיק', rawReference: '' }], 'csv', sec, db);
+  await autoReconcile(acct, sec, db);
+  assert.equal((await db.one('SELECT status FROM payments WHERE id=?', [other.id])).status, 'issued', 'no number — the window still applies');
+});
