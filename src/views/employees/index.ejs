@@ -35,7 +35,7 @@
     <%- include('../partials/_needStore', { what: 'תשלום שכר' }) %>
   <% } else { %>
   <form method="post" action="/employees/salary" class="stack">
-    <%- include('../partials/_formStore', { label: false }) %>
+    <%- include('../partials/_formStore') %>
     <div class="table-scroll">
       <table class="no-enhance">
         <%# אין בורר חנות: תשלום שכר נרשם תמיד בחנות הפעילה (partials/_formStore). %>
@@ -423,8 +423,9 @@
         <div class="actions" style="margin-top:.6rem"><button type="button" class="secondary" onclick="this.closest('dialog').close()">סגור</button></div>
       <% } else { %>
       <form method="post" action="/employees/advances" style="margin-top:.5rem">
+        <%# בלי שדה חנות (בעלים 20/10) — המפרעה נרשמת בחנות הפעילה. %>
+        <%- include('../partials/_formStore') %>
         <div class="row">
-          <div><%- include('../partials/_formStore') %></div>
           <div>
             <label>עובד</label>
             <select name="employee_id" class="js-combo" required>

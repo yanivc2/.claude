@@ -24,6 +24,8 @@
     <%- include('../partials/_needStore', { what: 'חשבונית' }) %>
   <% } else { %>
   <form class="stack" method="post" action="/invoices" enctype="multipart/form-data" data-busy="שומר…">
+    <%# בלי שדה חנות (בעלים 20/10) — החנות = הבורר העליון; store_id + ctx_store נסתרים. %>
+    <%- include('../partials/_formStore') %>
     <div class="row">
       <div>
         <label>ספק *</label>
@@ -36,9 +38,6 @@
           <% }); %>
         </select>
         <p class="muted" style="margin:.3rem 0 0">ספק לא קיים? <a href="/suppliers/new">פתח ספק חדש</a></p>
-      </div>
-      <div>
-        <%- include('../partials/_formStore', { label: 'חנות *' }) %>
       </div>
     </div>
 

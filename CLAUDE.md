@@ -220,7 +220,7 @@ happen only at merge. So:
 - **🏬 "כל החנויות" = permission `view_all_stores`** (owner always); without it a multi-store user
   with no active store is sent to `/context/choose`. 🔴 **The top-bar picker is the ONLY store/account
   picker in the app** (owner, 17/10) — no page adds its own (`test/no-store-pickers.test.js`). **Entry forms never have a store picker:**
-  include `partials/_formStore.ejs` (active store + hidden `store_id` + `ctx_store`) and render
+  include `partials/_formStore.ejs` (hidden `store_id` + `ctx_store` only — **no visible store field**, owner 20/10) and render
   `partials/_needStore.ejs` instead of the form when no store is active. `ctx_store` is what lets
   `lib/storeContext.js#staleStoreGuard` refuse a form posted after the store was switched in another
   tab (multipart routes call `staleStoreFor` after multer). Edit forms: `partials/_storeField.ejs` +

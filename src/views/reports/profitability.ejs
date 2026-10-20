@@ -150,8 +150,9 @@ var mailSubject = 'דוח רווחיות ' + from + ' — ' + to;
     <%- include('../partials/_needStore', { what: 'דוח פדיון' }) %>
   <% } else { %>
   <form method="post" action="/reports/profitability/revenue-import" enctype="multipart/form-data" class="stack">
+    <%# בלי שדה חנות (בעלים 20/10) — שם החנות כבר בכותרת "📈 דוח פדיון · X". %>
+    <%- include('../partials/_formStore') %>
     <div class="row">
-      <div><%- include('../partials/_formStore') %></div>
       <div>
         <label>קובץ הדוח (XLS / XLSX / CSV / PDF)</label>
         <input type="file" name="file" accept=".xls,.xlsx,.csv,text/csv,.pdf,application/pdf" required />

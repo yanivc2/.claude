@@ -70,7 +70,7 @@
     <%# "תחילת ספירה" ושדה החנות הוסרו מהמסך (בעלים 18/10: "תמחוק") — שניהם נשלחים כשדות נסתרים:
         שעת ההתחלה נשמרת עם הסגירה, והחנות = החנות הפעילה שבבורר העליון (store_id + ctx_store). %>
     <input type="hidden" name="started_at" value="<%= startedAt %>" />
-    <%- include('../partials/_formStore', { label: false }) %>
+    <%- include('../partials/_formStore') %>
 
     <%# שורה אחת, ברוחב שווה (בעלים 18/10): עובד (מבצע הספירה) מימין, אחריו מספר Z וסה"כ מזומן מגירה.
         The counter is asked ONCE, first, and every register in "איזון קופות" inherits it. %>

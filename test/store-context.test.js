@@ -42,12 +42,12 @@ test('POST /context/store sets the ap_store cookie for an authorized store', asy
   assert.match(res.headers.get('set-cookie') || '', /ap_store=3/);
 });
 
-test('new-invoice locks the store field to the active store (readonly, no select)', async () => {
+test('new-invoice is bound to the active store (hidden, no field, no select)', async () => {
   const cookie = `${cookieFor(await owner(db))}; ap_store=3`;
   const res = await get('/invoices/new', cookie);
   const html = await res.text();
   assert.match(html, /name="store_id"[^>]*value="3"/);        // hidden locked value
-  assert.match(html, /נעול לחנות הפעילה/);                      // lock hint
+  assert.doesNotMatch(html, /נעול לחנות הפעילה/);               // no visible store field (owner, 20/10) — the top bar says it
   assert.doesNotMatch(html, /<select name="store_id" required/); // the form's free picker is gone (banner switch is separate)
 });
 

@@ -34,7 +34,7 @@ framework. SQLite locally/tests, Postgres (Neon) in production. **Live:** https:
 8. **Every POST ends in a 303 redirect** (Post/Redirect/Get) — never `render` from a POST.
 9. **Store/company isolation is enforced:** every write of a `store_id` from the request goes through
    `assertStoreAllowed(storeId, req.scope)`; lists use `scopeWhere`/`scopeClause` with `req.scope`; by-id access uses
-   `assertInScope`. Entry forms never get a store picker (`partials/_formStore.ejs`).
+   `assertInScope`. Entry forms never get a store picker or a visible store field (`partials/_formStore.ejs` = hidden fields only).
 10. **An alert that must not be lost is `await notify(...)`** — on serverless an un-awaited one can vanish.
 11. **Secrets never enter the repo or the DB:** bank passwords live only in `agent/config.json` on the office PC
     (gitignored); tokens/keys are Vercel env vars. Never print, commit or request them.

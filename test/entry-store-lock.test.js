@@ -31,6 +31,7 @@ const FORMS = [
   ['/invoices/new', 'action="/invoices"', 'חשבונית'],
   ['/zclosing', 'action="/zclosing"', 'סגירת Z'],
   ['/employees', 'action="/employees/salary"', 'תשלום שכר'],
+  ['/employees', 'action="/employees/advances"', 'מפרעה'],
   ['/reports/profitability', 'action="/reports/profitability/revenue-import"', 'דוח פדיון'],
   ['/payments/new', 'onsubmit="return validateAdvance(this)"', 'תשלום על החשבון'],
 ];
@@ -54,6 +55,20 @@ test('with an active store → the form is bound to it (hidden store_id + ctx_st
     assert.match(f, /name="ctx_store" value="3"/, `${p}: carries the store it was opened for`);
     assert.ok(!/<select name="store_id"/.test(f), `${p}: no store picker in the form`);
   }
+});
+
+// בעלים, 20/10: "תמחק את שדה החנות גם מ-4 הטפסים האחרים" (אחרי סגירת Z, 18/10) — החנות כתובה בסרגל
+// העליון, וטופס הזנה לא מציג אותה שוב. partials/_formStore מרנדר שדות נסתרים בלבד.
+test('with an active store → no visible store field in any entry form', async () => {
+  for (const [p, form] of FORMS) {
+    const html = await get(p, 3);
+    const f = html.slice(html.indexOf(form), html.indexOf('</form>', html.indexOf(form)));
+    assert.match(f, /<input type="hidden" name="ctx_store" value="3" \/>/, `${p}: the store is still posted`);
+    assert.ok(!/<label>חנות/.test(f), `${p}: no "חנות" label`);
+    assert.ok(!/נעול לחנות הפעילה|class="form-store"/.test(f), `${p}: no read-only store field`);
+  }
+  const partial = fs.readFileSync(path.join(process.cwd(), 'src/views/partials/_formStore.ejs'), 'utf8').replace(/<%#[\s\S]*?%>/g, '');
+  assert.doesNotMatch(partial, /<label|readonly/, 'the partial is hidden-only — a new entry form cannot bring the field back');
 });
 
 test('a form opened for store 3 and posted after switching to 4 is refused — nothing written', async () => {

@@ -48,8 +48,7 @@ test('closing screens: count tables have no search / filter row; the new form sh
   const v = read('src/views/zclosing/index.ejs').replace(/<%#[\s\S]*?%>/g, '');
   assert.doesNotMatch(v, /תחילת ספירה:/);
   assert.match(v, /<input type="hidden" name="started_at" value="<%= startedAt %>" \/>/, 'still sent');
-  assert.match(v, /include\('\.\.\/partials\/_formStore', \{ label: false \}\)/, 'store_id + ctx_store still sent, no visible field');
-  assert.doesNotMatch(v, /include\('\.\.\/partials\/_formStore'\)/);
+  assert.match(v, /include\('\.\.\/partials\/_formStore'\)/, 'store_id + ctx_store still sent (the partial is hidden-only)');
 });
 
 // בעלים 18/10: "שים את רובריקת עובד מבצע הספירה מימין למספר Z ותקטין אותם באופן שווה שיתאימו לשורה.
