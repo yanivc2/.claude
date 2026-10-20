@@ -35,8 +35,10 @@ test('candidates: same amount, unmatched debit, inside the window; unique only w
   const b = await advance('7002', '2026-09-01', 239500);    // two checks of the same amount…
   const c = await advance('7003', '2026-09-01', 239500);    // …and one debit → offered, not unique
   const d = await advance('7004', '2026-09-10', 563400);    // the only debit is outside the window
-  await txn('2026-08-26', -1283720, '99001');
-  await txn('2026-09-03', -239500, '99002');
+  const e = await advance('7005', '2026-09-15', 77700);     // the debit carries ANOTHER check number
+  await txn('2026-08-26', -1283720, null);                  // no number on the bank row — amount is all there is
+  await txn('2026-09-20', -77700, '99005');
+  await txn('2026-09-03', -239500, null);
   await txn('2027-06-01', -563400, '99003');
   await txn('2026-09-12', 563400, '99004');                 // a CREDIT of the same amount — never a candidate
   const detail = await outstandingCheckDetail(acc.id, {}, db);
@@ -48,6 +50,10 @@ test('candidates: same amount, unmatched debit, inside the window; unique only w
   assert.equal(m.get(id(b)).unique, false, 'the debit is a candidate for two checks');
   assert.equal(m.get(id(c)).unique, false);
   assert.equal(m.get(id(d)).candidates.length, 0, 'beyond 180 days after the due date');
+  // 🔴 חוק ברזל (21/10): מספר סותר — מוצע לבדיקה, אבל לעולם לא "חד-משמעי" (לא נכנס להתאמה הגורפת).
+  assert.equal(m.get(id(e)).candidates.length, 1);
+  assert.equal(m.get(id(e)).candidates[0].numberDiffers, true);
+  assert.equal(m.get(id(e)).unique, false);
   // the advance shows its supplier (it has no invoice lines)
   const row = detail.find((r) => r.paymentId === id(a));
   assert.equal(row.supplierName, 'משכיר');
@@ -59,20 +65,21 @@ test('the page offers the match; "match all unique" clears only the one-to-one p
   assert.match(html, /נמצאו חיובים בבנק <strong>באותו סכום<\/strong>/);
   assert.match(html, /התאם את כל החד-משמעיים \(1\)/);
   assert.match(html, /גם לצ׳ק אחר/);
+  assert.match(html, /מספר שונה — לבדוק/);
   const r = await fetch(`${base}/reports/outstanding/match-unique`, {
     method: 'POST', redirect: 'manual', headers: { cookie: ck(), 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ account: String(acc.id) }).toString(),
   });
   assert.equal(r.status, 303);
   assert.match(decodeURIComponent(r.headers.get('location')), /הותאמו 1 צ׳קים/);
-  const cleared = await db.many("SELECT check_number, status, cleared_date FROM payments WHERE check_number IN ('7001','7002','7003') ORDER BY check_number", []);
-  assert.deepEqual(cleared.map((p) => p.status), ['cleared', 'issued', 'issued']);
+  const cleared = await db.many("SELECT check_number, status, cleared_date FROM payments WHERE check_number IN ('7001','7002','7003','7005') ORDER BY check_number", []);
+  assert.deepEqual(cleared.map((p) => p.status), ['cleared', 'issued', 'issued', 'issued'], '7005 (another number) is not swept in');
   assert.equal(cleared[0].cleared_date, '2026-08-26');
 });
 
 test('a single match from the row (the ambiguous one, chosen by the user)', async () => {
   const p = await db.one("SELECT id FROM payments WHERE check_number = '7002'", []);
-  const t = await db.one("SELECT id FROM bank_transactions WHERE raw_reference = '99002'", []);
+  const t = await db.one('SELECT id FROM bank_transactions WHERE amount = -239500', []);
   const r = await fetch(`${base}/reports/outstanding/match`, {
     method: 'POST', redirect: 'manual', headers: { cookie: ck(), 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ account: String(acc.id), payment_id: String(p.id), txn_id: String(t.id) }).toString(),

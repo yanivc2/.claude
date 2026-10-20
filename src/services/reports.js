@@ -263,8 +263,14 @@ export async function outstandingBankCandidates(bankAccountId, detail, x = getEx
     for (const t of candidates) usage.set(Number(t.id), (usage.get(Number(t.id)) || 0) + 1);
     out.set(Number(r.paymentId), { candidates, unique: false });
   }
-  for (const v of out.values()) {
-    v.unique = v.candidates.length === 1 && usage.get(Number(v.candidates[0].id)) === 1;
+  // 🔴 חוק ברזל (בעלים 21/10): חיוב שמספר הצ׳ק שלו **סותר** את הצ׳ק הפתוח נשאר הצעה בלחיצה אחת-אחת, אבל
+  // לעולם לא נכנס ל"התאם את כל החד-משמעיים" — כך נוצרה שרשרת 31606→31919→32151→32537 במידנייט.
+  const { checkNumberConflict } = await import('./reconciliation.js');
+  for (const r of detail) {
+    const v = out.get(Number(r.paymentId));
+    const pay = { method: r.method, check_number: r.method === 'check' ? r.ident : null };
+    for (const t of v.candidates) t.numberDiffers = checkNumberConflict(t, pay);
+    v.unique = v.candidates.length === 1 && usage.get(Number(v.candidates[0].id)) === 1 && !v.candidates[0].numberDiffers;
   }
   return out;
 }

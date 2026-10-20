@@ -128,7 +128,7 @@ function cutQS(){
                   <input type="hidden" name="payment_id" value="<%= r.paymentId %>" />
                   <% if (m.candidates.length === 1) { var t = m.candidates[0]; %>
                     <input type="hidden" name="txn_id" value="<%= t.id %>" />
-                    <span style="font-size:12px" title="<%= t.description || '' %>">חיוב <%= formatDate(t.txn_date) %><%= t.raw_reference ? ' · אסמכתה ' + t.raw_reference : '' %><% if (!m.unique) { %> <span class="badge b-on_hold">גם לצ׳ק אחר</span><% } %></span>
+                    <span style="font-size:12px" title="<%= t.description || '' %>">חיוב <%= formatDate(t.txn_date) %><%= t.raw_reference ? ' · אסמכתה ' + t.raw_reference : '' %><% if (t.numberDiffers) { %> <span class="badge b-on_hold" title="מספר הצ׳ק בבנק שונה מהמספר כאן — אולי צ׳ק אחר באותו סכום. התאם רק אחרי בדיקה.">מספר שונה — לבדוק</span><% } else if (!m.unique) { %> <span class="badge b-on_hold">גם לצ׳ק אחר</span><% } %></span>
                   <% } else { %>
                     <select name="txn_id" style="max-width:190px;font-size:12px">
                       <% m.candidates.forEach(function(t){ %><option value="<%= t.id %>"><%= formatDate(t.txn_date) %><%= t.raw_reference ? ' · ' + t.raw_reference : '' %></option><% }); %>
