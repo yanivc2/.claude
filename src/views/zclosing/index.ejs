@@ -369,12 +369,13 @@
     var div = document.createElement('div');
     div.className = 'reg-block';
     div.style.cssText = 'background:var(--color-surface);border:1px solid var(--color-line);border-radius:var(--radius-md);margin:.5rem 0;padding:.7rem';
+    // טבלת קופה = no-enhance: בלי "ייצוא" מתחתיה ובלי שורת סינון (בעלים 20/10: "תמחק את כפתור הייצוא מתחת לטבלאות של איזון קופות").
     div.innerHTML =
       '<div class="reg-counter muted" style="margin:0 0 .4rem">נספר ע"י: <strong>—</strong></div>'
       + '<div class="row">'
       + '<div><label>קופה</label><select name="reg_number[]"><option value="1">קופה 1</option><option value="2">קופה 2</option><option value="3">קופה 3</option></select></div>'
       + '</div>'
-      + '<div class="table-scroll" style="margin-top:.4rem"><table class="no-filter" data-count-adjust><thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>'
+      + '<div class="table-scroll" style="margin-top:.4rem"><table class="no-enhance" data-count-adjust><thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>'
       + '<tbody>' + denomRows() + '</tbody>'
       + '<tfoot><tr><th>סה"כ קופה ' + n + '</th><th></th><th class="right rc-total">₪0.00</th></tr></tfoot></table></div>'
       + '<div style="margin-top:.4rem"><button type="button" class="danger small" onclick="regDel(this)">הסר קופה</button></div>';

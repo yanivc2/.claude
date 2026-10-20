@@ -43,7 +43,9 @@ test('both closing screens mark their count tables, including a register added a
 test('closing screens: count tables have no search / filter row; the new form shows no store field or start time', () => {
   for (const p of ['src/views/zclosing/index.ejs', 'src/views/zclosing/edit.ejs']) {
     const v = read(p);
-    assert.equal((v.match(/<table class="no-filter" data-count-adjust[ >]/g) || []).length, 2, p);
+    assert.equal((v.match(/<table class="no-filter" data-count-adjust data-export-into="zc-export">/g) || []).length, 1, `${p}: the drawer table`);
+    // בעלים 20/10: "תמחק את כפתור הייצוא מתחת לטבלאות של איזון קופות" — טבלת קופה בלי "ייצוא" ובלי סינון.
+    assert.equal((v.match(/<table class="no-enhance" data-count-adjust>/g) || []).length, 1, `${p}: the register template`);
   }
   const v = read('src/views/zclosing/index.ejs').replace(/<%#[\s\S]*?%>/g, '');
   assert.doesNotMatch(v, /תחילת ספירה:/);
