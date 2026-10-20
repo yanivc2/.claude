@@ -1411,10 +1411,6 @@ th.pick-head { cursor: pointer; user-select: none; font-size: 16px; }
 th.pick-head:hover { background: color-mix(in srgb, var(--color-accent) 18%, var(--color-surface)); }
 th.pick-head[aria-pressed="true"] { background: var(--color-accent); color: #fff; }
 table.only-pickable tbody tr.not-pickable { display: none; }
-/* צ׳קים בחוץ: חתך התאריכים בכותרת "פירוט צ׳קים שלא נפרעו", משמאל לה (בעלים 18/10). */
-.oc-detail-head { align-items: flex-start; }
-.oc-cut-box { display: flex; flex-direction: column; align-items: center; }
-.oc-cut-box .oc-cut { width: 100%; }
 /* התאמת בנק — הכרטיס העליון (בעלים 18/10): חשבון · פעולות יומיות · מצב הסנכרון · כלים. */
 .recon-head .recon-account { margin: 0 0 var(--space-3); font-size: 15px; }
 .recon-head .recon-actions { justify-content: center; gap: var(--space-2); }
@@ -1494,3 +1490,10 @@ main.page .btn-auto-match {
 main.page .btn-auto-match:hover { background: #ffb700; color: #000; }
 .menu-panel .menu-item-muted { display: block; padding: 10px 12px; font-size: 13px; color: var(--color-muted); white-space: normal; }
 .menu-panel form { margin: 0; }
+
+/* בעלים 21/10: סרגל צ׳קים בחוץ — מימין החתכים, משמאל ייצוא והדפסה (reports/_outstandingCut.ejs). */
+main.page .oc-bar { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+main.page .oc-bar .oc-cuts { display: flex; gap: .4rem; flex-wrap: wrap; }
+main.page .oc-bar .oc-out { display: flex; gap: .5rem; flex-wrap: wrap; margin-inline-start: auto; }
+main.page .oc-bar-card .oc-cut { margin-top: .8rem; }
+

@@ -93,20 +93,32 @@ test('a single match from the row (the ambiguous one, chosen by the user)', asyn
   assert.equal(m.get(Number(c.id)).candidates.length, 0);
 });
 
-// בעלים 18/10: "1. למחוק [חיפוש בטבלה] 2. תעביר את מסנני התאריכים במקום כפתור הייצוא מצד שמאל של פירוט
-// צ׳קים שלא נפרעו (למחוק '- החשבון הנבחר')".
-test('outstanding page: no table search; the due-date cut sits in the detail heading instead of "ייצוא CSV מפורט"', async () => {
-  const html = await (await fetch(`${base}/reports/outstanding?account=${acc.id}`, { headers: { cookie: ck() } })).text();
-  assert.doesNotMatch(html, /החשבון הנבחר/);
-  assert.doesNotMatch(html, /ייצוא CSV מפורט/);
-  assert.match(html, /href="\/reports\/outstanding-detail\.csv\?account=/, 'the same file is still in the row\'s "ייצוא ▾" menu');
-  const head = html.slice(html.indexOf('class="toolbar oc-detail-head"'), html.indexOf('🔎'));
-  assert.ok(head.indexOf('פירוט צ׳קים שלא נפרעו</h2>') > 0 && head.indexOf('חתך לפי תאריך פירעון') > head.indexOf('</h2>'),
-    'heading first (= right in RTL), the cut after it (= left)');
-  assert.equal((html.match(/id="oc-date"/g) || []).length, 1, 'the cut is rendered once — not also in the top card');
+// בעלים 21/10: "לוותר על [טבלת החשבונות] ומייד להציג את רשימת הצ׳קים" — חוץ ממצב של כמה חנויות; "הצמד את
+// הכפתורים שמאלה"; החתכים עוברים לסרגל של ייצוא והדפסה — מימין: הצג הכל · שבועי · חודשי · תאריכים.
+test('outstanding page: one account opens straight into its checks; one bar — cuts on the right, export/print on the left', async () => {
+  const html = await (await fetch(`${base}/reports/outstanding`, { headers: { cookie: ck() } })).text();
+  assert.match(html, /פירוט צ׳קים שלא נפרעו/, 'the list, without clicking a row');
+  assert.doesNotMatch(html, /<th>חברה<\/th><th>חנות \/ חשבון<\/th>/, 'no one-row accounts table');
+  assert.match(html, /class="muted oc-total"/, 'its total moves under the heading');
+  const bar = html.slice(html.indexOf('class="oc-bar"'), html.indexOf('id="oc-weeks"'));
+  const order = ['הצג הכל', 'הצג בחתך שבועי', 'הצג בחתך חודשי', 'הצג בחתך תאריכים', '📄 ייצוא CSV', '🖨️ הדפסה / PDF'].map((t) => bar.indexOf(t));
+  assert.ok(order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])), 'right to left: all · weekly · monthly · dates, then export · print');
+  assert.match(bar, new RegExp(`href="/reports/outstanding-detail\\.csv\\?account=${acc.id}"`), 'export = the detailed file of the list shown');
+  assert.equal((html.match(/id="oc-date"/g) || []).length, 1, 'the cut is rendered once');
   assert.match(html, /<div class="table-scroll">\s*<table class="sortable">/, 'the 11-column table scrolls inside itself on a phone');
-  // No account picked → the cut stays in its own card at the top (there is no detail heading).
-  const top = await (await fetch(`${base}/reports/outstanding`, { headers: { cookie: ck() } })).text();
-  assert.equal((top.match(/id="oc-date"/g) || []).length, 1);
-  assert.doesNotMatch(top, /oc-detail-head/);
+  // "כל החנויות" (no store cookie) — several accounts: the table stays and no list opens by itself.
+  const all = await (await fetch(`${base}/reports/outstanding`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
+  assert.match(all, /<th>חברה<\/th><th>חנות \/ חשבון<\/th>/);
+  assert.doesNotMatch(all, /oc-detail-head/);
+  assert.match(all, /href="\/reports\/outstanding\.csv"/);
+});
+
+test('weekly cut: only the checks due in the chosen week (Sunday–Saturday)', async () => {
+  const html = await (await fetch(`${base}/reports/outstanding?cut=weeks&weeks=2026-09-13`, { headers: { cookie: ck() } })).text();
+  assert.match(html, /<input type="checkbox" name="weeks" value="2026-09-13"[^>]*checked/);
+  assert.match(html, /13\/09–19\/09\/26/);
+  const body = html.slice(html.indexOf('<tbody>', html.indexOf('oc-detail-head')), html.indexOf('</tbody>', html.indexOf('oc-detail-head')));
+  assert.match(body, /15\/09\/26/, '7005 is due 15/09 — inside the week');
+  assert.doesNotMatch(body, /10\/09\/26/, '7004 (10/09) is the week before');
+  assert.doesNotMatch(body, /01\/09\/26/, '7003 (01/09) is two weeks before');
 });

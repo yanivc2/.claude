@@ -7,6 +7,7 @@ import {
   outstandingCheckDetail,
   outstandingBankCandidates,
   outstandingMonths,
+  outstandingWeeks,
   invoiceLookup,
   profitability,
 } from '../services/reports.js';
@@ -395,16 +396,20 @@ router.post('/deposits/:id/delete', requirePermission('manage_deposits'), async 
 // Parse the due-date cut from the query: mode 'all' | 'date' | 'months'. Returns the cut object for
 // the services plus the raw selections for the view.
 function parseOutstandingCut(q) {
-  const cut = (q.cut === 'date' || q.cut === 'months') ? q.cut : 'all';
+  const cut = (q.cut === 'date' || q.cut === 'months' || q.cut === 'weeks') ? q.cut : 'all';
   const isoDate = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null);
   const from = cut === 'date' ? isoDate(q.from) : null;
   const to = cut === 'date' ? isoDate(q.to) : null;
   const months = cut === 'months'
     ? [].concat(q.months || []).filter((m) => /^\d{4}-\d{2}$/.test(m))
     : [];
+  // חתך שבועי (בעלים 21/10): value = יום א׳ של השבוע.
+  const weeks = cut === 'weeks'
+    ? [].concat(q.weeks || []).filter((w) => /^\d{4}-\d{2}-\d{2}$/.test(w))
+    : [];
   // Back-compat: a bare ?month= still works as a single-month cut.
   const month = (cut === 'all' && /^\d{4}-\d{2}$/.test(q.month || '')) ? q.month : null;
-  return { cut, from, to, months, month };
+  return { cut, from, to, months, weeks, month };
 }
 
 router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res, next) => {
@@ -414,9 +419,11 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
     // store changed the header banner but this page still listed every store — the picker looked
     // broken. `?store=` still wins, so a deliberate cross-store look is one click away.
     const storeId = effectiveStoreId(req, req.query.store);
-    const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to, storeId };
+    const cutArg = { month: c.month, months: c.months, weeks: c.weeks, from: c.from, to: c.to, storeId };
     const { accounts, totalOutstanding } = await outstandingChecks(req.scope, cutArg);
-    const detailAccountId = req.query.account ? Number(req.query.account) : null;
+    // בעלים 21/10: "לוותר על [טבלת החשבונות] ומייד להציג את רשימת הצ׳קים" — חשבון אחד בתצוגה (חנות פעילה)
+    // נפתח ישר. הטבלה נשארת רק כשיש כמה חשבונות (כל החנויות).
+    const detailAccountId = req.query.account ? Number(req.query.account) : (accounts.length === 1 ? accounts[0].id : null);
     // Scope guard: only show detail for an account the user is allowed to see.
     const inScope = detailAccountId != null && accounts.some((a) => a.id === detailAccountId);
     const detail = inScope ? await outstandingCheckDetail(detailAccountId, cutArg) : [];
@@ -425,9 +432,11 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
       accounts,
       totalOutstanding,
       months: await outstandingMonths(req.scope),
+      weeks: await outstandingWeeks(req.scope),
       month: c.month,
       cut: c.cut,
       selMonths: c.months,
+      selWeeks: c.weeks,
       from: c.from,
       to: c.to,
       detailAccountId: inScope ? detailAccountId : null,
@@ -491,7 +500,7 @@ router.get('/outstanding-detail.csv', async (req, res, next) => {
   try {
     const accountId = Number(req.query.account);
     const c = parseOutstandingCut(req.query);
-    const cutArg = { month: c.month, months: c.months, from: c.from, to: c.to };
+    const cutArg = { month: c.month, months: c.months, weeks: c.weeks, from: c.from, to: c.to };
     // NOTE: no store cut here — this is the authorization check for ?account=, and narrowing it to
     // the active store would 404 a legitimate account the user simply isn't "standing on".
     const { accounts } = await outstandingChecks(req.scope);

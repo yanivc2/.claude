@@ -1,23 +1,36 @@
 <%#
-  "חתך לפי תאריך פירעון" של צ׳קים בחוץ — הכל / חתך תאריכים / חתך חודשים. מוצג בכותרת "פירוט צ׳קים שלא
-  נפרעו" כשנבחר חשבון, ובכרטיס משלו בראש הדף כשלא (reports/outstanding.ejs). ocShowCut מוגדר שם.
-  locals: allLink (+ months, cut, from, to, selMonths, detailAccountId של הדף).
+  הסרגל של צ׳קים בחוץ (בעלים 21/10): **מימין** החתכים לפי תאריך הפירעון — הצג הכל · הצג בחתך שבועי · הצג
+  בחתך חודשי · הצג בחתך תאריכים; **משמאל** ייצוא והדפסה. הטפסים של החתך נפתחים מתחת לסרגל. ocShowCut מוגדר
+  ב-reports/outstanding.ejs. locals: allLink, csvLink (+ months, weeks, cut, from, to, selMonths, selWeeks,
+  detailAccountId של הדף).
 %>
-  <label class="lbl" style="margin:0 0 .5rem">חתך לפי תאריך פירעון</label>
-  <div class="actions" style="flex-wrap:wrap;gap:.4rem;margin-bottom:.6rem">
-    <a class="chip <%= cut === 'all' ? 'active' : '' %>" href="<%= allLink %>">הכל</a>
-    <button type="button" class="chip <%= cut === 'date' ? 'active' : '' %>" onclick="ocShowCut('date')">חתך תאריכים</button>
-    <button type="button" class="chip <%= cut === 'months' ? 'active' : '' %>" onclick="ocShowCut('months')">חתך חודשים</button>
+<div class="card no-print oc-bar-card">
+  <div class="oc-bar">
+    <% if (months && months.length) { %>
+    <div class="oc-cuts" role="group" aria-label="חתך לפי תאריך פירעון">
+      <a class="chip <%= cut === 'all' ? 'active' : '' %>" href="<%= allLink %>">הצג הכל</a>
+      <button type="button" class="chip <%= cut === 'weeks' ? 'active' : '' %>" onclick="ocShowCut('weeks')">הצג בחתך שבועי</button>
+      <button type="button" class="chip <%= cut === 'months' ? 'active' : '' %>" onclick="ocShowCut('months')">הצג בחתך חודשי</button>
+      <button type="button" class="chip <%= cut === 'date' ? 'active' : '' %>" onclick="ocShowCut('date')">הצג בחתך תאריכים</button>
+    </div>
+    <% } %>
+    <div class="oc-out">
+      <a class="btn btn-secondary" href="<%= csvLink %>">📄 ייצוא CSV</a>
+      <button type="button" class="btn btn-secondary" onclick="window.print()">🖨️ הדפסה / PDF</button>
+    </div>
   </div>
 
-  <form method="get" action="/reports/outstanding" id="oc-date" class="oc-cut no-enhance" style="<%= cut === 'date' ? '' : 'display:none' %>">
+  <% if (months && months.length) { %>
+  <form method="get" action="/reports/outstanding" id="oc-weeks" class="oc-cut" style="<%= cut === 'weeks' ? '' : 'display:none' %>">
     <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
-    <input type="hidden" name="cut" value="date" />
-    <div class="row">
-      <div><label>מתאריך</label><input type="date" name="from" value="<%= from || '' %>" /></div>
-      <div><label>עד תאריך</label><input type="date" name="to" value="<%= to || '' %>" /></div>
+    <input type="hidden" name="cut" value="weeks" />
+    <p class="muted" style="margin:0 0 .5rem">סמן אילו שבועות להציג (א׳–ש׳; רק שבועות שיש בהם צ׳קים פתוחים):</p>
+    <div style="display:flex;flex-wrap:wrap;gap:.6rem;margin-bottom:.6rem">
+      <% (weeks || []).forEach(function(w){ %>
+        <label style="display:flex;align-items:center;gap:5px;margin:0"><input type="checkbox" name="weeks" value="<%= w.value %>" style="width:auto;min-height:0" <%= (selWeeks || []).includes(w.value) ? 'checked' : '' %> /> <%= w.label %></label>
+      <% }); %>
     </div>
-    <div style="margin-top:.5rem"><button type="submit">הצג</button></div>
+    <button type="submit">הצג נבחרים</button>
   </form>
 
   <form method="get" action="/reports/outstanding" id="oc-months" class="oc-cut" style="<%= cut === 'months' ? '' : 'display:none' %>">
@@ -31,3 +44,15 @@
     </div>
     <button type="submit">הצג נבחרים</button>
   </form>
+
+  <form method="get" action="/reports/outstanding" id="oc-date" class="oc-cut no-enhance" style="<%= cut === 'date' ? '' : 'display:none' %>">
+    <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
+    <input type="hidden" name="cut" value="date" />
+    <div class="row">
+      <div><label>מתאריך</label><input type="date" name="from" value="<%= from || '' %>" /></div>
+      <div><label>עד תאריך</label><input type="date" name="to" value="<%= to || '' %>" /></div>
+    </div>
+    <div style="margin-top:.5rem"><button type="submit">הצג</button></div>
+  </form>
+  <% } %>
+</div>

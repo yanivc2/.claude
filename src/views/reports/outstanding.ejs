@@ -2,7 +2,7 @@
 <div class="toolbar">
   <h1>צ׳קים בחוץ</h1>
 </div>
-<p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7). לחץ על שורה לפירוט.</p>
+<p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7).<% if (accounts.length !== 1) { %> לחץ על שורה לפירוט.<% } %></p>
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
@@ -14,15 +14,12 @@ function cutQS(){
   var p = [];
   if (cut === 'date') { p.push('cut=date'); if (from) p.push('from=' + encodeURIComponent(from)); if (to) p.push('to=' + encodeURIComponent(to)); }
   else if (cut === 'months') { p.push('cut=months'); (selMonths || []).forEach(function(m){ p.push('months=' + encodeURIComponent(m)); }); }
+  else if (cut === 'weeks') { p.push('cut=weeks'); (selWeeks || []).forEach(function(w){ p.push('weeks=' + encodeURIComponent(w)); }); }
   else if (month) { p.push('month=' + encodeURIComponent(month)); }
   return p.length ? '&' + p.join('&') : '';
 }
 %>
-<%# "חתך לפי תאריך פירעון" (reports/_outstandingCut.ejs) — כשנבחר חשבון הוא יושב בכותרת "פירוט צ׳קים שלא
-    נפרעו", במקום "ייצוא CSV מפורט" (בעלים 18/10); בלי חשבון נבחר אין כותרת כזו, ולכן הוא נשאר כאן. %>
-<% if (months && months.length && !detailAccountId) { %>
-<div class="card no-print"><%- include('_outstandingCut', { allLink: ocAllLink() }) %></div>
-<% } %>
+<%# החתכים לפי תאריך פירעון — בסרגל שבתחתית הדף, יחד עם ייצוא והדפסה (reports/_outstandingCut.ejs, בעלים 21/10). %>
 <script>
   function ocShowCut(m){
     document.querySelectorAll('.oc-cut').forEach(function(f){ f.style.display = 'none'; });
@@ -30,6 +27,9 @@ function cutQS(){
   }
 </script>
 
+<%# טבלת החשבונות — רק כשיש כמה חשבונות בתצוגה (כל החנויות). חשבון אחד נפתח ישר לרשימת הצ׳קים
+    (routes/reports.js, בעלים 21/10: "לוותר על הדבר הזה ומייד להציג את רשימת הצ׳קים"). %>
+<% if (accounts.length !== 1) { %>
 <div class="card">
   <% if (month) { %><p class="muted" style="margin:0 0 .6rem">מציג צ׳קים שתאריך פירעונם ב־<strong><%= (months.find(function(x){return x.value===month;})||{}).label || month %></strong>.</p><% } %>
   <table>
@@ -66,6 +66,7 @@ function cutQS(){
     </tfoot>
   </table>
 </div>
+<% } %>
 
 <% if (detailAccountId) { %>
   <% var _bm = (typeof bankMatches !== 'undefined' && bankMatches) ? bankMatches : new Map();
@@ -76,8 +77,10 @@ function cutQS(){
         המפורט עדיין זמין מ"ייצוא ▾ ← 📄 ייצוא CSV" בשורת החשבון (אותה כתובת בדיוק). %>
     <div class="toolbar oc-detail-head">
       <h2 style="margin:0">פירוט צ׳קים שלא נפרעו</h2>
-      <% if (months && months.length) { %><div class="oc-cut-box no-print"><%- include('_outstandingCut', { allLink: ocAllLink() }) %></div><% } %>
     </div>
+    <%# בלי טבלת החשבונות (חשבון אחד) — הסיכום שלה עובר לכאן, כדי שהסכום בחוץ לא ייעלם. %>
+    <% var _acc = accounts.find(function(a){ return a.id === detailAccountId; }); %>
+    <% if (_acc && accounts.length === 1) { %><p class="muted oc-total" style="margin:0 0 .6rem"><%= _acc.display_name %> · <%= _acc.outstanding_count %> צ׳קים פתוחים · <strong><%= formatIls(_acc.outstanding) %></strong> בחוץ</p><% } %>
     <%# "התאמה לפי סכום": חיוב בבנק באותו סכום שעוד לא הותאם (services/reports.js#outstandingBankCandidates).
         הצעה בלבד — סכום זהה לבדו אינו הוכחה, ולכן ההתאמה בלחיצה. %>
     <div class="alert <%= _withCand ? 'alert-warn' : 'alert-ok' %> no-print" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
@@ -160,11 +163,12 @@ function cutQS(){
     <% if (currentUser.role !== 'owner') { %><p class="muted no-print">עריכת חשבוניות זמינה לבעלים בלבד.</p><% } %>
   </div>
 <% } %>
-<!-- פעולות ייצוא/הדפסה — למטה -->
-<div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">
-  <a class="btn btn-secondary" href="/reports/outstanding.csv">📄 ייצוא CSV</a>
-  <button type="button" class="btn btn-secondary" onclick="window.print()">🖨️ הדפסה / PDF</button>
-</div>
+<%# הסרגל שבתחתית: מימין החתכים, משמאל ייצוא והדפסה. כשרשימת צ׳קים מוצגת — הייצוא הוא הקובץ המפורט שלה
+    (עם החתך); אחרת — סיכום החשבונות. %>
+<%- include('_outstandingCut', {
+  allLink: ocAllLink(),
+  csvLink: detailAccountId ? '/reports/outstanding-detail.csv?account=' + detailAccountId + cutQS() : '/reports/outstanding.csv',
+}) %>
 
 <script>
   // "הדפסה" מהתפריט בשורה פותח את פירוט החשבון ומריץ הדפסה אוטומטית.

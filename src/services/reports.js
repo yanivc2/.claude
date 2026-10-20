@@ -1,7 +1,7 @@
 import { getExecutor } from '../db/adapter.js';
 import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
 import { revenueCoverage } from './revenueReports.js';
-import { israelToday } from '../lib/loginHours.js';
+import { israelToday, addDaysIso } from '../lib/loginHours.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 
 /**
@@ -14,7 +14,12 @@ import { parseSearchTerms, anyTermLike } from '../lib/search.js';
  * Build a due-date (payment_date) cut condition on the `p` alias. Supports a single month
  * (YYYY-MM), a list of months (multi-select), or a from/to date range. Returns { cond, params }.
  */
-function dueDateCut({ month = null, months = null, from = null, to = null } = {}) {
+function dueDateCut({ month = null, months = null, weeks = null, from = null, to = null } = {}) {
+  // חתך שבועי (בעלים 21/10): כל שבוע = א׳ עד ש׳, לפי תאריך הפירעון.
+  if (weeks && weeks.length) {
+    const ors = weeks.map(() => '(p.payment_date >= ? AND p.payment_date <= ?)').join(' OR ');
+    return { cond: ` AND (${ors})`, params: weeks.flatMap((w) => [w, addDaysIso(w, 6)]) };
+  }
   if (from || to) {
     let cond = ''; const params = [];
     if (from) { cond += ' AND p.payment_date >= ?'; params.push(from); }
@@ -88,6 +93,29 @@ export async function outstandingMonths(scope = null, x = getExecutor()) {
     if (m > 12) { m = 1; y += 1; }
   }
   return out;
+}
+
+/**
+ * השבועות (א׳–ש׳) שיש בהם צ׳ק פתוח לפי תאריך הפירעון — לחתך השבועי בצ׳קים בחוץ (בעלים 21/10). רק שבועות
+ * שיש בהם צ׳קים (לא רצף מלא כמו בחודשים: שבועות ריקים היו מציפים את הרשימה).
+ * @returns {Promise<Array<{value:string,label:string}>>} value = יום א׳ של השבוע (YYYY-MM-DD)
+ */
+export async function outstandingWeeks(scope = null, x = getExecutor()) {
+  const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
+  const rows = await x.many(
+    `SELECT p.payment_date FROM payments p
+       JOIN bank_accounts ba ON ba.id = p.bank_account_id
+      WHERE p.status = 'issued'${sc.sql}`,
+    [...sc.params],
+  );
+  const starts = new Set();
+  for (const r of rows) {
+    const d = String(r.payment_date).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) continue;
+    starts.add(addDaysIso(d, -new Date(`${d}T00:00:00Z`).getUTCDay()));
+  }
+  const dm = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  return [...starts].sort().map((w) => ({ value: w, label: `${dm(w)}–${dm(addDaysIso(w, 6))}/${addDaysIso(w, 6).slice(2, 4)}` }));
 }
 
 /**
