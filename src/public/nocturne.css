@@ -1421,3 +1421,39 @@ table.only-pickable tbody tr.not-pickable { display: none; }
 .recon-head .bs-note { margin: 0 0 .4rem; font-size: 12px; }
 .recon-head .recon-tools { justify-content: center; align-items: center; gap: var(--space-2); margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--color-line); font-size: 12px; }
 .recon-head .recon-tools .btn, .recon-head .recon-tools button { font-size: 12px; padding: 4px 10px; min-height: 0; line-height: 1.4; border-color: var(--color-line); }
+
+/* ── דף החשבוניות בסלולרי = כרטיסים (בעלים 20/10, אחרי הדמיה: "תבנה את ב׳, בלי סינון בטלפון") ───────────
+   views/invoices/index.ejs. במחשב הטבלה נשארת טבלה; עד 760px כל שורה היא כרטיס: ספק וסכום למעלה, מספר·תאריך
+   וסטטוס, שורת תשלום רק כשיש (tr.is-paid), תיבת הסימון מימין והערה מתחתיה, ושם החנות רק בלי חנות פעילה.
+   הכותרות ושורת הסינון (ב-thead) מוסתרות — אין סינון בטלפון. שורת התשלום = טקסט התא "אמצעי תשלום" +
+   ::after מתוך data-payrest, כדי שהסינון/המיון/הייצוא במחשב (textContent) לא ישתנו. הכתב בכרטיס אינו ממורכז —
+   חריגה מפורשת מכלל המרכוז (main.page *), ולכן אחריו ועם !important. */
+@media (max-width: 760px) {
+  main.page .inv-cards-wrap { overflow: visible; }
+  main.page table.inv-cards thead { display: none; }
+  main.page table.inv-cards, main.page table.inv-cards tbody { display: block; width: 100%; }
+  main.page table.inv-cards tbody tr {
+    display: grid; grid-template-columns: 34px auto minmax(0, 1fr) auto; column-gap: 10px; row-gap: 4px;
+    grid-template-areas: "pick sup sup amt" "pick num date status" "note pay pay pay" "store store store store";
+    border: 1px solid var(--color-line); border-radius: var(--radius-md);
+    padding: 10px 12px 8px; margin-bottom: 10px; background: var(--color-surface-2);
+  }
+  main.page table.inv-cards tbody tr.inv-empty { display: block; border: 0; background: none; }
+  main.page table.inv-cards tbody tr td { display: block; border: 0; padding: 0; min-width: 0; background: transparent; }
+  main.page table.inv-cards tbody tr.row-tracked { background: color-mix(in srgb, #f59e0b 12%, var(--color-surface-2)); border-color: color-mix(in srgb, #f59e0b 55%, transparent); box-shadow: inset -4px 0 0 #f59e0b; }
+  main.page table.inv-cards tbody tr.row-hold { background: color-mix(in srgb, var(--color-bad) 9%, var(--color-surface-2)); border-color: color-mix(in srgb, var(--color-bad) 45%, transparent); box-shadow: inset -4px 0 0 var(--color-bad); }
+  main.page table.inv-cards td.c-pick { grid-area: pick; display: flex; align-items: center; justify-content: center; }
+  main.page table.inv-cards td.c-sup { grid-area: sup; font-weight: 700; font-size: 16px; text-align: start !important; }
+  main.page table.inv-cards td.c-amt { grid-area: amt; font-weight: 700; font-size: 16px; text-align: end !important; white-space: nowrap; }
+  main.page table.inv-cards td.c-num { grid-area: num; color: var(--color-muted); font-size: 13px; white-space: nowrap; align-self: center; text-align: start !important; }
+  main.page table.inv-cards td.c-num::before { content: "#"; }
+  main.page table.inv-cards td.c-date { grid-area: date; color: var(--color-muted); font-size: 13px; white-space: nowrap; align-self: center; text-align: start !important; }
+  main.page table.inv-cards td.c-status { grid-area: status; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  main.page table.inv-cards td.c-status br { display: none; }
+  main.page table.inv-cards td.c-meth, main.page table.inv-cards td.c-ref, main.page table.inv-cards td.c-paydate { display: none; }
+  main.page table.inv-cards tr.is-paid td.c-meth { display: block; grid-area: pay; font-size: 13px; color: var(--color-muted); align-self: center; text-align: start !important; }
+  main.page table.inv-cards tr.is-paid td.c-meth::after { content: attr(data-payrest); }
+  main.page table.inv-cards td.c-note { grid-area: note; display: flex; justify-content: center; align-items: center; }
+  main.page table.inv-cards td.c-store { grid-area: store; font-size: 12px; color: var(--color-muted); text-align: start !important; }
+  main.page table.inv-cards.one-store td.c-store { display: none; }
+}

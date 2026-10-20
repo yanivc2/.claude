@@ -33,9 +33,12 @@
 
 <%# הטבלה בתוך כרטיס — אותה מסגרת של דף המעוקבות (בעלים, 18/10: "אהבתי את המסגרת… גם לחשבוניות"). בלי <h2>
     ישיר, ולכן הכרטיס אינו מתקפל. %>
+<%# בסלולרי (עד 760px) כל שורה היא כרטיס — בעלים 20/10, אחרי הדמיה: "תבנה את ב׳, בלי סינון בטלפון". ראה
+    nocturne.css · "דף החשבוניות בסלולרי". המחלקות c-* על התאים הן מה שממקם אותם בכרטיס; במחשב אין להן השפעה.
+    one-store: נבחרה חנות בסרגל העליון — שם החנות לא חוזר בכל כרטיס. %>
 <div class="card">
-<div class="table-scroll">
-<table class="sortable" data-export-into="payExport">
+<div class="table-scroll inv-cards-wrap">
+<table class="sortable inv-cards<%= (typeof activeStore !== 'undefined' && activeStore) ? ' one-store' : '' %>" data-export-into="payExport">
   <thead>
     <%# סדר העמודות מימין לשמאל — בעלים, 17/10. "תאריך חשבונית" = invoices.invoice_date; "תאריך לתשלום" =
         payments.payment_date של התשלום (pay_date) — שני שדות נפרדים, אף פעם לא אותו אחד. %>
@@ -43,7 +46,7 @@
   </thead>
   <tbody>
     <% if (invoices.length === 0) { %>
-      <tr><td colspan="<%= invoiceNotesReady ? 11 : 10 %>" class="muted">אין חשבוניות להצגה.</td></tr>
+      <tr class="inv-empty"><td colspan="<%= invoiceNotesReady ? 11 : 10 %>" class="muted">אין חשבוניות להצגה.</td></tr>
     <% } %>
     <% invoices.forEach(function(i){ %>
       <%
@@ -68,31 +71,36 @@
         var rowCls = tracked ? 'row-tracked' : (i.status === 'on_hold' ? 'row-hold' : '');
         // Selectable for a combined payment: payable (recorded/approved) and not already paid.
         var selectable = (i.status === 'recorded' || i.status === 'approved_for_payment') && !i.pay_method && !(i.cash_matches > 0);
+        // שורת התשלום בכרטיס (סלולרי): "אמצעי · אסמכתא · תאריך". האמצעי הוא הטקסט של התא; השאר נכנס
+        // ב-::after מתוך data-payrest — לא כטקסט בתא, כי הסינון והמיון במחשב קוראים את textContent. האסמכתא
+        // מבודדת (U+2068/U+2069), אחרת "****4521" מתהפך בתוך שורה עברית.
+        var payRest = [payRef ? '\u2068' + payRef + '\u2069' : '', i.pay_date ? formatDate(i.pay_date) : '']
+          .filter(Boolean).map(function (s) { return ' · ' + s; }).join('');
       %>
-      <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= rowCls %><%= selectable ? '' : ' not-pickable' %>">
+      <tr onclick="location='/invoices/<%= i.id %>'" style="cursor:pointer" class="<%= rowCls %><%= selectable ? '' : ' not-pickable' %><%= payMethod ? ' is-paid' : '' %>">
         <%# בחירה לתשלום מרוכז (בעלים, 18/10: "הסימון קטן מדי, ובסלולרי לפעמים צריך ללחוץ פעמיים"): תיבה גדולה,
             וכל התא מסמן — לחיצה ליד התיבה נבלעה עד עכשיו ב-stopPropagation ולא עשתה כלום. לא <label>: הוא
             היה מסמן פעמיים יחד עם הטיפול של התא. %>
-        <td class="no-print inv-pick-cell" onclick="event.stopPropagation(); if (event.target.classList.contains('inv-pick')) return; var c = this.querySelector('.inv-pick'); if (c && !c.disabled) { c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true })); }">
+        <td class="no-print inv-pick-cell c-pick" onclick="event.stopPropagation(); if (event.target.classList.contains('inv-pick')) return; var c = this.querySelector('.inv-pick'); if (c && !c.disabled) { c.checked = !c.checked; c.dispatchEvent(new Event('change', { bubbles: true })); }">
           <% if (selectable) { %>
             <input type="checkbox" class="inv-pick" aria-label="סמן לתשלום מרוכז"
               data-id="<%= i.id %>" data-sup="<%= i.supplier_id %>" data-store="<%= i.store_id %>"
               data-supname="<%= i.supplier_name %>" data-amount="<%= i.total_amount %>" />
           <% } %>
         </td>
-        <td><%= i.store_name %></td>
-        <td><%= i.supplier_name %>
+        <td class="c-store"><%= i.store_name %></td>
+        <td class="c-sup"><%= i.supplier_name %>
           <% if (i.supplier_status !== 'approved') { %>
             <span class="badge b-<%= i.supplier_status %>">ספק <%= i.supplier_status === 'pending' ? 'ממתין' : 'חסום' %></span>
           <% } %>
         </td>
-        <td class="mono"><%= i.invoice_number %></td>
-        <td class="inv-date"><%= formatDate(i.invoice_date) %></td>
-        <td><%= payMethod || '—' %></td>
-        <td class="mono"><%= payRef || '—' %></td>
-        <td class="pay-date"><%= i.pay_date ? formatDate(i.pay_date) : '—' %></td>
-        <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
-        <td>
+        <td class="mono c-num"><%= i.invoice_number %></td>
+        <td class="inv-date c-date"><%= formatDate(i.invoice_date) %></td>
+        <td class="c-meth" data-payrest="<%= payRest %>"><%= payMethod || '—' %></td>
+        <td class="mono c-ref"><%= payRef || '—' %></td>
+        <td class="pay-date c-paydate"><%= i.pay_date ? formatDate(i.pay_date) : '—' %></td>
+        <td class="right c-amt <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
+        <td class="c-status">
           <span class="badge <%= paid.cls %>"><%= paid.label %></span>
           <%# צבע לבדו אינו סטטוס — מי שלא מבחין בכתום חייב לקרוא את זה במילים. %>
           <% if (tracked) { %><br><span class="badge b-tracked">מעוקבת לתשלום</span><% } %>
@@ -100,7 +108,7 @@
         <% if (invoiceNotesReady) { %>
           <%# 📝 = יש הערה (לחיצה פותחת חלון עם הטקסט); ＋ עמום = הוספת הערה. הטקסט נוסע ב-data ומוצב
               בחלון ב-textContent בלבד. stopPropagation: לחיצה על השורה פותחת את החשבונית. %>
-          <td data-label="הערות" onclick="event.stopPropagation()" style="cursor:default">
+          <td class="c-note" data-label="הערות" onclick="event.stopPropagation()" style="cursor:default">
             <button type="button" class="note-btn <%= i.notes ? 'has-note' : 'no-note no-print' %>"
               data-id="<%= i.id %>" data-num="<%= i.invoice_number %>" data-note="<%= i.notes || '' %>"
               title="<%= i.notes ? String(i.notes).slice(0, 120) : 'הוסף הערה' %>"

@@ -34,7 +34,7 @@ test('above the list: no search tile, no "סינון · …", no hint line, no "
   assert.doesNotMatch(html, /filt-toggle/, 'the old checkbox panel is gone too');
   assert.doesNotMatch(html, /סינון · /, 'no status menu');
   assert.doesNotMatch(html, /לחיצה על שורה פותחת את פרטי החשבונית/, 'no hint line');
-  assert.match(html, /<table class="sortable" data-export-into="payExport">/, 'export goes to the bottom bar');
+  assert.match(html, /<table class="sortable inv-cards one-store" data-export-into="payExport">/, 'export goes to the bottom bar');
   assert.match(html, /<h1>חשבוניות<\/h1>/);
   assert.match(await page('?status=on_hold'), /<h1>חשבוניות · מוחזקות<\/h1>/, 'a ?status= link still filters, and the title says so');
 });
@@ -49,7 +49,7 @@ test('"ייצוא" of the invoices table sits in the bottom bar, before "בטל 
 
 test('picking an invoice for a combined payment: a big box, and the whole cell toggles it (one tap)', async () => {
   const html = await page();
-  assert.match(html, /<td class="no-print inv-pick-cell" onclick="event\.stopPropagation\(\); if \(event\.target\.classList\.contains\('inv-pick'\)\) return; var c = this\.querySelector\('\.inv-pick'\); if \(c && !c\.disabled\) \{ c\.checked = !c\.checked; c\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\); \}">/);
+  assert.match(html, /<td class="no-print inv-pick-cell c-pick" onclick="event\.stopPropagation\(\); if \(event\.target\.classList\.contains\('inv-pick'\)\) return; var c = this\.querySelector\('\.inv-pick'\); if \(c && !c\.disabled\) \{ c\.checked = !c\.checked; c\.dispatchEvent\(new Event\('change', \{ bubbles: true \}\)\); \}">/);
   assert.match(html, /<input type="checkbox" class="inv-pick" aria-label="סמן לתשלום מרוכז"/);
   assert.doesNotMatch(html, /class="inv-pick" style="width:auto;min-height:0"/, 'no longer the tiny native box');
   const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
@@ -93,7 +93,7 @@ test('"✓" at the head of the pick column filters to the invoices that can be p
   const rows = html.match(/<tr onclick="location='\/invoices\/\d+'"[^>]*>/g) || [];
   assert.ok(rows.length >= 3 && rows.every((r) => !/not-pickable/.test(r)), 'unpaid invoices stay visible under the filter');
   const view = readFileSync(new URL('../src/views/invoices/index.ejs', import.meta.url), 'utf8');
-  assert.match(view, /class="<%= rowCls %><%= selectable \? '' : ' not-pickable' %>"/, 'the server marks what cannot be picked');
+  assert.match(view, /class="<%= rowCls %><%= selectable \? '' : ' not-pickable' %><%= payMethod \? ' is-paid' : '' %>"/, 'the server marks what cannot be picked');
   assert.match(view, /table\.classList\.toggle\('only-pickable', on\);/);
   const css = readFileSync(new URL('../src/public/nocturne.css', import.meta.url), 'utf8');
   assert.match(css, /table\.only-pickable tbody tr\.not-pickable \{ display: none; \}/);
@@ -115,5 +115,5 @@ test('מרקורים → הצהרות הפקדה: no explanation line and no "ח
 
 test('the invoices table sits in a card — the same frame as the tracked page (owner, 18/10)', async () => {
   const html = await page();
-  assert.match(html, /<div class="card">\s*<div class="table-scroll">\s*<table class="sortable" data-export-into="payExport">/);
+  assert.match(html, /<div class="card">\s*<div class="table-scroll inv-cards-wrap">\s*<table class="sortable inv-cards one-store" data-export-into="payExport">/);
 });
