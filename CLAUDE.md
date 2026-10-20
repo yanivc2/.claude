@@ -223,7 +223,7 @@ happen only at merge. So:
   include `partials/_formStore.ejs` (hidden `store_id` + `ctx_store` only — **no visible store field**, owner 20/10) and render
   `partials/_needStore.ejs` instead of the form when no store is active. `ctx_store` is what lets
   `lib/storeContext.js#staleStoreGuard` refuse a form posted after the store was switched in another
-  tab (multipart routes call `staleStoreFor` after multer). Edit forms: `partials/_storeField.ejs` +
+  tab (multipart routes call `staleStoreFor` after multer). Edit forms: `partials/_storeField.ejs` (a text line "חנות: X" + "העבר לחנות אחרת", never a field) +
   `assertStoreMove` (a store change = a move). Detail: INDEX.md · 🏬.
 - Login flow: `routes/auth.js` — checks `loginAllowedNow` (403 outside window), pushes a Telegram
   notice on every login. Forced-change + temp-password onboarding: `routes/account.js` (change form),

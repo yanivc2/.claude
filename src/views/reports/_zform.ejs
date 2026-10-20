@@ -69,7 +69,8 @@
   <%# החנות אינה בורר (כלל הבעלים): בהוספה — החנות הפעילה, בלי שדה גלוי (בעלים 20/10); בעריכה — חנות
       הדוח (העברה רק עם view_all_stores). %>
   <% if (z.id) { %>
-    <%- include('../partials/_storeField', { currentStoreId: z.store_id }) %>
+    <%# שורה קטנה בראש הטופס, עם "העבר לחנות אחרת" (בעלים 20/10, כמו בעריכת סגירת Z). %>
+    <p class="muted edit-meta"><%- include('../partials/_storeField', { currentStoreId: z.store_id }) %></p>
   <% } else { %>
     <%- include('../partials/_formStore') %>
   <% } %>

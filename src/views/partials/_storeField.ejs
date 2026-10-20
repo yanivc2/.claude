@@ -1,46 +1,33 @@
 <%#
-  The store field of an EDIT form. The record's store is fixed; only a user with view_all_stores
-  (owner always) gets a picker, and changing it MOVES the record (lib/storeContext.js#assertStoreMove,
-  plus the service's own blocks: a paid/linked invoice, a Z whose deposit is matched in the bank).
-  Everyone else sees it read-only. Also posts ctx_store (the active store at render time).
-  Locals: currentStoreId (required), label (default 'חנות'), inline (default false).
-  inline: a line of text, not a field — "חנות: X" plus a small "העבר לחנות אחרת" that reveals the same
-  picker (zclosing/edit.ejs, owner 20/10: the store sits in the small line above the form). The hidden
-  picker still posts the current store, so saving without touching it is not a move.
+  The store of an EDIT form — a line of text, not a field (owner 20/10: Z closing edit, then the invoice
+  and Z report edits): "חנות: X", plus, for a user with view_all_stores (owner always), a small
+  "העבר לחנות אחרת" that reveals the picker. The record's store is fixed; changing it MOVES the record
+  (lib/storeContext.js#assertStoreMove, plus the service's own blocks: a paid/linked invoice, a Z whose
+  deposit is matched in the bank). Also posts ctx_store (the active store at render time).
+  The caller wraps it in <p class="muted edit-meta"> at the top of the form.
+  Locals: currentStoreId (required) = the record's store; selectedStoreId (optional) = what the failed
+  post chose — a re-render after an error opens the picker on it instead of hiding a pending move.
+  The hidden picker still posts the current store, so saving without touching it is not a move.
 %>
 <% var _cur = Number(currentStoreId);
+   var _sel = Number(typeof selectedStoreId !== 'undefined' && selectedStoreId) || _cur;
    var _stores = (typeof availableStores !== 'undefined' && availableStores) ? availableStores : [];
    var _curSt = _stores.find(function(s){ return Number(s.id) === _cur; });
-   var _lbl = (typeof label === 'undefined') ? 'חנות' : label;
    var _canMove = typeof canAllStores !== 'undefined' && canAllStores && _stores.length > 1;
+   var _pending = _canMove && _sel !== _cur;
    var _curName = _curSt ? (_curSt.name + ' · ' + _curSt.company_name) : ('חנות ' + _cur); %>
 <input type="hidden" name="ctx_store" value="<%= (typeof activeStore !== 'undefined' && activeStore) ? activeStore.id : '' %>" />
-<% if (typeof inline !== 'undefined' && inline) { %>
-  <span class="sf-inline"><%= _lbl %>: <strong><%= _curName %></strong></span>
-  <% if (_canMove) { %>
-    <span class="sf-move-link">· <button type="button" class="sf-move-btn" onclick="var w = this.parentNode; w.hidden = true; var m = w.nextElementSibling; m.hidden = false; m.querySelector('select').focus();">העבר לחנות אחרת</button></span>
-    <span class="sf-move" hidden>
-      <select name="store_id" required aria-label="העבר לחנות">
-        <% _stores.forEach(function(s){ %>
-          <option value="<%= s.id %>" <%= Number(s.id) === _cur ? 'selected' : '' %>><%= s.name %> · <%= s.company_name %></option>
-        <% }); %>
-      </select>
-      <small class="muted">שינוי החנות מעביר את הרשומה לחנות אחרת.</small>
-    </span>
-  <% } else { %>
-    <input type="hidden" name="store_id" value="<%= _cur %>" />
-  <% } %>
-<% } else { %>
-<label><%= _lbl %></label>
+<span class="sf-inline">חנות: <strong><%= _curName %></strong></span>
 <% if (_canMove) { %>
-  <select name="store_id" required>
-    <% _stores.forEach(function(s){ %>
-      <option value="<%= s.id %>" <%= Number(s.id) === _cur ? 'selected' : '' %>><%= s.name %> · <%= s.company_name %></option>
-    <% }); %>
-  </select>
-  <small class="muted">שינוי החנות מעביר את הרשומה לחנות אחרת.</small>
+  <span class="sf-move-link"<%= _pending ? ' hidden' : '' %>>· <button type="button" class="sf-move-btn" onclick="var w = this.parentNode; w.hidden = true; var m = w.nextElementSibling; m.hidden = false; m.querySelector('select').focus();">העבר לחנות אחרת</button></span>
+  <span class="sf-move"<%= _pending ? '' : ' hidden' %>>
+    <select name="store_id" required aria-label="העבר לחנות">
+      <% _stores.forEach(function(s){ %>
+        <option value="<%= s.id %>" <%= Number(s.id) === _sel ? 'selected' : '' %>><%= s.name %> · <%= s.company_name %></option>
+      <% }); %>
+    </select>
+    <small class="muted">שינוי החנות מעביר את הרשומה לחנות אחרת.</small>
+  </span>
 <% } else { %>
   <input type="hidden" name="store_id" value="<%= _cur %>" />
-  <input value="<%= _curName %>" readonly />
-<% } %>
 <% } %>

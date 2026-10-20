@@ -5,6 +5,10 @@
 
 <div class="card">
   <form class="stack" method="post" action="/invoices/<%= invoice.id %>/edit">
+    <%# החנות — שורה קטנה בראש הטופס, עם "העבר לחנות אחרת" (בעלים 20/10, כמו בעריכת סגירת Z). %>
+    <p class="muted edit-meta">
+      <%- include('../partials/_storeField', { currentStoreId: invoice.store_id, selectedStoreId: values.store_id }) %>
+    </p>
     <div class="row">
       <div>
         <label>ספק *</label>
@@ -15,9 +19,6 @@
             </option>
           <% }); %>
         </select>
-      </div>
-      <div>
-        <%- include('../partials/_storeField', { currentStoreId: values.store_id || invoice.store_id, label: 'חנות *' }) %>
       </div>
     </div>
 

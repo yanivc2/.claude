@@ -15,10 +15,10 @@ const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const view = read('src/views/zclosing/edit.ejs').replace(/<%#[\s\S]*?%>/g, '');
 
 test('edit: the store sits in the small line above the form, then counter · Z · drawer in one equal row', () => {
-  const meta = view.indexOf('<p class="muted zc-meta">');
+  const meta = view.indexOf('<p class="muted edit-meta">');
   const row = view.indexOf('<div class="row zc-top-row">');
   assert.ok(meta > 0 && meta < row, 'the small line comes first, inside the form');
-  assert.match(view.slice(meta, row), /include\('\.\.\/partials\/_storeField', \{ currentStoreId: closing\.store_id, inline: true \}\)[\s\S]*נשמר:/);
+  assert.match(view.slice(meta, row), /include\('\.\.\/partials\/_storeField', \{ currentStoreId: closing\.store_id \}\)[\s\S]*נשמר:/);
   const top = view.slice(row, view.indexOf('איזון קופות (ספירת'));
   const at = (t) => top.indexOf(t);
   assert.ok(at('עובד (מבצע הספירה)') > 0 && at('עובד (מבצע הספירה)') < at('מספר Z') && at('מספר Z') < at('סה"כ מזומן מגירה'),
@@ -52,7 +52,7 @@ test('the owner sees "חנות: X" as text and a hidden move picker that still p
     o, db,
   );
   const html = await (await fetch(`${base}/zclosing/${id}`, { headers: { cookie: cookie(store.id) } })).text();
-  const meta = html.slice(html.indexOf('class="muted zc-meta"'), html.indexOf('class="row zc-top-row"'));
+  const meta = html.slice(html.indexOf('class="muted edit-meta"'), html.indexOf('class="row zc-top-row"'));
   assert.match(meta, /<span class="sf-inline">חנות: <strong>מידנייט · /);
   assert.match(meta, /<span class="sf-move-link">· <button type="button" class="sf-move-btn"[^>]*>העבר לחנות אחרת<\/button><\/span>/,
     'the separator hides together with the link');

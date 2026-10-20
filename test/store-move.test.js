@@ -61,7 +61,16 @@ test('an invoice with a live payment cannot move — the money left this store\'
   assert.notEqual(fresh.status, 'paid');
   const r = await post(`/invoices/${inv.id}/edit`, o, 3, editBody(fresh, 4));
   assert.equal(r.status, 400);
-  assert.match(await r.text(), /לא ניתן להעביר אותה לחנות אחרת/);
+  const html = await r.text();
+  assert.match(html, /לא ניתן להעביר אותה לחנות אחרת/);
+  // The re-render keeps the record's store as the text and leaves the chosen target OPEN in the picker
+  // (not hidden behind "העבר לחנות אחרת", where a pending move would be invisible).
+  const meta = html.slice(html.indexOf('class="muted edit-meta"'), html.indexOf('</p>', html.indexOf('class="muted edit-meta"')));
+  const name3 = (await db.one('SELECT name FROM stores WHERE id = 3', [])).name;
+  assert.match(meta, new RegExp(`חנות: <strong>${name3} · `));
+  assert.match(meta, /<span class="sf-move-link" hidden>/);
+  assert.doesNotMatch(meta, /<span class="sf-move" hidden>/);
+  assert.match(meta, /<option value="4" selected>/);
   assert.equal(Number((await db.one('SELECT store_id FROM invoices WHERE id = ?', [inv.id])).store_id), 3);
 });
 
@@ -71,14 +80,17 @@ test('without view_all_stores the edit form is read-only and a posted move is re
   await db.run(`UPDATE users SET permissions = '["edit_invoice"]' WHERE id = ?`, [sec.id]);
   const inv = await invoiceIn(3);
   const page = await (await fetch(`${base}/invoices/${inv.id}/edit`, { headers: { cookie: ck(sec, 3) } })).text();
-  assert.ok(!/<select name="store_id" required>/.test(page), 'no move picker (the header\'s active-store picker is separate)');
+  assert.ok(!/aria-label="העבר לחנות"|העבר לחנות אחרת/.test(page), 'no move picker or link (the header\'s active-store picker is separate)');
+  assert.match(page, /<span class="sf-inline">חנות: <strong>/, 'the store is shown as text');
   assert.match(page, /name="store_id" value="3"/);
   const r = await post(`/invoices/${inv.id}/edit`, sec, 3, editBody(inv, 4));
   assert.equal(r.status, 400);
   assert.match(await r.text(), /רק למי שיש לו הרשאת/);
   // the owner does get the picker
   const op = await (await fetch(`${base}/invoices/${inv.id}/edit`, { headers: { cookie: ck(o, 3) } })).text();
-  assert.match(op, /<select name="store_id" required>/);
+  assert.match(op, /העבר לחנות אחרת<\/button>/);
+  assert.match(op, /<span class="sf-move" hidden>\s*<select name="store_id" required aria-label="העבר לחנות">/);
+  assert.match(op, /<option value="3" selected>/, 'the hidden picker holds the invoice\'s own store — a plain save is not a move');
   assert.match(op, /שינוי החנות מעביר את הרשומה לחנות אחרת/);
 });
 

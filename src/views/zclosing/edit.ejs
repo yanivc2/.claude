@@ -73,8 +73,8 @@
     — באותה שורה של השמירה, משמאל ל"ייצוא". %>
 <div class="card no-print">
   <form method="post" action="/zclosing/<%= closing.id %>" class="stack" id="zclose-form" data-busy="שומר…">
-    <p class="muted zc-meta">
-      <%- include('../partials/_storeField', { currentStoreId: closing.store_id, inline: true }) %>
+    <p class="muted edit-meta">
+      <%- include('../partials/_storeField', { currentStoreId: closing.store_id }) %>
       <span>· נשמר: <strong><%= closing.ended_at || '—' %></strong> · שעון ישראל</span>
     </p>
 
