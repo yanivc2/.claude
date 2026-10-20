@@ -34,6 +34,7 @@ test('scraped rows map to signed agorot; pending, dateless and zero rows are dro
     amount: -117050,
     description: 'צ׳ק',
     rawReference: '5001',
+    balanceAfter: null, // the library's rows carry no balance; only the Hapoalim business portal sends one
     externalId: 'scr:hapoalim:412345:5001:2026-07-10:-117050',
   });
   assert.equal(rows[1].amount, 200000);

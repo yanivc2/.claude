@@ -52,6 +52,9 @@ export function convertBizTransactions(rows) {
       description: String(t?.activityDescription ?? '').trim(),
       memo,
       identifier: t?.referenceNumber ?? null,
+      // היתרה אחרי התנועה — אותו "יתרה" שבמסך הבנק (בעלים 20/10: "יתרה גם בשורות שמגיעות מהסוכן"). בלעדיה בדיקת
+      // רצף היתרות (services/accountIntegrity.js) לא רואה את מה שהסוכן הביא. ריק/לא-מספר → null, לא 0.
+      balance: t?.currentBalance == null || t.currentBalance === '' || !Number.isFinite(Number(t.currentBalance)) ? null : Number(t.currentBalance),
       status: Number(t?.serialNumber) === 0 ? 'pending' : 'completed',
     };
   });

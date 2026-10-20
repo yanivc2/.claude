@@ -64,6 +64,7 @@ test('mapScrapedTransaction converts to signed agorot and our shape', () => {
     amount: -117050,
     description: 'צ׳ק',
     rawReference: '5001',
+    balanceAfter: null, // no balance on a library row
     status: 'completed',
     // Namespaced so a scraped row can never collide with a Financy row on the same account.
     externalId: 'scr:hapoalim:412345:5001:2026-07-10:-117050',

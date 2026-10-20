@@ -181,6 +181,12 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
       // bank may restate a line's description or value date between pulls, and an overlapping date
       // window is re-fetched on every sync. Rows without one (CSV / manual) keep the field-equality check.
       if (externalId ? byExternal.has(externalId) : byFields.has(fieldKey(r.txnDate, r.amount, desc, ref))) {
+        // שורה שכבר נמשכה בלי יתרה (לפני שהסוכן מסר אותה) מקבלת אותה בסנכרון הבא שמחזיר אותה — כך היתרות
+        // מתמלאות לאחור בחלון המשיכה, בלי ייבוא מחדש. רק כשהיתרה חסרה: יתרה קיימת (למשל מקובץ) לא נדרסת.
+        if (externalId && Number.isFinite(r.balanceAfter)) {
+          await t.run('UPDATE bank_transactions SET balance_after = ? WHERE bank_account_id = ? AND external_id = ? AND balance_after IS NULL',
+            [r.balanceAfter, bankAccountId, externalId]);
+        }
         skipped += 1;
         continue;
       }

@@ -36,7 +36,9 @@ export function scrapedExternalId({ companyId, accountNumber, identifier, date =
 
 /**
  * Map one scraped transaction to our bank_transactions shape.
- * @param {{date:string, chargedAmount:number, originalAmount?:number, description?:string, memo?:string, identifier?:(string|number), status?:string}} txn
+ * `balance` (shekels, the balance after the row) is optional — the Hapoalim business portal sends it
+ * (`currentBalance`), the israeli-bank-scrapers library does not; absent → balanceAfter null.
+ * @param {{date:string, chargedAmount:number, originalAmount?:number, description?:string, memo?:string, identifier?:(string|number), balance?:number, status?:string}} txn
  * @param {{companyId?:string, accountNumber?:string}} [ctx] institution + account, for the external id
  */
 export function mapScrapedTransaction(txn, ctx = {}) {
@@ -51,6 +53,7 @@ export function mapScrapedTransaction(txn, ctx = {}) {
     amount,
     description: uniq.length ? uniq.join(' — ') : null,
     rawReference: txn?.identifier != null && String(txn.identifier).trim() !== '' ? String(txn.identifier) : null,
+    balanceAfter: shekelsToAgorot(txn?.balance),
     status: txn?.status ?? null,
     externalId: scrapedExternalId({ ...ctx, identifier: txn?.identifier, date: txnDate, amount }),
   };

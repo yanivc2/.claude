@@ -72,3 +72,41 @@ test('שגיאת בנק לא חושפת את מספר החשבון מה-URL', ()
   assert.throws(() => parseBankResponse({ ok: false, status: 500, text: '' }, url), (e) => !/432110/.test(e.message) && /HTTP 500/.test(e.message));
   assert.throws(() => parseBankResponse({ ok: true, status: 200, text: '<html>' }, url), (e) => !/432110/.test(e.message) && /אינה JSON/.test(e.message));
 });
+
+// בעלים 20/10: "יתרה גם בשורות שמגיעות מהסוכן" — הפורטל מוסר currentBalance לכל שורה; בלעדיו בדיקת רצף
+// היתרות לא רואה את מה שהסוכן הביא.
+test('currentBalance → balance → balanceAfter (agorot); missing stays null, never 0', () => {
+  const [withBal] = convertBizTransactions([row({ currentBalance: 15234.07 })]);
+  assert.equal(withBal.balance, 15234.07);
+  const [noBal] = convertBizTransactions([row({ currentBalance: undefined })]);
+  assert.equal(noBal.balance, null);
+  const [emptyBal] = convertBizTransactions([row({ currentBalance: '' })]);
+  assert.equal(emptyBal.balance, null);
+  const [mapped] = mapScrapedTransactions(convertBizTransactions([row({ currentBalance: 15234.07 })]), { companyId: 'hapoalimBiz', accountNumber: '12-628-1' });
+  assert.equal(mapped.balanceAfter, 1523407);
+  const [mappedNo] = mapScrapedTransactions(convertBizTransactions([row({ currentBalance: null })]), { companyId: 'hapoalimBiz', accountNumber: '12-628-1' });
+  assert.equal(mappedNo.balanceAfter, null);
+});
+
+test('a row pulled before the balance existed gets it on the next pull — an existing balance is never overwritten', async () => {
+  const { freshDb, owner } = await import('./helpers.js');
+  const { importTransactions } = await import('../src/services/bankTransactions.js');
+  const db = await freshDb();
+  const o = await owner(db);
+  const acct = await db.one('SELECT id FROM bank_accounts WHERE store_id = 3 LIMIT 1', []);
+  const ctx = { companyId: 'hapoalimBiz', accountNumber: '12-628-1' };
+  const pull = (bal) => mapScrapedTransactions(convertBizTransactions([row({ referenceNumber: 77001, currentBalance: bal })]), ctx);
+  // the agent before this change: no balance
+  const first = pull(null);
+  assert.equal(first[0].balanceAfter, null);
+  assert.equal((await importTransactions(acct.id, first, 'scraper', o, db)).inserted, 1);
+  const get = () => db.one('SELECT balance_after FROM bank_transactions WHERE bank_account_id = ? AND external_id = ?', [acct.id, first[0].externalId]);
+  assert.equal((await get()).balance_after, null);
+  // the updated agent re-pulls the same window: same row, now with its balance — filled, not re-inserted
+  const r = await importTransactions(acct.id, pull(5000), 'scraper', o, db);
+  assert.equal(r.inserted, 0);
+  assert.equal(Number((await get()).balance_after), 500000);
+  // a later pull with a different figure does not overwrite what is there
+  await importTransactions(acct.id, pull(6000), 'scraper', o, db);
+  assert.equal(Number((await get()).balance_after), 500000);
+});
