@@ -287,7 +287,7 @@ router.get('/txn/:id', async (req, res, next) => {
 });
 
 // 🔍 בדיקת שיוך לחשבון — האם כל התנועות בחשבון באמת שלו (רצף היתרות, אותה תנועה בחשבון אחר,
-// צ׳ק מפנקס של חשבון אחר). קריאה בלבד; services/accountIntegrity.js.
+// צ׳ק מפנקס של חשבון אחר, צ׳ק שהותאם לפי סכום בלבד). קריאה בלבד; services/accountIntegrity.js.
 router.get('/integrity', async (req, res, next) => {
   try {
     const accountId = await resolveAccountId(req);

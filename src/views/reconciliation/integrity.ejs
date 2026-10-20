@@ -7,7 +7,7 @@
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <% if (!account || !result) { %>
   <div class="alert alert-warn">לא נבחר חשבון בנק.</div>
-<% } else { var r = result; var ok = !r.breaks.length && !r.duplicates.length && !r.foreignChecks.length; %>
+<% } else { var r = result; var ok = !r.breaks.length && !r.duplicates.length && !r.foreignChecks.length && !r.mismatchedMatches.length; %>
   <div class="card no-collapse">
     <p style="margin:0 0 .4rem"><strong><%= account.display_name %></strong> ·
       <%= r.rowsTotal %> תנועות<% if (r.firstDate) { %> מ-<%= formatDate(r.firstDate) %> עד <%= formatDate(r.lastDate) %><% } %>.</p>
@@ -19,7 +19,8 @@
       <div class="alert alert-warn" style="margin:0">נמצאו ממצאים שדורשים בדיקה:
         <%= [r.breaks.length ? 'סעיף 1 — ' + r.breaks.length + ' שברים ברצף היתרות' : null,
              r.duplicates.length ? 'סעיף 2 — ' + r.duplicates.length + ' תנועות שקיימות גם בחשבון אחר' : null,
-             r.foreignChecks.length ? 'סעיף 3 — ' + r.foreignChecks.length + ' צ׳קים מפנקס של חשבון אחר' : null].filter(Boolean).join(' · ') %>. פירוט למטה.</div>
+             r.foreignChecks.length ? 'סעיף 3 — ' + r.foreignChecks.length + ' צ׳קים מפנקס של חשבון אחר' : null,
+             r.mismatchedMatches.length ? 'סעיף 4 — ' + r.mismatchedMatches.length + ' צ׳קים שהותאמו לפי סכום בלבד' : null].filter(Boolean).join(' · ') %>. פירוט למטה.</div>
     <% } %>
     <% if (!r.rowsWithBalance && r.rowsTotal) { %>
       <p class="muted" style="margin:.5rem 0 0">לתנועות בחשבון הזה אין "יתרה לאחר פעולה" (משיכה מהבנק או הזנה ידנית), ולכן רצף היתרות לא נבדק — רק שתי הבדיקות האחרות.</p>
@@ -201,6 +202,26 @@
           <% r.foreignChecks.forEach(function(f){ %>
             <tr><td><%= formatDate(f.txn.txn_date) %></td><td class="right"><%= formatIls(f.txn.amount) %></td>
               <td class="mono"><a href="/payments/<%= f.paymentId %>"><%= f.checkNumber %></a></td><td><strong><%= f.otherAccount %></strong></td><td><%= f.txn.file_name || '—' %></td></tr>
+          <% }); %>
+        </tbody>
+      </table></div>
+    <% } %>
+  </div>
+
+  <%# בעלים 21/10: צ׳ק 18338 של פינק הותאם במידנייט לצ׳ק 32159 רק בגלל סכום זהה. ההתאמה האוטומטית
+      כבר לא עושה את זה (services/reconciliation.js#checkNumberConflict); כאן — מה שנעשה לפני כן. %>
+  <div class="card no-collapse">
+    <h2 style="margin:0 0 .3rem">4. צ׳ק שהותאם לפי סכום בלבד</h2>
+    <p class="muted" style="margin:0 0 .5rem">חיוב בבנק שהותאם לצ׳ק במספר אחר — רק כי הסכום זהה. אם זה לא אותו צ׳ק, הצ׳ק שבמערכת סומן "נפרע" בלי שנפרע:
+      ב"כל התנועות בחשבון" — "בטל התאמה" בשורה, והצ׳ק חוזר להיות בחוץ. אם זה אותו צ׳ק ומספרו הוקלד שגוי — לתקן את המספר בתשלום.</p>
+    <% if (!r.mismatchedMatches.length) { %><p style="margin:0">✓ לא נמצאו.</p>
+    <% } else { %>
+      <div class="table-scroll"><table>
+        <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>מספר בבנק</th><th>הותאם לצ׳ק</th></tr></thead>
+        <tbody>
+          <% r.mismatchedMatches.forEach(function(m){ %>
+            <tr><td><%= formatDate(m.txn.txn_date) %></td><td class="right"><%= formatIls(m.txn.amount) %></td><td><%= m.txn.description || '' %></td>
+              <td class="mono"><%= m.txn.raw_reference %></td><td class="mono"><a href="/payments/<%= m.paymentId %>"><%= m.checkNumber %></a></td></tr>
           <% }); %>
         </tbody>
       </table></div>

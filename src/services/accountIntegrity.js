@@ -1,5 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { plainNumber } from '../lib/numText.js';
+import { checkNumberConflict } from './reconciliation.js';
 
 // בדיקת שיוך לחשבון — "האם כל התנועות בחשבון הזה באמת שלו?"
 //
@@ -13,6 +14,8 @@ import { plainNumber } from '../lib/numText.js';
 //     שבר יכול לנבוע גם מ**תנועות חסרות** (תקופה שלא יובאה) — הדף אומר את שתי האפשרויות.
 //  2. **אותה תנועה בחשבון אחר** — תאריך, סכום, אסמכתה ותיאור זהים: אותו קובץ יובא לשני חשבונות.
 //  3. **צ׳ק מפנקס של חשבון אחר** — חיוב שאסמכתתו = מספר צ׳ק שהונפק מחשבון אחר, באותו סכום.
+//  4. **צ׳ק שהותאם לפי סכום בלבד** — התאמה קיימת שבה מספר הצ׳ק סותר את האסמכתה בבנק
+//     (`checkNumberConflict`). ההתאמה האוטומטית לא עושה זאת יותר; זו הרשימה של מה שכבר נעשה.
 
 const refKey = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').replace(/^0+/, '');
 
@@ -212,6 +215,7 @@ export async function accountIntegrity(bankAccountId, x = getExecutor()) {
     partialDays: [],
     duplicates: [],
     foreignChecks: [],
+    mismatchedMatches: [],
   };
 
   // 1. רצף היתרות, יום אחרי יום.
@@ -251,6 +255,18 @@ export async function accountIntegrity(bankAccountId, x = getExecutor()) {
     if (Number(r.amount) >= 0 || !refKey(r.raw_reference)) continue;
     const c = checkBy.get(`${refKey(r.raw_reference)}|${Math.abs(Number(r.amount))}`);
     if (c) out.foreignChecks.push({ txn: r, checkNumber: c.check_number, paymentId: c.id, otherAccount: c.display_name });
+  }
+
+  // 4. צ׳ק שהותאם לפי סכום בלבד, כשהמספר בבנק סותר אותו — ההתאמה האוטומטית עשתה את זה עד ·307.
+  const matched = await x.many(
+    `SELECT bt.id, bt.txn_date, bt.amount, bt.description, bt.raw_reference, p.id AS payment_id, p.method, p.check_number
+       FROM bank_transactions bt JOIN payments p ON p.id = bt.matched_payment_id
+      WHERE bt.bank_account_id = ?
+      ORDER BY bt.txn_date, bt.id`,
+    [id],
+  );
+  for (const m of matched) {
+    if (checkNumberConflict(m, m)) out.mismatchedMatches.push({ txn: m, paymentId: m.payment_id, checkNumber: m.check_number });
   }
   return out;
 }

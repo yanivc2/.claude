@@ -96,9 +96,27 @@ export async function voidedChecksSeenInBank(scope = null, storeId = null, x = g
 }
 
 /** Human-facing classification of a transaction's match state (for the reconciliation UI). */
+const numKey = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').replace(/^0+/, '');
+
+/**
+ * 🔴 האם מספר הצ׳ק **סותר** את האסמכתה בבנק? (בעלים 21/10: צ׳ק 18338 של פינק, שנכנס בטעות
+ * למידנייט, הותאם אוטומטית לצ׳ק 32159 של מידנייט — רק כי הסכום, ₪1,616, היה זהה, והצ׳ק סומן
+ * "נפרע" בלי שנפרע.) סתירה = לשניהם יש מספר, ואף אחד אינו סיומת של השני (הבנק מקצר לפעמים).
+ * שורה בלי אסמכתא (או תשלום שאינו צ׳ק) אינה סותרת — שם התאמה לפי סכום היא כל מה שיש.
+ */
+export function checkNumberConflict(txn, payment) {
+  if (payment?.method !== 'check') return false;
+  const a = numKey(txn?.raw_reference);
+  const b = numKey(payment?.check_number);
+  if (!a || !b) return false;
+  return !(a.endsWith(b) || b.endsWith(a));
+}
+
 export async function classify(txn, x = getExecutor()) {
   const { candidates, deterministic } = await findCandidates(txn, x);
   if (deterministic) return { state: 'deterministic', candidates, suggestion: deterministic };
+  // מועמד יחיד שמספרו סותר את הבנק — להכרעה ידנית, אף פעם לא אוטומטית.
+  if (candidates.length === 1 && checkNumberConflict(txn, candidates[0])) return { state: 'mismatch', candidates, suggestion: null };
   if (candidates.length === 1) return { state: 'single', candidates, suggestion: candidates[0] };
   if (candidates.length > 1) return { state: 'ambiguous', candidates, suggestion: null };
   return { state: 'none', candidates, suggestion: null };
@@ -200,7 +218,7 @@ export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
     if ((state === 'deterministic' || state === 'single') && suggestion) {
       await confirmMatch(txn.id, suggestion.id, actor, x);
       matched += 1;
-    } else if (state === 'ambiguous') {
+    } else if (state === 'ambiguous' || state === 'mismatch') {
       ambiguous += 1;
     } else {
       unmatched += 1;
