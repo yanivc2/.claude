@@ -537,14 +537,35 @@ export async function bankSyncReminder({ now = new Date() } = {}, x = getExecuto
  * לטיניות נזרק; לא יותר מ-120 שמות.
  */
 export async function reportCheckProbe(probe, x = getExecutor()) {
-  const keys = Array.isArray(probe?.keys) ? probe.keys.map(String).filter((k) => /^[A-Za-z0-9_.]{1,80}$/.test(k)).slice(0, 120) : [];
+  const latin = (list) => (Array.isArray(list) ? list.map(String).filter((k) => /^[A-Za-z0-9_.[\]]{1,80}$/.test(k)).slice(0, 120) : []);
+  const looksLikeImage = (k) => /image|img|scan|url|link|picture|photo|document|cheque|check/i.test(k);
+  let sent = false;
+  // שלב 1 — שמות השדות של שורת הצ׳ק עצמה.
+  const keys = latin(probe?.keys);
   const checkRows = Number(probe?.checkRows) || 0;
-  if (!checkRows || !keys.length) return false;
-  if (await getSetting('bank_check_probe', null, x)) return false;
-  await setSetting('bank_check_probe', JSON.stringify({ at: nowTs(), checkRows, keys }), x);
-  const hint = keys.filter((k) => /image|img|scan|url|link|picture|photo|document|cheque|check/i.test(k));
-  await notify(`🔎 <b>בדיקה: צילום צ׳ק מהבנק</b>\nבשורת צ׳ק (${checkRows} שורות בסנכרון) הבנק מחזיר את השדות: ${keys.join(', ')}.`
-    + (hint.length ? `\nשדות שאולי מובילים לצילום: ${hint.join(', ')}.` : '\nאין ביניהם שדה שנראה כמו קישור לצילום.')
-    + '\nלהעביר את ההודעה הזו ל-Claude.', { kind: 'bank', link: '/reconciliation' });
-  return true;
+  if (checkRows && keys.length && !(await getSetting('bank_check_probe', null, x))) {
+    await setSetting('bank_check_probe', JSON.stringify({ at: nowTs(), checkRows, keys }), x);
+    const hint = keys.filter(looksLikeImage);
+    await notify(`🔎 <b>בדיקה: צילום צ׳ק מהבנק</b>\nבשורת צ׳ק (${checkRows} שורות בסנכרון) הבנק מחזיר את השדות: ${keys.join(', ')}.`
+      + (hint.length ? `\nשדות שאולי מובילים לצילום: ${hint.join(', ')}.` : '\nאין ביניהם שדה שנראה כמו קישור לצילום.')
+      + '\nלהעביר את ההודעה הזו ל-Claude.', { kind: 'bank', link: '/reconciliation' });
+    sent = true;
+  }
+  // שלב 2 — "פרטים נוספים" (pfmDetails) של שורת צ׳ק אחת: נתיב הקישור בלי query, ושמות השדות שבתשובה.
+  const d = probe?.details;
+  if (d && typeof d === 'object' && !(await getSetting('bank_check_probe_details', null, x))) {
+    const path = /^\/[A-Za-z0-9/_.-]{1,200}$/.test(String(d.path || '')) ? d.path : null;
+    const dkeys = latin(d.keys);
+    const error = d.error ? String(d.error).replace(/[^A-Za-z0-9 /_.-]/g, '').slice(0, 80) : null;
+    if (dkeys.length || error) {
+      await setSetting('bank_check_probe_details', JSON.stringify({ at: nowTs(), path, keys: dkeys, error }), x);
+      const hint = dkeys.filter(looksLikeImage);
+      await notify(`🔎 <b>בדיקה (שלב 2): פרטי שורת צ׳ק</b>\nהקישור: ${path || '(לא נתיב פשוט)'}`
+        + (error ? `\nהקריאה לא הצליחה: ${error}.` : `\nהבנק מחזיר בפרטים את השדות: ${dkeys.join(', ')}.`)
+        + (hint.length ? `\nשדות שאולי מובילים לצילום: ${hint.join(', ')}.` : '')
+        + '\nלהעביר את ההודעה הזו ל-Claude.', { kind: 'bank', link: '/reconciliation' });
+      sent = true;
+    }
+  }
+  return sent;
 }

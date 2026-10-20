@@ -86,6 +86,32 @@ export function checkRowKeys(rows) {
 }
 
 /**
+ * שלב 2 של בדיקת צילום הצ׳ק (בעלים 20/10, אחרי שלב 1: אין בשורה שדה של קישור לצילום). `pfmDetails` הוא קישור
+ * ל"פרטים נוספים" של התנועה — אותה קריאה שאתר הבנק עושה כשפותחים שורה, ושהספרייה הפתוחה israeli-bank-scrapers
+ * עושה (`getExtraScrap`: GET `${base}${pfmDetails}&accountId=…&lang=he`). כאן — לשורת צ׳ק **אחת** בכל סנכרון,
+ * ומדווחים רק את **שמות השדות** שבתשובה (`responseKeys`) ואת **נתיב** הקישור בלי ה-query (`pathOnly`). בלי ערכים.
+ */
+export function responseKeys(body) {
+  const keys = new Set();
+  const add = (o) => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return;
+    for (const [k, v] of Object.entries(o)) {
+      keys.add(k);
+      if (v && typeof v === 'object' && !Array.isArray(v)) for (const k2 of Object.keys(v)) keys.add(`${k}.${k2}`);
+      if (Array.isArray(v) && v[0] && typeof v[0] === 'object') for (const k2 of Object.keys(v[0])) keys.add(`${k}[].${k2}`);
+    }
+  };
+  if (Array.isArray(body)) body.slice(0, 5).forEach(add); else add(body);
+  return [...keys].filter((k) => /^[A-Za-z0-9_.[\]]{1,80}$/.test(k)).sort();
+}
+
+/** קישור יחסי של הבנק → הנתיב בלבד (בלי query — בו מספרי חשבון ותנועה), או null אם אינו נתיב פשוט. */
+export function pathOnly(link) {
+  const p = String(link ?? '').split('?')[0];
+  return /^\/[A-Za-z0-9/_.-]{1,200}$/.test(p) ? p : null;
+}
+
+/**
  * מתוך מזהי החשבונות בבנק (`12-628-432110`) — רק אלה שרשומים באפליקציה (`{branch, account_number}`),
  * לפי אותו כלל שיוך של הקליטה, כך שמה שנקרא הוא בדיוק מה שהיה נקלט.
  */
@@ -335,7 +361,7 @@ export async function scrapeHapoalimBiz({
     const from = yyyymmdd(startDate);
     const to = yyyymmdd(new Date());
     const out = [];
-    const probe = { checkRows: 0, keys: new Set() };
+    const probe = { checkRows: 0, keys: new Set(), details: null };
     for (const accountId of ids) {
       const url = `${base}/ServerServices/current-account/transactions`
         + `?numItemsPerPage=500&sortCode=1&retrievalEndDate=${to}&retrievalStartDate=${from}`
@@ -344,6 +370,20 @@ export async function scrapeHapoalimBiz({
       const seen = checkRowKeys(body?.transactions);
       probe.checkRows += seen.checkRows;
       seen.keys.forEach((k) => probe.keys.add(k));
+      // שלב 2: "פרטים נוספים" של שורת צ׳ק אחת (סופית) בכל הסנכרון — רק שמות שדות. כשל כאן לא נוגע בסנכרון.
+      const one = probe.details ? null : (body?.transactions || []).find((t) => CHECK_ROW_RE.test(String(t?.activityDescription ?? ''))
+        && Number(t?.serialNumber) !== 0 && typeof t?.pfmDetails === 'string' && t.pfmDetails.startsWith('/'));
+      if (one) {
+        probe.details = { path: pathOnly(one.pfmDetails), keys: [], error: null };
+        try {
+          const sep = one.pfmDetails.includes('?') ? '&' : '?';
+          const d = await apiGet(page, `${base}${one.pfmDetails}${sep}accountId=${encodeURIComponent(accountId)}&lang=he`);
+          probe.details.keys = responseKeys(d);
+          if (d == null) probe.details.error = 'empty';
+        } catch (e) {
+          probe.details.error = String(e?.message || 'failed').replace(/[^A-Za-z0-9 /_.-]/g, '').slice(0, 80) || 'failed';
+        }
+      }
       const txns = convertBizTransactions(body?.transactions);
       out.push({
         accountNumber: accountId,
@@ -351,7 +391,7 @@ export async function scrapeHapoalimBiz({
       });
     }
     // שמות שדות בלבד (checkRowKeys) — לבדיקת "צילום צ׳ק"; הסוכן שולח אותם עם התנועות.
-    if (typeof onProbe === 'function') onProbe({ checkRows: probe.checkRows, keys: [...probe.keys].sort() });
+    if (typeof onProbe === 'function') onProbe({ checkRows: probe.checkRows, keys: [...probe.keys].sort(), details: probe.details });
     return out;
   } finally {
     await browser.close();

@@ -149,3 +149,42 @@ test('the probe reaches the owner once, through the sync result; junk names and 
   await sync({ checkRows: 5, keys: ['other'] });
   assert.equal((await notes()).length, 1, 'once');
 });
+
+// שלב 2 (בעלים 20/10, "כן, תעשה"): בשורת הצ׳ק אין קישור לצילום, אבל pfmDetails הוא קישור ל"פרטים נוספים" — הסוכן
+// פותח אותו לשורת צ׳ק אחת ומדווח את נתיב הקישור (בלי query) ואת שמות השדות שבתשובה. בלי ערכים.
+test('stage 2 helpers: field names of the details response and the bare path — no values', async () => {
+  const { responseKeys, pathOnly } = await import('../src/scraper/hapoalimBiz.js');
+  const keys = responseKeys([{ transactionNumber: 77123, chequeImage: { url: '/img/secret?token=zzz' }, rows: [{ payee: 'ספק סודי' }] }]);
+  assert.deepEqual(keys, ['chequeImage', 'chequeImage.url', 'rows', 'rows[].payee', 'transactionNumber']);
+  const flat = JSON.stringify(keys);
+  for (const v of ['77123', 'secret', 'token', 'ספק סודי']) assert.ok(!flat.includes(v), `no value leaks: ${v}`);
+  assert.equal(pathOnly('/ServerServices/current-account/transactions/details?eventId=123&accountId=12-628-1'), '/ServerServices/current-account/transactions/details');
+  assert.equal(pathOnly('https://evil.example/x'), null, 'only a relative bank path');
+  assert.equal(pathOnly('/a b'), null);
+});
+
+test('stage 2 reaches the owner once — even after stage 1 was already reported; a failed call is reported too', async () => {
+  const { freshDb, owner } = await import('./helpers.js');
+  const { reportCheckProbe } = await import('../src/services/bankSyncJobs.js');
+  const db = await freshDb();
+  await owner(db);
+  const titles = async () => (await db.many('SELECT title, body FROM notifications ORDER BY id', []));
+  await reportCheckProbe({ checkRows: 2, keys: ['eventAmount'] }, db); // stage 1 (as tonight)
+  await reportCheckProbe({ checkRows: 2, keys: ['eventAmount'], details: { path: '/ServerServices/x/details', keys: ['transactionNumber', 'imageLink'], error: null } }, db);
+  let n = await titles();
+  assert.equal(n.length, 2);
+  assert.match(n[1].title + n[1].body, /שלב 2/);
+  assert.match(n[1].body, /\/ServerServices\/x\/details/);
+  assert.match(n[1].body, /transactionNumber, imageLink/);
+  assert.match(n[1].body, /שדות שאולי מובילים לצילום: imageLink/);
+  await reportCheckProbe({ checkRows: 2, keys: ['x'], details: { path: '/y', keys: ['z'] } }, db);
+  assert.equal((await titles()).length, 2, 'once');
+
+  const db2 = await freshDb();
+  await owner(db2);
+  await reportCheckProbe({ checkRows: 1, keys: ['a'], details: { path: '/p?secret=1', keys: [], error: 'HTTP 404 /p' } }, db2);
+  const m = await db2.many("SELECT body FROM notifications WHERE title LIKE '%שלב 2%' OR body LIKE '%שלב 2%'", []);
+  assert.equal(m.length, 1);
+  assert.match(m[0].body, /הקריאה לא הצליחה: HTTP 404 \/p/);
+  assert.doesNotMatch(m[0].body, /secret/, 'a path with a query is not echoed');
+});
