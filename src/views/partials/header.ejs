@@ -161,13 +161,18 @@
           <form method="post" action="/context/store" class="store-banner-switch"
                 onsubmit="if (window.apAutoSubmit) { apAutoSubmit(this); return false; } return true;">
             <input type="hidden" name="return_to" value="<%= path %>">
-            <% var _dupNames = {}; availableStores.forEach(function(s){ _dupNames[s.name] = (_dupNames[s.name] || 0) + 1; }); %>
+            <% var _dupNames = {}; availableStores.forEach(function(s){ _dupNames[s.name] = (_dupNames[s.name] || 0) + 1; });
+               var _todo = (typeof storeTodo !== 'undefined' && storeTodo) || {};
+               var _anyTodo = availableStores.some(function(s){ return _todo[s.id] > 0; }); %>
             <select name="store_id" class="store-banner-pick" onchange="apAutoSubmit(this)" aria-label="חנות פעילה — בחר חנות">
               <% if (typeof canAllStores !== 'undefined' && canAllStores) { %><option value="">— כל החנויות —</option><% } else if (!(typeof activeStore !== 'undefined' && activeStore)) { %><option value="" disabled selected>— בחר חנות —</option><% } %>
               <% availableStores.forEach(function(s){ %>
                 <%# רק שם החנות; שם החברה נוסף רק כששתי חנויות נושאות אותו שם (אחרת אי אפשר להבדיל ביניהן). %>
-                <option value="<%= s.id %>"<%= (typeof activeStore !== 'undefined' && activeStore && Number(activeStore.id) === Number(s.id)) ? ' selected' : '' %>><%= s.name %><%= _dupNames[s.name] > 1 ? ' · ' + s.company_name : '' %></option>
+                <%# "(N)" = הפקדות שהוצהרו ולא הופקדו באותה חנות (בעלים 20/10). קצר בכוונה: הבורר הסגור מציג את
+                    הטקסט של החנות הנבחרת, וברוחב טלפון אין לו יותר מ-108px. ההסבר — בשורה האחרונה של הרשימה הפתוחה. %>
+                <option value="<%= s.id %>"<%= (typeof activeStore !== 'undefined' && activeStore && Number(activeStore.id) === Number(s.id)) ? ' selected' : '' %>><%= s.name %><%= _dupNames[s.name] > 1 ? ' · ' + s.company_name : '' %><%= _todo[s.id] > 0 ? ' (' + _todo[s.id] + ')' : '' %></option>
               <% }); %>
+              <% if (_anyTodo) { %><option value="" disabled>(N) = הפקדות שלא הופקדו</option><% } %>
             </select>
             <noscript><button type="submit" class="btn btn-secondary btn-sm">החלף</button></noscript>
           </form>

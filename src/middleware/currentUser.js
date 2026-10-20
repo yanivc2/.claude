@@ -101,6 +101,15 @@ export async function currentUser(req, res, next) {
     //   • multi-store with no valid cookie → null = "all stores" (only with view_all_stores — below).
     const availableStores = await availableStoresFor(user);
     res.locals.availableStores = availableStores;
+    // המונה ליד כל חנות בבורר העליון (בעלים 20/10: "N לטיפול" = הפקדות שהוצהרו ולא הופקדו). שאילתה אחת
+    // מקובצת, רק בבקשת דף (GET) ורק כשיש בורר (יותר מחנות אחת). מסד בלי הטבלה → בלי מונה, לא שגיאה.
+    res.locals.storeTodo = {};
+    if (req.method === 'GET' && availableStores.length > 1) {
+      try {
+        const rows = await getExecutor().many('SELECT store_id, COUNT(*) AS n FROM deposits WHERE deposited = 0 GROUP BY store_id', []);
+        for (const r of rows) if (r.store_id != null) res.locals.storeTodo[Number(r.store_id)] = Number(r.n);
+      } catch { /* pre-upgrade DB */ }
+    }
     let activeStore = null;
     if (availableStores.length === 1) {
       activeStore = availableStores[0];
