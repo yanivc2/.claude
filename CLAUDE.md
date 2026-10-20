@@ -141,6 +141,11 @@ happen only at merge. So:
   bridge (user clicks + types the SMS code in `/reconciliation`; agent claims, logs in, waits, imports). Agent
   endpoints `/ingest/bank-agent/*` use **`BANK_AGENT_SECRET`** (falls back to `CRON_SECRET`), header-only. **Bank
   passwords never enter the app** — only `agent/config.json` on that PC (gitignored). Detail: INDEX.md · התאמת בנק.
+- **🔴 חוק ברזל — אין זליגה בין חשבונות בנק** (בעלים 21/10, אחרי שצ׳קים של פינק נכנסו למידנייט מקובץ ישן וסגרו
+  צ׳קים של מידנייט לפי סכום). קובץ/הזנה ידנית: שורה שהבנק כבר מציג בחשבון **אחר** (אסמכתא 5+ ספרות, סכום, ±3 ימים)
+  או חיוב שהוא צ׳ק של חשבון אחר — לא נקלטת; קובץ שרובו זר נדחה כולו (`bankTransactions.js#foreignRowsFor`). התאמה
+  אוטומטית לפי סכום בלבד **לעולם לא** גוברת על מספר צ׳ק סותר (`reconciliation.js#checkNumberConflict`); מספר+סכום
+  זהים מותאמים גם מחוץ לחלון 60 הימים. בדיקת שיוך · סעיף 4 + "פעולות" בהתאמת בנק מתקנים מה שקדם לכלל. INDEX.md · התאמת בנק.
 - **Bank channel 2 — scraping:** `israeli-bank-scrapers` (optional dep, lazy) via `src/scraper/*` +
   `lib/scraperMap.js`; run OUTSIDE the app (`scripts/scrape-push.mjs`, by hand on any machine with a browser —
   the GitHub Actions workflow was **deleted**: our bank needs an SMS code, see channel 3). It POSTs finished rows to

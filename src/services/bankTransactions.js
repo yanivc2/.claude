@@ -26,6 +26,36 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
   // אותו קובץ הייתה מכפילה כל שורה. הקנוניזציה מיישרת את שני הצדדים מראש.
   await normalizeStoredReferences(bankAccountId, actor, x);
 
+  // 🔴 חוק ברזל — אין זליגה בין חשבונות (בעלים 21/10). קובץ או הזנה ידנית — לא משיכה, שמגיעה מהבנק לפי
+  // חשבון — נבדקים מול שאר החשבונות לפני שמשהו נכתב. קובץ שרובו של חשבון אחר נדחה כולו; שורה בודדת
+  // של חשבון אחר לא נקלטת, והיא מוחזרת לקורא כדי שיאמר אותה בקול.
+  let foreign = [];
+  if (source === 'csv' || source === 'manual') {
+    foreign = await foreignRowsFor(bankAccountId, rows, x);
+    if (foreign.length) {
+      const specific = (rows || []).filter((r) => digitsKey(r.rawReference).length >= FOREIGN_MIN_REF).length;
+      if (foreign.length >= 2 && foreign.length * 2 >= specific) {
+        const tally = new Map();
+        for (const f of foreign) tally.set(f.account, (tally.get(f.account) || 0) + 1);
+        const [top] = [...tally.entries()].sort((a, b) => b[1] - a[1]);
+        throw new RuleError('FOREIGN', `הקובץ שייך כנראה לחשבון "${top[0]}": ${foreign.length} מתוך ${specific} התנועות שיש להן אסמכתא `
+          + 'רשומות בחשבון אחר (אותו מספר, סכום ותאריך). לא יובא דבר — בחר את החנות הנכונה בבורר למעלה ונסה שוב.');
+      }
+      const drop = new Set(foreign.map((f) => f.row));
+      rows = rows.filter((r) => !drop.has(r));
+    }
+  }
+  // שורות עד "נוקה עד" (מחיקת הזנב שלפני תחילת העבודה) לא חוזרות — המשיכה מושכת 60 יום אחורה והייתה
+  // מחזירה אותן. חריג: שורה שעדיין יכולה לסגור משהו פתוח (צ׳ק/תשלום, שכר, שקית הפקדה) לפי מספר.
+  let skippedOld = 0;
+  const purgedUntil = await bankPurgedUntil(x);
+  if (purgedUntil && (rows || []).some((r) => String(r.txnDate || '').slice(0, 10) <= purgedUntil)) {
+    const open = await openItemKeys(bankAccountId, x);
+    const before = rows.length;
+    rows = rows.filter((r) => String(r.txnDate || '').slice(0, 10) > purgedUntil || couldCloseOpenItem(r.amount, r.rawReference, open));
+    skippedOld = before - rows.length;
+  }
+
   // כל העלאה נרשמת כאירוע, וכל שורה נושאת את מזהה ההעלאה שהביאה אותה. בלי זה אין דרך לדעת מה
   // הועלה ומתי — ולכן גם אין דרך לבטל קובץ שהועלה לחשבון הלא נכון.
   const batch = await x.run(
@@ -241,10 +271,155 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
 
   await x.run('UPDATE bank_imports SET inserted = ?, skipped = ? WHERE id = ?', [inserted, skipped, importId]);
   await logAction(
-    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, adopted, merged, restated, importId, fileName } },
+    { userId: actor?.id ?? null, action: 'bank.import', entityType: 'bank_account', entityId: bankAccountId, details: { source, inserted, skipped, adopted, merged, restated, importId, fileName, foreign: foreign.length, skippedOld } },
     x,
   );
-  return { inserted, skipped, adopted, merged, restated, importId };
+  return {
+    inserted, skipped, adopted, merged, restated, importId, skippedOld,
+    foreign: foreign.map((f) => ({ date: String(f.row.txnDate).slice(0, 10), amount: f.row.amount, ref: f.row.rawReference, account: f.account })),
+  };
+}
+
+const digitsKey = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').replace(/^0+/, '');
+const daysApart = (a, b) => Math.abs((Date.parse(String(a).slice(0, 10)) - Date.parse(String(b).slice(0, 10))) / 86_400_000);
+const shiftDay = (iso, n) => new Date(Date.parse(String(iso).slice(0, 10)) + n * 86_400_000).toISOString().slice(0, 10);
+
+/** אסמכתא קצרה מזה (קוד עמלה כמו 1001 / 818) חוזרת בכל החשבונות ואינה ראיה לשום דבר. */
+export const FOREIGN_MIN_REF = 5;
+
+/**
+ * 🔴 שורות שנראות של **חשבון אחר**: אותה אסמכתא (5 ספרות ומעלה), אותו סכום ועד 3 ימים — רשומה בחשבון
+ * אחר ולא בזה; או חיוב שהאסמכתא שלו היא צ׳ק שהונפק מחשבון אחר באותו סכום, כשמהחשבון הזה לא הונפק צ׳ק
+ * במספר הזה. נמדד (21/10): צ׳קים 18338/18477 של פינק ו-27463 של על הדרך נכנסו למידנייט מקובץ ישן,
+ * ושניים מהם סגרו צ׳קים של מידנייט לפי סכום. חיוב/זיכוי בין חשבונות של הבעלים הוא בסימן הפוך — אינו נתפס.
+ * @returns {Promise<Array<{row:object, account:string}>>}
+ */
+export async function foreignRowsFor(bankAccountId, rows, x = getExecutor()) {
+  const id = Number(bankAccountId);
+  const cand = (rows || []).filter((r) => digitsKey(r.rawReference).length >= FOREIGN_MIN_REF && Number(r.amount) && r.txnDate);
+  if (!cand.length) return [];
+  const dates = cand.map((r) => String(r.txnDate).slice(0, 10)).sort();
+  const near = await x.many(
+    `SELECT bt.bank_account_id, bt.txn_date, bt.amount, bt.raw_reference, ba.display_name
+       FROM bank_transactions bt JOIN bank_accounts ba ON ba.id = bt.bank_account_id
+      WHERE bt.txn_date >= ? AND bt.txn_date <= ? AND bt.raw_reference IS NOT NULL`,
+    [shiftDay(dates[0], -3), shiftDay(dates[dates.length - 1], 3)],
+  );
+  const byKey = new Map();
+  for (const o of near) {
+    const k = `${digitsKey(o.raw_reference)}|${Number(o.amount)}`;
+    if (!byKey.has(k)) byKey.set(k, []);
+    byKey.get(k).push(o);
+  }
+  const checks = await x.many(
+    `SELECT p.bank_account_id, p.check_number, p.amount, ba.display_name
+       FROM payments p JOIN bank_accounts ba ON ba.id = p.bank_account_id
+      WHERE p.method = 'check' AND p.check_number IS NOT NULL`,
+    [],
+  );
+  const ownChecks = new Set(checks.filter((c) => Number(c.bank_account_id) === id).map((c) => digitsKey(c.check_number)));
+  const out = [];
+  for (const r of cand) {
+    const k = digitsKey(r.rawReference);
+    const amt = Number(r.amount);
+    const same = (byKey.get(`${k}|${amt}`) || []).filter((o) => daysApart(o.txn_date, r.txnDate) <= 3);
+    if (same.some((o) => Number(o.bank_account_id) === id)) continue; // רשומה כאן — שלו
+    const other = same.find((o) => Number(o.bank_account_id) !== id);
+    if (other) { out.push({ row: r, account: other.display_name }); continue; }
+    if (amt < 0 && !ownChecks.has(k)) {
+      const c = checks.find((p) => Number(p.bank_account_id) !== id && digitsKey(p.check_number) === k && Number(p.amount) === -amt);
+      if (c) out.push({ row: r, account: c.display_name });
+    }
+  }
+  return out;
+}
+
+// ── מחיקת הזנב שלפני תחילת העבודה ────────────────────────────────────────────────────────────
+const PURGED_KEY = 'bank_purged_until';
+
+/** עד איזה תאריך נמחקו שורות שלא הוסברו — ומשיכה/קובץ לא מחזירים אותן. null = לא נמחק כלום. */
+export async function bankPurgedUntil(x = getExecutor()) {
+  const v = await getSetting(PURGED_KEY, null, x);
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null;
+}
+
+/** מה עדיין פתוח בחשבון ויכול להיסגר מול שורת בנק לפי מספר: תשלומים, שכר, שקיות הפקדה. */
+async function openItemKeys(bankAccountId, x) {
+  const pays = await x.many(
+    "SELECT check_number, reference, batch_number, amount FROM payments WHERE bank_account_id = ? AND status = 'issued'",
+    [Number(bankAccountId)],
+  );
+  const debits = new Set();
+  for (const p of pays) for (const v of [p.check_number, p.reference, p.batch_number]) if (digitsKey(v)) debits.add(`${digitsKey(v)}|${Number(p.amount)}`);
+  try {
+    const sal = await x.many(
+      `SELECT sp.reference, sp.amount FROM salary_payments sp JOIN bank_accounts ba ON ba.store_id = sp.store_id
+        WHERE ba.id = ? AND sp.bank_txn_id IS NULL AND sp.reference IS NOT NULL`,
+      [Number(bankAccountId)],
+    );
+    for (const s of sal) if (digitsKey(s.reference)) debits.add(`${digitsKey(s.reference)}|${Number(s.amount)}`);
+  } catch { /* מסד לפני עדכון — אין שכר לקשר */ }
+  const bags = new Set();
+  try {
+    const deps = await x.many(
+      `SELECT d.bag_number FROM deposits d JOIN bank_accounts ba ON ba.store_id = d.store_id
+        WHERE ba.id = ? AND d.matched_txn_id IS NULL AND d.bag_number IS NOT NULL`,
+      [Number(bankAccountId)],
+    );
+    const { bagReferences } = await import('./deposits.js');
+    for (const d of deps) for (const r of bagReferences(d.bag_number)) if (digitsKey(r)) bags.add(digitsKey(r));
+  } catch { /* כנ"ל */ }
+  return { debits, bags };
+}
+
+function couldCloseOpenItem(amount, ref, open) {
+  const k = digitsKey(ref);
+  if (!k) return false;
+  return Number(amount) < 0 ? open.debits.has(`${k}|${-Number(amount)}`) : open.bags.has(k);
+}
+
+/**
+ * תצוגה מקדימה למחיקת הזנב של חשבון אחד: כל שורה עד "תאריך תחילת העבודה" שאף דבר לא נשען עליה.
+ * נשארות: מותאמות (צ׳ק/תשלום, שכר, הפקדה) — הן ההיסטוריה של מה שנפרע; ושורות שעדיין יכולות לסגור משהו
+ * פתוח לפי מספר. `mismatched` = התאמות לפי סכום בלבד בחשבון (סעיף 4) — לתקן **לפני** המחיקה: אחרי
+ * ביטולן, שורה כמו צ׳ק 31919 צריכה להישאר כדי להיסגר מול הצ׳ק שלה.
+ */
+export async function tailCleanupPreview(bankAccountId, x = getExecutor()) {
+  const until = await unmatchedHiddenUntil(x);
+  const out = { until, purgedUntil: await bankPurgedUntil(x), toDelete: [], keptLinked: 0, keptOpen: [], mismatched: 0 };
+  if (!until) return out;
+  const rows = await x.many(
+    `SELECT id, txn_date, amount, description, raw_reference, source, matched_payment_id
+       FROM bank_transactions WHERE bank_account_id = ? AND txn_date <= ? ORDER BY txn_date, id`,
+    [Number(bankAccountId), until],
+  );
+  const { salaryLinkedTxnIds } = await import('./salaryPayments.js');
+  const salary = await salaryLinkedTxnIds(x);
+  const depLinked = new Set((await x.many('SELECT matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', [])).map((d) => Number(d.matched_txn_id)));
+  const depRefs = await depositRefsForAccount(bankAccountId, x);
+  const open = await openItemKeys(bankAccountId, x);
+  for (const r of rows) {
+    const linked = r.matched_payment_id != null || salary.has(Number(r.id)) || depLinked.has(Number(r.id))
+      || depRefs.has(txnRef(r)); // זיכוי שקית, או חיוב-תיקון שלה
+    if (linked) { out.keptLinked += 1; continue; }
+    if (couldCloseOpenItem(r.amount, r.raw_reference, open)) { out.keptOpen.push(r); continue; }
+    out.toDelete.push(r);
+  }
+  const { mismatchedMatchesFor } = await import('./reconciliation.js');
+  out.mismatched = (await mismatchedMatchesFor(bankAccountId, x)).length;
+  return out;
+}
+
+/** מוחק את מה שהתצוגה המקדימה הציגה, ורושם "נוקה עד" כדי שמשיכה וקובץ לא יחזירו את השורות. */
+export async function tailCleanup(bankAccountId, actor, x = getExecutor()) {
+  const p = await tailCleanupPreview(bankAccountId, x);
+  if (!p.until) throw new RuleError('VALIDATION', 'לא הוגדר תאריך תחילת עבודה (שדה "הסתר חיובים לא מותאמים עד")');
+  if (p.mismatched) throw new RuleError('VALIDATION', `יש ${p.mismatched} התאמות לפי סכום בלבד בחשבון הזה — תקן אותן קודם (פעולות ← תיקון התאמות), אחרת שורות שצריכות להישאר יימחקו.`);
+  let deleted = 0;
+  if (p.toDelete.length) ({ deleted } = await deleteTransactions(p.toDelete.map((r) => r.id), bankAccountId, actor, {}, x));
+  if (!p.purgedUntil || p.purgedUntil < p.until) await setSetting(PURGED_KEY, p.until, x);
+  await logAction({ userId: actor?.id ?? null, action: 'bank.tail_cleanup', entityType: 'bank_account', entityId: Number(bankAccountId), details: { until: p.until, deleted, keptLinked: p.keptLinked, keptOpen: p.keptOpen.length } }, x);
+  return { deleted, until: p.until, keptLinked: p.keptLinked, keptOpen: p.keptOpen.length };
 }
 
 /**

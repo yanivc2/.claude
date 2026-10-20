@@ -29,6 +29,8 @@ import {
   getTransaction,
   oddReferences,
   normalizeStoredReferences,
+  tailCleanupPreview,
+  tailCleanup,
 } from '../services/bankTransactions.js';
 import { submitRequest } from '../services/changeRequests.js';
 import { describeBankTxn } from '../lib/changeSummary.js';
@@ -38,6 +40,8 @@ import {
   unmatch,
   reconcileAccount,
   matchTxnToInvoices,
+  mismatchedMatchesFor,
+  rematchByNumber,
 } from '../services/reconciliation.js';
 import { requestSync, submitOtp, cancelSync, syncStatus } from '../services/bankSyncJobs.js';
 import { syncBankAccount } from '../services/bankSync.js';
@@ -124,8 +128,12 @@ async function renderPage(req, res, accountId, extra = {}) {
   const hiddenUntil = await unmatchedHiddenUntil();
   const hiddenCount = accountId ? await hiddenUnmatchedCount(accountId) : 0;
   const classified = await Promise.all(unmatched.map(async (t) => ({ txn: t, ...(await classify(t)) })));
+  // "פעולות" בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 21/10) — פעולות בעלים על החשבון שבדף.
+  const owner = req.user?.role === 'owner' && accountId;
   res.render('reconciliation/index', {
     title: 'התאמת בנק',
+    topMenu: owner ? '_reconMenu' : null,
+    reconMenu: owner ? { accountId, mismatched: (await mismatchedMatchesFor(accountId)).length, hiddenUntil } : null,
     accounts: await accounts(req.scope),
     accountId,
     purge: null,
@@ -200,7 +208,7 @@ router.post('/import-csv', requirePermission('import_bank'), (req, res, next) =>
       }
       if (mapped.length === 0) throw new RuleError('CSV', 'לא נמצאו תנועות בקובץ');
       const fileName = decodeFileName(req.file.originalname);
-      const { inserted, skipped } = await importTransactions(
+      const { inserted, skipped, foreign, skippedOld } = await importTransactions(
         accountId, mapped, 'csv', req.user, undefined, { fileName },
       );
       const acct = await getExecutor().one('SELECT display_name FROM bank_accounts WHERE id = ?', [accountId]);
@@ -208,7 +216,10 @@ router.post('/import-csv', requirePermission('import_bank'), (req, res, next) =>
       // ובלי לומר את זה בקול היא נראית בדיוק כמו הצלחה.
       return backTo(res, accountId, {
         notice: `${fileName ? `"${fileName}" · ` : ''}יובאו ${inserted} תנועות חדשות ל${acct ? `חשבון ${acct.display_name}` : 'חשבון'}`
-          + `${skipped ? `, ${skipped} כבר היו קיימות` : ''}. הקובץ נשמר ומוכן להתאמה.`,
+          + `${skipped ? `, ${skipped} כבר היו קיימות` : ''}. הקובץ נשמר ומוכן להתאמה.`
+          + `${skippedOld ? ` ${skippedOld} שורות מלפני תחילת העבודה דולגו.` : ''}`
+          + `${foreign.length ? ` 🔴 ${foreign.length} תנועות לא יובאו כי הן רשומות בחשבון אחר: `
+            + foreign.slice(0, 5).map((f) => `${f.ref} (${f.account})`).join(', ') + (foreign.length > 5 ? '…' : '') : ''}`,
       });
     } catch (err) {
       if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
@@ -373,7 +384,7 @@ router.post('/sync', requirePermission('import_bank'), async (req, res, next) =>
 router.post('/add', requirePermission('import_bank'), async (req, res, next) => {
   const accountId = await resolveAccountId(req);
   try {
-    await importTransactions(
+    const r = await importTransactions(
       accountId,
       [
         {
@@ -386,6 +397,8 @@ router.post('/add', requirePermission('import_bank'), async (req, res, next) => 
       'manual',
       req.user,
     );
+    // חוק ברזל: תנועה שרשומה בחשבון אחר לא נוספת כאן (services/bankTransactions.js#foreignRowsFor).
+    if (r.foreign.length) return backTo(res, accountId, { error: `התנועה לא נוספה: אסמכתא ${r.foreign[0].ref} באותו סכום רשומה בחשבון ${r.foreign[0].account}.` });
     return backTo(res, accountId, { notice: 'התנועה נוספה.' });
   } catch (err) {
     if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
@@ -403,6 +416,52 @@ router.post('/auto', async (req, res, next) => {
         + `${r.deposits ? ` · ${r.deposits} הפקדות הותאמו לפי מספר שקית.` : '.'}`,
     });
   } catch (err) {
+    next(err);
+  }
+});
+
+// 🔁 "תיקון התאמות לפי סכום בלבד" (תפריט "פעולות", בעלים 21/10) — services/reconciliation.js#rematchByNumber.
+router.post('/rematch', requireOwner, async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  try {
+    if (!accountId) throw new RuleError('VALIDATION', 'לא נבחר חשבון');
+    const r = await rematchByNumber(accountId, req.user);
+    return backTo(res, accountId, {
+      notice: `בוטלו ${r.undone} התאמות לפי סכום בלבד · הותאמו מחדש ${r.matched} צ׳קים לפי מספר · ${r.ambiguous} דורשים הכרעה.`,
+    });
+  } catch (err) {
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+// 🧹 מחיקת הזנב שלפני תחילת העבודה (תפריט "פעולות", בעלים 21/10): תצוגה מקדימה ב-GET, מחיקה ב-POST.
+// services/bankTransactions.js#tailCleanupPreview — רק שורות שאף דבר לא נשען עליהן; "נוקה עד" חוסם חזרה.
+router.get('/tail-cleanup', requireOwner, async (req, res, next) => {
+  try {
+    const accountId = await resolveAccountId(req);
+    const account = accountId ? await getExecutor().one('SELECT id, display_name FROM bank_accounts WHERE id = ?', [accountId]) : null;
+    res.render('reconciliation/tail-cleanup', {
+      title: 'מחיקת תנועות שלפני תחילת העבודה',
+      account,
+      preview: account ? await tailCleanupPreview(account.id) : null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/tail-cleanup', requireOwner, async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  try {
+    if (!accountId) throw new RuleError('VALIDATION', 'לא נבחר חשבון');
+    const r = await tailCleanup(accountId, req.user);
+    return backTo(res, accountId, {
+      notice: `נמחקו ${r.deleted} תנועות שלא הוסברו עד ${r.until.split('-').reverse().join('/')} · נשארו ${r.keptLinked} מותאמות`
+        + `${r.keptOpen ? ` ו-${r.keptOpen} שעדיין יכולות לסגור משהו פתוח` : ''}. משיכה וקובץ לא יחזירו אותן.`,
+    });
+  } catch (err) {
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
     next(err);
   }
 });

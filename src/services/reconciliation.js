@@ -131,6 +131,30 @@ export function checkNumberConflict(txn, payment) {
   return !(a.endsWith(b) || b.endsWith(a));
 }
 
+/** התאמות קיימות בחשבון שבהן מספר הצ׳ק סותר את האסמכתה בבנק (בדיקת שיוך · סעיף 4). */
+export async function mismatchedMatchesFor(bankAccountId, x = getExecutor()) {
+  const rows = await x.many(
+    `SELECT bt.id, bt.txn_date, bt.amount, bt.description, bt.raw_reference, p.id AS payment_id, p.method, p.check_number
+       FROM bank_transactions bt JOIN payments p ON p.id = bt.matched_payment_id
+      WHERE bt.bank_account_id = ?
+      ORDER BY bt.txn_date, bt.id`,
+    [Number(bankAccountId)],
+  );
+  return rows.filter((m) => checkNumberConflict(m, m));
+}
+
+/**
+ * "תיקון התאמות לפי סכום בלבד" (בעלים 21/10, תפריט "פעולות" בהתאמת בנק): מבטל כל התאמה שבה המספר סותר,
+ * ומריץ את ההתאמה מחדש — עכשיו לפי מספר. כך שרשרת כמו 31606→31919→32151→32537 (₪1,187 כל חודש, כל
+ * חיוב נתפס על הצ׳ק הבא) מתיישרת: כל צ׳ק מול השורה שלו, וצ׳ק שלא נפרע חוזר להיות בחוץ.
+ */
+export async function rematchByNumber(bankAccountId, actor, x = getExecutor()) {
+  const bad = await mismatchedMatchesFor(bankAccountId, x);
+  for (const m of bad) await unmatch(m.id, actor, x);
+  const r = await reconcileAccount(bankAccountId, actor, x);
+  return { undone: bad.length, ...r };
+}
+
 export async function classify(txn, x = getExecutor()) {
   const { candidates, deterministic } = await findCandidates(txn, x);
   if (deterministic) return { state: 'deterministic', candidates, suggestion: deterministic };

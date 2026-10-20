@@ -1,0 +1,61 @@
+<%- include('../partials/header') %>
+<%# 🧹 מחיקת הזנב שלפני תחילת העבודה (בעלים 21/10) — תצוגה מקדימה. services/bankTransactions.js#tailCleanupPreview. %>
+<div class="toolbar">
+  <h1>🧹 מחיקת תנועות שלפני תחילת העבודה</h1>
+  <a class="btn btn-secondary" href="/reconciliation<%= account ? '?account=' + account.id : '' %>">← חזרה להתאמת בנק</a>
+</div>
+<% if (!account || !preview) { %>
+  <div class="alert alert-warn">לא נבחר חשבון בנק — בחר חנות בבורר למעלה.</div>
+<% } else if (!preview.until) { %>
+  <div class="alert alert-warn">לא הוגדר תאריך תחילת עבודה. בהתאמת בנק, בכרטיס "תנועות לא מותאמות (חובה)" — "הסתר חיובים לא מותאמים עד".</div>
+<% } else { var p = preview; %>
+  <div class="card no-collapse">
+    <p style="margin:0 0 .4rem"><strong><%= account.display_name %></strong> · תנועות עד <strong><%= formatDate(p.until) %></strong></p>
+    <ul style="margin:.3rem 0 .6rem; padding:0; list-style:none">
+      <li>🗑️ <strong><%= p.toDelete.length %></strong> תנועות יימחקו — אף דבר לא נשען עליהן.</li>
+      <li>✓ <strong><%= p.keptLinked %></strong> נשארות — מותאמות לצ׳ק, לתשלום, לשכר או להפקדה (ההיסטוריה של מה שנפרע).</li>
+      <% if (p.keptOpen.length) { %><li>⏳ <strong><%= p.keptOpen.length %></strong> נשארות — עדיין יכולות לסגור משהו פתוח לפי מספר (רשימה למטה).</li><% } %>
+    </ul>
+    <p class="muted" style="margin:0 0 .6rem">אחרי המחיקה, משיכה מהבנק וקובץ לא יחזירו שורות עד התאריך הזה (חוץ משורה שסוגרת משהו פתוח לפי מספר). צ׳ק מלפני התאריך שיתגלה כפתוח — "סמן כנפרע" בדף התשלום.</p>
+    <% if (p.mismatched) { %>
+      <div class="alert alert-warn" style="margin:0">יש <strong><%= p.mismatched %></strong> התאמות לפי סכום בלבד בחשבון הזה. קודם: "פעולות" ← "תיקון התאמות לפי סכום בלבד" — אחרי הביטול, שורות שצריכות להיסגר מול הצ׳ק שלהן חייבות להישאר.</div>
+    <% } else if (p.toDelete.length) { %>
+      <form method="post" action="/reconciliation/tail-cleanup" data-busy="מוחק…"
+            onsubmit="return confirm('למחוק <%= p.toDelete.length %> תנועות עד <%= formatDate(p.until) %>? אי אפשר לבטל.')">
+        <input type="hidden" name="account_id" value="<%= account.id %>" />
+        <button type="submit" class="danger">🗑️ מחק <%= p.toDelete.length %> תנועות</button>
+      </form>
+    <% } else { %>
+      <p style="margin:0">✓ אין מה למחוק.</p>
+    <% } %>
+  </div>
+
+  <% if (p.keptOpen.length) { %>
+  <div class="card no-collapse">
+    <h2 style="margin:0 0 .4rem">⏳ נשארות — יכולות לסגור משהו פתוח</h2>
+    <div class="table-scroll"><table>
+      <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th></tr></thead>
+      <tbody>
+        <% p.keptOpen.forEach(function(r){ %>
+          <tr><td><%= formatDate(r.txn_date) %></td><td class="right"><%= formatIls(r.amount) %></td><td><%= r.description || '' %></td><td class="mono"><%= r.raw_reference || '—' %></td></tr>
+        <% }); %>
+      </tbody>
+    </table></div>
+  </div>
+  <% } %>
+
+  <% if (p.toDelete.length) { %>
+  <div class="card no-collapse">
+    <h2 style="margin:0 0 .4rem">🗑️ יימחקו (<%= p.toDelete.length %>)</h2>
+    <div class="table-scroll"><table>
+      <thead><tr><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th></tr></thead>
+      <tbody>
+        <% p.toDelete.forEach(function(r){ %>
+          <tr><td><%= formatDate(r.txn_date) %></td><td class="right"><%= formatIls(r.amount) %></td><td><%= r.description || '' %></td><td class="mono"><%= r.raw_reference || '—' %></td><td class="muted"><%= r.source %></td></tr>
+        <% }); %>
+      </tbody>
+    </table></div>
+  </div>
+  <% } %>
+<% } %>
+<%- include('../partials/footer') %>

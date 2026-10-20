@@ -1472,3 +1472,25 @@ table.only-pickable tbody tr.not-pickable { display: none; }
 /* הגדרות ← סנכרון מהבנק: "קליטה מרוכזת של דוחות פדיון" (בעלים 20/10) — מתחת לקישור לקליטה מהמייל. */
 .rev-bulk { display: flex; flex-direction: column; align-items: center; gap: .4rem; margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--color-line); }
 .rev-bulk input[type=file] { max-width: 100%; }
+
+/* בעלים 21/10: "ייבואים אחרונים לחשבון זה" זלגה מהעמוד (עמודת "ביטול" נחתכה). מרווחים קטנים יותר, בלי
+   רוחב-מינימום לעמודה הראשונה ולשדות הסינון, והטבלה ממלאת את הרוחב — העמודות מתחלקות ביניהן. */
+main.page table.imports-tbl { width: 100%; }
+main.page table.imports-tbl th, main.page table.imports-tbl td { padding: 6px 4px; font-size: 13px; }
+main.page table.imports-tbl th:first-child, main.page table.imports-tbl td:first-child { min-width: 0; }
+main.page table.imports-tbl .filter-row th, main.page table.imports-tbl .filter-row td { padding: 3px 3px; }
+main.page table.imports-tbl .filter-row input, main.page table.imports-tbl .filter-row select { min-width: 0; padding: 3px 4px; font-size: 12px; }
+@media (max-width: 1150px) { main.page table.imports-tbl td { white-space: normal !important; } } /* טווח התאריכים נשבר אחרי ה-– רק כשצר */
+main.page table.imports-tbl td .badge { white-space: nowrap; }
+main.page table.imports-tbl td button.btn-sm { padding: 4px 8px; font-size: 12px; line-height: 1.25; }
+
+/* בעלים 21/10: "התאמה אוטומטית" מתחת לעמודת "התאמה" (footer.ejs · data-filter-slot), מודגש — רקע צבעוני
+   וכתב שחור, בשני הנושאים. */
+main.page .auto-match-form { margin: 0; }
+main.page .btn-auto-match {
+  background: #ffc940; color: #111; font-weight: 800; border: 1px solid #e0a800;
+  padding: 6px 14px; border-radius: var(--radius-md); white-space: nowrap; box-shadow: 0 1px 0 rgba(0,0,0,.15);
+}
+main.page .btn-auto-match:hover { background: #ffb700; color: #000; }
+.menu-panel .menu-item-muted { display: block; padding: 10px 12px; font-size: 13px; color: var(--color-muted); white-space: normal; }
+.menu-panel form { margin: 0; }

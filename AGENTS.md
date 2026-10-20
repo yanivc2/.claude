@@ -43,6 +43,10 @@ framework. SQLite locally/tests, Postgres (Neon) in production. **Live:** https:
 13. **Profitability sales come ONLY from the nightly revenue report ("דוח פדיון")** — never fall back to Z totals
     (owner's decision: a Z is not closed every day, so a week/month cut through it is wrong). A day with no report is
     listed as missing, so it can be re-issued at the till. `services/reports.js#profitability`.
+14. **🔴 No leakage between bank accounts (owner's iron rule, 21/10).** A file/manual bank row that the bank already
+    lists in ANOTHER account (same 5+-digit reference, amount, ±3 days), or a debit that is another account's check,
+    is refused (`services/bankTransactions.js#foreignRowsFor`; a mostly-foreign file is refused whole). Auto-match by
+    amount alone never overrides a contradicting check number (`services/reconciliation.js#checkNumberConflict`).
 
 ## Keeping the docs true
 After any change to a feature/button/route/view/schema: update the matching section of `INDEX.md`; update `CLAUDE.md`

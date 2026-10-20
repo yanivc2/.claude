@@ -1,6 +1,6 @@
 import { getExecutor } from '../db/adapter.js';
 import { plainNumber } from '../lib/numText.js';
-import { checkNumberConflict } from './reconciliation.js';
+import { mismatchedMatchesFor } from './reconciliation.js';
 
 // בדיקת שיוך לחשבון — "האם כל התנועות בחשבון הזה באמת שלו?"
 //
@@ -258,15 +258,6 @@ export async function accountIntegrity(bankAccountId, x = getExecutor()) {
   }
 
   // 4. צ׳ק שהותאם לפי סכום בלבד, כשהמספר בבנק סותר אותו — ההתאמה האוטומטית עשתה את זה עד ·307.
-  const matched = await x.many(
-    `SELECT bt.id, bt.txn_date, bt.amount, bt.description, bt.raw_reference, p.id AS payment_id, p.method, p.check_number
-       FROM bank_transactions bt JOIN payments p ON p.id = bt.matched_payment_id
-      WHERE bt.bank_account_id = ?
-      ORDER BY bt.txn_date, bt.id`,
-    [id],
-  );
-  for (const m of matched) {
-    if (checkNumberConflict(m, m)) out.mismatchedMatches.push({ txn: m, paymentId: m.payment_id, checkNumber: m.check_number });
-  }
+  for (const m of await mismatchedMatchesFor(id, x)) out.mismatchedMatches.push({ txn: m, paymentId: m.payment_id, checkNumber: m.check_number });
   return out;
 }

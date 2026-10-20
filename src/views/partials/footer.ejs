@@ -678,7 +678,14 @@
         Array.prototype.forEach.call(ths, function (th, idx) {
           var cell = frow.insertCell();
           // A column of buttons/forms has no text to filter on, and neither has one marked no-sort.
-          if (th.hasAttribute('data-nofilter') || th.hasAttribute('data-nosort')) { colInputs[idx] = null; return; }
+          if (th.hasAttribute('data-nofilter') || th.hasAttribute('data-nosort')) {
+            colInputs[idx] = null;
+            // data-filter-slot="<id>": האלמנט הזה עובר לתא הריק של העמודה בשורת הסינון (בעלים 21/10: "התאמה
+            // אוטומטית" מתחת לעמודת "התאמה" בהתאמת בנק). בלי JS / בלי שורת סינון — נשאר במקומו המקורי.
+            var slot = th.getAttribute('data-filter-slot') && document.getElementById(th.getAttribute('data-filter-slot'));
+            if (slot) { cell.appendChild(slot); cell.classList.add('filter-slot'); }
+            return;
+          }
           var label = 'סינון ' + (th.textContent || '').replace(/[\s▲▼]+$/, '').trim();
           var seen = {}, vals = [];
           bodyRows.forEach(function (r) {

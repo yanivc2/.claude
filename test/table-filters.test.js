@@ -44,8 +44,8 @@ test('the unmatched-transactions table opts into both, and excludes the action c
   const view = read('src/views/reconciliation/index.ejs');
   const head = view.slice(view.indexOf('תנועות לא מותאמות'), view.indexOf('</thead>', view.indexOf('תנועות לא מותאמות')));
   assert.match(head, /<table class="sortable filterable(?: tbl-center)?">/);
-  assert.match(head, /<th data-nosort data-nofilter>התאמה<\/th>/,
-    'the match column is forms, not text — nothing to sort or filter by');
+  assert.match(head, /<th data-nosort data-nofilter data-filter-slot="autoMatchForm">התאמה<\/th>/,
+    'the match column is forms, not text — nothing to sort or filter by; its empty filter cell holds "התאמה אוטומטית" (owner 21/10)');
 });
 
 test('the long Z form carries a save bar that stays reachable', () => {

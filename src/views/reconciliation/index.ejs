@@ -173,7 +173,7 @@
       ביטול ייבוא מוחק את התנועות שהגיעו בו בלבד.
     </p>
     <div class="table-scroll">
-      <table class="sortable line-grid">
+      <table class="sortable line-grid imports-tbl">
         <thead><tr>
           <th>מתי</th><th>קובץ</th><th>מקור</th><th class="right">נשמרו</th><th class="right">כפילויות</th>
           <th>טווח תאריכים</th><th class="right" title="שורות שנקלטו כחדשות אבל אותה תנועה (תאריך, סכום, אסמכתא) כבר הייתה מייבוא קודם">כבר היו</th>
@@ -250,9 +250,10 @@
 <div class="card">
   <div class="toolbar">
     <h2 style="margin:0">תנועות לא מותאמות (חובה)</h2>
-    <form method="post" action="/reconciliation/auto">
+    <%# בעלים 21/10: מתחת לעמודת "התאמה", מודגש — footer.ejs מעביר אותו לשורת הסינון (th[data-filter-slot]). %>
+    <form method="post" action="/reconciliation/auto" id="autoMatchForm" class="auto-match-form" data-busy="מתאים…">
       <input type="hidden" name="account_id" value="<%= accountId %>" />
-      <button type="submit">התאמה אוטומטית</button>
+      <button type="submit" class="btn-auto-match">התאמה אוטומטית</button>
     </form>
   </div>
   <%# "תאריך תחילת עבודה": חיובים לא מותאמים עד התאריך מוסתרים (לא נמחקים — הסוכן מושך 60 יום
@@ -283,7 +284,7 @@
   <div class="table-scroll"><%# בלי גלילה פנימית הטבלה מושכת את כל הדף הצידה בטלפון (430px מול 390). %>
   <table class="sortable filterable tbl-center">
     <thead>
-      <tr><th>תאריך</th><th>סכום</th><th>תיאור</th><th>אסמכתא</th><th data-nosort data-nofilter>התאמה</th></tr>
+      <tr><th>תאריך</th><th>סכום</th><th>תיאור</th><th>אסמכתא</th><th data-nosort data-nofilter data-filter-slot="autoMatchForm">התאמה</th></tr>
     </thead>
     <tbody>
       <% if (classified.length === 0) { %>
