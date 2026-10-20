@@ -53,7 +53,11 @@ export async function assertInScope(kind, id, scope, x = getExecutor()) {
   const storeOk =
     !row ? false : storeIds == null || row.store_id == null || storeIds.includes(Number(row.store_id));
   if (!row || !companyOk || !storeOk) {
-    throw new NotFoundError('הרשומה לא נמצאה');
+    const err = new NotFoundError('הרשומה לא נמצאה');
+    // החנות של רשומה שקיימת אבל מחוץ לחנות הפעילה — למעבר "שייך לחנות X — עבור אליה" (app.js, מטפל השגיאות),
+    // שמציג אותו רק כשהחנות הזו בין החנויות של המשתמש. כאן לא נחשף כלום: זה שדה על השגיאה, לא בהודעה.
+    if (row && row.store_id != null) err.recordStoreId = Number(row.store_id);
+    throw err;
   }
   return Number(row.company_id);
 }

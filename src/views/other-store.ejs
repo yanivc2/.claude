@@ -1,0 +1,20 @@
+<%#
+  קישור לרשומה של חנות אחרת (בעלים 20/10: "נמצא בחנות אחרת — עבור אליה" — בקישור לרשומה). מוצג ממטפל השגיאות
+  ב-app.js רק כשהרשומה בחנות שהמשתמש רשאי לה; "עבור" = POST /context/store ואז חזרה לאותו קישור.
+  locals: target (חנות הרשומה), returnTo (הקישור שנפתח).
+%>
+<%- include('partials/header') %>
+<div class="toolbar"><h1>הרשומה בחנות אחרת</h1></div>
+<div class="card no-collapse">
+  <p style="margin:0 0 .6rem">
+    הרשומה שייכת לחנות <strong><%= target.name %></strong>,
+    והחנות הפעילה עכשיו היא <strong><%= (typeof activeStore !== 'undefined' && activeStore) ? activeStore.name : 'אחרת' %></strong>.
+  </p>
+  <form method="post" action="/context/store" class="actions">
+    <input type="hidden" name="store_id" value="<%= target.id %>">
+    <input type="hidden" name="return_to" value="<%= returnTo %>">
+    <button type="submit">עבור ל<%= target.name %></button>
+    <button type="button" class="btn btn-secondary" onclick="history.back()">חזרה</button>
+  </form>
+</div>
+<%- include('partials/footer') %>

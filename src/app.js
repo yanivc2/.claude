@@ -38,7 +38,7 @@ import { employeeFullName, matchEmployeeName } from './lib/employeeName.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-10-20·302';
+const BUILD_VERSION = '2026-10-20·303';
 
 export function createApp() {
   const app = express();
@@ -219,6 +219,15 @@ export function createApp() {
   // Central error handler — renders domain errors nicely, logs the rest.
   // eslint-disable-next-line no-unused-vars
   app.use((err, req, res, next) => {
+    // קישור לרשומה של חנות אחרת (בעלים 20/10: "נמצא בחנות אחרת — עבור אליה", בקישור לרשומה). החנות הפעילה מצמצמת
+    // את מה שנראה, ולכן הרשומה "לא נמצאה" — אבל אם היא בחנות שהמשתמש רשאי לה (availableStores, לא מצומצם),
+    // מציעים לעבור אליה ולחזור לאותו קישור. בחנות שאינה שלו — "לא נמצא" רגיל, כדי לא לחשוף שהרשומה קיימת.
+    if (err.name === 'NotFoundError' && err.recordStoreId && req.method === 'GET' && req.user) {
+      const target = (res.locals.availableStores || []).find((s) => Number(s.id) === err.recordStoreId);
+      if (target && Number(req.activeStoreId) !== Number(target.id)) {
+        return res.status(404).render('other-store', { title: 'הרשומה בחנות אחרת', target, returnTo: req.originalUrl });
+      }
+    }
     const status = err.name === 'NotFoundError' ? 404 : err.name === 'AuthError' ? 403 : 500;
     if (status === 500) {
       // eslint-disable-next-line no-console
