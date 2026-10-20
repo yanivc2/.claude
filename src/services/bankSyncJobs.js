@@ -462,6 +462,7 @@ export async function completeWithAccounts(id, payload, agentName, x = getExecut
 
   const { importScrapedBatch } = await import('./bankSync.js');
   const r = await importScrapedBatch(payload, actor || null, x);
+  await reportCheckProbe(payload?.probe, x);
 
   // storeId לכל חשבון — כדי שהכרטיס יוכל לסנן לפי הסקופ של הצופה (ראה syncStatus).
   const accounts = [];
@@ -527,4 +528,23 @@ export async function bankSyncReminder({ now = new Date() } = {}, x = getExecuto
   await notify('🏦 <b>תזכורת: סנכרון בנק</b>\nהיום עוד לא סונכרן הבנק. בהתאמת בנק ← "🔄 סנכרן עכשיו", ואז הקוד מה-SMS.',
     { kind: 'bank', link: '/reconciliation' });
   return { sent: true };
+}
+
+/**
+ * בדיקת "צילום צ׳ק מהבנק" (בעלים 20/10): הסוכן מוסר אילו **שמות שדות** הבנק מחזיר בשורת צ׳ק
+ * (scraper/hapoalimBiz.js#checkRowKeys — בלי ערכים). פעם אחת, בסנכרון הראשון שיש בו שורת צ׳ק: נשמר ב-app_settings
+ * (`bank_check_probe`) ונשלח לבעלים (פעמון + טלגרם), כדי שיעביר — אין לי גישה למסד החי. שם שדה שאינו אותיות/ספרות
+ * לטיניות נזרק; לא יותר מ-120 שמות.
+ */
+export async function reportCheckProbe(probe, x = getExecutor()) {
+  const keys = Array.isArray(probe?.keys) ? probe.keys.map(String).filter((k) => /^[A-Za-z0-9_.]{1,80}$/.test(k)).slice(0, 120) : [];
+  const checkRows = Number(probe?.checkRows) || 0;
+  if (!checkRows || !keys.length) return false;
+  if (await getSetting('bank_check_probe', null, x)) return false;
+  await setSetting('bank_check_probe', JSON.stringify({ at: nowTs(), checkRows, keys }), x);
+  const hint = keys.filter((k) => /image|img|scan|url|link|picture|photo|document|cheque|check/i.test(k));
+  await notify(`🔎 <b>בדיקה: צילום צ׳ק מהבנק</b>\nבשורת צ׳ק (${checkRows} שורות בסנכרון) הבנק מחזיר את השדות: ${keys.join(', ')}.`
+    + (hint.length ? `\nשדות שאולי מובילים לצילום: ${hint.join(', ')}.` : '\nאין ביניהם שדה שנראה כמו קישור לצילום.')
+    + '\nלהעביר את ההודעה הזו ל-Claude.', { kind: 'bank', link: '/reconciliation' });
+  return true;
 }

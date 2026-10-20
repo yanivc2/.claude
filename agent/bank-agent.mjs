@@ -247,6 +247,8 @@ async function runJob(cfg, job) {
     const { scrapeHapoalimBiz } = await import('../src/scraper/hapoalimBiz.js');
     const days = Number(cfg.startDaysBack) > 0 ? Number(cfg.startDaysBack) : 60;
 
+    // שמות שדות של שורות צ׳ק בלבד (בלי ערכים) — לבדיקת "צילום צ׳ק" (src/scraper/hapoalimBiz.js#checkRowKeys).
+    let probe = null;
     const accounts = await scrapeHapoalimBiz({
       credentials: { userCode: creds.userCode, password: creds.password },
       startDate: new Date(Date.now() - days * 86_400_000),
@@ -259,6 +261,7 @@ async function runJob(cfg, job) {
       onlyAccounts: Array.isArray(job.accounts) ? job.accounts : null,
       failureScreenshotPath: cfg.debugScreenshots ? path.join(here, `fail-${job.id}.png`) : null,
       onProgress: (m) => { report('running', m); },
+      onProbe: (p) => { probe = p; },
       onOtp: async () => {
         await report('awaiting_otp', 'הבנק שלח קוד SMS — הזן אותו כאן.');
         if (cancelled) throw new Error('CANCELLED');
@@ -278,7 +281,7 @@ async function runJob(cfg, job) {
     if (cancelled) throw new Error('CANCELLED');
     const rows = accounts.reduce((n, a) => n + a.transactions.length, 0);
     log(`✓ #${job.id}: ${accounts.length} חשבונות, ${rows} תנועות — שולח לאפליקציה`);
-    const r = await api(cfg, `/ingest/bank-agent/${job.id}/result`, { accounts });
+    const r = await api(cfg, `/ingest/bank-agent/${job.id}/result`, { accounts, probe });
     log(r?.cancelled ? `■ #${job.id}: בוטל לפני הקליטה` : `✓ #${job.id}: הושלם`);
   } catch (e) {
     if (cancelled || e.message === 'CANCELLED') { log(`■ #${job.id}: בוטל`); return; }

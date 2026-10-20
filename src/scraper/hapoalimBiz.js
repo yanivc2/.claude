@@ -60,6 +60,31 @@ export function convertBizTransactions(rows) {
   });
 }
 
+// שורת צ׳ק בתיאור של הבנק ("שיק", "צ'ק", "המחאה"). "משיכה" אינה צ׳ק — אין בה "שיק". 🔴 בלי \b: ב-JS עברית אינה
+// "תו מילה", ו-\b אחרי ק' עברית לא מתקיים לעולם ("צ'ק מוחזר" לא נתפס). הגרש חובה, כדי ש"צק" בתוך מילה לא ייתפס.
+const CHECK_ROW_RE = /שיק|צ['׳]ק|המחא/;
+
+/**
+ * בדיקה: האם הבנק מחזיר בשורת צ׳ק משהו שמוביל לצילום הצ׳ק (בעלים 20/10 — "צילום הצ׳ק מהבנק במסך בחינת תנועה —
+ * לבדוק אם הסוכן יכול למשוך אותו"). אין לזה תיעוד ציבורי, ולכן בודקים את התגובה עצמה — אבל **רק שמות השדות**:
+ * המפתחות של שורות הצ׳ק (ושל אובייקטים בתוכן, רמה אחת), בלי אף ערך. שם שדה כמו "imageUrl" יראה את הדרך; בלעדיו —
+ * השלב הבא הוא לראות מה הפורטל עצמו קורא כשפותחים צילום.
+ * @returns {{checkRows:number, keys:string[]}}
+ */
+export function checkRowKeys(rows) {
+  const keys = new Set();
+  let checkRows = 0;
+  for (const t of rows || []) {
+    if (!t || !CHECK_ROW_RE.test(String(t.activityDescription ?? ''))) continue;
+    checkRows += 1;
+    for (const [k, v] of Object.entries(t)) {
+      keys.add(k);
+      if (v && typeof v === 'object' && !Array.isArray(v)) for (const k2 of Object.keys(v)) keys.add(`${k}.${k2}`);
+    }
+  }
+  return { checkRows, keys: [...keys].filter((k) => /^[A-Za-z0-9_.]{1,80}$/.test(k)).sort() };
+}
+
 /**
  * מתוך מזהי החשבונות בבנק (`12-628-432110`) — רק אלה שרשומים באפליקציה (`{branch, account_number}`),
  * לפי אותו כלל שיוך של הקליטה, כך שמה שנקרא הוא בדיוק מה שהיה נקלט.
@@ -196,6 +221,7 @@ async function enterOtp(page, code) {
 export async function scrapeHapoalimBiz({
   credentials, startDate, showBrowser = false, failureScreenshotPath = null,
   accountIds = null, onlyAccounts = null, onOtp = null, onProgress = null, puppeteer = null, executablePath = null,
+  onProbe = null,
   // הבסיס ניתן להחלפה: לבדיקה מקצה לקצה מול בנק מדומה, ולמקרה שהבנק יעבור מ-biz2 לשרת אחר.
   baseUrl = BIZ_BASE,
   // 🔴 נמדדו מול המסך החי. **`#user-code` עם מקף** — הפורטל הפרטי משתמש ב-`#userCode` בלי מקף,
@@ -309,17 +335,23 @@ export async function scrapeHapoalimBiz({
     const from = yyyymmdd(startDate);
     const to = yyyymmdd(new Date());
     const out = [];
+    const probe = { checkRows: 0, keys: new Set() };
     for (const accountId of ids) {
       const url = `${base}/ServerServices/current-account/transactions`
         + `?numItemsPerPage=500&sortCode=1&retrievalEndDate=${to}&retrievalStartDate=${from}`
         + `&accountId=${encodeURIComponent(accountId)}&lang=he`;
       const body = await apiPost(page, url);
+      const seen = checkRowKeys(body?.transactions);
+      probe.checkRows += seen.checkRows;
+      seen.keys.forEach((k) => probe.keys.add(k));
       const txns = convertBizTransactions(body?.transactions);
       out.push({
         accountNumber: accountId,
         transactions: mapScrapedTransactions(txns, { companyId: 'hapoalimBiz', accountNumber: accountId }),
       });
     }
+    // שמות שדות בלבד (checkRowKeys) — לבדיקת "צילום צ׳ק"; הסוכן שולח אותם עם התנועות.
+    if (typeof onProbe === 'function') onProbe({ checkRows: probe.checkRows, keys: [...probe.keys].sort() });
     return out;
   } finally {
     await browser.close();

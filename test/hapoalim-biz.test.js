@@ -110,3 +110,42 @@ test('a row pulled before the balance existed gets it on the next pull — an ex
   await importTransactions(acct.id, pull(6000), 'scraper', o, db);
   assert.equal(Number((await get()).balance_after), 500000);
 });
+
+// בעלים 20/10: "צילום הצ׳ק מהבנק — לבדוק אם הסוכן יכול למשוך אותו". אין תיעוד ציבורי, ולכן הסוכן מוסר פעם אחת
+// אילו **שמות שדות** הבנק מחזיר בשורת צ׳ק — בלי אף ערך.
+test('checkRowKeys: field names of check rows only — never a value', async () => {
+  const { checkRowKeys } = await import('../src/scraper/hapoalimBiz.js');
+  const p = checkRowKeys([
+    row({ activityDescription: 'שיק', referenceNumber: 9001, chequeImageUrl: '/secret/path?token=abc', beneficiaryDetailsData: { partyName: 'ספק סודי' } }),
+    row({ activityDescription: "צ'ק מוחזר", referenceNumber: 9002 }),
+    row({ activityDescription: 'משיכה בכרטיס', atmSecretField: 'x' }),
+  ]);
+  assert.equal(p.checkRows, 2, '"משיכה" is not a check');
+  assert.ok(p.keys.includes('chequeImageUrl') && p.keys.includes('beneficiaryDetailsData.partyName'));
+  assert.ok(!p.keys.includes('atmSecretField'), 'non-check rows are not read');
+  const flat = JSON.stringify(p);
+  for (const v of ['secret/path', 'token=abc', 'ספק סודי', '9001']) assert.ok(!flat.includes(v), `no value leaks: ${v}`);
+});
+
+test('the probe reaches the owner once, through the sync result; junk names and empty probes are dropped', async () => {
+  const { freshDb, owner } = await import('./helpers.js');
+  const { requestSync, claimNext, completeWithAccounts } = await import('../src/services/bankSyncJobs.js');
+  const db = await freshDb();
+  const o = await owner(db);
+  const notes = async () => db.many("SELECT title, body FROM notifications WHERE title LIKE '%צילום צ׳ק%'", []);
+  const sync = async (probe) => {
+    const job = await requestSync(o, db);
+    await claimNext('office-pc', db);
+    await completeWithAccounts(job.id, { accounts: [{ accountNumber: '999999999', transactions: [] }], probe }, 'office-pc', db);
+  };
+  await sync({ checkRows: 0, keys: ['eventAmount'] });
+  assert.equal((await notes()).length, 0, 'no check row in this sync — wait for one');
+  await sync({ checkRows: 3, keys: ['eventAmount', 'chequeImageUrl', '<script>', 'שדה'] });
+  const n = await notes();
+  assert.equal(n.length, 1);
+  assert.match(n[0].body, /eventAmount, chequeImageUrl/);
+  assert.match(n[0].body, /שדות שאולי מובילים לצילום: chequeImageUrl/);
+  assert.doesNotMatch(n[0].body, /script|שדה/, 'only latin field names pass');
+  await sync({ checkRows: 5, keys: ['other'] });
+  assert.equal((await notes()).length, 1, 'once');
+});
