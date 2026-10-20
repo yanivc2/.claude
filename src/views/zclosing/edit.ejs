@@ -68,33 +68,38 @@
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
+<%# מסודר כמו הטופס החדש (views/zclosing/index.ejs; בעלים 20/10: "תסדר גם את מסך עריכת סגירת Z").
+    מה שיש רק בעריכה: החנות — בשורה הקטנה שמעל הטופס, עם "העבר לחנות אחרת" (בעלים 20/10), ו"מחק סגירה"
+    — באותה שורה של השמירה, משמאל ל"ייצוא". %>
 <div class="card no-print">
-  <p class="muted" style="margin:0 0 .6rem">נשמר: <strong><%= closing.ended_at || '—' %></strong> · שעון ישראל</p>
   <form method="post" action="/zclosing/<%= closing.id %>" class="stack" id="zclose-form" data-busy="שומר…">
+    <p class="muted zc-meta">
+      <%- include('../partials/_storeField', { currentStoreId: closing.store_id, inline: true }) %>
+      <span>· נשמר: <strong><%= closing.ended_at || '—' %></strong> · שעון ישראל</span>
+    </p>
+
+    <%# שורה אחת, ברוחב שווה: עובד (מבצע הספירה) מימין, אחריו מספר Z וסה"כ מזומן מגירה. %>
     <% if (empOpts.length) { %>
       <input type="hidden" name="employee_first" value="<%= closing.employee_first || '' %>" />
       <input type="hidden" name="employee_last" value="<%= closing.employee_last || '' %>" />
-      <div>
-        <label>עובד (מבצע הספירה)</label>
-        <select name="employee_id" class="js-combo" required>
-          <option value="">בחר עובד…</option>
-          <% empOpts.forEach(function(emp){ %><option value="<%= emp.id %>" <%= closing.employee_id === emp.id ? 'selected' : '' %>><%= emp.first_name %> <%= emp.last_name %></option><% }); %>
-        </select>
-        <% if (!closing.employee_id) { %><small class="muted">סגירה זו נשמרה עם שם חופשי (<%= closing.employee_first %> <%= closing.employee_last %>) — בחר עובד לעדכון.</small><% } %>
-      </div>
-    <% } else { %>
-      <div class="row">
+    <% } %>
+    <div class="row zc-top-row">
+      <% if (empOpts.length) { %>
+        <div>
+          <label>עובד (מבצע הספירה)</label>
+          <select name="employee_id" class="js-combo" required>
+            <option value="">בחר עובד…</option>
+            <% empOpts.forEach(function(emp){ %><option value="<%= emp.id %>" <%= closing.employee_id === emp.id ? 'selected' : '' %>><%= emp.first_name %> <%= emp.last_name %></option><% }); %>
+          </select>
+        </div>
+      <% } else { %>
         <div><label>שם פרטי</label><input name="employee_first" required autocomplete="off" value="<%= closing.employee_first || '' %>" /></div>
         <div><label>שם משפחה</label><input name="employee_last" required autocomplete="off" value="<%= closing.employee_last || '' %>" /></div>
-      </div>
-    <% } %>
-    <div class="row">
-      <div>
-        <%- include('../partials/_storeField', { currentStoreId: closing.store_id }) %>
-      </div>
+      <% } %>
       <div><label>מספר Z</label><input name="z_number" required autocomplete="off" value="<%= closing.z_number || '' %>" /></div>
       <div><label>סה"כ מזומן מגירה (₪)</label><input name="drawer_cash" id="drawer-cash-in" inputmode="decimal" placeholder="0.00" required value="<%= sh(closing.drawer_cash) %>" /></div>
     </div>
+    <% if (empOpts.length && !closing.employee_id) { %><small class="muted">סגירה זו נשמרה עם שם חופשי (<%= closing.employee_first %> <%= closing.employee_last %>) — בחר עובד לעדכון.</small><% } %>
 
     <%# 🔴 פתוחה כשיש בתוכה ספירה, והסיכום נאמר בכותרת. קודם היא הייתה מקופלת תמיד וללא שום סימן
         שיש בה משהו — הבעלים פתח סגירה שמורה, ראה רצועה סגורה, והסיק שאיזון הקופות לא נשמר.
@@ -104,21 +109,21 @@
       try { savedRegs = JSON.parse(closing.registers || '[]') || []; } catch (e) { savedRegs = []; }
       var regTotal = savedRegs.reduce(function(n, r){ return n + (Number(r.total) || 0); }, 0);
     %>
-    <details class="card collapse-card" style="background:var(--color-surface-2);margin:1rem 0 0" <%= savedRegs.length ? 'open' : '' %>>
+    <details class="card collapse-card" style="background:var(--color-surface-2);margin:1rem 0" <%= savedRegs.length ? 'open' : '' %>>
       <summary>
         איזון קופות (ספירת מזומן בכל קופה לפני ה-Z)
         <% if (savedRegs.length) { %>
           <span class="badge b-approved"><%= savedRegs.length %> <%= savedRegs.length === 1 ? 'קופה' : 'קופות' %> · <%= formatIls(regTotal) %></span>
         <% } %>
       </summary>
-      <p class="muted" style="margin:.5rem 0 .6rem">ספור את המזומן בכל קופה. אפשר להוסיף קופה נוספת. הספירה נשמרת עם הסגירה ואינה משפיעה על טבלת המגירה למטה.</p>
+      <p class="muted" style="margin:.5rem 0 .6rem">ספור את המזומן בכל קופה. אפשר להוסיף קופה נוספת. הספירה נשמרת עם הסגירה ואינה משפיעה על טבלת המגירה למטה. <strong>הסופר הוא העובד שנבחר למעלה</strong> — אין צורך להזין שם שוב.</p>
       <div id="reg-list"></div>
       <button type="button" class="btn btn-secondary small" onclick="regAdd()">➕ הוסף קופה</button>
     </details>
 
-    <h3 style="margin:1.1rem 0 .2rem">ספירת מזומן</h3>
+    <%# בלי הכותרת "ספירת מזומן" ובלי שורת "סנן…", כמו בטופס החדש; "ייצוא" של הטבלה — ליד השמירה. %>
     <div class="table-scroll">
-      <table class="no-filter" data-count-adjust>
+      <table class="no-filter" data-count-adjust data-export-into="zc-export">
         <thead><tr><th>שטר / מטבע</th><th>כמות</th><th class="right">סכום</th></tr></thead>
         <tbody>
           <% denoms.forEach(function(d){ %>
@@ -133,8 +138,10 @@
       </table>
     </div>
 
+    <%# "הוצאות מזומן" — תמיד פתוח, בלי כיווץ; שורה חדשה נוספת לבד כשממלאים את האחרונה. %>
+    <div class="cx-section">
     <h3 style="margin:1.1rem 0 .2rem">הוצאות מזומן</h3>
-    <p class="muted" style="margin:0 0 .4rem">בחר <strong>סוג</strong>: ידני · שכר · מפרעה · חשבונית. שכר/מפרעה משויכים לעובד; סוג 'חשבונית' משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
+    <p class="muted" style="margin:.5rem 0 .4rem">הוצאות ששולמו מקופת המזומן. בחר <strong>סוג</strong>: ידני · שכר · מפרעה · חשבונית. שכר/מפרעה משויכים לעובד; סוג 'חשבונית' משויך לחשבונית. שורה חדשה נוספת אוטומטית.</p>
     <%# Stacked labeled card per expense — the SAME layout as the entry form (views/zclosing/index.ejs)
         and the Z report (views/reports/_zform.ejs). This screen was left on the old table inside
         .table-scroll: on a phone the six columns squeezed every control to a few characters wide
@@ -171,6 +178,7 @@
       </div>
     </div>
     <div class="cx-total">סה"כ הוצאות: <strong id="exp-total">₪0.00</strong></div>
+    </div>
 
     <div class="card" style="background:var(--color-surface-2);margin-top:1rem">
       <div style="display:flex;justify-content:space-between;align-items:center">
@@ -187,10 +195,8 @@
       </div>
     </div>
 
-    <div style="margin-top:.8rem;display:flex;gap:.6rem;flex-wrap:wrap">
-      <button type="submit">💾 שמור שינויים</button>
-      <button type="submit" class="danger" formaction="/zclosing/<%= closing.id %>/delete" formnovalidate onclick="return confirm('למחוק את הסגירה?')">מחק סגירה</button>
-    </div>
+    <%# RTL: "שמור שינויים" מימין, "ייצוא" של טבלת הספירה משמאלו, ו"מחק סגירה" משמאל לו (בעלים 20/10). %>
+    <div class="zc-save-row"><button type="submit">💾 שמור שינויים</button><span id="zc-export"></span><button type="submit" class="danger" formaction="/zclosing/<%= closing.id %>/delete" formnovalidate onclick="return confirm('למחוק את הסגירה?')">מחק סגירה</button></div>
   </form>
 </div>
 
