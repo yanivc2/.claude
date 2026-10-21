@@ -1,16 +1,50 @@
-﻿## 2026-09-20 23:55
-- כיבוי 18 skills מסונכרנים דרך `skillOverrides` ב-`settings.json` (כולם `"off"`, בשמות בסיס ליישור עם מוסכמת `Skill(...)` שבקובץ) — 13 רעש + 5 כפילויות; שינוי הגדרות בלבד, הפיך (PR #111, `49a360b`)
-- הכנת גרסת גיבוי ב-`.claude/rules/skills-inventory.md`: בלוק `skillOverrides` מוכן־להדבקה עם מפתחות בקידומת `anthropic-skills:`, למקרה שהשמות ללא קידומת לא תופסים; כולל הסבר אימות (PR #112, `9a40502`)
-- אזהרות: חל רק אחרי `git pull` ל-`~/.claude`; לאימות `/skill-doctor`; להסרה מוחלטת (לא רק השבתה) לכבות ב-claude.ai
+﻿## 2026-08-01 21:02
+- שיחה ללא שינויי קוד
 
-## 2026-09-20 23:35
-- הוספת שרת MCP של 21st.dev ל-`.mcp.json` (`type: http`, `https://21st.dev/api/mcp`), המפתח מוזרק דרך `${input:st21_api_key}` (`promptString`, `password`) ולא נכתב בקובץ; לצד `github` ו-`playwright`
-- הרצת `/install-review` לפני ההוספה (verdict: התקן בזהירות — מפתח מחוץ ל-git, נקודת קצה חיצונית אחת); לא ב-`plugins/blocklist.json`
-- מיון ה-skills המסונכרנים מ-claude.ai לפי `/skill-doctor`: זוהה ש-`skills/` מוחרג ב-`.gitignore` ולכן לא ניתן לעריכה/מחיקה מהריפו, ומחיקה מקומית חוזרת בסנכרון (הבקרה: `/skills` או claude.ai). מומלץ לכבות 18 skills (13 רעש + 5 כפילויות)
-- יצירת קובץ עוגן `.claude/rules/skills-inventory.md` עם המיפוי (להשאיר/לכבות + אילוץ הסנכרון), עם הפניה מ-`config-repo.md`
-- הסביבה סופקה מחדש מ-main עדכני (`a468103`, PR #107/#108) באמצע העבודה; הענף `claude/plugins-rjq0x1` נבנה מחדש על main העדכני עם שני השינויים ופתרון קונפליקט `.mcp.json` מול שרת `playwright` שנוסף ב-main — בלי לאבד שינויים
-- נפתח PR #109, אומת שאין CI בריפו (0 workflows/checks) ומצב מיזוג `clean`, ומוזג ל-main (squash) בקומיט `02a418f`; המנוי וה-check-in נוקו
-- נותר בידי המשתמש: ייצור מפתח 21st.dev ב-`21st.dev/mcp` והזנה דרך `/mcp`, וכיבוי 18 ה-skills דרך `/skills`
+## 2026-07-24 00:56
+- שיחה ללא שינויי קוד
+
+## 2026-07-23 18:04
+- שיחה ללא שינויי קוד
+
+## 2026-07-23 17:22
+- 16cb21b fix: restore Hebrew hook messages mangled by plugin marketplace add
+
+## 2026-07-23 17:19
+- 16cb21b fix: restore Hebrew hook messages mangled by plugin marketplace add
+
+## 2026-07-23 17:17
+- 16cb21b fix: restore Hebrew hook messages mangled by plugin marketplace add
+
+## 2026-07-23 17:14
+- 16cb21b fix: restore Hebrew hook messages mangled by plugin marketplace add
+
+## 2026-07-23 17:09
+- 16cb21b fix: restore Hebrew hook messages mangled by plugin marketplace add
+
+## 2026-07-23 17:04
+- 16cb21b fix: restore Hebrew hook messages mangled by plugin marketplace add
+
+## 2026-07-23 16:52
+- 16cb21b fix: restore Hebrew hook messages mangled by plugin marketplace add
+
+## 2026-07-23 16:41
+- 16cb21b fix: restore Hebrew hook messages mangled by plugin marketplace add
+
+## 2026-07-23 16:34
+- שיחה ללא שינויי קוד
+
+## 2026-07-23 13:34
+- שיחה ללא שינויי קוד
+
+## 2026-07-23 12:53
+- שיחה ללא שינויי קוד
+
+## 2026-07-23 12:43
+- שיחה ללא שינויי קוד
+
+## 2026-07-23 12:35
+- שיחה ללא שינויי קוד
 
 ## 2026-07-11 14:10
 - בניית מערכת ניהול משאבי אנוש לשוק הישראלי בתיקייה `israeli-hr-system/` (Next.js App Router, Tailwind, Prisma, PostgreSQL, עברית + RTL מלא)
@@ -43,60 +77,4 @@
 
 ## 2026-06-17 04:06
 - שיחה ללא שינויי קוד
-
-## 2026-06-17 04:04
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 04:03
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 04:00
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:58
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:54
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:48
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:45
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:40
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:34
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:32
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:32
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:30
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:26
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:16
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:15
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:06
-- שיחה ללא שינויי קוד
-
-## 2026-06-17 03:04
-- שיחה ללא שינויי קוד
-
-## 2026-06-16 03:44
-- 341ff78 chore: untrack ephemeral dirs and skills, fix broken typecheck hook | a4b8dc8 chore: add .gitignore and stop tracking ephemeral files | 87d9bfc fix: replace Stop agent hook with command hook for session logging
-
-## 2026-06-16 03:37
-- a4b8dc8 chore: add .gitignore and stop tracking ephemeral files | 87d9bfc fix: replace Stop agent hook with command hook for session logging | 1622030 fix: broaden Write permission to glob for Stop hook agent
+
