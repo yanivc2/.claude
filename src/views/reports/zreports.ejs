@@ -76,9 +76,6 @@
 <% if (missingZ && missingZ.length) { %>
   <div class="alert alert-warn">מספרי Z חסרים ברצף: <strong><%= missingZ.join(', ') %></strong> — בדוק אם הוזנו ביום אחר.</div>
 <% } %>
-<% if (unmatchedCount > 0) { %>
-  <div class="alert alert-warn">⚠ <strong><%= unmatchedCount %></strong> דוחות Z לא תואמים — ראה סימון בטבלה "רשומות Z אחרונות".</div>
-<% } %>
 <%# <h2> ישיר (לא בתוך .toolbar) — זה מה שהופך את הכרטיס למתקפל (partials/footer.ejs). %>
 <div class="card">
   <h2>רשומות Z אחרונות<% if (unmatchedCount > 0) { %> <span class="badge b-on_hold"><%= unmatchedCount %> לא תואמים</span><% } %></h2>
