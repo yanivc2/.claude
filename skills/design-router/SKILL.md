@@ -5,7 +5,7 @@ description: Index of the installed design skills. Use when the task involves UI
 
 # Design skills: what is installed and when to reach for it
 
-Twenty-three design skills are installed at `name-only`: Claude is shown the name
+Thirty design skills are installed at `name-only`: Claude is shown the name
 but pays nothing for a description until the skill is called. This index is what
 loads. Read the row, then either run the skill yourself or tell the user the
 exact slash command.
@@ -62,6 +62,22 @@ a faster animation.
 These two produce a finished file rather than code in a project, so reach for them
 when the deliverable is the artwork itself. `/canvas-design` composes original
 work only — never a copy of a named artist's style.
+
+## From the `design` plugin: process, not pixels
+
+| Need | Run |
+|---|---|
+| Critique a design against stated goals | `/design-critique` |
+| Build or extend a design system | `/design-system` |
+| Write the words inside the UI | `/ux-copy` |
+| Check against accessibility requirements | `/accessibility-review` |
+| Plan or run user research | `/user-research` |
+| Turn research notes into findings | `/research-synthesis` |
+| Hand a design over to engineering | `/design-handoff` |
+
+These seven come from the `design` plugin rather than `skills/`, and they cover
+the work around a design — critique, research, copy, handoff — where the rows
+above cover building the thing itself.
 
 ## Always loaded, no command needed
 

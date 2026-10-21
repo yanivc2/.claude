@@ -346,6 +346,16 @@
     "docs": "user-invocable-only",
     "anthropic-skills:docs": "user-invocable-only",
     "mcp-builder": "user-invocable-only",
-    "anthropic-skills:mcp-builder": "user-invocable-only"
+    "anthropic-skills:mcp-builder": "user-invocable-only",
+    "design-critique": "name-only",
+    "design-system": "name-only",
+    "ux-copy": "name-only",
+    "research-synthesis": "name-only",
+    "accessibility-review": "name-only",
+    "user-research": "name-only",
+    "design-handoff": "name-only",
+    "diagnosing-superpowers": "name-only",
+    "context-mode-ops": "name-only",
+    "frontend-design": "name-only"
   }
 }

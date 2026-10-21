@@ -73,10 +73,26 @@ heavy-handed, not inert. The docs still say to use `exit 2` to enforce a policy.
    `fix/settings-encoding-repair`, whose name does not match this work — it wants
    a new branch. Blocked on an explicit request from the user; the repo rule is
    never to commit or push without one.
-2. **Whether loose `.md` files in `skills/` ever loaded is undocumented.** The docs
-   describe only `<name>/SKILL.md`. So the size of the win from archiving those 505
-   files is unknown; the cleanup was right either way. Decide it with `/context`
-   (the Skills line) or `/doctor` in a local interactive session.
+2. ~~Whether loose `.md` files in `skills/` ever loaded~~ — **settled: they did
+   not.** `~/.claude/debug/` holds a `--debug` log from 04:06 on 2026-10-21, which
+   predates the archiving, and one from 17:42 after it. Both record the skills-dir
+   scan, and both emit exactly the same two decisions:
+
+       [plugins] skipping hidden skills-dir entry '.antigravity-install-manifest.json'
+       [plugins] skipping skills-dir entry 'synced'
+
+   Nothing references a bare `.md` path under `skills/` in either log, and neither
+   log carries a listing-budget warning. The before and after logs are identical in
+   this section, which they would not be if 505 skills had been dropped between
+   them.
+
+   Caveat: the scanner logs a decision for specially named entries (dot-prefixed,
+   and the reserved `synced`), so a plain `.md` could in principle be skipped with
+   no log line. Strong evidence, not proof.
+
+   **So the earlier claim that archiving those files saved 6,420 characters of
+   listing was wrong.** It bought disk and repo tidiness. The real context win came
+   from archiving the 1,472 skill directories: 245,029 -> 35,339 description chars.
 3. **Mac: Claude Code 2.1.306 is installed** at `~/.local/bin/claude` via the
    native installer (`curl -fsSL https://claude.ai/install.sh | bash`), same
    version as Windows. `~/.local/bin` was not on PATH, so `claude` reported
@@ -166,6 +182,65 @@ harm only because the native install shadows it on PATH.
 
 Not yet run — it needs an explicit go-ahead. Also sitting in `.local\bin`:
 `claude.exe.old.1792605099784.27076`, 260MB, left by the updater.
+
+## The 21st.dev API key: exposure, measured (2026-10-21)
+
+The key lived in `~/.claude.json` under `mcpServers.magic.env.API_KEY`, 72
+characters. Removing the `magic` server took it out of the live file, so every
+backup Claude Code writes from now on is free of it.
+
+Scanned for copies by matching the value itself, never printing it:
+
+- **Repository history: clean.** Streamed every object in the object database
+  (`git cat-file --batch-all-objects`) across 920 commits and 221,645,319 bytes.
+  The key appears in no blob. **It was never committed and never reached GitHub.**
+  `.mcp.json`, which is tracked, uses `${input:...}` placeholders rather than
+  literal values, which is why.
+- **Local disk: 6 copies**, all in backup files, all gitignored:
+  - `~/.claude/backups/.claude.json.backup.1792597153055`
+  - `~/.claude/backups/.claude.json.backup.1792598057005`
+  - `~/.claude/backups/.claude.json.backup.1792601328132`
+  - `~/.claude/backups/.claude.json.backup.1792602014606`
+  - `~/.claude/backups/.claude.json.backup.1792604330906`
+  - `~/.claude.json.bak-mcp-2026-10-21` (written by this session)
+- Not in the PowerShell PSReadLine history, not in `~/.claude/debug/`, not
+  anywhere under `~/.agents`. 13,383 files scanned; 2 skipped for being over 8MB.
+
+**Rotate at 21st.dev first.** That invalidates all six copies at once; deleting
+files before rotating accomplishes nothing. Afterwards the copies are stale and
+can go to `trash/` as hygiene. Note that nothing needs the key any more unless the
+`magic` MCP server is re-added, so the cleanest end state is not to store it
+again at all.
+
+`~/.claude.json.bak-mcp-2026-10-21` is also the only recovery path for the three
+removed MCP servers, so keep it until you are sure you want none of them back.
+
+## MCP servers, as of 2026-10-21
+
+Removed from `~/.claude.json` because they never completed a connection in any
+recorded session, and each stdio one burned about 8 seconds of startup:
+`context7` (abandoned after 8,451ms), `playwright` (8,425ms), `magic`.
+
+Kept: `claude-design`, Anthropic's own Design server. It fails with
+`UnauthorizedError` only because the CLI is signed out.
+
+Left alone deliberately: `plugin:design:gmail` and `plugin:design:google calendar`
+report "No URL configured". They are malformed entries in the `design` plugin's
+own shipped `.mcp.json` (`knowledge-work-plugins/design/1.2.0/.mcp.json`), with
+neither a url nor a command. Fixing them means editing the plugin cache, which
+the next plugin update overwrites, and they fail instantly rather than timing
+out, so they cost nothing but a log line. The same file also declares seven
+working HTTP servers: slack, figma, linear, asana, atlassian, notion, intercom.
+
+`plugin:context-mode:context-mode` still burns ~8.1s per startup and never
+connects. It comes from the context-mode plugin, which also injects a
+`<context_window_protection>` block into every session via SessionStart. Not
+addressed yet.
+
+The repo's own `.mcp.json` is written in the VS Code schema (`inputs` + `servers`)
+rather than Claude Code's (`mcpServers`), and no debug log ever mentions the
+`github` or `21st` servers it declares. **It appears to be dead config.** Decide
+whether to convert or delete it.
 
 ## Documented facts worth not re-deriving
 
