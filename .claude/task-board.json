@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T02:10:00.000Z",
+  "updatedAt": "2026-10-21T02:20:00.000Z",
   "items": [
     {
       "id": "s01",
@@ -24,7 +24,7 @@
     {
       "id": "s05",
       "text": "רשימת משימות קבועה בכל סשן (במקום פאנל Outputs/Changes)",
-      "status": "active"
+      "status": "done"
     },
     {
       "id": "s06",
@@ -108,58 +108,8 @@
       "who": "owner"
     },
     {
-      "id": "tmvhgii2p1",
-      "text": "👤 הגדרות ← \"עדכן מסד נתונים\" (·317 — טבלת הדחיות)",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgiikq2",
-      "text": "👤 דוח פדיון מהמייל — שלושה צעדים: דיוור לילי בקופה, סקריפט Gmail, עדכון מסד נתונים",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgijd83",
-      "text": "👤 קליטת Z מהמייל — לשלוח קבצי דוגמה (z_*.pdf + tran_*.txt)",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgijsv4",
-      "text": "👤 דוחות פדיון תקופתיים — להעלות ולהשלים יום חסר",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgikfh5",
-      "text": "👤 בדיקת שיוך בכל חשבון — לוודא שסעיפים 1 ו-4 נקיים",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgil4e6",
-      "text": "👤 \"צ׳קים בחוץ\" — לבדוק כמה נמצאו לפי סכום ולדווח על צ׳ק שלא נמצא",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgilp87",
-      "text": "👤 מזומן ללא התאמה — לנסות את הצירוף טרה + קוקה קולה",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgimbg8",
-      "text": "👤 סניף 628 ולא 428 בשמות חשבונות הבנק (הגדרות ← חשבונות בנק)",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgimz39",
-      "text": "👤 איזו סגירת Z נמחקה — יומן ביקורת מלא ← zclosing.delete",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgipmw13",
-      "text": "⏸ מושהה: מיזוג AP Control לתוך SM — בשקילה",
-      "status": "pending"
-    },
-    {
-      "id": "tmvhgiq8j14",
-      "text": "⏸ מושהה: Financy — בנק יומי בלי קוד SMS (\"עזוב את הבנק כרגע\")",
+      "id": "s20",
+      "text": "טעינת הלוח אוטומטית בתחילת כל סשן (שלב בהוק של ענף ההגדרות) — אחר כך",
       "status": "pending"
     }
   ]
