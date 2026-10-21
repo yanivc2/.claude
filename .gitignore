@@ -1,22 +1,69 @@
-# Secrets
+# Secrets and key material
 .credentials.json
+daemon/
+
+# Machine and account identity written by the CLI. Holds machineID and userID.
+.claude.json
 
 # Ephemeral state
 .last-cleanup
+.last-update-result.json
 shell-snapshots/
 deletions/
+session-env/
+paste-cache/
+state/
+jobs/
+history.jsonl
 
 # Auto-generated session data
 sessions/
 file-history/
 backups/
 cache/
+telemetry/
+agent-memory/
+debug/
 
 # Project conversation logs
 projects/
 
-# Skills — reinstallable via npx skills, no value in versioning
-skills/
+# Platform-written caches and policy snapshots
+mcp-needs-auth-cache.json
+policy-limits.json
+policy-limits.json.stamp.json
+remote-settings.json
+chrome/
+
+# Plugin-managed trees. plugins/blocklist.json stays tracked.
+plugins/marketplaces/
+plugins/synced/
+plugins/.trash/
+plugins/.install-manifests/
+plugins/.last_inuse_sweep
+plugins/installed_plugins.json
+plugins/known_marketplaces.json
+plugins/plugin-catalog-cache.json
+plugins/cache/
+context-mode/
+
+# Superseded settings. Kept on disk on purpose, never committed.
+settings.json.bak*
+settings.json.broken*
+
+# Build output from an unrelated app that once ran with this as cwd
+.next/
+
+# Machine-local permission overrides
+.claude/settings.local.json
+
+# Skills — installed copies are reinstallable via npx skills, no value in
+# versioning. The routers are hand-written config, not installs, so they stay.
+# Note the trailing /* : ignoring "skills/" outright would make the negation
+# below impossible, because git cannot re-include a path under an excluded
+# directory.
+skills/*
+!skills/*-router/
 
 # Python bytecode cache
 __pycache__/
