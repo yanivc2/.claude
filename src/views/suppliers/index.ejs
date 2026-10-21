@@ -60,6 +60,46 @@
   </details>
 <% } %>
 
+<%# 🏛️ "תשלומים לרשויות" (בעלים 21/10: "תשלומים שיצאו מהבנק", מעל טבלת הספקים) — חיובי בנק לביטוח לאומי, מס הכנסה,
+    מע"מ, רשות המסים וארנונה/עירייה, מזוהים מתיאור החיוב (services/authorityPayments.js), 12 החודשים האחרונים,
+    בחשבונות שבסקופ. מקובץ לפי חודש · רשות · חשבון; "פירוט" פותח את החיובים עצמם. סגור כברירת מחדל, בעלים בלבד. %>
+<% var _ap = (typeof authorityPayments !== 'undefined' && authorityPayments) ? authorityPayments : [];
+   var _apTotal = _ap.reduce(function(t, g){ return t + g.total; }, 0), _apCount = _ap.reduce(function(t, g){ return t + g.count; }, 0); %>
+<% if (_isOwner) { %>
+  <details class="card no-print collapse-card authority-card">
+    <summary>תשלומים לרשויות <span class="muted">— <%= _apCount %> חיובים · <%= formatIls(_apTotal) %> · 12 החודשים האחרונים</span></summary>
+    <% if (!_ap.length) { %>
+      <p class="muted" style="margin:.6rem 0">לא נמצאו בדף הבנק חיובים לרשויות (ביטוח לאומי, מס הכנסה, מע"מ, רשות המסים, ארנונה) ב-12 החודשים האחרונים.</p>
+    <% } else { %>
+      <p class="muted" style="margin:.6rem 0">מזוהה מתיאור החיוב בדף הבנק: ביטוח לאומי · מס הכנסה · מע"מ · רשות המסים · ארנונה / עירייה.</p>
+      <div class="table-scroll">
+        <table class="sortable no-export">
+          <thead><tr><th>חודש</th><th>רשות</th><th>חשבון</th><th class="right">חיובים</th><th class="right">סכום</th><th data-nosort data-nofilter>פירוט</th></tr></thead>
+          <tbody>
+            <% _ap.forEach(function(g){ %>
+              <tr>
+                <td class="mono"><%= g.month.slice(5, 7) + '/' + g.month.slice(2, 4) %></td>
+                <td><%= g.authority %></td>
+                <td><%= g.account %></td>
+                <td class="right mono"><%= g.count %></td>
+                <td class="right mono"><strong><%= formatIls(g.total) %></strong></td>
+                <td>
+                  <details class="authority-items">
+                    <summary>פירוט</summary>
+                    <% g.items.forEach(function(it){ %>
+                      <div class="muted" style="font-size:12px"><%= formatDate(it.txn_date) %> · <%= formatIls(-Number(it.amount)) %><%= it.raw_reference ? ' · ' + it.raw_reference : '' %> · <%= it.description %></div>
+                    <% }); %>
+                  </details>
+                </td>
+              </tr>
+            <% }); %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  </details>
+<% } %>
+
 <form method="post" action="/suppliers/bulk">
   <div class="card no-print" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap">
     <strong>פעולה על הנבחרים:</strong>

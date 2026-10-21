@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authorityPayments } from '../services/authorityPayments.js';
 import { parseProfile, readiness, hintsFor, setHints } from '../services/supplierProfile.js';
 import {
   listSuppliers,
@@ -58,12 +59,8 @@ function noticeFrom(q) {
     if (on + off === 1) return on ? 'הספק סומן: עסקאות בשיעור אפס.' : 'הסימון "עסקאות בשיעור אפס" הוסר מהספק.';
     return `${on} ספקים מסומנים כ"עסקאות בשיעור אפס"${off ? ` · ${off} ללא סימון` : ''}.`;
   }
-  if (q.linked !== undefined) {
-    const n = Number(q.linked) || 0;
-    return n
-      ? `${n} ספקים שויכו לחנויות. ספק שלא סומן לו כלום נשאר משותף לכל החנויות.`
-      : 'לא נבחרה אף חנות — שום שיוך לא השתנה.';
-  }
+  // "שייך לפי החשבוניות" — בלי הודעה (בעלים 21/10: "מחק"); השיוך נראה ישר בעמודת "חנויות".
+  if (q.linked !== undefined) return null;
   return null;
 }
 
@@ -74,6 +71,8 @@ async function renderList(req, res, extra = {}) {
     suppliers: await listSuppliers(null, undefined, { scope: req.scope }),
     zeroCandidates: await zeroRatedCandidates(req.scope),
     storeSuggestions: await supplierStoreSuggestions(assignmentScope(req)),
+    // "תשלומים לרשויות" (בעלים 21/10) — חיובי בנק לרשויות, לבעלים בלבד (services/authorityPayments.js).
+    authorityPayments: req.user?.role === 'owner' ? await authorityPayments(req.scope) : [],
     filter: '',
     error: null,
     notice: null,
@@ -89,6 +88,8 @@ router.get('/', async (req, res, next) => {
       suppliers: await listSuppliers(req.query.status || null, undefined, { scope: req.scope }),
       zeroCandidates: await zeroRatedCandidates(req.scope),
       storeSuggestions: await supplierStoreSuggestions(assignmentScope(req)),
+      // "תשלומים לרשויות" (בעלים 21/10) — חיובי בנק לרשויות, לבעלים בלבד (services/authorityPayments.js).
+      authorityPayments: req.user?.role === 'owner' ? await authorityPayments(req.scope) : [],
       filter: req.query.status || '',
       error: null,
       // The notice travels through the redirect as a count (POST/Redirect/GET), so a reload of the
