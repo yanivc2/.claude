@@ -25,9 +25,12 @@
       "Skill(schedule:*)",
       "mcp__playwright__browser_snapshot",
       "mcp__claude_ai_Microsoft_Learn__microsoft_docs_search",
-      "Edit(C:\\Users\\yaniv\\.claude\\*)",
+      "Edit(~/.claude/**)",
       "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__list_triggers",
-      "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__update_trigger"
+      "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__update_trigger",
+      "Bash(gh auth status*)",
+      "Bash(node --version)",
+      "Bash(npm --version)"
     ],
     "deny": [
       "Read(.env)",
@@ -86,7 +89,13 @@
       "Read(**/*.mp4)",
       "Read(~/AppData/Local/Google/Chrome/User Data/**)",
       "Read(~/AppData/Local/Microsoft/Edge/User Data/**)",
-      "Read(~/AppData/Roaming/Mozilla/Firefox/**)"
+      "Read(~/AppData/Roaming/Mozilla/Firefox/**)",
+      "Read(~/Library/Keychains/**)",
+      "Read(~/Library/Cookies/**)",
+      "Read(~/Library/Safari/**)",
+      "Read(~/Library/Application Support/Google/Chrome/**)",
+      "Read(~/Library/Application Support/Microsoft Edge/**)",
+      "Read(~/Library/Application Support/Firefox/**)"
     ],
     "ask": [
       "Read(//c/micha-agent/**/*.vtt)",
