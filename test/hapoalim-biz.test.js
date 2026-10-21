@@ -163,6 +163,20 @@ test('stage 2 helpers: field names of the details response and the bare path —
   assert.equal(pathOnly('/a b'), null);
 });
 
+// 21/10: הסנכרון הראשון עם שלב 2 לא דיווח דבר — pfmDetails לא היה '/…'. עכשיו גם URL מלא ונתיב בלי '/',
+// ואם אין קישור בכלל — הדיווח אומר איך השדה נראה (סוג בלבד, בלי ערכים) במקום לשתוק.
+test('stage 2: the details link is read in any shape, and "no link" is reported with the shape — no values', async () => {
+  const { detailsLink, detailsLinkShape } = await import('../src/scraper/hapoalimBiz.js');
+  assert.equal(detailsLink('/ServerServices/x?a=1'), '/ServerServices/x?a=1');
+  assert.equal(detailsLink('https://biz2.bankhapoalim.co.il/ServerServices/x?a=1'), '/ServerServices/x?a=1');
+  assert.equal(detailsLink('ServerServices/x'), '/ServerServices/x');
+  assert.equal(detailsLink(''), null);
+  assert.equal(detailsLink(12345), null);
+  const shape = detailsLinkShape([{ pfmDetails: null, internalLinkCode: 9 }, { pfmDetails: '' }, { pfmDetails: { a: 'x' } }]);
+  assert.equal(shape, 'no link pfmDetails none 2 num 0 obj 1 other 0 internalLinkCode number');
+  assert.ok(shape.length <= 80);
+});
+
 test('stage 2 reaches the owner once — even after stage 1 was already reported; a failed call is reported too', async () => {
   const { freshDb, owner } = await import('./helpers.js');
   const { reportCheckProbe } = await import('../src/services/bankSyncJobs.js');

@@ -561,7 +561,7 @@ export async function reportCheckProbe(probe, x = getExecutor()) {
       await setSetting('bank_check_probe_details', JSON.stringify({ at: nowTs(), path, keys: dkeys, error }), x);
       const hint = dkeys.filter(looksLikeImage);
       await notify(`🔎 <b>בדיקה (שלב 2): פרטי שורת צ׳ק</b>\nהקישור: ${path || '(לא נתיב פשוט)'}`
-        + (error ? `\nהקריאה לא הצליחה: ${error}.` : `\nהבנק מחזיר בפרטים את השדות: ${dkeys.join(', ')}.`)
+        + (error ? `\n${/^no link/.test(error) ? 'בשורות הצ׳ק לא נמצא קישור לפרטים' : 'הקריאה לא הצליחה'}: ${error}.` : `\nהבנק מחזיר בפרטים את השדות: ${dkeys.join(', ')}.`)
         + (hint.length ? `\nשדות שאולי מובילים לצילום: ${hint.join(', ')}.` : '')
         + '\nלהעביר את ההודעה הזו ל-Claude.', { kind: 'bank', link: '/reconciliation' });
       sent = true;

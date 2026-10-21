@@ -105,6 +105,35 @@ export function responseKeys(body) {
   return [...keys].filter((k) => /^[A-Za-z0-9_.[\]]{1,80}$/.test(k)).sort();
 }
 
+/**
+ * הקישור ל"פרטים נוספים" של שורה (`pfmDetails`) → נתיב יחסי שמתחיל ב-'/' (עם ה-query שלו), או null.
+ * מתקבל '/…', URL מלא (נלקח הנתיב שלו), ונתיב יחסי בלי '/' בתחילתו.
+ */
+export function detailsLink(v) {
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s) return null;
+  if (s.startsWith('/')) return s;
+  if (/^https?:\/\//i.test(s)) {
+    try { const u = new URL(s); return u.pathname + u.search; } catch { return null; }
+  }
+  return /^[A-Za-z]/.test(s) ? `/${s}` : null;
+}
+
+/** כשאין קישור באף שורת צ׳ק — איך נראה השדה (סוג וצורה בלבד, בלי ערכים), כדי שהדיווח יגיד למה. */
+export function detailsLinkShape(rows) {
+  const n = { none: 0, num: 0, obj: 0, other: 0 };
+  for (const t of rows || []) {
+    const v = t?.pfmDetails;
+    if (v == null || v === '') n.none += 1;
+    else if (typeof v === 'number') n.num += 1;
+    else if (typeof v === 'object') n.obj += 1;
+    else n.other += 1;
+  }
+  const ilc = (rows || []).map((t) => t?.internalLinkCode).find((v) => v != null && v !== '');
+  return `no link pfmDetails none ${n.none} num ${n.num} obj ${n.obj} other ${n.other} internalLinkCode ${ilc == null ? 'none' : typeof ilc}`.slice(0, 80);
+}
+
 /** קישור יחסי של הבנק → הנתיב בלבד (בלי query — בו מספרי חשבון ותנועה), או null אם אינו נתיב פשוט. */
 export function pathOnly(link) {
   const p = String(link ?? '').split('?')[0];
@@ -371,18 +400,24 @@ export async function scrapeHapoalimBiz({
       probe.checkRows += seen.checkRows;
       seen.keys.forEach((k) => probe.keys.add(k));
       // שלב 2: "פרטים נוספים" של שורת צ׳ק אחת (סופית) בכל הסנכרון — רק שמות שדות. כשל כאן לא נוגע בסנכרון.
-      const one = probe.details ? null : (body?.transactions || []).find((t) => CHECK_ROW_RE.test(String(t?.activityDescription ?? ''))
-        && Number(t?.serialNumber) !== 0 && typeof t?.pfmDetails === 'string' && t.pfmDetails.startsWith('/'));
+      // 21/10: הסנכרון הראשון עם שלב 2 לא דיווח כלום — הקישור לא היה בצורה שחיפשנו ('/…'). עכשיו מתקבל גם
+      // URL מלא וגם נתיב יחסי בלי '/', ואם אין קישור — מדווחים את הצורה שנמצאה (detailsLinkShape), לא שותקים.
+      const checks = (body?.transactions || []).filter((t) => CHECK_ROW_RE.test(String(t?.activityDescription ?? '')) && Number(t?.serialNumber) !== 0);
+      const one = probe.details ? null : checks.find((t) => detailsLink(t?.pfmDetails));
       if (one) {
-        probe.details = { path: pathOnly(one.pfmDetails), keys: [], error: null };
+        const link = detailsLink(one.pfmDetails);
+        probe.details = { path: pathOnly(link), keys: [], error: null };
         try {
-          const sep = one.pfmDetails.includes('?') ? '&' : '?';
-          const d = await apiGet(page, `${base}${one.pfmDetails}${sep}accountId=${encodeURIComponent(accountId)}&lang=he`);
+          const sep = link.includes('?') ? '&' : '?';
+          const d = await apiGet(page, `${base}${link}${sep}accountId=${encodeURIComponent(accountId)}&lang=he`);
           probe.details.keys = responseKeys(d);
           if (d == null) probe.details.error = 'empty';
+          else if (!probe.details.keys.length) probe.details.error = `no keys ${Array.isArray(d) ? 'array' : typeof d}`;
         } catch (e) {
           probe.details.error = String(e?.message || 'failed').replace(/[^A-Za-z0-9 /_.-]/g, '').slice(0, 80) || 'failed';
         }
+      } else if (!probe.details && checks.length) {
+        probe.noLink = detailsLinkShape(checks);
       }
       const txns = convertBizTransactions(body?.transactions);
       out.push({
@@ -391,6 +426,7 @@ export async function scrapeHapoalimBiz({
       });
     }
     // שמות שדות בלבד (checkRowKeys) — לבדיקת "צילום צ׳ק"; הסוכן שולח אותם עם התנועות.
+    if (!probe.details && probe.noLink) probe.details = { path: null, keys: [], error: probe.noLink };
     if (typeof onProbe === 'function') onProbe({ checkRows: probe.checkRows, keys: [...probe.keys].sort(), details: probe.details });
     return out;
   } finally {
