@@ -152,12 +152,19 @@ test('tail cleanup refuses while amount-only matches remain (they must be fixed 
   await rematchByNumber(A.id, o, db);
 });
 
-test('UI: "פעולות" in the top bar for the owner only; auto-match moves under the "התאמה" column; the cleanup preview renders', async () => {
+test('UI: "פעולות" in the top bar (owner actions for the owner only); auto-match moves under the "התאמה" column; the cleanup preview renders', async () => {
   const page = async (u, path = `/reconciliation?account=${A.id}`) => (await fetch(base + path, { headers: { cookie: `session=${createSession(u.id)}; ap_store=1` } })).text();
   const ownerHtml = await page(o);
   assert.match(ownerHtml, /<details class="menu open-in store-banner-quick top-recon-menu no-print">/);
   assert.match(ownerHtml, /href="\/reconciliation\/tail-cleanup\?account=\d+">🧹 מחיקת תנועות עד 30\/09\/26…/);
-  assert.doesNotMatch(await page(sec), /top-recon-menu/, 'the secretary has no owner actions');
+  // התפריט הוא גם הבית של "כלים" (בעלים 21/10) — מזכירה עם החנות רואה אותו, אבל בלי פעולות הבעלים.
+  const st = await db.one('SELECT company_id FROM stores WHERE id = 1', []);
+  await db.run('INSERT INTO user_companies (user_id, company_id) VALUES (?, ?)', [sec.id, st.company_id]).catch(() => {});
+  await db.run('INSERT INTO user_stores (user_id, store_id) VALUES (?, ?)', [sec.id, 1]).catch(() => {});
+  const secHtml = await page(sec);
+  assert.match(secHtml, /top-recon-menu/);
+  assert.match(secHtml, /🔍 בדיקת שיוך לחשבון/);
+  assert.doesNotMatch(secHtml, /\/reconciliation\/rematch|\/reconciliation\/tail-cleanup|התאמות לפי סכום בלבד/, 'the secretary has no owner actions');
   assert.match(ownerHtml, /<th data-nosort data-nofilter data-filter-slot="autoMatchForm">התאמה<\/th>/);
   assert.match(ownerHtml, /<form method="post" action="\/reconciliation\/auto" id="autoMatchForm" class="auto-match-form"/);
   const footer = readFileSync(new URL('../src/views/partials/footer.ejs', import.meta.url), 'utf8');

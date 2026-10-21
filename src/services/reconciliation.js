@@ -24,13 +24,15 @@ export async function findCandidates(txn, x = getExecutor()) {
   const lo = addDaysIso(txn.txn_date, -w);
   const hi = addDaysIso(txn.txn_date, w);
 
-  const candidates = await x.many(
+  // צ׳ק שנדחה לתנועה הזו ("✕ דחה", בעלים 21/10) אינו מועמד שלה — לא בהצעה ולא בהתאמה האוטומטית.
+  const rejected = await rejectedPaymentIds(txn.id, x);
+  const candidates = (await x.many(
     `SELECT * FROM payments
       WHERE bank_account_id = ? AND status = 'issued' AND amount = ?
         AND payment_date BETWEEN ? AND ?
       ORDER BY payment_date`,
     [txn.bank_account_id, matchAmount, lo, hi],
-  );
+  )).filter((p) => !rejected.has(Number(p.id)));
 
   const ref = (txn.raw_reference ?? '').trim();
   const haystack = `${txn.description ?? ''} ${txn.raw_reference ?? ''}`;
@@ -52,7 +54,7 @@ export async function findCandidates(txn, x = getExecutor()) {
         ORDER BY payment_date`,
       [txn.bank_account_id, matchAmount, addDaysIso(txn.txn_date, -FAR_WINDOW_DAYS), addDaysIso(txn.txn_date, FAR_WINDOW_DAYS)],
     );
-    deterministic = far.find((p) => ids(p).some((v) => numKey(v) === refK)) || null;
+    deterministic = far.find((p) => !rejected.has(Number(p.id)) && ids(p).some((v) => numKey(v) === refK)) || null;
     if (deterministic && !candidates.some((p) => p.id === deterministic.id)) candidates.push(deterministic);
   }
 
@@ -61,6 +63,78 @@ export async function findCandidates(txn, x = getExecutor()) {
 
 /** חלון לצ׳ק שמספרו וסכומו זהים לחיוב: חצי שנה תוקף + מרווח. */
 const FAR_WINDOW_DAYS = 200;
+
+/**
+ * "✕ דחה" (בעלים 21/10): צ׳ק שהוצע לחיוב לפי סכום זהה, נבדק ונמצא "לא שלו" — טבלת bank_match_rejections.
+ * 🔴 ה-catch כאן מגן על מסד שעוד לא עודכן; `rejectionsReady` אומר זאת בקול בדף (CLAUDE.md · Gotchas).
+ */
+export async function rejectionsReady(x = getExecutor()) {
+  try {
+    await x.one('SELECT id FROM bank_match_rejections LIMIT 1', []);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function rejectedPaymentIds(txnId, x = getExecutor()) {
+  if (!txnId) return new Set();
+  try {
+    return new Set((await x.many('SELECT payment_id FROM bank_match_rejections WHERE bank_transaction_id = ?', [txnId])).map((r) => Number(r.payment_id)));
+  } catch {
+    return new Set();
+  }
+}
+
+/** כמה הצעות נדחו בחשבון — ל"↩ החזר הצעות שנדחו". */
+export async function rejectionCount(bankAccountId, x = getExecutor()) {
+  try {
+    const r = await x.one(
+      `SELECT COUNT(*) AS n FROM bank_match_rejections r JOIN bank_transactions t ON t.id = r.bank_transaction_id
+        WHERE t.bank_account_id = ?`,
+      [bankAccountId],
+    );
+    return Number(r?.n || 0);
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * דוחה זוגות {txnId, paymentId}: הצ׳ק לא יוצע שוב לתנועה. רק תנועה פנויה, וצ׳ק פתוח **מאותו חשבון**
+ * (חוק ברזל — אין זליגה בין חשבונות). זוג שכבר נדחה לא נספר פעמיים.
+ * @returns {Promise<number>} כמה דחיות נרשמו
+ */
+export async function rejectSuggestions(pairs, actor, x = getExecutor()) {
+  let n = 0;
+  for (const { txnId, paymentId } of pairs) {
+    const txn = await getTransaction(txnId, x);
+    if (txn.matched_payment_id) throw new RuleError('R7', 'התנועה כבר הותאמה — אין הצעה לדחות');
+    const payment = await x.one('SELECT id, bank_account_id FROM payments WHERE id = ?', [paymentId]);
+    if (!payment) throw new NotFoundError(`תשלום ${paymentId} לא נמצא`);
+    if (payment.bank_account_id !== txn.bank_account_id) throw new RuleError('R7', 'התנועה והצ׳ק שייכים לחשבונות בנק שונים');
+    const exists = await x.one('SELECT id FROM bank_match_rejections WHERE bank_transaction_id = ? AND payment_id = ?', [txnId, paymentId]);
+    if (exists) continue;
+    await x.run('INSERT INTO bank_match_rejections (bank_transaction_id, payment_id, rejected_by) VALUES (?, ?, ?)', [txnId, paymentId, actor?.id ?? null]);
+    await logAction({ userId: actor?.id ?? null, action: 'reconcile.reject', entityType: 'payment', entityId: paymentId, details: { txnId } }, x);
+    n += 1;
+  }
+  return n;
+}
+
+/** "↩ החזר הצעות שנדחו": מוחק את כל הדחיות של החשבון, וההצעות חוזרות. */
+export async function restoreRejections(bankAccountId, actor, x = getExecutor()) {
+  const rows = await x.many(
+    `SELECT r.id FROM bank_match_rejections r JOIN bank_transactions t ON t.id = r.bank_transaction_id
+      WHERE t.bank_account_id = ?`,
+    [bankAccountId],
+  );
+  for (const r of rows) await x.run('DELETE FROM bank_match_rejections WHERE id = ?', [r.id]);
+  if (rows.length) {
+    await logAction({ userId: actor?.id ?? null, action: 'reconcile.reject_restore', entityType: 'bank_account', entityId: bankAccountId, details: { restored: rows.length } }, x);
+  }
+  return rows.length;
+}
 
 /**
  * Unmatched bank debits on an account that correspond to a VOIDED payment — same amount AND the

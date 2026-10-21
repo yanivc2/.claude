@@ -34,6 +34,7 @@ export function migrate(db) {
   migrateEmployeeAdvances(db); // after employees/stores/salary_payments exist
   migrateTrackedInvoices(db);
   migrateBankImports(db);
+  migrateBankMatchRejections(db);
   migrateSettledCashExpenses(db);
   migrateCashExpenseInvoiceIds(db);
   migrateSalaryCashMatch(db);
@@ -737,6 +738,22 @@ function migrateBankImports(db) {
   const cols = db.prepare('PRAGMA table_info(bank_transactions)').all().map((c) => c.name);
   if (!cols.includes('import_id')) db.exec('ALTER TABLE bank_transactions ADD COLUMN import_id INTEGER REFERENCES bank_imports(id);');
   db.exec('CREATE INDEX IF NOT EXISTS ix_bank_txn_import ON bank_transactions(import_id);');
+}
+
+// bank_match_rejections — "✕ דחה" בהתאמת בנק: צ׳ק שנבדק ונמצא "לא שלו" לא מוצע שוב לאותה תנועה (ראה schema.sql).
+function migrateBankMatchRejections(db) {
+  const has = (t) => db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?").get(t);
+  if (!has('bank_transactions') || !has('payments')) return;
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bank_match_rejections (
+      id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+      bank_transaction_id INTEGER NOT NULL REFERENCES bank_transactions(id) ON DELETE CASCADE,
+      payment_id          INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+      rejected_by         INTEGER REFERENCES users(id),
+      rejected_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+      UNIQUE (bank_transaction_id, payment_id)
+    );
+  `);
 }
 
 // "טופל" ידני על הוצאת מזומן — פריטה שנאספה חזרה לקופה לא תקבל חשבונית לעולם, ולכן היא זקוקה

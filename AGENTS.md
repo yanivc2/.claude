@@ -46,7 +46,8 @@ framework. SQLite locally/tests, Postgres (Neon) in production. **Live:** https:
 14. **🔴 No leakage between bank accounts (owner's iron rule, 21/10).** A file/manual bank row that the bank already
     lists in ANOTHER account (same 5+-digit reference, amount, ±3 days), or a debit that is another account's check,
     is refused (`services/bankTransactions.js#foreignRowsFor`; a mostly-foreign file is refused whole). A check is
-    auto-matched only when number AND amount agree; amount alone is a suggestion for the owner to approve. The same
+    auto-matched only when number AND amount agree; amount alone is a suggestion for the owner to approve or
+    reject ("✕ דחה" → `bank_match_rejections`; a rejected check is never offered to that line again). The same
     check number + amount in two accounts raises a push + dashboard alert (`services/checkTwins.js`).
 
 ## Keeping the docs true

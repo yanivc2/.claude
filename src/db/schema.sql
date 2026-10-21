@@ -354,6 +354,18 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
 CREATE UNIQUE INDEX IF NOT EXISTS ux_bank_txn_external
   ON bank_transactions(bank_account_id, external_id) WHERE external_id IS NOT NULL;
 
+-- bank_match_rejections — "✕ דחה" בהתאמת בנק (בעלים 21/10): צ׳ק שהוצע לחיוב לפי סכום זהה, נבדק ונמצא
+-- "לא שלו". services/reconciliation.js#findCandidates לא יציע אותו שוב לאותה תנועה (וגם ההתאמה האוטומטית
+-- לא). מחיקת התנועה או הצ׳ק מוחקת את הדחייה; "↩ החזר הצעות שנדחו" מוחק את כל הדחיות של החשבון.
+CREATE TABLE IF NOT EXISTS bank_match_rejections (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  bank_transaction_id INTEGER NOT NULL REFERENCES bank_transactions(id) ON DELETE CASCADE,
+  payment_id          INTEGER NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  rejected_by         INTEGER REFERENCES users(id),
+  rejected_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  UNIQUE (bank_transaction_id, payment_id)
+);
+
 -- invoice_ocr — stage 3. OCR result for an invoice image: raw recognized text and the
 -- fields extracted from it (JSON). Kept in a separate table so existing databases need no
 -- migration (CREATE TABLE IF NOT EXISTS). OCR is decision support only — never overwrites

@@ -147,7 +147,7 @@ happen only at merge. So:
   צ׳קים של מידנייט לפי סכום). קובץ/הזנה ידנית: שורה שהבנק כבר מציג בחשבון **אחר** (אסמכתא 5+ ספרות, סכום, ±3 ימים)
   או חיוב שהוא צ׳ק של חשבון אחר — לא נקלטת; קובץ שרובו זר נדחה כולו (`bankTransactions.js#foreignRowsFor`). התאמה
   אוטומטית: **צ׳ק מותאם לבד רק כשמספר + סכום תואמים** (גם מחוץ לחלון 60 הימים); סכום בלבד = הצעה "להכרעה" עם הערה
-  (סכום זהה · מספר דומה · אותו תאריך — `checkHint`), אף פעם לא התאמה. **אותו מספר צ׳ק + סכום ביותר מחשבון אחד** →
+  (סכום זהה · מספר דומה · אותו תאריך — `checkHint`), אף פעם לא התאמה; "✕ דחה" רושם אותה ב-`bank_match_rejections` והיא לא תוצע שוב. **אותו מספר צ׳ק + סכום ביותר מחשבון אחד** →
   פוש + שורה בכרטיס "🔔 התראות" בלוח הבקרה (`services/checkTwins.js`, פעם אחת לכל ממצא). INDEX.md · התאמת בנק.
 - **Bank channel 2 — scraping:** `israeli-bank-scrapers` (optional dep, lazy) via `src/scraper/*` +
   `lib/scraperMap.js`; run OUTSIDE the app (`scripts/scrape-push.mjs`, by hand on any machine with a browser —

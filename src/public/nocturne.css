@@ -1417,8 +1417,6 @@ table.only-pickable tbody tr.not-pickable { display: none; }
 .recon-head .bs-action { display: inline-flex; gap: var(--space-2); align-items: center; }
 .recon-head .bs-body:has(> *) { margin-top: var(--space-3); }
 .recon-head .bs-note { margin: 0 0 .4rem; font-size: 12px; }
-.recon-head .recon-tools { justify-content: center; align-items: center; gap: var(--space-2); margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--color-line); font-size: 12px; }
-.recon-head .recon-tools .btn, .recon-head .recon-tools button { font-size: 12px; padding: 4px 10px; min-height: 0; line-height: 1.4; border-color: var(--color-line); }
 
 /* ── דף החשבוניות בסלולרי = כרטיסים (בעלים 20/10, אחרי הדמיה: "תבנה את ב׳, בלי סינון בטלפון") ───────────
    views/invoices/index.ejs. במחשב הטבלה נשארת טבלה; עד 760px כל שורה היא כרטיס: ספק וסכום למעלה, מספר·תאריך
@@ -1499,5 +1497,11 @@ main.page .oc-bar-card .oc-cut { margin-top: .8rem; }
 /* בעלים 21/10: "התאמה לפי סכום" של צ׳קים בחוץ — שורה מתחת למשפט הפתיחה, בלי תיבה. נמצא = בצבע אזהרה. */
 main.page .oc-bank-hint { display: flex; align-items: center; justify-content: center; gap: .6rem; flex-wrap: wrap; margin: -.4rem 0 1rem; }
 main.page .oc-bank-hint.is-found { color: var(--color-warn); }
+
+/* ✕ דחה בהתאמת בנק (בעלים 21/10) — שורה מתחת ל"מוסתרים חיובים עד", ותיבת "לא שלו" ליד תווית ההכרעה. */
+main.page .reject-bar { display: flex; align-items: center; justify-content: center; gap: .6rem; flex-wrap: wrap; margin: 0 0 .6rem; }
+main.page .reject-bar .reject-hint { font-size: 13px; }
+main.page .reject-pick { display: inline-flex; align-items: center; gap: .25rem; margin: 0 .4rem; font-size: 13px; white-space: nowrap; cursor: pointer; }
+main.page .reject-pick input { margin: 0; width: auto; }
 main.page .oc-bank-hint form { margin: 0; }
 

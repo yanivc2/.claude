@@ -1,8 +1,9 @@
 <%- include('../partials/header') %>
 <h1>התאמת בנק</h1>
+<%# בעלים 21/10: צ׳ק נסגר לבד רק כשמספר + סכום תואמים; סכום זהה בלבד = הצעה להכרעה (services/reconciliation.js#classify). %>
 <p class="muted">
-  התאמת תנועות חובה מהבנק לצ׳קים פתוחים (R7): לפי סכום + חלון תאריך + כיוון חובה.
-  התאמה חד-משמעית מסומנת אוטומטית; שני צ׳קים באותו סכום+חלון מסומנים להכרעתך.
+  התאמת תנועות חובה מהבנק לצ׳קים פתוחים: צ׳ק מותאם אוטומטית רק כשמספר הצ׳ק והסכום תואמים לשורת הבנק.
+  סכום זהה בלי מספר תואם מוצע להכרעתך — מאשרים ב"התאם נבחר" או דוחים ב"✕ דחה".
 </p>
 
 <% if (typeof notice !== 'undefined' && notice) { %>
@@ -10,8 +11,8 @@
 <% } %>
 
 <%# הכרטיס העליון (בעלים 18/10, "סדר יותר נכון ויותר ברור"): שורת החשבון; שורת הפעולות היומיות —
-    🔄 סנכרן עכשיו · 📄 ייבוא CSV/Excel · ➕ תנועה ידנית; מתחתיה מצב הסנכרון וקוד ה-SMS; ושורת "כלים"
-    קטנה — ניקוי לפי קובץ · בדיקת שיוך. בלי טקסט הסבר. מצב מחשב המשרד, המפתח ו"קליטת דוח פדיון"
+    🔄 סנכרן עכשיו · 📄 ייבוא CSV/Excel · ➕ תנועה ידנית; מתחתיה מצב הסנכרון וקוד ה-SMS. שורת "כלים" (ניקוי לפי קובץ · בדיקת
+    שיוך) עברה לתפריט "פעולות" שבשורת הכותרת (בעלים 21/10, partials/_reconMenu.ejs). בלי טקסט הסבר. מצב מחשב המשרד, המפתח ו"קליטת דוח פדיון"
     עברו להגדרות ← "סנכרון מהבנק". id="bank-sync" + no-collapse: הסקריפט של _bankSync מרענן בתוכו,
     ושדה הקוד לא יוסתר באקורדיון. %>
 <% var _bs = (typeof bankSync !== 'undefined' && bankSync) ? bankSync : null;
@@ -53,13 +54,6 @@
     <% } %>
   <% } %>
 
-  <% if (accountId) { %>
-    <div class="actions recon-tools">
-      <span class="muted">כלים:</span>
-      <% if (_canImport) { %><button type="button" class="btn-secondary btn-sm" onclick="document.getElementById('purgeDlg').showModal()">🧹 ניקוי לפי קובץ</button><% } %>
-      <a class="btn btn-secondary btn-sm" href="/reconciliation/integrity?account=<%= accountId %>">🔍 בדיקת שיוך לחשבון</a>
-    </div>
-  <% } %>
 </div>
 
 <%# אסמכתא שנשמרה בכתיב מדעי אינה רק מכוערת: היא לא שווה למספר הצ׳ק ולא למספר שקית ההפקדה,
@@ -278,6 +272,34 @@
       <% } %>
     <% } %>
   </div>
+  <%# ✕ דחה (בעלים 21/10: "שים פה" — מתחת לשורת "מוסתרים חיובים עד"). מסמנים "לא שלו" בשורות להכרעה ולוחצים
+      פעם אחת; הצ׳ק לא יוצע שוב לאותה תנועה (services/reconciliation.js#rejectSuggestions). התיבות שבטבלה
+      שייכות לטופס הזה דרך form="rejectForm", כי הן יושבות בתוך טופס "התאם נבחר". %>
+  <% var _rj = (typeof rejected !== 'undefined' && rejected) ? rejected : null;
+     var _onHold = classified.filter(function(c){ return c.state === 'ambiguous' || c.state === 'mismatch' || c.state === 'suggest'; }).length;
+     var _canReject = !!(_rj && _rj.ready && _onHold); %>
+  <% if (_rj && (_onHold || _rj.count)) { %>
+    <div class="reject-bar no-print">
+      <% if (!_rj.ready) { %>
+        <span class="muted">דחיית הצעות ("✕ דחה") תיפתח אחרי לחיצה על "עדכן מסד נתונים" בהגדרות.</span>
+      <% } else { %>
+        <% if (_onHold) { %>
+          <form method="post" action="/reconciliation/reject" id="rejectForm" data-busy="דוחה…" style="margin:0">
+            <input type="hidden" name="account_id" value="<%= accountId %>" />
+            <button type="submit" class="small danger" id="rejectBtn" disabled>✕ דחה הצעות שסומנו (0)</button>
+          </form>
+          <span class="muted reject-hint">סמן "לא שלו" בשורה שהצ׳ק המוצע בה אינו שלה — הוא לא יוצע לה שוב</span>
+        <% } %>
+        <% if (_rj.count) { %>
+          <form method="post" action="/reconciliation/reject/restore" style="margin:0"
+                onsubmit="return confirm('להחזיר את <%= _rj.count %> ההצעות שנדחו בחשבון הזה?')">
+            <input type="hidden" name="account_id" value="<%= accountId %>" />
+            <button type="submit" class="btn-secondary small">↩ החזר <%= _rj.count %> הצעות שנדחו</button>
+          </form>
+        <% } %>
+      <% } %>
+    </div>
+  <% } %>
   <%# מיון A-Z + שורת סינון לכל עמודה (המשפרים הגלובליים ב-partials/footer.ejs). עמודת ההתאמה
       היא טפסים, לא טקסט — אין מה למיין או לסנן לפיה. %>
   <%# .tbl-center — כל העמודות ממורכזות (בקשת הבעלים). האסמכתא היא קישור ל"בחינת תנועה". %>
@@ -314,7 +336,11 @@
                 <input type="hidden" name="txn_id" value="<%= c.txn.id %>" />
                 <%# mismatch = צ׳ק יחיד באותו סכום, אבל מספרו שונה מהאסמכתה בבנק — לא מתאימים אותו לבד. %>
                 <span class="badge b-on_hold"><%= c.state === 'mismatch' ? 'מספר שונה — להכרעה' : c.state === 'suggest' ? 'סכום זהה — להכרעה' : 'להכרעה' %></span>
-                <select name="payment_id" style="width:auto">
+                <% if (_canReject) { %>
+                  <%# הערך = התנועה + הצ׳ק שנבחר כרגע ברשימה (הסקריפט שמתחת לטבלה מעדכן אותו כשהבחירה משתנה). %>
+                  <label class="reject-pick"><input type="checkbox" name="pair" form="rejectForm" value="<%= c.txn.id %>:<%= c.candidates[0].id %>" data-reject-pick /> לא שלו</label>
+                <% } %>
+                <select name="payment_id" style="width:auto"<%- _canReject ? ' data-reject-select' : '' %>>
                   <% c.candidates.forEach(function(p){ %>
                     <option value="<%= p.id %>"><%= paymentIdent(p) %> · <%= p.payment_date %><%= p.hint ? ' — ' + p.hint : '' %></option>
                   <% }); %>
@@ -342,6 +368,27 @@
   </table>
   </div>
 </div>
+<% if (_canReject) { %>
+<script>
+  // "✕ דחה הצעות שסומנו": מונה + הפעלה, והערך של כל תיבה עוקב אחרי הצ׳ק שנבחר ברשימה של אותה שורה.
+  (function () {
+    var btn = document.getElementById('rejectBtn');
+    var picks = function () { return document.querySelectorAll('[data-reject-pick]'); };
+    function count() {
+      var n = 0; picks().forEach(function (c) { if (c.checked) n += 1; });
+      btn.textContent = '✕ דחה הצעות שסומנו (' + n + ')'; btn.disabled = n === 0;
+    }
+    picks().forEach(function (c) { c.addEventListener('change', count); });
+    document.querySelectorAll('[data-reject-select]').forEach(function (sel) {
+      sel.addEventListener('change', function () {
+        var pick = sel.closest('form').querySelector('[data-reject-pick]');
+        if (pick) pick.value = pick.value.split(':')[0] + ':' + sel.value;
+      });
+    });
+    count();
+  })();
+</script>
+<% } %>
 
 <%# 🔴 דיאלוג אחד לכל השורות. אחד-לכל-שורה היה משכפל את רשימת החשבוניות פי מספר התנועות —
     עשרות עותקים של אותו HTML בדף אחד. פרטי התנועה מוזרקים ב-JS מה-data-* של הכפתור שנלחץ. %>

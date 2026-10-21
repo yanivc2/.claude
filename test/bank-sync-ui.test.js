@@ -88,14 +88,15 @@ test('הגדרות ← "סנכרון מהבנק": מצב מחשב המשרד ו�
 
   const page = await (await fetch(`${base}/reconciliation`, { headers: { cookie: `${cookieFor(o.id)}; ap_store=3` } })).text();
   const from = page.indexOf('id="bank-sync"');
-  const card = page.slice(from, page.indexOf('</div>', page.indexOf('recon-tools', from)) + 6).replace(/<script>[\s\S]*?<\/script>/g, '');
+  const card = page.slice(from, page.indexOf('<div class="card', from + 1)).replace(/<script>[\s\S]*?<\/script>/g, '');
   assert.doesNotMatch(card, /המפתח שלך במחשב המשרד|מחשב המשרד מחובר|מחשב המשרד עוד לא התחבר/, 'agent status + key moved to settings');
   assert.doesNotMatch(card, /קובץ פעולות בחשבון מהבנק \(CSV או Excel\)/, 'no explanation text');
   const at = (t) => card.indexOf(t);
   assert.ok(at('class="recon-account"') > 0 && at('class="recon-account"') < at('🔄 סנכרן עכשיו'), 'the account first');
   assert.ok(at('🔄 סנכרן עכשיו') < at('📄 ייבוא CSV / Excel') && at('📄 ייבוא CSV / Excel') < at('➕ הוספת תנועה ידנית'), 'sync · import · manual');
-  assert.ok(at('➕ הוספת תנועה ידנית') < at('class="actions recon-tools"'), 'then the tools row');
-  const tools = card.slice(at('class="actions recon-tools"'));
-  assert.match(tools, /🧹 ניקוי לפי קובץ/);
-  assert.match(tools, /🔍 בדיקת שיוך לחשבון/);
+  // בעלים 21/10: "זה אמור להיות הכפתור שלו" — שורת "כלים" עברה לתפריט "פעולות" שבשורת הכותרת.
+  assert.doesNotMatch(card, /recon-tools|🧹 ניקוי לפי קובץ|🔍 בדיקת שיוך לחשבון/, 'no tools row in the card');
+  const menu = page.slice(page.indexOf('top-recon-menu'), page.indexOf('</details>', page.indexOf('top-recon-menu')));
+  assert.match(menu, /🧹 ניקוי לפי קובץ/);
+  assert.match(menu, /🔍 בדיקת שיוך לחשבון/);
 });

@@ -10,6 +10,7 @@ import { normalizeBankRows } from '../lib/bankCsv.js';
 import { decodeBuffer, decodeFileName } from '../lib/decodeText.js';
 import { RuleError, AuthError, NotFoundError } from '../lib/errors.js';
 import { requirePermission, requireOwner } from '../middleware/requireOwner.js';
+import { userCan } from '../lib/permissions.js';
 import {
   importTransactions,
   listImports, accountDeletionHistory,
@@ -42,6 +43,10 @@ import {
   matchTxnToInvoices,
   mismatchedMatchesFor,
   rematchByNumber,
+  rejectionsReady,
+  rejectionCount,
+  rejectSuggestions,
+  restoreRejections,
 } from '../services/reconciliation.js';
 import { requestSync, submitOtp, cancelSync, syncStatus } from '../services/bankSyncJobs.js';
 import { syncBankAccount } from '../services/bankSync.js';
@@ -128,12 +133,19 @@ async function renderPage(req, res, accountId, extra = {}) {
   const hiddenUntil = await unmatchedHiddenUntil();
   const hiddenCount = accountId ? await hiddenUnmatchedCount(accountId) : 0;
   const classified = await Promise.all(unmatched.map(async (t) => ({ txn: t, ...(await classify(t)) })));
-  // "פעולות" בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 21/10) — פעולות בעלים על החשבון שבדף.
-  const owner = req.user?.role === 'owner' && accountId;
+  // "פעולות" בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 21/10) — גם הבית של "כלים" (ניקוי לפי קובץ · בדיקת
+  // שיוך), ולכן לכל מי שבדף; פריטי הבעלים מסוננים בתוך partials/_reconMenu.ejs.
+  const owner = req.user?.role === 'owner';
   res.render('reconciliation/index', {
     title: 'התאמת בנק',
-    topMenu: owner ? '_reconMenu' : null,
-    reconMenu: owner ? { accountId, mismatched: (await mismatchedMatchesFor(accountId)).length, hiddenUntil } : null,
+    topMenu: accountId ? '_reconMenu' : null,
+    reconMenu: accountId ? {
+      accountId,
+      owner,
+      canImport: userCan(req.user, 'import_bank'),
+      mismatched: owner ? (await mismatchedMatchesFor(accountId)).length : 0,
+      hiddenUntil,
+    } : null,
     accounts: await accounts(req.scope),
     accountId,
     purge: null,
@@ -144,6 +156,8 @@ async function renderPage(req, res, accountId, extra = {}) {
     untracked: accountId ? await untrackedSummary(accountId) : null,
     oddRefs: accountId ? await oddReferences(accountId) : { count: 0, sample: [] },
     classified,
+    // "✕ דחה הצעות שסומנו" מתחת לשורת "מוסתרים חיובים עד" (בעלים 21/10). ready=false → המסד עוד לא עודכן.
+    rejected: accountId ? { ready: await rejectionsReady(), count: await rejectionCount(accountId) } : null,
     hiddenUntil,
     hiddenCount,
     showAllTxns: req.query.all === '1',
@@ -460,6 +474,38 @@ router.post('/tail-cleanup', requireOwner, async (req, res, next) => {
       notice: `נמחקו ${r.deleted} תנועות שלא הוסברו עד ${r.until.split('-').reverse().join('/')} · נשארו ${r.keptLinked} מותאמות`
         + `${r.keptOpen ? ` ו-${r.keptOpen} שעדיין יכולות לסגור משהו פתוח` : ''}. משיכה וקובץ לא יחזירו אותן.`,
     });
+  } catch (err) {
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+// ✕ דחה (בעלים 21/10, "בודקים ומאשרים או לא מאשרים"): "לא שלו" בשורות להכרעה → הצ׳ק לא יוצע שוב לתנועה.
+// כל זוג נשלח כ-"txnId:paymentId" (תיבות form="rejectForm" בטבלה). שני הצדדים נבדקים בסקופ, כמו ב-/match.
+router.post('/reject', async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  try {
+    const pairs = [].concat(req.body.pair || []).map((v) => String(v).split(':').map(Number))
+      .filter(([t, p]) => t > 0 && p > 0).map(([txnId, paymentId]) => ({ txnId, paymentId }));
+    if (!pairs.length) throw new RuleError('VALIDATION', 'לא סומנה אף הצעה לדחייה.');
+    for (const { txnId, paymentId } of pairs) {
+      await assertInScope('bankTxn', txnId, req.scope);
+      await assertInScope('payment', paymentId, req.scope);
+    }
+    const n = await rejectSuggestions(pairs, req.user);
+    return backTo(res, accountId, { notice: `נדחו ${n} הצעות — הצ׳קים האלה לא יוצעו שוב לתנועות שסימנת.` });
+  } catch (err) {
+    if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
+    next(err);
+  }
+});
+
+router.post('/reject/restore', async (req, res, next) => {
+  const accountId = await resolveAccountId(req);
+  try {
+    if (!accountId) throw new RuleError('VALIDATION', 'לא נבחר חשבון');
+    const n = await restoreRejections(accountId, req.user);
+    return backTo(res, accountId, { notice: `הוחזרו ${n} הצעות שנדחו.` });
   } catch (err) {
     if (err instanceof RuleError) return backTo(res, accountId, { error: err.message });
     next(err);

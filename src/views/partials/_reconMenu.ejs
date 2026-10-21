@@ -1,23 +1,33 @@
 <%# "פעולות" של התאמת בנק — בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 21/10). header.ejs מכליל אותו ב-.sb-start
-    כשהדף מעביר topMenu: '_reconMenu' — בעלים בלבד (routes/reconciliation.js#renderPage). פועל על החשבון שבדף. %>
+    כשהדף מעביר topMenu: '_reconMenu' (routes/reconciliation.js#renderPage). פועל על החשבון שבדף.
+    בעלים 21/10: "זה אמור להיות הכפתור שלו" — שורת "כלים" שבכרטיס העליון עברה לכאן. לכן התפריט מוצג לכל מי
+    שבדף: תיקון התאמות + מחיקת זנב לבעלים בלבד, "ניקוי לפי קובץ" למי שמייבא, "בדיקת שיוך" לכולם. %>
 <% var _rm = (typeof reconMenu !== 'undefined' && reconMenu) || {}; %>
 <details class="menu open-in store-banner-quick top-recon-menu no-print">
   <summary class="btn btn-primary btn-sm">פעולות <span class="caret">▾</span></summary>
   <div class="menu-panel">
-    <% if (_rm.mismatched > 0) { %>
-      <form method="post" action="/reconciliation/rematch" data-busy="מתקן…"
-            onsubmit="return confirm('לבטל <%= _rm.mismatched %> התאמות שנעשו לפי סכום בלבד ולהתאים מחדש לפי מספר הצ׳ק?')">
-        <input type="hidden" name="account_id" value="<%= _rm.accountId %>" />
-        <button type="submit" class="menu-item-btn">🔁 תיקון <%= _rm.mismatched %> התאמות לפי סכום בלבד</button>
-      </form>
-    <% } else { %>
-      <span class="menu-item-muted">🔁 אין התאמות לפי סכום בלבד בחשבון הזה</span>
+    <% if (_rm.owner) { %>
+      <% if (_rm.mismatched > 0) { %>
+        <form method="post" action="/reconciliation/rematch" data-busy="מתקן…"
+              onsubmit="return confirm('לבטל <%= _rm.mismatched %> התאמות שנעשו לפי סכום בלבד ולהתאים מחדש לפי מספר הצ׳ק?')">
+          <input type="hidden" name="account_id" value="<%= _rm.accountId %>" />
+          <button type="submit" class="menu-item-btn">🔁 תיקון <%= _rm.mismatched %> התאמות לפי סכום בלבד</button>
+        </form>
+      <% } else { %>
+        <span class="menu-item-muted">🔁 אין התאמות לפי סכום בלבד בחשבון הזה</span>
+      <% } %>
+      <div class="menu-sep"></div>
+      <% if (_rm.hiddenUntil) { %>
+        <a href="/reconciliation/tail-cleanup?account=<%= _rm.accountId %>">🧹 מחיקת תנועות עד <%= formatDate(_rm.hiddenUntil) %>…</a>
+      <% } else { %>
+        <span class="menu-item-muted">🧹 מחיקת תנועות ישנות — קודם להגדיר "הסתר חיובים לא מותאמים עד"</span>
+      <% } %>
+      <div class="menu-sep"></div>
     <% } %>
-    <div class="menu-sep"></div>
-    <% if (_rm.hiddenUntil) { %>
-      <a href="/reconciliation/tail-cleanup?account=<%= _rm.accountId %>">🧹 מחיקת תנועות עד <%= formatDate(_rm.hiddenUntil) %>…</a>
-    <% } else { %>
-      <span class="menu-item-muted">🧹 מחיקת תנועות ישנות — קודם להגדיר "הסתר חיובים לא מותאמים עד"</span>
+    <%# הדיאלוג purgeDlg יושב ב-reconciliation/index.ejs — אותו מסמך, ולכן הכפתור פותח אותו מכאן. %>
+    <% if (_rm.canImport) { %>
+      <button type="button" class="menu-item-btn" onclick="this.closest('details').open=false;document.getElementById('purgeDlg').showModal()">🧹 ניקוי לפי קובץ</button>
     <% } %>
+    <a href="/reconciliation/integrity?account=<%= _rm.accountId %>">🔍 בדיקת שיוך לחשבון</a>
   </div>
 </details>
