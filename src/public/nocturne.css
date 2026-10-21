@@ -1358,9 +1358,8 @@ main.page .page-back { text-align: start !important; }
 }
 
 /* מחשב: שורת כותרת קבועה מעל אזור התוכן (מהקצה השמאלי עד הסרגל), והסרגל עולה למלא את כל הגובה.
-   רשת של שלוש עמודות — הצדדים שווים, ולכן שם הדף ממורכז בדיוק מעל הדף (שממורכז באותו אזור).
-   הקבוצה הימנית נדחפת פנימה עד הקצה הימני של .page (max-width 1120 + --space-6): 100cqw = רוחב הפס,
-   כך שהמסגרת הימנית שלה מעל המסגרת הימנית של אריח "צ׳קים בחוץ". "AP Control" בקצה השמאלי, והבורר צמוד
+   רשת של שלוש עמודות — הצדדים שווים, ולכן שם הדף ממורכז בדיוק מעל הדף. מאז 21/10 הדף צמוד לתפריט הצד
+   (לא ממורכז), והשורה ברוחב הדף וצמודה לאותו צד — הקבוצה הימנית מעל המסגרת הימנית של אריח "צ׳קים בחוץ". "AP Control" בקצה השמאלי, והבורר צמוד
    אליו. שם ארוך מתקצר (…) — הצדדים לא נדרסים (minmax(max-content, 1fr)). */
 @media (min-width: 1000px) {
   .topbar {
@@ -1375,12 +1374,18 @@ main.page .page-back { text-align: start !important; }
     display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
     gap: var(--space-4); align-items: center; height: 100%;
     margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent;
+    /* בעלים 21/10: "גם את התוכן תצמיד לתפריט" — הדף צמוד לתפריט הצד, ולכן גם השורה הזו ברוחב הדף (1120 פחות
+       ה-18px של topbar-inner מכל צד) וצמודה לאותו צד: שם הדף ממורכז מעל הדף, "→ חזרה" ו-"AP Control" מעל
+       המסגרות של הכרטיסים — בלי חישוב של מרכוז. */
+    max-width: calc(1120px - 36px); margin-inline-end: auto;
   }
-  .sb-start { justify-self: start; margin-inline-start: calc(max(0px, (100cqw - 1120px) / 2) + var(--space-6) - 18px); }
+  /* הדף צמוד לתפריט הצד (במקום ממורכז ברווח שנשאר) — פס הגלילה יושב ברווח הפנימי שלו (partials/footer.ejs). */
+  main.page { margin-inline: 0 auto; }
+  .sb-start { justify-self: start; margin-inline-start: calc(var(--space-6) - 18px); }
   /* בעלים, 18/10: "כמו כפתור החזרה — AP Control מעל צד שמאל של המסגרת של הוספת Z, ומימינו בורר החנויות".
      אותו חישוב כמו .sb-start, במראה: הקבוצה השמאלית נדחפת פנימה עד הקצה השמאלי של .page, כך ש-"AP Control"
      יושב מעל המסגרת השמאלית של הכרטיסים (רוחב מלא — "הוספת דוח Z"), והבורר צמוד אליו מימין. */
-  .sb-end { justify-self: end; gap: var(--space-3); margin-inline-end: calc(max(0px, (100cqw - 1120px) / 2) + var(--space-6) - 18px); }
+  .sb-end { justify-self: end; gap: var(--space-3); margin-inline-end: calc(var(--space-6) - 18px); }
   /* "אפשרויות" כבר לא הכי שמאלי: הרשימה נפתחת מהקצה הימני שלו פנימה, לא מעבר לקצה השורה אל הסרגל. */
   .topbar .store-banner-quick > .menu-panel { inset-inline-start: 0; inset-inline-end: auto; }
   .sb-center { overflow: hidden; }
