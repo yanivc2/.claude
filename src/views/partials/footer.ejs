@@ -1058,12 +1058,15 @@
     else if (st.length >= 2 && st[st.length - 2] === cur) st.pop();         // חזרנו לדף הקודם
     else { st.push(cur); if (st.length > 40) st = st.slice(-40); }
     try { sessionStorage.setItem(NAVK, JSON.stringify(st)); } catch (e) {}
-    if (st.length >= 2) {
+    // בעלים 21/10: "איפה נעלם כפתור החזור?" — בדף שנפתח ישר (לשונית חדשה, שחזור PWA) או אחרי "→ חזרה" לדף
+    // הראשון במחסנית לא היה לאן לחזור, והכפתור פשוט נעלם. עכשיו הוא תמיד שם; בלי דף קודם — ללוח הבקרה.
+    var prev = st.length >= 2 ? st[st.length - 2] : (location.pathname !== '/' ? '/' : null);
+    if (prev) {
       var a = document.createElement('a');
-      a.href = st[st.length - 2];
+      a.href = prev;
       a.className = 'btn btn-secondary btn-sm';
       a.textContent = '→ חזרה';
-      a.title = 'חזרה לדף הקודם';
+      a.title = st.length >= 2 ? 'חזרה לדף הקודם' : 'חזרה ללוח הבקרה';
       // בעלים, 18/10: "את כפתור חזור שים הכי ימינה ואחריו את אפשרויות" — ראשון בצד הימני של שורת הכותרת.
       // דף בלי פס חנות — שורה משלו בראש התוכן, צמודה לימין.
       var side = document.querySelector('.store-banner .sb-start');

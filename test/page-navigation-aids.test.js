@@ -29,6 +29,8 @@ test('a back button on every page, built from a stack of DIFFERENT pages (an act
   assert.match(footer, /st\[st\.length - 1\] === cur\) \{ \/\* אותו דף/, 'the same page after POST→303 is not pushed again');
   assert.match(footer, /TRANSIENT = \/\^\(notice\|err\|error\|cashErr\|cashNote/, 'one-off notices do not make a new page');
   assert.match(footer, /a\.textContent = '→ חזרה';/);
+  // בעלים 21/10: "איפה נעלם כפתור החזור?" — דף שנפתח ישר עדיין מקבל חזרה, ללוח הבקרה.
+  assert.match(footer, /var prev = st\.length >= 2 \? st\[st\.length - 2\] : \(location\.pathname !== '\/' \? '\/' : null\);/);
 });
 
 test('to-top button and a draggable scroll rail (mouse only, long pages only)', () => {
