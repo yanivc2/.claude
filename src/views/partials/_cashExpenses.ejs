@@ -30,7 +30,8 @@
       if (_gMatched.length) _ordered = _ordered.concat([{ __group: 'matched', n: _gMatched.length }], _gMatched);
     }
   %>
-  <table class="<%= _grouped ? 'cx-grouped' : 'sortable' %>">
+  <%# exportInto: מזהה של אלמנט שאליו נכנס "ייצוא" (סגירת Z — מימין לכותרת הרובריקה; footer.ejs#data-export-into). %>
+  <table class="<%= _grouped ? 'cx-grouped' : 'sortable' %>"<% if (typeof exportInto !== 'undefined' && exportInto) { %> data-export-into="<%= exportInto %>"<% } %>>
     <thead><tr><th>סוג</th><th>תאריך</th><th>שם</th><th>פרטים</th><th class="right">סכום</th><% if (_matchable) { %><th class="no-print" data-nosort>התאמה לחשבונית</th><% } %></tr></thead>
     <tbody>
       <% if (!rows || rows.length === 0) { %>

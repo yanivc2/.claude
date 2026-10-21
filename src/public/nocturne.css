@@ -1534,3 +1534,7 @@ main.page th.bulk-col .bulk-go { display: block; width: 100%; margin: 0 auto; }
 .zr-export-slot .tbl-export { display: inline-block; }
 .zr-export-slot .tbl-export-toggle { white-space: nowrap; }
 .zr-export-slot .tbl-export-menu { top: auto; bottom: calc(100% + 4px); inset-inline-end: 0; }
+/* "ייצוא" מימין לכותרת הרובריקה (סגירת Z, בעלים 21/10) — span ראשון ב-summary, ובשורת flex של RTL הוא הימני. */
+.collapse-card > summary .sum-export { margin-inline-end: 12px; font-size: 13px; font-weight: 400; }
+.collapse-card > summary .sum-export:empty { display: none; }
+.collapse-card > summary .sum-export .tbl-export-toggle { white-space: nowrap; }
