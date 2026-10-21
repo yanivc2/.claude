@@ -62,3 +62,21 @@ test('a non-owner sees the state but cannot click it', async () => {
   assert.match(html, /class="zero-toggle"[^>]*disabled/);
   assert.doesNotMatch(html, /id="zeroToggleForm"/);
 });
+
+// בעלים 21/10: "פעולה על הנבחרים" — "להעביר לטבלה בין שם לריבוע שמסמנים. הכותרת שלו היא אפשרויות מסומנים. את הבצע שים תחתיו".
+test('"אפשרויות מסומנים" is the header of the column between the row boxes and "שם": title, then the action, then "בצע"', async () => {
+  const html = await page(o);
+  assert.doesNotMatch(html, /פעולה על הנבחרים/, 'the separate card above the table is gone');
+  const form = html.indexOf('action="/suppliers/bulk"');
+  const head = html.slice(html.indexOf('<thead>', form), html.indexOf('</thead>', form));
+  const box = head.indexOf('title="בחר הכל"');
+  const col = head.indexOf('class="bulk-col');
+  const name = head.indexOf('<th>שם</th>');
+  assert.ok(box > 0 && col > box && name > col, 'row boxes → אפשרויות מסומנים → שם');
+  const th = head.slice(col, head.indexOf('</th>', col));
+  const title = th.indexOf('אפשרויות מסומנים');
+  const pick = th.indexOf('<select name="bulk_action"');
+  const go = th.indexOf('>בצע</button>');
+  assert.ok(title > 0 && pick > title && go > pick, 'title, under it the action, under it "בצע"');
+  assert.ok(html.indexOf('</form>', form) > html.indexOf('</thead>', form), 'still inside the bulk form');
+});

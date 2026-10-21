@@ -1525,3 +1525,8 @@ main.page td.zero-cell input.zero-toggle:disabled { cursor: default; }
 main.page td.zero-cell .zero-hint { margin-inline-start: .35rem; font-size: 12px; color: var(--color-warn); }
 main.page .oc-bank-hint form { margin: 0; }
 
+/* ספקים — "אפשרויות מסומנים" בכותרת העמודה שבין "שם" לריבועי הסימון (בעלים 21/10): כותרת, מתחתיה הבחירה ומתחתיה "בצע". */
+main.page th.bulk-col { white-space: nowrap; }
+main.page th.bulk-col .bulk-title { display: block; margin-bottom: 6px; }
+main.page th.bulk-col .bulk-pick { display: block; width: 100%; min-width: 7.5em; min-height: 0; padding-block: 5px; font-size: 13px; margin: 0 auto 6px; font-weight: 400; }
+main.page th.bulk-col .bulk-go { display: block; width: 100%; margin: 0 auto; }

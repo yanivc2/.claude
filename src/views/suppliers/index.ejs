@@ -101,24 +101,23 @@
 <% } %>
 
 <form method="post" action="/suppliers/bulk">
-  <div class="card no-print" style="display:flex; gap:.6rem; align-items:center; flex-wrap:wrap">
-    <strong>פעולה על הנבחרים:</strong>
-    <select name="bulk_action">
-      <option value="approve">אשר</option>
-      <option value="block">חסום</option>
-      <option value="delete">מחק</option>
-      <option value="zero_rated">סמן: עסקאות בשיעור אפס</option>
-      <option value="zero_rated_off">בטל: עסקאות בשיעור אפס</option>
-    </select>
-    <button type="submit" onclick="return confirm('לבצע את הפעולה על הספקים הנבחרים?')">בצע</button>
-    <span class="muted">סמן שורות עם התיבות. אישור/חסימה/מחיקה — פעולות בעלים. מחיקה רק לספק ללא חשבוניות.</span>
-  </div>
-
   <table>
     <thead>
       <tr>
         <th style="width:2rem"><input type="checkbox" onclick="document.querySelectorAll('input.rowchk').forEach(c=>c.checked=this.checked)" title="בחר הכל" /></th>
-        <th data-nosort></th>
+        <%# "אפשרויות מסומנים" (בעלים 21/10: "להעביר לטבלה בין שם לריבוע שמסמנים… את הבצע שים תחתיו") — מה שהיה
+            הכרטיס "פעולה על הנבחרים" מעל הטבלה, עכשיו בכותרת העמודה שבין "שם" לריבועי הסימון. %>
+        <th data-nosort data-nofilter data-noexport class="bulk-col no-print">
+          <span class="bulk-title">אפשרויות מסומנים</span>
+          <select name="bulk_action" class="bulk-pick" aria-label="פעולה על הספקים המסומנים" title="אישור/חסימה/מחיקה — פעולות בעלים. מחיקה רק לספק ללא חשבוניות.">
+            <option value="approve">אשר</option>
+            <option value="block">חסום</option>
+            <option value="delete">מחק</option>
+            <option value="zero_rated">סמן: עסקאות בשיעור אפס</option>
+            <option value="zero_rated_off">בטל: עסקאות בשיעור אפס</option>
+          </select>
+          <button type="submit" class="btn-sm bulk-go" onclick="return confirm('לבצע את הפעולה על הספקים המסומנים?')">בצע</button>
+        </th>
         <th>שם</th><th>חנויות</th><th class="hide-sm">ח.פ.</th><th>סטטוס</th><th>טלפון</th><th data-nosort data-nofilter data-noexport class="zero-col" title="עסקאות בשיעור אפס (פירות וירקות טריים)">שיעור 0</th>
       </tr>
     </thead>
@@ -157,7 +156,7 @@
           <td class="zero-cell">
             <% var _c = _zc[s.id]; var _on = Number(s.zero_rated) === 1;
                var _why = _c ? (_c.suggested ? 'כל חשבוניות המס שלו ללא מע"מ' : (_c.invoices ? Math.round(_c.share * 100) + '% מחשבוניותיו ללא מע"מ' : '')) + (_c.nameHint ? ' · השם רומז על תוצרת חקלאית' : '') : ''; %>
-            <%# בלי name — כדי שלא ייסע עם "פעולה על הנבחרים"; הקליק שולח את הטופס הנפרד zeroToggleForm. %>
+            <%# בלי name — כדי שלא ייסע עם "אפשרויות מסומנים";הקליק שולח את הטופס הנפרד zeroToggleForm. %>
             <input type="checkbox" class="zero-toggle" data-id="<%= s.id %>" <%= _on ? 'checked' : '' %> <%= _isOwner ? '' : 'disabled' %>
                    aria-label="עסקאות בשיעור אפס — <%= s.name %>" title="<%= _on ? 'מסומן: עסקאות בשיעור אפס' : 'סמן: עסקאות בשיעור אפס' %><%= _why ? ' · ' + _why : '' %>" />
             <% if (!_on && _c && _c.suggested) { %><span class="zero-hint" title="<%= _why %>">מוצע</span><% } %>
