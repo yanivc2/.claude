@@ -19,7 +19,8 @@ import { listNotifications, unscopedNotificationCount } from '../services/notifi
 // מה שכרטיס "התראות מזומן" בלוח מציג: רק מה שדורש תשומת לב — צ׳ק שכר שנפרע בבנק לפני שהותאם (אותו שכר
 // עלול לצאת פעמיים). התאמה שבוצעה (`cash_match`) כבר נסגרה — בעלים, 16/10: "אם זה הותאם אין טעם להציג
 // אותו"; היא נשארת בפעמון ובטלגרם.
-const CASH_ALERT_KINDS = ['salary_cleared_unmatched'];
+// + צ׳ק באותו מספר וסכום בשני חשבונות (בעלים 21/10: "תן התראה על כך בלוח הבקרה ושלח לי פוש") — services/checkTwins.js.
+const CASH_ALERT_KINDS = ['salary_cleared_unmatched', 'check_twin'];
 import { listDeposits, zReportsWithoutDeposit, declaredNotDeposited, depositVerifications, depositZDiffs } from '../services/deposits.js';
 import { voidedChecksSeenInBank } from '../services/reconciliation.js';
 import { searchSuppliers, listSuppliers } from '../services/suppliers.js';

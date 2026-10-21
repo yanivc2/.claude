@@ -308,15 +308,15 @@
                 </span>
                 <button class="ok small" type="submit">אשר פירעון</button>
               </form>
-            <% } else if (c.state === 'ambiguous' || c.state === 'mismatch') { %>
+            <% } else if (c.state === 'ambiguous' || c.state === 'mismatch' || c.state === 'suggest') { %>
               <form method="post" action="/reconciliation/match" class="actions">
                 <input type="hidden" name="account_id" value="<%= accountId %>" />
                 <input type="hidden" name="txn_id" value="<%= c.txn.id %>" />
                 <%# mismatch = צ׳ק יחיד באותו סכום, אבל מספרו שונה מהאסמכתה בבנק — לא מתאימים אותו לבד. %>
-                <span class="badge b-on_hold"><%= c.state === 'mismatch' ? 'מספר שונה — להכרעה' : 'להכרעה' %></span>
+                <span class="badge b-on_hold"><%= c.state === 'mismatch' ? 'מספר שונה — להכרעה' : c.state === 'suggest' ? 'סכום זהה — להכרעה' : 'להכרעה' %></span>
                 <select name="payment_id" style="width:auto">
                   <% c.candidates.forEach(function(p){ %>
-                    <option value="<%= p.id %>"><%= paymentIdent(p) %> · <%= p.payment_date %></option>
+                    <option value="<%= p.id %>"><%= paymentIdent(p) %> · <%= p.payment_date %><%= p.hint ? ' — ' + p.hint : '' %></option>
                   <% }); %>
                 </select>
                 <button class="small" type="submit">התאם נבחר</button>

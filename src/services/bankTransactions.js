@@ -38,11 +38,13 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
         const tally = new Map();
         for (const f of foreign) tally.set(f.account, (tally.get(f.account) || 0) + 1);
         const [top] = [...tally.entries()].sort((a, b) => b[1] - a[1]);
+        await alertForeign(foreign, bankAccountId, x);
         throw new RuleError('FOREIGN', `הקובץ שייך כנראה לחשבון "${top[0]}": ${foreign.length} מתוך ${specific} התנועות שיש להן אסמכתא `
           + 'רשומות בחשבון אחר (אותו מספר, סכום ותאריך). לא יובא דבר — בחר את החנות הנכונה בבורר למעלה ונסה שוב.');
       }
       const drop = new Set(foreign.map((f) => f.row));
       rows = rows.filter((r) => !drop.has(r));
+      await alertForeign(foreign, bankAccountId, x);
     }
   }
   // שורות עד "נוקה עד" (מחיקת הזנב שלפני תחילת העבודה) לא חוזרות — המשיכה מושכת 60 יום אחורה והייתה
@@ -281,6 +283,12 @@ export async function importTransactions(bankAccountId, rows, source, actor, x =
 }
 
 const digitsKey = (v) => plainNumber(String(v ?? '').trim()).replace(/\D/g, '').replace(/^0+/, '');
+
+/** שורות שהייבוא לא קלט כי הן של חשבון אחר — פוש + לוח הבקרה, "שאבדוק" (services/checkTwins.js). */
+async function alertForeign(foreign, bankAccountId, x) {
+  const { alertBlockedForeignRows } = await import('./checkTwins.js');
+  await alertBlockedForeignRows(foreign.map((f) => ({ date: String(f.row.txnDate).slice(0, 10), amount: f.row.amount, ref: f.row.rawReference, account: f.account })), bankAccountId, x);
+}
 const daysApart = (a, b) => Math.abs((Date.parse(String(a).slice(0, 10)) - Date.parse(String(b).slice(0, 10))) / 86_400_000);
 const shiftDay = (iso, n) => new Date(Date.parse(String(iso).slice(0, 10)) + n * 86_400_000).toISOString().slice(0, 10);
 

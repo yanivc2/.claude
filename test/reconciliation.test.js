@@ -71,14 +71,25 @@ test('mapScrapedTransaction converts to signed agorot and our shape', () => {
   });
 });
 
-test('auto-reconcile matches a single candidate by amount + date window and clears it', async () => {
+// בעלים 21/10: "בודקים צ׳קים אם הסכום ומספר הצ׳ק תואם; אם אין התאמה — להעיר שיש סכום זהה … ואז בודקים
+// ומאשרים או לא". צ׳ק יחיד באותו סכום בלי מספר תואם הוא הצעה ("סכום זהה — להכרעה"), לא התאמה; עם המספר — מותאם.
+test('a single check of the same amount is only a suggestion; with the matching number it clears', async () => {
   const db = await freshDb();
   const sec = await secretary(db);
   const { acct, payment } = await issueCheck(db, { amountShekels: 1170, date: '2026-07-01', checkNumber: '1001', invoiceNumber: 'A' });
 
   assert.equal((await outstandingChecks(null, db)).totalOutstanding, payment.amount);
 
-  await importTransactions(acct, [{ txnDate: '2026-07-05', amount: -payment.amount, description: 'משיכת צ׳ק' }], 'manual', sec, db);
+  await importTransactions(acct, [{ txnDate: '2026-07-01', amount: -payment.amount, description: 'משיכת צ׳ק' }], 'manual', sec, db);
+  const sug = await autoReconcile(acct, sec, db);
+  assert.deepEqual(sug, { matched: 0, ambiguous: 1, unmatched: 0, voidedSeen: 0 }, 'amount alone — a suggestion');
+  const row = await db.one('SELECT * FROM bank_transactions WHERE bank_account_id=?', [acct]);
+  const cls = await classify(row, db);
+  assert.equal(cls.state, 'suggest');
+  assert.equal(cls.candidates[0].hint, 'סכום זהה · אותו תאריך', 'the note says why');
+  await db.run('DELETE FROM bank_transactions WHERE id = ?', [row.id]);
+
+  await importTransactions(acct, [{ txnDate: '2026-07-05', amount: -payment.amount, description: 'משיכת צ׳ק', rawReference: '1001' }], 'manual', sec, db);
   const res = await autoReconcile(acct, sec, db);
   assert.deepEqual(res, { matched: 1, ambiguous: 0, unmatched: 0, voidedSeen: 0 });
 
@@ -137,7 +148,7 @@ test('credits and amount mismatches never match; unmatch reverts a cleared check
   const res = await autoReconcile(acct, sec, db);
   assert.equal(res.matched, 0);
 
-  await importTransactions(acct, [{ txnDate: '2026-07-06', amount: -payment.amount, description: 'צ׳ק' }], 'manual', sec, db);
+  await importTransactions(acct, [{ txnDate: '2026-07-06', amount: -payment.amount, description: 'צ׳ק', rawReference: '4001' }], 'manual', sec, db);
   await autoReconcile(acct, sec, db);
   assert.equal((await db.one('SELECT status FROM payments WHERE id=?', [payment.id])).status, 'cleared');
 

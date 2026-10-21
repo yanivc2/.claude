@@ -142,7 +142,7 @@ test('הלוח מציג כפתור לפי סוג ואת כרטיס ההתראו�
     assert.match(t, /_unmatchedCash/, `${page}: אותה טבלה`);
   }
   const dash = readFileSync(new URL('../src/views/dashboard.ejs', import.meta.url), 'utf8');
-  assert.match(dash, /התראות מזומן/);
+  assert.match(dash, /🔔 התראות/);
   assert.match(dash, /card no-collapse/, 'כרטיס אזהרה לא נסגר מאחורי אקורדיון');
   // "התאם לצ׳ק שכר" הרחיב את עמודת הפעולה עד ש"טופל" נחתך מחוץ למסך — גם בדסקטופ צר (בעלים, 16/10).
   // עכשיו כיתוב קצר אחד לכל הסוגים (המטרה ב-title), והכפתורים נשברים לשורה בתוך `.cx-acts` צר.

@@ -45,8 +45,9 @@ framework. SQLite locally/tests, Postgres (Neon) in production. **Live:** https:
     listed as missing, so it can be re-issued at the till. `services/reports.js#profitability`.
 14. **🔴 No leakage between bank accounts (owner's iron rule, 21/10).** A file/manual bank row that the bank already
     lists in ANOTHER account (same 5+-digit reference, amount, ±3 days), or a debit that is another account's check,
-    is refused (`services/bankTransactions.js#foreignRowsFor`; a mostly-foreign file is refused whole). Auto-match by
-    amount alone never overrides a contradicting check number (`services/reconciliation.js#checkNumberConflict`).
+    is refused (`services/bankTransactions.js#foreignRowsFor`; a mostly-foreign file is refused whole). A check is
+    auto-matched only when number AND amount agree; amount alone is a suggestion for the owner to approve. The same
+    check number + amount in two accounts raises a push + dashboard alert (`services/checkTwins.js`).
 
 ## Keeping the docs true
 After any change to a feature/button/route/view/schema: update the matching section of `INDEX.md`; update `CLAUDE.md`

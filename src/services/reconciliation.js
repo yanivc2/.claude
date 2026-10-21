@@ -155,11 +155,33 @@ export async function rematchByNumber(bankAccountId, actor, x = getExecutor()) {
   return { undone: bad.length, ...r };
 }
 
+/** שני מספרי צ׳ק "דומים": אותו אורך וספרה אחת שונה, או שתי ספרות סמוכות שהתחלפו (טעות הקלדה). */
+export function similarNumbers(a, b) {
+  const x = numKey(a);
+  const y = numKey(b);
+  if (!x || !y || x === y || x.length !== y.length) return false;
+  const diff = [...x].map((ch, i) => (ch === y[i] ? -1 : i)).filter((i) => i >= 0);
+  if (diff.length === 1) return true;
+  return diff.length === 2 && diff[1] === diff[0] + 1 && x[diff[0]] === y[diff[1]] && x[diff[1]] === y[diff[0]];
+}
+
+/** ההערה שליד הצעה להכרעה: למה המועמד הזה — סכום זהה, ואולי מספר דומה / אותו תאריך. */
+export function checkHint(txn, payment) {
+  const parts = ['סכום זהה'];
+  if (payment?.method === 'check' && similarNumbers(txn?.raw_reference, payment?.check_number)) parts.push('מספר דומה');
+  if (String(txn?.txn_date || '').slice(0, 10) === String(payment?.payment_date || '').slice(0, 10)) parts.push('אותו תאריך');
+  return parts.join(' · ');
+}
+
 export async function classify(txn, x = getExecutor()) {
   const { candidates, deterministic } = await findCandidates(txn, x);
   if (deterministic) return { state: 'deterministic', candidates, suggestion: deterministic };
+  for (const c of candidates) c.hint = checkHint(txn, c);
   // מועמד יחיד שמספרו סותר את הבנק — להכרעה ידנית, אף פעם לא אוטומטית.
   if (candidates.length === 1 && checkNumberConflict(txn, candidates[0])) return { state: 'mismatch', candidates, suggestion: null };
+  // 🔴 בעלים 21/10: "בודקים צ׳קים אם הסכום ומספר הצ׳ק תואם. אם אין התאמה — להעיר שיש סכום זהה עם מספר דומה
+  // או אותו תאריך, ואז בודקים ומאשרים או לא". צ׳ק לעולם לא מותאם לבד לפי סכום (גם כשבשורת הבנק אין מספר).
+  if (candidates.length === 1 && candidates[0].method === 'check') return { state: 'suggest', candidates, suggestion: null };
   if (candidates.length === 1) return { state: 'single', candidates, suggestion: candidates[0] };
   if (candidates.length > 1) return { state: 'ambiguous', candidates, suggestion: null };
   return { state: 'none', candidates, suggestion: null };
@@ -261,7 +283,7 @@ export async function autoReconcile(bankAccountId, actor, x = getExecutor()) {
     if ((state === 'deterministic' || state === 'single') && suggestion) {
       await confirmMatch(txn.id, suggestion.id, actor, x);
       matched += 1;
-    } else if (state === 'ambiguous' || state === 'mismatch') {
+    } else if (state === 'ambiguous' || state === 'mismatch' || state === 'suggest') {
       ambiguous += 1;
     } else {
       unmatched += 1;
@@ -317,6 +339,9 @@ export async function reconcileAccount(bankAccountId, actor, x = getExecutor()) 
   const salary = await matchSalaryChecksToBank(bankAccountId, actor, x);
   const checks = await autoReconcile(bankAccountId, actor, x);
   const dep = await reconcileDeposits(bankAccountId, actor, x);
+  // 🔔 צ׳ק באותו מספר וסכום ביותר מחשבון אחד → פוש + לוח הבקרה (בעלים 21/10). פעם אחת לכל ממצא; לא זורק.
+  const { alertCheckTwins } = await import('./checkTwins.js');
+  await alertCheckTwins(x);
   return { ...checks, deposits: dep.matched, salary: salary.matched, salaryDoublePaid: salary.doublePaid };
 }
 

@@ -151,8 +151,8 @@
 <% var _alertsOld = (typeof cashAlertsUnscoped !== 'undefined' && cashAlertsUnscoped) ? Number(cashAlertsUnscoped) : 0; %>
 <% if (_alerts.length || _alertsOld) { %>
   <div class="card no-collapse" style="border-color:var(--color-warn)">
-    <h2 style="margin:0 0 .3rem">🔔 התראות מזומן</h2>
-    <p class="muted" style="margin:0 0 .5rem; font-size:12px">רק מה שדורש תשומת לב: צ׳ק שכר שנפרע בבנק <strong>לפני</strong> שהותאם — כדי שאותו שכר לא ייצא פעמיים. התאמות שבוצעו מופיעות בפעמון ובטלגרם.</p>
+    <h2 style="margin:0 0 .3rem">🔔 התראות</h2>
+    <p class="muted" style="margin:0 0 .5rem; font-size:12px">רק מה שדורש תשומת לב: צ׳ק שכר שנפרע בבנק <strong>לפני</strong> שהותאם — כדי שאותו שכר לא ייצא פעמיים; וצ׳ק באותו מספר ואותו סכום ביותר מחשבון אחד — לבדוק לאיזה חשבון הוא שייך. התאמות שבוצעו מופיעות בפעמון ובטלגרם.</p>
     <div class="table-scroll">
       <table class="no-enhance">
         <tbody>
@@ -161,6 +161,7 @@
               <td style="width:1%; white-space:nowrap" class="muted"><%= israelStamp(n.created_at) || String(n.created_at || '').slice(0,16) %></td>
               <td>
                 <% if (n.kind === 'salary_cleared_unmatched') { %><span class="badge b-blocked">לפני התאמה</span>
+                <% } else if (n.kind === 'check_twin') { %><span class="badge b-blocked">צ׳ק בשני חשבונות</span>
                 <% } else { %><span class="badge b-paid">הותאם</span><% } %>
                 <%= n.link ? '' : '' %><strong><%= n.title %></strong>
                 <% if (n.body) { %><div class="muted" style="font-size:12px; white-space:pre-line"><%= n.body %></div><% } %>
@@ -181,7 +182,7 @@
         נבלעות בשקט, אחרת מסך ריק היה נראה כמו "אין התראות" בזמן שיש. %>
     <% if (_alertsOld) { %>
       <p class="muted" style="margin:.5rem 0 0; font-size:12px">
-        ועוד <strong><%= _alertsOld %></strong> התראות מזומן ישנות שלא נקראו — מלפני שהתראות שויכו לחנות, ולכן הן לא מוצגות
+        ועוד <strong><%= _alertsOld %></strong> התראות ישנות שלא נקראו — מלפני שהתראות שויכו לחנות, ולכן הן לא מוצגות
         תחת חנות אחת. <a href="/notifications">לקרוא אותן ברשימת ההתראות</a>; אחרי שיסומנו כנקראו השורה הזו תיעלם.
       </p>
     <% } %>
