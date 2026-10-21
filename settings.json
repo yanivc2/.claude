@@ -104,13 +104,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if ((Test-Path '.git') -and -not (Test-Path '.claude\\settings.json')) { $origin = (git remote get-url origin 2>$null); if ($origin -and $origin -notmatch 'yanivc2') { exit 0 }; $base = \"$env:USERPROFILE\\.claude\\templates\\project\"; New-Item -ItemType Directory -Force '.claude' | Out-Null; Copy-Item \"$base\\.claude\\settings.json\" '.claude\\settings.json' -Force; if ((Test-Path \"$base\\.mcp.json\") -and -not (Test-Path '.mcp.json')) { Copy-Item \"$base\\.mcp.json\" '.mcp.json' }; if (-not (Test-Path 'CLAUDE.md')) { Copy-Item \"$base\\CLAUDE.md\" 'CLAUDE.md' }; if (-not (Test-Path 'SETUP.md')) { Copy-Item \"$base\\SETUP.md\" 'SETUP.md' }; if (-not (Test-Path '.claude\\rules')) { Copy-Item \"$base\\.claude\\rules\" '.claude\\rules' -Recurse }; if (-not (Test-Path '.gitignore')) { Copy-Item \"$base\\.gitignore\" '.gitignore' }; $msg = '📋 הוגדר מה-template: CLAUDE.md + SETUP.md + .claude/rules/ + settings.json'; if (Test-Path 'rules') { $msg = $msg + ' | ⚠️ קיימת תיקיית rules/ ישנה — הכללים עברו ל-.claude/rules/ ונטענים לפי הצורך. אפשר להסיר ידנית אחרי בדיקה.' }; Write-Output (@{systemMessage = $msg} | ConvertTo-Json -Compress) }; exit 0",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/skills-drift.mjs\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/project-template-bootstrap.mjs\""
           },
           {
             "type": "command",
-            "command": "if ((Test-Path 'package.json') -and -not (Test-Path 'node_modules')) { Write-Output '{\"systemMessage\": \"⚠️ שים לב: קובץ package.json קיים אך תיקיית node_modules חסרה. מומלץ להריץ npm install\"}' }; if ((Test-Path '.env.example') -and -not (Test-Path '.env')) { Write-Output '{\"systemMessage\": \"🔑 שים לב: קובץ .env חסר אך קיים .env.example. כדאי להעתיק וליצור קובץ הגדרות מקומי.\"}' }",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/project-health.mjs\""
           }
         ]
       },
@@ -128,13 +134,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"import winsound; winsound.PlaySound(r'C:\\\\Windows\\\\Media\\\\tada.wav', winsound.SND_FILENAME)\"",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/stop-sound.mjs\""
           },
           {
             "type": "command",
-            "command": "if (Test-Path '.git') { $stat = git diff HEAD --stat 2>&1; if ($stat) { $lines = ($stat | Select-Object -First 12) -join '\\n'; $out = @{systemMessage = ('📝 ' + $lines)} | ConvertTo-Json -Compress; Write-Output $out } }; exit 0",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/stop-git-stat.mjs\""
           }
         ]
       },
@@ -142,8 +146,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$HOME\\.claude\\hooks\\hebrew-reply-hook.mjs\"",
-            "shell": "powershell",
+            "command": "node \"$HOME/.claude/hooks/hebrew-reply-hook.mjs\"",
             "timeout": 30
           }
         ]
@@ -155,8 +158,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $p = $j.tool_input.file_path; if ($p -match '(?i)[\\\\/]OneDrive') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: OneDrive is read-only (iron rule) — read is allowed, writing is not\"}'; exit 1 }; exit 0",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/onedrive-write-guard.mjs\""
           }
         ]
       },
@@ -165,7 +167,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\yaniv\\.claude\\hooks\\block-secrets.ps1\"",
+            "command": "node \"$HOME/.claude/hooks/block-secrets.mjs\"",
             "timeout": 10
           }
         ]
@@ -175,7 +177,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "powershell -NoProfile -ExecutionPolicy Bypass -File \"C:\\Users\\yaniv\\.claude\\hooks\\block-secrets.ps1\"",
+            "command": "node \"$HOME/.claude/hooks/block-secrets.mjs\"",
             "timeout": 10
           }
         ]
@@ -187,8 +189,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -notmatch '\\.(ts|tsx)$' -or -not (Test-Path 'tsconfig.json')) { exit 0 }; $r = npx tsc --noEmit 2>&1; if ($LASTEXITCODE -ne 0) { $lines = ($r | Select-Object -First 5) -join ' | '; $out = @{systemMessage = ('⚠️ TypeScript: ' + $lines)} | ConvertTo-Json -Compress; Write-Output $out }; exit 0",
-            "shell": "powershell",
+            "command": "node \"$HOME/.claude/hooks/tsc-check.mjs\"",
             "statusMessage": "בודק TypeScript..."
           }
         ]
@@ -198,8 +199,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -notmatch '\\.(ts|tsx)$' -or -not (Test-Path 'tsconfig.json')) { exit 0 }; $r = npx tsc --noEmit 2>&1; if ($LASTEXITCODE -ne 0) { $lines = ($r | Select-Object -First 5) -join ' | '; $out = @{systemMessage = ('⚠️ TypeScript: ' + $lines)} | ConvertTo-Json -Compress; Write-Output $out }; exit 0",
-            "shell": "powershell",
+            "command": "node \"$HOME/.claude/hooks/tsc-check.mjs\"",
             "statusMessage": "בודק TypeScript..."
           }
         ]
@@ -245,6 +245,7 @@
   "fileCheckpointingEnabled": true,
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true,
+  "skillListingMaxDescChars": 200,
   "skillOverrides": {
     "00-andruia-consultant": "off",
     "anthropic-skills:00-andruia-consultant": "off",
@@ -285,6 +286,66 @@
     "ab-test-setup": "off",
     "anthropic-skills:ab-test-setup": "off",
     "2slides-ppt-generator": "off",
-    "anthropic-skills:2slides-ppt-generator": "off"
+    "anthropic-skills:2slides-ppt-generator": "off",
+    "caveman": "off",
+    "cavecrew": "off",
+    "caveman-commit": "off",
+    "caveman-compress": "off",
+    "caveman-help": "off",
+    "caveman-review": "off",
+    "caveman-stats": "off",
+    "superpowers-lab": "off",
+    "animate": "name-only",
+    "animate-expo": "name-only",
+    "animation-performance": "name-only",
+    "animation-vocabulary": "name-only",
+    "ask-sonner": "name-only",
+    "break-ui": "name-only",
+    "find-animation-opportunities": "name-only",
+    "improve-animations": "name-only",
+    "mobile-native": "name-only",
+    "pick-ui-library": "name-only",
+    "prototype": "name-only",
+    "review-animations": "name-only",
+    "write-swift": "name-only",
+    "high-end-visual-design": "name-only",
+    "minimalist-ui": "name-only",
+    "industrial-brutalist-ui": "name-only",
+    "redesign-existing-projects": "name-only",
+    "web-design-guidelines": "name-only",
+    "vercel-react-best-practices": "name-only",
+    "vercel-composition-patterns": "name-only",
+    "remotion-best-practices": "name-only",
+    "brainstorming": "name-only",
+    "writing-plans": "name-only",
+    "executing-plans": "name-only",
+    "test-driven-development": "name-only",
+    "systematic-debugging": "name-only",
+    "using-git-worktrees": "name-only",
+    "verification-before-completion": "name-only",
+    "requesting-code-review": "name-only",
+    "receiving-code-review": "name-only",
+    "subagent-driven-development": "name-only",
+    "dispatching-parallel-agents": "name-only",
+    "finishing-a-development-branch": "name-only",
+    "writing-skills": "name-only",
+    "using-superpowers": "name-only",
+    "grilling": "name-only",
+    "grill-me": "name-only",
+    "handoff": "name-only",
+    "karpathy-guidelines": "name-only",
+    "codeql": "name-only",
+    "semgrep": "name-only",
+    "sarif-parsing": "name-only",
+    "morning": "user-invocable-only",
+    "anthropic-skills:morning": "user-invocable-only",
+    "canvas-design": "name-only",
+    "anthropic-skills:canvas-design": "name-only",
+    "web-artifacts-builder": "name-only",
+    "anthropic-skills:web-artifacts-builder": "name-only",
+    "docs": "user-invocable-only",
+    "anthropic-skills:docs": "user-invocable-only",
+    "mcp-builder": "user-invocable-only",
+    "anthropic-skills:mcp-builder": "user-invocable-only"
   }
 }

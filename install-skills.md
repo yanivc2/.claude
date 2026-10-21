@@ -7,6 +7,16 @@
 > היא קונטיינר זמני, ותיקיית `skills/` היא gitignored — ולכן התקנת runtime שם
 > לא נשמרת ולא מסונכרנת. חלק מהפריטים גם מותקנים רק דרך `/plugin` האינטראקטיבי.
 > הרץ/י את הפקודות למטה מקומית.
+>
+> **אזהרה שנשנתה בדרך הקשה:** "עבר `/install-review`" ו"הותקן" הם שני דברים.
+> ביקורת שרצה בקונטיינר הזמני אומרת רק שהחבילה נקייה — הקבצים עצמם **לא הגיעו
+> למכונה**. חלק 4 נשא במשך חודש תאריך התקנה שלא קרה. ר' שם.
+>
+> **המקור הקנוני לרשימה עצמה:** `skills-manifest.json` בשורש הריפו — עשרה מקורות,
+> ולכל אחד פקודת ההתקנה המדויקת. `hooks/skills-drift.mjs` (הוק `SessionStart`)
+> מדווח בכל סשן על פער בין המניפסט למה שמותקן, בלי להתקין דבר. להתקנה בפועל:
+> `/skills-sync`; לרישום התקנה ידנית: `/skills-record`. הקובץ הזה הוא **הנימוק
+> והביקורת** מאחורי הרשימה — למה כל פריט הותקן, או למה נדחה.
 
 ## דרישות מקדימות
 
@@ -18,7 +28,8 @@
 ## שני מנגנוני התקנה
 
 1. **Skills** — `npx skills add <owner/repo> --skill <name> -g`
-   מוריד את קובצי ה-`SKILL.md` ל-`~/.claude/skills/`. לא מריץ קוד בזמן ההתקנה.
+   מוריד את קובצי ה-`SKILL.md` ל-`~/.agents/skills/` ומחבר אותם ל-`~/.claude/skills/`
+   בג'נקשן. לא מריץ קוד בזמן ההתקנה.
 2. **Plugins** — `/plugin marketplace add <owner/repo>` ואז
    `/plugin install <name>@<marketplace>`. פקודת slash **אינטראקטיבית** בתוך
    Claude Code (חבילה שיכולה לכלול גם hooks/פקודות/subagents).
@@ -74,6 +85,8 @@ npx skills add obra/superpowers -g -y --skill '*'
 ```
 - ⚠️ חבילה גדולה: brainstorming, TDD, subagents, code-review, git-worktrees ועוד.
   משנה עמוקות זרימות עבודה. (אפשר גם כפלאגין — ראה/י חלק 2.)
+- הסקילים שלה מוגדרים היום `user-invocable-only`, ו-`skills/dev-workflow-router/`
+  מחזיק את האינדקס שלהם — ר' `.claude/rules/skills-inventory.md`.
 
 ### Trail of Bits Security (מהימן, חברת אבטחה) — `trailofbits/skills`
 ```bash
@@ -88,8 +101,9 @@ npx skills add trailofbits/skills -g -y --skill codeql --skill semgrep --skill s
 # ⚠️ אל תריץ/י את curl|bash שמופיע ב-README. השתמש/י ב-CLI הבטוח:
 npx skills add JuliusBrussee/caveman -g -y
 ```
-- ⚠️ משנה את **סגנון הפלט של כל סשן** (מקצץ נרטיב). שים/י לב: מתנגש עם כלל
-  "הסברים תמיד בעברית" — ייתכן שתרצה/י לשמור אותו לפרויקטים ספציפיים ולא גלובלי.
+- ⚠️ משנה את **סגנון הפלט של כל סשן** (מקצץ נרטיב). מתנגש עם כלל
+  "הסברים תמיד בעברית" — ולכן כל החבילה מכובה (`off`) ב-`settings.json`.
+  מותקנת ונשארת מכובה בכוונה; היא רשומה בבלוק `ignore` של המניפסט.
 
 ---
 
@@ -149,7 +163,7 @@ npx skills add JuliusBrussee/caveman -g -y
 | 12 | Trail of Bits | ⚠️ | מריץ CodeQL/Semgrep |
 | 13 | Remotion | ✅ | Remotion רשמי |
 | 14 | Skill Creator | ✅ | Anthropic רשמי |
-| 15 | Caveman | ⚠️ | פלט גלובלי, לא curl\|bash |
+| 15 | Caveman | ⚠️ | פלט גלובלי, לא curl\|bash; מכובה |
 | 16 | Context Mode | ⚠️ | hooks, מקור דו-משמעי |
 | 17 | code-simplifier | ✅ | Anthropic רשמי |
 
@@ -210,10 +224,22 @@ claude mcp add playwright -- npx -y @playwright/mcp@latest
 
 ---
 
-## חלק 4 — סבב שלישי: Emil Kowalski (13 סקילים)
+## חלק 4 — Emil Kowalski (15 סקילים) — הותקן 2026-10-21
 
-> עבר `/install-review` ב-2026-09-21. ממצא: **אין הרצת קוד, אין רשת, אין `postinstall`**.
-> 25 קבצים, כולם Markdown. רישיון MIT. המפרסם: Emil Kowalski (Vercel, Linear, Sonner, Vaul).
+> **תיקון תאריך.** הקובץ הזה טען שהחבילה עברה `/install-review` **והותקנה**
+> ב-2026-09-21. הביקורת אכן רצה אז — אבל **בקונטיינר ענן זמני, והקבצים לא הגיעו
+> למכונה אף פעם**. ההתקנה בפועל על `C:\Users\yaniv\.claude` נעשתה ב-**2026-10-21**,
+> וחותמות הזמן של התיקיות מאמתות את זה.
+>
+> **המסקנה שחורגת מחלק 4:** "עבר ביקורת" אינו "מותקן". ביקורת בקונטיינר זמני
+> מעידה על נקיון החבילה בלבד. התקנה נחשבת רק כשהיא נראית במערכת הקבצים של המכונה.
+>
+> ממצאי הביקורת עצמם עומדים: **אין הרצת קוד, אין רשת, אין `postinstall`** —
+> הכול Markdown. רישיון MIT. המפרסם: Emil Kowalski (Vercel, Linear, Sonner, Vaul).
+>
+> **והחבילה גדלה בינתיים:** בזמן הביקורת היו בה 13 סקילים, ובהתקנה בפועל הגיעו
+> **15** — `animation-performance` ו-`break-ui` חדשים. עוד סיבה לא לסמוך על
+> רשימה שנבדקה פעם: ה-repo בצד השני ממשיך לזוז.
 
 ```bash
 # ⚠️ שם ה-repo הקנוני הוא "skills" ברבים. "skill" ביחיד הוא redirect ועובד גם הוא.
@@ -225,56 +251,68 @@ npx skills add emilkowalski/skills -g -y --skill '*'
 הפקודה מסיימת עם מה שנראה ככישלון מוחלט:
 
 ```
-x  Failed to install 13
+x  Failed to install 15
    ✗ animate → PromptScript: PromptScript does not support global skill installation
-   ... (כל 13)
+   ... (כל 15)
 ```
 
-**ההתקנה בכל זאת הצליחה.** ה-CLI מתקין לכמה יעדים במקביל; רק היעד
-PromptScript נכשל, ו-Claude Code הצליח. אומת בפועל בהתקנה הזו:
+**ההתקנה בכל זאת הצליחה.** ה-CLI מתקין לכמה יעדים במקביל; רק היעד PromptScript
+נכשל, ו-Claude Code הצליח. אומת בפועל בהתקנה הזו:
 
 | מה | איפה |
 |---|---|
-| הקבצים עצמם | `~/.agents/skills/<name>/` — 13 תיקיות |
-| הקישור של Claude Code | `~/.claude/skills/<name>` → symlink ל-`../../.agents/skills/<name>` |
+| הקבצים עצמם | `~/.agents/skills/<name>/` — 15 תיקיות |
+| החיבור של Claude Code | `~/.claude/skills/<name>` → **junction** אל `C:\Users\yaniv\.agents\skills\<name>` |
 
-**איך מוודאים שההתקנה עבדה** (ולא סומכים על הפלט):
+**אל תסמוך/י על קוד היציאה — אמת/י מול מערכת הקבצים:**
 
-```bash
-ls ~/.agents/skills/     # אמורות להופיע 13 תיקיות
-ls -l ~/.claude/skills/  # אמורים להופיע 13 symlinks
+```powershell
+Get-ChildItem ~\.agents\skills                            # הקבצים עצמם
+Get-ChildItem ~\.claude\skills | Select-Object Name,LinkType   # הג'נקשנים
 ```
 
-> **על Windows:** יצירת symlink דורשת Developer Mode או הרצה כאדמין. אם
-> `~/.claude/skills/` יוצא ריק בזמן ש-`~/.agents/skills/` מלא — זו הסיבה.
+> **על Windows:** בהתקנה הזו נוצרו **junctions**, לא symlinks — וג'נקשן לא דורש
+> Developer Mode ולא הרשאת אדמין. אם בכל זאת `~/.claude/skills/` יוצא ריק בזמן
+> ש-`~/.agents/skills/` מלא — החיבור הוא שנכשל, והסקילים לא ייטענו.
 
-### מה הותקן
+### מה הותקן (15)
 
-| סקיל | נושא | נטען אוטומטית |
+הדרגה בעמודה השלישית היא מה שמוגדר ב-`skillOverrides` ב-`settings.json`:
+`user-invocable-only` = נטען רק בהפעלה מפורשת, ולא עולה תקציב תיאורים עד אז.
+
+| סקיל | נושא | דרגה |
 |---|---|---|
-| animate | בניית אנימציה לווב מאפס | כן |
-| animate-expo | אותו דבר ל-React Native / Expo | כן |
-| animation-vocabulary | מילון הפוך: תיאור מעורפל → המונח המדויק | כן |
-| apple-design | עקרונות העיצוב והתנועה של Apple, מתורגמים לווב | כן |
-| ask-sonner | מדריך ל-Sonner (ספריית ה-toast של המחבר) | כן |
-| emil-design-eng | הסקיל המרכזי: פילוסופיית ה-UI polish | כן |
-| find-animation-opportunities | איתור מקומות שכדאי להנפיש (read-only) | כן |
-| improve-animations | ביקורת אנימציות בריפו + תוכניות ביצוע | כן |
-| mobile-native | גרימת אפליקציית ווב להרגיש נייטיב בנייד | כן |
-| write-swift | Swift מודרני: concurrency, generics, ביצועים | כן |
-| pick-ui-library | בחירת ספריית UI מרשימה אוצרת | **לא** |
-| prototype | בניית כמה גרסאות UI מאחורי picker חזותי | **לא** |
-| review-animations | ביקורת אנימציות לפי רף קפדני | **לא** |
+| animate | בניית אנימציה לווב מאפס | `user-invocable-only` |
+| animate-expo | אותו דבר ל-React Native / Expo | `user-invocable-only` |
+| animation-performance | **חדש** — לשמור אנימציה בתוך תקציב הפריים, ולמצוא למה היא מקרטעת | `user-invocable-only` |
+| animation-vocabulary | מילון הפוך: תיאור מעורפל → המונח המדויק | `user-invocable-only` |
+| apple-design | עקרונות העיצוב והתנועה של Apple, מתורגמים לווב | דלוק |
+| ask-sonner | מדריך ל-Sonner (ספריית ה-toast של המחבר) | `user-invocable-only` |
+| break-ui | **חדש** — האכלת UI בנתוני המקרה הגרוע ודיווח על כל מה שנשבר | `user-invocable-only` |
+| emil-design-eng | הסקיל המרכזי: פילוסופיית ה-UI polish | דלוק |
+| find-animation-opportunities | איתור מקומות שכדאי להנפיש (read-only) | `user-invocable-only` |
+| improve-animations | ביקורת אנימציות בריפו + תוכניות ביצוע | `user-invocable-only` |
+| mobile-native | גרימת אפליקציית ווב להרגיש נייטיב בנייד | `user-invocable-only` |
+| pick-ui-library | בחירת ספריית UI מרשימה אוצרת | `user-invocable-only` |
+| prototype | בניית כמה גרסאות UI מאחורי picker חזותי | `user-invocable-only` |
+| review-animations | ביקורת אנימציות לפי רף קפדני | `user-invocable-only` |
+| write-swift | Swift מודרני: concurrency, generics, ביצועים | `user-invocable-only` |
 
-שלושת האחרונים מסומנים `disable-model-invocation: true` ורצים רק בהפעלה מפורשת.
+`pick-ui-library`, `prototype` ו-`review-animations` מסומנים גם
+`disable-model-invocation: true` בחבילה עצמה — כלומר הם רצים רק בהפעלה מפורשת
+בכל מקרה, בלי קשר להגדרות.
 
 ### שתי הסתייגויות (לא אבטחה)
 
-1. **תקציב קונטקסט** — עשרת התיאורים הנטענים אוטומטית מוסיפים בערך 1,300 טוקנים
-   לאינדקס הסקילים **בכל סשן בכל פרויקט**. אם `write-swift` ו-`animate-expo`
-   לא רלוונטיים לעבודה שלך, שקול/י להשבית אותם ב-`skillOverrides`.
-2. **התנגשות עם כלל #3** — ל-`prototype` יש תשובת פתיחה קבועה **באנגלית** שהסקיל
-   מורה למסור מילה במילה. אותה בעיה כמו Caveman.
+1. **תקציב קונטקסט — טופל.** האינדקס של הסקילים חולק בערך 1% מחלון ההקשר, ולפני
+   הניקוי נטענו 245,029 תווי תיאור — כלומר הכול נחתך וכלום לא עבד. אחרי הניקוי:
+   6,420 תווים, ו-`skillListingMaxDescChars` עומד על 200. שלוש־עשרה מתוך ה-15 כאן
+   הן `user-invocable-only`, ו-`skills/design-router/` מחזיק את האינדקס שלהן יחד עם
+   עקרונות הליבה inline — כך שהידע זמין בלי לטעון חמישה־עשר תיאורים. הפירוט:
+   `.claude/rules/skills-inventory.md`.
+2. **התנגשות עם כלל #3** — לכמה מהסקילים יש תשובת פתיחה קבועה **באנגלית** שהם
+   מורים למסור מילה במילה (למשל `prototype`, `animation-performance`, `break-ui`).
+   אותה בעיה כמו Caveman. להיות מודע/ת, ולהשיב בעברית בהמשך התור.
 
 ### שתי ההתנהגויות היחידות שכותבות משהו
 
@@ -319,6 +357,8 @@ npx skills add Leonxlnx/taste-skill -g -y \
 | brutalist-skill | `industrial-brutalist-ui` | ברוטליזם תעשייתי, גריד נוקשה, אסתטיקת טרמינל |
 | redesign-skill | `redesign-existing-projects` | שדרוג אתרים קיימים בלי לשבור פונקציונליות |
 
+ארבעה מהחמישה מוגדרים היום `user-invocable-only`; `design-taste-frontend` נשאר דלוק.
+
 ### מה נשאר בחוץ ולמה
 
 | שם ההתקנה | הסיבה |
@@ -340,4 +380,5 @@ npx skills add Leonxlnx/taste-skill -g -y \
 החבילה הזו ושל Emil (חלק 4) מכסות את אותו שטח: `high-end-visual-design` מול
 `emil-design-eng`, `redesign-existing-projects` מול `improve-animations`.
 שתיהן דעתניות מאוד. אם תשובות עיצוב מתחילות לסתור זו את זו, זו הסיבה —
-כבה/י אחת מהן ב-`skillOverrides` במקום לנחש.
+כבה/י אחת מהן ב-`skillOverrides` במקום לנחש. שתיהן נמצאות באינדקס של
+`skills/design-router/`, שם גם רשום מתי להעדיף מה.

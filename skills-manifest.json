@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-21",
+  "note": "The intended skill set for every machine running this config. Only npx-installed skills are listed; the claude.ai-synced ones arrive on their own, and the routers travel in git. The SessionStart hook hooks/skills-drift.mjs compares this list against what is installed locally and reports the gap. Nothing installs automatically.",
+  "sources": [
+    {
+      "id": "emilkowalski",
+      "repo": "emilkowalski/skills",
+      "install": "npx skills add emilkowalski/skills -g -y --skill '*'",
+      "skills": ["animate", "animate-expo", "animation-performance", "animation-vocabulary", "apple-design", "ask-sonner", "break-ui", "emil-design-eng", "find-animation-opportunities", "improve-animations", "mobile-native", "pick-ui-library", "prototype", "review-animations", "write-swift"]
+    },
+    {
+      "id": "superpowers",
+      "repo": "obra/superpowers",
+      "install": "npx skills add obra/superpowers -g -y --skill '*'",
+      "skills": ["brainstorming", "writing-plans", "executing-plans", "test-driven-development", "systematic-debugging", "using-git-worktrees", "verification-before-completion", "requesting-code-review", "receiving-code-review", "subagent-driven-development", "dispatching-parallel-agents", "finishing-a-development-branch", "writing-skills", "using-superpowers", "superpowers-lab", "grilling"]
+    },
+    {
+      "id": "taste",
+      "repo": "Leonxlnx/taste-skill",
+      "install": "npx skills add Leonxlnx/taste-skill -g -y --skill design-taste-frontend --skill high-end-visual-design --skill minimalist-ui --skill industrial-brutalist-ui --skill redesign-existing-projects",
+      "skills": ["design-taste-frontend", "high-end-visual-design", "minimalist-ui", "industrial-brutalist-ui", "redesign-existing-projects"]
+    },
+    {
+      "id": "impeccable",
+      "repo": "pbakaus/impeccable",
+      "install": "npx skills add pbakaus/impeccable -g -y --skill '*'",
+      "skills": ["impeccable"]
+    },
+    {
+      "id": "vercel",
+      "repo": "vercel-labs/agent-skills",
+      "install": "npx skills add vercel-labs/agent-skills -g -y --skill web-design-guidelines --skill vercel-react-best-practices --skill vercel-composition-patterns",
+      "skills": ["web-design-guidelines", "vercel-react-best-practices", "vercel-composition-patterns"]
+    },
+    {
+      "id": "anthropic",
+      "repo": "anthropics/skills",
+      "install": "npx skills add anthropics/skills -g -y --skill pdf --skill docx --skill xlsx --skill pptx --skill skill-creator --skill webapp-testing",
+      "skills": ["pdf", "docx", "xlsx", "pptx", "skill-creator", "webapp-testing"]
+    },
+    {
+      "id": "remotion",
+      "repo": "remotion-dev/skills",
+      "install": "npx skills add remotion-dev/skills -g -y --skill remotion-best-practices",
+      "skills": ["remotion-best-practices"]
+    },
+    {
+      "id": "mattpocock",
+      "repo": "mattpocock/skills",
+      "install": "npx skills add mattpocock/skills -g -y --skill handoff --skill grill-me",
+      "skills": ["handoff", "grill-me"]
+    },
+    {
+      "id": "karpathy",
+      "repo": "multica-ai/andrej-karpathy-skills",
+      "install": "npx skills add multica-ai/andrej-karpathy-skills -g -y --skill '*'",
+      "skills": ["karpathy-guidelines"]
+    },
+    {
+      "id": "trailofbits",
+      "repo": "trailofbits/skills",
+      "install": "npx skills add trailofbits/skills -g -y --skill codeql --skill semgrep --skill sarif-parsing",
+      "skills": ["codeql", "semgrep", "sarif-parsing"]
+    }
+  ],
+  "ignore": {
+    "note": "Present on at least one machine on purpose, but not wanted elsewhere. The drift hook stays quiet about these.",
+    "skills": ["caveman", "cavecrew", "caveman-commit", "caveman-compress", "caveman-help", "caveman-review", "caveman-stats", "design-router", "dev-workflow-router", "synced"]
+  }
+}
