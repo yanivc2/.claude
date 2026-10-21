@@ -217,11 +217,18 @@ export async function scopedStoreList(scope, x = getExecutor()) {
  * Returns the rows that pass, each with `stores` attached ([{id, name, company_id, company_name}])
  * so the screen can show WHICH stores it belongs to.
  *
+ * `opts.implicit` (suppliers — בעלים 21/10: "לא רוצה לראות ספקים של חנות אחרת, כל חנות והעולם שלה")
+ * replaces "no links = shared" with "no links = the stores this row has actually worked in": a Map
+ * owner_id → stores (services/suppliers.js#supplierInvoiceStores — where its invoices were filed).
+ * A narrowed scope then shows an unlinked row only if one of THOSE stores is in it; an unlinked row
+ * with none is visible only to an unnarrowed scope ("כל החנויות"). Each row also gets `invoiceStores`.
+ *
  * @param {Array<{id:number}>} rows
  * @param {'supplier_stores'|'employee_stores'} table
  * @param {'supplier_id'|'employee_id'} fk
+ * @param {{implicit?: Map<number, Array<{id,name,company_id,company_name}>>}} [opts]
  */
-export async function filterByStoreLinks(rows, table, fk, scope, x = getExecutor()) {
+export async function filterByStoreLinks(rows, table, fk, scope, x = getExecutor(), opts = {}) {
   if (!rows || !rows.length) return rows || [];
   const { companyIds, storeIds } = normalizeScope(scope);
 
@@ -251,18 +258,24 @@ export async function filterByStoreLinks(rows, table, fk, scope, x = getExecutor
     });
   }
 
+  const implicit = opts.implicit || null;
+  const inScope = (list) => list.some(
+    (st) =>
+      (companyIds == null || companyIds.includes(st.company_id)) &&
+      (storeIds == null || storeIds.includes(st.id)),
+  );
   const out = [];
   for (const r of rows) {
     const stores = byOwner.get(Number(r.id)) || [];
+    const invoiceStores = !stores.length && implicit ? implicit.get(Number(r.id)) || [] : [];
     const visible =
-      stores.length === 0 || // unlinked = shared
-      (companyIds == null && storeIds == null) || // owner
-      stores.some(
-        (st) =>
-          (companyIds == null || companyIds.includes(st.company_id)) &&
-          (storeIds == null || storeIds.includes(st.id)),
-      );
-    if (visible) out.push({ ...r, stores });
+      (companyIds == null && storeIds == null) || // owner / "כל החנויות"
+      (stores.length ? inScope(stores) // linked → only there
+        : implicit ? inScope(invoiceStores) // unlinked supplier → where it has invoices
+          : true); // unlinked employee = shared
+    // invoiceStores are shown on screen — only the ones in scope, or a store of another company would leak by name.
+    const shownInvoiceStores = (companyIds == null && storeIds == null) ? invoiceStores : invoiceStores.filter((st) => inScope([st]));
+    if (visible) out.push(implicit ? { ...r, stores, invoiceStores: shownInvoiceStores } : { ...r, stores });
   }
   return out;
 }

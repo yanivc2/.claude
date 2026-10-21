@@ -21,11 +21,48 @@ export async function listSuppliers(status = null, x = getExecutor(), { scope = 
   const rows = status
     ? await x.many('SELECT * FROM suppliers WHERE status = ? ORDER BY name', [status])
     : await x.many('SELECT * FROM suppliers ORDER BY name', []);
-  // SCOPED through supplier_stores (lib/scope.js#filterByStoreLinks): a supplier with no store
-  // links is shared with everyone; one with links belongs only to those stores' companies. The
-  // `stores` array it attaches is the same one attachStores used to build.
-  if (scope !== null) return filterByStoreLinks(rows, 'supplier_stores', 'supplier_id', scope, x);
+  // SCOPED through supplier_stores (lib/scope.js#filterByStoreLinks): a supplier belongs to the stores
+  // it is linked to; with no links — to the stores it has invoices in (בעלים 21/10: "כל חנות והעולם
+  // שלה"); with neither — only "כל החנויות". The `stores` array is the same one attachStores builds.
+  if (scope !== null) return filterByStoreLinks(rows, 'supplier_stores', 'supplier_id', scope, x, { implicit: await supplierInvoiceStores(x) });
   return attachStores(rows, x);
+}
+
+/**
+ * Where each supplier has actually filed invoices: Map supplier_id → [{id, name, company_id, company_name}].
+ * This is what an UNLINKED supplier belongs to (lib/scope.js#filterByStoreLinks `implicit`) — measured
+ * from its own invoices, so a supplier that worked for one branch never shows up in another.
+ * Two flat queries + a JS join (pg-mem refuses DISTINCT/GROUP BY over a join). Pre-upgrade DB → empty.
+ */
+export async function supplierInvoiceStores(x = getExecutor()) {
+  const out = new Map();
+  let pairs = [];
+  let stores = [];
+  try {
+    pairs = await x.many('SELECT DISTINCT supplier_id, store_id FROM invoices WHERE store_id IS NOT NULL', []);
+    stores = await x.many(
+      'SELECT st.id, st.name, st.company_id, c.name AS company_name FROM stores st JOIN companies c ON c.id = st.company_id ORDER BY st.name',
+      [],
+    );
+  } catch {
+    return out;
+  }
+  const byId = new Map(stores.map((s) => [Number(s.id), { id: Number(s.id), name: s.name, company_id: Number(s.company_id), company_name: s.company_name }]));
+  for (const p of pairs) {
+    const st = byId.get(Number(p.store_id));
+    if (!st) continue;
+    const k = Number(p.supplier_id);
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push(st);
+  }
+  return out;
+}
+
+/** The stores a supplier belongs to right now: its links, else the stores it has invoiced (see above). */
+export async function effectiveSupplierStoreIds(id, x = getExecutor()) {
+  const linked = await getSupplierStoreIds(id, x);
+  if (linked.length) return linked;
+  return ((await supplierInvoiceStores(x)).get(Number(id)) || []).map((s) => s.id);
 }
 
 // Attach each supplier's assigned stores (fetched in one query, grouped in JS — portable across
@@ -218,7 +255,7 @@ export async function searchSuppliers(query, scope = null, x = getExecutor()) {
     [like, like, like, like, like],
   );
   // Search is a read of the same data as the list — it has to obey the same separation.
-  return scope === null ? rows : filterByStoreLinks(rows, 'supplier_stores', 'supplier_id', scope, x);
+  return scope === null ? rows : filterByStoreLinks(rows, 'supplier_stores', 'supplier_id', scope, x, { implicit: await supplierInvoiceStores(x) });
 }
 
 /**

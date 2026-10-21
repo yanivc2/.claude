@@ -216,7 +216,9 @@ happen only at merge. So:
     אדוורסרי: `test/store-isolation-attack.test.js` (כולל חנות אחות באותה חברה) +
     `test/company-isolation-attack.test.js`.
   - **ספקים ועובדים** מופרדים דרך `supplier_stores`/`employee_stores` ו-`filterByStoreLinks`:
-    **ללא שיוך = משותף לכולם**; עם שיוך = רק שם. שורה אחת יכולה להיות משויכת לכמה חנויות/חברות.
+    עם שיוך = רק שם. **ספק ללא שיוך = רק בחנויות שיש לו בהן חשבוניות, ובלי חשבוניות — רק ב"כל החנויות"**
+    (בעלים 21/10: "כל חנות והעולם שלה"; `implicit` מ-`supplierInvoiceStores`); **עובד** ללא שיוך = משותף לכולם.
+    שורה אחת יכולה להיות משויכת לכמה חנויות/חברות.
   - **By-id IDOR:** `lib/scopeGuard.js#assertInScope(kind, id, scope)` + `scopeParam` resolve `{company_id,
     store_id}` per kind (`SCOPE_OF`) and refuse (404) out-of-company **or** out-of-store; `scope` may be a
     companyIds array (company-only, back-compat) or the req.scope object (company+store). A null-store row

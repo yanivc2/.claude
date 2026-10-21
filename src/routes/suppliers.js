@@ -20,8 +20,7 @@ import {
   verifySupplierBankAccount,
   deleteSupplierBankAccount,
   listSupplierBankAccounts,
-  supplierBankHistory,
-} from '../services/suppliers.js';
+  supplierBankHistory, effectiveSupplierStoreIds } from '../services/suppliers.js';
 import { submitRequest } from '../services/changeRequests.js';
 import { describeSupplier } from '../lib/changeSummary.js';
 import { getExecutor } from '../db/adapter.js';
@@ -133,7 +132,8 @@ router.post('/:id/contacts', async (req, res, next) => {
 // Query params prefill the form (e.g. /suppliers/new?name=…&tax_id=… from the scan screen).
 router.get('/new', async (req, res, next) => {
   try {
-    res.render('suppliers/new', { title: 'ספק חדש', values: req.query || {}, error: null, stores: await storeOptions(req), selectedStores: [] });
+    // "כל חנות והעולם שלה" (בעלים 21/10): ספק חדש שנוצר בתוך חנות — מסומן לה מראש.
+    res.render('suppliers/new', { title: 'ספק חדש', values: req.query || {}, error: null, stores: await storeOptions(req), selectedStores: req.activeStoreId ? [req.activeStoreId] : [] });
   } catch (err) {
     next(err);
   }
@@ -154,6 +154,9 @@ function paymentFields(body) {
 
 router.post('/', async (req, res, next) => {
   try {
+    // ספק בלי שיוך ובלי חשבוניות מופיע רק ב"כל החנויות" (lib/scope.js#filterByStoreLinks) — ספק שנוצר בתוך חנות
+    // בלי לסמן חנויות שייך לחנות הזו, אחרת הוא נעלם ממנה ברגע שנשמר.
+    if (!storeIdsFrom(req.body).length && req.activeStoreId) req.body.store_ids = [String(req.activeStoreId)];
     const supplier = await createSupplier(
       {
         name: req.body.name, taxId: req.body.tax_id, notes: req.body.notes,
@@ -335,7 +338,7 @@ router.get('/:id/edit', async (req, res, next) => {
       supplier,
       error: null,
       stores: await storeOptions(req),
-      selectedStores: await getSupplierStoreIds(supplier.id),
+      selectedStores: await effectiveSupplierStoreIds(supplier.id), // בלי שיוך — החנויות שיש לו בהן חשבוניות
       // Parent-supplier options for the "חברת-אם (לתשלום מרוכז)" picker: top-level suppliers only
       // (a subsidiary can't itself be a parent), excluding this supplier.
       parentOptions: (await listSuppliers(null, undefined, { scope: req.scope })).filter((s) => s.id !== supplier.id && s.parent_supplier_id == null),
