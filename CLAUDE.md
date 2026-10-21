@@ -12,6 +12,8 @@ summaries (end-of-task recaps **and** context-compaction summaries). Code, ident
 messages stay in English. Also enforced by `"language": "hebrew"` in `.claude/settings.json` **and by a Stop
 hook** (`scripts/hebrew-reply-hook.mjs`): a final reply that is mostly English is blocked and must be rewritten
 in Hebrew (code/paths/URLs not counted; at most 2 blocks in a row). `test/hebrew-reply-hook.test.js`.
+**⏰ חזרה אחרי 2+ שעות** (בעלים 21/10): הוק `UserPromptSubmit` (`scripts/idle-tasks-hook.mjs`) מוסיף להקשר את המשימות
+הפתוחות מ-`docs/משימות-פתוחות.md` — **לפתוח בהן את התשובה**. לכן הקובץ הזה חייב להישאר מעודכן (פריט שנסגר → ✅ / "נסגר לאחרונה").
 
 **🔴 כלל ברזל — מיקום בממשק לא מנחשים** (בעלים, 16/10: "פעם הבאה אל תנחש, תשאל אותי איפה לשים את
 הכפתור"). כשבקשה לא קובעת **איפה** כפתור/אלמנט חדש יושב (או לאן מזיזים קיים) — שואלים לפני שבונים

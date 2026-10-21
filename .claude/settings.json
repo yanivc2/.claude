@@ -13,6 +13,22 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hebrew-reply-hook.mjs\"",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/idle-tasks-hook.mjs\" --touch",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/idle-tasks-hook.mjs\"",
+            "timeout": 25
           }
         ]
       }
