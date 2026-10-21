@@ -126,6 +126,11 @@ test('rows imported before the tracking existed are reported, not hidden', async
   assert.equal(u.from, '2026-08-01');
   // The page must not claim "no files imported" while the account is full of transactions.
   assert.ok(u.count > 0);
+
+  // בעלים 21/10: שורה ישנה שמותאמת לצ׳ק היא היסטוריה, לא משהו לנקות — ההודעה לא מונה אותה.
+  const p = await db.run("INSERT INTO payments (bank_account_id, method, check_number, payment_date, amount, status, created_by) VALUES (?, 'check', '4242', '2026-08-01', 5000, 'cleared', ?)", [acct.id, ow.id]);
+  await db.run('UPDATE bank_transactions SET matched_payment_id = ? WHERE bank_account_id = ? AND import_id IS NULL', [p.lastInsertRowid, acct.id]);
+  assert.equal(await untrackedSummary(acct.id, db), null, 'a matched old row is not offered for deletion');
 });
 
 test('bulk delete removes the picked rows, and skips ones matched to a check', async () => {

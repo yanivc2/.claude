@@ -680,11 +680,20 @@ export async function untrackedSummary(accountId, x = getExecutor()) {
   let rows;
   try {
     rows = await x.many(
-      'SELECT txn_date, source, matched_payment_id FROM bank_transactions WHERE bank_account_id = ? AND import_id IS NULL',
+      'SELECT id, txn_date, source, raw_reference, matched_payment_id FROM bank_transactions WHERE bank_account_id = ? AND import_id IS NULL',
       [Number(accountId)],
     );
   } catch {
     return null;
+  }
+  // 🔴 רק שורות שאף דבר לא נשען עליהן (בעלים 21/10: אחרי מחיקת הזנב ההודעה המשיכה להציע למחוק 32 שורות —
+  // כולן מותאמות לצ׳ק/שכר/הפקדה, כלומר ההיסטוריה של מה שנפרע, שהמחיקה השאירה בכוונה).
+  if (rows.length) {
+    const { salaryLinkedTxnIds } = await import('./salaryPayments.js');
+    const salary = await salaryLinkedTxnIds(x);
+    const depLinked = new Set((await x.many('SELECT matched_txn_id FROM deposits WHERE matched_txn_id IS NOT NULL', [])).map((d) => Number(d.matched_txn_id)));
+    const depRefs = await depositRefsForAccount(accountId, x);
+    rows = rows.filter((r) => r.matched_payment_id == null && !salary.has(Number(r.id)) && !depLinked.has(Number(r.id)) && !depRefs.has(txnRef(r)));
   }
   if (!rows.length) return null;
   const dates = rows.map((r) => r.txn_date).filter(Boolean).sort();

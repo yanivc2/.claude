@@ -159,7 +159,7 @@
   <% var untr = (typeof untracked !== 'undefined') ? untracked : null; %>
   <% if (untr) { %>
     <div class="alert alert-info" style="margin:0 0 .6rem">
-      <strong><%= untr.count %> תנועות בחשבון הזה הועלו לפני שמעקב הייבוא נוסף</strong>
+      <strong><%= untr.count %> תנועות בחשבון הזה הועלו לפני שמעקב הייבוא נוסף ואינן מותאמות לדבר</strong>
       <% if (untr.from) { %>(<%= formatDate(untr.from) %>–<%= formatDate(untr.to) %>)<% } %>,
       ולכן אי אפשר לשייך אותן לקובץ מסוים. למחיקה שלהן — סמן אותן בטבלת "כל התנועות בחשבון" למטה
       (אפשר לסנן לפי תיאור/אסמכתה/תאריך) ולחץ "מחק נבחרות".
