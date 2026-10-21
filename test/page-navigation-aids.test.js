@@ -19,6 +19,10 @@ test('every POST form keeps the scroll AND the open lists — not only data-keep
 test('a view-switching link with data-keep-scroll keeps the place too (plain click only)', () => {
   assert.match(footer, /e\.target\.closest\('a\[data-keep-scroll\]'\)/);
   assert.match(footer, /e\.button !== 0 \|\| e\.metaKey \|\| e\.ctrlKey/, 'a new-tab click saves nothing');
+  // בעלים 21/10 (הצעה שאושרה ב"תמשיך"): מה שהוקלד בשורות הסינון נשמר וחוזר לאותה טבלה, והיא מסוננת מחדש.
+  assert.match(footer, /filters: filters \}\)\); \} catch \(err\) \{\}/);
+  assert.match(footer, /function tableKey\(t\) \{/);
+  assert.match(footer, /i\.dispatchEvent\(new Event\('input', \{ bubbles: true \}\)\);/);
   const recon = readFileSync(new URL('../src/views/reconciliation/index.ejs', import.meta.url), 'utf8');
   assert.match(recon, /&all=1" data-keep-scroll>הצג אותן<\/a>/);
   assert.match(recon, /" data-keep-scroll>הסתר אותן<\/a>/);

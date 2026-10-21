@@ -833,7 +833,21 @@
       document.querySelectorAll('table.cx-grouped').forEach(function (t, i) {
         ['settled', 'matched'].forEach(function (g) { if (t.classList.contains('show-' + g)) groups.push(i + ':' + g); });
       });
-      try { sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY, t: Date.now(), open: open, closed: closed, groups: groups })); } catch (err) {}
+      // מה שהוקלד בשורות הסינון (בעלים 21/10: "הצג אותן" איפס את הסינון) — לפי הטבלה (כותרת הכרטיס + מקומה בו).
+      var filters = [];
+      document.querySelectorAll('table').forEach(function (t) {
+        var ins = t.querySelectorAll('.filter-row input, .filter-row select');
+        var vals = Array.prototype.map.call(ins, function (i) { return String(i.value || ''); });
+        if (vals.some(function (v) { return v.trim(); })) filters.push({ k: tableKey(t), v: vals });
+      });
+      try { sessionStorage.setItem(KEY, JSON.stringify({ y: window.scrollY, t: Date.now(), open: open, closed: closed, groups: groups, filters: filters })); } catch (err) {}
+    }
+    // מפתח יציב לטבלה בין טעינות: כותרת הכרטיס שלה (בלי מספרים) + מקומה בין הטבלאות שבו.
+    function tableKey(t) {
+      var card = t.closest('.card') || document.body;
+      var h = card.querySelector('h2');
+      var n = Array.prototype.indexOf.call(card.querySelectorAll('table'), t);
+      return (h ? h.textContent : '').replace(/[0-9₪,.()\s▸▾]+/g, ' ').trim().slice(0, 60) + '|' + n;
     }
     try {
       var raw = sessionStorage.getItem(KEY);
@@ -855,6 +869,17 @@
             t.classList.add('show-' + parts[1]);
             var b = t.querySelector('tr[data-group="' + parts[1] + '"] .cx-group-toggle');
             if (b) { b.setAttribute('aria-expanded', 'true'); var c = b.querySelector('.caret'); if (c) c.textContent = '▾'; }
+          });
+          // הסינון שהוקלד חוזר לאותה טבלה, והטבלה מסוננת מחדש (אותו אירוע שהקלדה שולחת).
+          (v.filters || []).forEach(function (f) {
+            var t = Array.prototype.find.call(document.querySelectorAll('table'), function (x) { return tableKey(x) === f.k; });
+            if (!t) return;
+            t.querySelectorAll('.filter-row input, .filter-row select').forEach(function (i, n) {
+              if (f.v[n] == null || !String(f.v[n]).trim()) return;
+              i.value = f.v[n];
+              i.dispatchEvent(new Event('input', { bubbles: true }));
+              i.dispatchEvent(new Event('change', { bubbles: true }));
+            });
           });
           if (v.y > 0) {
             // אחרי שהמשפרים סיימו לשנות גבהים (טבלאות, אקורדיון), אחרת המיקום מפספס.
