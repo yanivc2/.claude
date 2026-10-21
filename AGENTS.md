@@ -49,9 +49,9 @@ framework. SQLite locally/tests, Postgres (Neon) in production. **Live:** https:
     auto-matched only when number AND amount agree; amount alone is a suggestion for the owner to approve or
     reject ("✕ דחה" → `bank_match_rejections`; a rejected check is never offered to that line again). The same
     check number + amount in two accounts raises a push + dashboard alert (`services/checkTwins.js`).
-15. **🔴 Other repositories attached to a session are read-only and never mixed (owner, 21/10).** `israeli-hr-system`,
-    `storemanagement` and `shifts`: no writes, commits or pushes, and no code, files or data carried between them or into
-    `ap-control` — unless the owner asks explicitly, in a session of their own.
+15. **🔴 One app per session, never mixed (owner, 21/10).** Another app's repository attached to an AP Control session
+    (`israeli-hr-system`, `storemanagement`, `shifts`) is not written, committed or pushed from that session, and no code,
+    files or data travel between them or into `ap-control`. Each app is worked on in its own session, under its own rules.
 
 ## Keeping the docs true
 After any change to a feature/button/route/view/schema: update the matching section of `INDEX.md`; update `CLAUDE.md`
