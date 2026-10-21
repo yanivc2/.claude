@@ -28,11 +28,11 @@ test('the two menus sit in the header row; the toolbar keeps only the title', as
   assert.doesNotMatch(main, /<summary class="btn btn-primary">\+ ספק חדש/, 'not in the page toolbar any more');
 });
 
-test('no separate zero-rate card; the leftmost column is "שיעור 0" with a box per supplier, instead of "הערות"', async () => {
+test('no separate zero-rate card; the leftmost column is "שיעור מע\"מ 0" with a box per supplier, instead of "הערות"', async () => {
   const html = await page(o);
   assert.doesNotMatch(html, /ספקים בשיעור אפס \(פירות וירקות\)/);
   const head = html.slice(html.indexOf('<thead>', html.indexOf('action="/suppliers/bulk"')), html.indexOf('</thead>', html.indexOf('action="/suppliers/bulk"')));
-  assert.match(head, /<th data-nosort data-nofilter data-noexport class="zero-col"[^>]*>שיעור 0<\/th>\s*<\/tr>/, 'the last (leftmost) column');
+  assert.match(head, /<th data-nosort data-nofilter data-noexport class="zero-col"[^>]*>שיעור מע"מ 0<\/th>\s*<\/tr>/, 'the last (leftmost) column');
   assert.doesNotMatch(head, />הערות</);
   assert.match(html, new RegExp(`<input type="checkbox" class="zero-toggle" data-id="${sup.id}"`));
   assert.doesNotMatch(html, /class="zero-toggle"[^>]*name=/, 'the box never rides along with the bulk form');
@@ -49,7 +49,7 @@ test('one click marks one supplier (and only it); a second click unmarks it', as
   assert.equal(r.status, 303);
   assert.equal(Number((await db.one('SELECT zero_rated FROM suppliers WHERE id = ?', [sup.id])).zero_rated), 1);
   const html = await (await fetch(base + r.headers.get('location'), { headers: { cookie: `session=${createSession(o.id)}` } })).text();
-  assert.match(html, /הספק סומן: עסקאות בשיעור אפס\./);
+  assert.doesNotMatch(html, /הספק סומן|הוסר מהספק/, 'no notice after a single box (owner: "מחק")');
   r = await post({ offered: String(sup.id) });
   assert.equal(Number((await db.one('SELECT zero_rated FROM suppliers WHERE id = ?', [sup.id])).zero_rated), 0);
 });
@@ -79,4 +79,15 @@ test('"אפשרויות מסומנים" is the header of the column between the 
   const go = th.indexOf('>בצע</button>');
   assert.ok(title > 0 && pick > title && go > pick, 'title, under it the action, under it "בצע"');
   assert.ok(html.indexOf('</form>', form) > html.indexOf('</thead>', form), 'still inside the bulk form');
+});
+
+// בעלים 21/10: "אפשר לצמצם את הטבלה של הספקים, ומצומצמת כברירת מחדל".
+test('the suppliers table sits in a collapsible card that starts collapsed', async () => {
+  const html = await page(o);
+  const form = html.indexOf('action="/suppliers/bulk"');
+  const card = html.indexOf('<div class="card suppliers-card">', form);
+  const h2 = html.indexOf('<h2 data-ckey="ספקים">ספקים', card);
+  const table = html.indexOf('<table>', card);
+  assert.ok(card > form && h2 > card && table > h2, 'card → its <h2> → the table');
+  assert.match(html.slice(form, card), /<span data-collapse-default="v1" hidden><\/span>/, 'start collapsed');
 });

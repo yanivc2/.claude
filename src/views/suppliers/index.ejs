@@ -7,7 +7,7 @@
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 
 
-<%# ספקי פירות וירקות (עסקאות בשיעור אפס, §30(א)(13)) — בעלים 21/10: במקום כרטיס נפרד, עמודת "שיעור 0" בטבלה
+<%# ספקי פירות וירקות (עסקאות בשיעור אפס, §30(א)(13)) — בעלים 21/10: במקום כרטיס נפרד, עמודת "שיעור מע"מ 0" בטבלה
     עם ריבוע שמסמן/מבטל בקליק (POST /suppliers/zero-rated, בעלים בלבד). ההצעה עדיין נגזרת מהחשבוניות של הספק
     עצמו (services/suppliers.js#zeroRatedCandidates) ומוצגת כ"מוצע" ליד ריבוע שעוד לא סומן — לעולם לא מסמנת לבד.
     הסימון לא משנה את בדיקת מספר ההקצאה (תמיד לפי המע"מ בחשבונית) — רק מכבה את התזכורת "חשבונית מס גדולה בלי מע"מ". %>
@@ -101,6 +101,12 @@
 <% } %>
 
 <form method="post" action="/suppliers/bulk">
+  <%# טבלת הספקים מתקפלת וסגורה כברירת מחדל (בעלים 21/10: "אפשר לצמצם… ומצומצמת כברירת מחדל") — <h2> ישיר בכרטיס
+      הופך אותו למתקפל (partials/footer.ejs), והסמן data-collapse-default מתחיל אותו סגור. data-ckey: המונה משתנה. %>
+  <span data-collapse-default="v1" hidden></span>
+  <div class="card suppliers-card">
+  <h2 data-ckey="ספקים">ספקים <span class="badge b-neutral"><%= suppliers.length %></span></h2>
+  <div class="table-scroll">
   <table>
     <thead>
       <tr>
@@ -118,7 +124,7 @@
           </select>
           <button type="submit" class="btn-sm bulk-go" onclick="return confirm('לבצע את הפעולה על הספקים המסומנים?')">בצע</button>
         </th>
-        <th>שם</th><th>חנויות</th><th class="hide-sm">ח.פ.</th><th>סטטוס</th><th>טלפון</th><th data-nosort data-nofilter data-noexport class="zero-col" title="עסקאות בשיעור אפס (פירות וירקות טריים)">שיעור 0</th>
+        <th>שם</th><th>חנויות</th><th class="hide-sm">ח.פ.</th><th>סטטוס</th><th>טלפון</th><th data-nosort data-nofilter data-noexport class="zero-col" title="עסקאות בשיעור אפס (פירות וירקות טריים)">שיעור מע"מ 0</th>
       </tr>
     </thead>
     <tbody>
@@ -165,12 +171,14 @@
       <% }); %>
     </tbody>
   </table>
+  </div>
+  </div>
 </form>
 
 <% if (_isOwner) { %>
 <form method="post" action="/suppliers/zero-rated" id="zeroToggleForm" class="no-print" hidden></form>
 <script>
-  // "שיעור 0" בקליק אחד (בעלים 21/10): הריבוע שולח את הספק הזה בלבד — מסומן או לא — ל-/suppliers/zero-rated.
+  // "שיעור מע"מ 0" בקליק אחד (בעלים 21/10): הריבוע שולח את הספק הזה בלבד — מסומן או לא — ל-/suppliers/zero-rated.
   document.querySelectorAll('.zero-toggle').forEach(function (cb) {
     cb.addEventListener('change', function () {
       var f = document.getElementById('zeroToggleForm');
