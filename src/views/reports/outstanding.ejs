@@ -2,34 +2,13 @@
 <div class="toolbar">
   <h1>צ׳קים בחוץ</h1>
 </div>
-<p class="muted">סכום הצ׳קים שהונפקו וטרם נפרעו, פר חשבון בנק = ההתחייבות החיה (§7).<% if (accounts.length !== 1) { %> לחץ על שורה לפירוט.<% } %></p>
-<%# "התאמה לפי סכום": חיוב בבנק באותו סכום שעוד לא הותאם (services/reports.js#outstandingBankCandidates). הצעה
-    בלבד — סכום זהה לבדו אינו הוכחה, ולכן ההתאמה בלחיצה. בעלים 21/10: בלי התיבה הירוקה — שורה מתחת למשפט הפתיחה. %>
-<% var _bm = (typeof bankMatches !== 'undefined' && bankMatches) ? bankMatches : new Map();
-   var _withCand = 0, _unique = 0;
-   detail.forEach(function(r){ var m = _bm.get(Number(r.paymentId)); if (m && m.candidates.length) { _withCand += 1; if (m.unique) _unique += 1; } }); %>
-<% if (detailAccountId) { %>
-  <div class="oc-bank-hint no-print<%= _withCand ? ' is-found' : ' muted' %>">
-    <% if (_withCand) { %>
-      <span>🔎 נמצאו חיובים בבנק <strong>באותו סכום</strong> ל-<strong><%= _withCand %></strong> מתוך <%= detail.length %> צ׳קים פתוחים<%= _unique ? ' — ' + _unique + ' מהם חד-משמעיים' : '' %>. ייתכן שהם כבר נפרעו.</span>
-      <% if (_unique) { %>
-        <form method="post" action="/reports/outstanding/match-unique" style="margin:0"
-              onsubmit="return confirm('להתאים <%= _unique %> צ׳קים לחיובים בבנק לפי סכום ולסמן אותם כנפרעו?')">
-          <input type="hidden" name="account" value="<%= detailAccountId %>" />
-          <button type="submit" class="ok small">🔗 התאם את כל החד-משמעיים (<%= _unique %>)</button>
-        </form>
-      <% } %>
-    <% } else { %>
-      <span>🔎 לא נמצא חיוב בבנק באותו סכום לאף צ׳ק פתוח בחשבון הזה (בדף הבנק שיובא עד היום).</span>
-    <% } %>
-  </div>
-<% } %>
+<%# בעלים 21/10: "תמחוק" — בלי שורת הפתיחה ובלי "🔎 נמצאו חיובים בבנק באותו סכום…" (כולל "התאם את כל
+    החד-משמעיים" לפי סכום — מאז ·316 צ׳ק לא נסגר לפי סכום בלבד). ההצעות לכל צ׳ק נשארו בטבלה (bankMatches). %>
+<% var _bm = (typeof bankMatches !== 'undefined' && bankMatches) ? bankMatches : new Map(); %>
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 
 <%
-// "הכל" resets the cut (preserving the selected account).
-function ocAllLink(){ return '/reports/outstanding' + (detailAccountId ? '?account=' + detailAccountId : ''); }
 // The current cut as a '&'-prefixed querystring fragment, so account/export/print links keep it.
 function cutQS(){
   var p = [];
@@ -40,13 +19,18 @@ function cutQS(){
   return p.length ? '&' + p.join('&') : '';
 }
 %>
-<%# החתכים לפי תאריך פירעון — בסרגל שבתחתית הדף, יחד עם ייצוא והדפסה (reports/_outstandingCut.ejs, בעלים 21/10). %>
+<%# החתכים לפי תאריך פירעון — "הצג הכל · שבועי · חודשי" בשורת הכותרת (partials/_outstandingMenu.ejs); הטפסים כאן,
+    בראש הדף (reports/_outstandingCut.ejs part 'forms'). ייצוא והדפסה — בסרגל שבתחתית. בעלים 21/10. %>
 <script>
   function ocShowCut(m){
+    var card = document.querySelector('.oc-forms-card');
     document.querySelectorAll('.oc-cut').forEach(function(f){ f.style.display = 'none'; });
     var el = document.getElementById('oc-' + m); if (el) el.style.display = '';
+    // גלילה אל הטופס בלי שייבלע מתחת לשורת הכותרת הקבועה (64px).
+    if (card) { card.style.display = ''; window.scrollTo({ top: Math.max(0, card.getBoundingClientRect().top + window.scrollY - 80), behavior: 'smooth' }); }
   }
 </script>
+<%- include('_outstandingCut', { part: 'forms' }) %>
 
 <%# טבלת החשבונות — רק כשיש כמה חשבונות בתצוגה (כל החנויות). חשבון אחד נפתח ישר לרשימת הצ׳קים
     (routes/reports.js, בעלים 21/10: "לוותר על הדבר הזה ומייד להציג את רשימת הצ׳קים"). %>
@@ -165,10 +149,10 @@ function cutQS(){
     <% if (currentUser.role !== 'owner') { %><p class="muted no-print">עריכת חשבוניות זמינה לבעלים בלבד.</p><% } %>
   </div>
 <% } %>
-<%# הסרגל שבתחתית: מימין החתכים, משמאל ייצוא והדפסה. כשרשימת צ׳קים מוצגת — הייצוא הוא הקובץ המפורט שלה
-    (עם החתך); אחרת — סיכום החשבונות. %>
+<%# הסרגל שבתחתית: ייצוא והדפסה. כשרשימת צ׳קים מוצגת — הייצוא הוא הקובץ המפורט שלה (עם החתך); אחרת — סיכום
+    החשבונות. %>
 <%- include('_outstandingCut', {
-  allLink: ocAllLink(),
+  part: 'bar',
   csvLink: detailAccountId ? '/reports/outstanding-detail.csv?account=' + detailAccountId + cutQS() : '/reports/outstanding.csv',
 }) %>
 

@@ -427,11 +427,15 @@ router.get('/outstanding', requirePageAccess('nav_outstanding'), async (req, res
     // Scope guard: only show detail for an account the user is allowed to see.
     const inScope = detailAccountId != null && accounts.some((a) => a.id === detailAccountId);
     const detail = inScope ? await outstandingCheckDetail(detailAccountId, cutArg) : [];
+    const months = await outstandingMonths(req.scope);
     res.render('reports/outstanding', {
       title: 'צ׳קים בחוץ',
+      // בעלים 21/10: "למעלה משמאל לחזרה — הצג הכל · שבועי · חודשי" (partials/_outstandingMenu.ejs).
+      topMenu: months.length ? '_outstandingMenu' : null,
+      ocMenu: { cut: c.cut, allLink: '/reports/outstanding' + (inScope ? `?account=${detailAccountId}` : '') },
       accounts,
       totalOutstanding,
-      months: await outstandingMonths(req.scope),
+      months,
       weeks: await outstandingWeeks(req.scope),
       month: c.month,
       cut: c.cut,

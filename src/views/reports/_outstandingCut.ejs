@@ -1,26 +1,13 @@
 <%#
-  הסרגל של צ׳קים בחוץ (בעלים 21/10): **מימין** החתכים לפי תאריך הפירעון — הצג הכל · הצג בחתך שבועי · הצג
-  בחתך חודשי · הצג בחתך תאריכים; **משמאל** ייצוא והדפסה. הטפסים של החתך נפתחים מתחת לסרגל. ocShowCut מוגדר
-  ב-reports/outstanding.ejs. locals: allLink, csvLink (+ months, weeks, cut, from, to, selMonths, selWeeks,
-  detailAccountId של הדף).
+  צ׳קים בחוץ (בעלים 21/10). part 'forms' = טופסי הבחירה של "שבועי"/"חודשי" — בראש הדף, מוסתרים עד שלוחצים על
+  הכפתור בשורת הכותרת (partials/_outstandingMenu.ejs → ocShowCut, reports/outstanding.ejs); part 'bar' = הסרגל
+  שבתחתית: ייצוא והדפסה. "תאריכים" ירד ("הצג הכל · שבועי · חודשי"). locals: csvLink (+ months, weeks, cut,
+  selMonths, selWeeks, detailAccountId של הדף).
 %>
-<div class="card no-print oc-bar-card">
-  <div class="oc-bar">
-    <% if (months && months.length) { %>
-    <div class="oc-cuts" role="group" aria-label="חתך לפי תאריך פירעון">
-      <a class="chip <%= cut === 'all' ? 'active' : '' %>" href="<%= allLink %>">הצג הכל</a>
-      <button type="button" class="chip <%= cut === 'weeks' ? 'active' : '' %>" onclick="ocShowCut('weeks')">הצג בחתך שבועי</button>
-      <button type="button" class="chip <%= cut === 'months' ? 'active' : '' %>" onclick="ocShowCut('months')">הצג בחתך חודשי</button>
-      <button type="button" class="chip <%= cut === 'date' ? 'active' : '' %>" onclick="ocShowCut('date')">הצג בחתך תאריכים</button>
-    </div>
-    <% } %>
-    <div class="oc-out">
-      <a class="btn btn-secondary" href="<%= csvLink %>">📄 ייצוא CSV</a>
-      <button type="button" class="btn btn-secondary" onclick="window.print()">🖨️ הדפסה / PDF</button>
-    </div>
-  </div>
-
-  <% if (months && months.length) { %>
+<% var _part = (typeof part !== 'undefined' && part) ? part : 'bar'; %>
+<% if (_part === 'forms') { %>
+<% if (months && months.length) { %>
+<div class="card no-print oc-forms-card" style="<%= cut === 'weeks' || cut === 'months' ? '' : 'display:none' %>">
   <form method="get" action="/reports/outstanding" id="oc-weeks" class="oc-cut" style="<%= cut === 'weeks' ? '' : 'display:none' %>">
     <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
     <input type="hidden" name="cut" value="weeks" />
@@ -45,14 +32,15 @@
     <button type="submit">הצג נבחרים</button>
   </form>
 
-  <form method="get" action="/reports/outstanding" id="oc-date" class="oc-cut no-enhance" style="<%= cut === 'date' ? '' : 'display:none' %>">
-    <% if (detailAccountId) { %><input type="hidden" name="account" value="<%= detailAccountId %>" /><% } %>
-    <input type="hidden" name="cut" value="date" />
-    <div class="row">
-      <div><label>מתאריך</label><input type="date" name="from" value="<%= from || '' %>" /></div>
-      <div><label>עד תאריך</label><input type="date" name="to" value="<%= to || '' %>" /></div>
-    </div>
-    <div style="margin-top:.5rem"><button type="submit">הצג</button></div>
-  </form>
-  <% } %>
 </div>
+<% } %>
+<% } else { %>
+<div class="card no-print oc-bar-card">
+  <div class="oc-bar">
+    <div class="oc-out">
+      <a class="btn btn-secondary" href="<%= csvLink %>">📄 ייצוא CSV</a>
+      <button type="button" class="btn btn-secondary" onclick="window.print()">🖨️ הדפסה / PDF</button>
+    </div>
+  </div>
+</div>
+<% } %>

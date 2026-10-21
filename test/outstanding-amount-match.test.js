@@ -62,8 +62,8 @@ test('candidates: same amount, unmatched debit, inside the window; unique only w
 
 test('the page offers the match; "match all unique" clears only the one-to-one pair', async () => {
   const html = await (await fetch(`${base}/reports/outstanding?account=${acc.id}`, { headers: { cookie: ck() } })).text();
-  assert.match(html, /נמצאו חיובים בבנק <strong>באותו סכום<\/strong>/);
-  assert.match(html, /התאם את כל החד-משמעיים \(1\)/);
+  // בעלים 21/10: "תמחוק" — שורת הסיכום ("🔎 נמצאו חיובים…" + "התאם את כל החד-משמעיים") ירדה; ההצעות בשורות נשארו.
+  assert.doesNotMatch(html, /נמצאו חיובים בבנק|התאם את כל החד-משמעיים|ההתחייבות החיה/);
   assert.match(html, /גם לצ׳ק אחר/);
   assert.match(html, /מספר שונה — לבדוק/);
   const r = await fetch(`${base}/reports/outstanding/match-unique`, {
@@ -93,18 +93,21 @@ test('a single match from the row (the ambiguous one, chosen by the user)', asyn
   assert.equal(m.get(Number(c.id)).candidates.length, 0);
 });
 
-// בעלים 21/10: "לוותר על [טבלת החשבונות] ומייד להציג את רשימת הצ׳קים" — חוץ ממצב של כמה חנויות; "הצמד את
-// הכפתורים שמאלה"; החתכים עוברים לסרגל של ייצוא והדפסה — מימין: הצג הכל · שבועי · חודשי · תאריכים.
-test('outstanding page: one account opens straight into its checks; one bar — cuts on the right, export/print on the left', async () => {
+// בעלים 21/10: "לוותר על [טבלת החשבונות] ומייד להציג את רשימת הצ׳קים" — חוץ ממצב של כמה חנויות; ואחר כך:
+// "למעלה משמאל לחזרה — הצג הכל · שבועי · חודשי" (שורת הכותרת), ייצוא והדפסה בסרגל שבתחתית, בלי "תאריכים".
+test('outstanding page: one account opens straight into its checks; the cuts sit in the header row, export/print in the bar', async () => {
   const html = await (await fetch(`${base}/reports/outstanding`, { headers: { cookie: ck() } })).text();
   assert.match(html, /פירוט צ׳קים שלא נפרעו/, 'the list, without clicking a row');
   assert.doesNotMatch(html, /<th>חברה<\/th><th>חנות \/ חשבון<\/th>/, 'no one-row accounts table');
   assert.match(html, /class="muted oc-total"/, 'its total moves under the heading');
-  const bar = html.slice(html.indexOf('class="oc-bar"'), html.indexOf('id="oc-weeks"'));
-  const order = ['הצג הכל', 'הצג בחתך שבועי', 'הצג בחתך חודשי', 'הצג בחתך תאריכים', '📄 ייצוא CSV', '🖨️ הדפסה / PDF'].map((t) => bar.indexOf(t));
-  assert.ok(order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])), 'right to left: all · weekly · monthly · dates, then export · print');
+  const top = html.slice(html.indexOf('class="sb-side sb-start"'), html.indexOf('class="sb-center"'));
+  const order = ['>הצג הכל<', '>שבועי<', '>חודשי<'].map((t) => top.indexOf(t));
+  assert.ok(order.every((i, k) => i > 0 && (k === 0 || i > order[k - 1])), 'right to left, left of "→ חזרה": all · weekly · monthly');
+  assert.doesNotMatch(html, /תאריכים<\/button>|id="oc-date"/, 'no date cut any more');
+  const bar = html.slice(html.indexOf('class="oc-bar"'));
+  assert.ok(bar.indexOf('📄 ייצוא CSV') > 0 && bar.indexOf('🖨️ הדפסה / PDF') > bar.indexOf('📄 ייצוא CSV'), 'export · print in the bottom bar');
   assert.match(bar, new RegExp(`href="/reports/outstanding-detail\\.csv\\?account=${acc.id}"`), 'export = the detailed file of the list shown');
-  assert.equal((html.match(/id="oc-date"/g) || []).length, 1, 'the cut is rendered once');
+  assert.ok(html.indexOf('id="oc-weeks"') > 0 && html.indexOf('id="oc-weeks"') < html.indexOf('פירוט צ׳קים שלא נפרעו'), 'the picker opens at the top of the page');
   assert.match(html, /<div class="table-scroll">\s*<table class="sortable">/, 'the 11-column table scrolls inside itself on a phone');
   // "כל החנויות" (no store cookie) — several accounts: the table stays and no list opens by itself.
   const all = await (await fetch(`${base}/reports/outstanding`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();

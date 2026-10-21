@@ -1,0 +1,9 @@
+<%# צ׳קים בחוץ — החתכים לפי תאריך פירעון בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 21/10: "הצג הכל · שבועי · חודשי").
+    header.ejs מכליל אותו ב-.sb-start דרך topMenu: '_outstandingMenu' (routes/reports.js, רק כשיש צ׳קים פתוחים).
+    "שבועי"/"חודשי" פותחים את טופס הבחירה בראש הדף (reports/_outstandingCut.ejs part 'forms'; ocShowCut). %>
+<% var _om = (typeof ocMenu !== 'undefined' && ocMenu) || {}; %>
+<span class="oc-top-cuts no-print" role="group" aria-label="חתך לפי תאריך פירעון">
+  <a class="btn btn-sm <%= _om.cut === 'all' ? 'btn-primary' : 'btn-secondary' %>" href="<%= _om.allLink %>">הצג הכל</a>
+  <button type="button" class="btn btn-sm <%= _om.cut === 'weeks' ? 'btn-primary' : 'btn-secondary' %>" onclick="ocShowCut('weeks')">שבועי</button>
+  <button type="button" class="btn btn-sm <%= _om.cut === 'months' ? 'btn-primary' : 'btn-secondary' %>" onclick="ocShowCut('months')">חודשי</button>
+</span>
