@@ -1,0 +1,64 @@
+// בעלים 21/10: "+ ספק חדש" ו"סינון" בשורת הכותרת משמאל ל"→ חזרה"; "ספקים בשיעור אפס" — לא כרטיס נפרד אלא
+// העמודה השמאלית בטבלה (במקום "הערות"), וספק שמשייכים מסמנים בריבוע בקליק.
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { freshDb, owner, secretary } from './helpers.js';
+import { createApp } from '../src/app.js';
+import { createSession } from '../src/lib/auth.js';
+import { createSupplier, approveSupplier } from '../src/services/suppliers.js';
+
+let db, o, sup, server, base;
+before(async () => {
+  db = await freshDb();
+  o = await owner(db);
+  sup = await approveSupplier((await createSupplier({ name: 'ירקות השדה', notes: 'הערה פנימית' }, o, db)).id, o, db);
+  server = createApp().listen(0);
+  await once(server, 'listening');
+  base = `http://127.0.0.1:${server.address().port}`;
+});
+after(() => server && server.close());
+const page = async (u) => (await fetch(`${base}/suppliers`, { headers: { cookie: `session=${createSession(u.id)}` } })).text();
+
+test('the two menus sit in the header row; the toolbar keeps only the title', async () => {
+  const html = await page(o);
+  const start = html.slice(html.indexOf('class="sb-side sb-start"'), html.indexOf('class="sb-center"'));
+  assert.ok(start.indexOf('+ ספק חדש') > 0 && start.indexOf('סינון · הכל') > start.indexOf('+ ספק חדש'), 'new supplier, then filter');
+  const main = html.slice(html.indexOf('<main'));
+  assert.doesNotMatch(main, /<summary class="btn btn-primary">\+ ספק חדש/, 'not in the page toolbar any more');
+});
+
+test('no separate zero-rate card; the leftmost column is "שיעור 0" with a box per supplier, instead of "הערות"', async () => {
+  const html = await page(o);
+  assert.doesNotMatch(html, /ספקים בשיעור אפס \(פירות וירקות\)/);
+  const head = html.slice(html.indexOf('<thead>', html.indexOf('action="/suppliers/bulk"')), html.indexOf('</thead>', html.indexOf('action="/suppliers/bulk"')));
+  assert.match(head, /<th data-nosort data-nofilter data-noexport class="zero-col"[^>]*>שיעור 0<\/th>\s*<\/tr>/, 'the last (leftmost) column');
+  assert.doesNotMatch(head, />הערות</);
+  assert.match(html, new RegExp(`<input type="checkbox" class="zero-toggle" data-id="${sup.id}"`));
+  assert.doesNotMatch(html, /class="zero-toggle"[^>]*name=/, 'the box never rides along with the bulk form');
+  assert.match(html, /id="zeroToggleForm"/);
+});
+
+test('one click marks one supplier (and only it); a second click unmarks it', async () => {
+  const post = (body) => fetch(`${base}/suppliers/zero-rated`, {
+    method: 'POST', redirect: 'manual',
+    headers: { cookie: `session=${createSession(o.id)}`, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(body).toString(),
+  });
+  let r = await post({ offered: String(sup.id), zero_ids: String(sup.id) });
+  assert.equal(r.status, 303);
+  assert.equal(Number((await db.one('SELECT zero_rated FROM suppliers WHERE id = ?', [sup.id])).zero_rated), 1);
+  const html = await (await fetch(base + r.headers.get('location'), { headers: { cookie: `session=${createSession(o.id)}` } })).text();
+  assert.match(html, /הספק סומן: עסקאות בשיעור אפס\./);
+  r = await post({ offered: String(sup.id) });
+  assert.equal(Number((await db.one('SELECT zero_rated FROM suppliers WHERE id = ?', [sup.id])).zero_rated), 0);
+});
+
+test('a non-owner sees the state but cannot click it', async () => {
+  const sec = await secretary(db);
+  await db.run(`UPDATE users SET permissions = '["nav_suppliers"]' WHERE id = ?`, [sec.id]);
+  const html = await page(sec);
+  if (!/class="zero-toggle"/.test(html)) return; // a secretary without this page sees no table at all
+  assert.match(html, /class="zero-toggle"[^>]*disabled/);
+  assert.doesNotMatch(html, /id="zeroToggleForm"/);
+});

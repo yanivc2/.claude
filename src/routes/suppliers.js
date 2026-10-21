@@ -54,6 +54,8 @@ function noticeFrom(q) {
   if (q.zero !== undefined) {
     const on = Number(q.zero) || 0;
     const off = Number(q.zeroOff) || 0;
+    // ריבוע אחד בעמודת "שיעור 0" (בעלים 21/10) — הודעה על הספק הזה, לא ספירה.
+    if (on + off === 1) return on ? 'הספק סומן: עסקאות בשיעור אפס.' : 'הסימון "עסקאות בשיעור אפס" הוסר מהספק.';
     return `${on} ספקים מסומנים כ"עסקאות בשיעור אפס"${off ? ` · ${off} ללא סימון` : ''}.`;
   }
   if (q.linked !== undefined) {
@@ -68,6 +70,7 @@ function noticeFrom(q) {
 async function renderList(req, res, extra = {}) {
   res.render('suppliers/index', {
     title: 'ספקים',
+    topMenu: '_suppliersMenu', // "+ ספק חדש" · "סינון" בשורת הכותרת (בעלים 21/10)
     suppliers: await listSuppliers(null, undefined, { scope: req.scope }),
     zeroCandidates: await zeroRatedCandidates(req.scope),
     storeSuggestions: await supplierStoreSuggestions(assignmentScope(req)),
@@ -82,6 +85,7 @@ router.get('/', async (req, res, next) => {
   try {
     res.render('suppliers/index', {
       title: 'ספקים',
+      topMenu: '_suppliersMenu', // "+ ספק חדש" · "סינון" בשורת הכותרת (בעלים 21/10)
       suppliers: await listSuppliers(req.query.status || null, undefined, { scope: req.scope }),
       zeroCandidates: await zeroRatedCandidates(req.scope),
       storeSuggestions: await supplierStoreSuggestions(assignmentScope(req)),

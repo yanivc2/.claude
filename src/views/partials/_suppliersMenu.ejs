@@ -1,0 +1,20 @@
+<%# ספקים — "+ ספק חדש" ו"סינון" בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 21/10, כמו בשאר הדפים). header.ejs מכליל
+    אותו ב-.sb-start דרך topMenu: '_suppliersMenu' (routes/suppliers.js). `filter` = הסינון הנוכחי (status). %>
+<% var _sf = (typeof filter !== 'undefined' && filter) || '';
+   var _sl = _sf === 'pending' ? 'ממתינים' : _sf === 'approved' ? 'מאושרים' : _sf === 'blocked' ? 'חסומים' : 'הכל'; %>
+<details class="menu open-in store-banner-quick no-print">
+  <summary class="btn btn-primary btn-sm">+ ספק חדש <span class="caret">▾</span></summary>
+  <div class="menu-panel">
+    <a href="/suppliers/new">+ ספק חדש</a>
+    <a href="/suppliers/contacts">אנשי קשר ספקים</a>
+  </div>
+</details>
+<details class="menu open-in store-banner-quick no-print">
+  <summary class="btn btn-secondary btn-sm">סינון · <%= _sl %> <span class="caret">▾</span></summary>
+  <div class="menu-panel">
+    <a href="/suppliers" class="<%= !_sf ? 'active' : '' %>">הכל</a>
+    <a href="/suppliers?status=pending" class="<%= _sf === 'pending' ? 'active' : '' %>">ממתינים</a>
+    <a href="/suppliers?status=approved" class="<%= _sf === 'approved' ? 'active' : '' %>">מאושרים</a>
+    <a href="/suppliers?status=blocked" class="<%= _sf === 'blocked' ? 'active' : '' %>">חסומים</a>
+  </div>
+</details>
