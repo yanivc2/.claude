@@ -1530,3 +1530,7 @@ main.page th.bulk-col { white-space: nowrap; }
 main.page th.bulk-col .bulk-title { display: block; margin-bottom: 6px; }
 main.page th.bulk-col .bulk-pick { display: block; width: 100%; min-width: 7.5em; min-height: 0; padding-block: 5px; font-size: 13px; margin: 0 auto 6px; font-weight: 400; }
 main.page th.bulk-col .bulk-go { display: block; width: 100%; margin: 0 auto; }
+/* דוחות Z — "ייצוא" בתא השמאלי של שורת הסה"כ ב"רשומות Z אחרונות" (בעלים 21/10); התפריט נפתח כלפי מעלה, לתוך הטבלה. */
+.zr-export-slot .tbl-export { display: inline-block; }
+.zr-export-slot .tbl-export-toggle { white-space: nowrap; }
+.zr-export-slot .tbl-export-menu { top: auto; bottom: calc(100% + 4px); inset-inline-end: 0; }

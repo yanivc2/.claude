@@ -72,74 +72,6 @@
   </div>
 </div>
 
-<%# האזהרות מחוץ לרובריקה: היא מצומצמת כברירת מחדל, ואזהרה בתוכה הייתה נעלמת יחד איתה. %>
-<% if (missingZ && missingZ.length) { %>
-  <div class="alert alert-warn">מספרי Z חסרים ברצף: <strong><%= missingZ.join(', ') %></strong> — בדוק אם הוזנו ביום אחר.</div>
-<% } %>
-<%# <h2> ישיר (לא בתוך .toolbar) — זה מה שהופך את הכרטיס למתקפל (partials/footer.ejs). %>
-<div class="card">
-  <h2>רשומות Z אחרונות<% if (unmatchedCount > 0) { %> <span class="badge b-on_hold"><%= unmatchedCount %> לא תואמים</span><% } %></h2>
-  <%# בלי בורר חנות (בעלים, 17/10) — החנות הפעילה בסרגל העליון קובעת. %>
-  <div style="overflow-x:auto">
-  <table class="sortable">
-    <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מזומן מגירה</th><th class="right">סכום הפקדה</th><th>שקית הפקדה</th><th>סטטוס</th><th class="right">חוסר / יתרה</th><th class="no-print" data-nosort></th></tr></thead>
-    <tbody>
-      <% if (zReports.length === 0) { %><tr><td colspan="10" class="muted">אין דוחות Z.</td></tr><% } %>
-      <% zReports.forEach(function(z){ %>
-        <tr>
-          <td class="mono"><a href="/reports/zreports/<%= z.id %>"><%= z.z_number %></a></td>
-          <td><%= formatDate(z.z_date) %></td>
-          <td><%= z.store_name %></td>
-          <td class="right"><%= formatIls(z.daily_total) %></td>
-          <%# מזומן המגירה בלבד — לא סה"כ המגירה (מזומן+אשראי+…). בעלים, 17/10: "מזומן מגירה, לא מגירה כללי". %>
-          <td class="right"><%= formatIls(z.drawer_cash) %></td>
-          <td class="right"><%= z.hasDeposit ? formatIls(z.depositTotal) : '—' %></td>
-          <td class="mono"><%= z.depositBag || '—' %></td>
-          <td>
-            <% if (!z.hasDeposit) { %>
-              <span class="badge b-on_hold">אין הפקדה</span>
-            <% } else if (z.depMatched) { %>
-              <span class="badge b-approved">תואם</span>
-            <% } else { %>
-              <span class="badge b-blocked">לא תואם</span>
-            <% } %>
-          </td>
-          <td class="right">
-            <% if (!z.hasDeposit) { %><span class="muted">—</span>
-            <% } else if (z.depDiff === 0) { %><span style="color:var(--color-ok)">תואם</span>
-            <% } else if (z.depDiff > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(z.depDiff) %></strong>
-            <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-z.depDiff) %></strong><% } %>
-          </td>
-          <td class="no-print">
-            <a class="btn btn-secondary small" style="display:inline-flex;align-items:center;gap:4px"
-               href="https://wa.me/?text=<%- encodeURIComponent(z.waText) %>" target="_blank" rel="noopener"
-               title="<% if (z.depDiff === 0) { %>תואם<% } else if (z.depDiff > 0) { %>יתרה <%= formatIls(z.depDiff) %><% } else { %>חוסר <%= formatIls(-z.depDiff) %><% } %>">📲 וואטסאפ</a>
-            <% if (typeof can === 'function' && can('delete_zreport')) { %>
-            <form method="post" action="/reports/zreports/<%= z.id %>/delete" onsubmit="return confirm('למחוק דוח Z זה?')" style="display:inline">
-              <button class="danger small" type="submit">מחק</button>
-            </form>
-            <% } %>
-          </td>
-        </tr>
-      <% }); %>
-    </tbody>
-    <%# סה"כ "חוסר / יתרה" — רק דוחות עם הפקדה ("—" לא נספר כאפס). ב-tfoot ולא ב-tbody: משפרי
-        הטבלה ממיינים ומסננים את שורות ה-tbody. %>
-    <% var _zdN = 0, _zdSum = 0; zReports.forEach(function(z){ if (z.hasDeposit) { _zdN += 1; _zdSum += Number(z.depDiff) || 0; } }); %>
-    <tfoot><tr>
-      <th colspan="8">סה"כ <span class="muted" style="font-weight:400">(<%= _zdN %> דוחות עם הפקדה)</span></th>
-      <th class="right">
-        <% if (!_zdN) { %><span class="muted">—</span>
-        <% } else if (_zdSum === 0) { %><span style="color:var(--color-ok)">תואם</span>
-        <% } else if (_zdSum > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(_zdSum) %></strong>
-        <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-_zdSum) %></strong><% } %>
-      </th>
-      <th class="no-print"></th>
-    </tr></tfoot>
-  </table>
-  </div>
-</div>
-
 <%# ===== רובריקה: דוחות Z ללא הצהרת הפקדה — הצהר על הפקדה ===== %>
 <div class="card">
   <h2 style="margin:0 0 .5rem">דוחות Z ללא הצהרת הפקדה<% if (zNoDeposit && zNoDeposit.length) { %> <span class="badge b-on_hold"><%= zNoDeposit.length %></span><% } %></h2>
@@ -208,6 +140,76 @@
       </table>
     </div>
   <% } %>
+</div>
+
+<%# האזהרות מחוץ לרובריקה: היא מצומצמת כברירת מחדל, ואזהרה בתוכה הייתה נעלמת יחד איתה. %>
+<% if (missingZ && missingZ.length) { %>
+  <div class="alert alert-warn">מספרי Z חסרים ברצף: <strong><%= missingZ.join(', ') %></strong> — בדוק אם הוזנו ביום אחר.</div>
+<% } %>
+<%# "רשומות Z אחרונות" — הרובריקה האחרונה בדף (בעלים 21/10: "תעביר לסוף"); אזהרת הרצף נוסעת איתה.
+    <h2> ישיר (לא בתוך .toolbar) — זה מה שהופך את הכרטיס למתקפל (partials/footer.ejs). %>
+<div class="card">
+  <h2 data-ckey="רשומות Z אחרונות">רשומות Z אחרונות<% if (unmatchedCount > 0) { %> <span class="badge b-on_hold"><%= unmatchedCount %> לא תואמים</span><% } %></h2>
+  <%# בלי בורר חנות (בעלים, 17/10) — החנות הפעילה בסרגל העליון קובעת. %>
+  <div style="overflow-x:auto">
+  <%# "ייצוא" בתא השמאלי של שורת הסה"כ, מתחת לוואטסאפ/מחק (בעלים 21/10: "העבר את ייצוא לשמאל — ראה תמונה"). %>
+  <table class="sortable" data-export-into="zrExportSlot">
+    <thead><tr><th>Z</th><th>תאריך</th><th>חנות</th><th class="right">יומי Z</th><th class="right">מזומן מגירה</th><th class="right">סכום הפקדה</th><th>שקית הפקדה</th><th>סטטוס</th><th class="right">חוסר / יתרה</th><th class="no-print" data-nosort></th></tr></thead>
+    <tbody>
+      <% if (zReports.length === 0) { %><tr><td colspan="10" class="muted">אין דוחות Z.</td></tr><% } %>
+      <% zReports.forEach(function(z){ %>
+        <tr>
+          <td class="mono"><a href="/reports/zreports/<%= z.id %>"><%= z.z_number %></a></td>
+          <td><%= formatDate(z.z_date) %></td>
+          <td><%= z.store_name %></td>
+          <td class="right"><%= formatIls(z.daily_total) %></td>
+          <%# מזומן המגירה בלבד — לא סה"כ המגירה (מזומן+אשראי+…). בעלים, 17/10: "מזומן מגירה, לא מגירה כללי". %>
+          <td class="right"><%= formatIls(z.drawer_cash) %></td>
+          <td class="right"><%= z.hasDeposit ? formatIls(z.depositTotal) : '—' %></td>
+          <td class="mono"><%= z.depositBag || '—' %></td>
+          <td>
+            <% if (!z.hasDeposit) { %>
+              <span class="badge b-on_hold">אין הפקדה</span>
+            <% } else if (z.depMatched) { %>
+              <span class="badge b-approved">תואם</span>
+            <% } else { %>
+              <span class="badge b-blocked">לא תואם</span>
+            <% } %>
+          </td>
+          <td class="right">
+            <% if (!z.hasDeposit) { %><span class="muted">—</span>
+            <% } else if (z.depDiff === 0) { %><span style="color:var(--color-ok)">תואם</span>
+            <% } else if (z.depDiff > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(z.depDiff) %></strong>
+            <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-z.depDiff) %></strong><% } %>
+          </td>
+          <td class="no-print">
+            <a class="btn btn-secondary small" style="display:inline-flex;align-items:center;gap:4px"
+               href="https://wa.me/?text=<%- encodeURIComponent(z.waText) %>" target="_blank" rel="noopener"
+               title="<% if (z.depDiff === 0) { %>תואם<% } else if (z.depDiff > 0) { %>יתרה <%= formatIls(z.depDiff) %><% } else { %>חוסר <%= formatIls(-z.depDiff) %><% } %>">📲 וואטסאפ</a>
+            <% if (typeof can === 'function' && can('delete_zreport')) { %>
+            <form method="post" action="/reports/zreports/<%= z.id %>/delete" onsubmit="return confirm('למחוק דוח Z זה?')" style="display:inline">
+              <button class="danger small" type="submit">מחק</button>
+            </form>
+            <% } %>
+          </td>
+        </tr>
+      <% }); %>
+    </tbody>
+    <%# סה"כ "חוסר / יתרה" — רק דוחות עם הפקדה ("—" לא נספר כאפס). ב-tfoot ולא ב-tbody: משפרי
+        הטבלה ממיינים ומסננים את שורות ה-tbody. %>
+    <% var _zdN = 0, _zdSum = 0; zReports.forEach(function(z){ if (z.hasDeposit) { _zdN += 1; _zdSum += Number(z.depDiff) || 0; } }); %>
+    <tfoot><tr>
+      <th colspan="8">סה"כ <span class="muted" style="font-weight:400">(<%= _zdN %> דוחות עם הפקדה)</span></th>
+      <th class="right">
+        <% if (!_zdN) { %><span class="muted">—</span>
+        <% } else if (_zdSum === 0) { %><span style="color:var(--color-ok)">תואם</span>
+        <% } else if (_zdSum > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(_zdSum) %></strong>
+        <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-_zdSum) %></strong><% } %>
+      </th>
+      <th class="no-print zr-export-slot" id="zrExportSlot"></th>
+    </tr></tfoot>
+  </table>
+  </div>
 </div>
 
 <script src="/bag-scan.js?v=<%= encodeURIComponent(typeof buildVersion !== 'undefined' ? buildVersion : 'dev') %>"></script>

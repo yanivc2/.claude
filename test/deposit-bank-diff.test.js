@@ -72,7 +72,7 @@ test('דוחות Z: every rubric starts collapsed, with a versioned state key', 
   const html = await (await fetch(`${base}/reports/zreports`, { headers: { cookie: `session=${createSession(o.id)}; ap_store=3` } })).text();
   assert.match(html, /<span data-collapse-default="v2" hidden><\/span>/);
   assert.match(html, /<details class="card collapse no-print" id="zr-add">/, 'the add form is closed (no open attribute)');
-  assert.match(html, /<div class="card">\s*<h2>רשומות Z אחרונות/, 'a direct <h2> makes the recent-Z card collapsible');
+  assert.match(html, /<div class="card">\s*<h2 data-ckey="רשומות Z אחרונות">רשומות Z אחרונות/, 'a direct <h2> makes the recent-Z card collapsible');
   const footer = await import('node:fs').then((fs) => fs.readFileSync('src/views/partials/footer.ejs', 'utf8'));
   assert.match(footer, /var pageKey = 'apCollapse:' \+ location\.pathname \+ \(_cdv \? ':' \+ _cdv : ''\);/);
 });
