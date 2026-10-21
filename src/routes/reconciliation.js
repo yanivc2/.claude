@@ -41,7 +41,6 @@ import {
   unmatch,
   reconcileAccount,
   matchTxnToInvoices,
-  mismatchedMatchesFor,
   rematchByNumber,
   rejectionsReady,
   rejectionCount,
@@ -133,20 +132,20 @@ async function renderPage(req, res, accountId, extra = {}) {
   const hiddenUntil = await unmatchedHiddenUntil();
   const hiddenCount = accountId ? await hiddenUnmatchedCount(accountId) : 0;
   const classified = await Promise.all(unmatched.map(async (t) => ({ txn: t, ...(await classify(t)) })));
-  // "פעולות" בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 21/10) — גם הבית של "כלים" (ניקוי לפי קובץ · בדיקת
-  // שיוך), ולכן לכל מי שבדף; פריטי הבעלים מסוננים בתוך partials/_reconMenu.ejs.
-  const owner = req.user?.role === 'owner';
+  // "פעולות" בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 21/10) — כל פעולות החשבון: שם החשבון, סנכרון, ייבוא,
+  // תנועה ידנית, ניקוי לפי קובץ ובדיקת שיוך. לכל מי שבדף; כל פריט לפי ההרשאה שלו (partials/_reconMenu.ejs).
+  const allAccounts = await accounts(req.scope);
+  const bankSync = res.locals.can?.('import_bank') ? await syncStatus(req.user, req.scope) : null;
   res.render('reconciliation/index', {
     title: 'התאמת בנק',
     topMenu: accountId ? '_reconMenu' : null,
     reconMenu: accountId ? {
       accountId,
-      owner,
+      accountName: allAccounts.find((a) => a.id === accountId)?.display_name || '',
       canImport: userCan(req.user, 'import_bank'),
-      mismatched: owner ? (await mismatchedMatchesFor(accountId)).length : 0,
-      hiddenUntil,
+      bankSync,
     } : null,
-    accounts: await accounts(req.scope),
+    accounts: allAccounts,
     accountId,
     purge: null,
     importsReady: await importsReady(),
@@ -167,7 +166,7 @@ async function renderPage(req, res, accountId, extra = {}) {
     payableInvoices: accountId ? await payableForAccount(accountId, req.scope) : [],
     // כרטיס סנכרון הבנק (סוכן מחשב המשרד) — רק למי שמורשה לייבא. המצב ההתחלתי מרונדר בשרת כדי
     // שהכרטיס יעבוד גם בלי JS; הסקריפט רק מרענן אותו בזמן אמת.
-    bankSync: res.locals.can?.('import_bank') ? await syncStatus(req.user, req.scope) : null,
+    bankSync,
     payMethods: PAY_METHODS,
     // Open-Banking sync is offered only when the key is configured AND this account is linked.
     financyReady: financyConfigured(),

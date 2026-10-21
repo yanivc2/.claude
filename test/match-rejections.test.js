@@ -61,14 +61,14 @@ test('only an open line and a check of the SAME account can be rejected (no leak
   await assert.rejects(rejectSuggestions([{ txnId: tA, paymentId: pB }], o, db), /חשבונות בנק שונים/);
 });
 
-test('UI: the bar sits under the hide-until line; each row has "לא שלו" tied to the reject form; restore appears after a reject', async () => {
+test('UI: the bar sits above the table; each row has "לא שלו" tied to the reject form; restore appears after a reject', async () => {
   const p = (await pay(A, '32040', 118000, '2026-09-25')).lastInsertRowid;
   const t = (await debit(A, '2026-09-28', -118000, '')).lastInsertRowid;
   let html = await get(`/reconciliation?account=${A.id}`);
-  const hide = html.indexOf('action="/reconciliation/hide-until"');
+  const head = html.indexOf('תנועות לא מותאמות (חובה)');
   const bar = html.indexOf('class="reject-bar no-print"');
   const table = html.indexOf('data-filter-slot="autoMatchForm"');
-  assert.ok(hide > 0 && bar > hide && table > bar, 'hide-until line → reject bar → table');
+  assert.ok(head > 0 && bar > head && table > bar, 'heading → reject bar → table');
   assert.match(html, /<button type="submit" class="small danger" id="rejectBtn" disabled>✕ דחה הצעות שסומנו \(0\)<\/button>/);
   assert.match(html, new RegExp(`<input type="checkbox" name="pair" form="rejectForm" value="${t}:${p}" data-reject-pick /> לא שלו`));
   assert.doesNotMatch(html, /↩ החזר/);

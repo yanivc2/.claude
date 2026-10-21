@@ -91,12 +91,13 @@ test('הגדרות ← "סנכרון מהבנק": מצב מחשב המשרד ו�
   const card = page.slice(from, page.indexOf('<div class="card', from + 1)).replace(/<script>[\s\S]*?<\/script>/g, '');
   assert.doesNotMatch(card, /המפתח שלך במחשב המשרד|מחשב המשרד מחובר|מחשב המשרד עוד לא התחבר/, 'agent status + key moved to settings');
   assert.doesNotMatch(card, /קובץ פעולות בחשבון מהבנק \(CSV או Excel\)/, 'no explanation text');
-  const at = (t) => card.indexOf(t);
-  assert.ok(at('class="recon-account"') > 0 && at('class="recon-account"') < at('🔄 סנכרן עכשיו'), 'the account first');
-  assert.ok(at('🔄 סנכרן עכשיו') < at('📄 ייבוא CSV / Excel') && at('📄 ייבוא CSV / Excel') < at('➕ הוספת תנועה ידנית'), 'sync · import · manual');
-  // בעלים 21/10: "זה אמור להיות הכפתור שלו" — שורת "כלים" עברה לתפריט "פעולות" שבשורת הכותרת.
-  assert.doesNotMatch(card, /recon-tools|🧹 ניקוי לפי קובץ|🔍 בדיקת שיוך לחשבון/, 'no tools row in the card');
+  // בעלים 21/10: "שים בכפתור פעולות" — החשבון, הסנכרון, הייבוא וההוספה הידנית עברו לתפריט שבשורת הכותרת;
+  // בכרטיס נשאר רק מצב הסנכרון / קוד ה-SMS (#bs-body).
+  assert.doesNotMatch(card, /class="recon-account"|🔄 סנכרן עכשיו|📄 ייבוא CSV \/ Excel|➕ הוספת תנועה ידנית|recon-tools/, 'nothing but the sync status in the card');
+  assert.match(card, /id="bs-body"/);
   const menu = page.slice(page.indexOf('top-recon-menu'), page.indexOf('</details>', page.indexOf('top-recon-menu')));
-  assert.match(menu, /🧹 ניקוי לפי קובץ/);
-  assert.match(menu, /🔍 בדיקת שיוך לחשבון/);
+  const at = (t) => menu.indexOf(t);
+  assert.ok(at('חשבון בנק: <strong>') > 0 && at('חשבון בנק: <strong>') < at('🔄 סנכרן עכשיו'), 'the account first');
+  assert.ok(at('🔄 סנכרן עכשיו') < at('📄 ייבוא CSV / Excel') && at('📄 ייבוא CSV / Excel') < at('➕ הוספת תנועה ידנית'), 'sync · import · manual');
+  assert.ok(at('➕ הוספת תנועה ידנית') < at('🧹 ניקוי לפי קובץ') && at('🧹 ניקוי לפי קובץ') < at('🔍 בדיקת שיוך לחשבון'), 'then the tools');
 });

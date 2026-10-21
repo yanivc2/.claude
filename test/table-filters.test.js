@@ -43,7 +43,9 @@ test('the sorter understands DD/MM/YY, and an explicit data-sort wins', () => {
 test('the unmatched-transactions table opts into both, and excludes the action column', () => {
   const view = read('src/views/reconciliation/index.ejs');
   const head = view.slice(view.indexOf('תנועות לא מותאמות'), view.indexOf('</thead>', view.indexOf('תנועות לא מותאמות')));
-  assert.match(head, /<table class="sortable filterable(?: tbl-center)?">/);
+  // no-export (בעלים 21/10, "בטל"): המסננים נשארים, "ייצוא" לא.
+  assert.match(head, /<table class="sortable filterable(?: tbl-center)? no-export">/);
+  assert.match(read('src/views/partials/footer.ejs'), /if \(table\.classList\.contains\('no-export'\)\) \{ \/\* no export row \*\/ \}/);
   assert.match(head, /<th data-nosort data-nofilter data-filter-slot="autoMatchForm">התאמה<\/th>/,
     'the match column is forms, not text — nothing to sort or filter by; its empty filter cell holds "התאמה אוטומטית" (owner 21/10)');
 });

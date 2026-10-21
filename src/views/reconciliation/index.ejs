@@ -10,31 +10,15 @@
   <div class="alert alert-info"><%= notice %></div>
 <% } %>
 
-<%# הכרטיס העליון (בעלים 18/10, "סדר יותר נכון ויותר ברור"): שורת החשבון; שורת הפעולות היומיות —
-    🔄 סנכרן עכשיו · 📄 ייבוא CSV/Excel · ➕ תנועה ידנית; מתחתיה מצב הסנכרון וקוד ה-SMS. שורת "כלים" (ניקוי לפי קובץ · בדיקת
-    שיוך) עברה לתפריט "פעולות" שבשורת הכותרת (בעלים 21/10, partials/_reconMenu.ejs). בלי טקסט הסבר. מצב מחשב המשרד, המפתח ו"קליטת דוח פדיון"
-    עברו להגדרות ← "סנכרון מהבנק". id="bank-sync" + no-collapse: הסקריפט של _bankSync מרענן בתוכו,
-    ושדה הקוד לא יוסתר באקורדיון. %>
+<%# הכרטיס העליון (בעלים 21/10: "שים בכפתור פעולות"): שורת החשבון, 🔄 סנכרן עכשיו, 📄 ייבוא CSV/Excel, ➕ תנועה
+    ידנית והשורה 🌙 עברו לתפריט "פעולות" שבשורת הכותרת (partials/_reconMenu.ejs). כאן נשאר רק מה שאסור שיסתתר
+    בתפריט סגור: מצב בקשת הסנכרון, שדה קוד ה-SMS והתוצאה (#bs-body) — והכרטיס מוצג רק כשיש בו משהו
+    (`.recon-head:not(:has(...))` ב-nocturne.css). id="bank-sync" + no-collapse: הסקריפט של _bankSync מרענן בתוכו. %>
 <% var _bs = (typeof bankSync !== 'undefined' && bankSync) ? bankSync : null;
    var _canImport = !!(accountId && typeof can === 'function' && can('import_bank')); %>
 <div class="card no-collapse recon-head"<%- _bs ? ' id="bank-sync"' : '' %>>
-  <%# בעלים, 17/10: "לא יהיה אפשרות לבחור חנות בשום מקום חוץ מהסרגל העליון". חשבון בנק הוא 1:1 עם
-      חנות (bank_accounts.store_id UNIQUE), ולכן החנות הפעילה קובעת אותו — כאן רק השם, בלי בורר. %>
-  <% var _acct = (accounts || []).find(function(a){ return a.id === accountId; }); %>
   <% if (!accountId) { %>
     <%- include('../partials/_needStore', { what: 'התאמת בנק', verb: 'לראות' }) %>
-  <% } else { %>
-    <p class="recon-account">חשבון בנק: <strong><%= _acct ? _acct.display_name : '' %></strong></p>
-  <% } %>
-
-  <% if (_bs || _canImport) { %>
-    <div class="actions recon-actions">
-      <% if (_bs) { %><%- include('_bankSync', { bankSync: _bs, part: 'action' }) %><% } %>
-      <% if (_canImport) { %>
-        <button type="button" class="btn-secondary" onclick="document.getElementById('csvDlg').showModal()">📄 ייבוא CSV / Excel</button>
-        <button type="button" class="btn-secondary" onclick="document.getElementById('txnDlg').showModal()">➕ הוספת תנועה ידנית</button>
-      <% } %>
-    </div>
   <% } %>
   <% if (_bs) { %><%- include('_bankSync', { bankSync: _bs, part: 'body' }) %><% } %>
 
@@ -167,7 +151,7 @@
       ביטול ייבוא מוחק את התנועות שהגיעו בו בלבד.
     </p>
     <div class="table-scroll">
-      <table class="sortable line-grid imports-tbl">
+      <table class="sortable line-grid imports-tbl no-export">
         <thead><tr>
           <th>מתי</th><th>קובץ</th><th>מקור</th><th class="right">נשמרו</th><th class="right">כפילויות</th>
           <th>טווח תאריכים</th><th class="right" title="שורות שנקלטו כחדשות אבל אותה תנועה (תאריך, סכום, אסמכתא) כבר הייתה מייבוא קודם">כבר היו</th>
@@ -214,7 +198,8 @@
       תנועות "חוזרות" כחדשות במשיכה הבאה בלי שום הסבר (בעלים, 16/10). bankTransactions#accountDeletionHistory. %>
   <% var dels = (typeof deletions !== 'undefined' && deletions) ? deletions : []; %>
   <% if (dels.length) { %>
-    <details style="margin-top:.7rem" <%= dels.some(function(d){ return d.kind === 'import'; }) ? 'open' : '' %>>
+    <%# בעלים 21/10: "סגור כברירת מחדל" — נפתח רק בלחיצה. %>
+    <details style="margin-top:.7rem">
       <summary style="cursor:pointer"><strong>מה נמחק מהחשבון הזה</strong> <span class="muted">(<%= dels.length %>) — ייבואים שבוטלו לא מופיעים בטבלה למעלה</span></summary>
       <div class="table-scroll" style="margin-top:.4rem"><table class="no-enhance" style="font-size:13px">
         <thead><tr><th>מתי</th><th>מה</th><th>ע״י</th><th class="right">תנועות שנמחקו</th><th class="right">התאמות ששוחררו / הועברו</th></tr></thead>
@@ -250,29 +235,10 @@
       <button type="submit" class="btn-auto-match">התאמה אוטומטית</button>
     </form>
   </div>
-  <%# "תאריך תחילת עבודה": חיובים לא מותאמים עד התאריך מוסתרים (לא נמחקים — הסוכן מושך 60 יום
-      אחורה והיה מחזיר אותם, וצ׳ק מיידי שהונפק בתוכנה עדיין מותאם אליהם). בעלים בלבד. %>
-  <% var _hu = (typeof hiddenUntil !== 'undefined') ? hiddenUntil : null; var _hc = (typeof hiddenCount !== 'undefined') ? hiddenCount : 0; %>
-  <div class="no-print" style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;margin:0 0 .6rem">
-    <% if (_hu) { %>
-      <span class="muted">מוסתרים חיובים עד <strong><%= formatDate(_hu) %></strong> (לפני תחילת העבודה)<%= _hc ? ' — ' + _hc + ' בחשבון הזה' : '' %>.</span>
-    <% } %>
-    <% if (currentUser.role === 'owner') { %>
-      <form method="post" action="/reconciliation/hide-until" style="display:flex;align-items:center;gap:.4rem;margin:0">
-        <input type="hidden" name="account_id" value="<%= accountId %>" />
-        <label style="margin:0;font-size:13px">הסתר חיובים לא מותאמים עד (כולל):</label>
-        <input type="date" name="until" value="<%= _hu || '' %>" style="max-width:150px" />
-        <button type="submit" class="btn-secondary small">שמור</button>
-      </form>
-      <% if (_hu) { %>
-        <form method="post" action="/reconciliation/hide-until" style="margin:0">
-          <input type="hidden" name="account_id" value="<%= accountId %>" /><input type="hidden" name="until" value="" />
-          <button type="submit" class="btn-secondary small">הצג הכל</button>
-        </form>
-      <% } %>
-    <% } %>
-  </div>
-  <%# ✕ דחה (בעלים 21/10: "שים פה" — מתחת לשורת "מוסתרים חיובים עד"). מסמנים "לא שלו" בשורות להכרעה ולוחצים
+  <%# "תאריך תחילת עבודה" (app_settings.bank_unmatched_hidden_until = 30/09/26) עדיין מסתיר חיובים לא מותאמים עד
+      התאריך — רק השורה שקבעה אותו ("הסתר … עד" · שמור · הצג הכל) ירדה (בעלים 21/10: "לא צריך יותר"): הזנב נמחק
+      בארבעת החשבונות, ו"הצג הכל" רק החזיר אותו בטעות. POST /reconciliation/hide-until נשאר. %>
+  <%# ✕ דחה (בעלים 21/10: "שים פה" — מתחת לשורת "מוסתרים חיובים עד", שירדה מאז; עכשיו מעל הטבלה). מסמנים "לא שלו" בשורות להכרעה ולוחצים
       פעם אחת; הצ׳ק לא יוצע שוב לאותה תנועה (services/reconciliation.js#rejectSuggestions). התיבות שבטבלה
       שייכות לטופס הזה דרך form="rejectForm", כי הן יושבות בתוך טופס "התאם נבחר". %>
   <% var _rj = (typeof rejected !== 'undefined' && rejected) ? rejected : null;
@@ -304,7 +270,7 @@
       היא טפסים, לא טקסט — אין מה למיין או לסנן לפיה. %>
   <%# .tbl-center — כל העמודות ממורכזות (בקשת הבעלים). האסמכתא היא קישור ל"בחינת תנועה". %>
   <div class="table-scroll"><%# בלי גלילה פנימית הטבלה מושכת את כל הדף הצידה בטלפון (430px מול 390). %>
-  <table class="sortable filterable tbl-center">
+  <table class="sortable filterable tbl-center no-export">
     <thead>
       <tr><th>תאריך</th><th>סכום</th><th>תיאור</th><th>אסמכתא</th><th data-nosort data-nofilter data-filter-slot="autoMatchForm">התאמה</th></tr>
     </thead>
@@ -526,7 +492,7 @@
     </p>
   <% } %>
   <div class="table-scroll"><%# בלי גלילה פנימית הטבלה מושכת את כל הדף הצידה בטלפון (430px מול 390). %>
-  <table class="sortable filterable">
+  <table class="sortable filterable no-export">
     <thead><tr><th data-nosort data-nofilter class="no-print"><input type="checkbox" id="txn-all" style="width:auto;min-height:0" title="בחר הכל" /></th><th>תאריך</th><th class="right">סכום</th><th>תיאור</th><th>אסמכתא</th><th>מקור</th><th>סטטוס</th><th data-nosort data-nofilter class="no-print">פעולות</th></tr></thead>
     <tbody>
       <% if (transactions.length === 0) { %>

@@ -538,7 +538,7 @@
   // filter row under the column titles ("סנן…" / a dropdown of the column's values), and (b) "ייצוא"
   // (Excel / CSV / PDF of the currently-visible rows) under the table. Columns whose header is
   // .no-print or [data-noexport] (action/checkbox/ייצוא columns) are excluded from the export. Opt
-  // out with class "no-enhance" on the table.
+  // out with class "no-enhance" on the table; class "no-export" keeps the filters and drops "ייצוא".
   // 🔴 אין יותר "חיפוש בטבלה…" מעל טבלאות (בעלים 19/10: "תמחק" — מכל הטבלאות, אחרי שנמחק דף-דף
   // בחשבוניות, מעוקבות, הצהרות הפקדה, צ׳קים בחוץ וסגירת Z). הסינון = מסנני העמודות.
   (function () {
@@ -656,7 +656,9 @@
       // data-export-into="<id>": "ייצוא" נכנס לאלמנט הזה (בדף החשבוניות — הסרגל שלמטה, לפני "בטל בחירה";
       // בעלים 18/10) במקום שורה משלו מתחת לטבלה.
       var exportSlot = table.getAttribute('data-export-into') && document.getElementById(table.getAttribute('data-export-into'));
-      if (exportSlot) exportSlot.appendChild(exportWrap);
+      // class="no-export": מסננים כן, "ייצוא" לא (בעלים 21/10, התאמת בנק: "בטל").
+      if (table.classList.contains('no-export')) { /* no export row */ }
+      else if (exportSlot) exportSlot.appendChild(exportWrap);
       else anchor.parentNode.insertBefore(foot, anchor.nextSibling);
 
       var rows = dataRows(table.tBodies[0]);

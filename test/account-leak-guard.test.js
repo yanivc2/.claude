@@ -156,7 +156,8 @@ test('UI: "פעולות" in the top bar (owner actions for the owner only); auto
   const page = async (u, path = `/reconciliation?account=${A.id}`) => (await fetch(base + path, { headers: { cookie: `session=${createSession(u.id)}; ap_store=1` } })).text();
   const ownerHtml = await page(o);
   assert.match(ownerHtml, /<details class="menu open-in store-banner-quick top-recon-menu no-print">/);
-  assert.match(ownerHtml, /href="\/reconciliation\/tail-cleanup\?account=\d+">🧹 מחיקת תנועות עד 30\/09\/26…/);
+  // בעלים 21/10 ("תמונה 2 לא צריך יותר"): שני הכלים החד-פעמיים ירדו מהתפריט; הנתיבים נשארו לבעלים בלבד.
+  assert.doesNotMatch(ownerHtml, /href="\/reconciliation\/tail-cleanup|action="\/reconciliation\/rematch"/);
   // התפריט הוא גם הבית של "כלים" (בעלים 21/10) — מזכירה עם החנות רואה אותו, אבל בלי פעולות הבעלים.
   const st = await db.one('SELECT company_id FROM stores WHERE id = 1', []);
   await db.run('INSERT INTO user_companies (user_id, company_id) VALUES (?, ?)', [sec.id, st.company_id]).catch(() => {});

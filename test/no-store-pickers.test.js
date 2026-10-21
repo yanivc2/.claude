@@ -23,7 +23,8 @@ const PICKER = /<select[^>]*name="(store|store_id|company|company_id|account|acc
 
 const body = (html) => {
   // Everything after the top bar: the banner's own <select> is the one allowed picker.
-  const end = html.indexOf('</form>', html.indexOf('class="store-banner'));
+  // (the picker is the select.store-banner-pick form; a page's own top menu may sit before it, in .sb-start)
+  const end = html.indexOf('</form>', html.indexOf('store-banner-pick'));
   return end > 0 ? html.slice(end) : html;
 };
 

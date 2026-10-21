@@ -11,18 +11,20 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const view = fs.readFileSync(path.join(process.cwd(), 'src/views/reconciliation/index.ejs'), 'utf8');
-const topCard = view.slice(0, view.indexOf('תנועות לא מותאמות'));
+// בעלים 21/10: "שים בכפתור פעולות" — הייבוא עבר מהכרטיס העליון לתפריט "פעולות" שבשורת הכותרת, הדבר הראשון בדף.
+const menu = fs.readFileSync(path.join(process.cwd(), 'src/views/partials/_reconMenu.ejs'), 'utf8');
 
-test('the import action lives in the top card, above everything else', () => {
-  assert.match(topCard, /showModal\(\)">📄 ייבוא CSV \/ Excel<\/button>/,
-    'the file-import button must be in the first card, not at the bottom of the page');
-  assert.match(topCard, /showModal\(\)">➕ הוספת תנועה ידנית<\/button>/);
+test('the import action lives in the "פעולות" menu of the header row, above everything else', () => {
+  assert.match(menu, /showModal\(\)">📄 ייבוא CSV \/ Excel<\/button>/,
+    'the file-import button must be in the header menu, not at the bottom of the page');
+  assert.match(menu, /showModal\(\)">➕ הוספת תנועה ידנית<\/button>/);
 });
 
 test('the round icon tiles are gone — one action, one place', () => {
   assert.ok(!/icon-circle accent[\s\S]{0,200}csvDlg/.test(view), 'the bottom tile card was removed');
-  const opens = (view.match(/getElementById\('csvDlg'\)\.showModal\(\)/g) || []).length;
-  assert.equal(opens, 2, 'exactly two: the top card and the empty state — never a duplicate control');
+  const opens = (view.match(/getElementById\('csvDlg'\)\.showModal\(\)/g) || []).length
+    + (menu.match(/getElementById\('csvDlg'\)\.showModal\(\)/g) || []).length;
+  assert.equal(opens, 2, 'exactly two: the header menu and the empty state — never a duplicate control');
 });
 
 test('the empty state offers the import instead of only naming it', () => {

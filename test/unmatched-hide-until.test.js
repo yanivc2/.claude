@@ -39,7 +39,8 @@ test('rows up to the date (inclusive) are hidden, later ones shown; clearing sho
   assert.deepEqual((await listUnmatched(acc.id, db)).map((t) => t.raw_reference), ['27900']);
   assert.equal(await hiddenUnmatchedCount(acc.id, db), 2);
   const html = await (await fetch(`${base}/reconciliation?account=${acc.id}`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
-  assert.match(html, /מוסתרים חיובים עד <strong>30\/09\/26<\/strong>/);
+  // בעלים 21/10 ("לא צריך יותר"): שורת "הסתר עד / שמור / הצג הכל" ירדה מהדף — ההסתרה עצמה ממשיכה לפעול.
+  assert.doesNotMatch(html, /action="\/reconciliation\/hide-until"|מוסתרים חיובים עד/);
   const at = html.indexOf('תנועות לא מותאמות (חובה)');
   const card = html.slice(at, html.indexOf('<h2>כל התנועות בחשבון', at));
   assert.ok(card.includes('27900') && !card.includes('27829'), 'the hidden check row is not in the unmatched list (the full statement below still has it)');

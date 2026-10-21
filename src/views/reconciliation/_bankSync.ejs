@@ -2,9 +2,9 @@
     ה-SMS והתוצאה. מצב הסוכן, המפתח ו"קליטת דוח פדיון מהמייל" עברו להגדרות ← "סנכרון מהבנק" (בעלים 18/10,
     settings/_bankSyncSettings.ejs). כאן נשארה רק שורה קצרה כשהסוכן ישן/חוסך — כי אז הכפתור נעול או איטי,
     ובלי הסבר במקום לא ברור למה.
-    part: 'action' = הכפתור (בשורת הפעולות של הכרטיס העליון, לפני הייבוא); 'body' = מצב + קוד + תוצאה +
-    הסקריפט; בלי part — שניהם. הכרטיס העוטף (#bank-sync, no-collapse — שדה הקוד חייב להישאר גלוי) הוא
-    הכרטיס העליון של reconciliation/index.ejs. המצב ההתחלתי מרונדר כאן (עובד בלי JS, עם PRG); הסקריפט
+    part: 'action' = הכפתור + שורת 🌙 (בתפריט "פעולות", partials/_reconMenu.ejs — בעלים 21/10); 'body' = מצב +
+    קוד + תוצאה + הסקריפט; בלי part — שניהם. הכרטיס העוטף (#bank-sync, no-collapse — שדה הקוד חייב להישאר
+    גלוי) הוא הכרטיס העליון של reconciliation/index.ejs. המצב ההתחלתי מרונדר כאן (עובד בלי JS, עם PRG); הסקריפט
     מרענן את שני החלקים בזמן אמת. %>
 <% var bs = bankSync; var _part = (typeof part !== 'undefined' && part) ? part : 'both';
    var j = bs && bs.job; var active = j && ['requested','running','awaiting_otp'].indexOf(j.status) >= 0; %>
@@ -24,6 +24,12 @@
     <form method="post" action="/reconciliation/bank-sync/request" class="js-bs-form" style="display:inline">
       <button type="submit"<% if (bs.agentAsleepMsg) { %> disabled title="<%= bs.agentAsleepMsg %>"<% } %>>🔄 סנכרן עכשיו</button>
     </form>
+    <%# 🌙 ליד הכפתור (בעלים 21/10 — שניהם בתפריט "פעולות"): כשהסוכן ישן הכפתור נעול, ובחיסכון הבקשה איטית. %>
+    <% if (bs.agentAsleepMsg) { %>
+      <span class="muted bs-note">🌙 <%= bs.agentAsleepMsg %></span>
+    <% } else if (bs.agentEconomy) { %>
+      <span class="muted bs-note">🌙 מחשב המשרד במצב חיסכון — בקשת סנכרון תיאסף תוך עד <%= bs.agentOffEvery %> דקות, ואז יגיע קוד SMS.</span>
+    <% } %>
   <% } %>
 </span>
 <% } %>
@@ -31,11 +37,6 @@
 <% if (_part === 'body' || _part === 'both') { %>
 <div id="bs-body" class="bs-body">
   <% if (bs.ready) { %>
-    <% if (!active && bs.agentAsleepMsg) { %>
-      <p class="muted bs-note">🌙 <%= bs.agentAsleepMsg %></p>
-    <% } else if (!active && bs.agentEconomy) { %>
-      <p class="muted bs-note">🌙 מחשב המשרד במצב חיסכון — בקשת סנכרון תיאסף תוך עד <%= bs.agentOffEvery %> דקות, ואז יגיע קוד SMS.</p>
-    <% } %>
     <% if (j) { %>
       <p id="bs-msg" style="margin:0 0 .5rem">
         <% if (j.status === 'done') { %><span class="badge b-paid">הושלם</span>
@@ -112,6 +113,11 @@
       if (s.agentAsleepMsg) { btnAttrs.disabled = 'disabled'; btnAttrs.title = s.agentAsleepMsg; }
       rf.appendChild(el('button', btnAttrs, '🔄 סנכרן עכשיו'));
       frag.appendChild(rf);
+      if (s.agentAsleepMsg) frag.appendChild(el('span', { class: 'muted bs-note' }, '🌙 ' + s.agentAsleepMsg));
+      else if (s.agentEconomy) {
+        frag.appendChild(el('span', { class: 'muted bs-note' }, '🌙 מחשב המשרד במצב חיסכון — בקשת סנכרון תיאסף תוך עד '
+          + s.agentOffEvery + ' דקות, ואז יגיע קוד SMS.'));
+      }
     }
     slot.textContent = '';
     slot.appendChild(frag);
@@ -129,11 +135,6 @@
     renderAction(s, j, active);
 
     var frag = document.createDocumentFragment();
-    if (!active && s.agentAsleepMsg) frag.appendChild(el('p', { class: 'muted bs-note' }, '🌙 ' + s.agentAsleepMsg));
-    else if (!active && s.agentEconomy) {
-      frag.appendChild(el('p', { class: 'muted bs-note' }, '🌙 מחשב המשרד במצב חיסכון — בקשת סנכרון תיאסף תוך עד '
-        + s.agentOffEvery + ' דקות, ואז יגיע קוד SMS.'));
-    }
     if (j) {
       var m = el('p', { id: 'bs-msg', style: 'margin:0 0 .5rem' });
       if (j.status === 'done') m.appendChild(badge('b-paid', 'הושלם'));

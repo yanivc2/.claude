@@ -1417,6 +1417,13 @@ table.only-pickable tbody tr.not-pickable { display: none; }
 .recon-head .bs-action { display: inline-flex; gap: var(--space-2); align-items: center; }
 .recon-head .bs-body:has(> *) { margin-top: var(--space-3); }
 .recon-head .bs-note { margin: 0 0 .4rem; font-size: 12px; }
+/* בעלים 21/10: הכרטיס העליון התרוקן לתפריט "פעולות" — מוצג רק כשיש בו מצב סנכרון / קוד SMS / בקשה לבחור חנות. */
+main.page .recon-head:not(:has(.need-store)):not(:has(#bs-body > *)):not(:has(> form)):not(:has(> p)) { display: none; }
+/* 🔄 סנכרן עכשיו בתוך התפריט: הטופס והכפתור כפריט תפריט רגיל, ושורת 🌙 מתחתיו. */
+.top-recon-menu .bs-action { display: flex; flex-direction: column; align-items: stretch; }
+.top-recon-menu .bs-action form { display: block !important; }
+.top-recon-menu .bs-action .bs-note { display: block; padding: 0 12px 8px; font-size: 12px; white-space: normal; }
+.top-recon-menu .recon-menu-account { font-size: 12px; }
 
 /* ── דף החשבוניות בסלולרי = כרטיסים (בעלים 20/10, אחרי הדמיה: "תבנה את ב׳, בלי סינון בטלפון") ───────────
    views/invoices/index.ejs. במחשב הטבלה נשארת טבלה; עד 760px כל שורה היא כרטיס: ספק וסכום למעלה, מספר·תאריך

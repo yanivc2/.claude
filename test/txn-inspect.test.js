@@ -52,7 +52,7 @@ test('verdicts: matchable · amount differs · other account · not found', asyn
   // the unmatched list links each reference to this page, and the table is centred
   const list = await (await fetch(`${base}/reconciliation?account=${A.id}`, { headers: { cookie: `session=${createSession(o.id)}` } })).text();
   assert.match(list, new RegExp(`href="/reconciliation/txn/${t4}"`));
-  assert.match(list, /class="sortable filterable tbl-center"/);
+  assert.match(list, /class="sortable filterable tbl-center no-export"/);
 });
 
 test('a transaction of another store is 404 under the active store', async () => {
