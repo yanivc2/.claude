@@ -33,5 +33,11 @@ test('the tracked-invoices page sits with invoices, where it belongs', () => {
 
 test('scan sits at the bottom, immediately above settings', () => {
   assert.ok(at('nav_profitability') < at('nav_scan'), 'not near the top any more');
-  assert.ok(at('nav_scan') < header.indexOf("can('settings')"));
+  assert.ok(at('nav_scan') < header.indexOf('<a href="/settings" '));
+});
+
+// בעלים 21/10: "📖 מדריך למשתמש" — "לשים מעל לוח הבקרה".
+test('the user guide is the first link, above the dashboard', () => {
+  assert.ok(header.indexOf('<a href="/settings/guide"') > 0);
+  assert.ok(header.indexOf('<a href="/settings/guide"') < at('nav_dashboard'));
 });

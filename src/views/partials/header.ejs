@@ -38,6 +38,9 @@
       <summary class="btn btn-secondary btn-sm" aria-label="ניווט דפים" title="ניווט דפים"><span class="nav-brand navmenu-brand"><span class="mark">AP</span>Control</span> <span class="caret">▾</span></summary>
       <div class="menu-panel">
         <% function nav(key){ return typeof canView !== 'function' || canView(key); } %>
+        <%# "📖 מדריך למשתמש" — ראשון בתפריט, מעל "לוח בקרה" (בעלים 21/10; עבר מסרגל הכלים של דף ההגדרות).
+            הדף יושב תחת /settings ולכן גם הקישור דורש את הרשאת 'settings'. %>
+        <% if (typeof can === 'function' && can('settings')) { %><a href="/settings/guide" class="<%= path.startsWith('/settings/guide') ? 'active' : '' %>"><span class="mi-ic">📖</span>מדריך למשתמש</a><% } %>
         <% if (nav('nav_dashboard')) { %><a href="/" class="<%= path === '/' ? 'active' : '' %>"><span class="mi-ic">🏠</span>לוח בקרה</a><% } %>
         <% if (nav('nav_invoices')) { %><a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>"><span class="mi-ic">🧾</span>חשבוניות</a><% } %>
         <% if (nav('nav_tracked_invoices')) { %><a href="/tracked-invoices" class="<%= path.startsWith('/tracked-invoices') ? 'active' : '' %>"><span class="mi-ic">🟠</span>מעוקבות לתשלום</a><% } %>
@@ -58,7 +61,7 @@
         <% } %>
         <% if (nav('nav_scan')) { %><a href="/scan" class="<%= path.startsWith('/scan') ? 'active' : '' %>"><span class="mi-ic"><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? '📷' : '🔒' %></span>צילום חשבוניות<% if (!(typeof scanEnabled !== 'undefined' && scanEnabled)) { %> <span class="tag" style="font-size:10px">נעול</span><% } %></a><% } %>
         <% if (typeof can === 'function' && can('settings')) { %>
-          <a href="/settings" class="<%= path.startsWith('/settings') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>
+          <a href="/settings" class="<%= path.startsWith('/settings') && !path.startsWith('/settings/guide') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>
         <% } %>
         <div class="menu-sep"></div>
         <button type="button" id="themeToggle" onclick="apToggleTheme()"><span class="mi-ic" id="themeIco">🌙</span><span id="themeTxt">מצב בהיר</span></button>

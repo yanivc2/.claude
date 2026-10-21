@@ -1,7 +1,7 @@
 <%- include('../partials/header') %>
 <div class="toolbar">
   <h1>עריכת דוח Z <span class="mono"><%= zr.z_number %></span> · <%= store.store_name %></h1>
-  <a href="/reports/zreports" class="btn btn-secondary">← חזרה לדוחות Z</a>
+  <%# "← חזרה לדוחות Z" — בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 21/10; partials/_zreportBack.ejs דרך topMenu). %>
 </div>
 
 <% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>

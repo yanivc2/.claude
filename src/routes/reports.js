@@ -186,6 +186,7 @@ async function renderZReport(req, res, id, extra = {}) {
   if (zr.manager_breakdown) { try { managerBreakdown = JSON.parse(zr.manager_breakdown); } catch { managerBreakdown = {}; } }
   res.render('reports/zreport', {
     title: `עריכת דוח Z ${zr.z_number}`,
+    topMenu: '_zreportBack', // "← חזרה לדוחות Z" בשורת הכותרת (בעלים 21/10)
     zr,
     store,
     storeOptions: await storeList(req),
