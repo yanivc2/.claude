@@ -1153,9 +1153,13 @@
       var long = doc.scrollHeight > window.innerHeight * 1.8;
       rail.hidden = !long;
       if (!long) return;
-      // ליד הקצה הימני של התוכן (בדסקטופ — בין התוכן לתפריט הצד), לא מעל התפריט.
+      // בדסקטופ — צמוד לתפריט הצד, בלי מרווח (בעלים 21/10: "הסרגל מימין תצמיד אותו, בטל את המרווח ביניהם"),
+      // והתוכן נשאר ממורכז ביניהם. בלי תפריט צד (טלפון/מסך צר) — ליד הקצה הימני של התוכן. לא מעל התפריט.
       var mr = main.getBoundingClientRect();
-      var x = Math.min(window.innerWidth - 16, mr.right + 4);
+      var side = document.querySelector('header.nav');
+      var sr = side && side.getBoundingClientRect();
+      var docked = sr && sr.left >= mr.right && sr.height > window.innerHeight / 2;
+      var x = docked ? sr.left - 16 : Math.min(window.innerWidth - 16, mr.right + 4);
       rail.style.left = x + 'px';
       var h = rail.clientHeight;
       var th = Math.max(40, h * window.innerHeight / doc.scrollHeight);
