@@ -136,6 +136,12 @@
             "command": "node \"$HOME\\.claude\\hooks\\hebrew-reply-hook.mjs\"",
             "shell": "powershell",
             "timeout": 30
+          },
+          {
+            "type": "command",
+            "command": "node \"$HOME\\.claude\\hooks\\idle-tasks-hook.mjs\" --touch",
+            "shell": "powershell",
+            "timeout": 10
           }
         ]
       }
@@ -182,6 +188,18 @@
             "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -notmatch '\\.(ts|tsx)$' -or -not (Test-Path 'tsconfig.json')) { exit 0 }; $r = npx tsc --noEmit 2>&1; if ($LASTEXITCODE -ne 0) { $lines = ($r | Select-Object -First 5) -join ' | '; $out = @{systemMessage = ('⚠️ TypeScript: ' + $lines)} | ConvertTo-Json -Compress; Write-Output $out }; exit 0",
             "shell": "powershell",
             "statusMessage": "בודק TypeScript..."
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME\\.claude\\hooks\\idle-tasks-hook.mjs\"",
+            "shell": "powershell",
+            "timeout": 25
           }
         ]
       }
