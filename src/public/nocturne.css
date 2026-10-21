@@ -1484,6 +1484,8 @@ main.page table.imports-tbl .filter-row input, main.page table.imports-tbl .filt
 @media (max-width: 1150px) { main.page table.imports-tbl td { white-space: normal !important; } } /* טווח התאריכים נשבר אחרי ה-– רק כשצר */
 main.page table.imports-tbl td .badge { white-space: nowrap; }
 main.page table.imports-tbl td button.btn-sm { padding: 4px 8px; font-size: 12px; line-height: 1.25; }
+/* בעלים 21/10: "הכפתורים שיהיו באותו גודל" — "בטל ייבוא" ו"בטל ושחרר התאמות" באותו רוחב ובאותו גובה (שתי שורות). */
+main.page table.imports-tbl td button.imp-undo-btn { width: 8.5em; min-height: 3.4em; white-space: normal; display: inline-flex; align-items: center; justify-content: center; }
 
 /* בעלים 21/10: "התאמה אוטומטית" מתחת לעמודת "התאמה" (footer.ejs · data-filter-slot), מודגש — רקע צבעוני
    וכתב שחור, בשני הנושאים. */

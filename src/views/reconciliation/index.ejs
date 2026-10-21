@@ -185,7 +185,7 @@
                   <%# שורות שכבר הותאמו: השירות מסרב בלי אישור נוסף, ולכן האישור נשלח מראש רק כשהמשתמש
                       רואה במפורש כמה התאמות ישוחררו. %>
                   <% if (im.matched) { %><input type="hidden" name="release" value="1" /><% } %>
-                  <button type="submit" class="btn-sm danger"><%= im.matched ? 'בטל ושחרר התאמות' : 'בטל ייבוא' %></button>
+                  <button type="submit" class="btn-sm danger imp-undo-btn"><%= im.matched ? 'בטל ושחרר התאמות' : 'בטל ייבוא' %></button>
                 </form>
               </td>
             </tr>
