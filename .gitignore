@@ -5,6 +5,9 @@ daemon/
 # Machine and account identity written by the CLI. Holds machineID and userID.
 .claude.json
 
+# Staging area for approved removals, emptied by hand
+trash/
+
 # Ephemeral state
 .last-cleanup
 .last-update-result.json
