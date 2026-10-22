@@ -12,10 +12,11 @@
 <% } else { %>
 
 <%# THE ENFORCEMENT. Everything else on this page is procedure; this rubric is the bank's own
-    statement saying money left without a request behind it. It is shown first and in red. %>
+    statement saying money left without a request behind it. It is shown first and in red.
+    מתקפלת וסגורה כברירת מחדל (בעלים 22/10: "צמצם כברירת מחדל") — הכותרת עדיין אומרת כמה. data-ckey: הספירה משתנה. %>
 <% if (untracked.length) { %>
   <div class="card" style="border:2px solid var(--color-danger, #c0392b); background:rgba(192,57,43,.06)">
-    <h2 style="margin:0 0 .3rem; color:var(--color-danger, #c0392b)">🔴 העברות בבנק ללא תיעוד (<%= untracked.length %>)</h2>
+    <h2 style="margin:0 0 .3rem; color:var(--color-danger, #c0392b)" data-ckey="העברות בבנק ללא תיעוד" data-start-collapsed>🔴 העברות בבנק ללא תיעוד (<%= untracked.length %>)</h2>
     <p class="muted" style="margin:0 0 .5rem">העברות יוצאות — תיאור בבנק שמתחיל ב"העב׳ במקבץ-נט" או ב"העברה מהבנק" — שאין מאחוריהן בקשת העברה. עמלות, הוראות קבע, צ׳קים וחיובים אחרים לא נספרים כאן. כל אחת מהן נשלחה גם בפוש.</p>
     <div class="table-scroll">
       <table>

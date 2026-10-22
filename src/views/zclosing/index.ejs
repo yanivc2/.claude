@@ -165,16 +165,17 @@
 </details>
 
 <%# "ייצוא" של כל טבלה — מימין לכותרת שלה (בעלים 21/10: "את כפתורי ייצוא העבר לימין לכותרת של הטבלה"),
-    לא בשורה משלו מתחת לטבלה. footer.ejs#data-export-into; preventDefault — לחיצה על "ייצוא" לא מקפלת את הרובריקה. %>
+    לא בשורה משלו מתחת לטבלה. footer.ejs#data-export-into; preventDefault — לחיצה על "ייצוא" לא מקפלת את הרובריקה.
+    summary.sum-start: שתי הרובריקות מתחילות מאותו קו — גבול הכרטיס הימני (בעלים 22/10), לא ממורכזות. %>
 <details class="card collapse-card" data-accordion="recent-z">
-  <summary><span class="sum-export no-print" id="zcxExport" onclick="event.preventDefault()"></span>הוצאות מזומן אחרונות</summary>
+  <summary class="sum-start"><span class="sum-export no-print" id="zcxExport" onclick="event.preventDefault()"></span>הוצאות מזומן אחרונות</summary>
   <div style="margin-top:.8rem">
     <%- include('../partials/_cashExpenses', { rows: closingExpenses, exportInto: 'zcxExport' }) %>
   </div>
 </details>
 
 <details class="card collapse-card" data-accordion="recent-z">
-  <summary><span class="sum-export no-print" id="zclExport" onclick="event.preventDefault()"></span>סגירות אחרונות</summary>
+  <summary class="sum-start"><span class="sum-export no-print" id="zclExport" onclick="event.preventDefault()"></span>סגירות אחרונות</summary>
   <div class="table-scroll" style="margin-top:.8rem">
     <table class="sortable" data-export-into="zclExport">
       <% var isOwner = currentUser && currentUser.role === 'owner'; %>

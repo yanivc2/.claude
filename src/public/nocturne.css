@@ -1547,6 +1547,9 @@ main.page th.bulk-col .bulk-go { display: block; width: 100%; margin: 0 auto; }
 .collapse-card > summary .sum-export { margin-inline-end: 12px; font-size: 13px; font-weight: 400; }
 .collapse-card > summary .sum-export:empty { display: none; }
 .collapse-card > summary .sum-export .tbl-export-toggle { white-space: nowrap; }
+/* ...והרובריקות שנושאות "ייצוא" מתחילות מאותו קו — גבול הכרטיס הימני (בעלים 22/10: "שברובריקות יתחילו מאותו קו");
+   ממורכזות, כל כותרת באורך אחר התחילה במקום אחר. גובר על ה-center !important הכללי. */
+main.page .collapse-card > summary.sum-start { justify-content: flex-start !important; }
 /* ספקים — חנות שנגזרה מהחשבוניות (ספק בלי שיוך קבוע; בעלים 21/10 "כל חנות והעולם שלה"). */
 main.page .badge.sup-store-inv { border-style: dashed; }
 /* מרקורים — "🏛️ לרשות" בכל שורה (בעלים 21/10): בורר קטן מתחת לסטטוס/פעולות. */
