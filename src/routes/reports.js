@@ -269,13 +269,10 @@ async function renderProfitability(req, res, extra = {}) {
   });
 }
 
-// Z reports live on their own tab (form to add + recent records table).
-async function renderZReports(req, res, extra = {}) {
-  // Default to the active store, like the other screens. ?zstore= still overrides it.
-  const zStoreId = effectiveStoreId(req, req.query.zstore);
-  const depRows = await listDeposits({ storeId: zStoreId, scope: req.scope });
-  const zRows = await listZReports({ storeId: zStoreId, limit: 30, scope: req.scope });
-  const zReports = await Promise.all(
+// שורות "רשומות Z אחרונות" — ההפקדה, ההתאמה והוואטסאפ של כל דוח. משותף לדף ולחיפוש (GET /reports/zreports-lookup),
+// כדי שדוח ישן שנמצא בחיפוש ייראה בדיוק כמו שורה רגילה.
+async function decorateZRows(zRows) {
+  return Promise.all(
     zRows.map(async (z) => {
       // התאמת ההפקדה — הנוסחה כולה ב-services/zreports.js#depositBase (מזומן פחות צ׳ק
       // והוצאות במזומן). אל תשכפל אותה כאן.
@@ -292,7 +289,8 @@ async function renderZReports(req, res, extra = {}) {
         ...z,
         expensesTotal: expenses,
         depositTotal: deposit,
-        depositBag: dep ? dep.bag_number : null,
+        // כל השקיות של הדוח (הפקדה מפוצלת), כדי שסינון/חיפוש לפי שקית שנייה ימצא את השורה.
+        depositBag: bags.map((d) => d.bag_number).filter(Boolean).join(', ') || null,
         hasDeposit,
         depDiff,
         depMatched,
@@ -300,6 +298,15 @@ async function renderZReports(req, res, extra = {}) {
       };
     }),
   );
+}
+
+// Z reports live on their own tab (form to add + recent records table).
+async function renderZReports(req, res, extra = {}) {
+  // Default to the active store, like the other screens. ?zstore= still overrides it.
+  const zStoreId = effectiveStoreId(req, req.query.zstore);
+  const depRows = await listDeposits({ storeId: zStoreId, scope: req.scope });
+  const zRows = await listZReports({ storeId: zStoreId, limit: 30, scope: req.scope });
+  const zReports = await decorateZRows(zRows);
   res.render('reports/zreports', {
     title: 'דוחות Z',
     storeOptions: await storeList(req),
@@ -322,6 +329,22 @@ async function renderZReports(req, res, extra = {}) {
     ...extra,
   });
 }
+
+// חיפוש בכל ההיסטוריה (בעלים 22/10: "אפשר גם לפי שקית הפקדה" — אחרי חיפוש ה-Z בסגירת Z): "רשומות Z אחרונות"
+// טוענת 30, ועמודות Z ו"שקית הפקדה" נושאות th[data-lookup] (footer.ejs) ששולח את מה שמוקלד לכאן. מחזיר שורות
+// <tr> בלבד — אותו partial של הטבלה. אותו סקופ ואותה חנות פעילה של הדף. הנתיב מחוץ ל-/zreports/:id (scopeParam).
+router.get('/zreports-lookup', requirePageAccess('nav_zreports'), async (req, res, next) => {
+  try {
+    const z = String(req.query.z || '').trim().slice(0, 20);
+    const bag = String(req.query.bag || '').trim().slice(0, 30);
+    const rows = z || bag
+      ? await listZReports({ storeId: effectiveStoreId(req), limit: 50, scope: req.scope, zNumber: z, bag })
+      : [];
+    res.render('reports/_zreportRows', { zReports: await decorateZRows(rows) });
+  } catch (err) {
+    next(err);
+  }
+});
 
 router.get('/zreports', requirePageAccess('nav_zreports'), async (req, res, next) => {
   try {

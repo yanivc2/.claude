@@ -90,7 +90,7 @@ test('דוחות Z: totals for "רשומות Z אחרונות" (signed gap) and 
   assert.match(zFoot, /חוסר ₪17\.50/, '−30.40 + 12.90 = −17.50');
   // בעלים 22/10: "סכם גם את מזומן מגירה, סכום הפקדה" — מגירה על כל הדוחות, הפקדה רק על אלה שיש להם.
   const ths = [...zFoot.matchAll(/<th class="right">\s*([^<]*)/g)].map((m) => m[1].trim());
-  const zRows = [...recent.slice(0, recent.indexOf('<tfoot>')).matchAll(/<tr>\s*<td class="mono"><a href="\/reports\/zreports\/\d+">[\s\S]*?<\/tr>/g)].map((m) => m[0]);
+  const zRows = [...recent.slice(0, recent.indexOf('<tfoot>')).matchAll(/<tr data-row-id="\d+">\s*<td class="mono"><a href="\/reports\/zreports\/\d+">[\s\S]*?<\/tr>/g)].map((m) => m[0]);
   const cells = (row) => [...row.matchAll(/<td class="right">([^<]*)<\/td>/g)].map((m) => m[1]);
   const num = (t) => (t.startsWith('₪') ? Number(t.slice(1).replace(/,/g, '')) : 0);
   const cash = zRows.reduce((n, r) => n + num(cells(r)[1]), 0);

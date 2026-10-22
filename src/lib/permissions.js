@@ -97,7 +97,7 @@ export const NAV_ALLOW = {
   // "✓ טופל" על הוצאת מזומן נלחץ גם מדף החשבוניות ומהמרקורים (בעלים, 16/10) — ה-POST הוא /cash-expenses.
   nav_invoices: ['/invoices', '/cash-expenses'],
   nav_payments: ['/payments', '/reports/deposits', '/cash-expenses'],
-  nav_zreports: ['/reports/zreports', '/reports/deposits', '/reports/zexpenses'],
+  nav_zreports: ['/reports/zreports', '/reports/zreports-lookup', '/reports/deposits', '/reports/zexpenses'],
   nav_outstanding: ['/reports/outstanding'],
   nav_reconciliation: ['/reconciliation'],
   nav_suppliers: ['/suppliers'],

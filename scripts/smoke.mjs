@@ -107,7 +107,7 @@ const routes = [
   ['page', '/payments'], ['page', '/payments/new'],
   ['page', `/payments/${pay.id}`], ['page', `/payments/${pay.id}/edit`], ['page', `/payments/${pay.id}/print`],
   // reports
-  ['page', '/reports/zreports'], ['page', `/reports/zreports/${zr.id}`], ['asset', `/reports/zreports/${zr.id}/image`],
+  ['page', '/reports/zreports'], ['page', '/reports/zreports-lookup?z=1'], ['page', '/reports/zreports-lookup?bag=1'], ['page', `/reports/zreports/${zr.id}`], ['asset', `/reports/zreports/${zr.id}/image`],
   ['asset', `/reports/zexpenses/${zexp.id}/image`],
   ['page', '/reports/outstanding'], ['csv', '/reports/outstanding.csv'], ['csv', `/reports/outstanding-detail.csv?account=${ba.id}`],
   ['page', '/reports/lookup'], ['csv', '/reports/lookup.csv?q=SMK'],

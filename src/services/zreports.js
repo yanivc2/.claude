@@ -97,7 +97,7 @@ export async function deleteZReport(id, actor, x = getExecutor()) {
 }
 
 /** Recent Z reports, newest first, optionally filtered by store. */
-export async function listZReports({ storeId = null, limit = 40, scope = null } = {}, x = getExecutor()) {
+export async function listZReports({ storeId = null, limit = 40, scope = null, zNumber = '', bag = '' } = {}, x = getExecutor()) {
   // Scoped: a Z report is a store's daily takings. Unscoped, this listed every company's.
   const sc = scopeWhere(scope, 'st.company_id', 'z.store_id');
   const where = [];
@@ -105,6 +105,18 @@ export async function listZReports({ storeId = null, limit = 40, scope = null } 
   if (storeId) {
     where.push('z.store_id = ?');
     params.push(storeId);
+  }
+  // חיפוש בכל ההיסטוריה, לא רק באחרונים (GET /reports/zreports-lookup; בעלים 22/10): Z "מכיל", או שקית הפקדה
+  // "מכילה" — כל שקית של הדוח (הפקדה מפוצלת), מטבלת deposits. NOT (… NOT IN …) ולא IN: ראה CLAUDE.md · Gotchas (pg-mem).
+  const z = String(zNumber || '').trim();
+  if (z) { where.push('z.z_number LIKE ?'); params.push(`%${z}%`); }
+  const b = String(bag || '').trim();
+  if (b) {
+    const ids = (await x.many('SELECT DISTINCT z_report_id FROM deposits WHERE z_report_id IS NOT NULL AND bag_number LIKE ?', [`%${b}%`]))
+      .map((r) => Number(r.z_report_id));
+    if (!ids.length) return [];
+    where.push(`NOT (z.id NOT IN (${ids.map(() => '?').join(', ')}))`);
+    params.push(...ids);
   }
   const sql = `SELECT z.*, st.name AS store_name
                  FROM z_reports z JOIN stores st ON st.id = z.store_id

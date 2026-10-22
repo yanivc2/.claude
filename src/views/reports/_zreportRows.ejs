@@ -1,0 +1,44 @@
+<%# שורות "רשומות Z אחרונות" — משותף לדף (reports/zreports.ejs) ולחיפוש לפי Z / שקית הפקדה
+    (GET /reports/zreports-lookup), כדי שדוח ישן שנמצא בחיפוש ייראה בדיוק כמו שורה רגילה.
+    data-row-id: הדפדפן לא מוסיף שורה שכבר בטבלה. locals: zReports (אחרי routes/reports.js#decorateZRows). %>
+<% zReports.forEach(function(z){ %>
+  <tr data-row-id="<%= z.id %>">
+    <td class="mono"><a href="/reports/zreports/<%= z.id %>"><%= z.z_number %></a></td>
+    <td><%= formatDate(z.z_date) %></td>
+    <td><%= z.store_name %></td>
+    <td class="right"><%= formatIls(z.daily_total) %></td>
+    <%# מזומן המגירה בלבד — לא סה"כ המגירה (מזומן+אשראי+…). בעלים, 17/10: "מזומן מגירה, לא מגירה כללי". %>
+    <td class="right"><%= formatIls(z.drawer_cash) %></td>
+    <td class="right"><%= z.hasDeposit ? formatIls(z.depositTotal) : '—' %></td>
+    <td class="mono"><%= z.depositBag || '—' %></td>
+    <td>
+      <% if (!z.hasDeposit) { %>
+        <span class="badge b-on_hold">אין הפקדה</span>
+      <% } else if (z.depMatched) { %>
+        <span class="badge b-approved">תואם</span>
+      <% } else { %>
+        <span class="badge b-blocked">לא תואם</span>
+      <% } %>
+    </td>
+    <td class="right">
+      <% if (!z.hasDeposit) { %><span class="muted">—</span>
+      <% } else if (z.depDiff === 0) { %><span style="color:var(--color-ok)">תואם</span>
+      <% } else if (z.depDiff > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(z.depDiff) %></strong>
+      <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-z.depDiff) %></strong><% } %>
+    </td>
+    <%# וואטסאפ + מחק באותה שורה (בעלים 22/10): וואטסאפ = כפתור קטן עם הלוגו בלבד; השם בתווית הנגישות ובריחוף. %>
+    <td class="no-print">
+      <span class="zr-row-acts">
+      <a class="btn btn-secondary small wa-icon-btn"
+         href="https://wa.me/?text=<%- encodeURIComponent(z.waText) %>" target="_blank" rel="noopener"
+         aria-label="שלח בוואטסאפ"
+         title="שלח בוואטסאפ · <% if (z.depDiff === 0) { %>תואם<% } else if (z.depDiff > 0) { %>יתרה <%= formatIls(z.depDiff) %><% } else { %>חוסר <%= formatIls(-z.depDiff) %><% } %>"><%- include('../partials/_waLogo') %></a>
+      <% if (typeof can === 'function' && can('delete_zreport')) { %>
+      <form method="post" action="/reports/zreports/<%= z.id %>/delete" onsubmit="return confirm('למחוק דוח Z זה?')">
+        <button class="danger small" type="submit">מחק</button>
+      </form>
+      <% } %>
+      </span>
+    </td>
+  </tr>
+<% }); %>
