@@ -282,18 +282,23 @@ export async function matchingClosing(storeId, zNumber, x = getExecutor()) {
 }
 
 /** Recent closings, newest first, with the store name for display. */
-export async function listZClosings({ limit = 30, scope = null } = {}, x = getExecutor()) {
+export async function listZClosings({ limit = 30, scope = null, zNumber = '' } = {}, x = getExecutor()) {
   // Scoped: a register closing belongs to a store, and a user granted one store must not see
   // another store's cash count. A closing with no store (legacy rows) stays visible — it is not
   // bound to any store, so there is nothing to separate.
   const sc = scopeWhere(scope, 'st.company_id', 'zc.store_id');
-  const guard = sc.sql ? ` WHERE zc.store_id IS NULL OR (1 = 1${sc.sql})` : '';
+  const where = [];
+  const params = [];
+  if (sc.sql) { where.push(`(zc.store_id IS NULL OR (1 = 1${sc.sql}))`); params.push(...sc.params); }
+  // zNumber: חיפוש "Z מכיל" בכל ההיסטוריה — לא רק ב-30 האחרונות (GET /zclosing/lookup; בעלים 22/10).
+  const z = String(zNumber || '').trim();
+  if (z) { where.push('zc.z_number LIKE ?'); params.push(`%${z}%`); }
   return x.many(
     `SELECT zc.*, st.name AS store_name
        FROM z_closings zc
-       LEFT JOIN stores st ON st.id = zc.store_id${guard}
+       LEFT JOIN stores st ON st.id = zc.store_id${where.length ? ' WHERE ' + where.join(' AND ') : ''}
       ORDER BY zc.id DESC LIMIT ?`,
-    [...sc.params, limit],
+    [...params, limit],
   );
 }
 

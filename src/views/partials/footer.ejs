@@ -661,8 +661,6 @@
       else if (exportSlot) exportSlot.appendChild(exportWrap);
       else anchor.parentNode.insertBefore(foot, anchor.nextSibling);
 
-      var rows = dataRows(table.tBodies[0]);
-
       // Per-column filter row — on EVERY enhanced table (בעלים, 17/10: "בדף חשבוניות צור בטבלה מסננים,
       // וכן בכל הטבלאות"; עד אז רק class="filterable"). Opt out with class="no-filter"; a table that
       // already carries its own filter row (two header rows, e.g. מרקורים) keeps it. It lives INSIDE
@@ -695,7 +693,7 @@
             if (t && t !== '—' && !seen[t]) { seen[t] = 1; vals.push(t); }
           });
           var inp;
-          if (vals.length >= 2 && vals.length <= 12 && bodyRows.length > vals.length) {
+          if (vals.length >= 2 && vals.length <= 12 && bodyRows.length > vals.length && !th.hasAttribute('data-lookup')) {
             inp = document.createElement('select');
             inp.dataset.exact = '1';
             var all = document.createElement('option'); all.value = ''; all.textContent = 'הכל'; inp.appendChild(all);
@@ -714,7 +712,8 @@
 
       function filter() {
         var cols = colInputs.map(function (inp) { return inp ? norm(inp.value) : ''; });
-        rows.forEach(function (r) {
+        // השורות נקראות מחדש בכל סינון — שורות שנוספו מהשרת (th[data-lookup]) מסוננות כמו כל השאר.
+        dataRows(table.tBodies[0]).forEach(function (r) {
           var ok = cols.every(function (q, idx) {
             if (!q) return true;
             var td = r.cells[idx];
@@ -725,6 +724,37 @@
         });
       }
       colInputs.forEach(function (inp) { if (inp) { inp.addEventListener('input', filter); inp.addEventListener('change', filter); } });
+
+      // th[data-lookup="<url>"]: מה שמוקלד בסינון של העמודה נשלח גם לשרת, והשורות שחוזרות — גם ישנות, מעבר למה
+      // שהדף טען — נכנסות לטבלה (בעלים 22/10, סגירת Z: "אם אני מקליד מספר של Z אפילו אם הוא ישן ולא מופיע").
+      // השרת מחזיר <tr data-row-id>; שורה שכבר בטבלה לא נוספת שוב. ריקון השדה מוציא אותן.
+      if (table.tHead.rows.length > 1) Array.prototype.forEach.call(table.tHead.rows[0].cells, function (th, idx) {
+        var url = th.getAttribute('data-lookup'), inp = colInputs[idx];
+        if (!url || !inp) return;
+        var tbody = table.tBodies[0], timer = null, seq = 0;
+        function clearLookup() { Array.prototype.forEach.call(tbody.querySelectorAll('tr.lookup-row'), function (r) { r.remove(); }); }
+        function lookup() {
+          var q = String(inp.value || '').trim(), my = ++seq;
+          if (!q) { clearLookup(); filter(); return; }
+          fetch(url + encodeURIComponent(q), { credentials: 'same-origin', headers: { Accept: 'text/html' } })
+            .then(function (r) { return r.ok ? r.text() : ''; })
+            .then(function (html) {
+              if (my !== seq) return;            // הקלדה חדשה כבר בדרך — תשובה ישנה לא דורסת
+              clearLookup();
+              var have = {};
+              dataRows(tbody).forEach(function (r) { if (r.getAttribute('data-row-id')) have[r.getAttribute('data-row-id')] = 1; });
+              var box = document.createElement('tbody'); box.innerHTML = html;
+              Array.prototype.slice.call(box.rows).forEach(function (r) {
+                var id = r.getAttribute('data-row-id');
+                if (!id || have[id]) return;
+                r.classList.add('lookup-row'); tbody.appendChild(r);
+              });
+              filter();
+            })
+            .catch(function () {});
+        }
+        inp.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(lookup, 250); });
+      });
       xls.addEventListener('click', function () { exportExcel(table, baseName(table)); });
       csv.addEventListener('click', function () { exportCsv(table, baseName(table)); });
       pdf.addEventListener('click', function () { exportPdf(table, baseName(table)); });

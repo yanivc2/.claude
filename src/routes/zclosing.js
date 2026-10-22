@@ -116,6 +116,19 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// חיפוש לפי מספר Z בכל ההיסטוריה (בעלים 22/10: "אם אני מקליד מספר של Z אפילו אם הוא ישן ולא מופיע — שיופיע
+// בחיפוש"). מחזיר שורות <tr> בלבד — אותו partial של הטבלה — והדפדפן מוסיף לטבלה את מה שעוד לא בה
+// (footer.ejs#th[data-lookup]). אותו סקופ של הדף: חנות אחרת לא נמצאת גם אם מקלידים את ה-Z שלה. GET בלי z = ריק.
+router.get('/lookup', async (req, res, next) => {
+  try {
+    const z = String(req.query.z || '').trim().slice(0, 20);
+    const closings = z ? await listZClosings({ limit: 50, scope: req.scope, zNumber: z }) : [];
+    res.render('zclosing/_closingRows', { closings, isOwner: req.user?.role === 'owner' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/', async (req, res, next) => {
   try {
     // store_id is a form field, so it is attacker-controlled: a closer granted one store could

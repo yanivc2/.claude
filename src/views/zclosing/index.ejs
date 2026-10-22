@@ -179,40 +179,10 @@
   <div class="table-scroll" style="margin-top:.8rem">
     <table class="sortable" data-export-into="zclExport">
       <% var isOwner = currentUser && currentUser.role === 'owner'; %>
-      <thead><tr><th>עובד</th><th>חנות</th><th>Z</th><th>סיום</th><th class="right">מגירה</th><th class="right">נספר</th><th class="right">הוצאות</th><th class="right">סה"כ</th><th class="right">חוסר / יתרה</th><% if (isOwner) { %><th class="no-print" data-nosort></th><% } %></tr></thead>
+      <thead><tr><th>עובד</th><th>חנות</th><th data-lookup="/zclosing/lookup?z=">Z</th><th>סיום</th><th class="right">מגירה</th><th class="right">נספר</th><th class="right">הוצאות</th><th class="right">סה"כ</th><th class="right">חוסר / יתרה</th><% if (isOwner) { %><th class="no-print" data-nosort></th><% } %></tr></thead>
       <tbody>
         <% if (!closings || closings.length === 0) { %><tr><td colspan="<%= isOwner ? 10 : 9 %>" class="muted">אין סגירות עדיין.</td></tr><% } %>
-        <%# אותה סגירה (חנות + Z + מגירה + סכום) יותר מפעם אחת — כנראה לחיצה כפולה. מסומנת כדי
-            שיהיה ברור מה למחוק; המערכת לא מוחקת לבד, כי ייתכן שאחת מהן כבר נערכה. %>
-        <% var _dupKey = function (c) { return [c.store_id, c.z_number, c.drawer_cash, c.grand_total].join('|'); };
-           var _dupCount = {}; (closings || []).forEach(function (c) { var k = _dupKey(c); _dupCount[k] = (_dupCount[k] || 0) + 1; }); %>
-        <% (closings || []).forEach(function(c){ %>
-          <tr>
-            <td><% if (isOwner) { %><a href="/zclosing/<%= c.id %>"><%= c.employee_first %> <%= c.employee_last %></a><% } else { %><%= c.employee_first %> <%= c.employee_last %><% } %></td>
-            <td><%= c.store_name || '—' %></td>
-            <td class="mono"><%= c.z_number || '—' %><% if (_dupCount[_dupKey(c)] > 1) { %> <span class="badge b-on_hold" title="אותה סגירה נשמרה <%= _dupCount[_dupKey(c)] %> פעמים — אפשר למחוק את העותקים">⚠️ כפול ×<%= _dupCount[_dupKey(c)] %></span><% } %></td>
-            <td class="mono"><%= c.ended_at || '—' %></td>
-            <td class="right"><%= formatIls(c.drawer_cash) %></td>
-            <td class="right"><%= formatIls(c.total_cash) %></td>
-            <td class="right"><%= formatIls(c.total_expenses) %></td>
-            <td class="right"><strong><%= formatIls(c.grand_total) %></strong></td>
-            <%# (נספר + הוצאות) − מגירה, מספר עם סימן — מגירה 1,000 ונספר+הוצאות 950 = ‎-50 (services/zclosing.js#closingDiff). %>
-            <% var cd = Number(c.grand_total || 0) - Number(c.drawer_cash || 0); %>
-            <td class="right" data-sort="<%= cd %>" title="<%= cd < 0 ? 'חוסר' : cd > 0 ? 'יתרה' : 'תואם' %>">
-              <% if (cd === 0) { %><span class="badge b-approved">0</span>
-              <% } else if (cd > 0) { %><strong style="color:var(--color-ok)" dir="ltr">+<%= formatIls(cd) %></strong>
-              <% } else { %><strong style="color:var(--color-bad)" dir="ltr">-<%= formatIls(-cd) %></strong><% } %>
-            </td>
-            <% if (isOwner) { %>
-              <td class="no-print">
-                <a class="btn btn-secondary small" href="/zclosing/<%= c.id %>">ערוך</a>
-                <form method="post" action="/zclosing/<%= c.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק את הסגירה?')">
-                  <button class="danger small" type="submit">מחק</button>
-                </form>
-              </td>
-            <% } %>
-          </tr>
-        <% }); %>
+        <%- include('_closingRows', { closings: closings, isOwner: isOwner }) %>
       </tbody>
       <%# סה"כ חוסר / יתרה — אותו ביטוי של כל שורה (closingDiff), על כל הסגירות שבטבלה.
           ב-tfoot ולא ב-tbody: משפרי הטבלה ממיינים שורות tbody, ושורת סה"כ הייתה זזה למקום אקראי. %>

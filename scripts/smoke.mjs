@@ -115,7 +115,7 @@ const routes = [
   // reconciliation
   ['page', '/reconciliation'], ['json', '/reconciliation/bank-sync/status'], ['page', '/reconciliation/revenue-intake'],
   // zclosing
-  ['page', '/zclosing'], ['page', `/zclosing/${closing.id}`],
+  ['page', '/zclosing'], ['page', `/zclosing/${closing.id}`], ['page', '/zclosing/lookup?z=85'],
   // suppliers
   ['page', '/suppliers'], ['page', '/suppliers/contacts'], ['page', '/suppliers/new'], ['page', `/suppliers/${sup.id}/edit`],
   // employees
