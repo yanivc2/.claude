@@ -645,7 +645,19 @@ export async function listPayments({ status = null, companyId = null, storeId = 
                         ON mt.matched_payment_id = p.id
                 ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
                 ORDER BY p.id DESC`;
-  return x.many(sql, params);
+  const rows = await x.many(sql, params);
+  // "מס׳ אסמכתה" במרקורים (בעלים 22/10): האסמכתה של תנועת הבנק שסגרה את התשלום. שאילתה שטוחה + חיבור ב-JS
+  // (pg-mem לא אוהב תת-שאילתה מתואמת בתוך ה-JOIN שלמעלה).
+  if (rows.length) {
+    const refs = await x.many(
+      "SELECT matched_payment_id, raw_reference FROM bank_transactions WHERE matched_payment_id IS NOT NULL AND raw_reference IS NOT NULL AND raw_reference <> '' ORDER BY id",
+      [],
+    );
+    const byPayment = new Map();
+    for (const r of refs) if (!byPayment.has(Number(r.matched_payment_id))) byPayment.set(Number(r.matched_payment_id), r.raw_reference);
+    for (const r of rows) r.bank_reference = byPayment.get(Number(r.id)) || null;
+  }
+  return rows;
 }
 
 /** Lookup payments by (last digits of) check number / transfer reference / batch number. */

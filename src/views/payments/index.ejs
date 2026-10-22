@@ -43,12 +43,15 @@
 <div class="table-scroll">
 <table class="sortable" id="paymentsTable">
   <thead>
-    <tr><th>אמצעי / מזהה</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th data-nosort>סטטוס/פעולות</th></tr>
+    <%# "מס׳ אסמכתה" — משמאל ל"אמצעי / מזהה" (בעלים 22/10): האסמכתה של תנועת הבנק שסגרה את התשלום (ריק עד שנפרע
+        בבנק). "תאריך פירעון" — התאריך שעל הצ׳ק, שהוזן בהנפקה (עד 22/10 "תאריך"; בעלים: "התאריך מה הוא מייצג?"). %>
+    <tr><th>אמצעי / מזהה</th><th>מס׳ אסמכתה</th><th>חנות</th><th>תאריך פירעון</th><th class="right">סכום</th><th data-nosort>סטטוס/פעולות</th></tr>
     <tr class="filter-row no-print">
       <th><input type="text" data-fcol="0" placeholder="סינון מזהה" aria-label="סינון מזהה" /></th>
-      <th><input type="text" data-fcol="1" placeholder="סינון חנות" aria-label="סינון חנות" /></th>
-      <th><input type="text" data-fcol="2" placeholder="סינון תאריך" aria-label="סינון תאריך" /></th>
-      <th class="right"><input type="text" data-fcol="3" inputmode="decimal" placeholder="סינון סכום" aria-label="סינון סכום" /></th>
+      <th><input type="text" data-fcol="1" placeholder="סינון אסמכתה" aria-label="סינון אסמכתה" /></th>
+      <th><input type="text" data-fcol="2" placeholder="סינון חנות" aria-label="סינון חנות" /></th>
+      <th><input type="text" data-fcol="3" placeholder="סינון תאריך" aria-label="סינון תאריך" /></th>
+      <th class="right"><input type="text" data-fcol="4" inputmode="decimal" placeholder="סינון סכום" aria-label="סינון סכום" /></th>
       <th data-nosort>
         <select id="fStatus" aria-label="סינון סטטוס">
           <option value="">הכל</option>
@@ -60,11 +63,12 @@
   </thead>
   <tbody>
     <% if (payments.length === 0) { %>
-      <tr><td colspan="5" class="muted">אין צ׳קים להצגה.</td></tr>
+      <tr><td colspan="6" class="muted">אין צ׳קים להצגה.</td></tr>
     <% } %>
     <% payments.forEach(function(p){ %>
       <tr onclick="location='/payments/<%= p.id %>'" style="cursor:pointer">
         <td><%= paymentIdent(p) %></td>
+        <td class="mono"><%= p.bank_reference || '—' %></td>
         <td><%= p.store_name %></td>
         <td><%= formatDate(p.payment_date) %></td>
         <td class="right"><%= formatIls(p.amount) %></td>
@@ -73,7 +77,7 @@
         </td>
       </tr>
     <% }); %>
-    <tr id="pmNoMatch" style="display:none"><td colspan="5" class="muted">אין תוצאות התואמות לסינון.</td></tr>
+    <tr id="pmNoMatch" style="display:none"><td colspan="6" class="muted">אין תוצאות התואמות לסינון.</td></tr>
   </tbody>
 </table>
 </div>
@@ -135,7 +139,7 @@
         }
         if (ok && st) {
           // סטטוס נקבע לפי התגית עצמה (לא לפי טקסט הכפתור "סמן כנפרע").
-          var paid = !!(r.cells[4] && r.cells[4].querySelector('.b-cleared, .b-cleared-auto'));
+          var paid = !!(r.cells[5] && r.cells[5].querySelector('.b-cleared, .b-cleared-auto'));
           if (st === 'paid' && !paid) ok = false;
           if (st === 'unpaid' && paid) ok = false;
         }

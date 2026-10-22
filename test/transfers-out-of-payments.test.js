@@ -45,3 +45,15 @@ test('"העברות שבוצעו" sits below "בקשות" on the transfers page,
   assert.doesNotMatch(card, /880001|TR-THEIRS/, 'no checks, no other store');
   void ba; void ck; void theirs;
 });
+
+// בעלים 22/10: "תוסיף מס אסמכתה, התאריך מה הוא מייצג — פירעון הצ׳ק?" → "מס׳ אסמכתה" משמאל ל"אמצעי / מזהה"
+// (האסמכתה של תנועת הבנק שסגרה את התשלום) ו"תאריך פירעון"; ליד "נפרע" — "בבנק DD/MM/YY".
+test('מרקורים: "מס׳ אסמכתה" right after "אמצעי / מזהה", the date column is "תאריך פירעון", the clearing date reads "בבנק"', async () => {
+  await db.run("INSERT INTO bank_transactions (bank_account_id, txn_date, amount, raw_reference, description, source, matched_payment_id) VALUES (?, ?, -100000, '99887766', 'שיק', 'scraper', ?)", [A.id, israelToday(), ck.id]);
+  await db.run("UPDATE payments SET status = 'cleared', cleared_date = ? WHERE id = ?", [israelToday(), ck.id]);
+  const html = await get('/payments');
+  assert.match(html, /<tr><th>אמצעי \/ מזהה<\/th><th>מס׳ אסמכתה<\/th><th>חנות<\/th><th>תאריך פירעון<\/th>/);
+  const row = html.slice(html.indexOf('צ׳ק 880001'), html.indexOf('</tr>', html.indexOf('צ׳ק 880001')));
+  assert.match(row, /<td class="mono">99887766<\/td>/);
+  assert.match(row, /בבנק \d\d\/\d\d\/\d\d/);
+});
