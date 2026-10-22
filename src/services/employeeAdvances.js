@@ -15,6 +15,7 @@ import { periodClause } from '../lib/period.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeWhere } from '../lib/scope.js';
 import { logAction } from './audit.js';
+import { resolveEmployeeId } from '../lib/employeeName.js';
 
 export const ADVANCE_KINDS = [
   { value: 'advance', label: 'מפרעה' },
@@ -51,12 +52,42 @@ export async function advancesReady(x = getExecutor()) {
 }
 
 /**
+ * תיקון נתונים: שורת שכר/מפרעה בדוח Z שנשמרה בלי מזהה עובד (ראה lib/employeeName.js#resolveEmployeeId — שמירה
+ * של הדוח מחקה את השיוך כשהשם לא היה ברשימת הטופס) מקבלת את העובד לפי השם, כשהוא חד-משמעי. שם עמום או
+ * לא מוכר — נשאר כמו שהוא. רץ לפני השיקוף, כך שהמפרעה נכנסת ל"מעקב מפרעות" בטעינה הבאה של הדף. אידמפוטנטי.
+ */
+export async function resolveZExpenseEmployees(x = getExecutor()) {
+  let rows;
+  try {
+    rows = await x.many(
+      `SELECT id, z_report_id, payer_name, description_type AS kind FROM z_expenses
+        WHERE employee_id IS NULL AND description_type IN ('advance','salary') AND payer_name IS NOT NULL`,
+      [],
+    );
+  } catch {
+    return 0;
+  }
+  if (!rows.length) return 0;
+  const emps = await x.many('SELECT id, first_name, last_name, active FROM employees', []);
+  let fixed = 0;
+  for (const r of rows) {
+    const id = resolveEmployeeId(emps, r.payer_name);
+    if (!id) continue;
+    await x.run('UPDATE z_expenses SET employee_id = ? WHERE id = ? AND employee_id IS NULL', [id, r.id]);
+    await logAction({ userId: null, action: 'zexpense.employee_resolved', entityType: 'z_report', entityId: Number(r.z_report_id), details: { z_expense_id: Number(r.id), employee_id: id, payer_name: r.payer_name, kind: r.kind } }, x);
+    fixed += 1;
+  }
+  return fixed;
+}
+
+/**
  * משקף לכאן כל שורת מפרעה שהוזנה בדוח Z, ומעדכן שורות ששוקפו אם ה-Z שונה מאז.
  *
  * אידמפוטנטי דרך `z_expense_id UNIQUE`. רץ בטעינת הדף ולפני רישום החזר, כי אחרת מפרעה שנרשמה
  * בקופה אתמול לא הייתה ניתנת להחזר היום. שורות שכר (`salary`) **אינן** מפרעה ולא משוקפות.
  */
 export async function syncZAdvances(x = getExecutor()) {
+  await resolveZExpenseEmployees(x);
   let zRows;
   try {
     zRows = await x.many(

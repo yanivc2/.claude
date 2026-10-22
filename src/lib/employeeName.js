@@ -28,3 +28,32 @@ export function matchEmployeeName(employees, saved) {
   const byFirst = list.filter((e) => String(e.first_name || '').trim() === want);
   return byFirst.length === 1 ? employeeFullName(byFirst[0]) : null;
 }
+
+/**
+ * The employee id a saved name refers to, or null — the SERVER side of the pickers above.
+ *
+ * בעלים 22/10 (סגירת Z ← מפרעה של מקסים ₪500 סומנה "⚠️ חסר בדוח Z" ולא הופיעה ב"מעקב מפרעות", אף שהיא
+ * בהוצאות המזומן של דוח ה-Z): המזהה של העובד בשורת דוח Z מגיע רק מהדפדפן (`data-emp` של האפשרות שנבחרה
+ * ב"שם"). שם שאינו ברשימה שהטופס קיבל — עובד שמשויך לחנות אחרת, שם שנשמר לפני הבורר — נשאר כאפשרות
+ * "(לא ברשימת העובדים)" בלי מזהה, ושמירה של הדוח (גם רק תיקון הפקדה) כתבה employee_id = NULL. בלי מזהה
+ * השורה לא נכנסת למעקב המפרעות (`syncZAdvances`) ולא מתאימה לשורת הסגירה (`closingEmployeeLines`).
+ * אותו כלל של `matchEmployeeName`: שם מלא זהה — רק אם הוא יחיד; אחרת שם פרטי יחיד. עובד פעיל קודם.
+ * @param {Array<{id, first_name, last_name, active?}>} employees
+ * @param {string} saved
+ * @returns {number|null}
+ */
+export function resolveEmployeeId(employees, saved) {
+  const want = String(saved ?? '').replace(/\s+/g, ' ').trim();
+  if (!want) return null;
+  const list = employees || [];
+  const active = list.filter((e) => e.active == null || Number(e.active) === 1);
+  for (const pool of [active, list]) {
+    const full = pool.filter((e) => employeeFullName(e) === want);
+    if (full.length === 1) return Number(full[0].id);
+    if (full.length > 1) return null;                 // שני עובדים באותו שם — לא מנחשים
+    const first = pool.filter((e) => String(e.first_name || '').trim() === want);
+    if (first.length === 1) return Number(first[0].id);
+    if (first.length > 1) return null;
+  }
+  return null;
+}

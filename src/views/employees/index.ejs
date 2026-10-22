@@ -490,8 +490,8 @@
             <td>
               <span class="mono"><% if (currentUser && currentUser.role === 'owner') { %><a href="/zclosing/<%= r.closing_id %>">סגירה · Z <%= r.z_number %></a><% } else { %>סגירה · Z <%= r.z_number %><% } %></span>
               <% if (r.status === 'pending') { %><span class="badge b-on_hold">ממתין לדוח Z</span>
-              <% } else if (r.status === 'kind') { %><a href="/reports/zreports/<%= r.z_report_id %>" class="badge b-blocked">⚠️ בדוח Z נרשם כ<%= r.z_kind === 'advance' ? 'מפרעה' : 'שכר' %></a>
-              <% } else { %><a href="/reports/zreports/<%= r.z_report_id %>" class="badge b-blocked">⚠️ חסר בדוח Z</a><% } %>
+              <% } else if (r.status === 'kind') { %><a href="/reports/zreports/<%= r.z_report_id %>" class="badge b-blocked">⚠️ בדוח Z נרשם כ<%= r.z_kind === 'advance' ? 'מפרעה' : r.z_kind === 'manual' ? 'הוצאה ידנית' : 'שכר' %></a>
+              <% } else { %><a href="/reports/zreports/<%= r.z_report_id %>" class="badge b-blocked"<% if (r.z_hint) { %> title="<%= r.z_hint %>"<% } %>>⚠️ חסר בדוח Z</a><% if (r.z_hint) { %><div class="muted" style="font-size:11px"><%= r.z_hint %></div><% } %><% } %>
             </td>
           <% } %>
           <td class="right"><strong><%= formatIls(r.amount) %></strong></td>

@@ -4,6 +4,7 @@ import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
 import { logAction } from './audit.js';
 import { parseInvoiceIds, encodeInvoiceIds, likeInvoiceId, cashExpenseInvoiceIdsReady } from './cashExpenseInvoices.js';
 import { rankInvoices, invoiceCombos, suppliersMentioned } from '../lib/cashInvoiceMatch.js';
+import { resolveEmployeeId } from '../lib/employeeName.js';
 
 // Daily register (Z) close (priority 2). daily_total ("יומי Z") feeds the profitability report;
 // the drawer breakdown (cash/check/credit/hakafa/vouchers) sums to drawer_total ("סה"כ מגירה").
@@ -934,6 +935,22 @@ export async function replaceExpenses(zReportId, rows, actor, x = getExecutor())
     .filter((r) => r.amount > 0 || r.payerName || r.purpose || r.invoiceId || r.employeeId);
   for (const r of clean) {
     if (r.amount < 0) throw new RuleError('VALIDATION', 'סכום הוצאה חייב להיות מספר לא-שלילי');
+  }
+  // שכר/מפרעה בלי מזהה עובד מהדפדפן (שם שאינו ברשימת הטופס — lib/employeeName.js#resolveEmployeeId): שורה קיימת
+  // באותו שם שומרת את העובד שלה, ואחרת העובד נמצא לפי השם. קודם שמירה כזו מחקה את השיוך, והמפרעה נעלמה
+  // מ"מעקב מפרעות" וסומנה "חסר בדוח Z" בסגירה (בעלים 22/10).
+  if (clean.some((r) => (r.kind === 'salary' || r.kind === 'advance') && !r.employeeId)) {
+    const before = new Map((await x.many('SELECT id, employee_id, payer_name FROM z_expenses WHERE z_report_id = ?', [zReportId]))
+      .map((e) => [Number(e.id), e]));
+    const emps = await x.many('SELECT id, first_name, last_name, active FROM employees', []);
+    const same = (a, b) => String(a || '').replace(/\s+/g, ' ').trim() === String(b || '').replace(/\s+/g, ' ').trim();
+    for (const r of clean) {
+      if ((r.kind !== 'salary' && r.kind !== 'advance') || r.employeeId) continue;
+      const was = r.rowId ? before.get(r.rowId) : null;
+      r.employeeId = was && was.employee_id && same(was.payer_name, r.payerName)
+        ? Number(was.employee_id)
+        : resolveEmployeeId(emps, r.payerName);
+    }
   }
   // לפני הטרנזקציה: probe שנכשל בתוכה היה מבטל אותה ב-Postgres.
   const withIds = await cashExpenseInvoiceIdsReady(x);

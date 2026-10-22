@@ -4,6 +4,7 @@ import { NotFoundError, RuleError } from '../lib/errors.js';
 import { normalizePhone } from '../lib/employeeImport.js';
 import { filterByStoreLinks, scopeWhere } from '../lib/scope.js';
 import { logAction } from './audit.js';
+import { resolveEmployeeId } from '../lib/employeeName.js';
 
 // "עובדים ומשכורות" — staff list + a tracking table of advances (מפרעות) and salary lines
 // entered on Z reports. An advance/salary line on a Z references an employee (z_expenses.employee_id).
@@ -190,23 +191,33 @@ export async function closingEmployeeLines({ storeId = null, scope = null, perio
     const k = zKey(r.store_id, r.z_number);
     if (!latest.has(k) || Number(r.closing_id) > latest.get(k)) latest.set(k, Number(r.closing_id));
   }
+  // כל דוחות ה-Z של אותה חנות + מספר (דוח שהוזן פעמיים — השורה יכולה לשבת בכל אחד מהם); הקישור — לאחרון.
   const reports = new Map();
   for (const z of await x.many('SELECT id, store_id, z_number FROM z_reports', [])) {
     const k = zKey(z.store_id, z.z_number);
-    if (latest.has(k) && (!reports.has(k) || Number(z.id) > Number(reports.get(k)))) reports.set(k, Number(z.id));
+    if (!latest.has(k)) continue;
+    if (!reports.has(k)) reports.set(k, []);
+    reports.get(k).push(Number(z.id));
   }
+  for (const ids of reports.values()) ids.sort((a, b) => b - a);
+  // שורות דוח ה-Z לפי עובד. שורה בלי מזהה עובד מזוהה לפי השם (lib/employeeName.js#resolveEmployeeId) — כך
+  // בדיוק נראתה המפרעה של מקסים (בעלים 22/10): "המפרעה מופיעה בדוח Z בהוצאות מזומן" והסגירה סימנה "חסר בדוח Z".
+  // גם שורה "ידנית" על שם העובד נכנסת — בסוג אחר ("בדוח Z נרשם כהוצאה ידנית"), לא כ"חסר".
+  const emps = await x.many('SELECT id, first_name, last_name, active FROM employees', []);
   const zLines = new Map();
   for (const e of await x.many(
-    "SELECT z_report_id, employee_id, amount, description_type AS kind FROM z_expenses WHERE employee_id IS NOT NULL AND description_type IN ('advance','salary')",
+    "SELECT z_report_id, employee_id, payer_name, amount, description_type AS kind FROM z_expenses WHERE description_type IN ('advance','salary','manual')",
     [],
   )) {
+    const employee = e.employee_id ? Number(e.employee_id) : resolveEmployeeId(emps, e.payer_name);
     const id = Number(e.z_report_id);
     if (!zLines.has(id)) zLines.set(id, []);
-    zLines.get(id).push({ employee: Number(e.employee_id), amount: Number(e.amount), kind: e.kind, claimed: false });
+    zLines.get(id).push({ employee, payer: e.payer_name, amount: Number(e.amount), kind: e.kind, claimed: false });
   }
   const live = rows.filter((r) => latest.get(zKey(r.store_id, r.z_number)) === Number(r.closing_id));
+  const poolOf = (r) => (reports.get(zKey(r.store_id, r.z_number)) || []).flatMap((id) => zLines.get(id) || []);
   const claim = (list, r, sameKind) => {
-    const hit = list.find((l) => !l.claimed && l.employee === Number(r.employee_id) && l.amount === Number(r.amount)
+    const hit = list.find((l) => !l.claimed && l.employee && l.employee === Number(r.employee_id) && l.amount === Number(r.amount)
       && (sameKind ? l.kind === r.kind : l.kind !== r.kind));
     if (hit) hit.claimed = true;
     return hit;
@@ -215,12 +226,21 @@ export async function closingEmployeeLines({ storeId = null, scope = null, perio
   for (const sameKind of [true, false]) {
     for (const r of live) {
       if (status.has(r)) continue;
-      const zId = reports.get(zKey(r.store_id, r.z_number));
-      if (!zId) { status.set(r, { status: 'pending', z_report_id: null }); continue; }
-      const hit = claim(zLines.get(zId) || [], r, sameKind);
-      if (hit) status.set(r, sameKind ? { status: 'matched', z_report_id: zId } : { status: 'kind', z_report_id: zId, z_kind: hit.kind });
-      else if (!sameKind) status.set(r, { status: 'missing', z_report_id: zId });
+      const zIds = reports.get(zKey(r.store_id, r.z_number));
+      if (!zIds) { status.set(r, { status: 'pending', z_report_id: null }); continue; }
+      const hit = claim(poolOf(r), r, sameKind);
+      if (hit) status.set(r, sameKind ? { status: 'matched', z_report_id: zIds[0] } : { status: 'kind', z_report_id: zIds[0], z_kind: hit.kind });
+      else if (!sameKind) status.set(r, { status: 'missing', z_report_id: zIds[0] });
     }
+  }
+  // "חסר" — מה כן יש בדוח ה-Z שקרוב לזה, כדי שיהיה ברור מה לתקן: אותו סכום על שם אחר, או אותו עובד בסכום אחר.
+  const kindHe = { advance: 'מפרעה', salary: 'שכר', manual: 'ידני' };
+  for (const r of live) {
+    const st = status.get(r);
+    if (!st || st.status !== 'missing') continue;
+    const pool = poolOf(r).filter((l) => !l.claimed);
+    const near = pool.find((l) => l.amount === Number(r.amount)) || pool.find((l) => l.employee === Number(r.employee_id));
+    if (near) st.z_hint = `בדוח ה-Z: ${near.payer || 'ללא שם'} · ${kindHe[near.kind] || near.kind} · ₪${(near.amount / 100).toFixed(2)}`;
   }
   return live.map((r) => ({ ...r, ...status.get(r) })).filter((r) => r.status !== 'matched');
 }
