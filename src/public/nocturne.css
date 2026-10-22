@@ -934,7 +934,9 @@ details.paymenu .paymenu-items .btn { text-align: center; }
 .owner-actions > form > .dial { flex: 1 1 auto; }
 .owner-actions .dial { height: 100%; align-items: center; }
 .owner-actions .dial .dial-txt small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-@media (min-width: 720px) { .owner-actions { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); } }
+/* שלושה בשורה בכל רוחב מחשב (6 ריבועים + 3 אדומים = שלוש שורות מלאות) — ב-4 בשורה נשאר חור בשורה השנייה
+   (צילום בעלים 22/10). */
+@media (min-width: 720px) { .owner-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .owner-actions .dial.danger { border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line)); }
 .owner-actions .dial.danger .dial-ic { background: var(--color-bad); }
 .owner-actions .dial.danger:hover { border-color: var(--color-bad); }
