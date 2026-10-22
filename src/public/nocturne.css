@@ -1582,3 +1582,8 @@ main.page form.tracked-note input { min-width: 10.5em; }
 main.page .cx-acts { width: 100%; grid-template-columns: auto minmax(0, 1fr); }
 main.page .cx-acts > form { display: flex; }
 main.page .cx-acts > form > button { flex: 1 1 auto; }
+/* דף החשבונית — הפרטים ברשת עמודות: נתון מתחת לנתון ואז עמודה שמאלה (בעלים 22/10). 4 עמודות × 2 שורות במחשב,
+   2 עמודות × 4 שורות בטלפון; הסדר ב-HTML הוא סדר העמודות. */
+.inv-facts { display: grid; grid-auto-flow: column; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, auto); gap: .9rem var(--space-4); }
+.inv-facts > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+@media (max-width: 640px) { .inv-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, auto); } }

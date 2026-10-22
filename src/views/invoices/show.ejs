@@ -93,21 +93,20 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <% } %>
 
 <!-- פרטי החשבונית -->
+<%# פרטי החשבונית ברשת של עמודות — נתון מתחת לנתון, ואז עמודה שמאלה (בעלים 22/10: "יש חוסר סדר"). קודם היו
+    שתי שורות flex עם 4 ו-3 פריטים, ושום דבר לא ישב מתחת לשום דבר. הסדר כאן הוא סדר העמודות (grid-auto-flow: column). %>
 <div class="card" style="<%= requiresAllocation ? 'border-color:var(--color-bad)' : '' %>">
-  <div class="row">
-    <div><span class="text-muted">מספר חשבונית</span><br><span class="mono"><%= invoice.invoice_number || '—' %></span></div>
-    <div><span class="text-muted">ספק</span><br><%= invoice.supplier_name %>
-      <% if (invoice.supplier_status !== 'approved') { %><span class="badge b-<%= invoice.supplier_status %>">ספק <%= invoice.supplier_status === 'pending' ? 'ממתין לאישור' : 'חסום' %></span><% } %>
+  <div class="inv-facts">
+    <div><span class="text-muted">מספר חשבונית</span><span class="mono"><%= invoice.invoice_number || '—' %></span></div>
+    <div><span class="text-muted">מספר הקצאה</span><span class="mono <%= requiresAllocation ? 'neg' : '' %>"><%= invoice.allocation_number || '— חסר' %></span></div>
+    <div><span class="text-muted">ספק</span><span><%= invoice.supplier_name %>
+      <% if (invoice.supplier_status !== 'approved') { %><span class="badge b-<%= invoice.supplier_status %>">ספק <%= invoice.supplier_status === 'pending' ? 'ממתין לאישור' : 'חסום' %></span><% } %></span>
     </div>
-    <div><span class="text-muted">חנות</span><br><%= invoice.store_name %></div>
-    <div><span class="text-muted">תאריך</span><br><%= formatDate(invoice.invoice_date) %></div>
-  </div>
-  <div class="row" style="margin-top:.8rem">
-    <div><span class="text-muted">מספר הקצאה</span><br><span class="mono <%= requiresAllocation ? 'neg' : '' %>"><%= invoice.allocation_number || '— חסר' %></span></div>
-    <div><span class="text-muted">סוג</span><br><%= invoice.doc_type === 'credit_note' ? 'זיכוי' : invoice.doc_type === 'tax_invoice_receipt' ? 'חשבונית מס/קבלה' : 'חשבונית מס' %></div>
-    <div><span class="text-muted">סה"כ</span><br><strong class="<%= invoice.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(invoice.total_amount) %></strong>
-      <span class="text-muted" style="font-size:12px">(לפני מע"מ <%= formatIls(invoice.amount_before_vat) %> · מע"מ <%= formatIls(invoice.vat_amount) %>)</span>
-    </div>
+    <div><span class="text-muted">סוג</span><span><%= invoice.doc_type === 'credit_note' ? 'זיכוי' : invoice.doc_type === 'tax_invoice_receipt' ? 'חשבונית מס/קבלה' : 'חשבונית מס' %></span></div>
+    <div><span class="text-muted">חנות</span><span><%= invoice.store_name %></span></div>
+    <div><span class="text-muted">תאריך</span><span><%= formatDate(invoice.invoice_date) %></span></div>
+    <div><span class="text-muted">סה"כ</span><strong class="<%= invoice.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(invoice.total_amount) %></strong></div>
+    <div><span class="text-muted">לפני מע"מ · מע"מ</span><span class="mono"><%= formatIls(invoice.amount_before_vat) %> · <%= formatIls(invoice.vat_amount) %></span></div>
   </div>
 </div>
 
