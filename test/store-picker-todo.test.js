@@ -1,5 +1,4 @@
-// בעלים 20/10: "מונה 'N לטיפול' ליד כל חנות" — ובחר לספור "הפקדות שלא הופקדו". בבורר העליון, ליד שם החנות,
-// "(N)"; חנות בלי הפקדה פתוחה — בלי מספר; ושורת הסבר אחרונה ברשימה הפתוחה כשיש מספר כלשהו.
+// בעלים 20/10 הוסיף מונה "(N)" של הפקדות שלא הופקדו ליד כל חנות בבורר העליון; 22/10 — "תוריד" (גם את שורת ההסבר).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
@@ -24,17 +23,13 @@ const dep = (store, deposited) => db.run(
   'INSERT INTO deposits (store_id, deposit_date, bag_number, amount, deposited, created_by) VALUES (?, ?, ?, ?, ?, ?)',
   [store, '2026-10-19', `B${store}${deposited}${Math.random().toString().slice(2, 7)}`, 10000, deposited, o.id]);
 
-test('no pending deposit anywhere → plain names, no legend', async () => {
-  const p = await picker();
-  assert.doesNotMatch(p, /\(\d+\)<\/option>/);
-  assert.doesNotMatch(p, /הפקדות שלא הופקדו/);
-});
-
-test('each store shows its own count of declared-not-deposited; a deposited bag does not count', async () => {
+// בעלים 22/10: "תוריד את (1) וגם את המשפט האחרון: (N) = …" — המונה הוסר; נשאר רק שם החנות.
+test('pending deposits no longer add a count or a legend to the store picker', async () => {
   await dep(3, 0); await dep(3, 0); await dep(4, 1);
   const p = await picker();
   const opt = (id) => (p.match(new RegExp(`<option value="${id}"[^>]*>([^<]*)</option>`)) || [])[1];
-  assert.match(opt(3), /\(2\)$/, 'two open declarations in store 3');
-  assert.doesNotMatch(opt(4), /\(\d+\)/, 'store 4 only has a deposited bag');
-  assert.match(p, /<option value="" disabled>\(N\) = הפקדות שלא הופקדו<\/option>/, 'the open list explains the number');
+  assert.ok(opt(3), 'store 3 is in the picker');
+  assert.doesNotMatch(opt(3), /\(\d+\)/, 'no "(2)" next to the name');
+  assert.doesNotMatch(p, /\(\d+\)<\/option>/);
+  assert.doesNotMatch(p, /הפקדות שלא הופקדו/, 'no legend line');
 });
