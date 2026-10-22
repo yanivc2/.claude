@@ -1540,3 +1540,6 @@ main.page th.bulk-col .bulk-go { display: block; width: 100%; margin: 0 auto; }
 .collapse-card > summary .sum-export .tbl-export-toggle { white-space: nowrap; }
 /* ספקים — חנות שנגזרה מהחשבוניות (ספק בלי שיוך קבוע; בעלים 21/10 "כל חנות והעולם שלה"). */
 main.page .badge.sup-store-inv { border-style: dashed; }
+/* מרקורים — "🏛️ לרשות" בכל שורה (בעלים 21/10): בורר קטן מתחת לסטטוס/פעולות. */
+main.page form.auth-mark { margin: 6px 0 0; }
+main.page form.auth-mark select { min-height: 0; padding: 3px 8px; font-size: 12px; width: auto; max-width: 9.5em; }

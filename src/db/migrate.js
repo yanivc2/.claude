@@ -564,6 +564,7 @@ function migrateVoidedChecks(db) {
       ['void_link_invoice_id', 'INTEGER REFERENCES invoices(id)'],
       ['void_cash_expense_id', 'INTEGER'],
       ['void_alerted', 'TEXT'],
+      ['authority', 'TEXT'], // תשלום לרשות (בעלים 21/10) — services/authorityPayments.js
     ]) {
       if (!cols.includes(col)) db.exec(`ALTER TABLE payments ADD COLUMN ${col} ${ddl};`);
     }

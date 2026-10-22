@@ -24,6 +24,7 @@ import { requirePermission, requireOwner } from '../middleware/requireOwner.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { toAgorot } from '../lib/money.js';
 import { listSuppliers } from '../services/suppliers.js';
+import { AUTHORITIES, authorityPaymentsReady, markPaymentAuthority } from '../services/authorityPayments.js';
 import { listEmployees } from '../services/employees.js';
 import { VOID_REASONS, voidLinkOptions } from '../services/voidedChecks.js';
 import { paymentAllocation, openInvoicesForPayment, allocateInvoiceToPayments } from '../services/allocations.js';
@@ -69,10 +70,16 @@ router.get('/', async (req, res, next) => {
       const dep = Number(req.query.dep) || 0;
       notice = `הותאמו אוטומטית ${m} צ׳קים · ${a} דורשים הכרעה · ${u} ללא התאמה` + (dep ? ` · ${dep} הפקדות הותאמו לפי מספר שקית.` : '.');
     }
+    // אחרי "🏛️ לרשות": לאן נעלמה השורה (רק מפתח מוכר — הטקסט נבנה כאן, לא מה-URL).
+    const movedTo = AUTHORITIES.find((a) => a.key === req.query.auth);
+    if (movedTo) notice = `התשלום עבר ל"תשלומים לרשויות" (דף הספקים) — ${movedTo.name}${req.query.cn ? ' · באשראי: נרשם כבוצע' : ''}.`;
     const depositRows = await listDeposits({ storeId, scope, limit: 50 });
     res.render('payments/index', {
       title: 'מרקורים',
-      payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope }),
+      payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope, hideAuthority: true }),
+      // 🏛️ "לרשות" בכל שורה (בעלים בלבד) — services/authorityPayments.js; בלי העמודה (לפני "עדכן מסד נתונים") אין בורר.
+      authorityReady: await authorityPaymentsReady(),
+      authorities: AUTHORITIES,
       deposits: depositRows,
       // "אימות ספירה" — האם הבנק תיקן את הסכום אחרי שספר את השקית (services/deposits.js).
       depVerify: await depositVerifications(depositRows),
@@ -353,6 +360,20 @@ router.post('/:id/unclear', async (req, res, next) => {
     await markIssued(Number(req.params.id), req.user);
     res.redirect(303, req.get('referer') || `/payments/${req.params.id}`);
   } catch (err) {
+    next(err);
+  }
+});
+
+// 🏛️ "לרשות" (בעלים 21/10: "מדף מרקורים אפשר לסמן תשלומים לרשויות ולהעביר אותן לטבלת רשויות"): התשלום יוצא
+// מטבלת המרקורים ועובר ל"תשלומים לרשויות" בדף הספקים; באשראי — נרשם כבוצע מיד. authority ריק = "↩ למרקורים"
+// (מהכרטיס בדף הספקים, back=suppliers). בעלים בלבד — הכרטיס שמציג ומחזיר הוא של הבעלים.
+router.post('/:id/authority', requireOwner, async (req, res, next) => {
+  try {
+    const { authority, clearedNow } = await markPaymentAuthority(Number(req.params.id), req.body.authority, req.user);
+    if (req.body.back === 'suppliers') return res.redirect(303, '/suppliers');
+    res.redirect(303, authority ? `/payments?auth=${authority.key}${clearedNow ? '&cn=1' : ''}` : '/payments');
+  } catch (err) {
+    if (err instanceof RuleError) return res.redirect(303, `/payments/${req.params.id}?err=${encodeURIComponent(err.message)}`);
     next(err);
   }
 });

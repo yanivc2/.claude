@@ -85,6 +85,17 @@
               <% } %>
             </div>
           <% } %>
+          <%# 🏛️ "לרשות" (בעלים 21/10) — בחירת רשות שולחת מיד: התשלום יוצא מהטבלה ועובר ל"תשלומים לרשויות" בדף
+              הספקים; באשראי נרשם כבוצע. select ולא תפריט נפתח — תפריט היה נחתך בתוך .table-scroll. %>
+          <% if (currentUser.role === 'owner' && typeof authorityReady !== 'undefined' && authorityReady && p.status !== 'voided') { %>
+            <form method="post" action="/payments/<%= p.id %>/authority" class="auth-mark no-print">
+              <select name="authority" aria-label="העבר לתשלומים לרשויות" title="תשלום לרשות — עובר לטבלת &quot;תשלומים לרשויות&quot; בדף הספקים"
+                      onchange="if (this.value) { if (this.form.requestSubmit) this.form.requestSubmit(); else this.form.submit(); }">
+                <option value="">🏛️ לרשות…</option>
+                <% (authorities || []).forEach(function(a){ %><option value="<%= a.key %>"><%= a.name %></option><% }); %>
+              </select>
+            </form>
+          <% } %>
         </td>
       </tr>
     <% }); %>

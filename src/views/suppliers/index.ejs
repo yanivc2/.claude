@@ -67,9 +67,9 @@
   <details class="card no-print collapse-card authority-card">
     <summary>תשלומים לרשויות <span class="muted">— <%= _apCount %> חיובים · <%= formatIls(_apTotal) %> · 12 החודשים האחרונים</span></summary>
     <% if (!_ap.length) { %>
-      <p class="muted" style="margin:.6rem 0">לא נמצאו בדף הבנק חיובים לרשויות (ביטוח לאומי, מס הכנסה, מע"מ, רשות המסים, ארנונה) ב-12 החודשים האחרונים.</p>
+      <p class="muted" style="margin:.6rem 0">לא נמצאו תשלומים לרשויות (ביטוח לאומי, מס הכנסה, מע"מ, רשות המסים, ארנונה) ב-12 החודשים האחרונים — לא בדף הבנק ולא תשלומים שסומנו במרקורים (🏛️ לרשות).</p>
     <% } else { %>
-      <p class="muted" style="margin:.6rem 0">מזוהה מתיאור החיוב בדף הבנק: ביטוח לאומי · מס הכנסה · מע"מ · רשות המסים · ארנונה / עירייה.</p>
+      <p class="muted" style="margin:.6rem 0">חיובי בנק שתיאורם מזהה רשות, ותשלומים שסומנו במרקורים (🏛️ לרשות): ביטוח לאומי · מס הכנסה · מע"מ · רשות המסים · ארנונה / עירייה.</p>
       <div class="table-scroll">
         <table class="sortable no-export">
           <thead><tr><th>חודש</th><th>רשות</th><th>חשבון</th><th class="right">חיובים</th><th class="right">סכום</th><th data-nosort data-nofilter>פירוט</th></tr></thead>
@@ -85,7 +85,12 @@
                   <details class="authority-items">
                     <summary>פירוט</summary>
                     <% g.items.forEach(function(it){ %>
-                      <div class="muted" style="font-size:12px"><%= formatDate(it.txn_date) %> · <%= formatIls(-Number(it.amount)) %><%= it.raw_reference ? ' · ' + it.raw_reference : '' %> · <%= it.description %></div>
+                      <div class="muted" style="font-size:12px"><%= formatDate(it.txn_date) %> · <%= formatIls(-Number(it.amount)) %><%= it.raw_reference ? ' · ' + it.raw_reference : '' %> · <% if (it.source === 'payment') { %><a href="/payments/<%= it.payment_id %>"><%= it.description %></a>
+                        <%# תשלום שסומן במרקורים — "↩ למרקורים" מבטל את הסימון והוא חוזר לטבלת המרקורים. %>
+                        <form method="post" action="/payments/<%= it.payment_id %>/authority" style="display:inline;margin:0">
+                          <input type="hidden" name="authority" value="" /><input type="hidden" name="back" value="suppliers" />
+                          <button type="submit" class="btn btn-secondary btn-sm" title="לבטל את הסימון — התשלום חוזר לטבלת המרקורים">↩ למרקורים</button>
+                        </form><% } else { %><%= it.description %><% } %></div>
                     <% }); %>
                   </details>
                 </td>
@@ -104,7 +109,7 @@
   <span data-collapse-default="v1" hidden></span>
   <div class="card suppliers-card">
   <h2 data-ckey="ספקים">ספקים <span class="badge b-neutral"><%= suppliers.length %></span></h2>
-  <div class="table-scroll">
+  <%# בלי .table-scroll: הוא חותך את תפריט "📞 / וואטסאפ / מייל" שנפתח מהשורות האחרונות (נמדד). %>
   <table>
     <thead>
       <tr>
@@ -173,7 +178,6 @@
       <% }); %>
     </tbody>
   </table>
-  </div>
   </div>
 </form>
 

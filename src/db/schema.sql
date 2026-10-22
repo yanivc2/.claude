@@ -297,6 +297,9 @@ CREATE TABLE IF NOT EXISTS payments (
   void_cash_expense_id INTEGER REFERENCES z_closing_expenses(id) ON DELETE SET NULL, -- נפרע במזומן
   -- Alerts already sent, so a nightly/reconcile sweep does not push the same thing every time.
   void_alerted       TEXT,
+  -- תשלום לרשות (בעלים 21/10) — מפתח מ-services/authorityPayments.js#AUTHORITIES; מסומן במרקורים ועובר
+  -- לטבלת "תשלומים לרשויות" בדף הספקים. NULL = תשלום רגיל.
+  authority          TEXT,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );

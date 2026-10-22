@@ -270,6 +270,7 @@ CREATE TABLE IF NOT EXISTS payments (
   void_link_invoice_id INTEGER REFERENCES invoices(id),
   void_cash_expense_id INTEGER,
   void_alerted       TEXT,
+  authority          TEXT,
   created_by      INTEGER NOT NULL REFERENCES users(id),
   created_at      TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
@@ -695,6 +696,8 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_link_payment_id INTEGER REFER
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_link_invoice_id INTEGER REFERENCES invoices(id);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_cash_expense_id INTEGER;
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS void_alerted TEXT;
+-- תשלום לרשות (בעלים 21/10) — services/authorityPayments.js.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS authority TEXT;
 
 -- §4 bank_transfers — "העברות בנקאיות" (see schema.sql for the story and why it is a REQUEST).
 CREATE TABLE IF NOT EXISTS bank_transfers (
