@@ -10,6 +10,13 @@ but pays nothing for a description until the skill is called. This index is what
 loads. Read the row, then either run the skill yourself or tell the user the
 exact slash command.
 
+The directories live under `~/.agents/skills-tree/design/`, grouped into
+`motion/`, `visual-language/` and `components/`, with a symlink per skill in
+`~/.claude/skills/` because Claude Code discovers skills at exactly one level.
+The grouping is for reading the tree; what Claude sees is this index. The seven
+from the `design` plugin and the two static-output skills sit elsewhere and are
+listed below all the same.
+
 ## Motion and animation
 
 | Need | Run |

@@ -5,9 +5,15 @@ description: Index of the installed development workflow skills. Use when planni
 
 # Development workflow skills: what is installed
 
-Eighteen workflow skills are installed but set to `user-invocable-only`, so they
-cost nothing until called. Most come from the superpowers package. This index is
-what loads; apply the principle yourself, or tell the user which command to run.
+Seventeen workflow skills are installed at `name-only`: Claude is shown the name
+but pays nothing for a description until the skill is called. Most come from the
+superpowers package. This index is what loads; run the skill yourself, or tell
+the user which command to run.
+
+Their directories live under `~/.agents/skills-tree/dev-workflow/`, grouped into
+`planning/`, `quality/`, `agents/` and `git/`, with a symlink per skill in
+`~/.claude/skills/` because Claude Code discovers skills at exactly one level.
+The grouping is for reading the tree; what Claude sees is this index.
 
 ## Before writing code
 
@@ -57,6 +63,8 @@ reach for a specific skill when the task is large enough that the detail matters
 
 ## Note
 
-`caveman` and its six companions are installed but switched off. They rewrite every
-reply into a clipped style, which collides with the Hebrew-reply rule and with the
-writing standards in this configuration. Leave them off.
+`caveman` and its six companions are gone, not merely switched off. They carried
+no description at all, and they rewrite every reply into a clipped style that
+collides with the Hebrew-reply rule and with the writing standards here. The
+directories were moved to `~/.agents/skills-archive/2026-10-22-empty-description/`
+rather than deleted, so nothing is lost if they are ever wanted back.
