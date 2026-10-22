@@ -41,26 +41,53 @@
         <%# "📖 מדריך למשתמש" — ראשון בתפריט, מעל "לוח בקרה" (בעלים 21/10; עבר מסרגל הכלים של דף ההגדרות).
             הדף יושב תחת /settings ולכן גם הקישור דורש את הרשאת 'settings'. %>
         <% if (typeof can === 'function' && can('settings')) { %><a href="/settings/guide" class="<%= path.startsWith('/settings/guide') ? 'active' : '' %>"><span class="mi-ic">📖</span>מדריך למשתמש</a><% } %>
+        <%# סדר התפריט (בעלים 22/10, אפשרות "קבוצות + 3 איחודים"): לוח בקרה והתיבות שמחכות לבעלים למעלה, ואז קבוצות
+            עם כותרת. "מעוקבות לתשלום" / "צ׳קים בחוץ" / "צ׳קים מבוטלים" כבר לא פריטים נפרדים — הם תת-קישורים בשורה
+            קטנה מתחת ל"חשבוניות" / "מרקורים" ("בתפריט הצד, מתחת לפריט"), שמופיעה כשאחד מהדפים שלהם פתוח. הכתובות
+            וההרשאות של כל דף לא השתנו: הפריט מופיע אם מותר אחד מהדפים שלו, ומוביל לראשון שמותר. "צילום חשבוניות"
+            מוצג רק כשהוא פתוח (נעול = הגדרות). כותרת קבוצה מוצגת רק כשיש בה פריט. test/nav-order.test.js. %>
+        <% var _isOwnerNav = currentUser.role === 'owner';
+           var _scanOn = typeof scanEnabled !== 'undefined' && scanEnabled;
+           var _invSubs = [['nav_invoices', '/invoices', 'הכל'], ['nav_tracked_invoices', '/tracked-invoices', 'מעוקבות']].filter(function (t) { return nav(t[0]); });
+           var _paySubs = [['nav_payments', '/payments', 'הכל'], ['nav_outstanding', '/reports/outstanding', 'בחוץ'], ['nav_voided_checks', '/voided-checks', 'מבוטלים']].filter(function (t) { return nav(t[0]); });
+           var _onSub = function (subs) { return subs.some(function (t) { return path === t[1] || path.startsWith(t[1] + '/'); }); };
+           function navSub(subs) {
+             if (subs.length < 2 || !_onSub(subs)) return '';
+             return '<div class="nav-sub">' + subs.map(function (t) {
+               var on = path === t[1] || path.startsWith(t[1] + '/');
+               return '<a href="' + t[1] + '" class="' + (on ? 'active' : '') + '">' + t[2] + '</a>';
+             }).join('<span class="nav-sub-sep">·</span>') + '</div>';
+           }
+           function navGroup(label, show) { return show ? '<div class="nav-group">' + label + '</div>' : ''; } %>
         <% if (nav('nav_dashboard')) { %><a href="/" class="<%= path === '/' ? 'active' : '' %>"><span class="mi-ic">🏠</span>לוח בקרה</a><% } %>
-        <% if (nav('nav_invoices')) { %><a href="/invoices" class="<%= path.startsWith('/invoices') ? 'active' : '' %>"><span class="mi-ic">🧾</span>חשבוניות</a><% } %>
-        <% if (nav('nav_tracked_invoices')) { %><a href="/tracked-invoices" class="<%= path.startsWith('/tracked-invoices') ? 'active' : '' %>"><span class="mi-ic">🟠</span>מעוקבות לתשלום</a><% } %>
-        <% if (nav('nav_payments')) { %><a href="/payments" class="<%= path.startsWith('/payments') ? 'active' : '' %>"><span class="mi-ic">💳</span>מרקורים</a><% } %>
-        <% if (nav('nav_zreports')) { %><a href="/reports/zreports" class="<%= path.startsWith('/reports/zreports') ? 'active' : '' %>"><span class="mi-ic">📊</span>דוחות Z</a><% } %>
-        <% if (nav('nav_zclosing')) { %><a href="/zclosing" class="<%= path.startsWith('/zclosing') ? 'active' : '' %>"><span class="mi-ic">🔒</span>סגירת Z</a><% } %>
-        <% if (nav('nav_outstanding')) { %><a href="/reports/outstanding" class="<%= path === '/reports/outstanding' ? 'active' : '' %>"><span class="mi-ic">📤</span>צ׳קים בחוץ</a><% } %>
-        <% if (nav('nav_reconciliation')) { %><a href="/reconciliation" class="<%= path.startsWith('/reconciliation') ? 'active' : '' %>"><span class="mi-ic">🏦</span>התאמת בנק</a><% } %>
-        <% if (nav('nav_transfers')) { %><a href="/transfers" class="<%= path.startsWith('/transfers') ? 'active' : '' %>"><span class="mi-ic">🏦</span>העברות בנקאיות</a><% } %>
-        <% if (nav('nav_voided_checks')) { %><a href="/voided-checks" class="<%= path.startsWith('/voided-checks') ? 'active' : '' %>"><span class="mi-ic">🚫</span>צ׳קים מבוטלים</a><% } %>
-        <% if (nav('nav_audit')) { %><a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>"><span class="mi-ic">📅</span>יומן</a><% } %>
-        <% if (nav('nav_suppliers')) { %><a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>"><span class="mi-ic">🏢</span>ספקים</a><% } %>
-        <% if (nav('nav_employees')) { %><a href="/employees" class="<%= path.startsWith('/employees') ? 'active' : '' %>"><span class="mi-ic">👥</span>עובדים ומשכורות</a><% } %>
-        <% if (nav('nav_profitability')) { %><a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>"><span class="mi-ic">💰</span>רווחיות</a><% } %>
-        <% if (currentUser.role === 'owner') { %>
-          <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>"><span class="mi-ic">✅</span>אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="tag tag-accent"><%= pendingApprovals %></span><% } %></a>
+        <% if (_isOwnerNav) { %>
           <a href="/notifications" class="<%= path.startsWith('/notifications') ? 'active' : '' %>"><span class="mi-ic">🔔</span>התראות<% if (typeof unreadNotifications !== 'undefined' && unreadNotifications > 0) { %> <span class="tag tag-accent"><%= unreadNotifications %></span><% } %></a>
+          <a href="/approvals" class="<%= path.startsWith('/approvals') ? 'active' : '' %>"><span class="mi-ic">✅</span>אישורים<% if (typeof pendingApprovals !== 'undefined' && pendingApprovals > 0) { %> <span class="tag tag-accent"><%= pendingApprovals %></span><% } %></a>
         <% } %>
-        <% if (nav('nav_scan')) { %><a href="/scan" class="<%= path.startsWith('/scan') ? 'active' : '' %>"><span class="mi-ic"><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? '📷' : '🔒' %></span>צילום חשבוניות<% if (!(typeof scanEnabled !== 'undefined' && scanEnabled)) { %> <span class="tag" style="font-size:10px">נעול</span><% } %></a><% } %>
+
+        <%- navGroup('ספקים וחשבוניות', _invSubs.length || nav('nav_suppliers') || (_scanOn && nav('nav_scan'))) %>
+        <% if (_invSubs.length) { %><a href="<%= _invSubs[0][1] %>" class="<%= _onSub(_invSubs) ? 'active' : '' %>"><span class="mi-ic">🧾</span>חשבוניות</a><%- navSub(_invSubs) %><% } %>
+        <% if (nav('nav_suppliers')) { %><a href="/suppliers" class="<%= path.startsWith('/suppliers') ? 'active' : '' %>"><span class="mi-ic">🏢</span>ספקים</a><% } %>
+        <% if (_scanOn && nav('nav_scan')) { %><a href="/scan" class="<%= path.startsWith('/scan') ? 'active' : '' %>"><span class="mi-ic">📷</span>צילום חשבוניות</a><% } %>
+
+        <%- navGroup('תשלומים ובנק', _paySubs.length || nav('nav_transfers') || nav('nav_reconciliation')) %>
+        <% if (_paySubs.length) { %><a href="<%= _paySubs[0][1] %>" class="<%= _onSub(_paySubs) ? 'active' : '' %>"><span class="mi-ic">💳</span>מרקורים</a><%- navSub(_paySubs) %><% } %>
+        <% if (nav('nav_transfers')) { %><a href="/transfers" class="<%= path.startsWith('/transfers') ? 'active' : '' %>"><span class="mi-ic">🏦</span>העברות בנקאיות</a><% } %>
+        <% if (nav('nav_reconciliation')) { %><a href="/reconciliation" class="<%= path.startsWith('/reconciliation') ? 'active' : '' %>"><span class="mi-ic">🏦</span>התאמת בנק</a><% } %>
+
+        <%- navGroup('קופה', nav('nav_zclosing') || nav('nav_zreports')) %>
+        <% if (nav('nav_zclosing')) { %><a href="/zclosing" class="<%= path.startsWith('/zclosing') ? 'active' : '' %>"><span class="mi-ic">🔒</span>סגירת Z</a><% } %>
+        <% if (nav('nav_zreports')) { %><a href="/reports/zreports" class="<%= path.startsWith('/reports/zreports') ? 'active' : '' %>"><span class="mi-ic">📊</span>דוחות Z</a><% } %>
+
+        <%- navGroup('צוות', nav('nav_employees')) %>
+        <% if (nav('nav_employees')) { %><a href="/employees" class="<%= path.startsWith('/employees') ? 'active' : '' %>"><span class="mi-ic">👥</span>עובדים ומשכורות</a><% } %>
+
+        <%- navGroup('דוחות', nav('nav_profitability') || nav('nav_audit')) %>
+        <% if (nav('nav_profitability')) { %><a href="/reports/profitability" class="<%= path === '/reports/profitability' ? 'active' : '' %>"><span class="mi-ic">💰</span>רווחיות</a><% } %>
+        <% if (nav('nav_audit')) { %><a href="/audit" class="<%= path === '/audit' ? 'active' : '' %>"><span class="mi-ic">📅</span>יומן</a><% } %>
+
         <% if (typeof can === 'function' && can('settings')) { %>
+          <div class="menu-sep"></div>
           <a href="/settings" class="<%= path.startsWith('/settings') && !path.startsWith('/settings/guide') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>
         <% } %>
         <div class="menu-sep"></div>

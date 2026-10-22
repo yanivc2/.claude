@@ -1549,3 +1549,9 @@ main.page form.auth-mark select { min-height: 0; padding: 3px 8px; font-size: 12
 .period-menu .dp-wrap input { min-height: 0; height: 32px; padding: 0 10px; font-size: 13px; cursor: pointer; text-align: center;
   width: 7.5em; border-radius: var(--radius-sm, 8px); border: 1px solid var(--color-accent); background: transparent; color: var(--color-text); }
 .period-menu form.on .dp-wrap input { width: 12.5em; background: var(--color-accent); color: #fff; }
+/* תפריט הצד בקבוצות (בעלים 22/10): כותרת קטנה לכל קבוצה, ושורת תת-קישורים מתחת לפריט ("הכל · בחוץ · מבוטלים"). */
+.menu-panel .nav-group { margin: 12px 10px 3px; font-size: 11px; font-weight: 600; letter-spacing: .02em; color: var(--color-muted); text-align: start !important; }
+.menu-panel .nav-sub { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; margin: -2px 0 4px; padding-inline-start: 38px; font-size: 12px; }
+.menu-panel .nav-sub a { display: inline-block; width: auto; padding: 3px 7px; border-radius: 6px; color: var(--color-muted); }
+.menu-panel .nav-sub a.active { color: var(--color-text); background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
+.menu-panel .nav-sub .nav-sub-sep { color: var(--color-muted); opacity: .6; }

@@ -14,26 +14,32 @@ const at = (key) => {
   return i;
 };
 
-test('the bank block runs recon → transfers → voided checks → journal', () => {
-  assert.ok(at('nav_reconciliation') < at('nav_transfers'));
-  assert.ok(at('nav_transfers') < at('nav_voided_checks'));
-  assert.ok(at('nav_voided_checks') < at('nav_audit'));
+// בעלים 22/10 — "קבוצות + 3 איחודים": לוח בקרה והתיבות של הבעלים, ואז ספקים וחשבוניות · תשלומים ובנק · קופה ·
+// צוות · דוחות · הגדרות. "מעוקבות" / "בחוץ" / "מבוטלים" הם תת-קישורים מתחת לפריט ("בתפריט הצד, מתחת לפריט").
+const pos = (s) => { const i = header.indexOf(s); assert.ok(i > 0, `${s} is missing from the nav`); return i; };
+
+test('the groups run in the owner\'s order, each under its heading', () => {
+  const order = ["navGroup('ספקים וחשבוניות'", "navGroup('תשלומים ובנק'", "navGroup('קופה'", "navGroup('צוות'", "navGroup('דוחות'", '<a href="/settings" '];
+  for (let k = 1; k < order.length; k += 1) assert.ok(pos(order[k - 1]) < pos(order[k]), `${order[k - 1]} before ${order[k]}`);
+  assert.ok(at('nav_dashboard') < pos('href="/notifications"') && pos('href="/notifications"') < pos('href="/approvals"'), 'dashboard, then the owner\'s inboxes');
+  assert.ok(pos('href="/approvals"') < pos("navGroup('ספקים וחשבוניות'"));
 });
 
-test('suppliers → employees → profitability', () => {
-  assert.ok(at('nav_audit') < at('nav_suppliers'), 'the bank block comes first');
-  assert.ok(at('nav_suppliers') < at('nav_employees'));
-  assert.ok(at('nav_employees') < at('nav_profitability'));
+test('inside the groups: invoices → suppliers → scan; מרקורים → transfers → recon; סגירת Z → דוחות Z; profitability → journal', () => {
+  const g = (a, b) => assert.ok(pos(a) < pos(b), `${a} before ${b}`);
+  g("['nav_invoices', '/invoices'", "nav('nav_suppliers')"); g("nav('nav_suppliers')", "nav('nav_scan')");
+  g("['nav_payments', '/payments'", "nav('nav_transfers')"); g("nav('nav_transfers')", "nav('nav_reconciliation')");
+  g("nav('nav_zclosing')", "nav('nav_zreports')");
+  g("nav('nav_profitability')", "nav('nav_audit')");
 });
 
-test('the tracked-invoices page sits with invoices, where it belongs', () => {
-  assert.ok(at('nav_invoices') < at('nav_tracked_invoices'));
-  assert.ok(at('nav_tracked_invoices') < at('nav_payments'));
-});
-
-test('scan sits at the bottom, immediately above settings', () => {
-  assert.ok(at('nav_profitability') < at('nav_scan'), 'not near the top any more');
-  assert.ok(at('nav_scan') < header.indexOf('<a href="/settings" '));
+test('three pages became sub-links, not menu items; scan shows only when unlocked', () => {
+  assert.match(header, /\['nav_invoices', '\/invoices', 'הכל'\], \['nav_tracked_invoices', '\/tracked-invoices', 'מעוקבות'\]/);
+  assert.match(header, /\['nav_payments', '\/payments', 'הכל'\], \['nav_outstanding', '\/reports\/outstanding', 'בחוץ'\], \['nav_voided_checks', '\/voided-checks', 'מבוטלים'\]/);
+  assert.doesNotMatch(header, />מעוקבות לתשלום</);
+  assert.doesNotMatch(header, /<span class="mi-ic">📤<\/span>צ׳קים בחוץ/);
+  assert.doesNotMatch(header, /<span class="mi-ic">🚫<\/span>צ׳קים מבוטלים/);
+  assert.match(header, /<% if \(_scanOn && nav\('nav_scan'\)\) \{ %>/);
 });
 
 // בעלים 21/10: "📖 מדריך למשתמש" — "לשים מעל לוח הבקרה".
