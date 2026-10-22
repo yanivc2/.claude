@@ -38,9 +38,6 @@
       <summary class="btn btn-secondary btn-sm" aria-label="ניווט דפים" title="ניווט דפים"><span class="nav-brand navmenu-brand"><span class="mark">AP</span>Control</span> <span class="caret">▾</span></summary>
       <div class="menu-panel">
         <% function nav(key){ return typeof canView !== 'function' || canView(key); } %>
-        <%# "📖 מדריך למשתמש" — ראשון בתפריט, מעל "לוח בקרה" (בעלים 21/10; עבר מסרגל הכלים של דף ההגדרות).
-            הדף יושב תחת /settings ולכן גם הקישור דורש את הרשאת 'settings'. %>
-        <% if (typeof can === 'function' && can('settings')) { %><a href="/settings/guide" class="<%= path.startsWith('/settings/guide') ? 'active' : '' %>"><span class="mi-ic">📖</span>מדריך למשתמש</a><% } %>
         <%# סדר התפריט (בעלים 22/10, אפשרות "קבוצות + 3 איחודים"): לוח בקרה והתיבות שמחכות לבעלים למעלה, ואז קבוצות
             עם כותרת. "מעוקבות לתשלום" / "צ׳קים בחוץ" / "צ׳קים מבוטלים" כבר לא פריטים נפרדים — הם תת-קישורים בשורה
             קטנה מתחת ל"חשבוניות" / "מרקורים" ("בתפריט הצד, מתחת לפריט"), שמופיעה כשאחד מהדפים שלהם פתוח. הכתובות
@@ -48,8 +45,9 @@
             מוצג רק כשהוא פתוח (נעול = הגדרות). כותרת קבוצה מוצגת רק כשיש בה פריט. test/nav-order.test.js. %>
         <% var _isOwnerNav = currentUser.role === 'owner';
            var _scanOn = typeof scanEnabled !== 'undefined' && scanEnabled;
-           var _invSubs = [['nav_invoices', '/invoices', 'הכל'], ['nav_tracked_invoices', '/tracked-invoices', 'מעוקבות']].filter(function (t) { return nav(t[0]); });
-           var _paySubs = [['nav_payments', '/payments', 'הכל'], ['nav_outstanding', '/reports/outstanding', 'בחוץ'], ['nav_voided_checks', '/voided-checks', 'מבוטלים']].filter(function (t) { return nav(t[0]); });
+           // "ראשי" ולא "הכל" (בעלים 22/10: "לא לרשום הכל כי זה מטעה") — הדף הראשי של הפריט, לא כל מה שתחתיו.
+           var _invSubs = [['nav_invoices', '/invoices', 'ראשי'], ['nav_tracked_invoices', '/tracked-invoices', 'מעוקבות']].filter(function (t) { return nav(t[0]); });
+           var _paySubs = [['nav_payments', '/payments', 'ראשי'], ['nav_outstanding', '/reports/outstanding', 'בחוץ'], ['nav_voided_checks', '/voided-checks', 'מבוטלים']].filter(function (t) { return nav(t[0]); });
            var _onSub = function (subs) { return subs.some(function (t) { return path === t[1] || path.startsWith(t[1] + '/'); }); };
            function navSub(subs) {
              if (subs.length < 2 || !_onSub(subs)) return '';
@@ -89,6 +87,9 @@
         <% if (typeof can === 'function' && can('settings')) { %>
           <div class="menu-sep"></div>
           <a href="/settings" class="<%= path.startsWith('/settings') && !path.startsWith('/settings/guide') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>
+          <%# "📖 מדריך למשתמש" — מתחת ל"הגדרות" (בעלים 22/10; 21/10 היה ראשון בתפריט). הדף יושב תחת /settings ולכן
+              גם הקישור דורש את הרשאת 'settings'. %>
+          <a href="/settings/guide" class="<%= path.startsWith('/settings/guide') ? 'active' : '' %>"><span class="mi-ic">📖</span>מדריך למשתמש</a>
         <% } %>
         <div class="menu-sep"></div>
         <button type="button" id="themeToggle" onclick="apToggleTheme()"><span class="mi-ic" id="themeIco">🌙</span><span id="themeTxt">מצב בהיר</span></button>

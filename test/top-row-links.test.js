@@ -26,11 +26,13 @@ test('Z-report edit: "← חזרה לדוחות Z" sits in the header row (left 
   assert.equal(html.split('חזרה לדוחות Z<').length - 1, 1, 'only once on the page');
 });
 
-test('"📖 מדריך למשתמש" is the first link of the side menu, above "לוח בקרה"; the settings toolbar no longer has it', async () => {
+// בעלים 22/10: "את מדריך למשתמש תוריד למתחת להגדרות" (21/10 היה ראשון).
+test('"📖 מדריך למשתמש" sits right under "הגדרות" in the side menu; the settings toolbar no longer has it', async () => {
   const html = await get('/settings');
   const guide = html.indexOf('href="/settings/guide"');
+  const settings = html.indexOf('<a href="/settings" ');
   const dash = html.indexOf('<span class="mi-ic">🏠</span>לוח בקרה');
-  assert.ok(guide > 0 && dash > guide, 'guide link before the dashboard link');
+  assert.ok(dash > 0 && settings > dash && guide > settings, 'dashboard … settings, then the guide');
   assert.equal(html.split('href="/settings/guide"').length - 1, 1, 'no second copy in the settings toolbar');
   const onGuide = await get('/settings/guide');
   assert.match(onGuide, /<a href="\/settings\/guide" class="active">/);

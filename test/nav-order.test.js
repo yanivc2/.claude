@@ -34,16 +34,16 @@ test('inside the groups: invoices → suppliers → scan; מרקורים → tra
 });
 
 test('three pages became sub-links, not menu items; scan shows only when unlocked', () => {
-  assert.match(header, /\['nav_invoices', '\/invoices', 'הכל'\], \['nav_tracked_invoices', '\/tracked-invoices', 'מעוקבות'\]/);
-  assert.match(header, /\['nav_payments', '\/payments', 'הכל'\], \['nav_outstanding', '\/reports\/outstanding', 'בחוץ'\], \['nav_voided_checks', '\/voided-checks', 'מבוטלים'\]/);
+  assert.match(header, /\['nav_invoices', '\/invoices', 'ראשי'\], \['nav_tracked_invoices', '\/tracked-invoices', 'מעוקבות'\]/);
+  assert.match(header, /\['nav_payments', '\/payments', 'ראשי'\], \['nav_outstanding', '\/reports\/outstanding', 'בחוץ'\], \['nav_voided_checks', '\/voided-checks', 'מבוטלים'\]/);
   assert.doesNotMatch(header, />מעוקבות לתשלום</);
   assert.doesNotMatch(header, /<span class="mi-ic">📤<\/span>צ׳קים בחוץ/);
   assert.doesNotMatch(header, /<span class="mi-ic">🚫<\/span>צ׳קים מבוטלים/);
   assert.match(header, /<% if \(_scanOn && nav\('nav_scan'\)\) \{ %>/);
 });
 
-// בעלים 21/10: "📖 מדריך למשתמש" — "לשים מעל לוח הבקרה".
-test('the user guide is the first link, above the dashboard', () => {
-  assert.ok(header.indexOf('<a href="/settings/guide"') > 0);
-  assert.ok(header.indexOf('<a href="/settings/guide"') < at('nav_dashboard'));
+// בעלים 22/10: "את מדריך למשתמש תוריד למתחת להגדרות" (21/10 היה ראשון, מעל לוח הבקרה).
+test('the user guide sits right under settings, not at the top', () => {
+  assert.ok(header.indexOf('<a href="/settings" ') < header.indexOf('<a href="/settings/guide"'));
+  assert.ok(header.indexOf('<a href="/settings/guide"') > at('nav_audit'), 'below every page link');
 });

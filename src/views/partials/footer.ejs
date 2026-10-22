@@ -1048,6 +1048,34 @@
   })();
   </script>
   <script>
+  // ── כניסה = לוח הבקרה (בעלים 22/10: "כשנכנסים לאפליקציה או לאתר להציג את לוח הבקרה") ──────────────
+  // כתובת שנפתחת ישר ("/", כניסה, קיצור הדרך של האפליקציה) כבר מגיעה ללוח. מה שהשאיר משתמש בדף אחר הוא **חזרה**:
+  // האפליקציה המותקנת משחזרת את הדף האחרון, ולשונית שנשארה פתוחה ממשיכה מאיפה שהייתה. לכן — מי שחוזר אחרי
+  // AP_IDLE בלי פעילות נשלח ללוח הבקרה. מעבר קצר (לוואטסאפ, לקוד ה-SMS של הבנק) לא מאפס את הדף, וקישור שנפתח
+  // מבחוץ (התראת טלגרם, מייל) נפתח כרגיל — נבדקים רק חזרה ללשונית, שחזור מהמטמון, ורענון/שחזור של דף.
+  (function () {
+    if (/^\/(login|forgot|reset|privacy|accessibility)/.test(location.pathname)) return;
+    var KEY = 'apLastSeen', AP_IDLE = 30 * 60 * 1000, last = 0;
+    function seen() { var t = Date.now(); if (t - last < 60000) return; last = t; try { localStorage.setItem(KEY, String(t)); } catch (e) {} }
+    function away() { try { var t = Number(localStorage.getItem(KEY) || 0); return t ? Date.now() - t : 0; } catch (e) { return 0; } }
+    function home() {
+      if (location.pathname === '/' || away() <= AP_IDLE) return false;
+      try { localStorage.setItem(KEY, String(Date.now())); } catch (e) {}
+      location.replace('/');
+      return true;
+    }
+    var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation')[0]) || null;
+    if (nav && (nav.type === 'reload' || nav.type === 'back_forward') && home()) return;
+    window.addEventListener('pageshow', function (e) { if (e.persisted) home(); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') home();
+      else { last = 0; seen(); }
+    });
+    ['pointerdown', 'keydown', 'scroll'].forEach(function (ev) { window.addEventListener(ev, seen, { passive: true }); });
+    last = 0; seen();
+  })();
+  </script>
+  <script>
   // ── ניווט ונוחות בכל דף (בעלים, 16/10) ─────────────────────────────────────────────
   // (1) "→ חזרה" — תמיד אפשר לחזור לדף הקודם בלחיצה. לא history.back(): אחרי פעולה (POST→303) הדפדפן
   //     רושם את אותו דף פעמיים, ו"אחורה" מחזיר לאותו דף לפני הפעולה. כאן נשמרת מחסנית של **דפים שונים**
