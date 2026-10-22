@@ -1,0 +1,29 @@
+<%# תא "סטטוס/פעולות" של תשלום — אותו תא בטבלת המרקורים ובטבלת "העברות שבוצעו" (העברות בנקאיות; בעלים 21/10:
+    "העברות שייך להעברות בנקאיות"). מצפה ל-p, ול-authorityReady/authorities (בורר "🏛️ לרשות", בעלים בלבד). %>
+<% var autoCleared = p.status === 'cleared' && p.auto_cleared; %>
+<span class="badge <%= autoCleared ? 'b-cleared-auto' : ('b-' + p.status) %>"
+      title="<%= autoCleared ? 'נפרע אוטומטית ע״י שיוך בהתאמת בנק' : (p.status === 'cleared' ? 'נפרע — סימון ידני' : '') %>"><%= p.status === 'issued' ? 'הונפק' : p.status === 'cleared' ? 'נפרע' : 'מבוטל' %></span>
+<% if (p.status === 'cleared' && p.cleared_date) { %> <span class="muted" style="font-size:12px"><%= formatDate(p.cleared_date) %></span><% } %>
+<% if (p.status === 'issued') { %>
+  <div class="actions no-print" style="margin-top:5px">
+    <form method="post" action="/payments/<%= p.id %>/clear" style="display:inline">
+      <button class="ok small" type="submit">סמן כנפרע</button>
+    </form>
+    <% if (currentUser.role === 'owner') { %>
+      <form method="post" action="/payments/<%= p.id %>/void" style="display:inline" onsubmit="return confirm('לבטל את הצ׳ק?')">
+        <button class="danger small" type="submit">בטל</button>
+      </form>
+    <% } %>
+  </div>
+<% } %>
+<%# 🏛️ "לרשות" (בעלים 21/10) — בחירת רשות שולחת מיד: התשלום יוצא מהטבלה ועובר ל"תשלומים לרשויות" בדף
+    הספקים; באשראי נרשם כבוצע. select ולא תפריט נפתח — תפריט היה נחתך בתוך .table-scroll. %>
+<% if (currentUser.role === 'owner' && typeof authorityReady !== 'undefined' && authorityReady && p.status !== 'voided') { %>
+  <form method="post" action="/payments/<%= p.id %>/authority" class="auth-mark no-print">
+    <select name="authority" aria-label="העבר לתשלומים לרשויות" title="תשלום לרשות — עובר לטבלת &quot;תשלומים לרשויות&quot; בדף הספקים"
+            onchange="if (this.value) { if (this.form.requestSubmit) this.form.requestSubmit(); else this.form.submit(); }">
+      <option value="">🏛️ לרשות…</option>
+      <% (authorities || []).forEach(function(a){ %><option value="<%= a.key %>"><%= a.name %></option><% }); %>
+    </select>
+  </form>
+<% } %>

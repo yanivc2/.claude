@@ -10,6 +10,8 @@ import { effectiveStoreId } from '../lib/scope.js';
 import { assertInScope } from '../lib/scopeGuard.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { config } from '../config.js';
+import { listPayments, TRANSFER_METHODS } from '../services/payments.js';
+import { AUTHORITIES, authorityPaymentsReady } from '../services/authorityPayments.js';
 
 // "העברות בנקאיות" — see services/transfers.js for why this is a REQUEST raised before the bank,
 // and why the enforcement is detection (an untracked movement alarms) rather than a lock.
@@ -39,6 +41,10 @@ async function render(req, res, extra = {}) {
     approvalTtlDays: config.rules.transferApprovalTtlDays,
     statuses: TRANSFER_STATUS,
     statusLabel,
+    // "העברות שבוצעו" — תשלומי העברה ומקבץ, שיצאו מטבלת המרקורים (בעלים 21/10: "העברות שייך להעברות בנקאיות").
+    transferPayments: await listPayments({ storeId, scope: req.scope, hideAuthority: true, methods: TRANSFER_METHODS }),
+    authorityReady: await authorityPaymentsReady(),
+    authorities: AUTHORITIES,
     notice: NOTICES[req.query.done] || null,
     error: null,
     ...extra,

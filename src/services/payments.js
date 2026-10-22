@@ -603,9 +603,20 @@ export async function getCheckPrintData(id, x = getExecutor()) {
   };
 }
 
-export async function listPayments({ status = null, companyId = null, storeId = null, scope = null, hideAuthority = false } = {}, x = getExecutor()) {
+/** העברה ומקבץ — מוצגים בדף "העברות בנקאיות", לא בטבלת המרקורים (בעלים 21/10: "העברות שייך להעברות בנקאיות"). */
+export const TRANSFER_METHODS = ['transfer', 'batch'];
+
+export async function listPayments({ status = null, companyId = null, storeId = null, scope = null, hideAuthority = false, methods = null, excludeMethods = null } = {}, x = getExecutor()) {
   const where = [];
   const params = [];
+  if (Array.isArray(methods) && methods.length) {
+    where.push(`p.method IN (${methods.map(() => '?').join(', ')})`);
+    params.push(...methods);
+  }
+  if (Array.isArray(excludeMethods) && excludeMethods.length) {
+    where.push(`p.method NOT IN (${excludeMethods.map(() => '?').join(', ')})`);
+    params.push(...excludeMethods);
+  }
   // מרקורים: תשלום שסומן "לרשות" יוצא מהטבלה ומופיע רק ב"תשלומים לרשויות" (בעלים 21/10). לפני "עדכן מסד נתונים"
   // אין עמודה — אז אין גם סימונים, ולא מסננים.
   if (hideAuthority && await authorityPaymentsReady(x)) where.push('p.authority IS NULL');

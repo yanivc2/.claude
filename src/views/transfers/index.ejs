@@ -167,6 +167,33 @@
   </div>
 </div>
 
+<%# "העברות שבוצעו" — מתחת ל"בקשות" (בעלים 21/10: "העברות שייך להעברות בנקאיות"; המיקום אחרי שאלה): תשלומי
+    העברה ומקבץ, שיצאו מטבלת המרקורים. אותן עמודות ואותו תא סטטוס/פעולות (partials/_paymentStatusCell.ejs);
+    לחיצה על שורה פותחת את התשלום. %>
+<% var _tp = (typeof transferPayments !== 'undefined' && transferPayments) || []; %>
+<div class="card">
+  <h2 data-ckey="העברות שבוצעו" style="margin:0 0 .5rem">העברות שבוצעו <span class="badge b-neutral"><%= _tp.length %></span></h2>
+  <div class="table-scroll">
+    <table class="sortable">
+      <thead><tr><th>אמצעי / מזהה</th><th>חנות</th><th>תאריך</th><th class="right">סכום</th><th data-nosort>סטטוס/פעולות</th></tr></thead>
+      <tbody>
+        <% if (!_tp.length) { %><tr><td colspan="5" class="muted">אין העברות.</td></tr><% } %>
+        <% _tp.forEach(function(p){ %>
+          <tr onclick="location='/payments/<%= p.id %>'" style="cursor:pointer">
+            <td><%= paymentIdent(p) %></td>
+            <td><%= p.store_name %></td>
+            <td><%= formatDate(p.payment_date) %></td>
+            <td class="right"><%= formatIls(p.amount) %></td>
+            <td onclick="event.stopPropagation()">
+              <%- include('../partials/_paymentStatusCell', { p: p, authorityReady: authorityReady, authorities: authorities }) %>
+            </td>
+          </tr>
+        <% }); %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 <% if (currentUser.role === 'owner') { %>
   <details class="card collapse-card">
     <summary>מעקב אחר העברות ללא תיעוד<%= watchFrom ? ' — פעיל מ-' + watchFrom : ' — כבוי' %></summary>

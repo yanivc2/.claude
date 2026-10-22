@@ -9,8 +9,7 @@ import {
   voidPaymentWithReason,
   getPaymentDetail,
   getCheckPrintData,
-  listPayments,
-} from '../services/payments.js';
+  listPayments, TRANSFER_METHODS } from '../services/payments.js';
 import { listPayable, invoiceNotesReady, appendInvoiceNote } from '../services/invoices.js';
 import { matchPaymentNow } from '../services/reconciliation.js';
 import { listDeposits, depositVerifications, depositZDiffs } from '../services/deposits.js';
@@ -76,7 +75,8 @@ router.get('/', async (req, res, next) => {
     const depositRows = await listDeposits({ storeId, scope, limit: 50 });
     res.render('payments/index', {
       title: 'מרקורים',
-      payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope, hideAuthority: true }),
+      // בלי העברות ומקבץ — הן בדף "העברות בנקאיות" (בעלים 21/10), ובלי מה שסומן "לרשות".
+      payments: await listPayments({ status: req.query.status || null, companyId, storeId, scope, hideAuthority: true, excludeMethods: TRANSFER_METHODS }),
       // 🏛️ "לרשות" בכל שורה (בעלים בלבד) — services/authorityPayments.js; בלי העמודה (לפני "עדכן מסד נתונים") אין בורר.
       authorityReady: await authorityPaymentsReady(),
       authorities: AUTHORITIES,
