@@ -1,12 +1,21 @@
 # .claude — Global Claude Code Configuration
 
-This repository **is** `~/.claude` (on the primary machine: `C:\Users\yaniv\.claude`).
-Editing it changes Claude Code's own behavior on every session, so changes are
-conservative and reviewed. It is not an application codebase — no build, no tests.
+This repository **is** `~/.claude` on the Windows machine (`C:\Users\yaniv\.claude`)
+and only there. Editing it changes Claude Code's own behavior on every session, so
+changes are conservative and reviewed. It is not an application codebase — no
+build, no tests.
 
 > This file is user-level memory: it loads in **every session in every project**.
 > Keep it short. Repo-maintenance detail lives in `.claude/rules/config-repo.md`,
 > which loads only when a config file is actually touched.
+
+## The two machines are separate
+
+The Mac (`/Users/yanivcohen/.claude`) is its own git repository with **no remote**.
+It was a clone of this one until 2026-10-22; it is not any more, and nothing syncs
+between them in either direction. A change made here reaches the Mac only if
+someone makes it there by hand. Each machine's `settings.json` carries only its own
+platform's rules, so they are expected to differ and that is not drift.
 
 ## Operating rules
 
@@ -16,6 +25,9 @@ conservative and reviewed. It is not an application codebase — no build, no te
    questions (incl. `AskUserQuestion` options), plans and summaries (incl. compaction
    summaries). Code, file contents, commit messages, and identifiers stay in English.
    Enforced by `"language": "hebrew"` and a Stop hook (`hooks/hebrew-reply-hook.mjs`).
+4. **One machine per session.** Both machines are reachable through Desktop
+   Commander, which is not a reason to use both. Ask before starting work on the
+   other one.
 
 ## Iron rules for files and folders
 
@@ -34,9 +46,11 @@ conservative and reviewed. It is not an application codebase — no build, no te
 
 ## Platform
 
-Windows + PowerShell. Every hook `command` is a PowerShell one-liner with
-`"shell": "powershell"` and Windows path separators. A remote/Linux session cannot
-execute them — edit them as text and validate the JSON instead of running them.
+Windows. 11 of the 12 hook `command`s run a Node script under `hooks/`
+(`node "$HOME/.claude/hooks/<name>.mjs"`), so they are plain text a remote or
+Linux session can safely edit. The exception is `context-mode-cache-heal`, which
+hardcodes `C:/Program Files/nodejs/node.exe` and absolute Windows paths. No hook
+is a PowerShell one-liner any more and no `"shell"` key is left.
 
 Active model: `opus` at `effortLevel: xhigh` (`settings.json`).
 
