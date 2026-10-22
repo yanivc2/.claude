@@ -11,6 +11,7 @@
 // it ties the wage row to the Z-closing expense that paid it out and, when the wage was paid by a
 // real check recorded in /payments, voids that check with the reason "נפרע במזומן עבור שכר".
 import { getExecutor } from '../db/adapter.js';
+import { periodClause } from '../lib/period.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeWhere, normalizeScope } from '../lib/scope.js';
 import { logAction } from './audit.js';
@@ -28,11 +29,14 @@ const METHOD_VALUES = SALARY_METHODS.map((m) => m.value);
 export const methodLabel = (m) => (SALARY_METHODS.find((x) => x.value === m) || {}).label || m;
 
 /** Rows for the rubric, newest due-date first, with the employee and store names joined in. */
-export async function listSalaryPayments({ storeId = null, scope = null, limit = 100 } = {}, x = getExecutor()) {
+export async function listSalaryPayments({ storeId = null, scope = null, limit = 100, period = null } = {}, x = getExecutor()) {
   const sc = scopeWhere(scope, 'st.company_id', 'sp.store_id');
   const params = [...sc.params];
   let filter = '';
   if (storeId) { filter = ' AND sp.store_id = ?'; params.push(Number(storeId)); }
+  // שבוע/חודש מהשורה העליונה (lib/period.js) — לפי "לתאריך" (due_date).
+  const pc = periodClause(period, 'sp.due_date');
+  filter += pc.sql; params.push(...pc.params);
   params.push(limit);
   const rows = await x.many(
     `SELECT sp.*, e.first_name, e.last_name, st.name AS store_name

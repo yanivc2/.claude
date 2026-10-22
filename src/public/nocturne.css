@@ -1543,3 +1543,9 @@ main.page .badge.sup-store-inv { border-style: dashed; }
 /* מרקורים — "🏛️ לרשות" בכל שורה (בעלים 21/10): בורר קטן מתחת לסטטוס/פעולות. */
 main.page form.auth-mark { margin: 6px 0 0; }
 main.page form.auth-mark select { min-height: 0; padding: 3px 8px; font-size: 12px; width: auto; max-width: 9.5em; }
+/* "הכל · שבוע · חודש" בשורת הכותרת (partials/_periodMenu.ejs, בעלים 22/10) — שדות הבורר נראים ככפתורים. */
+.period-menu { display: inline-flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.period-menu form { margin: 0; display: inline-flex; }
+.period-menu .dp-wrap input { min-height: 0; height: 32px; padding: 0 10px; font-size: 13px; cursor: pointer; text-align: center;
+  width: 7.5em; border-radius: var(--radius-sm, 8px); border: 1px solid var(--color-accent); background: transparent; color: var(--color-text); }
+.period-menu form.on .dp-wrap input { width: 12.5em; background: var(--color-accent); color: #fff; }

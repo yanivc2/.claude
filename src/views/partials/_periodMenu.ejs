@@ -1,0 +1,14 @@
+<%# "הכל · שבוע · חודש" בשורת הכותרת, משמאל ל"→ חזרה" (בעלים 22/10, עובדים ומשכורות: "צור לי מסנן לפי שבוע ולפי
+    חודש למעלה משמאל לחזרה"). header.ejs מכליל אותו ב-.sb-start דרך topMenu: '_periodMenu'; locals: periodMenu =
+    { period (lib/period.js#periodFromQuery), path }. "שבוע"/"חודש" = שדה תאריך של footer.ejs במצב week/month
+    (data-dp-mode) שנשלח מיד בבחירה (data-dp-submit) — GET ?week= / ?month= לאותו דף. %>
+<% var _pm = (typeof periodMenu !== 'undefined' && periodMenu) || {}; var _pp = _pm.period || null; var _ph = _pm.path || '/'; %>
+<span class="period-menu no-print" role="group" aria-label="סינון לפי תקופה">
+  <a class="btn btn-sm <%= _pp ? 'btn-secondary' : 'btn-primary' %>" href="<%= _ph %>">הכל</a>
+  <form method="get" action="<%= _ph %>" class="period-pick<%= _pp && _pp.kind === 'week' ? ' on' : '' %>">
+    <input type="date" name="week" data-dp-mode="week" data-dp-submit="1" placeholder="שבוע ▾" aria-label="סינון לפי שבוע" value="<%= _pp && _pp.kind === 'week' ? _pp.value : '' %>" />
+  </form>
+  <form method="get" action="<%= _ph %>" class="period-pick<%= _pp && _pp.kind === 'month' ? ' on' : '' %>">
+    <input type="date" name="month" data-dp-mode="month" data-dp-submit="1" placeholder="חודש ▾" aria-label="סינון לפי חודש" value="<%= _pp && _pp.kind === 'month' ? _pp.value : '' %>" />
+  </form>
+</span>

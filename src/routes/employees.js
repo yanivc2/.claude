@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { periodFromQuery } from '../lib/period.js';
 import multer from 'multer';
 import {
   listEmployees, createEmployee, deleteEmployee, listEmployeeLedger, employeeTotals, importEmployees, closingEmployeeLines,
@@ -39,10 +40,10 @@ async function allowedStoreIds(body, scope) {
 
 // The summary table joined to the SCOPED employee list: rows the caller may not see are dropped,
 // and each surviving row carries its `stores` so the screen can show where the employee works.
-async function scopedTotals(scope, storeId) {
+async function scopedTotals(scope, storeId, period = null) {
   const visible = await listEmployees({ includeInactive: true, scope });
   const byId = new Map(visible.map((e) => [Number(e.id), e]));
-  const rows = await employeeTotals({ storeId, scope });
+  const rows = await employeeTotals({ storeId, scope, period });
   return rows
     .filter((r) => byId.has(Number(r.id)))
     .map((r) => ({ ...r, stores: byId.get(Number(r.id)).stores || [] }));
@@ -77,10 +78,15 @@ async function render(req, res, extra = {}) {
   // The wage table arrives with a schema upgrade the owner runs by hand. Until then the rubric says
   // so instead of the page dying on "no such table: salary_payments".
   const salaryReady = await salaryPaymentsReady();
+  // "שבוע · חודש" בשורת הכותרת (בעלים 22/10; partials/_periodMenu.ejs): מצמצם את תשלומי השכר (לפי "לתאריך"), את
+  // "תשלום מפרעות ושכר מהפדיון" ואת "עובדים — סיכום" לתקופה. מפרעות והלוואות — לא: היתרה שלהן חייבת להיות שלמה.
+  const period = periodFromQuery(req.query);
   res.render('employees/index', {
     title: 'עובדים ומשכורות',
+    topMenu: '_periodMenu',
+    periodMenu: { period, path: '/employees' },
     salaryReady,
-    salaryRows: salaryReady ? await attachSalaryBankHints(await listSalaryPayments({ storeId, scope: req.scope })) : [],
+    salaryRows: salaryReady ? await attachSalaryBankHints(await listSalaryPayments({ storeId, scope: req.scope, period })) : [],
     salaryMethods: SALARY_METHODS,
     cashCandidates: salaryReady ? await cashExpenseCandidates({ storeId, scope: req.scope }) : [],
     salaryStoreId: storeId,
@@ -92,10 +98,10 @@ async function render(req, res, extra = {}) {
     // Scoped: an employee linked to stores is only visible where one of them is in scope; an
     // employee with no links is shared with every store (see services/employees.js#listEmployees).
     storeOptions: await scopedStoreList(assignmentScope(req)),
-    totals: await scopedTotals(req.scope, storeId),
-    ledger: await listEmployeeLedger({ storeId, scope: req.scope }),
+    totals: await scopedTotals(req.scope, storeId, period),
+    ledger: await listEmployeeLedger({ storeId, scope: req.scope, period }),
     // מפרעה/שכר מסגירת Z שלא נמצאים בדוח ה-Z של אותו Z (ממתין / חסר / בסוג אחר) — ראה closingEmployeeLines.
-    closingLines: await closingEmployeeLines({ storeId, scope: req.scope }),
+    closingLines: await closingEmployeeLines({ storeId, scope: req.scope, period }),
     error: null,
     notice: null,
     ...extra,

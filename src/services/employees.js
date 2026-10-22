@@ -1,4 +1,5 @@
 import { getExecutor } from '../db/adapter.js';
+import { periodClause } from '../lib/period.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { normalizePhone } from '../lib/employeeImport.js';
 import { filterByStoreLinks, scopeWhere } from '../lib/scope.js';
@@ -120,7 +121,7 @@ export async function deleteEmployee(id, actor, x = getExecutor()) {
  * line belongs to is the register it came out of, which is `z_reports.store_id`.
  */
 export async function listEmployeeLedger(
-  { employeeId = null, storeId = null, scope = null } = {},
+  { employeeId = null, storeId = null, scope = null, period = null } = {},
   x = getExecutor(),
 ) {
   const sc = scopeWhere(scope, 'st.company_id', 'z.store_id');
@@ -128,6 +129,8 @@ export async function listEmployeeLedger(
   let where = '';
   if (employeeId) { where += ' AND e.employee_id = ?'; params.push(Number(employeeId)); }
   if (storeId) { where += ' AND z.store_id = ?'; params.push(Number(storeId)); }
+  const pc = periodClause(period, 'e.expense_date'); // שבוע/חודש (lib/period.js)
+  where += pc.sql; params.push(...pc.params);
   return x.many(
     `SELECT e.id, e.expense_date, e.amount, e.description_type AS kind, e.purpose,
             emp.id AS employee_id, emp.first_name, emp.last_name,
@@ -160,11 +163,13 @@ export async function listEmployeeLedger(
  * שורה שתואמת (עובד + סכום + סוג, אחד-לאחד) — לא מוחזרת: שורת דוח ה-Z היא אותו כסף. כשיש כמה סגירות
  * לאותו Z (שמירה כפולה) נלקחת האחרונה, כמו `matchingClosing`.
  */
-export async function closingEmployeeLines({ storeId = null, scope = null } = {}, x = getExecutor()) {
+export async function closingEmployeeLines({ storeId = null, scope = null, period = null } = {}, x = getExecutor()) {
   const sc = scopeWhere(scope, 'st.company_id', 'zc.store_id');
   const params = [...sc.params];
   let where = '';
   if (storeId) { where += ' AND zc.store_id = ?'; params.push(Number(storeId)); }
+  const pc = periodClause(period, 'ce.expense_date'); // שבוע/חודש (lib/period.js)
+  where += pc.sql; params.push(...pc.params);
   const rows = await x.many(
     `SELECT ce.id, ce.expense_date, ce.amount, ce.description_type AS kind, ce.purpose,
             emp.id AS employee_id, emp.first_name, emp.last_name,
@@ -224,16 +229,16 @@ export async function closingEmployeeLines({ storeId = null, scope = null } = {}
  * Per-employee totals of advances and salary lines, for the summary table.
  * @returns {Promise<Array<{id, first_name, last_name, active, advances, salary, lines}>>}
  */
-export async function employeeTotals({ storeId = null, scope = null } = {}, x = getExecutor()) {
+export async function employeeTotals({ storeId = null, scope = null, period = null } = {}, x = getExecutor()) {
   const employees = await listEmployees({ includeInactive: true, scope }, x);
   // 🔴 נגזר מאותן שורות בדיוק שהטבלה "תשלום מפרעות ושכר מהפדיון" מציגה, ולא משאילתת GROUP BY משלו: קודם
   // היה כאן סכום על **כל** החנויות ליד רשימה מסוננת, כלומר מסך של חנות אחת הראה סכום של כולן
   // ואי אפשר היה לדעת שהוא לא שלה. מקור אחד = שתי הטבלאות לא יכולות להיפרד בשקט. (סיכום ב-JS ולא
   // ב-SQL גם עוקף את מגבלת pg-mem — GROUP BY מעל join.)
-  const ledger = await listEmployeeLedger({ storeId, scope }, x);
+  const ledger = await listEmployeeLedger({ storeId, scope, period }, x);
   // + שורות סגירת Z שעוד אין להן דוח Z (`pending`) — הן מוצגות בטבלה ואין להן עותק אחר. `missing`/`kind`
   // מוצגות לבדיקה ולא נספרות: הסכום אולי כבר נספר דרך דוח ה-Z תחת עובד/סוג אחר.
-  const pending = (await closingEmployeeLines({ storeId, scope }, x)).filter((r) => r.status === 'pending');
+  const pending = (await closingEmployeeLines({ storeId, scope, period }, x)).filter((r) => r.status === 'pending');
   const byEmp = new Map();
   for (const r of [...ledger, ...pending]) {
     const cur = byEmp.get(Number(r.employee_id)) || { advances: 0, salary: 0, lines: 0 };
