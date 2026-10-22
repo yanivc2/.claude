@@ -39,9 +39,12 @@
                 <%# חשבונית שמוחזקת בגלל מספר הקצאה (R3): רק "ללא מספר הקצאה", ומתחתיו שדה "הוסף מספר הקצאה" עם "שמור"
                     משמאלו (בעלים 22/10: "לא צריך כל כך הרבה מלל") — שמירה משחררת את ההחזקה (setAllocationNumber). %>
                 <% if (r.r3Hold) { %>
-                  <div class="tracked-r3">ללא מספר הקצאה</div>
+                  <%# הכיתוב ממורכז מעל השדה עצמו (בעלים 22/10: "מרכז לפי הרובריקה") — שניהם בעמודה אחת, "שמור" לידם. %>
                   <form method="post" action="/tracked-invoices/<%= r.id %>/allocation" class="tracked-note tracked-alloc" data-busy="שומר…">
-                    <input name="allocation_number" inputmode="numeric" placeholder="הוסף מספר הקצאה" aria-label="הוסף מספר הקצאה" autocomplete="off" required />
+                    <span class="alloc-field">
+                      <span class="tracked-r3">ללא מספר הקצאה</span>
+                      <input name="allocation_number" inputmode="numeric" placeholder="הוסף מספר הקצאה" aria-label="הוסף מספר הקצאה" autocomplete="off" required />
+                    </span>
                     <button type="submit" class="btn-sm">שמור</button>
                   </form>
                 <% } %>

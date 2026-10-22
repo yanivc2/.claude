@@ -24,7 +24,7 @@ test('a held R3 row says only "ללא מספר הקצאה", with an "הוסף מ
   assert.equal(held.status, 'on_hold');
   const html = await (await fetch(`${base}/tracked-invoices`, { headers: { cookie: cookie() } })).text();
   const row = html.slice(html.indexOf('R3-1'), html.indexOf('</tr>', html.indexOf('R3-1')));
-  assert.match(row, /<div class="tracked-r3">ללא מספר הקצאה<\/div>\s*<form method="post" action="\/tracked-invoices\/\d+\/allocation" class="tracked-note tracked-alloc" data-busy="שומר…">\s*<input name="allocation_number"[^>]*placeholder="הוסף מספר הקצאה"[^>]*\/>\s*<button type="submit" class="btn-sm">שמור<\/button>/);
+  assert.match(row, /<form method="post" action="\/tracked-invoices\/\d+\/allocation" class="tracked-note tracked-alloc" data-busy="שומר…">\s*<span class="alloc-field">\s*<span class="tracked-r3">ללא מספר הקצאה<\/span>\s*<input name="allocation_number"[^>]*placeholder="הוסף מספר הקצאה"[^>]*\/>\s*<\/span>\s*<button type="submit" class="btn-sm">שמור<\/button>/, 'the caption sits with the field, centred over it; שמור beside them');
   assert.doesNotMatch(row, /מוחזקת:|R3 —|למשל: מחכים לזיכוי/, 'no long hold text, no note field on a held-only R3 row');
   assert.doesNotMatch(html, /class="row-tracked"/);
 });

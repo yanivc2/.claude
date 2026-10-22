@@ -1559,6 +1559,12 @@ main.page form.auth-mark select { min-height: 0; padding: 3px 8px; font-size: 12
 main.page th.notif-readall { white-space: nowrap; }
 main.page th.notif-readall .btn { font-weight: 500; }
 /* מעוקבות לתשלום — "ללא מספר הקצאה" ומתחתיו "הוסף מספר הקצאה" + "שמור" (בעלים 22/10). */
-main.page .tracked-r3 { font-size: 12px; font-weight: 600; color: var(--color-warn); margin-bottom: 4px; }
-main.page form.tracked-alloc { margin-bottom: 6px; }
+main.page .tracked-r3 { display: block; font-size: 12px; font-weight: 600; color: var(--color-warn); margin-bottom: 4px; text-align: center !important; }
+/* "מרכז לפי הרובריקה" (בעלים 22/10): רשת — הכיתוב בשורה הראשונה מעל השדה בלבד (ממורכז לרוחבו), השדה ו"שמור"
+   בשורה השנייה, "שמור" באמצע גובה השדה. */
+main.page form.tracked-alloc { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 6px; align-items: center; margin-bottom: 6px; }
+main.page form.tracked-alloc .alloc-field { display: contents; }
+main.page form.tracked-alloc .tracked-r3 { grid-column: 1; grid-row: 1; }
+main.page form.tracked-alloc input { grid-column: 1; grid-row: 2; }
+main.page form.tracked-alloc button { grid-column: 2; grid-row: 2; }
 main.page form.tracked-note input { min-width: 10.5em; }
