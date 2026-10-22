@@ -1555,3 +1555,6 @@ main.page form.auth-mark select { min-height: 0; padding: 3px 8px; font-size: 12
 .menu-panel .nav-sub a { display: inline-block; width: auto; padding: 3px 7px; border-radius: 6px; color: var(--color-muted); }
 .menu-panel .nav-sub a.active { color: var(--color-text); background: color-mix(in srgb, var(--color-accent) 22%, transparent); }
 .menu-panel .nav-sub .nav-sub-sep { color: var(--color-muted); opacity: .6; }
+/* התראות — "סמן הכל כנקרא" בכותרת עמודת "סמן כנקרא" (בעלים 22/10). */
+main.page th.notif-readall { white-space: nowrap; }
+main.page th.notif-readall .btn { font-weight: 500; }

@@ -1,11 +1,6 @@
 <%- include('../partials/header') %>
 <div class="toolbar">
   <h1 style="margin:0">🔔 התראות</h1>
-  <% if (notifications.some(function(n){ return !n.read_at; })) { %>
-    <form method="post" action="/notifications/read-all" style="margin:0">
-      <button type="submit" class="btn btn-secondary">סמן הכל כנקרא</button>
-    </form>
-  <% } %>
 </div>
 
 <div class="card">
@@ -13,7 +8,15 @@
     <p class="muted" style="margin:0">אין התראות.</p>
   <% } else { %>
     <table>
-      <thead><tr><th>מתי</th><th>הודעה</th><th data-nosort class="no-print"></th></tr></thead>
+      <%# "סמן הכל כנקרא" — בכותרת עמודת "סמן כנקרא" (בעלים 22/10: "שים בשורה של הודעה בעמודה של סימון כנקרא"),
+          לא בסרגל הכלים. %>
+      <thead><tr><th>מתי</th><th>הודעה</th><th data-nosort data-nofilter data-noexport class="no-print notif-readall">
+        <% if (notifications.some(function(n){ return !n.read_at; })) { %>
+          <form method="post" action="/notifications/read-all" style="margin:0">
+            <button type="submit" class="btn btn-secondary btn-sm">סמן הכל כנקרא</button>
+          </form>
+        <% } %>
+      </th></tr></thead>
       <tbody>
         <% notifications.forEach(function(n){ %>
           <tr<%= n.read_at ? '' : ' style="font-weight:600"' %>>
