@@ -52,11 +52,11 @@ async function scopedTotals(scope, storeId, period = null) {
 
 // מפרעות/הלוואות: מסונכרן מ-Z ואז נקרא. מחזיר בלוק ריק אם הסכימה עדיין לא עודכנה, כדי שהדף
 // יגיד "נדרש עדכון מסד נתונים" במקום למות על "no such table: employee_advances".
-async function advancesBlock(req, storeId) {
+async function advancesBlock(req, storeId, period = null) {
   const ready = await advancesReady();
   if (!ready) return { advancesReady: false, advances: [], advanceBalances: [], advanceKinds: ADVANCE_KINDS, advanceMethods: ADVANCE_METHODS, repaySources: REPAY_SOURCES, kindLabel, methodLabel, repaySourceLabel, salaryByEmployee: {} };
   await syncZAdvances();
-  const advances = await listAdvances({ storeId, scope: req.scope });
+  const advances = await listAdvances({ storeId, scope: req.scope, period });
   // בורר תשלומי השכר בחלון ההחזר — רק לעובדים שיש להם יתרה פתוחה, כדי לא לשלוף לכל השורות.
   const salaryByEmployee = {};
   for (const empId of new Set(advances.filter((a) => a.balance > 0).map((a) => Number(a.employee_id)))) {
@@ -65,7 +65,7 @@ async function advancesBlock(req, storeId) {
   return {
     advancesReady: true,
     advances,
-    advanceBalances: await openBalances({ storeId, scope: req.scope }),
+    advanceBalances: await openBalances({ storeId, scope: req.scope, period }),
     advanceKinds: ADVANCE_KINDS, advanceMethods: ADVANCE_METHODS, repaySources: REPAY_SOURCES,
     kindLabel, methodLabel, repaySourceLabel, salaryByEmployee,
   };
@@ -78,8 +78,9 @@ async function render(req, res, extra = {}) {
   // The wage table arrives with a schema upgrade the owner runs by hand. Until then the rubric says
   // so instead of the page dying on "no such table: salary_payments".
   const salaryReady = await salaryPaymentsReady();
-  // "שבוע · חודש" בשורת הכותרת (בעלים 22/10; partials/_periodMenu.ejs): מצמצם את תשלומי השכר (לפי "לתאריך"), את
-  // "תשלום מפרעות ושכר מהפדיון" ואת "עובדים — סיכום" לתקופה. מפרעות והלוואות — לא: היתרה שלהן חייבת להיות שלמה.
+  // "שבוע · חודש" בשורת הכותרת (בעלים 22/10; partials/_periodMenu.ejs): מצמצם לתקופה את תשלומי השכר (לפי "לתאריך"),
+  // "תשלום מפרעות ושכר מהפדיון", "עובדים — סיכום" ו"מעקב מפרעות והלוואות" (לפי תאריך המתן; בעלים: "גם מפרעות
+  // והלוואות לסנן לפי התקופה" — כל מפרעה מוצגת עם כל ההחזרים שלה, כך שהיתרה שלה נכונה).
   const period = periodFromQuery(req.query);
   res.render('employees/index', {
     title: 'עובדים ומשכורות',
@@ -94,7 +95,7 @@ async function render(req, res, extra = {}) {
     todayIso: israelToday(),
     // מפרעות והלוואות. הסנכרון מ-Z רץ כאן כי אחרת מפרעה שנרשמה בקופה אתמול לא הייתה ניתנת
     // להחזר היום — היא פשוט לא הייתה קיימת בספר הזה. אידמפוטנטי (ראה syncZAdvances).
-    ...(await advancesBlock(req, storeId)),
+    ...(await advancesBlock(req, storeId, period)),
     // Scoped: an employee linked to stores is only visible where one of them is in scope; an
     // employee with no links is shared with every store (see services/employees.js#listEmployees).
     storeOptions: await scopedStoreList(assignmentScope(req)),

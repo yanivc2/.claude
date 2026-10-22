@@ -55,3 +55,22 @@ test('"הכל · שבוע · חודש" sits in the header row; a week/month narr
   assert.equal(dana(oct).salary, 5000, 'October only');
   assert.equal(dana(all).salary, 12000, 'no period = everything');
 });
+
+// בעלים 22/10: "גם מפרעות והלוואות לסנן לפי התקופה" — לפי תאריך המתן; כל מפרעה עם כל ההחזרים שלה (היתרה נכונה).
+test('advances and loans narrow to the period by their issue date, each still carrying all its repayments', async () => {
+  const { createAdvance, repayAdvance, listAdvances, openBalances } = await import('../src/services/employeeAdvances.js');
+  const emp = await createEmployee({ firstName: 'יוסי', lastName: 'הלוואה' }, o, db);
+  const sep = await createAdvance({ storeId: st.id, employeeId: emp.id, kind: 'loan', issuedDate: '2026-09-02', amount: 100000, method: 'transfer', reference: 'LN-SEP' }, o, db);
+  await repayAdvance(sep.id, { repaidDate: '2026-10-05', amount: 30000, source: 'salary' }, o, db);
+  await createAdvance({ storeId: st.id, employeeId: emp.id, kind: 'advance', issuedDate: '2026-10-12', amount: 20000, method: 'cash', reference: '' }, o, db);
+  const mine = (rows) => rows.filter((a) => Number(a.employee_id) === Number(emp.id));
+
+  const oct = mine(await listAdvances({ period: periodFromQuery({ month: '2026-10' }) }, db));
+  assert.deepEqual(oct.map((a) => a.issued_date), ['2026-10-12'], 'only the one issued in October');
+  const sepRows = mine(await listAdvances({ period: periodFromQuery({ month: '2026-09' }) }, db));
+  assert.equal(sepRows.length, 1);
+  assert.equal(sepRows[0].balance, 70000, 'an October repayment still counts against a September loan');
+  const bal = (rows) => rows.find((b) => Number(b.employee_id) === Number(emp.id))?.balance;
+  assert.equal(bal(await openBalances({ period: periodFromQuery({ month: '2026-10' }) }, db)), 20000);
+  assert.equal(bal(await openBalances({}, db)), 90000, 'no period = every open advance');
+});

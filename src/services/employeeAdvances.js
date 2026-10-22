@@ -11,6 +11,7 @@
 // יתרה = סכום פחות סך ההחזרים. אין עמודת "הוחזר" ואין דגל "סגור": מפרעה מוחזרת בפעימות, ומצב
 // שמחושב מהשורות לא יכול להתנתק מהן.
 import { getExecutor, nowTs } from '../db/adapter.js';
+import { periodClause } from '../lib/period.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeWhere } from '../lib/scope.js';
 import { logAction } from './audit.js';
@@ -102,13 +103,17 @@ export async function syncZAdvances(x = getExecutor()) {
  * המפרעות בתחום ההרשאה, כל אחת עם ההחזרים שלה, כמה הוחזר ומה היתרה.
  * `status`: open (לא הוחזר כלום) · partial (חלקי) · repaid (נסגר).
  */
-export async function listAdvances({ storeId = null, employeeId = null, scope = null } = {}, x = getExecutor()) {
+export async function listAdvances({ storeId = null, employeeId = null, scope = null, period = null } = {}, x = getExecutor()) {
   if (!(await advancesReady(x))) return [];
   const sc = scopeWhere(scope, 'st.company_id', 'a.store_id');
   const params = [...sc.params];
   let filter = '';
   if (storeId) { filter += ' AND a.store_id = ?'; params.push(Number(storeId)); }
   if (employeeId) { filter += ' AND a.employee_id = ?'; params.push(Number(employeeId)); }
+  // שבוע/חודש מהשורה העליונה (בעלים 22/10: "גם מפרעות והלוואות לסנן לפי התקופה") — לפי תאריך המתן (issued_date).
+  // ההחזרים של כל מפרעה נשלפים כולם, כך שהיתרה של כל שורה נשארת נכונה.
+  const pc = periodClause(period, 'a.issued_date');
+  filter += pc.sql; params.push(...pc.params);
   const rows = await x.many(
     `SELECT a.*, e.first_name, e.last_name, st.name AS store_name, u.name AS created_by_name
        FROM employee_advances a
@@ -150,8 +155,8 @@ export async function listAdvances({ storeId = null, employeeId = null, scope = 
 }
 
 /** סך היתרות הפתוחות לכל עובד — מה שבאמת מעניין: כמה הוא חייב עכשיו. */
-export async function openBalances({ storeId = null, scope = null } = {}, x = getExecutor()) {
-  const rows = await listAdvances({ storeId, scope }, x);
+export async function openBalances({ storeId = null, scope = null, period = null } = {}, x = getExecutor()) {
+  const rows = await listAdvances({ storeId, scope, period }, x);
   const byEmp = new Map();
   for (const a of rows) {
     if (a.balance <= 0) continue;
