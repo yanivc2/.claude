@@ -4,6 +4,7 @@ import {
   trackedStatusLabel, trackedMessage, whatsappLink, mailtoLink, isHeldOnly, isR3Hold,
 } from '../services/trackedInvoices.js';
 import { assertInScope } from '../lib/scopeGuard.js';
+import { setAllocationNumber } from '../services/invoices.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 // "חשבוניות מעוקבות לתשלום" — מה שמחכה לטיפול של הספק (זיכוי, כמות, מסמך) לפני שסוגרים.
@@ -34,7 +35,8 @@ router.get('/', async (req, res, next) => {
       filtered: FILTER_KEYS.some((k) => filters[k]),
       needsUpgrade: !ready,
       notice: req.query.saved === 'note' ? 'ההסבר נשמר.'
-        : req.query.saved === 'released' ? 'החשבונית שוחררה מעיקוב ואינה מופיעה כאן יותר.' : null,
+        : req.query.saved === 'released' ? 'החשבונית שוחררה מעיקוב ואינה מופיעה כאן יותר.'
+          : req.query.saved === 'allocation' ? 'מספר ההקצאה נשמר והחשבונית שוחררה מההחזקה.' : null,
       error: req.query.err ? String(req.query.err) : null,
     });
   } catch (err) {
@@ -48,6 +50,22 @@ router.post('/:id/note', async (req, res, next) => {
     await assertInScope('invoice', id, req.scope);
     await setTrackedNote(id, req.body.note, req.user);
     return res.redirect(303, '/tracked-invoices?saved=note');
+  } catch (err) {
+    if (err instanceof RuleError || err instanceof AuthError) {
+      return res.redirect(303, `/tracked-invoices?err=${encodeURIComponent(err.message)}`);
+    }
+    next(err);
+  }
+});
+
+// "הוסף מספר הקצאה" בשורה של חשבונית שמוחזקת בגלל R3 (בעלים 22/10). אותה פונקציה של דף החשבונית — היא
+// בודקת כפילות (R2) ומשחררת את ההחזקה; כאן PRG חזרה לדף המעוקבות במקום render במקום.
+router.post('/:id/allocation', async (req, res, next) => {
+  const id = Number(req.params.id);
+  try {
+    await assertInScope('invoice', id, req.scope);
+    await setAllocationNumber(id, req.body.allocation_number, req.user);
+    return res.redirect(303, '/tracked-invoices?saved=allocation');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       return res.redirect(303, `/tracked-invoices?err=${encodeURIComponent(err.message)}`);

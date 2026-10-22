@@ -28,20 +28,32 @@
             <tr><td colspan="7" class="muted"><%= filtered ? 'אין חשבוניות מעוקבות שתואמות לחיפוש.' : 'אין חשבוניות מעוקבות.' %></td></tr>
           <% } %>
           <% rows.forEach(function(r){ %>
-            <tr class="row-tracked">
+            <%# בלי רקע כתום (בעלים 22/10: "תתאים את הרקע כמו כולם") — כאן כל השורות מעוקבות, הצבע לא מבדיל כלום. %>
+            <tr>
               <td data-label="מספר חשבונית"><a href="/invoices/<%= r.id %>" class="mono"><%= r.invoice_number %></a></td>
               <td data-label="סטטוס"><span class="badge <%= r.statusInfo.badge %>"><%= r.statusInfo.label %></span></td>
               <td data-label="תאריך" data-sort="<%= r.invoice_date %>"><%= formatDate(r.invoice_date) %></td>
               <td data-label="סכום" class="right"><%= formatIls(r.total_amount) %></td>
               <td data-label="ספק"><%= r.supplier_name || '—' %></td>
               <td data-label="הסבר / פירוט">
+                <%# חשבונית שמוחזקת בגלל מספר הקצאה (R3): רק "ללא מספר הקצאה", ומתחתיו שדה "הוסף מספר הקצאה" עם "שמור"
+                    משמאלו (בעלים 22/10: "לא צריך כל כך הרבה מלל") — שמירה משחררת את ההחזקה (setAllocationNumber). %>
+                <% if (r.r3Hold) { %>
+                  <div class="tracked-r3">ללא מספר הקצאה</div>
+                  <form method="post" action="/tracked-invoices/<%= r.id %>/allocation" class="tracked-note tracked-alloc" data-busy="שומר…">
+                    <input name="allocation_number" inputmode="numeric" placeholder="הוסף מספר הקצאה" aria-label="הוסף מספר הקצאה" autocomplete="off" required />
+                    <button type="submit" class="btn-sm">שמור</button>
+                  </form>
+                <% } %>
+                <% if (!r.r3Hold || !r.heldOnly) { %>
                 <form method="post" action="/tracked-invoices/<%= r.id %>/note" class="tracked-note">
                   <input name="note" value="<%= r.tracked_note || '' %>" placeholder="למשל: מחכים לזיכוי על 3 ארגזים שלא סופקו" autocomplete="off" />
                   <button type="submit" class="btn-sm">שמור</button>
                 </form>
-                <% if (r.heldOnly) { %>
-                  <span class="muted" style="font-size:11px">מוחזקת: <%= r.hold_reason || 'ללא סיבה' %><% if (r.r3Hold) { %> · <a href="/invoices/<%= r.id %>/edit">✏️ הוסף מספר הקצאה</a><% } %></span>
-                <% } else if (r.tracked_at) { %>
+                <% } %>
+                <% if (r.heldOnly && !r.r3Hold) { %>
+                  <span class="muted" style="font-size:11px">מוחזקת: <%= r.hold_reason || 'ללא סיבה' %></span>
+                <% } else if (!r.heldOnly && r.tracked_at) { %>
                   <span class="muted" style="font-size:11px">עוקב מ-<%= formatDate(r.tracked_at.slice(0,10)) %><%= r.tracked_by_name ? ' · ' + r.tracked_by_name : '' %></span>
                 <% } %>
               </td>
