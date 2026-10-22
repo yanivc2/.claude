@@ -14,28 +14,30 @@
   <div class="card">
     <h2 style="margin:0 0 .2rem">פעולות בעלים</h2>
     <p class="muted" style="margin:0 0 var(--space-3)">פעולות תחזוקה על המערכת כולה.</p>
+    <%# ריבועים אחידים וקומפקטיים (בעלים 22/10: "סדר את הריבועים כמו השורה השלישית — יותר סגור וחוסך מקום"): גובה
+        שווה בכל שורה, תיאור של שתי שורות לכל היותר (ההסבר המלא ב-title). %>
     <div class="owner-actions">
       <button type="button" class="dial" onclick="apOpen('dlg-db')">
         <span class="dial-ic">🗄️</span>
-        <span class="dial-txt"><strong>עדכון מסד נתונים</strong><small>הרץ פעם אחת אחרי כל עדכון גרסה. בטוח, לא מוחק דבר.</small></span>
+        <span class="dial-txt"><strong>עדכון מסד נתונים</strong><small>הרץ אחרי כל עדכון גרסה. בטוח, לא מוחק דבר.</small></span>
       </button>
       <form method="post" action="/settings/scan-toggle" style="margin:0">
         <input type="hidden" name="on" value="<%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? '0' : '1' %>" />
-        <button type="submit" class="dial" style="width:100%">
+        <button type="submit" class="dial">
           <span class="dial-ic"><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? '📷' : '🔒' %></span>
-          <span class="dial-txt"><strong>צילום חשבוניות — <%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'פעיל' : 'נעול' %></strong><small><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'לחץ כדי לנעול את התכונה.' : 'תכונה בתשלום. לחץ כדי להפעיל (חבילת צילום חשבוניות).' %></small></span>
+          <span class="dial-txt"><strong>צילום חשבוניות — <%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'פעיל' : 'נעול' %></strong><small><%= (typeof scanEnabled !== 'undefined' && scanEnabled) ? 'לחץ כדי לנעול את התכונה.' : 'תכונה בתשלום. לחץ כדי להפעיל.' %></small></span>
         </button>
       </form>
       <form method="post" action="/settings/telegram-test" style="margin:0">
-        <button type="submit" class="dial" style="width:100%">
+        <button type="submit" class="dial" title="שולח הודעת בדיקה ומראה אם ההתראות עובדות (ואם לא — למה), ומחבר את כפתורי &quot;✓ אשר / ✕ דחה&quot; בטלגרם.">
           <span class="dial-ic">📨</span>
-          <span class="dial-txt"><strong>בדוק טלגרם — <%= (typeof telegramReady !== 'undefined' && telegramReady) ? 'מוגדר' : 'לא מוגדר' %></strong><small>שולח הודעת בדיקה ומראה אם ההתראות עובדות (ואם לא — למה), ומחבר את כפתורי "✓ אשר / ✕ דחה" בטלגרם.</small></span>
+          <span class="dial-txt"><strong>בדוק טלגרם — <%= (typeof telegramReady !== 'undefined' && telegramReady) ? 'מוגדר' : 'לא מוגדר' %></strong><small>הודעת בדיקה + חיבור כפתורי ✓ / ✕ בטלגרם.</small></span>
         </button>
       </form>
       <form method="post" action="/settings/financy-link" style="margin:0" data-busy>
-        <button type="submit" class="dial" style="width:100%">
+        <button type="submit" class="dial" title="בנקאות פתוחה (Financy, קריאה בלבד): מקשר כל חשבון בנק לחשבון המקביל אצל הספק לפי סניף+מספר חשבון, ואז אפשר למשוך תנועות ישירות בדף התאמת בנק.">
           <span class="dial-ic">🏦</span>
-          <span class="dial-txt"><strong>קשר חשבונות בנק — <%= (typeof financyReady !== 'undefined' && financyReady) ? 'מוגדר' : 'לא מוגדר' %></strong><small>בנקאות פתוחה (Financy, קריאה בלבד): מקשר כל חשבון בנק לחשבון המקביל אצל הספק לפי סניף+מספר חשבון, ואז אפשר למשוך תנועות ישירות בדף התאמת בנק.</small></span>
+          <span class="dial-txt"><strong>קשר חשבונות בנק — <%= (typeof financyReady !== 'undefined' && financyReady) ? 'מוגדר' : 'לא מוגדר' %></strong><small>בנקאות פתוחה (Financy) — משיכת תנועות להתאמת בנק.</small></span>
         </button>
       </form>
       <%# Only while scanning is unlocked: a supplier's catalog exists to identify lines on
@@ -43,16 +45,16 @@
       <% if (typeof scanEnabled !== 'undefined' && scanEnabled) { %>
         <button type="button" class="dial" onclick="apOpen('dlg-supcat')">
           <span class="dial-ic">🚬</span>
-          <span class="dial-txt"><strong>קטלוג ספק</strong><small>הקובץ שהספק מסר — מזהה מוצרים בחשבוניות שאין בהן ברקוד (סיגריות וטבק).</small></span>
+          <span class="dial-txt"><strong>קטלוג ספק</strong><small>מזהה טבק וסיגריות בחשבוניות בלי ברקוד.</small></span>
         </button>
       <% } %>
       <button type="button" class="dial" onclick="apOpen('dlg-backup')">
         <span class="dial-ic">⬇</span>
         <span class="dial-txt"><strong>גיבוי מלא</strong><small>הורדת עותק של כל הנתונים כקובץ JSON.</small></span>
       </button>
-      <button type="button" class="dial" onclick="apOpen('dlg-storage')">
+      <button type="button" class="dial" onclick="apOpen('dlg-storage')" title="בודק שהצילומים נשמרים ונקראים כמו שצריך. הרץ אם תמונות לא נפתחות.">
         <span class="dial-ic">🖼️</span>
-        <span class="dial-txt"><strong>בדיקת אחסון קבצים</strong><small>בודק שהצילומים נשמרים ונקראים כמו שצריך. הרץ אם תמונות לא נפתחות.</small></span>
+        <span class="dial-txt"><strong>בדיקת אחסון קבצים</strong><small>הרץ אם תמונות לא נפתחות.</small></span>
       </button>
     </div>
     <div class="owner-actions" style="margin-top:var(--space-3)">
@@ -60,13 +62,13 @@
         <span class="dial-ic">♻</span>
         <span class="dial-txt"><strong>שחזור מגיבוי</strong><small>מחליף את כל הנתונים בתוכן קובץ גיבוי. בלתי הפיך.</small></span>
       </button>
-      <button type="button" class="dial danger" onclick="apOpen('dlg-clean')">
+      <button type="button" class="dial danger" onclick="apOpen('dlg-clean')" title="מוחק חשבוניות, תשלומים, דוחות Z וטיוטות סריקה. שומר סגירות Z, ספקים, קטלוג ועובדים. בלתי הפיך.">
         <span class="dial-ic">🧹</span>
-        <span class="dial-txt"><strong>התחלה נקייה — חשבוניות/תשלומים/Z</strong><small>מוחק חשבוניות, תשלומים, דוחות Z וטיוטות סריקה. שומר סגירות Z, ספקים, קטלוג ועובדים. בלתי הפיך.</small></span>
+        <span class="dial-txt"><strong>התחלה נקייה — חשבוניות/תשלומים/Z</strong><small>שומר סגירות Z, ספקים ועובדים. בלתי הפיך.</small></span>
       </button>
-      <button type="button" class="dial danger" onclick="apOpen('dlg-reset')">
+      <button type="button" class="dial danger" onclick="apOpen('dlg-reset')" title="מוחק את נתוני העבודה ומשאיר חברות, חנויות ומשתמשים. בלתי הפיך.">
         <span class="dial-ic">⚠</span>
-        <span class="dial-txt"><strong>איפוס — התחל מחדש</strong><small>מוחק את נתוני העבודה ומשאיר חברות, חנויות ומשתמשים. בלתי הפיך.</small></span>
+        <span class="dial-txt"><strong>איפוס — התחל מחדש</strong><small>משאיר חברות, חנויות ומשתמשים. בלתי הפיך.</small></span>
       </button>
     </div>
   </div>

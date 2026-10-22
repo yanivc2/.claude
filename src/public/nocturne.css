@@ -928,6 +928,13 @@ details.paymenu .paymenu-items .btn { text-align: center; }
    description looks centered instead of flush to the right. */
 .owner-actions .dial .dial-txt strong { font-size: 14px; font-weight: 600; text-align: start; }
 .owner-actions .dial .dial-txt small { font-size: 11.5px; color: var(--color-muted); line-height: 1.4; white-space: normal; text-align: start; }
+/* ריבועים אחידים (בעלים 22/10): טופס שעוטף ריבוע ממלא את תא הרשת כמו ריבוע רגיל, והריבוע ממלא את הגובה — כך כל
+   השורה באותו גובה; התיאור עד שתי שורות. */
+.owner-actions > form { display: flex; margin: 0; }
+.owner-actions > form > .dial { flex: 1 1 auto; }
+.owner-actions .dial { height: 100%; align-items: center; }
+.owner-actions .dial .dial-txt small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+@media (min-width: 720px) { .owner-actions { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); } }
 .owner-actions .dial.danger { border-color: color-mix(in srgb, var(--color-bad) 45%, var(--color-line)); }
 .owner-actions .dial.danger .dial-ic { background: var(--color-bad); }
 .owner-actions .dial.danger:hover { border-color: var(--color-bad); }
