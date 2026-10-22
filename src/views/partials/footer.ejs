@@ -944,7 +944,8 @@
       // data-ckey: כותרת שנושאת מספר משתנה (תג ספירה) שומרת מפתח קבוע — אחרת מצב הכיווץ אובד בכל שינוי.
       var key = (h.getAttribute('data-ckey') || h.textContent || '').trim().slice(0, 60);
       function apply(c) { card.classList.toggle('collapsed', c); h.setAttribute('aria-expanded', String(!c)); }
-      apply((key in state) ? state[key] === 1 : collapseDefault);
+      // data-start-collapsed על ה-<h2>: הכרטיס הזה בלבד מתחיל סגור (בלי לסגור את כל הדף כמו data-collapse-default).
+      apply((key in state) ? state[key] === 1 : (collapseDefault || h.hasAttribute('data-start-collapsed')));
 
       function setCollapsed(c, viaUser) {
         apply(c);

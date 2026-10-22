@@ -226,15 +226,15 @@
   <% } %>
 </div>
 
+<%# מתקפלת וסגורה כברירת מחדל (בעלים 22/10: "אפשר צמצום של תנועות לא מותאמות וכברירת מחדל") — <h2> ישיר בכרטיס הופך
+    אותו למתקפל (footer.ejs), ו-data-start-collapsed סוגר אותו כל עוד המשתמש לא פתח אותו (המצב נשמר). %>
 <div class="card">
-  <div class="toolbar">
-    <h2 style="margin:0">תנועות לא מותאמות (חובה)</h2>
-    <%# בעלים 21/10: מתחת לעמודת "התאמה", מודגש — footer.ejs מעביר אותו לשורת הסינון (th[data-filter-slot]). %>
-    <form method="post" action="/reconciliation/auto" id="autoMatchForm" class="auto-match-form" data-busy="מתאים…">
-      <input type="hidden" name="account_id" value="<%= accountId %>" />
-      <button type="submit" class="btn-auto-match">התאמה אוטומטית</button>
-    </form>
-  </div>
+  <h2 style="margin:0" data-ckey="תנועות לא מותאמות" data-start-collapsed>תנועות לא מותאמות (חובה)</h2>
+  <%# בעלים 21/10: מתחת לעמודת "התאמה", מודגש — footer.ejs מעביר אותו לשורת הסינון (th[data-filter-slot]). %>
+  <form method="post" action="/reconciliation/auto" id="autoMatchForm" class="auto-match-form" data-busy="מתאים…">
+    <input type="hidden" name="account_id" value="<%= accountId %>" />
+    <button type="submit" class="btn-auto-match">התאמה אוטומטית</button>
+  </form>
   <%# "תאריך תחילת עבודה" (app_settings.bank_unmatched_hidden_until = 30/09/26) עדיין מסתיר חיובים לא מותאמים עד
       התאריך — רק השורה שקבעה אותו ("הסתר … עד" · שמור · הצג הכל) ירדה (בעלים 21/10: "לא צריך יותר"): הזנב נמחק
       בארבעת החשבונות, ו"הצג הכל" רק החזיר אותו בטעות. POST /reconciliation/hide-until נשאר. %>

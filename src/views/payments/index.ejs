@@ -13,7 +13,9 @@
   </div>
 <% } %>
 
-<details class="card collapse" open style="margin-top:1rem">
+<%# כל הרובריקות בדף סגורות כברירת מחדל (בעלים 22/10: "המרקורים שכל הרובריקות יהיו מצומצמות"; עד אז "הצהרות הפקדה"
+    נפתחה לבד). אחרי פעולה בדף, footer.ejs משחזר את מה שהיה פתוח. %>
+<details class="card collapse" style="margin-top:1rem">
   <summary><span class="caret">▸</span> הצהרות הפקדה <span class="muted">(<%= (deposits || []).length %>)</span></summary>
   <%# בלי שורת ההסבר ובלי "חיפוש בטבלה…" (בעלים, 18/10: "מחק את המלל והחיפוש") — מסנני העמודות נשארים. %>
   <%- include('../partials/_deposits', {
