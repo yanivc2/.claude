@@ -61,9 +61,9 @@ test('the store bar is the header row: back far right then "אפשרויות", p
   assert.match(desk, /position: fixed; top: 0;[^}]*inset-inline-start: 250px; inset-inline-end: 0;/, 'over the content area only — the sidebar keeps its full height');
   assert.match(desk, /grid-template-columns: minmax\(max-content, 1fr\) minmax\(0, auto\) minmax\(max-content, 1fr\);/, 'equal sides → the name is centred over the page');
   assert.match(desk, /\.sb-start \{ justify-self: start; margin-inline-start: calc\(var\(--space-6\) - 18px\); \}/, 'right group edge = the first tile right edge');
-  // בעלים 21/10: "גם את התוכן תצמיד לתפריט" — הדף והשורה שמעליו צמודים לתפריט הצד, באותו רוחב.
-  assert.match(desk, /max-width: calc\(1120px - 36px\); margin-inline-end: auto;/);
-  assert.match(desk, /main\.page \{ margin-inline: 0 auto; \}/);
+  // בעלים 22/10: "תמרכז את זה" — הדף והשורה שמעליו ממורכזים ברווח שמשמאל לתפריט, באותו רוחב (21/10 היו צמודים לתפריט).
+  assert.match(desk, /max-width: calc\(1120px - 36px\); margin-inline: auto;/);
+  assert.match(desk, /main\.page \{ margin-inline: auto; \}/);
   assert.match(desk, /body:has\(\.topbar\) main\.page \.h1-in-header \{ display: none; \}/, 'the page h1 is not repeated on desktop either');
   assert.match(css, /main\.page \.page-back \{ text-align: start !important; \}/);
   assert.match(css, /@media print \{\n  \.topbar \{ display: none !important; \}\n  main\.page \.h1-in-header \{ display: block !important; \}/, 'a printed page keeps its title');
