@@ -1587,3 +1587,11 @@ main.page .cx-acts > form > button { flex: 1 1 auto; }
 .inv-facts { display: grid; grid-auto-flow: column; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-template-rows: repeat(2, auto); gap: .9rem var(--space-4); }
 .inv-facts > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 @media (max-width: 640px) { .inv-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(4, auto); } }
+/* "מצב בהיר · התנתק" — כפתורים בשורת תת-הקישורים מתחת ל"הגדרות" (בעלים 22/10): נראים כמו הקישורים שבה. */
+.menu-panel .nav-sub button { display: inline-flex; align-items: center; gap: 4px; width: auto; min-height: 0; margin: 0; padding: 3px 7px; border: 0; border-radius: 6px; background: none; color: var(--color-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.menu-panel .nav-sub button:hover, .menu-panel .nav-sub a:hover { color: var(--color-text); background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.menu-panel .nav-sub form { display: inline-flex; margin: 0; }
+/* התאמת בנק ← "פעולות": "🔍 בדיקת שיוך לחשבון" (קישור) צמוד לימין כמו הכפתורים שמעליו (בעלים 22/10: "הצמד ימינה"). */
+.topbar .top-recon-menu .menu-panel a { justify-content: flex-start; }
+.navmenu > .menu-panel .nav-sub form { width: auto; margin: 0; }
+.navmenu > .menu-panel .nav-sub form button, .navmenu > .menu-panel .nav-sub > button { width: auto; justify-content: center; padding: 3px 7px; font-size: 12px; }

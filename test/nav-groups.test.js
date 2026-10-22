@@ -30,7 +30,8 @@ test('a user allowed only צ׳קים בחוץ still gets "מרקורים", leadi
   await db.run('INSERT INTO user_companies (user_id, company_id) VALUES (?, ?)', [sec.id, st.company_id]).catch(() => {});
   const m = await nav(sec, '/reports/outstanding');
   assert.match(m, /<a href="\/reports\/outstanding" class="active"><span class="mi-ic">💳<\/span>מרקורים<\/a>/);
-  assert.doesNotMatch(m, /nav-sub/, 'one allowed page → no sub-row');
+  assert.doesNotMatch(m, /<div class="nav-sub">/, 'one allowed page → no sub-row (only the always-on "מצב בהיר · התנתק")');
+  assert.match(m, /<div class="nav-sub nav-sub-always">/, 'a user without settings still has theme + logout');
   assert.doesNotMatch(m, /<div class="nav-group">קופה<\/div>/);
 });
 
@@ -41,4 +42,16 @@ test('every page carries the "back after a break → dashboard" script; a deep l
   assert.match(html, /nav\.type === 'reload' \|\| nav\.type === 'back_forward'/, 'only a restore/reload is checked on load — not a fresh link');
   assert.match(html, /if \(document\.visibilityState === 'visible'\) home\(\);/);
   assert.match(html, /location\.replace\('\/'\)/);
+});
+
+// בעלים 22/10: "הכנס את מצב בהיר והתנתק להגדרות בדומה לתמונה 2" — שורה קטנה מתחת ל"הגדרות".
+test('"מצב בהיר · התנתק" is a sub-row right under "הגדרות", above the user guide', async () => {
+  const m = await nav(o, '/');
+  const settings = m.indexOf('<a href="/settings" ');
+  const row = m.indexOf('<div class="nav-sub nav-sub-always">');
+  const guide = m.indexOf('<a href="/settings/guide"');
+  assert.ok(settings > 0 && row > settings && guide > row, 'הגדרות → מצב בהיר · התנתק → מדריך');
+  const sub = m.slice(row, m.indexOf('</div>', row));
+  assert.match(sub, /<button type="button" id="themeToggle" onclick="apToggleTheme\(\)"><span id="themeIco">🌙<\/span> <span id="themeTxt">מצב בהיר<\/span><\/button>/);
+  assert.match(sub, /<form method="post" action="\/logout" style="margin:0"><button type="submit">🚪 התנתק<\/button><\/form>/);
 });

@@ -87,15 +87,22 @@
         <% if (typeof can === 'function' && can('settings')) { %>
           <div class="menu-sep"></div>
           <a href="/settings" class="<%= path.startsWith('/settings') && !path.startsWith('/settings/guide') ? 'active' : '' %>"><span class="mi-ic">⚙️</span>הגדרות</a>
+        <% } else { %>
+          <div class="menu-sep"></div>
+        <% } %>
+        <%# "מצב בהיר · התנתק" — שורה קטנה מתחת ל"הגדרות", כמו "ראשי · בחוץ · מבוטלים" (בעלים 22/10: "הכנס את מצב בהיר
+            והתנתק להגדרות"). תמיד גלויה — גם למי שאין לו הגדרות (אז בלי הפריט שמעליה). ה-id-ים של המתג נשארו:
+            apSyncThemeLabel מחליף בהם 🌙/☀️ ו"מצב בהיר"/"מצב כהה". %>
+        <div class="nav-sub nav-sub-always">
+          <button type="button" id="themeToggle" onclick="apToggleTheme()"><span id="themeIco">🌙</span> <span id="themeTxt">מצב בהיר</span></button>
+          <span class="nav-sub-sep">·</span>
+          <form method="post" action="/logout" style="margin:0"><button type="submit">🚪 התנתק</button></form>
+        </div>
+        <% if (typeof can === 'function' && can('settings')) { %>
           <%# "📖 מדריך למשתמש" — מתחת ל"הגדרות" (בעלים 22/10; 21/10 היה ראשון בתפריט). הדף יושב תחת /settings ולכן
               גם הקישור דורש את הרשאת 'settings'. %>
           <a href="/settings/guide" class="<%= path.startsWith('/settings/guide') ? 'active' : '' %>"><span class="mi-ic">📖</span>מדריך למשתמש</a>
         <% } %>
-        <div class="menu-sep"></div>
-        <button type="button" id="themeToggle" onclick="apToggleTheme()"><span class="mi-ic" id="themeIco">🌙</span><span id="themeTxt">מצב בהיר</span></button>
-        <form method="post" action="/logout" style="margin:0">
-          <button type="submit"><span class="mi-ic">🚪</span>התנתק</button>
-        </form>
       </div>
     </details>
   </header>
