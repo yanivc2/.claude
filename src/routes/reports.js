@@ -346,6 +346,21 @@ router.get('/zreports-lookup', requirePageAccess('nav_zreports'), async (req, re
   }
 });
 
+// אותו דבר ל"הצהרות הפקדה": עמודות "מס' שקית" ו"סכום" (בעלים 22/10: "במספר שקית וסכום גם אפשר להציג תוצאה בחיפוש
+// גם אם זה לא מוצג"). הנתיב מחוץ ל-/deposits/:id (scopeParam). שורות <tr> בלבד — reports/_depositRows.ejs.
+router.get('/deposits-lookup', requirePageAccess('nav_zreports'), async (req, res, next) => {
+  try {
+    const bag = String(req.query.bag || '').trim().slice(0, 30);
+    const amount = String(req.query.amount || '').trim().slice(0, 20);
+    const rows = bag || amount
+      ? await listDeposits({ storeId: effectiveStoreId(req), scope: req.scope, limit: 50, bag, amount })
+      : [];
+    res.render('reports/_depositRows', { deposits: rows, depVerify: await depositVerifications(rows) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/zreports', requirePageAccess('nav_zreports'), async (req, res, next) => {
   try {
     // ההודעה של PRG (אחרי הוספת דוח) חוזרת דרך ה-query.

@@ -34,7 +34,7 @@ const DEPOSIT_SELECT = `SELECT d.*, st.name AS store_name, st.company_id AS stor
                   JOIN companies c ON c.id = st.company_id
                   LEFT JOIN z_reports z ON z.id = d.z_report_id`;
 
-export async function listDeposits({ storeId = null, scope = null, limit = 30 } = {}, x = getExecutor()) {
+export async function listDeposits({ storeId = null, scope = null, limit = 30, bag = '', amount = '' } = {}, x = getExecutor()) {
   // Store + scope are applied in JS, not as SQL: pg-mem throws "lookups on joins" for this joined
   // query with ANY WHERE on it once a deposit without a Z exists (the LEFT JOIN's null side) —
   // measured on דוחות Z with an active store. Same rows, same order; the table is small.
@@ -45,7 +45,15 @@ export async function listDeposits({ storeId = null, scope = null, limit = 30 } 
   const rows = (await x.many(sql, [])).filter((d) =>
     (!storeId || Number(d.store_id) === Number(storeId)) &&
     (!cos || cos.has(Number(d.store_company_id))) && (!sts || sts.has(Number(d.store_id))));
-  return rows.slice(0, limit);
+  // חיפוש בכל ההיסטוריה (GET /reports/deposits-lookup; בעלים 22/10: "במספר שקית וסכום — להציג תוצאה גם אם לא מוצג"):
+  // שקית "מכילה"; סכום "מכיל" מול הסכום בשקלים בלי פסיקים ו-₪ ("20123.70" — כך "20,123.7" ו-"20123" מוצאים אותו).
+  const b = String(bag || '').trim();
+  const a = String(amount || '').replace(/[^\d.]/g, '');
+  if (String(amount || '').trim() && !a) return [];
+  const hit = rows.filter((d) =>
+    (!b || String(d.bag_number || '').includes(b)) &&
+    (!a || (Number(d.amount || 0) / 100).toFixed(2).includes(a)));
+  return hit.slice(0, limit);
 }
 
 /**

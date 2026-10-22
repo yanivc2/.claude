@@ -1,0 +1,35 @@
+<%# שורות "הצהרות הפקדה" — משותף לדף (reports/zreports.ejs) ולחיפוש לפי שקית / סכום (GET /reports/deposits-lookup),
+    כדי שהצהרה ישנה שנמצאה בחיפוש תיראה בדיוק כמו שורה רגילה. data-row-id: הדפדפן לא מוסיף שורה שכבר בטבלה.
+    locals: deposits, depVerify (Map מ-services/deposits.js#depositVerifications). %>
+<% var _dv = (typeof depVerify !== 'undefined' && depVerify) ? depVerify : new Map(); %>
+<% (deposits || []).forEach(function(d){ var v = _dv.get(Number(d.id)) || null; %>
+  <tr data-row-id="<%= d.id %>">
+    <td><%= formatDate(d.deposit_date) %></td>
+    <td><%= d.store_name %></td>
+    <td class="mono"><%= d.bag_number || '—' %></td>
+    <td class="right"><%= formatIls(d.amount) %></td>
+    <td>
+      <% if (d.deposited) { %><span class="badge b-approved">הופקד</span><% } else { %><span class="badge b-on_hold">לא הופקד</span><% } %>
+    </td>
+    <%# מה שהבנק זיכה בפועל מול ההצהרה: הזיכוי + כל ביטול/זיכוי-מחדש באותה אסמכתה עד חודש מיום
+        ההצהרה (services/deposits.js#depositVerifications). מתעדכן לבד עם כל משיכה מהבנק. %>
+    <td class="right" data-sort="<%= v ? v.bankDiff : '' %>"
+        title="<%= v ? ('בבנק ' + formatIls(v.bankTotal) + (v.corrections.length ? ' · כולל ' + v.corrections.length + ' שורות תיקון' : '') + ' · נבדק עד ' + formatDate(v.windowEnd)) : 'השקית עדיין לא אותרה בבנק' %>">
+      <% if (!v) { %><span class="muted">—</span>
+      <% } else if (v.bankDiff === 0) { %><span class="badge b-approved">תואם</span>
+      <% } else if (v.bankDiff > 0) { %><strong style="color:var(--color-ok)">יתרה <%= formatIls(v.bankDiff) %></strong>
+      <% } else { %><strong style="color:var(--color-bad)">חוסר <%= formatIls(-v.bankDiff) %></strong><% } %>
+      <% if (v && v.corrections.length) { %><div class="muted" style="font-size:11px">תוקן בבנק <%= formatDate(v.verifyDate) %></div><% } %>
+    </td>
+    <td class="no-print">
+      <% if (typeof can === 'function' && can('manage_deposits')) { %>
+        <% if (!d.deposited) { %>
+          <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="1" /><button class="ok small" type="submit">סמן כהופקד</button></form>
+        <% } else { %>
+          <form method="post" action="/reports/deposits/<%= d.id %>/deposited" style="display:inline"><input type="hidden" name="value" value="0" /><button class="secondary small" type="submit">בטל</button></form>
+        <% } %>
+        <form method="post" action="/reports/deposits/<%= d.id %>/delete" style="display:inline" onsubmit="return confirm('למחוק הפקדה?')"><button class="danger small" type="submit">מחק</button></form>
+      <% } %>
+    </td>
+  </tr>
+<% }); %>

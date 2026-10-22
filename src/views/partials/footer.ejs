@@ -710,6 +710,9 @@
         });
       }
 
+      // סכום נמצא גם בלי פסיקים ו-₪: "20123.70" / "20123" מוצאים "₪20,123.70" (בעלים 22/10, חיפוש לפי סכום הפקדה).
+      function bare(s) { return s.replace(/[,₪\u200e\u200f]/g, ''); }
+      function hasText(t, q) { return t.indexOf(q) !== -1 || bare(t).indexOf(bare(q)) !== -1; }
       function filter() {
         var cols = colInputs.map(function (inp) { return inp ? norm(inp.value) : ''; });
         // השורות נקראות מחדש בכל סינון — שורות שנוספו מהשרת (th[data-lookup]) מסוננות כמו כל השאר.
@@ -718,7 +721,7 @@
             if (!q) return true;
             var td = r.cells[idx];
             if (!td) return false;
-            return colInputs[idx].dataset.exact ? norm(td.textContent) === q : norm(td.textContent).indexOf(q) !== -1;
+            return colInputs[idx].dataset.exact ? norm(td.textContent) === q : hasText(norm(td.textContent), q);
           });
           r.style.display = ok ? '' : 'none';
         });
