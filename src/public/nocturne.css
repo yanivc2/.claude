@@ -1601,3 +1601,8 @@ main.page .cx-acts > form > button { flex: 1 1 auto; }
 /* טופס צר (form.stack עם max-width) ממורכז בכרטיס, לא צמוד לימין (בעלים 22/10, הגדרות: "מרכז" — הקמת חנות + חשבון
    בנק, הסיסמה שלי). כמו כל הכתב בדף — ממורכז. */
 main.page form.stack { margin-inline: auto; }
+/* דוחות Z ← "רשומות Z אחרונות": וואטסאפ + מחק באותה שורה (בעלים 22/10); וואטסאפ = כפתור קטן עם הלוגו בלבד. */
+main.page .zr-row-acts { display: inline-flex; align-items: stretch; justify-content: center; gap: 6px; flex-wrap: nowrap; }  /* stretch: הלוגו בגובה של "מחק" */
+main.page .zr-row-acts form { display: inline-flex; margin: 0; }
+main.page .wa-icon-btn { display: inline-flex; align-items: center; justify-content: center; padding: 2px 7px; min-width: 0; min-height: 0; line-height: 1; }
+main.page .wa-icon-btn svg { width: 18px; height: 18px; fill: #25D366; display: block; }
