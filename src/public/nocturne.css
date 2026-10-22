@@ -1595,3 +1595,6 @@ main.page .cx-acts > form > button { flex: 1 1 auto; }
 .topbar .top-recon-menu .menu-panel a { justify-content: flex-start; }
 .navmenu > .menu-panel .nav-sub form { width: auto; margin: 0; }
 .navmenu > .menu-panel .nav-sub form button, .navmenu > .menu-panel .nav-sub > button { width: auto; justify-content: center; padding: 3px 7px; font-size: 12px; }
+/* טופס צר (form.stack עם max-width) ממורכז בכרטיס, לא צמוד לימין (בעלים 22/10, הגדרות: "מרכז" — הקמת חנות + חשבון
+   בנק, הסיסמה שלי). כמו כל הכתב בדף — ממורכז. */
+main.page form.stack { margin-inline: auto; }
