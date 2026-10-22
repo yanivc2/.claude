@@ -1577,3 +1577,8 @@ main.page form.tracked-alloc .tracked-r3 { grid-column: 1; grid-row: 1; }
 main.page form.tracked-alloc input { grid-column: 1; grid-row: 2; }
 main.page form.tracked-alloc button { grid-column: 2; grid-row: 2; }
 main.page form.tracked-note input { min-width: 10.5em; }
+/* "שתתמתח ימינה ושמאלה שיתאים לגבולות" (בעלים 22/10): כפתורי השורה ממלאים את רוחב התא — 💬 ברוחב קבוע, והעמודה
+   השנייה ("התאם" / "טופל") נמתחת. כך שורה עם כפתור אחד מגיעה לאותם גבולות כמו שורה עם שניים. */
+main.page .cx-acts { width: 100%; grid-template-columns: auto minmax(0, 1fr); }
+main.page .cx-acts > form { display: flex; }
+main.page .cx-acts > form > button { flex: 1 1 auto; }
