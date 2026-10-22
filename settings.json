@@ -89,13 +89,7 @@
       "Read(**/*.mp4)",
       "Read(~/AppData/Local/Google/Chrome/User Data/**)",
       "Read(~/AppData/Local/Microsoft/Edge/User Data/**)",
-      "Read(~/AppData/Roaming/Mozilla/Firefox/**)",
-      "Read(~/Library/Keychains/**)",
-      "Read(~/Library/Cookies/**)",
-      "Read(~/Library/Safari/**)",
-      "Read(~/Library/Application Support/Google/Chrome/**)",
-      "Read(~/Library/Application Support/Microsoft Edge/**)",
-      "Read(~/Library/Application Support/Firefox/**)"
+      "Read(~/AppData/Roaming/Mozilla/Firefox/**)"
     ],
     "ask": [
       "Read(//c/micha-agent/**/*.vtt)",
