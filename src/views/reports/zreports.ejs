@@ -199,11 +199,18 @@
         </tr>
       <% }); %>
     </tbody>
-    <%# סה"כ "חוסר / יתרה" — רק דוחות עם הפקדה ("—" לא נספר כאפס). ב-tfoot ולא ב-tbody: משפרי
-        הטבלה ממיינים ומסננים את שורות ה-tbody. %>
-    <% var _zdN = 0, _zdSum = 0; zReports.forEach(function(z){ if (z.hasDeposit) { _zdN += 1; _zdSum += Number(z.depDiff) || 0; } }); %>
+    <%# סה"כ — "מזומן מגירה" על כל הדוחות; "סכום הפקדה" ו"חוסר / יתרה" רק על דוחות עם הפקדה ("—" לא נספר כאפס)
+        (בעלים 22/10: "סכם גם את מזומן מגירה, סכום הפקדה"). ב-tfoot ולא ב-tbody: משפרי הטבלה ממיינים ומסננים את שורות ה-tbody. %>
+    <% var _zdN = 0, _zdSum = 0, _zCash = 0, _zDep = 0;
+       zReports.forEach(function(z){
+         _zCash += Number(z.drawer_cash) || 0;
+         if (z.hasDeposit) { _zdN += 1; _zdSum += Number(z.depDiff) || 0; _zDep += Number(z.depositTotal) || 0; }
+       }); %>
     <tfoot><tr>
-      <th colspan="8">סה"כ <span class="muted" style="font-weight:400">(<%= _zdN %> דוחות עם הפקדה)</span></th>
+      <th colspan="4">סה"כ <span class="muted" style="font-weight:400">(<%= zReports.length %> דוחות · <%= _zdN %> עם הפקדה)</span></th>
+      <th class="right"><%= formatIls(_zCash) %></th>
+      <th class="right"><%= _zdN ? formatIls(_zDep) : '—' %></th>
+      <th colspan="2"></th>
       <th class="right">
         <% if (!_zdN) { %><span class="muted">—</span>
         <% } else if (_zdSum === 0) { %><span style="color:var(--color-ok)">תואם</span>

@@ -85,8 +85,22 @@ test('דוחות Z: totals for "רשומות Z אחרונות" (signed gap) and 
   await mk({ storeId: 3, zReportId: z1.id, depositDate: '2026-09-20', bagNumber: '81011', amount: 96960 }, o, db); // חוסר 30.40
   await mk({ storeId: 3, zReportId: z2.id, depositDate: '2026-09-21', bagNumber: '81021', amount: 101290 }, o, db); // יתרה 12.90
   const html = await (await fetch(`${base}/reports/zreports`, { headers: { cookie: `session=${createSession(o.id)}; ap_store=3` } })).text();
-  const zFoot = html.slice(html.indexOf('דוחות עם הפקדה') - 200, html.indexOf('דוחות עם הפקדה') + 400);
+  const recent = html.slice(html.indexOf('data-ckey="רשומות Z אחרונות"'));
+  const zFoot = recent.slice(recent.indexOf('<tfoot>'), recent.indexOf('</tfoot>'));
   assert.match(zFoot, /חוסר ₪17\.50/, '−30.40 + 12.90 = −17.50');
+  // בעלים 22/10: "סכם גם את מזומן מגירה, סכום הפקדה" — מגירה על כל הדוחות, הפקדה רק על אלה שיש להם.
+  const ths = [...zFoot.matchAll(/<th class="right">\s*([^<]*)/g)].map((m) => m[1].trim());
+  const zRows = [...recent.slice(0, recent.indexOf('<tfoot>')).matchAll(/<tr>\s*<td class="mono"><a href="\/reports\/zreports\/\d+">[\s\S]*?<\/tr>/g)].map((m) => m[0]);
+  const cells = (row) => [...row.matchAll(/<td class="right">([^<]*)<\/td>/g)].map((m) => m[1]);
+  const num = (t) => (t.startsWith('₪') ? Number(t.slice(1).replace(/,/g, '')) : 0);
+  const cash = zRows.reduce((n, r) => n + num(cells(r)[1]), 0);
+  const dep = zRows.reduce((n, r) => n + num(cells(r)[2]), 0);
+  const ils = (v) => '₪' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  assert.ok(zRows.length >= 2);
+  assert.equal(ths[0], ils(cash), 'מזומן מגירה summed over every report');
+  assert.equal(ths[1], ils(dep), 'סכום הפקדה summed over reports with a deposit');
+  assert.ok(dep >= 969.60 + 1012.90 - 0.001);
+  assert.match(zFoot, new RegExp(`\\(${zRows.length} דוחות · \\d+ עם הפקדה\\)`));
   const nd = html.slice(html.indexOf('הפקדה שהוצהרה ולא הופקדה'));
   const foot = nd.slice(nd.indexOf('<tfoot>'), nd.indexOf('</tfoot>'));
   const rows = [...nd.slice(0, nd.indexOf('<tfoot>')).matchAll(/<td class="right">₪([\d,]+\.\d\d)<\/td>/g)].map((m) => Number(m[1].replace(/,/g, '')));
