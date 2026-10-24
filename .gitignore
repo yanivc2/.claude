@@ -67,6 +67,7 @@ settings.json.broken*
 # directory.
 skills/*
 !skills/*-router/
+!skills/*-kit/
 
 # Python bytecode cache
 __pycache__/
