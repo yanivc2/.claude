@@ -63,7 +63,7 @@ test('the last save pays the new invoice AND the ticked earlier one — one paym
   const r = await postInvoice({ pay_method: 'transfer', transfer_ref: '777123', transfer_date: '2026-09-30', with_invoice_ids: [first.id] });
   assert.equal(r.status, 303);
   const loc = r.headers.get('location');
-  assert.match(loc, /^\/invoices\?paid=\d+/);
+  assert.match(loc, /^\/invoices\/new\?paid=\d+$/, 'back to a fresh form for the next payment (owner 25/10)');
   const pay = await getPaymentDetail(Number(new URLSearchParams(loc.split('?')[1]).get('paid')), db);
   const second = await db.one("SELECT * FROM invoices WHERE invoice_number = 'PW-2'", []);
   assert.equal(pay.method, 'transfer');

@@ -887,7 +887,8 @@
       if (raw) {
         sessionStorage.removeItem(KEY);
         var v = JSON.parse(raw);
-        if (v && Date.now() - v.t < 15000 && !location.hash) {
+        // `[data-scroll-top]` בדף = "אחרי הפעולה הזו — לראש הדף" (טופס חשבונית חדשה אחרי הנפקת תשלום; בעלים 25/10).
+        if (v && Date.now() - v.t < 15000 && !location.hash && !document.querySelector('[data-scroll-top]')) {
           var want = v.open || [], shut = v.closed || [];
           document.querySelectorAll('details').forEach(function (d) {
             if (d.closest('.menu')) return;

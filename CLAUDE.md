@@ -185,7 +185,7 @@ happen only at merge. So:
   direct `<h2>` becomes collapsible (accordion: opening one closes the others on the page; state in
   localStorage); skips `<details>`, `.no-collapse`, and cards with a `[required]` control; the saved state is keyed by the h2 text — a heading carrying a changing count needs `data-ckey`. Also handles
   `<details data-accordion="grp">`. Tables get a column-filter row + "ייצוא" below (`no-filter`, `no-export`, `data-export-into` switch them) — 🔴 **no "חיפוש בטבלה…" anywhere** (owner, 19/10). A result notice (`?notice`/`?err`) leaves the address bar once shown (no stale "נמחקה" on reload/PWA restore). (4) **שחזור גלילה + רשימות פתוחות** — **כל** טופס POST שומר את מיקום הגלילה, **את מצב ה-`<details>`** **ואת מה שהוקלד בשורות הסינון של הטבלאות**
-  ומשחזר אחרי ה-PRG (חזרה לאותו נתיב בלבד), כך שפעולה לא מקפיצה לראש הדף ולא מכווצת טבלה; קישור שמחליף תצוגה באותו דף = `<a data-keep-scroll>`.  (5) **חסימת
+  ומשחזר אחרי ה-PRG (חזרה לאותו נתיב בלבד), כך שפעולה לא מקפיצה לראש הדף ולא מכווצת טבלה; קישור שמחליף תצוגה באותו דף = `<a data-keep-scroll>`; דף שאחרי פעולה צריך לנחות **בראש** (טופס חשבונית חדשה אחרי תשלום) — אלמנט `[data-scroll-top]` בדף מבטל את השחזור.  (5) **חסימת
   הגשה כפולה** — `form[data-busy]`: הגשה שנייה בזמן שהראשונה בדרך נבלעת והכפתורים ננעלים (סגירת Z נשמרה 4
   פעמים מלחיצות חוזרות על שמירה איטית). 🔴 **טופס הזנה חדש = `data-busy="שומר…"`.** (6) **ניווט** — "→ חזרה" (מחסנית דפים שונים
   ב-sessionStorage, בלי פרמטרים חולפים), "⬆ למעלה" לראש דף ארוך (מעל פסים דביקים), ופס גלילה לגרירה מימין (עכבר בלבד).

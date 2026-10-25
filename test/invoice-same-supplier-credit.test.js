@@ -55,7 +55,7 @@ test('saving the credit with the invoice ticked creates ONE check for the net (i
   const r = await fetch(`${base}/invoices`, { method: 'POST', redirect: 'manual', headers: { cookie: ck() }, body: fd });
   assert.equal(r.status, 303);
   const loc = r.headers.get('location');
-  assert.match(loc, /^\/invoices\?paid=\d+/);
+  assert.match(loc, /^\/invoices\/new\?paid=\d+$/);
   const pay = await getPaymentDetail(Number(new URLSearchParams(loc.split('?')[1]).get('paid')), db);
   assert.equal(pay.method, 'check');
   assert.equal(pay.amount, 118000 - 11800, '₪1,180 − ₪118 = ₪1,062');

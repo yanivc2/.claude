@@ -51,13 +51,18 @@ test('pay-batch nets the entered invoices into one payment (R5)', async () => {
   });
   assert.equal(res.status, 303);
   const loc = res.headers.get('location');
-  // Stay in the invoices flow (not the payments page) so entering more invoices is one click.
-  assert.match(loc, /^\/invoices\?/);
+  // בעלים 25/10: "לאחר הנפקת תשלום … שישאיר אותי לתשלום חדש ויעלה אותי לראש הדף" — טופס חשבונית חדשה נקי.
+  assert.match(loc, /^\/invoices\/new\?paid=\d+$/);
   const q = new URLSearchParams(loc.split('?')[1]);
   const pid = Number(q.get('paid'));
-  assert.equal(q.get('nsup'), String(sup.id));
   const pay = await getPaymentDetail(pid, db);
   // net = (10000+1700) − (4000+680) = 7020 agorot
   assert.equal(pay.amount, 7020);
   assert.equal(pay.lines.length, 2);
+  // הדף שנוחתים בו: הודעה עם קישור לתשלום, וסמן "לראש הדף" שהפוטר מכבד (לא משחזר את הגלילה מהשליחה).
+  const html = await (await fetch(`${base}${loc}`, { headers: { cookie: cookieFor(await owner(db)) } })).text();
+  assert.match(html, /<div class="alert alert-ok no-print" data-scroll-top[^>]*>\s*<span>✅ התשלום נוצר ושויך לחשבוניות\. אפשר להזין תשלום חדש\.<\/span>/);
+  assert.match(html, new RegExp(`<a class="btn secondary small" href="/payments/${pid}">צפה בתשלום</a>`));
+  const footer = await import('node:fs').then((fs) => fs.readFileSync('src/views/partials/footer.ejs', 'utf8'));
+  assert.match(footer, /!location\.hash && !document\.querySelector\('\[data-scroll-top\]'\)/);
 });

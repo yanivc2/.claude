@@ -643,7 +643,7 @@ test('"שמור וצור תשלום נוסף" pays an invoice with three checks,
 
     // Check 3 — the closing one, no amount: it takes the whole remaining balance.
     res = await payBatch('3003', null, false);
-    assert.match(res.headers.get('location'), /^\/invoices\?/);
+    assert.match(res.headers.get('location'), /^\/invoices\/new\?paid=\d+$/);
     assert.deepEqual(await invoiceAllocation(inv.id, db), { total: 1500000, allocated: 1500000, open: 0 });
     assert.equal((await db.one('SELECT status FROM invoices WHERE id = ?', [inv.id])).status, 'paid');
 
@@ -784,7 +784,7 @@ test('a credit note rides on the first split payment and nets the invoice correc
 
     // Check 3: the closing one, no amount → takes the remaining ₪4,000.
     res = await pay('5003', null, false);
-    assert.match(res.headers.get('location'), /^\/invoices\?/);
+    assert.match(res.headers.get('location'), /^\/invoices\/new\?paid=\d+$/);
     assert.equal((await invoiceAllocation(inv.id, db)).open, 0);
     assert.equal((await db.one('SELECT status FROM invoices WHERE id = ?', [inv.id])).status, 'paid');
     assert.equal((await db.one('SELECT status FROM invoices WHERE id = ?', [cn.id])).status, 'paid');

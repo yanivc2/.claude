@@ -6,6 +6,14 @@
   <% } %>
 </div>
 
+<% if (typeof paidNotice !== 'undefined' && paidNotice) { %>
+  <%# אחרי הנפקת תשלום (בעלים 25/10): נשארים לתשלום חדש, בראש הדף. data-scroll-top — partials/footer.ejs לא
+      משחזר את מיקום הגלילה שנשמר בשליחה (הכפתור היה בתחתית הדף). %>
+  <div class="alert alert-ok no-print" data-scroll-top style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;justify-content:center">
+    <span>✅ התשלום נוצר ושויך לחשבוניות. אפשר להזין תשלום חדש.</span>
+    <a class="btn secondary small" href="/payments/<%= paidNotice %>">צפה בתשלום</a>
+  </div>
+<% } %>
 <% if (typeof notice !== 'undefined' && notice) { %>
   <div class="alert alert-ok"><%= notice %></div>
 <% } %>

@@ -211,6 +211,8 @@ router.get('/new', async (req, res, next) => {
         : req.query.pay === 'transfer' ? 'חשבונית חדשה בתשלום בהעברה — מלא את פרטי החשבונית, ואת האסמכתה ותאריך הפירעון תחת "אמצעי תשלום".' : null,
       openInvoices,
       pickIds,
+      // אחרי הנפקת תשלום (pay-batch / חשבונית + מסומנות) — הודעה בראש הטופס הנקי עם קישור לתשלום.
+      paidNotice: Number(req.query.paid) || null,
       ...ctx,
     });
   } catch (err) {
@@ -322,8 +324,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
             );
             await matchPaymentNow(payment.id, req.user);
             await notePaid(extra, b.pay_note, req.user);
-            const q = new URLSearchParams({ paid: String(payment.id), nsup: String(invoice.supplier_id), nstore: String(invoice.store_id) });
-            return res.redirect(303, `/invoices?${q.toString()}`);
+            return res.redirect(303, `/invoices/new?paid=${payment.id}`); // תשלום חדש, בראש הדף (בעלים 25/10)
           }
         }
         const created = await createPayment(payInput, req.user);
@@ -430,12 +431,10 @@ router.post('/pay-batch', async (req, res, next) => {
       return res.redirect(303, `/invoices/new?${q.toString()}`);
     }
 
-    // Stay in the invoices flow (the owner keeps entering invoices); the notice links to the
-    // payment and offers "another invoice for the same supplier".
-    const q = new URLSearchParams({ paid: String(payment.id) });
-    if (supplierId) q.set('nsup', String(supplierId));
-    if (storeId) q.set('nstore', String(storeId));
-    return res.redirect(303, `/invoices?${q.toString()}`);
+    // בעלים 25/10: "לאחר הנפקת תשלום זה מעביר חזרה לדף החשבוניות — אני רוצה שזה ישאיר אותי לתשלום חדש ויעלה
+    // אותי לראש הדף". טופס "חשבונית חדשה" נקי (הודעה + קישור לתשלום), בראש הדף — `paidNotice` מסמן לפוטר לא
+    // לשחזר את הגלילה (שהייתה בתחתית, ליד הכפתור).
+    return res.redirect(303, `/invoices/new?paid=${payment.id}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       // Stay on THIS form with the same selection and the same typed payment details, so a bad
