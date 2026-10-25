@@ -46,3 +46,7 @@ Active model: `opus` at `effortLevel: xhigh` (`settings.json`).
 - **Never Read a `machine-index*.json`** — 5 MB is roughly 1.3M tokens. It is denied
   in `settings.json` on purpose. The map is the Markdown, not the JSON.
 - `.claude/rules/config-repo.md` — how this repo is laid out and how to change it safely.
+- `DECISIONS.md` — the Mac-migration and folder-structure decision record: what was
+  decided and why, what was corrected, what is still open. Read it before resuming
+  that work. Claude Code history does **not** survive a path change; this file is
+  the deliberate replacement.
