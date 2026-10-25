@@ -310,15 +310,11 @@ export async function setAllocationNumber(id, allocationNumber, actor, x = getEx
     });
   }
 
-  const clearsHold = invoice.status === 'on_hold';
-  await x.run(
-    `UPDATE invoices
-        SET allocation_number = ?,
-            status = CASE WHEN status = 'on_hold' THEN 'recorded' ELSE status END,
-            hold_reason = CASE WHEN status = 'on_hold' THEN NULL ELSE hold_reason END
-      WHERE id = ?`,
-    [alloc, id],
-  );
+  // משחרר רק החזקה **אוטומטית של R3** (הסיבה מתחילה ב-"R3") — מספר ההקצאה הוא בדיוק מה שחסר לה. החזקה ידנית של
+  // הבעלים (סיבה אחרת — מחלוקת, כמות) נשארת: מספר הקצאה לא פותר אותה.
+  const clearsHold = invoice.status === 'on_hold' && typeof invoice.hold_reason === 'string' && invoice.hold_reason.startsWith('R3');
+  await x.run('UPDATE invoices SET allocation_number = ? WHERE id = ?', [alloc, id]);
+  if (clearsHold) await x.run("UPDATE invoices SET status = 'recorded', hold_reason = NULL WHERE id = ? AND status = 'on_hold'", [id]);
 
   await logAction(
     { userId: actor.id, action: 'invoice.set_allocation', entityType: 'invoice', entityId: id, details: { allocationNumber: alloc, clearsHold } },

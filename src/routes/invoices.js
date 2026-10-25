@@ -508,6 +508,31 @@ router.get('/:id/edit', requirePermission('edit_invoice'), async (req, res, next
   }
 });
 
+// מה השתנה בעריכה מלבד השלמת מספר הקצאה — אם כלום, לא נשלחת בקשת אישור ריקה לבעלים.
+function invoiceEditChanges(cur, f) {
+  const allocNow = String(cur.allocation_number || '');
+  const allocTyped = String(f.allocationNumber || '').trim();
+  return Number(f.supplierId) !== Number(cur.supplier_id)
+    || Number(f.storeId) !== Number(cur.store_id)
+    || String(f.invoiceNumber || '').trim() !== String(cur.invoice_number || '').trim()
+    || String(f.invoiceDate || '') !== String(cur.invoice_date || '')
+    || Math.abs(Number(f.amountBeforeVat) || 0) !== Math.abs(Number(cur.amount_before_vat) || 0)
+    || Math.abs(Number(f.vatAmount) || 0) !== Math.abs(Number(cur.vat_amount) || 0)
+    || String(f.docType || '') !== String(cur.doc_type || '')
+    || (allocTyped !== '' && allocTyped !== allocNow)
+    || (allocTyped === '' && allocNow !== '');
+}
+
+// ההודעה בדף החשבונית אחרי עריכה של מי שאינו הבעלים (PRG — `?edited=`).
+const EDIT_NOTICES = {
+  released: 'מספר ההקצאה נשמר — החשבונית שוחררה מההחזקה ואפשר לשלם אותה.',
+  alloc: 'מספר ההקצאה נשמר.',
+  'released-sent': 'מספר ההקצאה נשמר והחשבונית שוחררה מההחזקה. שאר השינויים נשלחו לאישור הבעלים.',
+  'alloc-sent': 'מספר ההקצאה נשמר. שאר השינויים נשלחו לאישור הבעלים.',
+  sent: 'בקשת העריכה נשלחה לאישור הבעלים. השינוי יבוצע לאחר אישור.',
+  none: 'לא היה מה לשמור — אין שינוי בחשבונית.',
+};
+
 router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, next) => {
   const id = Number(req.params.id);
   const b = req.body;
@@ -528,21 +553,29 @@ router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, nex
       vatAmount: toAgorot(b.vat_amount),
       docType: b.doc_type,
     };
-    // Non-owners: queue the edit for the owner's approval instead of applying it.
+    // Non-owners: queue the edit for the owner's approval instead of applying it — EXCEPT a missing
+    // allocation number. בעלים 25/10: "הזינו מספר הקצאה בעריכה, שמרו — והחשבונית עדיין מוחזקת. זה צריך מייד
+    // להתעדכן". השלמת מספר הקצאה חסר היא בדיוק מה שהכפתור "הזן מספר הקצאה" בדף החשבונית עושה מיד (בלי אישור),
+    // ולכן גם כאן: נשמר מיד דרך setAllocationNumber (בדיקת כפילות R2 + שחרור החזקת R3), ורק שאר השינויים —
+    // אם יש — נשלחים לאישור. החלפת מספר הקצאה קיים — שינוי, נשאר באישור.
     if (req.user.role !== 'owner') {
+      const typedAlloc = String(b.allocation_number || '').trim();
+      let allocSaved = false;
+      if (typedAlloc && !before.allocation_number) {
+        await setAllocationNumber(id, typedAlloc, req.user);
+        allocSaved = true;
+      }
       const current = await getInvoiceDetail(id);
-      await submitRequest(
-        { action: 'invoice.update', entityType: 'invoice', entityId: id, payload: { id, fields }, summary: describeInvoice(current, fields) },
-        req.user,
-      );
-      return res.render('invoices/edit', {
-        title: `עריכת חשבונית #${id}`,
-        invoice: current,
-        values: b,
-        ...(await formData(req.scope)),
-        error: null,
-        notice: 'בקשת העריכה נשלחה לאישור הבעלים. השינוי יבוצע לאחר אישור.',
-      });
+      const others = invoiceEditChanges(current, fields);
+      if (others) {
+        await submitRequest(
+          { action: 'invoice.update', entityType: 'invoice', entityId: id, payload: { id, fields }, summary: describeInvoice(current, fields) },
+          req.user,
+        );
+      }
+      const released = before.status === 'on_hold' && current.status !== 'on_hold';
+      const code = [allocSaved ? (released ? 'released' : 'alloc') : null, others ? 'sent' : null].filter(Boolean).join('-') || 'none';
+      return res.redirect(303, `/invoices/${id}?edited=${code}`);
     }
     await updateInvoice(id, fields, req.user);
     // After a move the invoice belongs to another store, so it is no longer visible in the active
@@ -676,7 +709,7 @@ router.get('/:id', async (req, res, next) => {
         : req.query.scanned === '1' ? 'החשבונית נקלטה מהצילום, כולל שורות הפריטים וקטלוג המוצרים.'
         : req.query.scanned === 'attached' ? 'הצילום צורף לחשבונית שכבר הייתה במערכת — לא נוצרה חשבונית כפולה.'
         : req.query.alloc ? String(req.query.alloc)
-        : null,
+        : EDIT_NOTICES[req.query.edited] || null,
       error: req.query.payfail ? `החשבונית נשמרה, אך יצירת הצ׳ק נכשלה: ${req.query.payfail}`
         : req.query.allocfail ? String(req.query.allocfail)
         : null,
