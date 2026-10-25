@@ -187,6 +187,11 @@ router.get('/new', async (req, res, next) => {
     // invoice/credit already entered for this supplier+store, so the batch-payment section below
     // defaults its amount to their summed net (R5, credits subtracting). The user can still uncheck.
     if (req.query.added && !pickIds.length) pickIds = (ctx.batchInvoices || []).map((iv) => iv.id);
+    // `?with=<id>` — "➕ לאותו ספק" מדף חשבונית: החשבונית שממנה באו מסומנת מראש, כך שזיכוי/חשבונית שמזינים כאן
+    // נכנסים לאותו תשלום והסכום מתקזז (בעלים 25/10). בלי הקפיצה של `?pick=` לקטע התשלום — כאן מזינים מסמך.
+    // מזהה שאינו בין החשבוניות הפתוחות של הספק בחנות פשוט לא מסומן (התיבות נבנות רק מ-batchInvoices).
+    const withId = Number(req.query.with) || null;
+    if (withId && (ctx.batchInvoices || []).some((iv) => Number(iv.id) === withId) && !pickIds.includes(withId)) pickIds.push(withId);
     res.render('invoices/new', {
       title: 'חשבונית חדשה',
       ...(await formData(req.scope)),

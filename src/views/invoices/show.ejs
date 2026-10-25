@@ -328,6 +328,9 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <% } %>
 
 <!-- שורת פעולות: אפשרויות (עריכה) + הוספה לאותו ספק + חזרה לרשימה -->
+<%# "➕ לאותו ספק" נושא with=<החשבונית הזו>: בטופס החדש היא מסומנת מראש ב"שיוך לתשלום", ולכן זיכוי שמזינים שם
+    מתקזז ממנה בסכום התשלום (בעלים 25/10: "למה זה לא מחשב את סכום החשבונית ומחסיר את סכום הזיכוי?"). %>
+<% var _sameSupHref = '/invoices/new?supplier=' + invoice.supplier_id + '&store=' + invoice.store_id + '&with=' + invoice.id; %>
 <div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3); flex-wrap:wrap">
   <% var canEdit = typeof can === 'function' && can('edit_invoice'); %>
   <% var canPay = typeof can === 'function' && can('approve_payment'); %>
@@ -340,11 +343,11 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
           <a href="/payments/<%= invoice.payment.id %>/edit">💳 ערוך אמצעי תשלום (בעלים)</a>
         <% } %>
         <div class="menu-sep"></div>
-        <a href="/invoices/new?supplier=<%= invoice.supplier_id %>&store=<%= invoice.store_id %>">➕ חשבונית / זיכוי נוסף לאותו ספק</a>
+        <a href="<%= _sameSupHref %>">➕ חשבונית / זיכוי נוסף לאותו ספק</a>
       </div>
     </details>
   <% } %>
-  <a href="/invoices/new?supplier=<%= invoice.supplier_id %>&store=<%= invoice.store_id %>" class="btn btn-secondary">➕ לאותו ספק</a>
+  <a href="<%= _sameSupHref %>" class="btn btn-secondary">➕ לאותו ספק</a>
   <a href="/invoices" class="btn btn-secondary">חזרה לרשימה</a>
   <a href="/invoices/new" class="btn btn-primary">+ חשבונית חדשה</a>
 </div>

@@ -193,7 +193,20 @@
             return (docType && docType.value === 'credit_note') ? -Math.abs(t) : t;
           }
           // + the open balance of earlier invoices ticked below (set by the "שיוך לתשלום" script).
-          function syncAmount(){ if (amtDisp){ var t = invoiceTotal() + (window.apPayWithSum ? window.apPayWithSum() : 0) / 100; amtDisp.value = t ? t.toFixed(2) : ''; } }
+          // סכום אפס או שלילי = זיכוי בלי חשבונית לקזז מולה: אומרים מה לעשות במקום להציג "-118.00" בשקט.
+          var amtNote = document.getElementById('pay_amount_note');
+          var noteDefault = amtNote ? amtNote.textContent : '';
+          function syncAmount(){
+            if (!amtDisp) return;
+            var t = invoiceTotal() + (window.apPayWithSum ? window.apPayWithSum() : 0) / 100;
+            amtDisp.value = t ? t.toFixed(2) : '';
+            var short = sel.value && t < 0;
+            amtDisp.style.color = short ? 'var(--color-bad)' : '';
+            if (amtNote) amtNote.textContent = !short ? noteDefault
+              : (document.querySelector('.bp-check')
+                ? 'זיכוי לבד אינו תשלום — סמן ב"שיוך לתשלום" למטה את החשבונית שהזיכוי מקזז, והסכום יחושב לבד.'
+                : 'זיכוי לבד אינו תשלום — לספק אין בחנות הזו חשבונית פתוחה לקזז מולה.');
+          }
           window.apSyncPayAmount = syncAmount;
           if (docType) docType.addEventListener('change', syncAmount);
           function upd(){
