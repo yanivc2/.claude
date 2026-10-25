@@ -26,7 +26,7 @@ import { voidedChecksSeenInBank } from '../services/reconciliation.js';
 import { searchSuppliers, listSuppliers } from '../services/suppliers.js';
 import { listRecent } from '../services/audit.js';
 import { createEvent, listEventsInRange, deleteEvent, runDueReminders } from '../services/calendar.js';
-import { listRequests, approveRequest, rejectRequest, actionLabel } from '../services/changeRequests.js';
+import { listRequests, approveRequest, rejectRequest, actionLabel, closeSupersededRequests } from '../services/changeRequests.js';
 import { getExecutor } from '../db/adapter.js';
 import { effectiveStoreId } from '../lib/scope.js';
 import { config } from '../config.js';
@@ -161,6 +161,8 @@ function ownerOnly(req, res, next) {
 
 router.get('/approvals', ownerOnly, async (req, res, next) => {
   try {
+    // בקשות עריכה שהשינוי שלהן כבר קיים — נסגרות לפני ההצגה (services/changeRequests.js#closeSupersededRequests).
+    await closeSupersededRequests();
     res.render('approvals', {
       title: 'אישורים',
       pending: await listRequests({ status: 'pending' }),

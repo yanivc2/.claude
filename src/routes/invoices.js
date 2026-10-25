@@ -30,9 +30,9 @@ import { handleInvoiceImage } from '../middleware/upload.js';
 import { getObject, del as removeStored } from '../lib/storage.js';
 import { createPayment, payInvoices } from '../services/payments.js';
 import { matchPaymentNow } from '../services/reconciliation.js';
-import { submitRequest, pendingRequestFor } from '../services/changeRequests.js';
+import { submitRequest, pendingRequestFor, closeSupersededRequests } from '../services/changeRequests.js';
 import { userCan } from '../lib/permissions.js';
-import { describeInvoice } from '../lib/changeSummary.js';
+import { describeInvoice, invoiceEditMatches } from '../lib/changeSummary.js';
 import { invoiceAllocation, openAdvancesForSupplier, allocateInvoiceToPayments, deallocate } from '../services/allocations.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 import { requirePermission } from '../middleware/requireOwner.js';
@@ -508,21 +508,6 @@ router.get('/:id/edit', requirePermission('edit_invoice'), async (req, res, next
   }
 });
 
-// מה השתנה בעריכה מלבד השלמת מספר הקצאה — אם כלום, לא נשלחת בקשת אישור ריקה לבעלים.
-function invoiceEditChanges(cur, f) {
-  const allocNow = String(cur.allocation_number || '');
-  const allocTyped = String(f.allocationNumber || '').trim();
-  return Number(f.supplierId) !== Number(cur.supplier_id)
-    || Number(f.storeId) !== Number(cur.store_id)
-    || String(f.invoiceNumber || '').trim() !== String(cur.invoice_number || '').trim()
-    || String(f.invoiceDate || '') !== String(cur.invoice_date || '')
-    || Math.abs(Number(f.amountBeforeVat) || 0) !== Math.abs(Number(cur.amount_before_vat) || 0)
-    || Math.abs(Number(f.vatAmount) || 0) !== Math.abs(Number(cur.vat_amount) || 0)
-    || String(f.docType || '') !== String(cur.doc_type || '')
-    || (allocTyped !== '' && allocTyped !== allocNow)
-    || (allocTyped === '' && allocNow !== '');
-}
-
 // ההודעה בדף החשבונית אחרי עריכה של מי שאינו הבעלים (PRG — `?edited=`).
 const EDIT_NOTICES = {
   released: 'מספר ההקצאה נשמר — החשבונית שוחררה מההחזקה ואפשר לשלם אותה.',
@@ -563,10 +548,12 @@ router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, nex
       let allocSaved = false;
       if (typedAlloc && !before.allocation_number) {
         await setAllocationNumber(id, typedAlloc, req.user);
+        await closeSupersededRequests();
         allocSaved = true;
       }
       const current = await getInvoiceDetail(id);
-      const others = invoiceEditChanges(current, fields);
+      // מה השתנה מלבד השלמת מספר ההקצאה — אם כלום, לא נשלחת בקשת אישור ריקה לבעלים.
+      const others = !invoiceEditMatches(current, fields);
       if (others) {
         await submitRequest(
           { action: 'invoice.update', entityType: 'invoice', entityId: id, payload: { id, fields }, summary: describeInvoice(current, fields) },
@@ -578,6 +565,7 @@ router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, nex
       return res.redirect(303, `/invoices/${id}?edited=${code}`);
     }
     await updateInvoice(id, fields, req.user);
+    await closeSupersededRequests(); // בקשה ממתינה שהעריכה הזו כבר ביצעה — נסגרת עכשיו, לא נשארת כהתראה
     // After a move the invoice belongs to another store, so it is no longer visible in the active
     // one — land on the list with a note instead of a "not found" detail page.
     if (moving) return res.redirect(303, `/invoices?moved=${id}`);
@@ -901,6 +889,7 @@ router.post('/:id/note', async (req, res, next) => {
 router.post('/:id/allocation', async (req, res, next) => {
   try {
     await setAllocationNumber(Number(req.params.id), req.body.allocation_number, req.user);
+    await closeSupersededRequests();
     res.redirect(303, `/invoices/${req.params.id}`);
   } catch (err) {
     if (err instanceof RuleError) {

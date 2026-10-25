@@ -5,6 +5,7 @@ import {
 } from '../services/trackedInvoices.js';
 import { assertInScope } from '../lib/scopeGuard.js';
 import { setAllocationNumber } from '../services/invoices.js';
+import { closeSupersededRequests } from '../services/changeRequests.js';
 import { RuleError, AuthError } from '../lib/errors.js';
 
 // "חשבוניות מעוקבות לתשלום" — מה שמחכה לטיפול של הספק (זיכוי, כמות, מסמך) לפני שסוגרים.
@@ -65,6 +66,7 @@ router.post('/:id/allocation', async (req, res, next) => {
   try {
     await assertInScope('invoice', id, req.scope);
     await setAllocationNumber(id, req.body.allocation_number, req.user);
+    await closeSupersededRequests();
     return res.redirect(303, '/tracked-invoices?saved=allocation');
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {

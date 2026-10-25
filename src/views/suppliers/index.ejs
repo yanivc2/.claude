@@ -60,10 +60,10 @@
 
 <%# 🏛️ "תשלומים לרשויות" (בעלים 21/10: "תשלומים שיצאו מהבנק", מעל טבלת הספקים) — חיובי בנק לביטוח לאומי, מס הכנסה,
     מע"מ, רשות המסים וארנונה/עירייה, מזוהים מתיאור החיוב (services/authorityPayments.js), 12 החודשים האחרונים,
-    בחשבונות שבסקופ. מקובץ לפי חודש · רשות · חשבון; "פירוט" פותח את החיובים עצמם. סגור כברירת מחדל, בעלים בלבד. %>
+    בחשבונות שבסקופ. מקובץ לפי חודש · רשות · חשבון; "פירוט" פותח את החיובים עצמם. סגור כברירת מחדל. לכל מי שרואה את
+    דף הספקים (בעלים 25/10; עד אז — בעלים בלבד); "↩ למרקורים" (ביטול הסימון) — בעלים בלבד, כמו הסימון עצמו. %>
 <% var _ap = (typeof authorityPayments !== 'undefined' && authorityPayments) ? authorityPayments : [];
    var _apTotal = _ap.reduce(function(t, g){ return t + g.total; }, 0), _apCount = _ap.reduce(function(t, g){ return t + g.count; }, 0); %>
-<% if (_isOwner) { %>
   <details class="card no-print collapse-card authority-card">
     <summary>תשלומים לרשויות <span class="muted">— <%= _apCount %> חיובים · <%= formatIls(_apTotal) %> · 12 החודשים האחרונים</span></summary>
     <% if (!_ap.length) { %>
@@ -86,11 +86,11 @@
                     <summary>פירוט</summary>
                     <% g.items.forEach(function(it){ %>
                       <div class="muted" style="font-size:12px"><%= formatDate(it.txn_date) %> · <%= formatIls(-Number(it.amount)) %><%= it.raw_reference ? ' · ' + it.raw_reference : '' %> · <% if (it.source === 'payment') { %><a href="/payments/<%= it.payment_id %>"><%= it.description %></a>
-                        <%# תשלום שסומן במרקורים — "↩ למרקורים" מבטל את הסימון והוא חוזר לטבלת המרקורים. %>
-                        <form method="post" action="/payments/<%= it.payment_id %>/authority" style="display:inline;margin:0">
+                        <%# תשלום שסומן במרקורים — "↩ למרקורים" מבטל את הסימון והוא חוזר לטבלת המרקורים (בעלים בלבד). %>
+                        <% if (_isOwner) { %><form method="post" action="/payments/<%= it.payment_id %>/authority" style="display:inline;margin:0">
                           <input type="hidden" name="authority" value="" /><input type="hidden" name="back" value="suppliers" />
                           <button type="submit" class="btn btn-secondary btn-sm" title="לבטל את הסימון — התשלום חוזר לטבלת המרקורים">↩ למרקורים</button>
-                        </form><% } else { %><%= it.description %><% } %></div>
+                        </form><% } %><% } else { %><%= it.description %><% } %></div>
                     <% }); %>
                   </details>
                 </td>
@@ -101,7 +101,6 @@
       </div>
     <% } %>
   </details>
-<% } %>
 
 <form method="post" action="/suppliers/bulk">
   <%# טבלת הספקים מתקפלת וסגורה כברירת מחדל (בעלים 21/10: "אפשר לצמצם… ומצומצמת כברירת מחדל") — <h2> ישיר בכרטיס

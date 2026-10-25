@@ -65,6 +65,9 @@
         </div>
       </div>
       <div style="white-space:pre-line;background:var(--color-section);border-radius:6px;padding:.6rem"><%= r.summary || '' %></div>
+      <%# קישור לפריט עצמו — "#1001" לבד לא אמר מה זה ולא היה אפשר להיכנס לפרטים (בעלים 25/10). %>
+      <% var _href = r.entity_id && ({ invoice: '/invoices/', supplier: '/suppliers/' })[r.entity_type]; %>
+      <% if (_href) { %><div style="margin-top:.4rem"><a href="<%= _href + r.entity_id %>"><%= r.entity_type === 'invoice' ? 'פתח את החשבונית ←' : 'פתח את הספק ←' %></a></div><% } %>
     </div>
   <% }); %>
 </div>
@@ -81,7 +84,8 @@
             <td><%= actionLabel(r.action) %></td>
             <td><%= r.requested_by_name || '—' %></td>
             <td>
-              <span class="badge <%= r.status === 'approved' ? 'b-approved' : 'b-blocked' %>"><%= r.status === 'approved' ? 'אושר' : 'נדחה' %></span>
+              <%# superseded = נסגר לבד כי השינוי כבר היה קיים (changeRequests.js#closeSupersededRequests). %>
+              <span class="badge <%= r.status === 'approved' ? 'b-approved' : r.status === 'superseded' ? 'b-neutral' : 'b-blocked' %>"><%= r.status === 'approved' ? 'אושר' : r.status === 'superseded' ? 'נסגר — כבר בוצע' : 'נדחה' %></span>
             </td>
             <td class="muted"><%= r.decided_at || '' %></td>
             <td class="muted" style="white-space:pre-line"><%= r.result_summary || r.decision_note || r.summary || '' %></td>

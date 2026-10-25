@@ -51,7 +51,7 @@ test('grouped by month · authority · account, last 12 months, only the account
   assert.ok(storeA.every((g) => g.account === A.display_name), 'another store\'s account stays out');
 });
 
-test('the owner sees the card above the suppliers table, closed; others do not see it', async () => {
+test('the card sits above the suppliers table, closed — for the owner AND anyone who sees the suppliers page', async () => {
   const html = await (await fetch(`${base}/suppliers`, { headers: { cookie: `session=${createSession(o.id)}; ap_store=1` } })).text();
   const card = html.indexOf('<summary>תשלומים לרשויות');
   assert.ok(card > 0 && card < html.indexOf('action="/suppliers/bulk"'), 'above the table');
@@ -59,6 +59,8 @@ test('the owner sees the card above the suppliers table, closed; others do not s
   assert.match(html, /— 3 חיובים · ₪114,276\.00 · 12 החודשים האחרונים/, "the active store: 15,390 + 73,250 + 25,636");
   const sec = await secretary(db);
   await db.run(`UPDATE users SET permissions = '["nav_suppliers"]' WHERE id = ?`, [sec.id]);
+  // בעלים 25/10: "למה במחשב של ויקי אין את תשלומים לרשויות?" → "לכל מי שרואה את דף הספקים" (בסקופ שלו).
   const other = await (await fetch(`${base}/suppliers`, { headers: { cookie: `session=${createSession(sec.id)}` } })).text();
-  assert.doesNotMatch(other, /תשלומים לרשויות/);
+  assert.match(other, /<summary>תשלומים לרשויות/);
+  assert.doesNotMatch(other, /↩ למרקורים/, 'un-marking stays with the owner');
 });

@@ -3,7 +3,8 @@ import { NotFoundError, RuleError } from '../lib/errors.js';
 import { notify } from '../lib/notify.js';
 import { approvalKeyboard } from '../lib/telegramBot.js';
 import { logAction } from './audit.js';
-import { updateInvoice, approveInvoiceForPayment, releaseHold } from './invoices.js';
+import { updateInvoice, approveInvoiceForPayment, releaseHold, getInvoiceDetail } from './invoices.js';
+import { invoiceEditMatches } from '../lib/changeSummary.js';
 import { updateSupplier } from './suppliers.js';
 import { editTransaction } from './bankTransactions.js';
 
@@ -67,6 +68,41 @@ export async function submitRequest({ action, entityType, entityId, payload, sum
     { kind: 'approval', link: `/approvals?req=${info.lastInsertRowid}`, replyMarkup: approvalKeyboard(info.lastInsertRowid) },
   );
   return info.lastInsertRowid;
+}
+
+/**
+ * בקשת "עריכת חשבונית" ממתינה שהשינוי שלה כבר קיים בחשבונית — הבעלים עשה אותו בעצמו בינתיים, או שהבקשה לא
+ * שינתה כלום מלכתחילה ("חשבונית #1001: ללא שינוי") — נסגרת לבד בסטטוס `superseded` ("נסגר — כבר בוצע"), בלי
+ * פוש. בעלים 25/10: "שיניתי אותם אחרי שהם הוחזקו — איך מבטלים את ההתראה?" אישור של בקשה כזו לא היה משנה כלום,
+ * ובקשה שהחשבונית שלה השתנתה **אחרת** (לא תואמת) נשארת — אישור שלה היה דורס את השינוי, וזו הכרעה של הבעלים.
+ * @returns {Promise<number>} כמה נסגרו
+ */
+export async function closeSupersededRequests(x = getExecutor()) {
+  let rows;
+  try {
+    rows = await x.many("SELECT * FROM change_requests WHERE status = 'pending' AND action = 'invoice.update'", []);
+  } catch {
+    return 0; // pre-upgrade DB
+  }
+  let closed = 0;
+  for (const r of rows) {
+    let payload;
+    try { payload = JSON.parse(r.payload); } catch { continue; }
+    if (!payload?.fields) continue;
+    let cur;
+    try { cur = await getInvoiceDetail(Number(payload.id || r.entity_id), x); } catch { continue; }
+    // בקשה שלא שינתה כלום כבר כשנשלחה ("…: ללא שינוי") — נסגרת גם אם החשבונית השתנתה מאז: אישור שלה היה רק
+    // מחזיר את החשבונית למה שהייתה (למשל מוחק מספר הקצאה שהוזן בינתיים).
+    const noChangeAtSubmit = /: ללא שינוי$/.test(String(r.summary || '').trim());
+    if (!noChangeAtSubmit && !invoiceEditMatches(cur, payload.fields)) continue;
+    await x.run(
+      "UPDATE change_requests SET status = 'superseded', decided_at = ?, decision_note = ? WHERE id = ? AND status = 'pending'",
+      [nowTs(), 'נסגר אוטומטית — השינוי כבר קיים בחשבונית', r.id],
+    );
+    await logAction({ userId: null, action: 'change_request.superseded', entityType: 'change_request', entityId: r.id, details: { action: r.action, invoiceId: cur.id } }, x);
+    closed += 1;
+  }
+  return closed;
 }
 
 export async function listRequests({ status = 'pending' } = {}, x = getExecutor()) {

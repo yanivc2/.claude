@@ -10,6 +10,23 @@ function line(label, oldV, newV) {
   return `${label}: ${oldV ?? '—'} ← ${newV ?? '—'}`;
 }
 
+/**
+ * האם עריכת חשבונית (fields = קלט updateInvoice) כבר תואמת את החשבונית כפי שהיא עכשיו — אין מה לשנות.
+ * משמש לבקשה שלא שינתה כלום (לא נשלחת לאישור) ולבקשה ממתינה שהשינוי שלה כבר נעשה בדרך אחרת (נסגרת לבד —
+ * services/changeRequests.js#closeSupersededRequests; בעלים 25/10: "שיניתי אותם אחרי שהם הוחזקו — איך מבטלים?").
+ */
+export function invoiceEditMatches(cur, f) {
+  const same = (a, b) => String(a ?? '').trim() === String(b ?? '').trim();
+  return Number(f.supplierId) === Number(cur.supplier_id)
+    && Number(f.storeId) === Number(cur.store_id)
+    && same(f.invoiceNumber, cur.invoice_number)
+    && same(f.invoiceDate, cur.invoice_date)
+    && same(f.allocationNumber, cur.allocation_number)
+    && Math.abs(Number(f.amountBeforeVat) || 0) === Math.abs(Number(cur.amount_before_vat) || 0)
+    && Math.abs(Number(f.vatAmount) || 0) === Math.abs(Number(cur.vat_amount) || 0)
+    && same(f.docType, cur.doc_type);
+}
+
 /** current = getInvoiceDetail row (agorot, magnitudes signed); fields = updateInvoice input (agorot magnitudes). */
 export function describeInvoice(current, fields) {
   const rows = [
@@ -20,7 +37,9 @@ export function describeInvoice(current, fields) {
     line('לפני מע"מ', formatIls(Math.abs(current.amount_before_vat)), formatIls(Math.abs(fields.amountBeforeVat))),
     line('מע"מ', formatIls(Math.abs(current.vat_amount)), formatIls(Math.abs(fields.vatAmount))),
   ].filter(Boolean);
-  return rows.length ? `חשבונית #${current.id} (${current.supplier_name}):\n` + rows.join('\n') : `חשבונית #${current.id}: ללא שינוי`;
+  // מספר החשבונית והספק — לא המזהה הפנימי (#1001 לא אמר לבעלים כלום; בעלים 25/10). הקישור לחשבונית — בדף האישורים.
+  const head = `חשבונית ${current.invoice_number || '#' + current.id} · ${current.supplier_name || ''}`.trim();
+  return rows.length ? `${head}:\n` + rows.join('\n') : `${head}: ללא שינוי`;
 }
 
 /** current = getSupplier row; fields = updateSupplier input (name, taxId, phone, email, contactName, contactPhone, notes). */

@@ -70,8 +70,9 @@ async function renderList(req, res, extra = {}) {
     suppliers: await listSuppliers(null, undefined, { scope: req.scope }),
     zeroCandidates: await zeroRatedCandidates(req.scope),
     storeSuggestions: await supplierStoreSuggestions(assignmentScope(req)),
-    // "תשלומים לרשויות" (בעלים 21/10) — חיובי בנק לרשויות, לבעלים בלבד (services/authorityPayments.js).
-    authorityPayments: req.user?.role === 'owner' ? await authorityPayments(req.scope) : [],
+    // "תשלומים לרשויות" (בעלים 21/10) — חיובי בנק לרשויות (services/authorityPayments.js). לכל מי שרואה את דף
+    // הספקים, בסקופ שלו (בעלים 25/10: "למה במחשב של ויקי אין?" → "לכל מי שרואה את דף הספקים").
+    authorityPayments: await authorityPayments(req.scope),
     filter: '',
     error: null,
     notice: null,
@@ -87,8 +88,8 @@ router.get('/', async (req, res, next) => {
       suppliers: await listSuppliers(req.query.status || null, undefined, { scope: req.scope }),
       zeroCandidates: await zeroRatedCandidates(req.scope),
       storeSuggestions: await supplierStoreSuggestions(assignmentScope(req)),
-      // "תשלומים לרשויות" (בעלים 21/10) — חיובי בנק לרשויות, לבעלים בלבד (services/authorityPayments.js).
-      authorityPayments: req.user?.role === 'owner' ? await authorityPayments(req.scope) : [],
+      // "תשלומים לרשויות" — לכל מי שרואה את דף הספקים, בסקופ שלו (בעלים 25/10).
+      authorityPayments: await authorityPayments(req.scope),
       filter: req.query.status || '',
       error: null,
       // The notice travels through the redirect as a count (POST/Redirect/GET), so a reload of the
