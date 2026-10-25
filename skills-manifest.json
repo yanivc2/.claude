@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-22T03:10:20.581Z",
+  "updatedAt": "2026-10-25T05:06:11.000Z",
   "note": "The intended skill set for every machine running this config. Only npx-installed skills are listed; the claude.ai-synced ones arrive on their own, and the routers travel in git. The SessionStart hook hooks/skills-drift.mjs compares this list against what is installed locally and reports the gap. Nothing installs automatically.",
   "sources": [
     {
@@ -51,11 +51,11 @@
     {
       "id": "taste",
       "repo": "Leonxlnx/taste-skill",
-      "install": "npx skills add Leonxlnx/taste-skill -g -y --skill design-taste-frontend",
+      "install": "npx skills add https://github.com/Leonxlnx/taste-skill/tree/12af471f627f866411b4bd785b19646d3672784c/skills/taste-skill -g -y --skill design-taste-frontend",
       "skills": [
         "design-taste-frontend"
       ],
-      "note": "Upstream consolidated to a single skill in v2 on 2026-10-22. The four it used to ship are vendored under skills-vendored/."
+      "note": "Upstream consolidated to a single skill in v2 on 2026-10-22. The four it used to ship are vendored under skills-vendored/. Pinned to 12af471 (v2.1.5, 2026-10-25) after /install-review: v2 ships Node scripts (headless Chrome, downloads from open image collections). Re-review before moving the pin."
     },
     {
       "id": "impeccable",
