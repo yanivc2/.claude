@@ -14,7 +14,7 @@
         <label>ספק *</label>
         <select name="supplier_id" required class="js-combo" data-combo-ph="הקלד שם ספק לחיפוש…" data-combo-label="ספק">
           <% suppliers.forEach(function(s){ %>
-            <option value="<%= s.id %>" <%= String(values.supplier_id) === String(s.id) ? 'selected' : '' %>>
+            <option value="<%= s.id %>"<%= Number(s.zero_rated) ? ' data-zero=1' : '' %> <%= String(values.supplier_id) === String(s.id) ? 'selected' : '' %>>
               <%= s.name %><%= s.status !== 'approved' ? ' (' + (s.status === 'pending' ? 'ממתין' : 'חסום') + ')' : '' %>
             </option>
           <% }); %>
@@ -62,24 +62,33 @@
       </div>
       <div>
         <label>&nbsp;</label>
-        <div class="muted" style="padding:.5rem 0">מע"מ <%= (vatRate*100).toFixed(0) %>% — מחושב אוטומטית</div>
+        <div class="muted vat-rate-note" style="padding:.5rem 0" data-std="מע&quot;מ <%= (vatRate*100).toFixed(0) %>% — מחושב אוטומטית">מע"מ <%= (vatRate*100).toFixed(0) %>% — מחושב אוטומטית</div>
       </div>
     </div>
     <p class="muted">זיכוי יישמר כסכום שלילי. מספר החשבונית והסכומים ניתנים לעדכון.</p>
     <script>
       (function(){
-        var RATE = <%= vatRate %>;
+        var STD = <%= vatRate %>;
         var total = document.getElementById('total_incl');
         var before = document.getElementById('before_vat');
         var vat = document.getElementById('vat_amount');
         var round2 = function(n){ return Math.round(n*100)/100; };
+        // ספק בשיעור אפס — מע"מ 0 (כמו בטופס החדש, invoices/new.ejs; בעלים 25/10). השדה פתוח לתיקון ידני.
+        var supSel = document.querySelector('select[name="supplier_id"]');
+        var note = document.querySelector('.vat-rate-note');
+        function zero(){ var o = supSel && supSel.options[supSel.selectedIndex]; return !!(o && o.hasAttribute('data-zero')); }
+        function rate(){ return zero() ? 0 : STD; }
+        if (note && zero()) note.textContent = 'ספק בשיעור אפס — מע"מ 0, בלי מספר הקצאה';
+        if (supSel) supSel.addEventListener('change', function(){
+          if (note) note.textContent = zero() ? 'ספק בשיעור אפס — מע"מ 0, בלי מספר הקצאה' : note.getAttribute('data-std');
+        });
         total.addEventListener('input', function(){
           var t = parseFloat(total.value); if (isNaN(t)) return;
-          var b = round2(t/(1+RATE)); before.value = b.toFixed(2); vat.value = round2(t-b).toFixed(2);
+          var b = round2(t/(1+rate())); before.value = b.toFixed(2); vat.value = round2(t-b).toFixed(2);
         });
         before.addEventListener('input', function(){
           var b = parseFloat(before.value); if (isNaN(b)) return;
-          var v = round2(b*RATE); vat.value = v.toFixed(2); total.value = round2(b+v).toFixed(2);
+          var v = round2(b*rate()); vat.value = v.toFixed(2); total.value = round2(b+v).toFixed(2);
         });
       })();
     </script>

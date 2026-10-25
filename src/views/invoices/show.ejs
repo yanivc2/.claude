@@ -83,7 +83,7 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
 <% } %>
 <% if (payReq) { %><div class="alert alert-info">בקשת אישור תשלום ממתינה<% if (isManager) { %> — אפשר לאשר בכפתור למטה<% } else { %> לאישור מנהל/בעלים<% } %>.</div><% } %>
 <% if (checkZeroVat) { %><div class="alert alert-warn"><strong>חשבונית מס ללא מע"מ</strong> — מעל <%= formatIls(allocationThresholdAgorot) %> לפני מע"מ אך המע"מ <%= formatIls(Math.abs(invoice.vat_amount || 0)) %>. אם המע"מ נשכח — תקן אותו (אז יידרש מספר הקצאה). אם זו עסקה בשיעור אפס (פירות וירקות טריים, §30(א)(13)) — סמן את הספק כ"עסקאות בשיעור אפס" בכרטיס הספק וההודעה תיעלם.</div><% } %>
-<% if (requiresAllocation) { %><div class="alert alert-error"><strong>נדרש מספר הקצאה</strong> — חשבונית מס עם מע"מ מעל <%= formatIls(allocationVatThresholdAgorot) %> ללא מספר הקצאה. הזן מספר הקצאה בכפתור למטה.</div><% } %>
+<% if (requiresAllocation) { %><div class="alert alert-error"><strong>נדרש מספר הקצאה</strong> — חשבונית מס עם מע"מ מעל <%= formatIls(allocationVatThresholdAgorot) %> ללא מספר הקצאה. הזן מספר הקצאה בכפתור למטה.<% if (Number(invoice.supplier_zero_rated)) { %><br>הספק מסומן <strong>"עסקאות בשיעור אפס"</strong> — אם בחשבונית אין מע"מ, תקן את המע"מ ל-0 ב<a href="/invoices/<%= invoice.id %>/edit">עריכה</a>, ומספר ההקצאה לא יידרש.<% } %></div><% } %>
 
 <% if (typeof cashPayments !== 'undefined' && cashPayments && cashPayments.length) { %>
   <div class="alert alert-ok">
