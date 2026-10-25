@@ -87,6 +87,50 @@ export function earlyPaymentAlerts(rows, paymentDate) {
  * approved) and the cash ceiling on both.
  * @returns {object} the created payment with its lines
  */
+/** כמה זמן אחרי "בטל שיוך" אפשר להנפיק שוב את אותו מספר צ׳ק (בעלים 25/10: "לא יאוחר משעה אחרי הפירוק"). */
+export const REISSUE_WINDOW_MINUTES = 60;
+
+/**
+ * האם מספר הצ׳ק של תשלום קיים (`paymentId`) פנוי להנפקה מחדש, ולמי. בעלים 25/10: "במידה ועשיתי ביטול התאמה
+ * לצ׳ק [בטל שיוך בדף החשבונית], ואני רוצה להנפיק תשלום לחשבונית אחרת עם אותו מספר הצ׳ק — אפשר זאת כל עוד אני
+ * משלם אך ורק לאותו הספק ולא יאוחר משעה אחרי הפירוק". כל התנאים:
+ *   • הצ׳ק "הונפק" בלבד, לא הותאם לתנועת בנק, ו**אין עליו אף חשבונית** (פורק לגמרי);
+ *   • "בטל שיוך" (`invoice.deallocate`) האחרון ממנו — לפני פחות מ-REISSUE_WINDOW_MINUTES דקות (שעון UTC של היומן);
+ *   • התשלום החדש לאותו ספק בדיוק (לא חברת-אם/בת) שהיו עליו החשבוניות שפורקו.
+ * @returns {Promise<{ok:boolean, why?:string}>} why — הסבר בעברית כשלא (רק כשהיה פירוק; אחרת ההודעה הרגילה).
+ */
+export async function reissuableCheck(paymentId, { invoiceIds = [], supplierId = null } = {}, x = getExecutor()) {
+  const p = await x.one('SELECT id, status, supplier_id FROM payments WHERE id = ?', [paymentId]);
+  if (!p || p.status !== 'issued') return { ok: false };
+  const lines = await x.one('SELECT COUNT(*) AS n FROM payment_lines WHERE payment_id = ?', [paymentId]);
+  if (Number(lines?.n || 0) > 0) return { ok: false };
+  const matched = await x.one('SELECT 1 AS m FROM bank_transactions WHERE matched_payment_id = ? LIMIT 1', [paymentId]);
+  if (matched) return { ok: false };
+  const deallocs = (await x.many(
+    "SELECT entity_id, timestamp, details FROM audit_log WHERE action = 'invoice.deallocate' AND details LIKE ? ORDER BY id DESC",
+    [`%"paymentId":${Number(paymentId)}%`],
+  )).filter((r) => { try { return Number(JSON.parse(r.details).paymentId) === Number(paymentId); } catch { return false; } });
+  if (!deallocs.length) return { ok: false };
+  const cutoff = new Date(Date.now() - REISSUE_WINDOW_MINUTES * 60000).toISOString().slice(0, 19).replace('T', ' ');
+  if (String(deallocs[0].timestamp) < cutoff) {
+    return { ok: false, why: `עברה יותר משעה מ"בטל שיוך" — הנפקה מחדש של אותו מספר צ׳ק מותרת רק בשעה שאחרי הפירוק. בטל את הצ׳ק הקודם כדי לשחרר את המספר.` };
+  }
+  const oldSup = new Set();
+  if (p.supplier_id) oldSup.add(Number(p.supplier_id));
+  for (const d of deallocs) {
+    const inv = await x.one('SELECT supplier_id FROM invoices WHERE id = ?', [d.entity_id]);
+    if (inv) oldSup.add(Number(inv.supplier_id));
+  }
+  const newSup = new Set(supplierId ? [Number(supplierId)] : []);
+  for (const id of invoiceIds) {
+    const inv = await x.one('SELECT supplier_id FROM invoices WHERE id = ?', [Number(id)]);
+    if (inv) newSup.add(Number(inv.supplier_id));
+  }
+  const same = oldSup.size === 1 && newSup.size === 1 && [...oldSup][0] === [...newSup][0];
+  if (!same) return { ok: false, why: 'מספר צ׳ק שפורק מותר להנפקה מחדש רק לאותו ספק שהצ׳ק היה שלו.' };
+  return { ok: true };
+}
+
 export async function createPayment(input, actor, x = getExecutor()) {
   const {
     bankAccountId,
@@ -149,12 +193,22 @@ export async function createPayment(input, actor, x = getExecutor()) {
   if (!account) throw new NotFoundError(`חשבון בנק ${bankAccountId} לא נמצא`);
 
   // Friendly guard for a duplicate check number (a voided check released its number, so it's free).
+  // חריג אחד (בעלים 25/10): צ׳ק ש"פורק" — "בטל שיוך" הוריד ממנו את כל החשבוניות — מותר להנפיק שוב באותו
+  // מספר, **לאותו ספק בלבד** ו**עד שעה** מהפירוק. התשלום החדש מחליף את הישן (שמתבטל ומקושר אליו), כך שתמיד
+  // יש צ׳ק חי אחד בכל מספר. ראה reissuableCheck.
+  let replaceId = null;
   if (fields.check_number) {
     const dup = await x.one(
       "SELECT id FROM payments WHERE bank_account_id = ? AND check_number = ? AND status <> 'voided'",
       [account.id, fields.check_number],
     );
-    if (dup) throw new RuleError('CHECK', `מספר צ׳ק ${fields.check_number} כבר קיים בחשבון זה (תשלום #${dup.id}). אם זה תיקון — בטל את הצ׳ק הקודם ואז אפשר להשתמש שוב באותו מספר.`);
+    if (dup) {
+      const re = await reissuableCheck(dup.id, { invoiceIds: isAdvance ? [] : invoiceIds, supplierId: isAdvance ? supplierId : null }, x);
+      if (!re.ok) {
+        throw new RuleError('CHECK', `מספר צ׳ק ${fields.check_number} כבר קיים בחשבון זה (תשלום #${dup.id}). ${re.why || 'אם זה תיקון — בטל את הצ׳ק הקודם ואז אפשר להשתמש שוב באותו מספר.'}`);
+      }
+      replaceId = dup.id;
+    }
   }
 
   // Collected for the "paid earlier than terms" Telegram alert, evaluated after commit.
@@ -234,6 +288,13 @@ export async function createPayment(input, actor, x = getExecutor()) {
       );
     }
 
+    // הצ׳ק שפורק מתבטל לפני ההכנסה — האינדקס הייחודי (חשבון + מספר צ׳ק, לא מבוטל) מתיר רק צ׳ק חי אחד.
+    if (replaceId) {
+      await t.run(
+        "UPDATE payments SET status = 'voided', voided_at = ?, voided_by = ?, void_reason = 'method_changed', void_alerted = NULL WHERE id = ? AND status = 'issued'",
+        [israelNow(), actor?.id ?? null, replaceId],
+      );
+    }
     const info = await t.run(
       `INSERT INTO payments
          (bank_account_id, method, check_number, reference, payer_name, card_last4, batch_number,
@@ -285,9 +346,14 @@ export async function createPayment(input, actor, x = getExecutor()) {
     }
 
     await logAction(
-      { userId: actor.id, action: 'payment.create', entityType: 'payment', entityId: pid, details: { method, ...fields, amount: net, invoiceIds, advance: isAdvance || undefined, supplierId: isAdvance ? supplierId : undefined } },
+      { userId: actor.id, action: 'payment.create', entityType: 'payment', entityId: pid, details: { method, ...fields, amount: net, invoiceIds, advance: isAdvance || undefined, supplierId: isAdvance ? supplierId : undefined, replaces: replaceId || undefined } },
       t,
     );
+    if (replaceId) {
+      // הצ׳ק הישן מצביע על התשלום שהחליף אותו ("שינוי אמצעי תשלום" + קישור) — בדף הצ׳קים המבוטלים הוא לא נרדף.
+      await t.run('UPDATE payments SET void_link_payment_id = ? WHERE id = ?', [pid, replaceId]);
+      await logAction({ userId: actor.id, action: 'payment.reissued', entityType: 'payment', entityId: replaceId, details: { checkNumber: fields.check_number, replacedBy: pid } }, t);
+    }
     return pid;
   });
 

@@ -144,10 +144,15 @@ export async function restoreRejections(bankAccountId, actor, x = getExecutor())
  * @returns {Promise<Array<{txn:object, payment:object}>>}
  */
 export async function voidedCheckHits(bankAccountId, x = getExecutor()) {
-  const voided = await x.many(
+  // צ׳ק שמספרו הונפק מחדש (payments.js#reissuableCheck) — החיוב בבנק שייך לצ׳ק החי, לא למבוטל.
+  const liveNums = new Set((await x.many(
+    "SELECT check_number FROM payments WHERE bank_account_id = ? AND status <> 'voided' AND check_number IS NOT NULL",
+    [bankAccountId],
+  )).map((r) => String(r.check_number).trim()));
+  const voided = (await x.many(
     "SELECT id, check_number, reference, batch_number, amount FROM payments WHERE bank_account_id = ? AND status = 'voided'",
     [bankAccountId],
-  );
+  )).filter((p) => !(p.check_number && liveNums.has(String(p.check_number).trim())));
   if (!voided.length) return [];
   const debits = await x.many(
     'SELECT * FROM bank_transactions WHERE bank_account_id = ? AND matched_payment_id IS NULL AND amount < 0',

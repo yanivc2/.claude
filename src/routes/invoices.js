@@ -653,8 +653,15 @@ router.post('/:id/deallocate', requirePermission('approve_payment'), async (req,
   const id = Number(req.params.id);
   try {
     await assertInScope('invoice', id, req.scope);
-    await deallocate(id, Number(req.body.payment_id), req.user);
-    return res.redirect(303, `/invoices/${id}?alloc=${encodeURIComponent('השיוך בוטל — הכסף חזר ליתרה על החשבון.')}`);
+    const paymentId = Number(req.body.payment_id);
+    await deallocate(id, paymentId, req.user);
+    // צ׳ק שנשאר בלי אף חשבונית — אפשר להנפיק את אותו מספר לחשבונית אחרת של אותו ספק בשעה הקרובה (בעלים 25/10).
+    const pay = await getExecutor().one('SELECT method, check_number FROM payments WHERE id = ?', [paymentId]);
+    const left = await getExecutor().one('SELECT COUNT(*) AS n FROM payment_lines WHERE payment_id = ?', [paymentId]);
+    const msg = pay && pay.method === 'check' && pay.check_number && Number(left?.n || 0) === 0
+      ? `השיוך בוטל. צ׳ק ${pay.check_number} נשאר בלי חשבונית — בשעה הקרובה אפשר להנפיק את אותו מספר צ׳ק לחשבונית אחרת של אותו ספק (התשלום החדש יחליף אותו).`
+      : 'השיוך בוטל — הכסף חזר ליתרה על החשבון.';
+    return res.redirect(303, `/invoices/${id}?alloc=${encodeURIComponent(msg)}`);
   } catch (err) {
     if (err instanceof RuleError || err instanceof AuthError) {
       return res.redirect(303, `/invoices/${id}?allocfail=${encodeURIComponent(err.message)}`);

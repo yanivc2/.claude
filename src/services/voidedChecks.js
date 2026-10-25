@@ -68,10 +68,16 @@ export function checkStatus(row, today = israelToday()) {
  * `cashed_after_void` is computed here rather than stored: a bank transaction that names this
  * payment is the evidence, and it can appear at any later import.
  */
+/** "חשבון|מספר צ׳ק" של כל צ׳ק חי — מספר שהונפק מחדש אחרי ביטול שייך לצ׳ק החי, לא למבוטל. */
+export async function liveCheckKeys(x = getExecutor()) {
+  const rows = await x.many("SELECT bank_account_id, check_number FROM payments WHERE status <> 'voided' AND check_number IS NOT NULL", []);
+  return new Set(rows.map((r) => `${Number(r.bank_account_id)}|${String(r.check_number).trim()}`));
+}
+
 export async function listVoidedChecks({ scope = null } = {}, x = getExecutor()) {
   const sc = scopeWhere(scope, 'ba.company_id', 'ba.store_id');
   const rows = await x.many(
-    `SELECT p.id, p.check_number, p.payment_date, p.amount, p.void_reason, p.voided_at,
+    `SELECT p.id, p.bank_account_id, p.check_number, p.payment_date, p.amount, p.void_reason, p.voided_at,
             p.void_link_payment_id, p.void_link_invoice_id, p.void_cash_expense_id,
             p.supplier_id, ba.store_id AS store_id, ba.display_name AS account_name,
             st.name AS store_name, c.name AS company_name,
@@ -85,7 +91,12 @@ export async function listVoidedChecks({ scope = null } = {}, x = getExecutor())
       WHERE p.status = 'voided' AND p.method = 'check'${sc.sql}
       ORDER BY p.voided_at DESC, p.id DESC`,
     [...sc.params],
-  );
+  ).then(async (all) => {
+    // צ׳ק שהונפק מחדש באותו מספר אחרי "בטל שיוך" (payments.js#reissuableCheck) אינו צ׳ק מבוטל לרדוף אחריו —
+    // המספר חי שוב בתשלום שהחליף אותו.
+    const live = await liveCheckKeys(x);
+    return all.filter((r) => !live.has(`${Number(r.bank_account_id)}|${String(r.check_number ?? '').trim()}`));
+  });
   if (!rows.length) return [];
 
   // Which of them the bank paid ANYWAY. Two kinds of evidence, and both count:
