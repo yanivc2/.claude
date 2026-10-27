@@ -32,9 +32,11 @@ conservative and reviewed. It is not an application codebase — no build, no te
 
 ## Platform
 
-Windows + PowerShell. Every hook `command` is a PowerShell one-liner with
-`"shell": "powershell"` and Windows path separators. A remote/Linux session cannot
-execute them — edit them as text and validate the JSON instead of running them.
+Hooks are **cross-platform Node scripts** in `hooks/`, invoked as
+`node "$HOME/.claude/hooks/<name>.mjs"` with no `shell` pinning. `node hooks/test.mjs`
+exercises them — run it after editing one, from any platform. The machine itself is
+Windows + PowerShell, so a `PowerShell(...)` permission entry is Windows-only and
+simply never matches elsewhere.
 
 Active model: `opus` at `effortLevel: xhigh` (`settings.json`).
 

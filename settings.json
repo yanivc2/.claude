@@ -5,6 +5,9 @@
       "PowerShell(node --version)",
       "PowerShell(npm --version)",
       "PowerShell(*node generate.mjs*)",
+      "Bash(node --version)",
+      "Bash(npm --version)",
+      "Bash(gh auth status*)",
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git log *)",
@@ -50,7 +53,7 @@
       "Read(~/.gnupg/**)",
       "Read(~/.claude/.credentials.json)",
       "Read(~/.codex/auth.json)",
-      "Read(//c/Users/yaniv/Vault/_organize/*.json)",
+      "Read(~/Vault/_organize/*.json)",
       "Read(**/node_modules/**)",
       "Read(**/.next/**)",
       "Read(**/dist/**)",
@@ -75,7 +78,7 @@
       "Read(~/.claude/backups/**)",
       "Read(~/.claude/cache/**)",
       "Read(~/.claude/deletions/**)",
-      "Read(//c/Users/yaniv/Documents/Codex/**)",
+      "Read(~/Documents/Codex/**)",
       "Read(**/*.db)",
       "Read(**/*.db3)",
       "Read(**/*.bak)",
@@ -86,12 +89,18 @@
       "Read(**/*.mp4)",
       "Read(~/AppData/Local/Google/Chrome/User Data/**)",
       "Read(~/AppData/Local/Microsoft/Edge/User Data/**)",
-      "Read(~/AppData/Roaming/Mozilla/Firefox/**)"
+      "Read(~/AppData/Roaming/Mozilla/Firefox/**)",
+      "Read(~/Library/Application Support/Google/Chrome/**)",
+      "Read(~/Library/Application Support/Microsoft Edge/**)",
+      "Read(~/Library/Application Support/Firefox/**)"
     ],
     "ask": [
       "Read(//c/micha-agent/**/*.vtt)",
+      "Read(~/Projects/**/*.vtt)",
       "Read(**/*.srt)",
-      "Read(//c/Users/yaniv/OneDrive/**)"
+      "Read(//c/Users/yaniv/OneDrive/**)",
+      "Read(~/OneDrive/**)",
+      "Read(~/Library/CloudStorage/OneDrive-*/**)"
     ]
   },
   "hooks": {
@@ -100,13 +109,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "if ((Test-Path '.git') -and -not (Test-Path '.claude\\settings.json')) { $origin = (git remote get-url origin 2>$null); if ($origin -and $origin -notmatch 'yanivc2') { exit 0 }; $base = \"$env:USERPROFILE\\.claude\\templates\\project\"; New-Item -ItemType Directory -Force '.claude' | Out-Null; Copy-Item \"$base\\.claude\\settings.json\" '.claude\\settings.json' -Force; if ((Test-Path \"$base\\.mcp.json\") -and -not (Test-Path '.mcp.json')) { Copy-Item \"$base\\.mcp.json\" '.mcp.json' }; if (-not (Test-Path 'CLAUDE.md')) { Copy-Item \"$base\\CLAUDE.md\" 'CLAUDE.md' }; if (-not (Test-Path 'SETUP.md')) { Copy-Item \"$base\\SETUP.md\" 'SETUP.md' }; if (-not (Test-Path '.claude\\rules')) { Copy-Item \"$base\\.claude\\rules\" '.claude\\rules' -Recurse }; if (-not (Test-Path '.gitignore')) { Copy-Item \"$base\\.gitignore\" '.gitignore' }; $msg = '📋 הוגדר מה-template: CLAUDE.md + SETUP.md + .claude/rules/ + settings.json'; if (Test-Path 'rules') { $msg = $msg + ' | ⚠️ קיימת תיקיית rules/ ישנה — הכללים עברו ל-.claude/rules/ ונטענים לפי הצורך. אפשר להסיר ידנית אחרי בדיקה.' }; Write-Output (@{systemMessage = $msg} | ConvertTo-Json -Compress) }; exit 0",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/seed-project.mjs\""
           },
           {
             "type": "command",
-            "command": "if ((Test-Path 'package.json') -and -not (Test-Path 'node_modules')) { Write-Output '{\"systemMessage\": \"⚠️ שים לב: קובץ package.json קיים אך תיקיית node_modules חסרה. מומלץ להריץ npm install\"}' }; if ((Test-Path '.env.example') -and -not (Test-Path '.env')) { Write-Output '{\"systemMessage\": \"🔑 שים לב: קובץ .env חסר אך קיים .env.example. כדאי להעתיק וליצור קובץ הגדרות מקומי.\"}' }",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/env-nudges.mjs\""
           }
         ]
       }
@@ -116,18 +123,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python -c \"import winsound; winsound.PlaySound(r'C:\\\\Windows\\\\Media\\\\tada.wav', winsound.SND_FILENAME)\"",
-            "shell": "powershell"
-          },
-          {
-            "type": "command",
-            "command": "if (Test-Path '.git') { $stat = git diff HEAD --stat 2>&1; if ($stat) { $lines = ($stat | Select-Object -First 12) -join '\\n'; $out = @{systemMessage = ('📝 ' + $lines)} | ConvertTo-Json -Compress; Write-Output $out } }; exit 0",
-            "shell": "powershell"
-          },
-          {
-            "type": "command",
-            "command": "if (Test-Path 'deletions') { Get-ChildItem 'deletions' | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-14) } | Remove-Item -Force }; exit 0",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/session-summary.mjs\""
           }
         ]
       }
@@ -137,8 +133,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "Write-Output '{\"systemMessage\": \"Before compacting: save open TODOs, decisions and lessons to CLAUDE.md or .claude/rules/. Note: path-scoped rules are DROPPED by /compact until a matching file is read again — prefer /clear and restarting in the subdirectory you are working in.\"}'",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/precompact-notice.mjs\""
           }
         ]
       }
@@ -149,8 +144,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $p = $j.tool_input.file_path; if ($p -match '(?i)[\\\\/]OneDrive') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: OneDrive is read-only (iron rule) — read is allowed, writing is not\"}'; exit 1 }; exit 0",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/guard-onedrive.mjs\""
           }
         ]
       },
@@ -159,53 +153,28 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $c = $j.tool_input.command; if ($c -match 'rm -rf|reset --hard|drop table') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: destructive command\"}'; exit 1 }; if (($c -match '(?i)(Move-Item|Remove-Item|Copy-Item|Set-Content|Out-File|New-Item|Rename-Item|\\bmv\\b|\\bcp\\b|\\brm\\b|\\bdel\\b)') -and ($c -match '(?i)[\\\\/]OneDrive')) { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: OneDrive is read-only (iron rule)\"}'; exit 1 }; if ($c -match '(?i)(cat|type|Get-Content|notepad|more|head|tail|Select-String)') { if ($c -match '(?i)\\.env(?!\\.example)|session\\.json|client_secret') { Write-Output '{\"continue\":false,\"stopReason\":\"BLOCKED: secrets file must not enter context\"}'; exit 1 } }; exit 0",
-            "shell": "powershell"
+            "command": "node \"$HOME/.claude/hooks/guard-bash.mjs\""
           }
         ]
       },
       {
-        "matcher": "Write",
+        "matcher": "Write|Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -and (Test-Path $f -PathType Leaf)) { $d = Join-Path $PWD 'deletions'; New-Item -ItemType Directory -Force $d | Out-Null; $ts = Get-Date -Format 'yyyyMMdd_HHmmss'; $n = [IO.Path]::GetFileName($f); Copy-Item $f (Join-Path $d \"${ts}_$n\") -Force }; exit 0",
-            "shell": "powershell",
-            "statusMessage": "Backing up file before overwrite..."
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $cmd = $j.tool_input.command; if ($cmd -match '\\brm\\b|\\bRemove-Item\\b') { $parts = $cmd -split '\\s+' | Where-Object { $_ -notmatch '^-' -and $_ -notin @('rm','Remove-Item','') }; foreach ($f in $parts) { if ($f -and (Test-Path $f -PathType Leaf)) { $d = Join-Path $PWD 'deletions'; New-Item -ItemType Directory -Force $d | Out-Null; $ts = Get-Date -Format 'yyyyMMdd_HHmmss'; $n = [IO.Path]::GetFileName($f); Copy-Item $f (Join-Path $d \"${ts}_$n\") -Force } } }; exit 0",
-            "shell": "powershell",
-            "statusMessage": "Backing up files before deletion..."
+            "command": "node \"$HOME/.claude/hooks/backup-before-write.mjs\"",
+            "statusMessage": "Backing up before overwrite or delete..."
           }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "Edit",
+        "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -notmatch '\\.(ts|tsx)$' -or -not (Test-Path 'tsconfig.json')) { exit 0 }; $r = npx tsc --noEmit 2>&1; if ($LASTEXITCODE -ne 0) { $lines = ($r | Select-Object -First 5) -join ' | '; $out = @{systemMessage = ('⚠️ TypeScript: ' + $lines)} | ConvertTo-Json -Compress; Write-Output $out }; exit 0",
-            "shell": "powershell",
-            "statusMessage": "בודק TypeScript..."
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "$j = [System.Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $j.tool_input.file_path; if ($f -notmatch '\\.(ts|tsx)$' -or -not (Test-Path 'tsconfig.json')) { exit 0 }; $r = npx tsc --noEmit 2>&1; if ($LASTEXITCODE -ne 0) { $lines = ($r | Select-Object -First 5) -join ' | '; $out = @{systemMessage = ('⚠️ TypeScript: ' + $lines)} | ConvertTo-Json -Compress; Write-Output $out }; exit 0",
-            "shell": "powershell",
+            "command": "node \"$HOME/.claude/hooks/typecheck.mjs\"",
             "statusMessage": "בודק TypeScript..."
           }
         ]

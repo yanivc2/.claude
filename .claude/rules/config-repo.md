@@ -27,6 +27,19 @@ paths:
 │   ├── settings.json            — nested hooks/permissions for working *in* this repo
 │   └── rules/config-repo.md     — this file
 │
+├── hooks/                       — the hook implementations, cross-platform Node
+│   ├── _lib.mjs                 — readPayload / notify / block / ONEDRIVE / timestamp
+│   ├── test.mjs                 — `node hooks/test.mjs`; run after any hook change
+│   ├── guard-onedrive.mjs       — PreToolUse: refuses writes under OneDrive
+│   ├── guard-bash.mjs           — PreToolUse: destructive cmds, OneDrive, secret reads
+│   ├── backup-before-write.mjs  — PreToolUse: copies into deletions/ before loss
+│   ├── seed-project.mjs         — SessionStart: scaffolds a new repo from the template
+│   ├── env-nudges.mjs           — SessionStart: missing node_modules / .env
+│   ├── session-summary.mjs      — Stop: diff summary + prunes deletions/ after 14d
+│   ├── session-log.mjs          — Stop (repo-scoped): appends to session-log.md
+│   ├── repo-banner.mjs          — SessionStart (repo-scoped): the three rules
+│   └── precompact-notice.mjs    — PreCompact: persist TODOs before context is lost
+│
 ├── commands/
 │   ├── install-review.md        — /install-review (implements operating rule #1)
 │   ├── organize-folders.md      — /organize-folders: staged cleanup + vault seeding
@@ -43,7 +56,8 @@ paths:
 │       ├── .mcp.json            — GitHub MCP server for the new project
 │       ├── .gitignore           — standard Node/TS ignore set
 │       └── .claude/
-│           ├── settings.json    — per-project hooks (typecheck, lint, session log)
+│           ├── settings.json    — per-project hooks (lint-check, banner, session log)
+│           ├── hooks/           — standalone Node hooks, copied into each project
 │           └── rules/           — path-scoped rule files (see below)
 │
 └── shell-snapshots/             — captured shell env (gitignored)
@@ -67,8 +81,9 @@ Claude Code merges the nearest `.claude/settings.json` with the global one.
     project-root `rules/` directory exists, it emits a migration note (never deletes).
   - **Environment nudges:** warns on `package.json` without `node_modules`, or
     `.env.example` without `.env`.
-- **`Stop`** — completion chime, `git diff HEAD --stat` summary, prunes `deletions/`
-  older than 14 days.
+- **`Stop`** — `git diff HEAD --stat` summary, then prunes `deletions/` older than 14
+  days (`session-summary.mjs`). The completion chime is **machine-specific** and lives
+  in `settings.local.json`, not here — `winsound` on Windows, `afplay` on macOS.
 - **`PreCompact`** — reminds Claude to persist TODOs/decisions before context is lost,
   and warns that path-scoped rules are dropped by `/compact`.
 - **`PreToolUse`**
@@ -77,8 +92,9 @@ Claude Code merges the nearest `.claude/settings.json` with the global one.
     `Write()` entries in `permissions.deny` are accepted but never checked.
   - **Bash guard:** blocks `rm -rf`, `reset --hard`, `drop table`, and reads of
     `.env` / `session.json`.
-  - **Write backup:** copies a file into `deletions/<timestamp>_<name>` before overwrite.
-  - **Bash delete backup:** backs up `rm`/`Remove-Item` targets into `deletions/`.
+  - **Backup before loss** (`backup-before-write.mjs`, one script for both matchers):
+    copies into `deletions/<timestamp>_<name>` before a `Write` overwrites a file or a
+    `Bash` `rm`/`Remove-Item` destroys one.
 - **`PostToolUse`** — typecheck after editing `.ts`/`.tsx` in a repo with `tsconfig.json`.
 
 > `session-log.md` is auto-maintained by the Stop hook (kept under ~80 lines, entries
@@ -172,8 +188,10 @@ ban a plugin globally. Complements the `/install-review` requirement.
   `.claude/settings.json` over the global list when the need is local.
   `permissions.deny` is the mechanism for excluding files — **`.claudeignore` does not
   exist.** Only `Read()` and `Edit()` path rules are actually checked.
-- **Hooks are PowerShell.** Match the existing style and the `exit 0` convention so a
-  hook failure never blocks a session.
+- **Hooks are Node scripts in `hooks/`**, sharing `hooks/_lib.mjs`. Keep the `exit 0`
+  convention so a hook failure never blocks a session — only the two guards exit
+  non-zero, and only deliberately. **Run `node hooks/test.mjs` after any change**; it
+  asserts every refusal and checks that each settings file names a script that exists.
 - **Keep `CLAUDE.md` under 200 lines** — Anthropic's stated limit, and a bloated
   memory file causes Claude to ignore the rules that matter.
 - **Don't commit secrets.** `.credentials.json`, `.env*`, and session/cache dirs are
