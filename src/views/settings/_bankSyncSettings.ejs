@@ -12,7 +12,10 @@
       <p class="muted">נדרש עדכון מסד נתונים: "עדכון מסד נתונים" למעלה.</p>
     <% } else if (bs) { %>
       <p style="margin:0 0 .5rem"><strong>מחשב המשרד (הפועלים לעסקים):</strong>
-        <% if (bs.agentOnline) { %><span class="badge b-paid">● מחובר</span>
+        <%# 🔔 רק פעמון: הסוכן לא שואל בעצמו, ולכן "נראה לאחרונה" אינו מדד חיים — אין "לא מחובר". %>
+        <% if (bs.agentBellOnly) { %><span class="badge b-paid">🔔 מאזין לפעמון</span>
+          <span class="muted" style="font-size:12px">"סנכרן עכשיו" מעיר אותו מיד, בכל שעה. אם הוא לא קם תוך 2 דקות — הבקשה נכשלת ותגיע התראה.</span>
+        <% } else if (bs.agentOnline) { %><span class="badge b-paid">● מחובר</span>
         <% } else if (bs.agentEconomy) { %><span class="badge b-on_hold">🌙 במצב חיסכון</span>
           <span class="muted" style="font-size:12px">מחוץ לשעות הפעילות<%= bs.agentHours ? ' (' + bs.agentHours + ')' : '' %> הסוכן בודק בקשות פעם ב-<%= bs.agentOffEvery %> דקות — בקשת סנכרון תיאסף תוך עד <%= bs.agentOffEvery %> דקות, ואז יגיע קוד SMS.</span>
         <% } else if (bs.agentSeenSec != null) { %><span class="badge b-on_hold">● לא מחובר</span>

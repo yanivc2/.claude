@@ -357,8 +357,8 @@ router.get('/bank-sync/status', requirePermission('import_bank'), async (req, re
 
 router.post('/bank-sync/request', requirePermission('import_bank'), async (req, res, next) => {
   try {
-    // 🔔 רק הבעלים מצלצל לסוכן (בעלים 27/10: "כפתור רק אצלי") — lib/agentBell.js.
-    const ring = req.user?.role === 'owner' ? () => ringAgentBell({ secret: config.bankAgentSecret }) : null;
+    // 🔔 כל "סנכרן עכשיו" מצלצל לסוכן (בעלים 27/10: "תעבור מעכשיו" — רק פעמון, בלי בדיקות קבועות). lib/agentBell.js.
+    const ring = () => ringAgentBell({ secret: config.bankAgentSecret });
     await bankSyncReply(req, res, () => requestSync(req.user, undefined, { ring }), 'בקשת הסנכרון נשלחה למחשב המשרד.');
   } catch (err) {
     next(err);

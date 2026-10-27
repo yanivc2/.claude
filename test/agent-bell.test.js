@@ -9,8 +9,8 @@ import { createApp } from '../src/app.js';
 import { createSession } from '../src/lib/auth.js';
 import { setSetting, getSetting } from '../src/services/appSettings.js';
 import { bellTopic, ringAgentBell, parseBellStream, _setBellTransport, BELL_SERVER } from '../src/lib/agentBell.js';
-import { requestSync, syncStatus, claimNext } from '../src/services/bankSyncJobs.js';
-import { makeBell } from '../agent/bank-agent.mjs';
+import { requestSync, syncStatus, claimNext, bellOnly, agentAsleep, claimWindowSec } from '../src/services/bankSyncJobs.js';
+import { makeBell, agentSchedule } from '../agent/bank-agent.mjs';
 
 const old = (secAgo) => new Date(Date.now() - secAgo * 1000).toISOString().slice(0, 19).replace('T', ' ');
 
@@ -93,6 +93,7 @@ test('owner + listening agent: the job is saved first, then the bell rings; the 
   assert.match(job.message, /מעיר את מחשב המשרד/);
   const st = await syncStatus(own, null, x);
   assert.equal(st.agentBell, true);
+  assert.equal(st.agentBellOnly, false, 'economy mode + bell is not bell-only');
   const audit = await x.one(`SELECT details FROM audit_log WHERE action = 'bank_sync.request'`, []);
   assert.match(audit.details, /rang/);
 });
@@ -107,23 +108,57 @@ test('a failed ring changes nothing but the wording — the request waits for th
   assert.match(row.message, /תוך עד 30 דקות/);
 });
 
-test('only the owner rings: a secretary gets the regular note, and an asleep agent still refuses her', async () => {
+test('everyone rings now: a secretary sees the bell too, and an agent that listens is never "asleep"', async () => {
   const x = await freshDb();
   const sec = await secretary(x);
-  const own = await owner(x);
-  await setSetting('bank_agent_heartbeat', JSON.stringify({ at: old(60), agent: 'office-pc', hours: 'א׳–ה׳ 08:00-16:00', mode: 'off', offEvery: 30, bell: true }), x);
-  assert.equal((await syncStatus(sec, null, x)).agentBell, false);
-  assert.equal((await syncStatus(own, null, x)).agentBell, true);
-
-  // סוכן בלי בדיקה מחוץ לשעות (offHoursCheckMinutes: 0), בשעה שמחוץ לשעות שלו: נחסם — אלא אם מצלצלים.
+  // סוכן בלי בדיקה מחוץ לשעות (offHoursCheckMinutes: 0), בשעה שמחוץ לשעות שלו — אבל מאזין לפעמון.
   const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     .indexOf(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', weekday: 'short' }).format(new Date()));
   const other = ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'][(day + 3) % 7];
   await setSetting('bank_agent_heartbeat', JSON.stringify({ at: old(5 * 3600), agent: 'office-pc', hours: `${other}׳ 08:00-16:00`, mode: 'sleep', offEvery: 0, bell: true }), x);
-  await assert.rejects(() => requestSync(sec, x), /מחוץ לשעות הפעילות של הסוכן/);
-  assert.equal((await syncStatus(own, null, x)).agentAsleepMsg, null, 'the owner\'s button is not locked');
-  const job = await requestSync(own, x, { ring: async () => ({ ok: true }) });
+  const st = await syncStatus(sec, null, x);
+  assert.equal(st.agentBell, true);
+  assert.equal(st.agentAsleepMsg, null, 'the button is not locked');
+  const job = await requestSync(sec, x, { ring: async () => ({ ok: true }) });
   assert.equal(job.status, 'requested');
+  assert.match(job.message, /מעיר את מחשב המשרד/);
+});
+
+// 🔔 "רק פעמון" (בעלים 27/10: "תעבור מעכשיו"): הסוכן לא שואל בעצמו. בקשה שלא נאספה תוך 2 דקות = תקלה,
+// נכשלת מיד בהודעה שאומרת מה לבדוק, ומתריעה פעם אחת.
+test('bell-only: reported as its own mode, never "asleep"; an uncollected request fails in 2 minutes with one alert', async () => {
+  const x = await freshDb();
+  const own = await owner(x);
+  await claimNext('office-pc', x, { hours: 'א׳–ה׳ 08:00-16:00', mode: 'bell', offEvery: 30, bell: true });
+  const hb = JSON.parse(await getSetting('bank_agent_heartbeat', null, x));
+  assert.equal(hb.mode, 'bell');
+  assert.equal(bellOnly(hb), true);
+  assert.equal(agentAsleep({ ...hb, at: old(5 * 3600) }), null);
+  assert.equal(claimWindowSec(hb), 120, 'no 30-minute economy window — it should be up in seconds');
+
+  const st = await syncStatus(own, null, x);
+  assert.equal(st.agentBellOnly, true);
+  assert.equal(st.agentEconomy, false);
+
+  await x.run(
+    `INSERT INTO bank_sync_jobs (status, login_key, requested_by, requested_at, updated_at, message) VALUES ('requested', 'owner', ?, ?, ?, 'x')`,
+    [own.id, old(200), old(200)],
+  );
+  await syncStatus(own, null, x); // כל פנייה מריצה את בדיקת הפקיעה
+  await syncStatus(own, null, x);
+  const job = await x.one('SELECT status, message FROM bank_sync_jobs ORDER BY id DESC LIMIT 1', []);
+  assert.equal(job.status, 'expired');
+  assert.match(job.message, /לא התעורר[\s\S]*חלון הסוכן[\s\S]*Claude/);
+  const alerts = await x.many(`SELECT title FROM notifications WHERE title LIKE ?`, ['%מחשב המשרד לא הגיב%']);
+  assert.equal(alerts.length, 1, 'one alert, not one per page refresh');
+});
+
+test('agent schedule, bell-only: no questions at all — not even in working hours — unless rung or just synced', () => {
+  const now = 1_000_000_000;
+  assert.deepEqual(agentSchedule({ inHours: true, now, bellOnly: true }), { action: 'wait', mode: 'bell', waitMs: 60_000 });
+  assert.deepEqual(agentSchedule({ inHours: false, now, offEvery: 30, bellOnly: true }), { action: 'wait', mode: 'bell', waitMs: 60_000 });
+  assert.equal(agentSchedule({ inHours: true, now, bellOnly: true, awakeUntil: now + 1000 }).action, 'poll', 'after a ring');
+  assert.equal(agentSchedule({ inHours: true, now, bellOnly: false }).action, 'poll', 'the bell line is down → the regular schedule');
 });
 
 let server, base;
@@ -134,7 +169,7 @@ before(async () => {
 });
 after(() => server.close());
 
-test('route: the owner\'s "סנכרן עכשיו" rings; nobody else\'s does', async () => {
+test('route: every "סנכרן עכשיו" rings — the secretary\'s too', async () => {
   const saved = config.bankAgentSecret;
   config.bankAgentSecret = 'agent-s3cret';
   const calls = [];
@@ -150,11 +185,11 @@ test('route: the owner\'s "סנכרן עכשיו" rings; nobody else\'s does', a
     });
     const r1 = await post(sec.id);
     assert.equal(r1.status, 200, await r1.clone().text());
-    assert.equal(calls.length, 0, 'a secretary does not ring');
+    assert.deepEqual(calls, [`${BELL_SERVER}/${bellTopic('agent-s3cret')}`], 'a secretary rings too');
     await x.run(`UPDATE bank_sync_jobs SET status = 'cancelled'`, []);
     const r2 = await post(own.id);
     assert.equal(r2.status, 200);
-    assert.deepEqual(calls, [`${BELL_SERVER}/${bellTopic('agent-s3cret')}`]);
+    assert.equal(calls.length, 2);
   } finally {
     config.bankAgentSecret = saved;
     _setBellTransport(null);

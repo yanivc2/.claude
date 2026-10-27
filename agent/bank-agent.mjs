@@ -102,7 +102,8 @@ export async function listenBell(cfg, bell, state, { bellTopic, parseBellStream,
       if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
       state.connected = true;
       backoff = 5_000;
-      if (!announced) { log('🔔 מאזין לפעמון — "סנכרן עכשיו" של הבעלים יעיר אותי מיד.'); announced = true; }
+      if (!announced) { log('🔔 מאזין לפעמון — "סנכרן עכשיו" יעיר אותי מיד.'); announced = true; }
+      state.onConnect?.(); // הסוכן מדווח לאפליקציה מיד שהוא מאזין (אחרת הכרטיס יודע רק בשאלה הבאה)
       const dec = new TextDecoder();
       let buf = '';
       for await (const chunk of res.body) {
@@ -131,8 +132,13 @@ export async function listenBell(cfg, bell, state, { bellTopic, parseBellStream,
  * @returns {{action:'poll'|'wait', mode:'on'|'off'|'sleep', waitMs:number}}
  *   poll = לשלוח בקשה עכשיו; wait = לחכות waitMs בלי שום בקשה.
  */
-export function agentSchedule({ inHours, now, awakeUntil = 0, nextOffCheck = 0, offEvery = 0, pollEveryMs = 30_000 }) {
-  if (inHours || now < awakeUntil) return { action: 'poll', mode: 'on', waitMs: pollEveryMs };
+// 🔔 `bellOnly` (בעלים 27/10: "תעבור מעכשיו" — רק פעמון): כשהקו לפעמון מחובר הסוכן לא שואל בעצמו
+// בכלל, גם לא בשעות העבודה — רק אחרי צלצול (ער `BELL_AWAKE_MS`) או סנכרון. כשהקו נופל — חוזרים לבד
+// ללוח הזמנים הרגיל, כדי שתקלה בפעמון לא תשאיר בקשה בלי אף אחד שיאסוף אותה.
+export function agentSchedule({ inHours, now, awakeUntil = 0, nextOffCheck = 0, offEvery = 0, pollEveryMs = 30_000, bellOnly = false }) {
+  if (now < awakeUntil) return { action: 'poll', mode: 'on', waitMs: pollEveryMs };
+  if (bellOnly) return { action: 'wait', mode: 'bell', waitMs: 60_000 };
+  if (inHours) return { action: 'poll', mode: 'on', waitMs: pollEveryMs };
   if (!offEvery) return { action: 'wait', mode: 'sleep', waitMs: 60_000 };
   if (now >= nextOffCheck) return { action: 'poll', mode: 'off', waitMs: offEvery * 60_000 };
   return { action: 'wait', mode: 'off', waitMs: Math.min(60_000, nextOffCheck - now) };
@@ -511,7 +517,7 @@ async function check() {
       if (!bellTopic(cfg.agentSecret)) throw new Error('אין agentSecret');
       const r = await fetch(`${String(cfg.bellServer || BELL_SERVER).replace(/\/+$/, '')}/v1/health`, { signal: AbortSignal.timeout(5000) });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      log('✓ פעמון — "סנכרן עכשיו" של הבעלים יעיר את הסוכן מיד');
+      log('✓ פעמון — "סנכרן עכשיו" יעיר את הסוכן מיד');
     } catch (e) {
       log(`⚠ פעמון — אין חיבור (${e.message}). הסנכרון עובד, רק בלי השכמה מיידית מחוץ לשעות.`);
     }
@@ -538,6 +544,7 @@ async function main() {
     const every = offEveryMin(cfg);
     log(every ? `מחוץ לשעות — מצב חיסכון: בודק בקשות סנכרון פעם ב-${every} דקות.` : 'מחוץ לשעות — לא שולח בקשות בכלל.');
   }
+  if (cfg.bell !== false && cfg.bellOnly !== false) log('🔔 כשהפעמון מחובר — רק פעמון: הלוח שלמעלה חל רק אם הקו לפעמון נופל.');
   let backoff = 0;
   let mode = null;
   let awakeUntil = 0;
@@ -551,6 +558,9 @@ async function main() {
       .then((m) => listenBell(cfg, bell, bellState, m))
       .catch((e) => log(`🔔 בלי פעמון (${e.message}) — עדכן גם את התיקייה src.`));
   }
+  // הקו לפעמון עלה (או חזר) → שאלה אחת עכשיו, רק כדי שהאפליקציה תדע שהוא מאזין — בלי "צלצול" ובלי להישאר ער.
+  let reportNow = false;
+  bellState.onConnect = () => { reportNow = true; bell.ring(); };
   // צלצול → ער לכמה דקות (כמו אחרי סנכרון), כך שהשאלה הבאה יוצאת עכשיו. לא יותר מפעם ב-15 שניות.
   // צלצול צפוף מדי נבלע ומחכה את המרווח, כדי שגם צלצול בלי סוף לא יהפוך לשאלות בלי סוף.
   const onRing = async () => {
@@ -561,24 +571,30 @@ async function main() {
   };
   for (;;) {
     const every = offEveryMin(cfg);
-    const plan = agentSchedule({
-      inHours: withinHours(hours), now: Date.now(), awakeUntil, nextOffCheck, offEvery: every, pollEveryMs: pollMs(cfg),
+    // `"bellOnly": false` ב-config.json = הפעמון נשאר, אבל גם הבדיקה הקבועה (ההתנהגות של ·367).
+    const bellOnly = bellState.connected && cfg.bellOnly !== false;
+    let plan = agentSchedule({
+      inHours: withinHours(hours), now: Date.now(), awakeUntil, nextOffCheck, offEvery: every, pollEveryMs: pollMs(cfg), bellOnly,
     });
-    if (plan.mode !== mode) {
-      if (plan.mode === 'on' && mode) log('בתוך שעות הפעילות — ממשיך.');
-      if (plan.mode === 'off') log(`מחוץ לשעות הפעילות (${hours.label}) — מצב חיסכון, בדיקה פעם ב-${every} דקות.`);
-      if (plan.mode === 'sleep') log(`מחוץ לשעות הפעילות (${hours.label}, שעון ישראל) — לא שולח בקשות עד תחילת הפעילות הבאה.`);
-      mode = plan.mode;
+    if (reportNow) { reportNow = false; if (plan.action === 'wait') plan = { ...plan, action: 'poll' }; }
+    // ברק-פעמון, הדקות שאחרי צלצול הן עדיין "רק פעמון" — לא "בתוך שעות הפעילות".
+    const shown = bellOnly ? 'bell' : plan.mode;
+    if (shown !== mode) {
+      if (shown === 'bell') log('🔔 רק פעמון — לא שואל את האפליקציה בעצמי; כל "סנכרן עכשיו" מעיר אותי.');
+      if (shown === 'on' && mode) log(mode === 'bell' ? '🔔 הקו לפעמון נפל — חוזר לבדיקה הקבועה עד שיחזור.' : 'בתוך שעות הפעילות — ממשיך.');
+      if (shown === 'off') log(`מחוץ לשעות הפעילות (${hours.label}) — מצב חיסכון, בדיקה פעם ב-${every} דקות.`);
+      if (shown === 'sleep') log(`מחוץ לשעות הפעילות (${hours.label}, שעון ישראל) — לא שולח בקשות עד תחילת הפעילות הבאה.`);
+      mode = shown;
     }
     if (plan.action === 'wait') {
-      if (await bell.sleep(plan.waitMs)) await onRing(); // שעון מקומי בלבד — אף בקשה לא יוצאת, אלא אם צלצלו
+      if ((await bell.sleep(plan.waitMs)) && !reportNow) await onRing(); // שעון מקומי בלבד — אף בקשה לא יוצאת, אלא אם צלצלו
       try { cfg = loadConfig(); hours = activeHours(cfg); } catch { /* נשארים עם ההגדרות הקודמות */ }
       continue;
     }
     if (plan.mode === 'off') nextOffCheck = Date.now() + plan.waitMs;
     try {
       const { job } = await api(cfg, '/ingest/bank-agent/claim', {
-        hours: hours?.label || null, mode: plan.mode, offEvery: every, bell: bellState.connected,
+        hours: hours?.label || null, mode: bellOnly ? 'bell' : plan.mode, offEvery: every, bell: bellState.connected,
       });
       backoff = 0;
       if (job) {
@@ -586,7 +602,8 @@ async function main() {
         cfg = loadConfig(); // משתמש שנוסף ל-config.json נכנס לתוקף בלי להפעיל מחדש
         hours = activeHours(cfg);
         await runJob(cfg, job);
-        awakeUntil = Date.now() + AFTER_JOB_AWAKE_MS;
+        // ברק-פעמון לחיצה חוזרת מצלצלת בעצמה — אין צורך להישאר ער 10 דקות אחרי סנכרון.
+        if (!bellOnly) awakeUntil = Date.now() + AFTER_JOB_AWAKE_MS;
         continue;
       }
     } catch (e) {
@@ -595,7 +612,7 @@ async function main() {
       await sleep(backoff);
       continue;
     }
-    if (plan.mode === 'on' && (await bell.sleep(plan.waitMs))) await onRing();
+    if (plan.mode === 'on' && (await bell.sleep(plan.waitMs)) && !reportNow) await onRing();
   }
 }
 

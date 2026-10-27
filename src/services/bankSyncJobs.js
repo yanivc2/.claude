@@ -53,6 +53,14 @@ function economyEvery(agent) {
   const n = Number(agent?.offEvery);
   return agent?.mode === 'off' && Number.isFinite(n) && n > 0 ? n : 0;
 }
+/**
+ * 🔔 "רק פעמון" (בעלים 27/10: "מספיק לי רק הפעמון, אם תהיה בעיה אני מחובר לקלוד מהסלולרי"): הסוכן לא
+ * שואל בעצמו בכלל — רק כשמצלצלים (כל "סנכרן עכשיו") ובשעה שהקו לפעמון עלה. כשהקו נופל הוא חוזר לבד
+ * לבדיקה הקבועה ומדווח `mode` אחר, ולכן כאן "רק פעמון" = מה שהוא דיווח אחרון.
+ */
+export function bellOnly(agent) {
+  return agent?.mode === 'bell' && agent?.bell === true;
+}
 /** כמה זמן בקשה ממתינה לסוכן לפני שהיא פוקעת. */
 export function claimWindowSec(agent) {
   const every = economyEvery(agent);
@@ -106,7 +114,7 @@ export function outsideAgentHours(label, now = new Date()) {
  * `legacy` = גרסה ישנה (פנייה בלי `mode` בכלל) — מה שמתקן אותה הוא עדכון הקובץ במחשב המשרד.
  */
 export function agentAsleep(agent, now = new Date()) {
-  if (!agent || economyEvery(agent)) return null;
+  if (!agent || economyEvery(agent) || bellOnly(agent)) return null; // 🔔 פעמון מעיר אותו בכל שעה
   if (ageSec(agent.at) <= AGENT_ONLINE_SEC) return null;
   if (outsideAgentHours(agent.hours, now) !== true) return null;
   return { hours: agent.hours, legacy: !agent.mode };
@@ -150,7 +158,8 @@ export function normalizeOtp(raw) {
  * החישוב ב-JS ולא ב-SQL: חשבון תאריכים שונה בין SQLite ל-Postgres, ויש כאן לכל היותר שורה או שתיים.
  */
 async function expireStale(x) {
-  const windowSec = claimWindowSec(await readHeartbeat(x));
+  const agent = await readHeartbeat(x);
+  const windowSec = claimWindowSec(agent);
   const rows = await x.many(
     `SELECT id, status, updated_at, requested_at FROM bank_sync_jobs WHERE status IN (?, ?, ?)`,
     ACTIVE,
@@ -160,7 +169,10 @@ async function expireStale(x) {
     let msg = null;
     if (r.status === 'requested' && ageSec(r.requested_at) > windowSec) {
       next = 'expired';
-      msg = `מחשב המשרד לא הגיב תוך ${Math.round(windowSec / 60)} דקות. ודא שהוא דלוק ושהסוכן רץ, ולחץ שוב.`;
+      // 🔔 ברק-פעמון הסוכן אמור לקום תוך שניות — אם לא קם, זו תקלה ולא "עוד מעט": אומרים מה לבדוק.
+      msg = bellOnly(agent)
+        ? `מחשב המשרד לא התעורר תוך ${Math.round(windowSec / 60)} דקות — כנראה חלון הסוכן סגור, המחשב כבוי, או שהקו לפעמון נפל. בדוק שחלון הסוכן פתוח במחשב המשרד, או כתוב ל-Claude.`
+        : `מחשב המשרד לא הגיב תוך ${Math.round(windowSec / 60)} דקות. ודא שהוא דלוק ושהסוכן רץ, ולחץ שוב.`;
     } else if (r.status === 'awaiting_otp' && ageSec(r.updated_at) > OTP_WAIT_SEC) {
       next = 'failed';
       msg = 'לא הוזן קוד SMS בזמן. לחץ "סנכרן" שוב כדי לקבל קוד חדש.';
@@ -169,11 +181,15 @@ async function expireStale(x) {
       msg = 'מחשב המשרד הפסיק לדווח באמצע הסנכרון.';
     }
     if (next) {
-      await x.run(
+      const u = await x.run(
         `UPDATE bank_sync_jobs SET status = ?, message = ?, otp_code = NULL, updated_at = ?, finished_at = ?
           WHERE id = ? AND status = ?`,
         [next, msg, nowTs(), nowTs(), r.id, r.status],
       );
+      // בקשה שאף אחד לא אסף = הבעלים צריך לדעת מיד (פעם אחת — רק מי שביצע את המעבר מתריע).
+      if (next === 'expired' && u.changes) {
+        await notify(`⚠️ <b>סנכרון בנק: מחשב המשרד לא הגיב</b>\n${msg}`, { kind: 'bank', link: '/reconciliation#bank-sync' });
+      }
     }
   }
 }
@@ -197,7 +213,7 @@ async function waitingMessage(x) {
     : 'ממתין למחשב המשרד…';
 }
 
-// 🔔 `ring` (בעלים בלבד — routes/reconciliation.js, lib/agentBell.js): מצלצל לסוכן אחרי שהבקשה נשמרה,
+// 🔔 `ring` (כל מי שלוחץ — routes/reconciliation.js, lib/agentBell.js): מצלצל לסוכן אחרי שהבקשה נשמרה,
 // כדי שישאל מיד ולא בבדיקה הקבועה הבאה. סוכן שדיווח שהוא מאזין לפעמון (`bell` בפעימה) לא "ישן"
 // בשביל מי שמצלצל — הכפתור לא ננעל, וההודעה אומרת "מעיר". צלצול שנכשל לא מכשיל כלום: הבקשה
 // נשארת, וההודעה חוזרת לזמן ההמתנה הרגיל.
@@ -303,12 +319,14 @@ export async function syncStatus(user, scope = null, x = getExecutor()) {
     agentOffEvery: every || null,
     agentSeenSec: Number.isFinite(agentAge) ? Math.round(agentAge) : null,
     agentHours: agent?.hours || null,
-    // 🔔 הסוכן מאזין לפעמון, והבעלים (רק הוא מצלצל) — "סנכרן עכשיו" שלו מעיר אותו מיד.
-    agentBell: agent?.bell === true && user?.role === 'owner',
+    // 🔔 הסוכן מאזין לפעמון — "סנכרן עכשיו" (של כל אחד) מעיר אותו מיד.
+    agentBell: agent?.bell === true,
+    // 🔔 רק פעמון: הסוכן לא שואל בעצמו, ולכן "נראה לאחרונה" אינו מדד חיים — אל תציג "לא מחובר".
+    agentBellOnly: bellOnly(agent),
     // הסוכן לא יאסוף בקשה עכשיו (מחוץ לשעות, בלי מצב חיסכון) — הכרטיס אומר זאת במקום כפתור שנכשל.
-    // מי שמצלצל לא נחסם: הפעמון מעיר גם סוכן שלא בודק בכלל מחוץ לשעות.
+    // סוכן שמאזין לפעמון לא נחסם: הצלצול מעיר גם סוכן שלא בודק בכלל מחוץ לשעות.
     agentAsleepMsg: (() => {
-      if (agent?.bell === true && user?.role === 'owner') return null;
+      if (agent?.bell === true) return null;
       const a = agentAsleep(agent);
       return a ? asleepMessage(a) : null;
     })(),
@@ -376,7 +394,7 @@ async function heartbeat(agentName, x, hours = undefined, meta = {}) {
   // במקום "לא מחובר" סתמי. `undefined` = הפנייה לא מסרה שעות, נשארים עם הידוע.
   const h = hours === undefined ? (prev?.hours ?? null) : (/^[א-ת׳,–\- ]{0,24}(\d{2}:\d{2}-\d{2}:\d{2})?$/.test(String(hours || '')) && /\S/.test(String(hours || '')) ? String(hours).trim() : null);
   // מצב ומרווח החיסכון — רק ערכים מוכרים נשמרים (הגוף מגיע מהסוכן, לא סומכים עליו עיוור).
-  const mode = meta.mode === 'off' ? 'off' : meta.mode === 'on' ? 'on' : (prev?.mode ?? null);
+  const mode = ['off', 'on', 'bell'].includes(meta.mode) ? meta.mode : (prev?.mode ?? null);
   const n = Number(meta.offEvery);
   const offEvery = meta.offEvery === undefined ? (prev?.offEvery ?? null) : (Number.isFinite(n) && n >= 2 && n <= 120 ? Math.round(n) : null);
   // 🔔 הסוכן מאזין לפעמון עכשיו (lib/agentBell.js) — רק claim מוסר את זה; פנייה אחרת נשארת עם הידוע.
