@@ -8,7 +8,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node bank-agent.mjs",
+    "start": "node run-forever.mjs",
+    "agent-once": "node bank-agent.mjs",
     "check": "node bank-agent.mjs --check",
     "add-login": "node bank-agent.mjs --add-login"
   },
