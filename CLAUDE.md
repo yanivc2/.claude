@@ -324,6 +324,7 @@ Each area = `routes/<area>.js` + `services/<area>.js` + `views/<area>/*`:
   `transfersReady`, `advancesReady`, `trackedReady`, `importsReady`.
 - **🔴 שורות-בן שמשהו מצביע על המזהה שלהן מתעדכנות במקומן, לא נמחקות ונוצרות** (הוצאות דוח/סגירת Z, שקיות הפקדה): הטופס שולח את מזהה השורה (`expense_row_id`/`dep_id`). מחיקה-ויצירה בכל שמירה הכפילה מפרעה עם החזר, מחקה "טופל" וניתקה קישורי שכר (ON DELETE SET NULL). INDEX.md · הוצאות.
 - `x.one` returns **undefined** (not null) when no row — assert with `!row`, not `=== null`.
+- **🔴 The PG pool keeps an `error` listener (`db/adapter.js#guardPool`)** — Neon kills idle connections (`57P01`); without the listener that is an uncaught exception that crashes the function (measured ~20×/week before ·366). A `57P01` statement is resent once (never ran); nothing else is retried. INDEX.md · 🔴 3.5.
 - **`x.run('INSERT…')` auto-appends `RETURNING id`** (`db/adapter.js`) — on a table whose PK isn't
   `id` (e.g. `app_settings.key`, `invoice_ocr.invoice_id`) the PG insert crashes. Add an explicit
   `RETURNING <pk>` to the SQL.

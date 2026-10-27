@@ -30,13 +30,29 @@ function isInsertWantingId(sql) {
 // ---- runners: turn a backend handle into a uniform async query(sql, params, opts) --------
 // Returns { rows, rowCount, lastInsertRowid }.
 
-function pgRunner(handle) {
-  // handle is a node-postgres Pool or Client (both expose .query)
+// Neon suspends an idle compute and terminates its connections (FATAL 57P01 "terminating
+// connection due to administrator command"). A frozen serverless instance wakes holding such a
+// dead pooled connection; the first statement sent on it fails with 57P01. The server never ran
+// that statement (a statement cut by 57P01 is aborted, never committed), so it is safe to resend
+// it once on a fresh connection.
+export function isDeadConnection(err) {
+  return !!err && err.code === '57P01';
+}
+
+function pgRunner(handle, { retryDead = false } = {}) {
+  // handle is a node-postgres Pool or Client (both expose .query). Only a Pool may retry: a
+  // Client inside tx() is pinned to one connection, and its transaction is gone with it.
   return {
     async query(sql, params = [], opts = {}) {
       let text = toPgText(sql);
       if (opts.wantId && isInsertWantingId(sql)) text += ' RETURNING id';
-      const res = await handle.query(text, params);
+      let res;
+      try {
+        res = await handle.query(text, params);
+      } catch (err) {
+        if (!retryDead || !isDeadConnection(err)) throw err;
+        res = await handle.query(text, params);
+      }
       return {
         rows: res.rows,
         rowCount: res.rowCount,
@@ -88,6 +104,17 @@ let pgPool = null;
 let sqliteDb = null;
 let defaultExecutor = null;
 
+// Without an 'error' listener, a pooled connection that dies while idle (Neon suspend) is an
+// uncaught exception that kills the whole process — and the request in flight with it (seen in
+// production on /login and /ingest/bank-agent/claim). pg-pool has already discarded that client
+// by the time it emits, so logging is all that is left to do.
+function guardPool(pool) {
+  if (pool && typeof pool.on === 'function') {
+    pool.on('error', (err) => console.warn('[db] idle connection dropped:', err && err.message));
+  }
+  return pool;
+}
+
 /**
  * Initialize the backend. For tests, pass an explicit { pgPool } (e.g. pg-mem) or { sqliteDb }.
  * In production, called with no args — reads env/config.
@@ -95,8 +122,8 @@ let defaultExecutor = null;
 export async function initBackend(opts = {}) {
   if (opts.pgPool) {
     backend = 'pg';
-    pgPool = opts.pgPool;
-    defaultExecutor = makeExecutor(pgRunner(pgPool));
+    pgPool = guardPool(opts.pgPool);
+    defaultExecutor = makeExecutor(pgRunner(pgPool, { retryDead: true }));
   } else if (opts.sqliteDb) {
     backend = 'sqlite';
     sqliteDb = opts.sqliteDb;
@@ -105,12 +132,12 @@ export async function initBackend(opts = {}) {
     const pg = (await import('pg')).default;
     pg.types.setTypeParser(20, (v) => (v === null ? null : parseInt(v, 10))); // int8 -> Number
     pg.types.setTypeParser(1700, (v) => (v === null ? null : parseFloat(v))); // numeric (SUM of bigint) -> Number
-    pgPool = new pg.Pool({
+    pgPool = guardPool(new pg.Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.PGSSL === 'disable' ? false : { rejectUnauthorized: false },
-    });
+    }));
     backend = 'pg';
-    defaultExecutor = makeExecutor(pgRunner(pgPool));
+    defaultExecutor = makeExecutor(pgRunner(pgPool, { retryDead: true }));
   } else {
     const Database = (await import('better-sqlite3')).default;
     const { config } = await import('../config.js');
@@ -185,17 +212,32 @@ export async function execScriptEach(sql, { tolerant = false } = {}) {
  */
 export async function tx(fn) {
   if (backend === 'pg') {
-    const client = await pgPool.connect();
-    try {
-      await client.query('BEGIN');
-      const out = await fn(makeExecutor(pgRunner(client)));
-      await client.query('COMMIT');
-      return out;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+    for (let attempt = 1; ; attempt += 1) {
+      const client = await pgPool.connect();
+      // A checked-out client has no pool listener: if its connection dies between statements,
+      // the 'error' would be uncaught and kill the process. The failing statement reports it.
+      const onError = () => {};
+      if (typeof client.on === 'function') client.on('error', onError);
+      let broken = null;
+      try {
+        try {
+          await client.query('BEGIN');
+        } catch (err) {
+          // Nothing ran yet — a dead pooled connection is safe to swap for a fresh one, once.
+          if (attempt === 1 && isDeadConnection(err)) { broken = err; continue; }
+          throw err;
+        }
+        const out = await fn(makeExecutor(pgRunner(client)));
+        await client.query('COMMIT');
+        return out;
+      } catch (err) {
+        if (isDeadConnection(err)) broken = err;
+        else await client.query('ROLLBACK').catch((e) => { broken = e; });
+        throw err;
+      } finally {
+        if (typeof client.removeListener === 'function') client.removeListener('error', onError);
+        client.release(broken || undefined);
+      }
     }
   }
   // sqlite: single connection, manual transaction control
