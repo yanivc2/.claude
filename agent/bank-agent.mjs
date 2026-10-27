@@ -75,6 +75,11 @@ export function makeBell() {
       pending = true;
       if (wake) { const w = wake; wake = null; w(); }
     },
+    // מעיר רק מי שישן עכשיו, בלי להשאיר "צלצול" לשינה הבאה — לדיווח "הקו עלה": אם הסוכן באמצע שאלה,
+    // הוא ממילא בודק את הדגל בסיבוב הבא, וצלצול שמור היה הופך לשאלות-סרק ול"🔔 צלצול" בלי שאיש לחץ.
+    nudge() {
+      if (wake) { const w = wake; wake = null; pending = false; w(); }
+    },
     sleep(ms) {
       if (pending) { pending = false; return Promise.resolve(true); }
       return new Promise((resolve) => {
@@ -560,7 +565,7 @@ async function main() {
   }
   // הקו לפעמון עלה (או חזר) → שאלה אחת עכשיו, רק כדי שהאפליקציה תדע שהוא מאזין — בלי "צלצול" ובלי להישאר ער.
   let reportNow = false;
-  bellState.onConnect = () => { reportNow = true; bell.ring(); };
+  bellState.onConnect = () => { reportNow = true; bell.nudge(); };
   // צלצול → ער לכמה דקות (כמו אחרי סנכרון), כך שהשאלה הבאה יוצאת עכשיו. לא יותר מפעם ב-15 שניות.
   // צלצול צפוף מדי נבלע ומחכה את המרווח, כדי שגם צלצול בלי סוף לא יהפוך לשאלות בלי סוף.
   const onRing = async () => {
@@ -612,7 +617,8 @@ async function main() {
       await sleep(backoff);
       continue;
     }
-    if (plan.mode === 'on' && (await bell.sleep(plan.waitMs)) && !reportNow) await onRing();
+    // הקו עלה באמצע השאלה הזו → לא ישנים את המרווח; הסיבוב הבא מדווח מיד.
+    if (plan.mode === 'on' && !reportNow && (await bell.sleep(plan.waitMs)) && !reportNow) await onRing();
   }
 }
 

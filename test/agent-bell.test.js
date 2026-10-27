@@ -70,6 +70,15 @@ test('agent: a ring cuts the sleep short; a ring while busy is kept for the next
   assert.equal(await bell.sleep(60_000), true, 'kept, so the next sleep returns at once');
 });
 
+test('agent: "the line is up" nudges a sleeper but never leaves a ring behind (no phantom "🔔 צלצול")', async () => {
+  const bell = makeBell();
+  const p = bell.sleep(60_000);
+  setTimeout(() => bell.nudge(), 20);
+  assert.equal(await p, true, 'a sleeping loop wakes to report at once');
+  bell.nudge(); // באמצע שאלה — אף אחד לא ישן
+  assert.equal(await bell.sleep(30), false, 'nothing kept: the next sleep is a real sleep');
+});
+
 test('claim reports whether the agent listens; an old agent (no field) = not listening', async () => {
   const x = await freshDb();
   await claimNext('office-pc', x, { hours: 'א׳–ה׳ 08:00-16:00', mode: 'off', offEvery: 30, bell: true });
