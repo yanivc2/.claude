@@ -49,4 +49,5 @@ Active model: `opus` at `effortLevel: xhigh` (`settings.json`).
 - `DECISIONS.md` — the Mac-migration and folder-structure decision record: what was
   decided and why, what was corrected, what is still open. Read it before resuming
   that work. Claude Code history does **not** survive a path change; this file is
-  the deliberate replacement.
+  the deliberate replacement. `MIGRATION-PLAN.md` beside it holds the batch-by-batch
+  plan — the operational detail that ages. The decision record holds what doesn't.
