@@ -50,6 +50,8 @@ import {
 import { requestSync, submitOtp, cancelSync, syncStatus } from '../services/bankSyncJobs.js';
 import { syncBankAccount } from '../services/bankSync.js';
 import { financyConfigured } from '../lib/financy.js';
+import { ringAgentBell } from '../lib/agentBell.js';
+import { config } from '../config.js';
 import { accountIntegrity } from '../services/accountIntegrity.js';
 import { findAccountDuplicates, mergeAccountDuplicates } from '../services/bankDuplicates.js';
 import { inspectBankTxn } from '../services/txnInspect.js';
@@ -355,7 +357,9 @@ router.get('/bank-sync/status', requirePermission('import_bank'), async (req, re
 
 router.post('/bank-sync/request', requirePermission('import_bank'), async (req, res, next) => {
   try {
-    await bankSyncReply(req, res, () => requestSync(req.user), 'בקשת הסנכרון נשלחה למחשב המשרד.');
+    // 🔔 רק הבעלים מצלצל לסוכן (בעלים 27/10: "כפתור רק אצלי") — lib/agentBell.js.
+    const ring = req.user?.role === 'owner' ? () => ringAgentBell({ secret: config.bankAgentSecret }) : null;
+    await bankSyncReply(req, res, () => requestSync(req.user, undefined, { ring }), 'בקשת הסנכרון נשלחה למחשב המשרד.');
   } catch (err) {
     next(err);
   }

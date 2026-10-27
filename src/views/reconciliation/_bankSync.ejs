@@ -27,6 +27,9 @@
     <%# 🌙 ליד הכפתור (בעלים 21/10 — שניהם בתפריט "פעולות"): כשהסוכן ישן הכפתור נעול, ובחיסכון הבקשה איטית. %>
     <% if (bs.agentAsleepMsg) { %>
       <span class="muted bs-note">🌙 <%= bs.agentAsleepMsg %></span>
+    <% } else if (bs.agentEconomy && bs.agentBell) { %>
+      <%# 🔔 בעלים בלבד (lib/agentBell.js): הלחיצה מצלצלת לסוכן, ולכן אין "עד 30 דקות". %>
+      <span class="muted bs-note">🔔 מחשב המשרד במצב חיסכון — "סנכרן עכשיו" מעיר אותו מיד, ואז יגיע קוד SMS.</span>
     <% } else if (bs.agentEconomy) { %>
       <span class="muted bs-note">🌙 מחשב המשרד במצב חיסכון — בקשת סנכרון תיאסף תוך עד <%= bs.agentOffEvery %> דקות, ואז יגיע קוד SMS.</span>
     <% } %>
@@ -114,7 +117,9 @@
       rf.appendChild(el('button', btnAttrs, '🔄 סנכרן עכשיו'));
       frag.appendChild(rf);
       if (s.agentAsleepMsg) frag.appendChild(el('span', { class: 'muted bs-note' }, '🌙 ' + s.agentAsleepMsg));
-      else if (s.agentEconomy) {
+      else if (s.agentEconomy && s.agentBell) {
+        frag.appendChild(el('span', { class: 'muted bs-note' }, '🔔 מחשב המשרד במצב חיסכון — "סנכרן עכשיו" מעיר אותו מיד, ואז יגיע קוד SMS.'));
+      } else if (s.agentEconomy) {
         frag.appendChild(el('span', { class: 'muted bs-note' }, '🌙 מחשב המשרד במצב חיסכון — בקשת סנכרון תיאסף תוך עד '
           + s.agentOffEvery + ' דקות, ואז יגיע קוד SMS.'));
       }

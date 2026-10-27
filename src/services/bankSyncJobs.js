@@ -197,7 +197,12 @@ async function waitingMessage(x) {
     : 'ממתין למחשב המשרד…';
 }
 
-export async function requestSync(user, x = getExecutor()) {
+// 🔔 `ring` (בעלים בלבד — routes/reconciliation.js, lib/agentBell.js): מצלצל לסוכן אחרי שהבקשה נשמרה,
+// כדי שישאל מיד ולא בבדיקה הקבועה הבאה. סוכן שדיווח שהוא מאזין לפעמון (`bell` בפעימה) לא "ישן"
+// בשביל מי שמצלצל — הכפתור לא ננעל, וההודעה אומרת "מעיר". צלצול שנכשל לא מכשיל כלום: הבקשה
+// נשארת, וההודעה חוזרת לזמן ההמתנה הרגיל.
+const WAKING_MSG = '🔔 מעיר את מחשב המשרד — הבקשה תיאסף תוך שניות, ואז יגיע קוד SMS…';
+export async function requestSync(user, x = getExecutor(), { ring = null } = {}) {
   if (!(await bankSyncReady(x))) {
     throw new RuleError('BANK_SYNC', 'נדרש עדכון מסד נתונים (הגדרות ← "עדכן מסד נתונים") לפני סנכרון בנק.');
   }
@@ -211,19 +216,33 @@ export async function requestSync(user, x = getExecutor()) {
     throw new RuleError('BANK_SYNC', `סנכרון כבר מתבצע${active.by_name ? ` (התחיל: ${active.by_name})` : ''} — המתן לסיומו.`);
   }
   // נכשל מראש ובהסבר, במקום בקשה שממתינה 2 דקות ונכשלת ב"לא הגיב".
-  const asleep = agentAsleep(await readHeartbeat(x));
+  const agent = await readHeartbeat(x);
+  const wakes = typeof ring === 'function' && agent?.bell === true;
+  const asleep = wakes ? null : agentAsleep(agent);
   if (asleep) throw new RuleError('BANK_SYNC', asleepMessage(asleep));
   const ts = nowTs();
   const info = await x.run(
     `INSERT INTO bank_sync_jobs (status, login_key, requested_by, requested_at, updated_at, message)
      VALUES ('requested', ?, ?, ?, ?, ?)`,
-    [loginKeyFor(user), user?.id ?? null, ts, ts, await waitingMessage(x)],
+    [loginKeyFor(user), user?.id ?? null, ts, ts, wakes ? WAKING_MSG : await waitingMessage(x)],
   );
+  const id = info.lastInsertRowid;
+  let bell = null;
+  if (typeof ring === 'function') {
+    bell = await ring().catch(() => ({ ok: false, reason: 'error' }));
+    if (wakes && !bell?.ok) {
+      await x.run(`UPDATE bank_sync_jobs SET message = ? WHERE id = ? AND status = 'requested' AND message = ?`,
+        [await waitingMessage(x), id, WAKING_MSG]);
+    }
+  }
   await logAction(
-    { userId: user?.id ?? null, action: 'bank_sync.request', entityType: 'bank_sync_job', entityId: info.lastInsertRowid },
+    {
+      userId: user?.id ?? null, action: 'bank_sync.request', entityType: 'bank_sync_job', entityId: id,
+      details: bell ? { bell: bell.ok ? 'rang' : `failed:${bell.reason || '?'}` } : null,
+    },
     x,
   );
-  return getJob(info.lastInsertRowid, x);
+  return getJob(id, x);
 }
 
 /**
@@ -284,8 +303,15 @@ export async function syncStatus(user, scope = null, x = getExecutor()) {
     agentOffEvery: every || null,
     agentSeenSec: Number.isFinite(agentAge) ? Math.round(agentAge) : null,
     agentHours: agent?.hours || null,
+    // 🔔 הסוכן מאזין לפעמון, והבעלים (רק הוא מצלצל) — "סנכרן עכשיו" שלו מעיר אותו מיד.
+    agentBell: agent?.bell === true && user?.role === 'owner',
     // הסוכן לא יאסוף בקשה עכשיו (מחוץ לשעות, בלי מצב חיסכון) — הכרטיס אומר זאת במקום כפתור שנכשל.
-    agentAsleepMsg: (() => { const a = agentAsleep(agent); return a ? asleepMessage(a) : null; })(),
+    // מי שמצלצל לא נחסם: הפעמון מעיר גם סוכן שלא בודק בכלל מחוץ לשעות.
+    agentAsleepMsg: (() => {
+      if (agent?.bell === true && user?.role === 'owner') return null;
+      const a = agentAsleep(agent);
+      return a ? asleepMessage(a) : null;
+    })(),
     loginKey: loginKeyFor(user),
     job: null,
   };
@@ -353,9 +379,11 @@ async function heartbeat(agentName, x, hours = undefined, meta = {}) {
   const mode = meta.mode === 'off' ? 'off' : meta.mode === 'on' ? 'on' : (prev?.mode ?? null);
   const n = Number(meta.offEvery);
   const offEvery = meta.offEvery === undefined ? (prev?.offEvery ?? null) : (Number.isFinite(n) && n >= 2 && n <= 120 ? Math.round(n) : null);
+  // 🔔 הסוכן מאזין לפעמון עכשיו (lib/agentBell.js) — רק claim מוסר את זה; פנייה אחרת נשארת עם הידוע.
+  const bell = meta.bell === undefined ? (prev?.bell ?? null) : (meta.bell === true ? true : null);
   if (!prev || ageSec(prev.at) > 20 || prev.agent !== agentName || (prev.hours ?? null) !== h
-      || (prev.mode ?? null) !== mode || (prev.offEvery ?? null) !== offEvery) {
-    await setSetting(HEARTBEAT_KEY, JSON.stringify({ at: nowTs(), agent: agentName, hours: h, mode, offEvery }), x);
+      || (prev.mode ?? null) !== mode || (prev.offEvery ?? null) !== offEvery || (prev.bell ?? null) !== bell) {
+    await setSetting(HEARTBEAT_KEY, JSON.stringify({ at: nowTs(), agent: agentName, hours: h, mode, offEvery, bell }), x);
   }
 }
 
@@ -370,8 +398,9 @@ export async function agentPing(agentName, x = getExecutor(), { hours, offEvery 
  * `changes`): שני סוכנים שרצים בטעות על שני מחשבים לא יתפסו את אותה בקשה — כלומר לא יתחברו
  * לבנק פעמיים במקביל.
  */
-export async function claimNext(agentName, x = getExecutor(), { hours, mode, offEvery } = {}) {
-  await heartbeat(agentName, x, hours, { mode, offEvery });
+export async function claimNext(agentName, x = getExecutor(), { hours, mode, offEvery, bell } = {}) {
+  // סוכן ישן (בלי פעמון) לא שולח `bell` — וזה אומר "לא מאזין", לא "לא ידוע".
+  await heartbeat(agentName, x, hours, { mode, offEvery, bell: bell === true });
   await expireStale(x);
   const busy = await x.one(`SELECT id FROM bank_sync_jobs WHERE status IN (?, ?) LIMIT 1`, ['running', 'awaiting_otp']);
   if (busy) return null; // אחד בכל פעם

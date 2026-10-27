@@ -279,7 +279,7 @@ router.post('/bank-agent/ping', json(), async (req, res) => {
 router.post('/bank-agent/claim', json(), async (req, res) => {
   if (!agentAuth(req, res)) return;
   try {
-    return res.json({ ok: true, job: await claimNext(agentName(req), undefined, { hours: req.body?.hours, mode: req.body?.mode, offEvery: req.body?.offEvery }) });
+    return res.json({ ok: true, job: await claimNext(agentName(req), undefined, { hours: req.body?.hours, mode: req.body?.mode, offEvery: req.body?.offEvery, bell: req.body?.bell }) });
   } catch (err) {
     return agentError(res, err);
   }

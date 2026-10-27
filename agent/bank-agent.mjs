@@ -54,6 +54,78 @@ export function offEveryMin(cfg) {
 // הבקשה החדשה נאספת מיד ולא בעוד 10 דקות.
 export const AFTER_JOB_AWAKE_MS = 10 * 60_000;
 
+// 🔔 פעמון (בעלים 27/10: "כפתור רק אצלי שאוכל להעיר את הסוכן"). מחוץ לשעות הסוכן שואל רק פעם בחצי
+// שעה, והאפליקציה לא יכולה לפנות אל המחשב הזה. אז הסוכן מחזיק קו פתוח ושקט לנושא פרטי ב-ntfy
+// (src/lib/agentBell.js — נגזר מ-agentSecret, אין מה להגדיר), וכשהבעלים לוחץ "סנכרן עכשיו" השרת
+// מצלצל והסוכן שואל מיד. הקו הזה לא נוגע ב-Vercel ולא במסד — הוא לא עולה כלום. בצלצול עובר רק
+// "wake"; צלצול של זר גורם לכל היותר לשאלה אחת שהתשובה עליה "אין". `"bell": false` ב-config.json מכבה.
+export const BELL_AWAKE_MS = 2 * 60_000; // אחרי צלצול: ער 2 דקות, כל 30 שניות
+export const BELL_MIN_GAP_MS = 15_000;   // צלצולים צפופים (או מישהו שמצלצל בלי סוף) = שאלה אחת
+const BELL_IDLE_MS = 120_000;            // ntfy שולח keepalive כל 45 שניות; שקט ארוך = קו מת, מתחברים מחדש
+
+/**
+ * שינה שצלצול קוטע. `sleep(ms)` → true אם התעורר מצלצול, false אם עבר הזמן. צלצול שהגיע כשהסוכן
+ * לא ישן (למשל באמצע סנכרון) נשמר, והשינה הבאה חוזרת מיד.
+ */
+export function makeBell() {
+  let wake = null;
+  let pending = false;
+  return {
+    ring() {
+      pending = true;
+      if (wake) { const w = wake; wake = null; w(); }
+    },
+    sleep(ms) {
+      if (pending) { pending = false; return Promise.resolve(true); }
+      return new Promise((resolve) => {
+        const t = setTimeout(() => { wake = null; resolve(false); }, ms);
+        wake = () => { clearTimeout(t); pending = false; resolve(true); };
+      });
+    },
+  };
+}
+
+/** מאזין לנושא בלי סוף; מתחבר מחדש אחרי ניתוק (5 שניות ↑ עד 5 דקות). `state.connected` נשלח בכל claim. */
+export async function listenBell(cfg, bell, state, { bellTopic, parseBellStream, BELL_SERVER }) {
+  const topic = bellTopic(cfg.agentSecret);
+  if (!topic) return;
+  const url = `${String(cfg.bellServer || BELL_SERVER).replace(/\/+$/, '')}/${topic}/json`;
+  let backoff = 5_000;
+  let announced = false;
+  for (;;) {
+    const ctrl = new AbortController();
+    let idle = null;
+    const arm = () => { clearTimeout(idle); idle = setTimeout(() => ctrl.abort(), BELL_IDLE_MS); };
+    try {
+      arm();
+      const res = await fetch(url, { signal: ctrl.signal, headers: { 'Cache-Control': 'no-cache' } });
+      if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+      state.connected = true;
+      backoff = 5_000;
+      if (!announced) { log('🔔 מאזין לפעמון — "סנכרן עכשיו" של הבעלים יעיר אותי מיד.'); announced = true; }
+      const dec = new TextDecoder();
+      let buf = '';
+      for await (const chunk of res.body) {
+        arm();
+        const { rings, rest } = parseBellStream(buf + dec.decode(chunk, { stream: true }));
+        buf = rest;
+        if (rings) bell.ring();
+      }
+      throw new Error('הקו נסגר');
+    } catch (e) {
+      const why = e.name === 'AbortError' ? 'שקט ארוך מדי' : e.message;
+      if (state.connected) log(`🔔 הפעמון התנתק (${why}) — מתחבר מחדש. עד אז: הבדיקה הקבועה.`);
+      else if (!announced) log(`🔔 אין חיבור לפעמון (${why}) — מנסה שוב ברקע. עד אז: הבדיקה הקבועה.`);
+      state.connected = false;
+      announced = true;
+    } finally {
+      clearTimeout(idle);
+    }
+    await sleep(backoff);
+    backoff = Math.min(backoff * 2, 300_000);
+  }
+}
+
 /**
  * מה לעשות עכשיו — פונקציה טהורה, כדי שאפשר יהיה לבדוק אותה בלי להריץ את הסוכן.
  * @returns {{action:'poll'|'wait', mode:'on'|'off'|'sleep', waitMs:number}}
@@ -432,6 +504,18 @@ async function check() {
       return r.ready ? 'מחובר' : 'מחובר, אבל צריך ללחוץ "עדכן מסד נתונים" בהגדרות';
     });
   }
+  // 🔔 הפעמון לא חובה — בלעדיו הסוכן עובד כמו קודם (בדיקה קבועה), ולכן ⚠ ולא ✗.
+  if (cfg && cfg.bell !== false) {
+    try {
+      const { bellTopic, BELL_SERVER } = await import('../src/lib/agentBell.js');
+      if (!bellTopic(cfg.agentSecret)) throw new Error('אין agentSecret');
+      const r = await fetch(`${String(cfg.bellServer || BELL_SERVER).replace(/\/+$/, '')}/v1/health`, { signal: AbortSignal.timeout(5000) });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      log('✓ פעמון — "סנכרן עכשיו" של הבעלים יעיר את הסוכן מיד');
+    } catch (e) {
+      log(`⚠ פעמון — אין חיבור (${e.message}). הסנכרון עובד, רק בלי השכמה מיידית מחוץ לשעות.`);
+    }
+  }
   await step('הדפדפן עולה', async () => {
     const { default: puppeteer } = await import('puppeteer');
     const b = await puppeteer.launch({ headless: true, ...(cfg?.chromePath ? { executablePath: cfg.chromePath } : {}) });
@@ -458,6 +542,23 @@ async function main() {
   let mode = null;
   let awakeUntil = 0;
   let nextOffCheck = 0;
+  // 🔔 הפעמון — בייבוא דינמי: התקנה שעודכן בה רק הקובץ הזה בלי src ממשיכה לעבוד כמו קודם.
+  const bell = makeBell();
+  const bellState = { connected: false };
+  let lastBellPoll = 0;
+  if (cfg.bell !== false) {
+    import('../src/lib/agentBell.js')
+      .then((m) => listenBell(cfg, bell, bellState, m))
+      .catch((e) => log(`🔔 בלי פעמון (${e.message}) — עדכן גם את התיקייה src.`));
+  }
+  // צלצול → ער לכמה דקות (כמו אחרי סנכרון), כך שהשאלה הבאה יוצאת עכשיו. לא יותר מפעם ב-15 שניות.
+  // צלצול צפוף מדי נבלע ומחכה את המרווח, כדי שגם צלצול בלי סוף לא יהפוך לשאלות בלי סוף.
+  const onRing = async () => {
+    if (Date.now() - lastBellPoll < BELL_MIN_GAP_MS) { await sleep(BELL_MIN_GAP_MS); return; }
+    lastBellPoll = Date.now();
+    awakeUntil = Math.max(awakeUntil, Date.now() + BELL_AWAKE_MS);
+    log('🔔 צלצול — בודק עכשיו.');
+  };
   for (;;) {
     const every = offEveryMin(cfg);
     const plan = agentSchedule({
@@ -470,14 +571,14 @@ async function main() {
       mode = plan.mode;
     }
     if (plan.action === 'wait') {
-      await sleep(plan.waitMs); // שעון מקומי בלבד — אף בקשה לא יוצאת
+      if (await bell.sleep(plan.waitMs)) await onRing(); // שעון מקומי בלבד — אף בקשה לא יוצאת, אלא אם צלצלו
       try { cfg = loadConfig(); hours = activeHours(cfg); } catch { /* נשארים עם ההגדרות הקודמות */ }
       continue;
     }
     if (plan.mode === 'off') nextOffCheck = Date.now() + plan.waitMs;
     try {
       const { job } = await api(cfg, '/ingest/bank-agent/claim', {
-        hours: hours?.label || null, mode: plan.mode, offEvery: every,
+        hours: hours?.label || null, mode: plan.mode, offEvery: every, bell: bellState.connected,
       });
       backoff = 0;
       if (job) {
@@ -494,7 +595,7 @@ async function main() {
       await sleep(backoff);
       continue;
     }
-    if (plan.mode === 'on') await sleep(plan.waitMs);
+    if (plan.mode === 'on' && (await bell.sleep(plan.waitMs))) await onRing();
   }
 }
 
