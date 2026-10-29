@@ -70,7 +70,10 @@ export function amountToHebrewWords(agorot) {
   const abs = Math.abs(Math.round(agorot));
   const shekels = Math.floor(abs / 100);
   const ag = abs % 100;
-  const words = shekelsToWords(shekels);
   const agPart = ag > 0 ? ` ו-${String(ag).padStart(2, '0')}/100` : '';
+  // "שקל חדש אחד", לא "אחד שקלים חדשים" — המספר אחד בא אחרי שם העצם, ביחיד.
+  if (shekels === 1) return `שקל חדש אחד${agPart} בלבד`;
+  if (shekels === 2) return `שני שקלים חדשים${agPart} בלבד`;
+  const words = shekelsToWords(shekels);
   return `${words} שקלים חדשים${agPart} בלבד`;
 }

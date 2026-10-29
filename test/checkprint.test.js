@@ -26,13 +26,14 @@ test('amountToHebrewWords appends the shekels/agorot suffix', () => {
   assert.equal(amountToHebrewWords(9905), 'תשעים ותשעה שקלים חדשים ו-05/100 בלבד');
 });
 
-test('getCheckPrintData assembles payee, drawer, words and defaults to unapproved (DRAFT)', async () => {
+test('getCheckPrintData: payee = supplier name, supplier no. = its tax id, one row per document, digits + words', async () => {
   const db = await freshDb();
   // Use the store under "על הדרך סופר" (it carries a ח.פ, so the printed drawer shows a tax id).
   const st = await db.one("SELECT id FROM stores WHERE name = 'סופר על הדרך'", []);
   const sec = await secretary(db);
   const acct = (await db.one('SELECT id FROM bank_accounts WHERE store_id=?', [st.id])).id;
   const sup = await approveSupplier((await createSupplier({ name: 'מאפיית הבוקר' }, sec, db)).id, await owner(db), db);
+  await db.run('UPDATE suppliers SET tax_id = ? WHERE id = ?', ['514737832', sup.id]);
   const { invoice } = await createInvoice(
     { supplierId: sup.id, storeId: st.id, invoiceNumber: 'X1', invoiceDate: '2026-07-01', amountBeforeVat: toAgorot('1000'), vatAmount: toAgorot('170'), docType: 'tax_invoice' },
     sec,
@@ -46,14 +47,17 @@ test('getCheckPrintData assembles payee, drawer, words and defaults to unapprove
   );
 
   const data = await getCheckPrintData(payment.id, db);
-  assert.deepEqual(data.payees, ['מאפיית הבוקר']);
+  assert.equal(data.payee, 'מאפיית הבוקר', 'בעלים 29/10: שם הספק כמו באפליקציה');
+  assert.equal(data.payeeTaxId, '514737832', 'בעלים 29/10: "מס׳ ספק" = ח.פ./ע.מ.');
   assert.equal(data.amountWords, 'אלף מאה ושבעים שקלים חדשים בלבד');
-  assert.equal(data.account.company_name, 'על הדרך סופר');
-  assert.equal(data.account.company_tax_id, '514737832');
-  assert.equal(data.approved, false); // gated by default — DRAFT until bank approval (§11.5)
-  // Activation readiness: unapproved by default, so the code line stays a placeholder.
-  assert.equal(data.micrReady, false);
-  // The MICR code line is built from the check number + branch + account number.
-  assert.ok(data.micrLine.includes('8801'), 'micrLine carries the check number');
-  assert.ok(data.micrLine.includes(String(data.account.account_number)), 'micrLine carries the account number');
+  assert.equal(data.amountDigits, '1,170.00');
+  assert.equal(data.checkDate, '02/07/2026');
+  assert.deepEqual(data.lines, [{ text: 'חשבונית X1 · 01/07/26', amount: 117000 }]);
+  assert.equal(data.total, 117000);
+  assert.equal(data.printCount, 0);
+});
+
+test('amountToHebrewWords: one and two shekels read as Hebrew, not "אחד שקלים"', () => {
+  assert.equal(amountToHebrewWords(100), 'שקל חדש אחד בלבד');
+  assert.equal(amountToHebrewWords(250), 'שני שקלים חדשים ו-50/100 בלבד');
 });

@@ -38,7 +38,7 @@ import { employeeFullName, matchEmployeeName } from './lib/employeeName.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-10-27·370';
+const BUILD_VERSION = '2026-10-29·371';
 
 export function createApp() {
   const app = express();
@@ -150,7 +150,6 @@ export function createApp() {
     res.locals.depositStatus = depositStatus; // lifecycle: הונפקה / הופקדה / הותאמה בבנק
     res.locals.path = req.path;
     res.locals.buildVersion = BUILD_VERSION;
-    res.locals.checkPrintingApproved = config.checkPrinting.approved;
     next();
   });
 

@@ -153,8 +153,9 @@
 
 <!-- שורת פעולות: הדפסה + חזרה לרשימה -->
 <div class="card no-print" style="display:flex; justify-content:flex-start; gap:var(--space-3)">
-  <% if (payment.method === 'check') { %>
-    <a href="/payments/<%= payment.id %>/print" class="btn btn-secondary" target="_blank">הדפס צ׳ק<%= checkPrintingApproved ? '' : ' (טיוטה)' %></a>
+  <%# 🖨 טופס InterCheck (payments/print.ejs) — גם להדפסה חוזרת אם גיליון נתקע. צ׳ק מבוטל לא מודפס. %>
+  <% if (payment.method === 'check' && payment.status !== 'voided') { %>
+    <a href="/payments/<%= payment.id %>/print" class="btn btn-secondary" target="_blank">🖨 הדפס צ׳ק</a>
   <% } %>
   <a href="/payments" class="btn btn-secondary">חזרה לרשימה</a>
 </div>

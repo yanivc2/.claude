@@ -9,7 +9,7 @@ import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 import { amountToHebrewWords } from '../lib/hebrewAmount.js';
 import { fromAgorot } from '../lib/money.js';
 import { notify } from '../lib/notify.js';
-import { israelToday } from '../lib/loginHours.js';
+import { israelToday, israelDayOf } from '../lib/loginHours.js';
 import { logAction } from './audit.js';
 import { syncInvoicePaidStatus } from './allocations.js';
 import { supplierFamilyIds } from './suppliers.js';
@@ -628,11 +628,32 @@ export async function getPaymentDetail(id, x = getExecutor()) {
   return payment;
 }
 
-/** Assemble everything needed to render a Standard-501 check for a payment (stage 4). */
+const ddmmyyyy = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+};
+const ddmmyy = (iso) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : '';
+};
+/** "1,534.00" — ספרות בלבד; ה-₪ מודפס מראש ליד תיבת הסכום. */
+export function checkDigits(agorot) {
+  const a = Math.abs(Math.round(Number(agorot) || 0));
+  return `${Math.floor(a / 100).toLocaleString('en-US')}.${String(a % 100).padStart(2, '0')}`;
+}
+
+/**
+ * כל מה שהדפסת צ׳ק על טופס InterCheck צריכה (`lib/checkForm.js`, `views/payments/print.ejs`). בעלים 29/10:
+ * "שלמו ל" = שם הספק כמו באפליקציה · "מס׳ ספק" = ח.פ./ע.מ. שלו · "ניכוי מס במקור" = ריק (סה"כ לתשלום = סה"כ).
+ * צ׳ק מבוטל לא מודפס — הוא כבר לא כסף.
+ */
 export async function getCheckPrintData(id, x = getExecutor()) {
   const payment = await getPaymentDetail(id, x);
   if (payment.method !== 'check') {
     throw new RuleError('PRINT', 'הדפסת צ׳ק זמינה רק לתשלום מסוג צ׳ק');
+  }
+  if (payment.status === 'voided') {
+    throw new RuleError('PRINT', 'הצ׳ק הזה מבוטל — לא מדפיסים צ׳ק מבוטל');
   }
   const account = await x.one(
     `SELECT ba.*, c.name AS company_name, c.tax_id AS company_tax_id
@@ -641,32 +662,60 @@ export async function getCheckPrintData(id, x = getExecutor()) {
     [payment.bank_account_id],
   );
 
-  const payees = (
-    await x.many(
-      `SELECT DISTINCT s.name FROM payment_lines pl
-         JOIN invoices i ON i.id = pl.invoice_id
-         JOIN suppliers s ON s.id = i.supplier_id
-        WHERE pl.payment_id = ?`,
-      [id],
-    )
-  ).map((r) => r.name);
+  const docs = await x.many(
+    `SELECT pl.amount_applied, i.id AS invoice_id, i.invoice_number, i.invoice_date, i.doc_type, i.total_amount, i.supplier_id
+       FROM payment_lines pl JOIN invoices i ON i.id = pl.invoice_id
+      WHERE pl.payment_id = ?
+      ORDER BY i.invoice_date, i.id`,
+    [id],
+  );
+  const lines = docs.map((d) => ({
+    text: `${d.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית'} ${d.invoice_number} · ${ddmmyy(d.invoice_date)}`
+      + (Number(d.amount_applied) !== Number(d.total_amount) ? ' (חלקי)' : ''),
+    amount: Number(d.amount_applied),
+  }));
+  // מקדמה (R8) — תשלום בלי חשבוניות: שורה אחת שאומרת מה זה.
+  if (!lines.length) lines.push({ text: 'מקדמה על חשבון', amount: Number(payment.amount) });
 
-  // Code line built from the fields a bank MICR line carries. It renders in the approved MICR
-  // font only when both flags are on; until then the print view labels it a placeholder. The
-  // exact symbol layout must match the bank's spec before real issuance (CMC-7 in Israel).
-  const micrLine = `⑈${payment.check_number || ''}⑈ ⑆${account?.branch || ''} ${account?.account_number || ''}⑆`;
-  const approved = config.checkPrinting.approved;
-  const micrReady = approved && config.checkPrinting.micrFontInstalled;
+  // המוטב: הספק של התשלום. חברת-אם וחברות-בת שמשולמות יחד (קוקה קולה + טרה) — הצ׳ק לחברת-האם.
+  const supIds = [...new Set([payment.supplier_id, ...docs.map((d) => d.supplier_id)].filter(Boolean).map(Number))];
+  const sups = supIds.length
+    ? await x.many(`SELECT id, name, tax_id, parent_supplier_id FROM suppliers WHERE id IN (${supIds.map(() => '?').join(', ')})`, supIds)
+    : [];
+  const payee = sups.find((s) => Number(s.id) === Number(payment.supplier_id))
+    || sups.find((s) => !s.parent_supplier_id || !supIds.includes(Number(s.parent_supplier_id)))
+    || sups[0] || null;
+
+  const printed = await x.one(
+    `SELECT COUNT(*) AS n FROM audit_log WHERE action = 'payment.check_printed' AND entity_type = 'payment' AND entity_id = ?`,
+    [id],
+  );
 
   return {
     payment,
     account,
-    payees,
+    payee: payee ? payee.name : '',
+    payeeTaxId: payee?.tax_id || '',
+    // רשימת כל השמות (לתצוגה על המסך — כשהתשלום מכסה חברה-אם וחברת-בת).
+    payees: sups.map((s) => s.name),
+    lines,
+    total: Number(payment.amount),
     amountWords: amountToHebrewWords(payment.amount),
-    micrLine,
-    approved,
-    micrReady,
+    amountDigits: checkDigits(payment.amount),
+    checkDate: ddmmyyyy(payment.payment_date),
+    letterDate: ddmmyyyy(israelDayOf(payment.created_at) || payment.payment_date),
+    printCount: Number(printed?.n) || 0,
   };
+}
+
+/** "נשלח להדפסה" — נרשם ביומן, כדי שהדפסה חוזרת של אותו צ׳ק תציג אזהרה (צ׳ק כפול = כסף כפול). */
+export async function logCheckPrinted(id, actor, x = getExecutor()) {
+  const payment = await getPaymentDetail(id, x);
+  if (payment.method !== 'check' || payment.status === 'voided') throw new RuleError('PRINT', 'אין מה להדפיס');
+  await logAction(
+    { userId: actor?.id ?? null, action: 'payment.check_printed', entityType: 'payment', entityId: Number(id), details: { checkNumber: payment.check_number } },
+    x,
+  );
 }
 
 /** העברה ומקבץ — מוצגים בדף "העברות בנקאיות", לא בטבלת המרקורים (בעלים 21/10: "העברות שייך להעברות בנקאיות"). */

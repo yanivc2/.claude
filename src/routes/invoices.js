@@ -116,6 +116,19 @@ function payCarry(src) {
   return out;
 }
 
+// 🖨 "הדפס צ׳ק" בהודעה הירוקה אחרי הנפקת תשלום (בעלים 29/10) — רק לצ׳ק חי שבתוך הסקופ של המשתמש.
+async function printableCheckId(paymentId, scope) {
+  const id = Number(paymentId);
+  if (!id) return null;
+  try {
+    await assertInScope('payment', id, scope);
+    const p = await getExecutor().one('SELECT method, status FROM payments WHERE id = ?', [id]);
+    return p && p.method === 'check' && p.status !== 'voided' ? id : null;
+  } catch {
+    return null;
+  }
+}
+
 async function batchContext(supplierId, storeId, scope) {
   const sid = Number(supplierId);
   const stid = Number(storeId);
@@ -213,6 +226,7 @@ router.get('/new', async (req, res, next) => {
       pickIds,
       // אחרי הנפקת תשלום (pay-batch / חשבונית + מסומנות) — הודעה בראש הטופס הנקי עם קישור לתשלום.
       paidNotice: Number(req.query.paid) || null,
+      paidPrintId: await printableCheckId(req.query.paid, req.scope),
       ...ctx,
     });
   } catch (err) {
@@ -329,7 +343,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
         }
         const created = await createPayment(payInput, req.user);
         await matchPaymentNow(created.id, req.user); // שורת בנק שכבר נמשכה — מותאמת מיד
-        return res.redirect(303, `/invoices/${invoice.id}?paid=1`);
+        return res.redirect(303, `/invoices/${invoice.id}?paid=${created.id}`);
       } catch (payErr) {
         // The invoice is saved; only the payment failed (e.g. R3 hold / unapproved supplier / cash ceiling).
         return res.redirect(303, `/invoices/${invoice.id}?payfail=${encodeURIComponent(payErr.message || 'שגיאה')}`);
@@ -699,7 +713,7 @@ router.get('/:id', async (req, res, next) => {
       ...(await scanContext(id)),
       notice: req.query.sent === 'pay' ? 'בקשת אישור התשלום נשלחה למנהל/בעלים.'
         : req.query.sent === 'release' ? 'בקשת שחרור ההחזקה נשלחה למנהל/בעלים.'
-        : req.query.paid === '1' ? 'החשבונית נוצרה והתשלום נוצר ושויך אליה.'
+        : req.query.paid ? 'החשבונית נוצרה והתשלום נוצר ושויך אליה.'
         : req.query.scanned === '1' ? 'החשבונית נקלטה מהצילום, כולל שורות הפריטים וקטלוג המוצרים.'
         : req.query.scanned === 'attached' ? 'הצילום צורף לחשבונית שכבר הייתה במערכת — לא נוצרה חשבונית כפולה.'
         : req.query.alloc ? String(req.query.alloc)
@@ -708,6 +722,7 @@ router.get('/:id', async (req, res, next) => {
         : req.query.allocfail ? String(req.query.allocfail)
         : null,
       ocrOpen: req.query.ocr === '1',
+      paidPrintId: await printableCheckId(req.query.paid, req.scope),
     });
   } catch (err) {
     next(err);

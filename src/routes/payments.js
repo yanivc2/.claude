@@ -9,7 +9,10 @@ import {
   voidPaymentWithReason,
   getPaymentDetail,
   getCheckPrintData,
+  logCheckPrinted,
   listPayments, TRANSFER_METHODS } from '../services/payments.js';
+import { getSetting, setSetting } from '../services/appSettings.js';
+import { LEFT as CHECK_LEFT, RIGHT as CHECK_RIGHT, OUTLINES as CHECK_OUTLINES, detailRows, normalizeOffset } from '../lib/checkForm.js';
 import { listPayable, invoiceNotesReady, appendInvoiceNote } from '../services/invoices.js';
 import { matchPaymentNow } from '../services/reconciliation.js';
 import { listDeposits, depositVerifications, depositZDiffs } from '../services/deposits.js';
@@ -336,11 +339,52 @@ router.post('/:id/edit', requireOwner, async (req, res, next) => {
   }
 });
 
-// Stage 4: printable Standard-501 check layout (DRAFT scaffold until bank approval, §11.5).
+// 🧾 הדפסת צ׳ק על טופס InterCheck (בעלים 29/10) — A4 לרוחב, מקור (שמאל) + העתק (ימין), רק הנתונים המשתנים
+// (`lib/checkForm.js`: מידות שנמדדו מה-PDF של הטופס). `?test=1` = דף ניסיון שמדפיס גם את קווי הטופס, לבדיקה
+// מול גיליון אמיתי באור. הזזת הכיול (`check_print_offset`) חלה על כל ההדפסות; את הסכום/המוטב לא מקלידים כאן.
+const CHECK_OFFSET_KEY = 'check_print_offset';
+async function checkOffset() {
+  try { return normalizeOffset(JSON.parse(await getSetting(CHECK_OFFSET_KEY, '{}') || '{}')); } catch { return normalizeOffset({}); }
+}
 router.get('/:id/print', async (req, res, next) => {
   try {
     const data = await getCheckPrintData(Number(req.params.id));
-    res.render('payments/print', { title: `הדפסת צ׳ק #${req.params.id}`, ...data });
+    res.render('payments/print', {
+      title: `הדפסת צ׳ק ${data.payment.check_number || ''}`.trim(),
+      ...data,
+      rows: detailRows(data.lines),
+      halves: [CHECK_LEFT, CHECK_RIGHT],
+      outlines: CHECK_OUTLINES,
+      testPage: req.query.test === '1',
+      offset: await checkOffset(),
+      isOwner: req.user?.role === 'owner',
+      saved: req.query.saved === '1',
+    });
+  } catch (err) {
+    if (err instanceof RuleError) return res.redirect(303, `/payments/${req.params.id}?err=${encodeURIComponent(err.message)}`);
+    next(err);
+  }
+});
+
+// נרשם כשלוחצים "🖨 הדפס" (fetch, לפני חלון ההדפסה) — הדפסה חוזרת של אותו צ׳ק מציגה אזהרה.
+router.post('/:id/printed', async (req, res, next) => {
+  try {
+    await logCheckPrinted(Number(req.params.id), req.user);
+    if (req.get('X-Requested-With') === 'fetch') return res.status(204).end();
+    return res.redirect(303, `/payments/${req.params.id}/print`);
+  } catch (err) {
+    if (err instanceof RuleError) return res.redirect(303, `/payments/${req.params.id}?err=${encodeURIComponent(err.message)}`);
+    next(err);
+  }
+});
+
+// כיול: הזזה במ"מ (בעלים בלבד) — מדפסת שמזיזה את הדף. נשמר ב-app_settings וחל על כל הדפסות הצ׳קים.
+router.post('/:id/print-offset', requireOwner, async (req, res, next) => {
+  try {
+    const off = normalizeOffset(req.body);
+    await setSetting(CHECK_OFFSET_KEY, JSON.stringify(off));
+    const back = req.body.test === '1' ? '&test=1' : '';
+    return res.redirect(303, `/payments/${req.params.id}/print?saved=1${back}`);
   } catch (err) {
     next(err);
   }

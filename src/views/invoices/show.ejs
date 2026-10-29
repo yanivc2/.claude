@@ -61,7 +61,14 @@ var relReq = (typeof pendingReleaseReq !== 'undefined') ? pendingReleaseReq : nu
   <% } %>
 </div>
 
-<% if (typeof notice !== 'undefined' && notice) { %><div class="alert alert-ok"><%= notice %></div><% } %>
+<% if (typeof notice !== 'undefined' && notice) { %>
+  <div class="alert alert-ok"><%= notice %>
+    <%# 🖨 צ׳ק שנוצר עכשיו מהחשבונית — להדפסה על טופס הצ׳ק (בעלים 29/10). %>
+    <% if (typeof paidPrintId !== 'undefined' && paidPrintId) { %>
+      <a class="btn small" href="/payments/<%= paidPrintId %>/print" target="_blank" style="margin-inline-start:.5rem">🖨 הדפס צ׳ק</a>
+    <% } %>
+  </div>
+<% } %>
 <% if (typeof error !== 'undefined' && error) { %><div class="alert alert-error"><%= error %></div><% } %>
 <% if (invoice.status === 'on_hold' && invoice.hold_reason) { %><div class="alert alert-warn"><strong>מוחזק:</strong> <%= invoice.hold_reason %></div><% } %>
 <% if (typeof invoiceNotesReady !== 'undefined' && invoiceNotesReady) { %>

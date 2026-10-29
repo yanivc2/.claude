@@ -1,120 +1,153 @@
 <!DOCTYPE html>
+<%# 🧾 הדפסת צ׳ק על טופס InterCheck (בעלים 29/10) — A4 לרוחב: מקור (שמאל, לספק) + העתק (ימין, לתיוק).
+    רק הנתונים המשתנים מודפסים; כל השאר כבר על הגיליון. המיקומים ב-`lib/checkForm.js` (נמדדו מה-PDF של
+    הטופס), וההזזה (`offset`, מ"מ) מזיזה הכל יחד. `testPage` = גם קווי הטופס, להדפסה על נייר רגיל והנחה מול
+    גיליון אמיתי באור. על המסך: סרגל (לא מודפס) + תצוגה בגודל אמיתי. %>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title><%= title %></title>
   <style>
-    :root { --line:#333; }
     * { box-sizing: border-box; }
-    body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; background:#f0f1f3; color:#111; }
+    html, body { margin: 0; padding: 0; }
+    body { font-family: Arial, "Segoe UI", sans-serif; color: #000; background: #e9ecef; }
+    :root { --dx: <%= offset.dx %>mm; --dy: <%= offset.dy %>mm; }
 
-    .screen-note { max-width: 720px; margin: 1rem auto; padding: 1rem 1.2rem; border-radius: 8px;
-      background:#fff4e0; color:#8a5a00; border:1px solid #f0d8a0; }
-    .screen-note.blocked { background:#fce8e6; color:#b3261e; border-color:#f5c6c2; }
-    .bar { max-width: 720px; margin: 0 auto 1rem; display:flex; gap:.6rem; }
-    .bar button, .bar a { padding:.5rem 1rem; border:none; border-radius:6px; background:#1f6feb; color:#fff; cursor:pointer; font-size:.95rem; text-decoration:none; }
-    .bar a.sec { background:#e6eaef; color:#111; }
+    /* ── סרגל המסך ── */
+    .bar { max-width: 297mm; margin: 12px auto; padding: 12px 14px; background: #fff; border-radius: 10px;
+      box-shadow: 0 1px 4px rgba(0,0,0,.12); font-size: 15px; line-height: 1.5; }
+    .bar h1 { font-size: 18px; margin: 0 0 6px; }
+    .tray { font-size: 20px; margin: 6px 0 10px; padding: 8px 12px; background: #fff7d6; border: 2px solid #e0b400; border-radius: 8px; }
+    .tray b { font-size: 26px; letter-spacing: 1px; }
+    .warn { padding: 8px 12px; background: #fde8e6; color: #9b1c12; border: 1px solid #f3b7b1; border-radius: 8px; margin: 6px 0; }
+    .ok { padding: 6px 12px; background: #e7f6ec; color: #1a6b33; border: 1px solid #bfe6cb; border-radius: 8px; margin: 6px 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+    .actions button, .actions a { font: inherit; padding: 8px 16px; border-radius: 8px; border: 0; cursor: pointer; text-decoration: none; }
+    .primary { background: #1f6feb; color: #fff; font-weight: 700; }
+    .secondary { background: #e6eaef; color: #111; }
+    .how { color: #444; font-size: 13.5px; margin: 4px 0 0; }
+    .offset { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; font-size: 14px; }
+    .offset input { width: 70px; font: inherit; padding: 4px 6px; }
+    .preview { overflow-x: auto; padding: 0 0 24px; }
 
-    /* Standard 501 approximate check size (~175mm x 80mm). */
-    .check {
-      position: relative; width: 175mm; height: 80mm; margin: 0 auto; background:#fff;
-      border:1px solid var(--color-line); padding: 6mm 8mm; overflow:hidden;
-    }
-    .check .row { display:flex; justify-content:space-between; align-items:flex-start; }
-    .drawer { font-weight:700; font-size: 3.4mm; }
-    .drawer small { display:block; font-weight:400; color:#444; }
-    .bankbox { text-align:left; font-size: 3mm; }
-    .date { margin-top: 3mm; font-size: 3mm; }
-    .date .box { display:inline-block; min-width:34mm; border-bottom:1px solid var(--color-line); text-align:center; }
-    .payee { margin-top: 5mm; font-size: 3.4mm; }
-    .payee .line { display:inline-block; min-width:120mm; border-bottom:1px solid var(--color-line); font-weight:700; }
-    .amountbox { position:absolute; top: 20mm; left: 8mm; border:1.5px solid var(--color-line);
-      padding: 1mm 3mm; font-weight:700; font-size: 4mm; }
-    .words { margin-top: 4mm; font-size: 3.2mm; }
-    .words .line { display:inline-block; min-width:150mm; border-bottom:1px solid var(--color-line); }
-    .foot { position:absolute; bottom: 12mm; left:8mm; text-align:center; font-size:2.6mm; color:#333; }
-    .foot .sig { min-width:45mm; border-top:1px solid var(--color-line); padding-top:1mm; }
-    .memo { position:absolute; bottom: 12mm; right:8mm; font-size:2.8mm; }
+    /* ── הגיליון: A4 לרוחב, מוחלט במ"מ ── */
+    .sheet { position: relative; width: 297mm; height: 209.5mm; margin: 0 auto; background: #fff; overflow: hidden;
+      box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+    .f { position: absolute; display: flex; align-items: flex-end; white-space: nowrap; overflow: visible; line-height: 1; }
+    .f.right { justify-content: flex-start; }   /* RTL: "start" = ימין */
+    .f.center { justify-content: center; }
+    .f.left { justify-content: flex-end; }
+    .num { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
+    .outline { position: absolute; border: 0.25mm solid #9aa4b2; }
+    .outline.h { border-width: 0.25mm 0 0 0; }
+    .outline.v { border-width: 0 0 0 0.25mm; }
+    .test-tag { position: absolute; left: 4mm; top: 2mm; font-size: 3mm; color: #9aa4b2; }
 
-    /* Bank-approved MICR font (commit the licensed file here to activate — see fonts/README.txt).
-       Self-hosted, so it satisfies the app's font-src 'self' CSP. Absent → falls back to Courier. */
-    @font-face { font-family: 'MICR'; src: url('/fonts/micr.woff2') format('woff2'),
-      url('/fonts/micr.woff') format('woff'); font-display: swap; }
-    /* MICR line — a PLACEHOLDER (Courier) until the approved font is installed and both flags on. */
-    .micr { position:absolute; bottom: 3mm; right:8mm; left:8mm; text-align:center;
-      font-family: "Courier New", monospace; letter-spacing: 2px; font-size: 4mm; color:#111; }
-    .micr.ready { font-family: 'MICR', "Courier New", monospace; letter-spacing: 4px; }
-    .micr small { display:block; font-family:Arial; letter-spacing:normal; font-size:2.4mm; color:#b3261e; }
-
-    /* DRAFT watermark (shown until bank-approved). */
-    .watermark { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-      transform: rotate(-18deg); pointer-events:none; }
-    .watermark span { font-size: 14mm; font-weight:800; color: rgba(179,38,30,.16);
-      border:3px solid rgba(179,38,30,.22); padding: 2mm 6mm; border-radius:4mm; white-space:nowrap; }
-
+    @page { size: A4 landscape; margin: 0; }
     @media print {
-      body { background:#fff; }
-      .screen-note, .bar { display:none !important; }
-      .check { border:none; margin:0; }
-      @page { size: 210mm 99mm; margin: 8mm; }
+      body { background: #fff; }
+      .bar { display: none !important; }
+      .preview { padding: 0; overflow: visible; }
+      .sheet { margin: 0; box-shadow: none; }
     }
   </style>
 </head>
 <body>
-  <% if (!approved) { %>
-    <div class="screen-note blocked">
-      <strong>טיוטה — אינו צ׳ק סחיר.</strong> הדפסת צ׳קים אמיתית דורשת אישור בנק וקידוד MICR
-      (E-13B) מאושר (🔴 §11.5, §10.3). שורת ה-MICR כאן היא placeholder בלבד ואינה נקראת ע"י הבנק.
-      לאחר אישור הבנק — הגדר <code>CHECK_PRINTING_APPROVED=true</code> והוסף גופן MICR מאושר.
-    </div>
-  <% } else if (!micrReady) { %>
-    <div class="screen-note">
-      מצב "מאושר" פעיל, אך גופן ה-MICR עדיין לא הותקן — התחייב את קובץ הגופן ב-
-      <code>src/public/fonts/micr.woff2</code> והגדר <code>CHECK_PRINTING_MICR_FONT=1</code>.
-      עד אז שורת ה-MICR היא placeholder.
-    </div>
-  <% } else { %>
-    <div class="screen-note" style="background:#e7f6ec;color:#1a7f37;border-color:#bfe6cb">
-      מוכן להדפסה. ודא התאמה לתקן 501 ולפריסת ה-MICR מול הבנק לפני הפקה בכמות.
-    </div>
+<%
+  // תיבה של שדה: x1–x2 ברוחב, קו בסיס `base`; ההזזה (--dx/--dy) חלה על כל השדות יחד.
+  function box(f, h) {
+    h = h || (f.size || 3.5) * 1.6;
+    return 'left:calc(' + f.x1 + 'mm + var(--dx, 0mm));top:calc(' + (f.base - h) + 'mm + var(--dy, 0mm));width:' + (f.x2 - f.x1) + 'mm;height:' + h + 'mm;'
+      + 'font-size:' + (f.size || 3.5) + 'mm;' + (f.bold ? 'font-weight:700;' : '');
+  }
+  function money(ag) { var a = Math.abs(ag); var s = Math.floor(a / 100).toLocaleString('en-US') + '.' + String(a % 100).padStart(2, '0'); return (ag < 0 ? '-' : '') + s; }
+  var checkNo = payment.check_number || '';
+%>
+
+<div class="bar">
+  <h1>🧾 הדפסת צ׳ק<%= testPage ? ' — דף ניסיון' : '' %></h1>
+  <div class="tray">📄 ודא שבמגש המדפסת הגיליון של צ׳ק מס׳ <b class="num"><%= checkNo || '—' %></b> — המספר מודפס על הגיליון, בשורה התחתונה.</div>
+  <% if (!checkNo) { %><div class="warn">לתשלום הזה אין מספר צ׳ק — הוסף אותו בעריכת התשלום לפני ההדפסה.</div><% } %>
+  <% if (printCount > 0) { %>
+    <div class="warn">⚠️ הצ׳ק הזה כבר נשלח להדפסה <b><%= printCount %></b> <%= printCount === 1 ? 'פעם' : 'פעמים' %>. הדפסה נוספת על גיליון אחר = צ׳ק כפול — ודא שהגיליון הקודם נפסל.</div>
   <% } %>
-
-  <div class="bar">
-    <button onclick="window.print()">הדפס</button>
-    <a class="sec" href="/payments/<%= payment.id %>">חזרה לצ׳ק</a>
+  <% if (saved) { %><div class="ok">✓ ההזזה נשמרה — חלה על כל הדפסות הצ׳קים.</div><% } %>
+  <div><b>שלמו ל:</b> <%= payee || '—' %> · <b>סכום:</b> <span class="num">₪<%= amountDigits %></span> · <b>תאריך:</b> <span class="num"><%= checkDate %></span><% if (payees.length > 1) { %> · <span style="color:#555">(בתשלום: <%= payees.join(' + ') %>)</span><% } %></div>
+  <div class="actions">
+    <% if (testPage) { %>
+      <button type="button" class="primary" onclick="window.print()">🖨 הדפס דף ניסיון (על נייר רגיל)</button>
+      <a class="secondary" href="/payments/<%= payment.id %>/print">חזרה להדפסת הצ׳ק</a>
+    <% } else { %>
+      <button type="button" class="primary" id="printBtn"<%= checkNo ? '' : ' disabled' %>>🖨 הדפס צ׳ק</button>
+      <a class="secondary" href="/payments/<%= payment.id %>/print?test=1">דף ניסיון (עם קווי הטופס)</a>
+    <% } %>
+    <a class="secondary" href="/payments/<%= payment.id %>">לדף התשלום</a>
   </div>
+  <p class="how">בחלון ההדפסה: <b>A4 · לרוחב · קנה מידה 100% (גודל בפועל) · שוליים: ללא · בלי כותרות עליונות ותחתונות</b>.
+    בפעם הראשונה — דף ניסיון על נייר רגיל, מניחים על גיליון צ׳ק מול האור: הקווים האפורים צריכים לשבת על הקווים של הטופס.</p>
+  <% if (isOwner) { %>
+    <form class="offset" method="post" action="/payments/<%= payment.id %>/print-offset">
+      <span>כיול — הזזה במ"מ (חלה על כל הצ׳קים):</span>
+      <label>ימינה <input name="dx" inputmode="decimal" value="<%= offset.dx %>" /></label>
+      <label>למטה <input name="dy" inputmode="decimal" value="<%= offset.dy %>" /></label>
+      <% if (testPage) { %><input type="hidden" name="test" value="1" /><% } %>
+      <button type="submit" class="secondary" style="font:inherit;padding:4px 12px;border-radius:6px;border:0;cursor:pointer">שמור</button>
+      <span style="color:#666;font-size:12.5px">מספר שלילי = שמאלה / למעלה. אם ההדפסה יצאה 2 מ"מ גבוה מדי — "למטה" 2.</span>
+    </form>
+  <% } %>
+</div>
 
-  <div class="check">
-    <% if (!approved) { %><div class="watermark"><span>טיוטה · לא סחיר · DRAFT</span></div><% } %>
+<div class="preview">
+  <div class="sheet" data-check="<%= checkNo %>">
+    <% if (testPage) { %>
+      <div class="test-tag">דף ניסיון — לא להדפיס על גיליון צ׳ק</div>
+      <% outlines.forEach(function (o) {
+           var w = o.x2 - o.x1, h = o.y2 - o.y1;
+           var cls = h < 0.3 ? 'outline h' : (w < 0.3 ? 'outline v' : 'outline'); %>
+        <div class="<%= cls %>" style="left:calc(<%= o.x1 %>mm + var(--dx, 0mm));top:calc(<%= o.y1 %>mm + var(--dy, 0mm));width:<%= Math.max(w, 0.25) %>mm;height:<%= Math.max(h, 0.25) %>mm"></div>
+      <% }); %>
+    <% } %>
 
-    <div class="row">
-      <div class="drawer">
-        <%= account.company_name %>
-        <small>ח.פ. <%= account.company_tax_id || '—' %></small>
-      </div>
-      <div class="bankbox">
-        בנק <%= account.bank_name %><br />
-        סניף <%= account.branch %> · חשבון <%= account.account_number %>
-      </div>
-    </div>
+    <% halves.forEach(function (H, hi) { var side = hi === 0 ? 'orig' : 'copy'; %>
+      <%# ── מכתב נלווה ── %>
+      <div class="f right" data-f="<%= side %>-to" style="<%= box(H.toName) %>"><%= payee %></div>
+      <div class="f right" data-f="<%= side %>-date" style="<%= box(H.date) %>"><span class="num"><%= letterDate %></span></div>
+      <div class="f right" data-f="<%= side %>-supno" style="<%= box(H.supplierNo) %>"><span class="num"><%= payeeTaxId %></span></div>
+      <div class="f center" data-f="<%= side %>-checkno" style="<%= box(H.checkNo) %>"><span class="num"><%= checkNo %></span></div>
+      <% rows.forEach(function (r, i) {
+           var base = H.table.top + (i + 1) * 5.4 - 1.4; %>
+        <div class="f right" data-f="<%= side %>-row" style="<%= box({ x1: H.table.detailsX1, x2: H.table.detailsX2, base: base, size: 3.2 }) %>"><%= r.text %></div>
+        <div class="f center" data-f="<%= side %>-rowamt" style="<%= box({ x1: H.table.amountX1, x2: H.table.amountX2, base: base, size: 3.2 }) %>"><span class="num"><%= money(r.amount) %></span></div>
+      <% }); %>
+      <div class="f center" data-f="<%= side %>-total" style="<%= box(H.total) %>"><span class="num"><%= money(total) %></span></div>
+      <div class="f center" data-f="<%= side %>-totalpay" style="<%= box(H.totalPay) %>"><span class="num"><%= money(total) %></span></div>
 
-    <div class="date">תאריך: <span class="box"><%= formatDate(payment.payment_date) %></span></div>
-
-    <div class="amountbox">₪ <%= formatIls(payment.amount) %></div>
-
-    <div class="payee">שלמו ל: <span class="line"><%= payees.join(', ') || '—' %></span></div>
-    <div class="words">הסך של: <span class="line"><%= amountWords %></span></div>
-
-    <div class="memo">
-      צ׳ק מס' <%= payment.check_number %><br />
-      <% if (payment.lines && payment.lines.length) { %>עבור <%= payment.lines.length %> חשבוניות<% } %>
-    </div>
-    <div class="foot"><div class="sig">חתימה מורשה</div></div>
-
-    <div class="micr <%= micrReady ? 'ready' : '' %>">
-      <%= micrLine %>
-      <% if (!micrReady) { %><small>שורת MICR — placeholder בלבד, עד להתקנת גופן MICR מאושר אינה נקראת ע"י הבנק</small><% } %>
-    </div>
+      <%# ── הצ׳ק ── %>
+      <div class="f right" data-f="<%= side %>-payee" style="<%= box(H.payee) %>"><%= payee %></div>
+      <div class="f right fit" data-f="<%= side %>-words" style="<%= box(H.words) %>"><%= amountWords %></div>
+      <div class="f center" data-f="<%= side %>-amount" style="<%= box(H.amount) %>"><span class="num">**<%= amountDigits %>**</span></div>
+      <div class="f center" data-f="<%= side %>-checkdate" style="<%= box(H.checkDate) %>"><span class="num"><%= checkDate %></span></div>
+    <% }); %>
   </div>
+</div>
+
+<script>
+  (function () {
+    // סכום במילים ארוך משורה — מקטינים את הגופן עד שנכנס (לא נחתך ולא גולש לשדה הבא).
+    document.querySelectorAll('.fit').forEach(function (el) {
+      var size = parseFloat(el.style.fontSize), guard = 0;
+      while (el.scrollWidth > el.clientWidth + 1 && size > 2.2 && guard++ < 30) { size -= 0.1; el.style.fontSize = size.toFixed(2) + 'mm'; }
+    });
+    var btn = document.getElementById('printBtn');
+    if (!btn) return;
+    btn.addEventListener('click', function () {
+      // נרשם ביומן לפני חלון ההדפסה: הדפסה חוזרת תציג אזהרה. כישלון ברישום לא חוסם הדפסה.
+      fetch('/payments/<%= payment.id %>/printed', { method: 'POST', headers: { 'X-Requested-With': 'fetch' }, credentials: 'same-origin' })
+        .catch(function () {})
+        .then(function () { window.print(); });
+    });
+  })();
+</script>
 </body>
 </html>

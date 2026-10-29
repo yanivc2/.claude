@@ -12,6 +12,10 @@
   <div class="alert alert-ok no-print" data-scroll-top style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;justify-content:center">
     <span>✅ התשלום נוצר ושויך לחשבוניות. אפשר להזין תשלום חדש.</span>
     <a class="btn secondary small" href="/payments/<%= paidNotice %>">צפה בתשלום</a>
+    <%# 🖨 בעלים 29/10: "בהודעה אחרי הנפקת התשלום" — רק לצ׳ק (טופס InterCheck, payments/print.ejs). %>
+    <% if (typeof paidPrintId !== 'undefined' && paidPrintId) { %>
+      <a class="btn small" href="/payments/<%= paidPrintId %>/print" target="_blank">🖨 הדפס צ׳ק</a>
+    <% } %>
   </div>
 <% } %>
 <% if (typeof notice !== 'undefined' && notice) { %>
