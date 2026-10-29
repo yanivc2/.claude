@@ -13,7 +13,7 @@
     <div><span class="text-muted">סטטוס</span><br><%= payment.status === 'issued' ? 'הונפק' : payment.status === 'cleared' ? 'נפרע' : 'מבוטל' %></div>
   </div>
   <p class="muted" style="margin:.6rem 0 0">שיוך לחשבוניות:
-    <% payment.lines.forEach(function(l, i){ %><%= i ? ' · ' : ' ' %><a href="/invoices/<%= l.invoice_id %>"><%= l.invoice_number %></a> (<%= l.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %>)<% }); %>
+    <% payment.lines.forEach(function(l, i){ %><%= i ? ' · ' : ' ' %><a href="/invoices/<%= l.invoice_id %>"><%= l.invoice_number %></a> (<%= docKind(l.doc_type) %>)<% }); %>
   </p>
   <% if (!(typeof canRetarget !== 'undefined' && canRetarget)) { %>
     <p class="muted" style="margin:.3rem 0 0">הסכום נגזר מהחשבוניות המשויכות. לשינוי החשבוניות/סכום — התשלום צריך להיות "הונפק" וללא התאמת בנק (בטל התאמה/פירעון קודם, או בטל וצור מחדש).</p>
@@ -76,7 +76,7 @@
                 <td><input type="checkbox" class="rt-check" name="invoice_ids" value="<%= c.id %>" data-amt="<%= c.total_amount %>" <%= c.applied ? 'checked' : '' %> style="width:auto;min-height:0" /></td>
                 <td class="mono"><a href="/invoices/<%= c.id %>"><%= c.invoice_number %></a></td>
                 <td><%= formatDate(c.invoice_date) %></td>
-                <td><%= c.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
+                <td><%= docKind(c.doc_type) %></td>
                 <td class="right <%= c.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(c.total_amount) %></td>
               </tr>
             <% }); %>

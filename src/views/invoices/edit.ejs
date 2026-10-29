@@ -22,7 +22,7 @@
       </div>
     </div>
 
-    <div class="row">
+    <div class="row" data-doc-std<%- values.doc_type === 'arnona' ? ' style="display:none"' : '' %>>
       <div>
         <label>מספר חשבונית *</label>
         <input name="invoice_number" required value="<%= values.invoice_number || '' %>" />
@@ -36,6 +36,7 @@
         <input type="date" name="invoice_date" required value="<%= values.invoice_date || '' %>" />
       </div>
     </div>
+    <%- include('_arnonaFields') %>
 
     <div class="row">
       <div>
@@ -44,6 +45,12 @@
           <option value="tax_invoice" <%= values.doc_type === 'tax_invoice' ? 'selected' : '' %>>חשבונית מס</option>
           <option value="tax_invoice_receipt" <%= values.doc_type === 'tax_invoice_receipt' ? 'selected' : '' %>>חשבונית מס/קבלה</option>
           <option value="credit_note" <%= values.doc_type === 'credit_note' ? 'selected' : '' %>>חשבונית זיכוי</option>
+          <%# 🏛️ מושבת עד "עדכן מסד נתונים" (arnonaReady) — אחרת השמירה הייתה נכשלת על ה-CHECK. %>
+          <% if (typeof arnonaReady !== 'undefined' && arnonaReady) { %>
+            <option value="arnona" <%= values.doc_type === 'arnona' ? 'selected' : '' %>>חשבון ארנונה</option>
+          <% } else { %>
+            <option value="arnona" disabled>חשבון ארנונה — אחרי "עדכן מסד נתונים"</option>
+          <% } %>
         </select>
       </div>
       <div>
@@ -77,10 +84,23 @@
         var supSel = document.querySelector('select[name="supplier_id"]');
         var note = document.querySelector('.vat-rate-note');
         function zero(){ var o = supSel && supSel.options[supSel.selectedIndex]; return !!(o && o.hasAttribute('data-zero')); }
-        function rate(){ return zero() ? 0 : STD; }
-        if (note && zero()) note.textContent = 'ספק בשיעור אפס — מע"מ 0, בלי מספר הקצאה';
+        // 🏛️ חשבון ארנונה — אין מע"מ (לא חשבונית מס); השרת גם מאפס אותו.
+        var docSel = document.querySelector('select[name="doc_type"]');
+        function arn(){ return !!(docSel && docSel.value === 'arnona'); }
+        function rate(){ return (zero() || arn()) ? 0 : STD; }
+        function noteText(){ return arn() ? 'חשבון ארנונה — ללא מע"מ ובלי מספר הקצאה' : zero() ? 'ספק בשיעור אפס — מע"מ 0, בלי מספר הקצאה' : note.getAttribute('data-std'); }
+        if (note) note.textContent = noteText();
         if (supSel) supSel.addEventListener('change', function(){
-          if (note) note.textContent = zero() ? 'ספק בשיעור אפס — מע"מ 0, בלי מספר הקצאה' : note.getAttribute('data-std');
+          if (note) note.textContent = noteText();
+        });
+        // מעבר לחשבון ארנונה: המע"מ שהיה נכנס לסכום (הסה"כ לא משתנה), מע"מ 0.
+        if (docSel) docSel.addEventListener('change', function(){
+          if (note) note.textContent = noteText();
+          if (!arn()) return;
+          var b = parseFloat(before.value), v = parseFloat(vat.value);
+          if (isNaN(b)) return;
+          var t = round2(b + (isNaN(v) ? 0 : v));
+          before.value = t.toFixed(2); vat.value = '0.00'; total.value = t.toFixed(2);
         });
         total.addEventListener('input', function(){
           var t = parseFloat(total.value); if (isNaN(t)) return;

@@ -7,8 +7,57 @@ import { scopeClause, scopeWhere } from '../lib/scope.js';
 import { parseInvoiceIds, likeInvoiceId, cashExpenseInvoiceIdsReady } from './cashExpenseInvoices.js';
 import { parseSearchTerms, anyTermLike } from '../lib/search.js';
 import { logAction } from './audit.js';
+import { arnonaMonth, arnonaPeriodLabel } from '../lib/arnona.js';
 
-const DOC_TYPES = ['tax_invoice', 'tax_invoice_receipt', 'credit_note'];
+const DOC_TYPES = ['tax_invoice', 'tax_invoice_receipt', 'credit_note', 'arnona'];
+
+// ── 🏛️ חשבון ארנונה (בעלים 29/10: "במקום מספר חשבונית צריך מספר נכס ומספר מסלקה. במקום תאריך צריך טווח
+// תאריכים — זה דו חודשי") ─────────────────────────────────────────────────────────────────────────────
+// מס׳ הנכס ומס׳ המסלקה **קבועים לנכס** (מופיעים זהים בכל חשבון), ולכן אינם מזהים חשבון. מה שמזהה חשבון
+// הוא נכס + תקופה — וזה מה שנכנס ל-invoice_number, כדי שבדיקת הכפילות (R2: ספק + מספר) תתפוס בדיוק
+// "אותו נכס, אותה תקופה" ולא תתריע על כל חשבון של אותה עירייה. התאריך = הראשון בחודש הראשון של התקופה.
+// אין מע"מ ואין מספר הקצאה (לא חשבונית מס).
+
+/** מאמת את שדות הארנונה ומחזיר אותם מנורמלים + המספר והתאריך הנגזרים. זורק RuleError בעברית. */
+export function arnonaFields({ propertyNumber, clearingNumber, periodFrom, periodTo }) {
+  const property = String(propertyNumber ?? '').trim();
+  const clearing = String(clearingNumber ?? '').trim();
+  if (!property) throw new RuleError('VALIDATION', 'חשבון ארנונה — חסר מספר נכס');
+  if (!clearing) throw new RuleError('VALIDATION', 'חשבון ארנונה — חסר מספר מסלקה');
+  if (property.length > 40 || clearing.length > 40) throw new RuleError('VALIDATION', 'מספר נכס / מסלקה ארוך מדי');
+  const from = arnonaMonth(periodFrom);
+  const to = arnonaMonth(periodTo);
+  if (!from || !to) throw new RuleError('VALIDATION', 'חשבון ארנונה — בחר את תקופת החשבון: מחודש ועד חודש');
+  if (to < from) throw new RuleError('VALIDATION', 'חשבון ארנונה — חודש הסיום לפני חודש ההתחלה');
+  const span = (Number(to.slice(0, 4)) * 12 + Number(to.slice(5))) - (Number(from.slice(0, 4)) * 12 + Number(from.slice(5))) + 1;
+  if (span > 12) throw new RuleError('VALIDATION', `חשבון ארנונה — תקופה של ${span} חודשים; בדוק את החודשים`);
+  return {
+    propertyNumber: property,
+    clearingNumber: clearing,
+    periodFrom: from,
+    periodTo: to,
+    invoiceNumber: `ארנונה ${arnonaPeriodLabel(from, to)} · נכס ${property}`,
+    invoiceDate: `${from}-01`,
+  };
+}
+
+let arnonaReadyCache = false;
+/**
+ * האם "עדכן מסד נתונים" כבר הוסיף את חשבון הארנונה (עמודות + 'arnona' ב-CHECK)? עד אז האפשרות מוצגת
+ * כמושבתת, והשירות מסרב בהודעה ברורה ולא בשגיאת מסד. העמודות נוספות אחרי ה-CHECK (schema.pg.sql), ולכן
+ * עמודות קיימות = גם הערך מותר. תשובה חיובית נשמרת.
+ */
+export async function arnonaReady(x = getExecutor()) {
+  if (arnonaReadyCache) return true;
+  try {
+    await x.one('SELECT property_number, clearing_number, period_from, period_to FROM invoices LIMIT 1', []);
+    arnonaReadyCache = true;
+    return true;
+  } catch {
+    return false;
+  }
+}
+const ARNONA_NOT_READY = 'חשבון ארנונה דורש עדכון של מסד הנתונים — הבעלים: הגדרות ← "עדכן מסד נתונים".';
 
 
 /**
@@ -82,20 +131,27 @@ export async function createInvoice(input, actor, x = getExecutor()) {
   const {
     supplierId,
     storeId,
-    invoiceNumber,
-    allocationNumber = null,
-    invoiceDate,
-    amountBeforeVat, // agorot
-    vatAmount = 0, // agorot
     docType,
     imagePath = null, // stage 1b — filename under uploads/
     confirm = false,
     confirmReason = null,
   } = input;
+  let { invoiceNumber, allocationNumber = null, invoiceDate, amountBeforeVat, vatAmount = 0 } = input; // agorot
 
   // ---- basic validation -------------------------------------------------------
   if (!DOC_TYPES.includes(docType)) {
     throw new RuleError('VALIDATION', `סוג מסמך לא תקין: ${docType}`);
+  }
+  // 🏛️ ארנונה: המספר והתאריך נגזרים מהנכס והתקופה; אין מע"מ ואין מספר הקצאה (ראה arnonaFields).
+  let arnona = null;
+  if (docType === 'arnona') {
+    if (!(await arnonaReady(x))) throw new RuleError('VALIDATION', ARNONA_NOT_READY);
+    arnona = arnonaFields(input);
+    invoiceNumber = arnona.invoiceNumber;
+    invoiceDate = arnona.invoiceDate;
+    allocationNumber = null;
+    amountBeforeVat = Math.abs(amountBeforeVat || 0) + Math.abs(vatAmount || 0);
+    vatAmount = 0;
   }
   if (!invoiceNumber || !String(invoiceNumber).trim()) {
     throw new RuleError('VALIDATION', 'מספר חשבונית חובה');
@@ -192,6 +248,15 @@ export async function createInvoice(input, actor, x = getExecutor()) {
       actor.id,
     ],
   );
+
+  // עמודות הארנונה — רק לחשבון ארנונה, שכבר עבר את arnonaReady. מסמך רגיל לא נוגע בהן, כך שהוא נשמר גם
+  // לפני "עדכן מסד נתונים".
+  if (arnona) {
+    await x.run(
+      'UPDATE invoices SET property_number = ?, clearing_number = ?, period_from = ?, period_to = ? WHERE id = ?',
+      [arnona.propertyNumber, arnona.clearingNumber, arnona.periodFrom, arnona.periodTo, info.lastInsertRowid],
+    );
+  }
 
   await logAction(
     {
@@ -335,15 +400,33 @@ export async function updateInvoice(id, input, actor, x = getExecutor()) {
   const {
     supplierId = invoice.supplier_id,
     storeId = invoice.store_id,
+    docType = invoice.doc_type,
+  } = input;
+  let {
     invoiceNumber = invoice.invoice_number,
     allocationNumber = invoice.allocation_number,
     invoiceDate = invoice.invoice_date,
     amountBeforeVat, // agorot (magnitude)
     vatAmount, // agorot (magnitude)
-    docType = invoice.doc_type,
   } = input;
 
   if (!DOC_TYPES.includes(docType)) throw new RuleError('VALIDATION', `סוג מסמך לא תקין: ${docType}`);
+  // 🏛️ ארנונה — כמו ביצירה. שדה שלא נשלח (למשל "החל מ-OCR") נשאר כמו שהוא בחשבון.
+  let arnona = null;
+  if (docType === 'arnona') {
+    if (!(await arnonaReady(x))) throw new RuleError('VALIDATION', ARNONA_NOT_READY);
+    arnona = arnonaFields({
+      propertyNumber: input.propertyNumber ?? invoice.property_number,
+      clearingNumber: input.clearingNumber ?? invoice.clearing_number,
+      periodFrom: input.periodFrom ?? invoice.period_from,
+      periodTo: input.periodTo ?? invoice.period_to,
+    });
+    invoiceNumber = arnona.invoiceNumber;
+    invoiceDate = arnona.invoiceDate;
+    allocationNumber = null;
+    amountBeforeVat = Math.abs(amountBeforeVat ?? invoice.amount_before_vat) + Math.abs(vatAmount ?? invoice.vat_amount);
+    vatAmount = 0;
+  }
   if (!invoiceNumber || !String(invoiceNumber).trim()) throw new RuleError('VALIDATION', 'מספר חשבונית חובה');
   if (!invoiceDate) throw new RuleError('VALIDATION', 'תאריך חשבונית חובה');
 
@@ -388,6 +471,18 @@ export async function updateInvoice(id, input, actor, x = getExecutor()) {
       WHERE id = ?`,
     [supplierId, store.company_id, storeId, String(invoiceNumber).trim(), alloc, invoiceDate, beforeVat, vat, total, docType, id],
   );
+  // ארנונה ← שדותיה; מסמך שהיה ארנונה והוחלף לסוג אחר ← מנקים אותם (עמודה קיימת כי הוא כבר היה ארנונה).
+  if (arnona) {
+    await x.run(
+      'UPDATE invoices SET property_number = ?, clearing_number = ?, period_from = ?, period_to = ? WHERE id = ?',
+      [arnona.propertyNumber, arnona.clearingNumber, arnona.periodFrom, arnona.periodTo, id],
+    );
+  } else if (invoice.doc_type === 'arnona') {
+    await x.run(
+      'UPDATE invoices SET property_number = NULL, clearing_number = NULL, period_from = NULL, period_to = NULL WHERE id = ?',
+      [id],
+    );
+  }
 
   // R3 re-evaluation — symmetric. An automatic hold (placed when the amount was over the
   // allocation threshold) is stale once the invoice no longer qualifies (amount corrected below

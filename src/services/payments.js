@@ -670,7 +670,9 @@ export async function getCheckPrintData(id, x = getExecutor()) {
     [id],
   );
   const lines = docs.map((d) => ({
-    text: `${d.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית'} ${d.invoice_number} · ${ddmmyy(d.invoice_date)}`
+    // חשבון ארנונה — המספר כבר אומר הכל ("ארנונה 09-10/26 · נכס …"); התאריך שלו הוא רק תחילת התקופה.
+    text: (d.doc_type === 'arnona' ? d.invoice_number
+      : `${d.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית'} ${d.invoice_number} · ${ddmmyy(d.invoice_date)}`)
       + (Number(d.amount_applied) !== Number(d.total_amount) ? ' (חלקי)' : ''),
     amount: Number(d.amount_applied),
   }));

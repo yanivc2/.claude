@@ -30,6 +30,7 @@ import ingestRoutes from './routes/ingest.js';
 import { isScanEnabled } from './services/appSettings.js';
 import { depositStatus } from './services/deposits.js';
 import { requiresAllocationNumber, zeroVatNeedsCheck } from './services/invoices.js';
+import { arnonaPeriodLabel } from './lib/arnona.js';
 import { actionUrlFallback } from './middleware/actionUrlFallback.js';
 import { staleStoreGuard } from './lib/storeContext.js';
 import { israelStamp } from './lib/loginHours.js';
@@ -38,7 +39,7 @@ import { employeeFullName, matchEmployeeName } from './lib/employeeName.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-10-29·371';
+const BUILD_VERSION = '2026-10-29·372';
 
 export function createApp() {
   const app = express();
@@ -135,6 +136,9 @@ export function createApp() {
     // WRONG — testing the net amount flags every zero-rated invoice). See services/invoices.js.
     res.locals.requiresAllocationNumber = requiresAllocationNumber;
     res.locals.zeroVatNeedsCheck = zeroVatNeedsCheck;
+    // סוג המסמך במילה אחת לטבלאות (זיכוי / ארנונה / חשבונית) + תקופת חשבון ארנונה ('09-10/26').
+    res.locals.docKind = (t) => (t === 'credit_note' ? 'זיכוי' : t === 'arnona' ? 'ארנונה' : 'חשבונית');
+    res.locals.arnonaPeriodLabel = arnonaPeriodLabel;
     res.locals.methodLabel = (m) =>
       ({ check: 'צ׳ק', cash: 'מזומן', credit: 'אשראי', transfer: 'העברה', batch: 'מקבץ', standing_order: 'הו"ק' }[m] || m || 'צ׳ק');
     res.locals.paymentIdent = (p) => {

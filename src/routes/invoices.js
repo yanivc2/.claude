@@ -17,6 +17,7 @@ import {
   invoiceNotesReady,
   setInvoiceNote,
   appendInvoiceNote,
+  arnonaReady,
 } from '../services/invoices.js';
 import { listSuppliers, supplierFamilyIds } from '../services/suppliers.js';
 import { cashPaymentsForInvoice } from '../services/zreports.js';
@@ -69,6 +70,17 @@ async function formData(scope = null) {
   return {
     suppliers: await listSuppliers(null, undefined, { scope }),
     stores: await scopedStoreList(scope),
+    arnonaReady: await arnonaReady(), // 🏛️ "חשבון ארנונה" ב"סוג מסמך" — מושבת עד "עדכן מסד נתונים"
+  };
+}
+
+// 🏛️ שדות חשבון הארנונה מהטופס (חדש / עריכה). השירות מתעלם מהם בכל סוג מסמך אחר.
+function arnonaInput(b) {
+  return {
+    propertyNumber: b.property_number,
+    clearingNumber: b.clearing_number,
+    periodFrom: b.period_from,
+    periodTo: b.period_to,
   };
 }
 
@@ -287,6 +299,7 @@ router.post('/', handleInvoiceImage, async (req, res, next) => {
       amountBeforeVat: toAgorot(b.amount_before_vat),
       vatAmount: toAgorot(b.vat_amount),
       docType: b.doc_type,
+      ...arnonaInput(b),
       imagePath,
       confirm: b.confirm === '1',
       confirmReason: b.confirm_reason || null,
@@ -508,6 +521,10 @@ function invoiceToValues(inv) {
     doc_type: inv.doc_type,
     amount_before_vat: fromAgorot(Math.abs(inv.amount_before_vat)),
     vat_amount: fromAgorot(Math.abs(inv.vat_amount)),
+    property_number: inv.property_number || '',
+    clearing_number: inv.clearing_number || '',
+    period_from: inv.period_from || '',
+    period_to: inv.period_to || '',
   };
 }
 
@@ -550,6 +567,7 @@ router.post('/:id/edit', requirePermission('edit_invoice'), async (req, res, nex
       amountBeforeVat: toAgorot(b.amount_before_vat),
       vatAmount: toAgorot(b.vat_amount),
       docType: b.doc_type,
+      ...(b.doc_type === 'arnona' ? arnonaInput(b) : {}),
     };
     // Non-owners: queue the edit for the owner's approval instead of applying it — EXCEPT a missing
     // allocation number. בעלים 25/10: "הזינו מספר הקצאה בעריכה, שמרו — והחשבונית עדיין מוחזקת. זה צריך מייד

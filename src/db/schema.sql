@@ -240,7 +240,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   vat_amount         INTEGER NOT NULL DEFAULT 0,              -- agorot
   total_amount       INTEGER NOT NULL,                        -- agorot (negative for credit_note)
   doc_type           TEXT NOT NULL
-                     CHECK (doc_type IN ('tax_invoice','tax_invoice_receipt','credit_note')),
+                     CHECK (doc_type IN ('tax_invoice','tax_invoice_receipt','credit_note','arnona')),
   image_path         TEXT,                                    -- stage 1b
   status             TEXT NOT NULL DEFAULT 'recorded'
                      CHECK (status IN ('recorded','approved_for_payment','on_hold','paid')),
@@ -254,6 +254,12 @@ CREATE TABLE IF NOT EXISTS invoices (
   notes               TEXT,                                   -- הערה חופשית (דף חשבוניות / בעת הנפקת תשלום)
   tracked_at          TEXT,
   tracked_by          INTEGER REFERENCES users(id),
+  -- 🏛️ חשבון ארנונה (doc_type 'arnona', בעלים 29/10): במקום מספר ותאריך — מס׳ נכס, מס׳ מסלקה ותקופה
+  -- מחודש עד חודש ('YYYY-MM'). invoice_number/invoice_date נגזרים מהם בשירות. NULL בכל מסמך אחר.
+  property_number     TEXT,
+  clearing_number     TEXT,
+  period_from         TEXT,
+  period_to           TEXT,
   created_by         INTEGER NOT NULL REFERENCES users(id),
   created_at         TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now'))
 );

@@ -30,7 +30,7 @@ test('the supplier picker marks zero-rated suppliers, and the VAT auto-fill uses
   assert.doesNotMatch(html, new RegExp(`<option value="${reg.id}" data-zero`));
   for (const f of ['new', 'edit']) {
     const view = readFileSync(new URL(`../src/views/invoices/${f}.ejs`, import.meta.url), 'utf8');
-    assert.match(view, /function rate\(\)\{ return zero\(\) \? 0 : STD; \}/, f);
+    assert.match(view, /function rate\(\)\{ return \(zero\(\) \|\| arn\(\)\) \? 0 : STD; \}/, f); // + חשבון ארנונה (arnona.test.js)
     assert.match(view, /ספק בשיעור אפס — מע"מ 0, בלי מספר הקצאה/, f);
   }
 });

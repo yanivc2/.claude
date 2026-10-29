@@ -227,7 +227,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   vat_amount         BIGINT NOT NULL DEFAULT 0,
   total_amount       BIGINT NOT NULL,
   doc_type           TEXT NOT NULL
-                     CHECK (doc_type IN ('tax_invoice','tax_invoice_receipt','credit_note')),
+                     CHECK (doc_type IN ('tax_invoice','tax_invoice_receipt','credit_note','arnona')),
   image_path         TEXT,
   status             TEXT NOT NULL DEFAULT 'recorded'
                      CHECK (status IN ('recorded','approved_for_payment','on_hold','paid')),
@@ -237,6 +237,10 @@ CREATE TABLE IF NOT EXISTS invoices (
   notes               TEXT,
   tracked_at          TEXT,
   tracked_by          INTEGER REFERENCES users(id),
+  property_number     TEXT,
+  clearing_number     TEXT,
+  period_from         TEXT,
+  period_to           TEXT,
   created_by         INTEGER NOT NULL REFERENCES users(id),
   created_at         TEXT NOT NULL DEFAULT to_char(now(), 'YYYY-MM-DD HH24:MI:SS')
 );
@@ -894,3 +898,13 @@ ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS discount_amount BIGINT;
 ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS discount_count  INTEGER;
 ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS void_amount     BIGINT;
 ALTER TABLE revenue_reports ADD COLUMN IF NOT EXISTS void_count      INTEGER;
+
+-- 🏛️ חשבון ארנונה (בעלים 29/10) — ראה schema.sql. 🔴 הסדר מכוון: קודם ה-CHECK, אחר כך העמודות. בדיקת
+-- המוכנות (`arnonaReady`) שואלת על העמודות, ולכן עמודות קיימות = גם ה-CHECK כבר מכיר את 'arnona'.
+ALTER TABLE invoices DROP CONSTRAINT IF EXISTS invoices_doc_type_check;
+ALTER TABLE invoices ADD CONSTRAINT invoices_doc_type_check
+  CHECK (doc_type IN ('tax_invoice','tax_invoice_receipt','credit_note','arnona'));
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS property_number TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS clearing_number TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS period_from     TEXT;
+ALTER TABLE invoices ADD COLUMN IF NOT EXISTS period_to       TEXT;

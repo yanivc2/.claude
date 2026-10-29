@@ -1,0 +1,66 @@
+<%# 🏛️ חשבון ארנונה (בעלים 29/10: "במקום מספר חשבונית צריך מספר נכס ומספר מסלקה. במקום תאריך צריך טווח
+    תאריכים — זה דו חודשי"). שורה שמחליפה במקום את שורת "מספר חשבונית · מספר הקצאה · תאריך" (`[data-doc-std]`)
+    כשבוחרים "חשבון ארנונה" ב"סוג מסמך". השורה המוסתרת מושבתת — לא נשלחת ולא נבדקת כחובה (גם שדה התאריך המשופר
+    של footer: ה-`data-req` שלו יורד). המספר והתאריך של החשבונית נגזרים בשרת (services/invoices.js#arnonaFields).
+    בשימוש ב-new.ejs וב-edit.ejs. 🔴 `.row` הוא display:flex — לכן style ולא hidden. %>
+<%
+  var _arn = values.doc_type === 'arnona';
+  // הערך נשמר 'YYYY-MM'; בורר החודש של footer קורא ושולח 'YYYY-MM-DD'.
+  var _pm = function (v) { var m = /^(\d{4})-(\d{2})/.exec(v || ''); return m ? m[1] + '-' + m[2] + '-01' : ''; };
+%>
+<div class="row" data-doc-arnona<%- _arn ? '' : ' style="display:none"' %>>
+  <div>
+    <label>מס׳ נכס *</label>
+    <input name="property_number" required maxlength="40" inputmode="numeric" value="<%= values.property_number || '' %>" />
+  </div>
+  <div>
+    <label>מס׳ מסלקה *</label>
+    <input name="clearing_number" required maxlength="40" inputmode="numeric" value="<%= values.clearing_number || '' %>" />
+  </div>
+  <div>
+    <label>תקופה — מחודש *</label>
+    <input type="date" name="period_from" data-dp-mode="month" required value="<%= _pm(values.period_from) %>" />
+  </div>
+  <div>
+    <label>עד חודש *</label>
+    <input type="date" name="period_to" data-dp-mode="month" required value="<%= _pm(values.period_to) %>" />
+  </div>
+</div>
+<script>
+  (function () {
+    var MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
+    function setGroup(g, on) {
+      if (!g) return;
+      g.style.display = on ? '' : 'none';
+      g.querySelectorAll('input, select, textarea').forEach(function (el) { el.disabled = !on; });
+      g.querySelectorAll('.dp-wrap').forEach(function (w) {
+        if (w.dataset.reqOrig == null) w.dataset.reqOrig = w.dataset.req || '';
+        if (on && w.dataset.reqOrig) w.dataset.req = w.dataset.reqOrig; else delete w.dataset.req;
+      });
+    }
+    function init() {
+      var sel = document.querySelector('select[name="doc_type"]');
+      var std = document.querySelector('[data-doc-std]');
+      var arn = document.querySelector('[data-doc-arnona]');
+      if (!sel || !arn) return;
+      function apply() { var on = sel.value === 'arnona'; setGroup(std, !on); setGroup(arn, on); }
+      sel.addEventListener('change', apply);
+      apply();
+      // חשבון דו-חודשי: "מחודש" נבחר ו"עד חודש" ריק (או לפניו) → החודש שאחריו. אפשר לשנות.
+      var from = arn.querySelector('input[type="hidden"][name="period_from"]');
+      var to = arn.querySelector('input[type="hidden"][name="period_to"]');
+      if (!from || !to) return;
+      from.addEventListener('change', function () {
+        var m = /^(\d{4})-(\d{2})/.exec(from.value || '');
+        if (!m || (to.value && to.value >= from.value)) return;
+        var y = +m[1], mo = +m[2]; // החודש הבא (0-based = mo)
+        if (mo === 12) { y += 1; mo = 0; }
+        to.value = y + '-' + (mo < 9 ? '0' : '') + (mo + 1) + '-01';
+        var shown = to.parentNode.querySelector('input[type="text"]');
+        if (shown) shown.value = MONTHS[mo] + ' ' + y;
+      });
+    }
+    // אחרי שה-footer הפך את שדות התאריך לבורר (המאזין שלו נרשם אחרי זה, ולכן setTimeout).
+    document.addEventListener('DOMContentLoaded', function () { setTimeout(init, 0); });
+  })();
+</script>

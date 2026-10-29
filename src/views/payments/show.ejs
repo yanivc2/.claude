@@ -109,7 +109,7 @@
         <tr>
           <td><a href="/invoices/<%= l.invoice_id %>" class="mono"><%= l.invoice_number %></a></td>
           <td><%= l.supplier_name %></td>
-          <td><%= l.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
+          <td><%= docKind(l.doc_type) %></td>
           <td><%= formatDate(l.invoice_date) %></td>
           <td class="right <%= l.amount_applied < 0 ? 'neg' : '' %>"><%= formatIls(l.amount_applied) %></td>
         </tr>

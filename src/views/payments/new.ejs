@@ -77,7 +77,7 @@ const groupList = Object.values(groups);
               <td><%= i.supplier_name %></td>
               <td class="mono"><%= i.invoice_number %></td>
               <td><%= formatDate(i.invoice_date) %></td>
-              <td><%= i.doc_type === 'credit_note' ? 'זיכוי' : 'חשבונית' %></td>
+              <td><%= docKind(i.doc_type) %></td>
               <td class="right <%= i.total_amount < 0 ? 'neg' : '' %>"><%= formatIls(i.total_amount) %></td>
             </tr>
           <% }); %>

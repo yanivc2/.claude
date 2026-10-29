@@ -39,6 +39,7 @@ export function migrate(db) {
   migrateCashExpenseInvoiceIds(db);
   migrateSalaryCashMatch(db);
   migrateBankSyncJobs(db);
+  migrateArnona(db);
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -813,4 +814,39 @@ function migrateBankSyncJobs(db) {
      );`,
   );
   db.exec('CREATE INDEX IF NOT EXISTS ix_bank_sync_jobs_status ON bank_sync_jobs(status, requested_at);');
+}
+
+// 🏛️ חשבון ארנונה (בעלים 29/10): doc_type 'arnona' + מס׳ נכס / מס׳ מסלקה / תקופה. SQLite לא משנה CHECK
+// במקום, ולכן הטבלה נבנית מחדש — מה-SQL הקיים שלה (כולל כל עמודה שמיגרציה הוסיפה), רק עם הערך החדש,
+// ואז האינדקסים חוזרים כמו שהיו. 🔴 קודם ה-CHECK ואחר כך העמודות: `arnonaReady` שואלת על העמודות.
+function migrateArnona(db) {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='invoices'").get();
+  if (!row) return;
+  if (!row.sql.includes("'arnona'")) {
+    const newSql = row.sql
+      .replace(/^CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?invoices"?/i, 'CREATE TABLE invoices_new')
+      .replace(/(CHECK\s*\(\s*doc_type\s+IN\s*\([^)]*'credit_note')\s*\)/, "$1,'arnona')");
+    if (!newSql.includes("'arnona'") || !newSql.startsWith('CREATE TABLE invoices_new')) {
+      throw new Error('migrateArnona: unexpected invoices schema — cannot widen the doc_type CHECK');
+    }
+    const cols = db.prepare('PRAGMA table_info(invoices)').all().map((c) => `"${c.name}"`).join(', ');
+    const extras = db
+      .prepare("SELECT sql FROM sqlite_master WHERE tbl_name='invoices' AND type IN ('index','trigger') AND sql IS NOT NULL")
+      .all()
+      .map((r) => r.sql);
+    db.pragma('foreign_keys = OFF');
+    const run = db.transaction(() => {
+      db.exec(newSql);
+      db.exec(`INSERT INTO invoices_new (${cols}) SELECT ${cols} FROM invoices;`);
+      db.exec('DROP TABLE invoices;');
+      db.exec('ALTER TABLE invoices_new RENAME TO invoices;');
+      for (const sql of extras) db.exec(sql);
+    });
+    run();
+    db.pragma('foreign_keys = ON');
+  }
+  const cols = db.prepare('PRAGMA table_info(invoices)').all().map((c) => c.name);
+  for (const c of ['property_number', 'clearing_number', 'period_from', 'period_to']) {
+    if (!cols.includes(c)) db.exec(`ALTER TABLE invoices ADD COLUMN ${c} TEXT;`);
+  }
 }
