@@ -60,10 +60,11 @@ which does not survive between sessions.
   `claude plugin list` prints `"design@synced" … not loaded`. Disabling the local
   copy therefore saves nothing on Windows — the synced one loads instead, and that
   one ignores `name-only`. **Kept as-is** for that reason.
-- Decided to remove from the account, by hand in the app: postiz, superdesign,
-  cowork-plugin-management, design-superpowers, one of the two marketing copies.
-  Zero uses in `pluginUsage`, and each overlaps a kit. Kept: legal, cowork-mem,
-  pdf-viewer, animatedwebs, desktop-commander, marketing (one copy).
+- **All account plugins stay installed** — the owner's decision: the kits load
+  what a job needs on demand. The known cost is that in app sessions their names,
+  and some descriptions, still sit in the listing. Zero uses in `pluginUsage`:
+  postiz, superdesign, cowork-plugin-management, design-superpowers, and a
+  duplicate marketing copy. Do not propose removing them again without new data.
 - **firecrawl disabled on both machines** (`claude plugin disable
   firecrawl@firecrawl`; re-enable with `enable`). Zero calls in 231 transcripts;
   on Windows the 1.0.9 CLI wrapper never had a CLI or key; 2.x on the Mac adds a
@@ -124,9 +125,8 @@ hooks, deny 57). Differing settings between them is expected, not drift.
    objects; it was never committed. Rotate at 21st.dev, which invalidates all six
    at once; deleting files first accomplishes nothing.
 2. 977 skills sit in `~/.agents/skills` (53.9 MB), invisible to Claude Code.
-3. The account plugins listed above as "remove" are still installed until the
-   owner removes them in the app. The Mac gets its synced skills from the app's
-   own folder, not `~/.claude/skills/synced/`.
+3. The Mac gets its synced skills from the app's own folder, not
+   `~/.claude/skills/synced/`, so nothing in `~/.claude` controls them there.
 4. `context-mode` still burns ~8s per startup, never connects, and injects a
    `<context_window_protection>` block into every session via SessionStart.
 5. `/design-login` returns HTTP 403 on Windows.
