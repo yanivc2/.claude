@@ -18,6 +18,18 @@ Last measured 2026-10-24.
   Claude; `name-only` = name only; `user-invocable-only` = **hidden from Claude**,
   present in the `/` menu; `off` = hidden from both. **No tier stops the file
   being Read** — that is what makes the kits work.
+- **`skillOverrides` does not touch skills from installed plugins**, in any key
+  form. The docs (code.claude.com/docs/en/skills.md): "Plugin skills are not
+  affected by `skillOverrides`. Manage those through `/plugin` instead."
+  Verified 2026-10-31 on CLI 2.1.310: with `brainstorming` and then
+  `superpowers:brainstorming` at `name-only`, and `context-mode:ctx-search` at
+  `user-invocable-only`, all stayed listed with full descriptions. Keys of the
+  form `anthropic-skills:<name>` (account-synced) **are** honored — observed,
+  not documented. The only plugin-level lever is enabling or disabling the
+  whole plugin. The 78 plugin-skill keys were therefore removed from the Windows
+  `settings.json` (superpowers 15, design 7, frontend-design 1, vercel 37,
+  firecrawl 10, context-mode 8); backup
+  `settings.json.bak-prefix-overrides-2026-10-31`. Do not add such keys again.
 - `skillListingMaxDescChars` (200 here) caps **each** description, not the total.
   The total is `skillListingBudgetFraction`, default 0.01 = 1% of the window.
 - Over budget, Claude Code keeps every name and drops the least-used descriptions.
@@ -69,9 +81,7 @@ which does not survive between sessions.
   firecrawl@firecrawl`; re-enable with `enable`). Zero calls in 231 transcripts;
   on Windows the 1.0.9 CLI wrapper never had a CLI or key; 2.x on the Mac adds a
   hosted MCP server. Firecrawl has only basic proxies for IL, so local Playwright
-  from the 24/7 PC is better for Israeli sites. Its `name-only` keys were left in
-  place: bare keys such as `design`, `seo-audit`, `read-docs` appear to match the
-  same skill name in other plugins too (inferred from the listing, not verified).
+  from the 24/7 PC is better for Israeli sites.
 
 ## Duplicates removed, and the Mac's usage counts (2026-10-31)
 
@@ -92,9 +102,9 @@ which does not survive between sessions.
   It does **not** reach the app's plugin skills on the Mac: those are never
   trimmed and all 76 keep their descriptions. Backup:
   `~/.claude.json.bak-seed-skill-usage-2026-10-31`.
-- Unresolved: whether a bare `skillOverrides` key (`brainstorming`) also matches
-  a plugin skill (`superpowers:brainstorming`). The evidence conflicts, and with
-  the personal copies gone, some bare keys may now match nothing.
+- 21 `skillOverrides` keys that matched no installed skill were dropped on
+  Windows: the 7 caveman ones and 14 bare names (`design`, `seo-audit`,
+  `read-docs`, `firecrawl*`, `find-leads` and others).
 
 ## The two machines are separate
 
@@ -133,6 +143,12 @@ hooks, deny 57). Differing settings between them is expected, not drift.
   exit 0 refuses one call. The OneDrive guard was wrongly using the first.
 
 ## Claimed here once, and disproved
+
+- *"PR #126 tiered the vercel, firecrawl and context-mode plugin skills."* It
+  changed nothing: those were bare `skillOverrides` keys for plugin skills, which
+  the setting ignores. The same holds for the superpowers, design and
+  frontend-design keys. In app sessions some of those skills show without a
+  description only because budget trimming drops them.
 
 - *"Archiving the 505 flat `.md` files saved 6,420 chars of listing."* Wrong. The
   pre-archive debug log proves they never loaded. The real win came from archiving
