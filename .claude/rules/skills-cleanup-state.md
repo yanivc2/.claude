@@ -73,6 +73,29 @@ which does not survive between sessions.
   place: bare keys such as `design`, `seo-audit`, `read-docs` appear to match the
   same skill name in other plugins too (inferred from the listing, not verified).
 
+## Duplicates removed, and the Mac's usage counts (2026-10-31)
+
+- **19 personal skills removed on both machines**, each a copy of one loaded from
+  elsewhere, so the name was listed twice. pdf, docx, xlsx, pptx: the account
+  delivers them, equal or newer. brainstorming plus 14 other superpowers skills:
+  the superpowers plugin ships them, newer. None carried local changes. Staged in
+  `~/.claude/trash/2026-10-31-skill-duplicates/`; the manifest dropped the
+  `obra/superpowers` source and the four document skills, so `/skills-sync` will
+  not bring them back. The kits and `dev-workflow-router` now name
+  `superpowers:<name>`. skill-creator is still listed three times (personal,
+  account, plugin); not addressed — the personal one is the copy the manifest
+  installs.
+- **The Mac's `~/.claude.json` `skillUsage` was seeded** with the 35 Windows
+  entries, because budget trimming drops the descriptions of the least-used
+  skills first and the Mac had no history. Result: all four kits and the eight
+  probed skills carry descriptions there (~273 skills listed, ~131 with one).
+  It does **not** reach the app's plugin skills on the Mac: those are never
+  trimmed and all 76 keep their descriptions. Backup:
+  `~/.claude.json.bak-seed-skill-usage-2026-10-31`.
+- Unresolved: whether a bare `skillOverrides` key (`brainstorming`) also matches
+  a plugin skill (`superpowers:brainstorming`). The evidence conflicts, and with
+  the personal copies gone, some bare keys may now match nothing.
+
 ## The two machines are separate
 
 Since 2026-10-22 the Mac's `~/.claude` has **no remote** — 341 commits, local
