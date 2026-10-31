@@ -49,6 +49,29 @@ in `/context`, and `docs` at `user-invocable-only` shows ~340 tokens. Skills cos
 the full 10k there. Fixing it means writing the overrides into the cloud `HOME`,
 which does not survive between sessions.
 
+## Plugins delivered by the account (2026-10-31)
+
+- In **app** sessions `off` does not hide account-delivered skills (51 of 59
+  `off`/`user-invocable-only` keys still listed on the Mac), and `name-only` does
+  not apply to the app's own plugin copies (`design:*`, `frontend-design`). The
+  only lever for those is removing the plugin in the Claude app, Customize →
+  Plugins, which applies to every machine and to claude.ai at once.
+- In the CLI a local plugin wins over the synced one of the same name:
+  `claude plugin list` prints `"design@synced" … not loaded`. Disabling the local
+  copy therefore saves nothing on Windows — the synced one loads instead, and that
+  one ignores `name-only`. **Kept as-is** for that reason.
+- Decided to remove from the account, by hand in the app: postiz, superdesign,
+  cowork-plugin-management, design-superpowers, one of the two marketing copies.
+  Zero uses in `pluginUsage`, and each overlaps a kit. Kept: legal, cowork-mem,
+  pdf-viewer, animatedwebs, desktop-commander, marketing (one copy).
+- **firecrawl disabled on both machines** (`claude plugin disable
+  firecrawl@firecrawl`; re-enable with `enable`). Zero calls in 231 transcripts;
+  on Windows the 1.0.9 CLI wrapper never had a CLI or key; 2.x on the Mac adds a
+  hosted MCP server. Firecrawl has only basic proxies for IL, so local Playwright
+  from the 24/7 PC is better for Israeli sites. Its `name-only` keys were left in
+  place: bare keys such as `design`, `seo-audit`, `read-docs` appear to match the
+  same skill name in other plugins too (inferred from the listing, not verified).
+
 ## The two machines are separate
 
 Since 2026-10-22 the Mac's `~/.claude` has **no remote** — 341 commits, local
@@ -101,8 +124,9 @@ hooks, deny 57). Differing settings between them is expected, not drift.
    objects; it was never committed. Rotate at 21st.dev, which invalidates all six
    at once; deleting files first accomplishes nothing.
 2. 977 skills sit in `~/.agents/skills` (53.9 MB), invisible to Claude Code.
-3. The Mac has none of the 59 claude.ai-synced skills, and 7 plugins are not
-   installed there. Both need an interactive session on that machine.
+3. The account plugins listed above as "remove" are still installed until the
+   owner removes them in the app. The Mac gets its synced skills from the app's
+   own folder, not `~/.claude/skills/synced/`.
 4. `context-mode` still burns ~8s per startup, never connects, and injects a
    `<context_window_protection>` block into every session via SessionStart.
 5. `/design-login` returns HTTP 403 on Windows.
