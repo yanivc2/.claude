@@ -5,54 +5,53 @@ description: Index of the installed development workflow skills. Use when planni
 
 # Development workflow skills: what is installed
 
-Seventeen workflow skills are installed at `name-only`: Claude is shown the name
-but pays nothing for a description until the skill is called. Most come from the
-superpowers package. This index is what loads; run the skill yourself, or tell
-the user which command to run.
-
-Their directories live under `~/.agents/skills-tree/dev-workflow/`, grouped into
-`planning/`, `quality/`, `agents/` and `git/`, with a symlink per skill in
-`~/.claude/skills/` because Claude Code discovers skills at exactly one level.
-The grouping is for reading the tree; what Claude sees is this index.
+Most of these come from the superpowers plugin and are named `superpowers:<name>`;
+their files are under
+`~/.claude/plugins/cache/claude-plugins-official/superpowers/<version>/skills/`.
+The personal copies that used to shadow them were removed on 2026-10-31, being
+older duplicates. The rest (`grilling`, `grill-me`, `handoff`,
+`karpathy-guidelines`, `codeql`, `semgrep`, `sarif-parsing`) are personal skills
+with a symlink per skill in `~/.claude/skills/`. This index is what loads; run
+the skill yourself, or tell the user which command to run.
 
 ## Before writing code
 
 | Need | Run |
 |---|---|
-| Explore the shape of a feature before building | `/brainstorming` |
-| Turn a spec into a written multi-step plan | `/writing-plans` |
+| Explore the shape of a feature before building | `/superpowers:brainstorming` |
+| Turn a spec into a written multi-step plan | `/superpowers:writing-plans` |
 | Stress-test a plan or decision by interrogation | `/grilling` or `/grill-me` |
-| Isolate feature work from the current workspace | `/using-git-worktrees` |
+| Isolate feature work from the current workspace | `/superpowers:using-git-worktrees` |
 
 ## While building
 
 | Need | Run |
 |---|---|
-| Execute a written plan with review checkpoints | `/executing-plans` |
-| Write the test before the implementation | `/test-driven-development` |
-| Any bug, test failure or surprise, before fixing | `/systematic-debugging` |
-| Independent tasks in the current session | `/subagent-driven-development` |
-| Two or more tasks with no shared state | `/dispatching-parallel-agents` |
+| Execute a written plan with review checkpoints | `/superpowers:executing-plans` |
+| Write the test before the implementation | `/superpowers:test-driven-development` |
+| Any bug, test failure or surprise, before fixing | `/superpowers:systematic-debugging` |
+| Independent tasks in the current session | `/superpowers:subagent-driven-development` |
+| Two or more tasks with no shared state | `/superpowers:dispatching-parallel-agents` |
 
 ## Before claiming done
 
 | Need | Run |
 |---|---|
-| About to say complete, fixed or passing | `/verification-before-completion` |
-| Ask for review of finished work | `/requesting-code-review` |
-| Handle review feedback, especially if it seems wrong | `/receiving-code-review` |
-| Decide how to integrate a finished branch | `/finishing-a-development-branch` |
+| About to say complete, fixed or passing | `/superpowers:verification-before-completion` |
+| Ask for review of finished work | `/superpowers:requesting-code-review` |
+| Handle review feedback, especially if it seems wrong | `/superpowers:receiving-code-review` |
+| Decide how to integrate a finished branch | `/superpowers:finishing-a-development-branch` |
 
 ## Meta
 
 | Need | Run |
 |---|---|
 | Create or edit a skill | `skill-creator`, always loaded |
-| Verify a skill works before deployment | `/writing-skills` |
+| Verify a skill works before deployment | `/superpowers:writing-skills` |
 | Compact this conversation for another agent | `/handoff` |
 | Reduce common LLM coding mistakes | `/karpathy-guidelines` |
 | Static analysis | `/codeql`, `/semgrep`, `/sarif-parsing` |
-| How skills work at all | `/using-superpowers` |
+| How skills work at all | `/superpowers:using-superpowers` |
 
 ## The rules these encode, in one paragraph
 

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "updatedAt": "2026-10-31T05:10:00.000Z",
-  "note": "The intended skill set for every machine running this config. Only npx-installed skills are listed; the claude.ai-synced ones arrive on their own, and the routers travel in git. The SessionStart hook hooks/skills-drift.mjs compares this list against what is installed locally and reports the gap. Nothing installs automatically.",
+  "note": "The intended skill set for every machine running this config. Only npx-installed skills are listed; the claude.ai-synced ones arrive on their own, and the routers travel in git. The SessionStart hook hooks/skills-drift.mjs compares this list against what is installed locally and reports the gap. Nothing installs automatically. The obra/superpowers source was dropped on 2026-10-31: the superpowers plugin (superpowers@claude-plugins-official) carries the same skills, newer.",
   "sources": [
     {
       "id": "emilkowalski",
@@ -24,28 +24,6 @@
         "review-animations",
         "write-swift"
       ]
-    },
-    {
-      "id": "superpowers",
-      "repo": "obra/superpowers",
-      "install": "npx skills add obra/superpowers -g -y --skill diagnosing-superpowers --skill dispatching-parallel-agents --skill executing-plans --skill finishing-a-development-branch --skill receiving-code-review --skill requesting-code-review --skill subagent-driven-development --skill systematic-debugging --skill test-driven-development --skill using-git-worktrees --skill using-superpowers --skill verification-before-completion --skill writing-plans --skill writing-skills",
-      "skills": [
-        "diagnosing-superpowers",
-        "dispatching-parallel-agents",
-        "executing-plans",
-        "finishing-a-development-branch",
-        "receiving-code-review",
-        "requesting-code-review",
-        "subagent-driven-development",
-        "systematic-debugging",
-        "test-driven-development",
-        "using-git-worktrees",
-        "using-superpowers",
-        "verification-before-completion",
-        "writing-plans",
-        "writing-skills"
-      ],
-      "note": "Upstream shipped 15 skills as of 2026-10-22. superpowers-lab and grilling were dropped and are vendored under skills-vendored/; diagnosing-superpowers was added. brainstorming was dropped on 2026-10-31: the superpowers plugin carries a newer copy, so the install lists skills explicitly instead of '*'."
     },
     {
       "id": "taste",
