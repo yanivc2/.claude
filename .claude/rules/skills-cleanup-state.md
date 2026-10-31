@@ -30,6 +30,11 @@ Last measured 2026-10-24.
   `settings.json` (superpowers 15, design 7, frontend-design 1, vercel 37,
   firecrawl 10, context-mode 8); backup
   `settings.json.bak-prefix-overrides-2026-10-31`. Do not add such keys again.
+  The Mac got the same cleanup the same day: 81 bare plugin-skill keys and 18
+  dead ones (the caveman set, `context-mode-ops`, and ten firecrawl 1.x names
+  that firecrawl 2.x does not ship), with a backup of the same name. Both
+  machines now hold 101 keys. The Mac writes account skills as bare names
+  (`docs`, `007`), Windows as `anthropic-skills:<name>`.
 - `skillListingMaxDescChars` (200 here) caps **each** description, not the total.
   The total is `skillListingBudgetFraction`, default 0.01 = 1% of the window.
 - Over budget, Claude Code keeps every name and drops the least-used descriptions.
@@ -82,6 +87,13 @@ which does not survive between sessions.
   on Windows the 1.0.9 CLI wrapper never had a CLI or key; 2.x on the Mac adds a
   hosted MCP server. Firecrawl has only basic proxies for IL, so local Playwright
   from the 24/7 PC is better for Israeli sites.
+- **vercel disabled on both machines** (`claude plugin disable
+  vercel@claude-plugins-official`; re-enable with `enable`). 37 skills, ~2,000
+  listing tokens per session, zero skill uses in `skillUsage`, and its MCP
+  server (`plugin:vercel:vercel`) was never authorized. Since `skillOverrides`
+  cannot thin a plugin, disabling it was the only lever. The claude.ai Vercel
+  connector is separate and still available. Backup:
+  `settings.json.bak-vercel-disable-2026-10-31`.
 
 ## Duplicates removed, and the Mac's usage counts (2026-10-31)
 
@@ -149,7 +161,6 @@ hooks, deny 57). Differing settings between them is expected, not drift.
   the setting ignores. The same holds for the superpowers, design and
   frontend-design keys. In app sessions some of those skills show without a
   description only because budget trimming drops them.
-
 - *"Archiving the 505 flat `.md` files saved 6,420 chars of listing."* Wrong. The
   pre-archive debug log proves they never loaded. The real win came from archiving
   1,472 skill **directories**: 245,029 → 35,339 description chars.

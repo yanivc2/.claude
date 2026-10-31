@@ -323,7 +323,7 @@
     "firecrawl@firecrawl": false,
     "context-mode@context-mode": true,
     "commit-commands@claude-plugins-official": true,
-    "vercel@claude-plugins-official": true
+    "vercel@claude-plugins-official": false
   },
   "extraKnownMarketplaces": {
     "claude-plugins-official": {
