@@ -1,5 +1,8 @@
 {
-  "language": "hebrew",
+  "skillListingMaxDescChars": 200,
+  "env": {
+    "VERCEL_PLUGIN_TELEMETRY": "off"
+  },
   "permissions": {
     "allow": [
       "PowerShell(gh auth status 2>&1)",
@@ -86,7 +89,6 @@
       "Read(**/*.zip)",
       "Read(**/*.7z)",
       "Read(**/*.iso)",
-      "Read(**/*.mp4)",
       "Read(~/AppData/Local/Google/Chrome/User Data/**)",
       "Read(~/AppData/Local/Microsoft/Edge/User Data/**)",
       "Read(~/AppData/Roaming/Mozilla/Firefox/**)"
@@ -94,6 +96,7 @@
     "ask": [
       "Read(//c/micha-agent/**/*.vtt)",
       "Read(**/*.srt)",
+      "Read(**/*.mp4)",
       "Read(//c/Users/yaniv/OneDrive/**)"
     ],
     "additionalDirectories": [
@@ -101,154 +104,6 @@
     ]
   },
   "model": "opus[1m]",
-  "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/skills-drift.mjs\""
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/project-template-bootstrap.mjs\""
-          },
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/project-health.mjs\""
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"C:/Program Files/nodejs/node.exe\" \"C:/Users/yaniv/.claude/hooks/context-mode-cache-heal.mjs\""
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/stop-sound.mjs\""
-          },
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/stop-git-stat.mjs\""
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/hebrew-reply-hook.mjs\"",
-            "timeout": 30
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Write|Edit|NotebookEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/onedrive-write-guard.mjs\""
-          }
-        ]
-      },
-      {
-        "matcher": "Bash|PowerShell",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/block-secrets.mjs\"",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "matcher": "Read|Edit|Write|NotebookEdit|Grep",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/block-secrets.mjs\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/tsc-check.mjs\"",
-            "statusMessage": "בודק TypeScript..."
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"$HOME/.claude/hooks/tsc-check.mjs\"",
-            "statusMessage": "בודק TypeScript..."
-          }
-        ]
-      }
-    ]
-  },
-  "enabledPlugins": {
-    "frontend-design@claude-plugins-official": true,
-    "code-simplifier@claude-plugins-official": true,
-    "superpowers@claude-plugins-official": true,
-    "design@knowledge-work-plugins": true,
-    "firecrawl@firecrawl": true,
-    "context-mode@context-mode": true,
-    "commit-commands@claude-plugins-official": true
-  },
-  "extraKnownMarketplaces": {
-    "claude-plugins-official": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/claude-plugins-official"
-      }
-    },
-    "knowledge-work-plugins": {
-      "source": {
-        "source": "github",
-        "repo": "anthropics/knowledge-work-plugins"
-      }
-    },
-    "firecrawl": {
-      "source": {
-        "source": "github",
-        "repo": "firecrawl/firecrawl-claude-plugin"
-      }
-    },
-    "context-mode": {
-      "source": {
-        "source": "github",
-        "repo": "mksglu/context-mode"
-      }
-    }
-  },
-  "effortLevel": "xhigh",
-  "fileCheckpointingEnabled": true,
-  "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true,
-  "skillListingMaxDescChars": 200,
   "skillOverrides": {
     "00-andruia-consultant": "off",
     "anthropic-skills:00-andruia-consultant": "off",
@@ -381,6 +236,223 @@
     "excel-catalog": "name-only",
     "maapilei-maroko-6-rentals": "name-only",
     "design-router": "name-only",
-    "israeli-business-router": "name-only"
-  }
+    "israeli-business-router": "name-only",
+    "access-protected-vercel-deployment": "name-only",
+    "ai-gateway": "name-only",
+    "ai-sdk": "name-only",
+    "auth": "name-only",
+    "bootstrap": "name-only",
+    "build-agents": "name-only",
+    "cdn-caching": "name-only",
+    "chat-sdk": "name-only",
+    "create-a-backend": "name-only",
+    "custom-metrics": "name-only",
+    "deployments-cicd": "name-only",
+    "env-vars": "name-only",
+    "eve": "name-only",
+    "flags-sdk": "name-only",
+    "knowledge-update": "name-only",
+    "marketplace": "name-only",
+    "microfrontends": "name-only",
+    "next-cache-components": "name-only",
+    "next-forge": "name-only",
+    "next-upgrade": "name-only",
+    "nextjs": "name-only",
+    "queues": "name-only",
+    "react-best-practices": "name-only",
+    "routing-middleware": "name-only",
+    "runtime-cache": "name-only",
+    "shadcn": "name-only",
+    "turbopack": "name-only",
+    "vercel-agent": "name-only",
+    "vercel-cli": "name-only",
+    "vercel-connect": "name-only",
+    "vercel-firewall": "name-only",
+    "vercel-functions": "name-only",
+    "vercel-sandbox": "name-only",
+    "vercel-services": "name-only",
+    "vercel-storage": "name-only",
+    "verification": "name-only",
+    "workflow": "name-only",
+    "firecrawl-agent": "name-only",
+    "firecrawl-cli": "name-only",
+    "firecrawl-crawl": "name-only",
+    "firecrawl-download": "name-only",
+    "firecrawl-interact": "name-only",
+    "firecrawl-map": "name-only",
+    "firecrawl-monitor": "name-only",
+    "firecrawl-parse": "name-only",
+    "firecrawl-scrape": "name-only",
+    "firecrawl-search": "name-only",
+    "brand-identity": "name-only",
+    "business-contact-research": "name-only",
+    "design": "name-only",
+    "enrich-lead": "name-only",
+    "fantasy-sports": "name-only",
+    "find-leads": "name-only",
+    "firecrawl": "name-only",
+    "firecrawl-deep-research": "name-only",
+    "firecrawl-developer-index": "name-only",
+    "firecrawl-research-index": "name-only",
+    "job-postings": "name-only",
+    "read-docs": "name-only",
+    "seo-audit": "name-only",
+    "context-mode": "name-only",
+    "ctx-doctor": "user-invocable-only",
+    "ctx-index": "user-invocable-only",
+    "ctx-insight": "user-invocable-only",
+    "ctx-purge": "user-invocable-only",
+    "ctx-search": "user-invocable-only",
+    "ctx-stats": "user-invocable-only",
+    "ctx-upgrade": "user-invocable-only"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/skills-drift.mjs\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/project-template-bootstrap.mjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/project-health.mjs\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Program Files/nodejs/node.exe\" \"C:/Users/yaniv/.claude/hooks/context-mode-cache-heal.mjs\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/stop-sound.mjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/stop-git-stat.mjs\""
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/hebrew-reply-hook.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/onedrive-write-guard.mjs\""
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/block-secrets.mjs\"",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|NotebookEdit|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/block-secrets.mjs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/tsc-check.mjs\"",
+            "statusMessage": "בודק TypeScript..."
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$HOME/.claude/hooks/tsc-check.mjs\"",
+            "statusMessage": "בודק TypeScript..."
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "frontend-design@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "superpowers@claude-plugins-official": true,
+    "design@knowledge-work-plugins": true,
+    "firecrawl@firecrawl": true,
+    "context-mode@context-mode": true,
+    "commit-commands@claude-plugins-official": true,
+    "vercel@claude-plugins-official": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-plugins-official": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/claude-plugins-official"
+      }
+    },
+    "knowledge-work-plugins": {
+      "source": {
+        "source": "github",
+        "repo": "anthropics/knowledge-work-plugins"
+      }
+    },
+    "firecrawl": {
+      "source": {
+        "source": "github",
+        "repo": "firecrawl/firecrawl-claude-plugin"
+      }
+    },
+    "context-mode": {
+      "source": {
+        "source": "github",
+        "repo": "mksglu/context-mode"
+      }
+    }
+  },
+  "language": "hebrew",
+  "effortLevel": "xhigh",
+  "fileCheckpointingEnabled": true,
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true
 }
