@@ -10,17 +10,20 @@ Load by phase, not all at once. Most tasks need two or three of these, never all
 **Where these files are.** Usually `~/.claude/skills/<name>/SKILL.md`. Skills
 synced from claude.ai sit one level deeper, at
 `~/.claude/skills/synced/*/<name>/SKILL.md`. Read them with the Read tool.
+The `superpowers:` skills come from the superpowers plugin: invoke them with the
+Skill tool, or read
+`~/.claude/plugins/cache/claude-plugins-official/superpowers/<version>/skills/<name>/SKILL.md`.
 
 ## The order
 
 | Phase | Load | Skip it when |
 |---|---|---|
-| 1. Understand what is wanted | `brainstorming` | the spec is already exact |
-| 2. Turn it into steps | `writing-plans` | it is a one-file change |
-| 3. Write it | `test-driven-development` | there is nothing to assert |
-| 4. Something is broken | `systematic-debugging` | nothing is broken |
-| 5. Before merging | `requesting-code-review` | — |
-| 6. Before saying "done" | `verification-before-completion` | never skip this one |
+| 1. Understand what is wanted | `superpowers:brainstorming` | the spec is already exact |
+| 2. Turn it into steps | `superpowers:writing-plans` | it is a one-file change |
+| 3. Write it | `superpowers:test-driven-development` | there is nothing to assert |
+| 4. Something is broken | `superpowers:systematic-debugging` | nothing is broken |
+| 5. Before merging | `superpowers:requesting-code-review` | — |
+| 6. Before saying "done" | `superpowers:verification-before-completion` | never skip this one |
 
 `karpathy-guidelines` is short and worth loading at step 3 on any task where the
 code has to survive someone else reading it.

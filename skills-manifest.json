@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-10-22T03:10:20.581Z",
-  "note": "The intended skill set for every machine running this config. Only npx-installed skills are listed; the claude.ai-synced ones arrive on their own, and the routers travel in git. The SessionStart hook hooks/skills-drift.mjs compares this list against what is installed locally and reports the gap. Nothing installs automatically.",
+  "updatedAt": "2026-10-31T05:10:00.000Z",
+  "note": "The intended skill set for every machine running this config. Only npx-installed skills are listed; the claude.ai-synced ones arrive on their own, and the routers travel in git. The SessionStart hook hooks/skills-drift.mjs compares this list against what is installed locally and reports the gap. Nothing installs automatically. The obra/superpowers source was dropped on 2026-10-31: the superpowers plugin (superpowers@claude-plugins-official) carries the same skills, newer.",
   "sources": [
     {
       "id": "emilkowalski",
@@ -24,29 +24,6 @@
         "review-animations",
         "write-swift"
       ]
-    },
-    {
-      "id": "superpowers",
-      "repo": "obra/superpowers",
-      "install": "npx skills add obra/superpowers -g -y --skill '*'",
-      "skills": [
-        "brainstorming",
-        "diagnosing-superpowers",
-        "dispatching-parallel-agents",
-        "executing-plans",
-        "finishing-a-development-branch",
-        "receiving-code-review",
-        "requesting-code-review",
-        "subagent-driven-development",
-        "systematic-debugging",
-        "test-driven-development",
-        "using-git-worktrees",
-        "using-superpowers",
-        "verification-before-completion",
-        "writing-plans",
-        "writing-skills"
-      ],
-      "note": "Upstream shipped 15 skills as of 2026-10-22. superpowers-lab and grilling were dropped and are vendored under skills-vendored/; diagnosing-superpowers was added."
     },
     {
       "id": "taste",
@@ -78,15 +55,12 @@
     {
       "id": "anthropic",
       "repo": "anthropics/skills",
-      "install": "npx skills add anthropics/skills -g -y --skill pdf --skill docx --skill xlsx --skill pptx --skill skill-creator --skill webapp-testing",
+      "install": "npx skills add anthropics/skills -g -y --skill skill-creator --skill webapp-testing",
       "skills": [
-        "pdf",
-        "docx",
-        "xlsx",
-        "pptx",
         "skill-creator",
         "webapp-testing"
-      ]
+      ],
+      "note": "pdf, docx, xlsx and pptx were dropped on 2026-10-31: the claude.ai account delivers the same skills, equal or newer."
     },
     {
       "id": "remotion",
