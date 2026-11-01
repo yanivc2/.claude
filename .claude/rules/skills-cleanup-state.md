@@ -169,11 +169,10 @@ hooks, deny 57). Differing settings between them is expected, not drift.
 
 ## Open
 
-1. **The 21st.dev API key is still not rotated.** Six copies, all in gitignored
-   backups under `~/.claude/backups/` and `~/.claude.json.bak-mcp-2026-10-21`.
-   Repo history is clean — verified across 920 commits and 221,645,319 bytes of
-   objects; it was never committed. Rotate at 21st.dev, which invalidates all six
-   at once; deleting files first accomplishes nothing.
+1. **The 21st.dev API key was rotated on 2026-10-31** by the owner, so the six
+   old copies in gitignored backups (`~/.claude/backups/`,
+   `~/.claude.json.bak-mcp-2026-10-21`) are dead. Repo history is clean —
+   verified across 920 commits; it was never committed.
 2. 977 skills sit in `~/.agents/skills` (53.9 MB), invisible to Claude Code.
 3. The Mac gets its synced skills from the app's own folder, not
    `~/.claude/skills/synced/`, so nothing in `~/.claude` controls them there.
