@@ -82,12 +82,12 @@
   <input name="daily_total" inputmode="decimal" required placeholder="0.00" value="<%= sh(z.daily_total) %>" />
 
   <h3 style="margin:1rem 0 .2rem">דוח מגירה</h3>
-  <%# פריסת הבעלים (2026-10-04), רשת של שתי עמודות — ב-RTL הילד הראשון בכל זוג הוא הימני:
+  <%# פריסת הבעלים (2026-10-04, עודכנה 08/11), רשת של שתי עמודות — ב-RTL הילד הראשון בכל זוג הוא הימני:
         הכנסות מאשראי   | הוצאות במזומן     ← שתי הרובריקות תמיד פתוחות, באותו גובה מרבי (גלילה פנימית)
-        תווי קניה       | צ'ק
-        הקפה            | מזומן מגירה
-        סה"כ מגירה      |
-        אשראי מגירה     |
+        מזומן מגירה     | צ'ק
+        אשראי מגירה     | תווי קניה
+        הקפה            |
+      "סה"כ מגירה" עבר להצהרה על הפקדה, מעל "סה"כ הופקד" (בעלים 08/11).
       המיקום בלבד השתנה: השמות (drawer_*, cc_*), המחלקות (.dr / .cc / .cx-amt) והמזהים שה-JS קורא
       זהים, ולכן כל החישובים (סה"כ מגירה, התאמת אשראי, חוסר/יתרה) לא תלויים בסדר. %>
   <div class="zdrawer">
@@ -131,16 +131,14 @@
       </div>
     </section>
 
-    <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" value="<%= sh(z.drawer_vouchers) %>" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
+    <div><label>מזומן מגירה</label><input name="drawer_cash" class="dr" inputmode="decimal" value="<%= sh(z.drawer_cash) %>" /></div>
     <div><label>צ'ק</label><input name="drawer_check" class="dr" inputmode="decimal" value="<%= sh(z.drawer_check) %>" /><small class="muted">תשלום חוב באמצעות צ'ק</small></div>
 
+    <%# ✓ ירוק מימין לכותרת + כותרת ירוקה כשהאשראי תואם לסה"כ הכנסות מאשראי (בעלים 08/11) — recalcCc. %>
+    <div><label id="drawer_credit_label"><span class="z-tick" hidden>✓ </span>אשראי מגירה</label><input name="drawer_credit" id="drawer_credit" class="dr" inputmode="decimal" value="<%= sh(z.drawer_credit) %>" /></div>
+    <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" value="<%= sh(z.drawer_vouchers) %>" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
+
     <div><label>הקפה</label><input name="drawer_hakafa" class="dr" inputmode="decimal" value="<%= sh(z.drawer_hakafa) %>" /></div>
-    <div><label>מזומן מגירה</label><input name="drawer_cash" class="dr" inputmode="decimal" value="<%= sh(z.drawer_cash) %>" /></div>
-
-    <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
-    <div class="zdrawer-gap"></div>
-
-    <div><label>אשראי מגירה</label><input name="drawer_credit" id="drawer_credit" class="dr" inputmode="decimal" value="<%= sh(z.drawer_credit) %>" /></div>
   </div>
 
   <%# חלון ההזנה. הוא בתוך הטופס, ולכן השורות נשלחות כרגיל — <dialog> אינו מוציא את התוכן מה-form. %>
@@ -213,7 +211,12 @@
         <% }); %>
       </div>
     </div>
-    <div class="zdep-total"><label>סה"כ הופקד</label><input id="dep_total" readonly value="₪0.00" /></div>
+    <%# "סה"כ מגירה" מעל "סה"כ הופקד" (בעלים 08/11). ✓ ירוק + כותרת ירוקה ל"סה"כ הופקד" כשההפקדה שווה
+        לסכום שאמור להיות בשקית — אותו חישוב של "חוסר / יתרה" (תשובת הבעלים), לא סה"כ המגירה: בשקית יש רק מזומן. %>
+    <div class="zdep-total">
+      <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
+      <div><label id="dep_total_label"><span class="z-tick" hidden>✓ </span>סה"כ הופקד</label><input id="dep_total" readonly value="₪0.00" /></div>
+    </div>
     <div class="actions">
       <button type="button" class="btn btn-secondary" onclick="depAdd()">➕ הוספת שקית הפקדה</button>
     </div>
@@ -258,11 +261,20 @@
     if (!depReconEl) return;
     var totalEl = document.getElementById('dep_total');
     if (totalEl) totalEl.value = fmt(depSum());
-    if (!depDeclared()) { depReconEl.value = '—'; depReconEl.style.color = ''; return; }
+    if (!depDeclared()) { depReconEl.value = '—'; depReconEl.style.color = ''; markOk('dep_total_label', false); return; }
     var diff = depSum() - (drawerCash() - (nonCash() + cxSum()));
+    markOk('dep_total_label', Math.round(diff*100) === 0);
     if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--color-ok)'; }
     else if (diff > 0) { depReconEl.value = 'יתרה ' + fmt(diff); depReconEl.style.color = 'var(--color-ok)'; }
     else { depReconEl.value = 'חוסר ' + fmt(-diff); depReconEl.style.color = 'var(--color-bad)'; }
+  }
+  // כותרת ירוקה + ✓ מימינה (בעלים 08/11): "אשראי מגירה" כשתואם להכנסות מאשראי, "סה"כ הופקד" כשההפקדה תואמת.
+  function markOk(id, ok){
+    var lab = document.getElementById(id);
+    if (!lab) return;
+    lab.style.color = ok ? 'var(--color-ok)' : '';
+    var t = lab.querySelector('.z-tick');
+    if (t) t.hidden = !ok;
   }
   function recalcDrawer(){ form.querySelector('#drawer_total').value = fmt(drawerSum()); }
   function ccMatches(){ return Math.round(ccSum()*100) === Math.round(num(creditEl)*100); }
@@ -271,6 +283,8 @@
     var ccBadge = document.getElementById('cc_sum_badge');
     if (ccBadge) ccBadge.textContent = fmt(ccSum());
     var msg = form.querySelector('#cc_match_msg');
+    // ✓ רק כשיש אשראי: שני שדות ריקים "תואמים" אבל לא אומרים כלום.
+    markOk('drawer_credit_label', ccMatches() && Math.round(num(creditEl)*100) !== 0);
     if (ccMatches()) { msg.textContent = 'תואם לאשראי מגירה ✓'; msg.style.color = 'var(--color-ok)'; }
     else { msg.textContent = 'אין התאמה בהכנסות מאשראי — אשראי מגירה ' + fmt(num(creditEl)); msg.style.color = 'var(--color-bad)'; }
   }

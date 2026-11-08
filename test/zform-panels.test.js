@@ -18,11 +18,12 @@ test('both rubrics are always open — plain sections, no <details> toggle', () 
   assert.ok(!/getElementById\('c[cx]-panel'\)\.open/.test(view), 'nothing toggles them open any more');
 });
 
-// פריסת הבעלים (2026-10-04). ב-RTL הילד הראשון בכל זוג ברשת הוא הימני.
-test('drawer layout: credit | expenses, vouchers | check, hakafa | cash, total, credit-drawer', () => {
+// פריסת הבעלים (2026-10-04, עודכנה 08/11). ב-RTL הילד הראשון בכל זוג ברשת הוא הימני.
+test('drawer layout: credit | expenses, cash | check, credit-drawer | vouchers, hakafa', () => {
   const grid = view.slice(view.indexOf('<div class="zdrawer">'), view.indexOf('<%# חלון ההזנה.'));
-  const order = ['id="cc-panel"', 'id="cx-panel"', 'name="drawer_vouchers"', 'name="drawer_check"',
-    'name="drawer_hakafa"', 'name="drawer_cash"', 'id="drawer_total"', 'name="drawer_credit"'];
+  const order = ['id="cc-panel"', 'id="cx-panel"', 'name="drawer_cash"', 'name="drawer_check"',
+    'name="drawer_credit"', 'name="drawer_vouchers"', 'name="drawer_hakafa"'];
+  assert.ok(!grid.includes('id="drawer_total"'), 'סה"כ מגירה moved to the deposit declaration (owner 08/11)');
   const at = order.map((k) => grid.indexOf(k));
   at.forEach((p, i) => assert.ok(p > 0, `${order[i]} is inside the drawer grid`));
   for (let i = 1; i < at.length; i++) assert.ok(at[i] > at[i - 1], `${order[i - 1]} before ${order[i]}`);
@@ -34,14 +35,17 @@ test('drawer layout: credit | expenses, vouchers | check, hakafa | cash, total, 
   }
 });
 
-test('deposit: bags | total on the last bag row, then add button | gap', () => {
+test('deposit: bags | drawer total over deposited total on the last bag row, then add button | gap', () => {
   const a = view.indexOf('<div class="zdep-layout">');
   assert.ok(a > 0);
   const bags = view.indexOf('<div id="dep-bags">', a);
   const add = view.indexOf('onclick="depAdd()"', a);
+  const drawer = view.indexOf('id="drawer_total"', a);
   const tot = view.indexOf('id="dep_total"', a);
   const gap = view.indexOf('id="dep_recon"', a);
-  assert.ok(bags < tot && tot < add && add < gap, '[bags | total] then [add button | gap] — RTL pairs');
+  assert.ok(bags < drawer && drawer < tot && tot < add && add < gap, '[bags | drawer total + deposited] then [add button | gap] — RTL pairs');
+  const cell = view.slice(view.indexOf('<div class="zdep-total">', a), add);
+  assert.ok(cell.includes('id="drawer_total"') && cell.includes('id="dep_total"'), 'one cell, סה"כ מגירה above סה"כ הופקד (owner 08/11)');
   const css = fs.readFileSync(path.join(process.cwd(), 'src/public/nocturne.css'), 'utf8');
   assert.match(css, /\.zdep-layout > \.zdep-total \{[^}]*align-self: end/, 'the total sits on the last bag row as bags are added');
   assert.match(css, /\.zpanel-body \{[^}]*max-height: \d+px; overflow-y: auto/, 'both rubrics share one max height');
@@ -76,4 +80,16 @@ test('deposit bags repeat, carry an id, and index their own checkbox', () => {
   assert.match(view, /name="dep_deposited" value="<%= i %>"/);
   assert.match(view, /onclick="depAdd\(\)"/);
   assert.match(view, /function depSum\(\)/, 'the recon must total every bag');
+});
+
+// בעלים 08/11: כותרת ירוקה + ✓ מימינה כשיש התאמה.
+test('green titles with a tick on the right: credit drawer matches the cards, deposit matches the bag amount', () => {
+  // the tick comes first in the label → on the right in RTL
+  assert.match(view, /<label id="drawer_credit_label"><span class="z-tick" hidden>✓ <\/span>אשראי מגירה<\/label>/);
+  assert.match(view, /<label id="dep_total_label"><span class="z-tick" hidden>✓ <\/span>סה"כ הופקד<\/label>/);
+  assert.match(view, /markOk\('drawer_credit_label', ccMatches\(\) && Math\.round\(num\(creditEl\)\*100\) !== 0\)/,
+    'credit: matches the cards and is not just two empty fields');
+  // deposit: the same test as "תואם" in חוסר / יתרה — the bag amount, never the whole drawer (owner's answer)
+  assert.match(view, /var diff = depSum\(\) - \(drawerCash\(\) - \(nonCash\(\) \+ cxSum\(\)\)\);\s*markOk\('dep_total_label', Math\.round\(diff\*100\) === 0\);/);
+  assert.match(view, /markOk\('dep_total_label', false\); return;/, 'no deposit declared → no tick');
 });
