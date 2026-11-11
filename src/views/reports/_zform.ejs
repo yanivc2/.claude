@@ -434,7 +434,42 @@
   });
   body.addEventListener('input', function(e){ recalcCx(); maybeAddRow(e.target); });
 
+  // 🔴 סכום לא תקין נבדק כאן, לפני השליחה (בעלים 11/11): בשרת הוא היה דף שגיאה ומחיקת כל מה שהוקלד
+  // (08/11: "25841.118023.18" — שני סכומים צמודים). כאן הטופס לא נשלח, השדה מסומן ושום דבר לא נמחק.
+  // אותו כלל של lib/money.js#toAgorot: מספר, עד שתי ספרות אחרי הנקודה, פסיקים מותרים.
+  var AMT_RE = /^-?\d+(\.\d{1,2})?$/;
+  function badAmount(){
+    var els = form.querySelectorAll('input[inputmode="decimal"]:not([readonly])');
+    for (var i = 0; i < els.length; i++) {
+      var v = els[i].value.replace(/,/g, '').trim();
+      if (v && !AMT_RE.test(v)) return els[i];
+    }
+    return null;
+  }
+  function amountLabel(el){
+    var tr = el.closest('tr');
+    if (tr && tr.cells[0]) return 'הכנסות מאשראי — ' + tr.cells[0].textContent.trim();
+    if (el.closest('.cx-row')) return 'הוצאות במזומן — סכום';
+    var prev = el.previousElementSibling;
+    var lab = (prev && prev.tagName === 'LABEL') ? prev : (el.parentNode && el.parentNode.querySelector('label'));
+    return lab ? lab.textContent.replace(/[✓*₪]/g, '').trim() : 'סכום';
+  }
+  form.addEventListener('input', function(e){
+    if (e.target.getAttribute && e.target.getAttribute('aria-invalid') === 'true') { e.target.removeAttribute('aria-invalid'); e.target.style.borderColor = ''; }
+  });
   form.addEventListener('submit', function(e){
+    var bad = badAmount();
+    if (bad){
+      e.preventDefault();
+      bad.setAttribute('aria-invalid', 'true');
+      bad.style.borderColor = 'var(--color-bad)';
+      var dlg = bad.closest('dialog');
+      if (dlg && !dlg.open) dlg.showModal();
+      bad.scrollIntoView({ block: 'center' });
+      alert('סכום לא תקין בשדה "' + amountLabel(bad) + '": ' + bad.value.trim() + '\nתקן את השדה המסומן ושמור שוב — שום דבר לא נמחק.');
+      bad.focus();
+      return;
+    }
     if (drawerSum() <= 0){ e.preventDefault(); alert('סה"כ מגירה חובה — הזן לפחות רכיב מגירה אחד.'); return; }
     if (!ccMatches()){
       e.preventDefault();

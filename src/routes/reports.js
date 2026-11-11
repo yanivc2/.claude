@@ -62,6 +62,25 @@ function ils(agorot) {
   return `₪${fromAgorot(agorot)}`;
 }
 
+// 🔴 כל סכום בטופס ה-Z נבדק **לפני** שמשהו נשמר (בעלים 11/11): `toAgorot` זורק שגיאה רגילה, וזו הציגה דף
+// שגיאה ומחקה את כל מה שהוקלד (08/11: "25841.118023.18" ב"סה"כ (יומי Z)" — שני סכומים צמודים). כאן היא
+// הופכת ל-RuleError עם שם השדה, שהמסלול מציג בראש הטופס. הבדיקה בדפדפן (_zform.ejs) תופסת את זה עוד קודם
+// ושומרת את כל השדות — זו רשת הביטחון כשהיא לא רצה.
+const Z_AMOUNT_FIELDS = [
+  ['daily_total', 'סה"כ (יומי Z)'], ['drawer_cash', 'מזומן מגירה'], ['drawer_check', "צ'ק"],
+  ['drawer_credit', 'אשראי מגירה'], ['drawer_hakafa', 'הקפה'], ['drawer_vouchers', 'תווי קניה'],
+];
+function assertZAmounts(b) {
+  const check = (v, label) => {
+    if (v == null || String(v).trim() === '') return;
+    try { toAgorot(v); } catch { throw new RuleError('VALIDATION', `סכום לא תקין בשדה "${label}": ${String(v).trim()} — תקן ושמור שוב.`); }
+  };
+  for (const [name, label] of Z_AMOUNT_FIELDS) check(b[name], label);
+  for (const brand of CC_BRANDS) check(b[`cc_${brand.key}`], `הכנסות מאשראי — ${brand.label}`);
+  for (const a of [].concat(b.amount || [])) check(a, 'הוצאות במזומן — סכום');
+  for (const a of [].concat(b.dep_amount || [])) check(a, 'סכום הפקדה');
+}
+
 // Parse the per-brand credit-card amounts from the Z form. Returns { amounts, total } (agorot).
 function parseCc(b) {
   const amounts = {};
@@ -724,6 +743,7 @@ router.post('/zreports', async (req, res, next) => {
     // store_id is attacker-controlled (a form field): validate it before writing a Z report into
     // a store the caller cannot see.
     const storeId = await assertStoreAllowed(b.store_id, req.scope);
+    assertZAmounts(b);
     // Credit-card report must reconcile to "אשראי מגירה" before the Z can be added.
     const { amounts: ccAmounts, total: ccTotal } = parseCc(b);
     const drawerCredit = toAgorot(b.drawer_credit);
@@ -788,6 +808,7 @@ router.post('/zreports/:id', async (req, res, next) => {
     const zBefore = await getZReport(id);
     const moving = await assertStoreMove(req, zBefore.store_id, b.store_id);
     const storeId = moving ? Number(b.store_id) : await assertStoreAllowed(b.store_id, req.scope);
+    assertZAmounts(b);
     const { amounts: ccAmounts, total: ccTotal } = parseCc(b);
     const drawerCredit = toAgorot(b.drawer_credit);
     if (ccTotal !== drawerCredit) throw new RuleError('VALIDATION', 'אין התאמה בהכנסות מאשראי');

@@ -187,11 +187,21 @@
     if (otp && lastStatus !== 'awaiting_otp') otp.focus(); // הקוד הגיע עכשיו — לשים את הסמן בשדה
   }
 
+  // 🔴 בלשונית מוסתרת ובלי סנכרון פעיל — לא שואלים בכלל (בעלים 11/11). לשונית שנשארה פתוחה שאלה כל 20
+  // שניות כל הלילה (יומני Vercel 09–11/11), וכל שאלה העירה את השרת ואת המסד. כשחוזרים ללשונית — שואלים מיד
+  // (visibilitychange למטה). סנכרון פעיל ממשיך כל 2 שניות גם ברקע: הקוד מה-SMS צריך להופיע בלי לחכות.
+  var idle = false;
   function schedule(s) {
     clearTimeout(timer);
+    timer = null;
     var active = s.job && ACTIVE.indexOf(s.job.status) >= 0;
+    idle = !active && document.hidden;
+    if (idle) return;
     timer = setTimeout(poll, active ? 2000 : 20000);
   }
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && idle) { idle = false; poll(); }
+  });
 
   function apply(s) {
     var prev = lastStatus;
