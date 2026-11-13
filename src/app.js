@@ -39,7 +39,7 @@ import { employeeFullName, matchEmployeeName } from './lib/employeeName.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Bump on every deploy — shown on the login page so it's easy to confirm which build is live.
-const BUILD_VERSION = '2026-11-11·374';
+const BUILD_VERSION = '2026-11-13·375';
 
 export function createApp() {
   const app = express();

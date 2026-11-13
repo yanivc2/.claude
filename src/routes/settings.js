@@ -17,6 +17,7 @@ import {
   deleteUser,
 } from '../services/users.js';
 import { upgradeSchema } from '../db/index.js';
+import { applyDataFixes } from '../db/dataFixes.js';
 import { getExecutor } from '../db/adapter.js';
 import { requireOwner, requirePermission } from '../middleware/requireOwner.js';
 import { PERMISSIONS, ROLE_PRESETS } from '../lib/permissions.js';
@@ -452,13 +453,16 @@ router.post('/role-templates/:id/delete', requireOwner, async (req, res, next) =
 router.post('/db-upgrade', requireOwner, async (req, res, next) => {
   try {
     const failures = await upgradeSchema();
+    // תיקוני נתונים חד-פעמיים (db/dataFixes.js) — אחרי הסכימה, ומה שתוקן נאמר בהודעה.
+    const fixed = await applyDataFixes();
+    const fixedLine = fixed.length ? `\n${fixed.join('\n')}` : '';
     if (Array.isArray(failures) && failures.length) {
       // Some (idempotent) statements couldn't apply, but the rest did. Surface which, so a single
       // problematic migration doesn't silently mask that everything else succeeded.
       const list = failures.slice(0, 5).map((f) => `• ${f.message}`).join('\n');
-      return done(res, `מסד הנתונים עודכן. ${failures.length} משפטים דולגו (השאר הוחלו): \n${list}`);
+      return done(res, `מסד הנתונים עודכן. ${failures.length} משפטים דולגו (השאר הוחלו): \n${list}${fixedLine}`);
     } else {
-      return done(res, 'מסד הנתונים עודכן בהצלחה — כל העמודות והטבלאות החדשות קיימות.');
+      return done(res, `מסד הנתונים עודכן בהצלחה — כל העמודות והטבלאות החדשות קיימות.${fixedLine}`);
     }
   } catch (err) {
     next(err);

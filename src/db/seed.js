@@ -13,12 +13,13 @@ const COMPANIES = [
   { key: 'pink_market', name: 'פינק מרקט י.ר. בע"מ', company_type: 'ltd', tax_id: '516632627' },
 ];
 
-// store -> company key, plus its 1:1 bank account (all Bank Hapoalim, branch 428).
+// store -> company key, plus its 1:1 bank account (all Bank Hapoalim, branch 628 — was seeded as 428 by
+// mistake until 13/11; existing DBs are fixed by db/dataFixes.js on "עדכן מסד נתונים").
 const STORES = [
-  { company: 'al_haderech_junior', name: "ג'וניור", branch: '428', account: '45550' },
-  { company: 'al_haderech', name: 'סופר על הדרך', branch: '428', account: '420244' },
-  { company: 'yaniv_rom', name: 'מידנייט', branch: '428', account: '432110' },
-  { company: 'pink_market', name: 'פינק רשל"צ', branch: '428', account: '88772' },
+  { company: 'al_haderech_junior', name: "ג'וניור", branch: '628', account: '45550' },
+  { company: 'al_haderech', name: 'סופר על הדרך', branch: '628', account: '420244' },
+  { company: 'yaniv_rom', name: 'מידנייט', branch: '628', account: '432110' },
+  { company: 'pink_market', name: 'פינק רשל"צ', branch: '628', account: '88772' },
 ];
 
 function seedUsers() {
@@ -59,7 +60,7 @@ export async function seed(x = getExecutor()) {
       }
       const account = await t.one('SELECT id FROM bank_accounts WHERE store_id = ?', [store.id]);
       if (!account) {
-        const displayName = `${s.name} · הפועלים 428-${s.account}`;
+        const displayName = `${s.name} · הפועלים ${s.branch}-${s.account}`;
         await t.run(
           `INSERT INTO bank_accounts (company_id, store_id, bank_name, branch, account_number, display_name)
            VALUES (?, ?, 'הפועלים', ?, ?, ?)`,
