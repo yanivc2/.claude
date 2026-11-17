@@ -177,18 +177,29 @@ router.get('/approvals', ownerOnly, async (req, res, next) => {
   }
 });
 
+// כל פעולה על שורת מזומן חוזרת לדף שממנו נלחצה (לוח / מרקורים) — רק נתיב פנימי, אחרת "/".
+// בעלים 17/11: "כשאני מבצע התאמה (מרקורים) זה מעביר אותי ללוח הבקרה. אני רוצה שזה ישאיר אותי בדיוק
+// באותו המקום". חזרה לאותו נתיב = footer.ejs משחזר גלילה ורשימות פתוחות.
+function cashBack(req) {
+  const b = String(req.body?.return_to || '');
+  const back = b.startsWith('/') && !b.startsWith('//') && !b.startsWith('/\\') ? b : '/';
+  const withParam = (k, v) => `${back}${back.includes('?') ? '&' : '?'}${k}=${encodeURIComponent(v)}`;
+  return { back, withParam };
+}
+
 // התאמת הוצאת מזומן לחשבונית — הכפתור של כל שורה שאינה פריטה ואינה שכר. "כל סכום יקבל
 // חשבונית", ולכן זו דרך היציאה הרגילה מהרשימה.
 router.post('/cash-expenses/:source/:id/match-invoice', async (req, res, next) => {
+  const { back, withParam } = cashBack(req);
   try {
     // `invoice_ids` = "12,15" (כמה חשבוניות, גם של ספקים שונים); `invoice_id` — טופס ישן.
     await matchCashExpenseToInvoice(
       req.params.source, Number(req.params.id), req.body.invoice_ids || req.body.invoice_id, req.user, req.scope,
     );
-    return res.redirect(303, '/');
+    return res.redirect(303, back);
   } catch (err) {
     if (err instanceof RuleError || err instanceof NotFoundError) {
-      return res.redirect(303, '/?cashErr=' + encodeURIComponent(err.message));
+      return res.redirect(303, withParam('cashErr', err.message));
     }
     next(err);
   }
@@ -197,6 +208,7 @@ router.post('/cash-expenses/:source/:id/match-invoice', async (req, res, next) =
 // התאמת הוצאת שכר לצ׳ק שהוזן בדף עובדים ומשכורות. `markCashed` מבטל את הצ׳ק, אחרת הוא ייפרע
 // בבנק ואותו שכר ישולם פעמיים (services/salaryPayments.js).
 router.post('/cash-expenses/:source/:id/match-salary', async (req, res, next) => {
+  const { back, withParam } = cashBack(req);
   try {
     // הסקופ נבדק על צד ההוצאה לפני הפעולה — אותה בדיקה כמו בכל כתיבה אחרת.
     await assertCashExpenseInScope(req.params.source, Number(req.params.id), req.scope);
@@ -204,10 +216,10 @@ router.post('/cash-expenses/:source/:id/match-salary', async (req, res, next) =>
       Number(req.body.salary_payment_id), Number(req.params.id), req.user, undefined,
       { source: req.params.source },
     );
-    return res.redirect(303, '/');
+    return res.redirect(303, back);
   } catch (err) {
     if (err instanceof RuleError || err instanceof NotFoundError || err?.name === 'RuleError') {
-      return res.redirect(303, '/?cashErr=' + encodeURIComponent(err.message));
+      return res.redirect(303, withParam('cashErr', err.message));
     }
     next(err);
   }
@@ -217,9 +229,7 @@ router.post('/cash-expenses/:source/:id/match-salary', async (req, res, next) =>
 // קישור אוטומטי, ובלי הסימון הזה היא נשארת ב"תשלום במזומן ללא התאמה" לנצח.
 // PRG: כל POST מסתיים ב-303 חזרה ללוח הבקרה (ראה CLAUDE.md).
 router.post('/cash-expenses/:source/:id/settle', async (req, res, next) => {
-  // חזרה לדף שממנו נלחץ (לוח / מרקורים / חשבוניות) — רק נתיב פנימי.
-  const back = (String(req.body.return_to || '/').startsWith('/') && !String(req.body.return_to).startsWith('//')) ? String(req.body.return_to) : '/';
-  const withParam = (k, v) => `${back}${back.includes('?') ? '&' : '?'}${k}=${encodeURIComponent(v)}`;
+  const { back, withParam } = cashBack(req);
   try {
     const r = await setCashExpenseSettled(req.params.source, Number(req.params.id), req.body.undo !== '1', req.user, req.scope);
     // המזכירה: בוצע, ננעל, ונשלח לאישור הבעלים — הדף אומר את זה.

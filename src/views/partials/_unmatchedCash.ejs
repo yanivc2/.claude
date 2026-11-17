@@ -113,6 +113,7 @@
                     <% } else { %>אין צ׳ק בסכום זהה — בחר מהרשימה.<% } %>
                   </p>
                   <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/match-salary" data-keep-scroll>
+                    <input type="hidden" name="return_to" value="<%= _returnTo %>" />
                     <select name="salary_payment_id" class="js-combo" required style="width:100%">
                       <option value=""></option>
                       <% e.candidates.forEach(function(c, ci){ %>
@@ -160,6 +161,7 @@
                   <% }); %>
                   <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/match-invoice" data-keep-scroll
                         onsubmit="if(!this.querySelector('.cx-inv-ids').value){ alert('בחר לפחות חשבונית אחת'); return false; }">
+                    <input type="hidden" name="return_to" value="<%= _returnTo %>" />
                     <div class="cx-inv-box cxm-box" data-multi="1" data-target="<%= Number(e.amount) %>">
                       <input type="hidden" name="invoice_ids" class="cx-inv-ids" value="<%= _pre %>" />
                       <div class="cx-inv-chips"></div>
