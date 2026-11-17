@@ -80,7 +80,7 @@ test('rounding at the till: ₪1,684.00 against ₪1,683.99 is "near" (≤ ₪1)
   assert.ok(!row.supplierCheck.some((k) => k.status === 'notOpen'), 'no more "לא פתוחה לתשלום" for it');
 });
 
-test('ranking: the closest amount first, whatever the supplier or date; the named supplier and the Z day survive the limit', () => {
+test('ranking: the named supplier first (owner 17/11), then the closest amount whatever the supplier or date', () => {
   const e = { amount: 154170, payer_name: 'טרה', expense_date: '2026-11-09' };
   const mk = (id, supplier_name, total_amount, invoice_date) => ({ id, supplier_name, total_amount, invoice_date });
   const r = rankInvoices(e, [
@@ -90,9 +90,8 @@ test('ranking: the closest amount first, whatever the supplier or date; the name
     mk(4, 'טרה', 900000, '2026-11-09'),
     mk(5, 'דוד נבון', 160000, '2026-10-29'),
   ], 3);
-  assert.deepEqual(r.slice(0, 3).map((x) => x.id), [2, 3, 5], 'by |difference|: 0, 4,170, 5,830');
-  assert.ok(r.some((x) => x.id === 4), 'the named supplier of the Z day stays, though far in amount and past the limit');
-  assert.ok(!r.some((x) => x.id === 1), 'a far amount of another supplier and day is cut');
+  assert.deepEqual(r.map((x) => x.id), [4, 2, 3], 'טרה (named in the expense) first, though far in amount; then by |difference|: 0, 4,170');
+  assert.ok(!r.some((x) => x.id === 1 || x.id === 5), 'past the limit, another supplier of another day is cut');
 });
 
 test('the dialog: a searchable picker (js-combo), closest first, 💵 and the difference spelled out', async () => {

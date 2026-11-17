@@ -17,7 +17,8 @@ test('names: "טרה" finds the supplier, "וקוקה קולה" finds Coca-Cola 
   assert.equal(mentionsSupplier(e, 'תנובה'), false);
 });
 
-test('ranking: same amount → the supplier in the name → the Z day → newer', () => {
+// בעלים 17/11: "תציג קודם כל ספק שיש התאמה לשם שלו בהוצאה" — הספק שבשם ראשון, ובתוכו ואחריו הסכום הקרוב.
+test('ranking: the supplier in the name → same/closest amount → the Z day → newer', () => {
   const e = { amount: 50000, payer_name: 'טרה', expense_date: '2026-10-14' };
   const inv = (id, supplier_name, total_amount, invoice_date) => ({ id, supplier_name, total_amount, invoice_date });
   const r = rankInvoices(e, [
@@ -26,7 +27,7 @@ test('ranking: same amount → the supplier in the name → the Z day → newer'
     inv(3, 'טרה', 30000, '2026-10-14'),
     inv(4, 'שטראוס', 50000, '2026-09-01'),
   ]);
-  assert.deepEqual(r.map((x) => x.id), [4, 3, 2, 1]);
+  assert.deepEqual(r.map((x) => x.id), [3, 2, 4, 1], 'טרה (named) first, the Z day before 1/10; then שטראוס (exact) before תנובה');
 });
 
 test('combos: Terra + Coca-Cola of the same day add up exactly → offered; far-off dates are not', () => {

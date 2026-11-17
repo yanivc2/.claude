@@ -11,7 +11,7 @@
 
 const PREFIXES = /^[והבלמשכ]/;
 // מילים שפותחות שם ספק ואינן מזהות אותו ("חברת טרה" → "טרה").
-const GENERIC = new Set(['חברת', 'קבוצת', 'מפעלי', 'תעשיות', 'שיווק', 'הפצת', 'סחר', 'בע"מ', 'בעמ', 'ltd']);
+const GENERIC = new Set(['חברת', 'קבוצת', 'מפעלי', 'תעשיות', 'שיווק', 'הפצת', 'סחר', 'בע"מ', 'בעמ', 'בע', 'ltd']);
 
 const clean = (s) => String(s || '').toLowerCase().replace(/[׳״"'`.,;:()\-_/\\]+/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -32,6 +32,25 @@ function keyWord(name) {
   return ws[0] || null;
 }
 
+/** המילים שמזהות ספק — בלי הכלליות ובלי אות בודדת ("בע"מ" → "בע", "מ"). */
+function nameWords(name) {
+  return clean(name).split(' ').filter((w) => w && w.length > 1 && !GENERIC.has(w));
+}
+
+/**
+ * **כמה טוב** ההוצאה מזכירה את הספק: 0 = לא מזכירה (המילה המזהה חסרה — `mentionsSupplier`); אחרת החלק
+ * מבין מילות השם שכתובות בהוצאה, עד 1. בעלים 17/11: "תציג קודם כל ספק שיש התאמה לשם שלו בהוצאה, ככל
+ * שההתאמה יותר טובה כך זה יופיע יותר קרוב" — "מוצרי איכות קנדיים" מול הוצאה "מוצרי איכות קנדיים" = 1,
+ * "מוצרי איכות אמריקאיים" מולה = ⅔ (מוזכר — אבל אחריו).
+ */
+export function mentionScore(expense, supplierName) {
+  if (!mentionsSupplier(expense, supplierName)) return 0;
+  const ws = nameWords(supplierName);
+  if (!ws.length) return 0;
+  const text = wordsOf(`${expense?.payer_name || ''} ${expense?.purpose || ''}`);
+  return ws.filter((w) => text.has(w)).length / ws.length;
+}
+
 /** האם ההוצאה (שם + עבור) מזכירה את הספק. */
 export function mentionsSupplier(expense, supplierName) {
   const k = keyWord(supplierName);
@@ -50,11 +69,13 @@ const dayGap = (a, b) => {
 export const NEAR_AGOROT = 100;
 
 /**
- * מדרג את החשבוניות להוצאה אחת. 🔴 **הסכום הקרוב ביותר ראשון** (בעלים 17/11: "הכי חשוב שהתוצאות הראשונות
- * יהיו הסכומים הכי קרובים לסכום ששולם במזומן") — ★ אותו סכום הוא פשוט הפרש 0. בשוויון: הספק מוזכר בשם →
- * קרבת תאריך → חדש יותר. מעבר ל-`limit` נשמרות גם חשבוניות של ספק שבשם ומיום ה-Z (±2), כדי שסכום שונה
- * (תשלום חלקי, צירוף) לא ייחתך מהרשימה.
- * @returns {Array} אותן חשבוניות עם `sameAmount`, `nearAmount`, `diff` (אגורות, מוחלט), `nameMatch`, `gap`
+ * מדרג את החשבוניות להוצאה אחת. 🔴 **קודם הספק שבשם ההוצאה, ההתאמה הטובה ביותר ראשונה** (`mentionScore`;
+ * בעלים 17/11: "תציג קודם כל ספק שיש התאמה לשם שלו בהוצאה, ככל שההתאמה יותר טובה כך זה יופיע יותר קרוב"),
+ * ובתוך כל קבוצה — ואחריהן, לכל השאר — **הסכום הקרוב ביותר** (בעלים 17/11: "הכי חשוב שהתוצאות הראשונות יהיו
+ * הסכומים הכי קרובים"); ★ אותו סכום הוא הפרש 0. כשההוצאה לא מזכירה אף ספק — הסכום הקרוב בלבד, כמו קודם.
+ * בשוויון: קרבת תאריך → חדש יותר. מעבר ל-`limit` נשמרות גם חשבוניות של ספק שבשם ומיום ה-Z (±2), כדי
+ * שסכום שונה (תשלום חלקי, צירוף) לא ייחתך מהרשימה.
+ * @returns {Array} אותן חשבוניות עם `sameAmount`, `nearAmount`, `diff` (אגורות, מוחלט), `nameScore`, `nameMatch`, `gap`
  */
 export function rankInvoices(expense, invoices, limit = 60) {
   const target = Number(expense?.amount) || 0;
@@ -66,11 +87,12 @@ export function rankInvoices(expense, invoices, limit = 60) {
       diff,
       sameAmount: diff === 0,
       nearAmount: diff > 0 && diff <= NEAR_AGOROT,
-      nameMatch: mentionsSupplier(expense, r.supplier_name),
+      nameScore: mentionScore(expense, r.supplier_name),
       gap: dayGap(r.invoice_date, date),
     };
   });
-  scored.sort((a, b) => (a.diff - b.diff) || (b.nameMatch - a.nameMatch) || (a.gap - b.gap)
+  for (const r of scored) r.nameMatch = r.nameScore > 0;
+  scored.sort((a, b) => (b.nameScore - a.nameScore) || (a.diff - b.diff) || (a.gap - b.gap)
     || String(b.invoice_date || '').localeCompare(String(a.invoice_date || '')));
   return scored.filter((r, i) => i < limit || r.nameMatch || r.gap <= 2);
 }
@@ -105,14 +127,16 @@ export function invoiceCombos(expense, ranked, { maxDays = 3, pool = 30, max = 3
   return found.slice(0, max);
 }
 
-/** הספקים שההוצאה מזכירה בשמם (מתוך רשימת שמות), בלי כפולים. */
+/** הספקים שההוצאה מזכירה בשמם (מתוך רשימת שמות), בלי כפולים — **ההתאמה הטובה ביותר ראשונה** (`mentionScore`). */
 export function suppliersMentioned(expense, supplierNames) {
   const seen = new Set();
   const out = [];
   for (const n of supplierNames || []) {
-    if (!n || seen.has(n) || !mentionsSupplier(expense, n)) continue;
+    if (!n || seen.has(n)) continue;
+    const score = mentionScore(expense, n);
+    if (!score) continue;
     seen.add(n);
-    out.push(n);
+    out.push({ n, score, i: out.length });
   }
-  return out;
+  return out.sort((a, b) => (b.score - a.score) || (a.i - b.i)).map((o) => o.n);
 }
