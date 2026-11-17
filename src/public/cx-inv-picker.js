@@ -15,8 +15,9 @@
     var sel = box.querySelector('select.cx-inv');
     var opt = sel && sel.querySelector('option[value="' + String(id).replace(/"/g, '') + '"]');
     // "#58 · ספק · מספר · ₪סכום" — המזהה הפנימי הוא רעש בתגית צרה.
-    // ★/≈ הם סימני דירוג ברשימה (התאמת מזומן בלוח), לא חלק מהשם.
-    return opt ? opt.textContent.trim().replace(/^[★≈]\s*/, '').replace(/^#\d+\s*·\s*/, '') : 'חשבונית #' + id;
+    // ★/≈/💵 הם סימני דירוג ברשימה (התאמת מזומן בלוח), וכך גם "· הפרש …" — לא חלק מהשם.
+    return opt ? opt.textContent.trim().replace(/^[★≈]\s*/, '').replace(/^💵\s*/, '').replace(/^#\d+\s*·\s*/, '')
+      .replace(/\s*·\s*הפרש [^·]*/, '').replace(/\s*·\s*שולמה במזומן$/, '') : 'חשבונית #' + id;
   }
   function render(box) {
     var chips = box.querySelector('.cx-inv-chips');
@@ -60,6 +61,9 @@
     if (ids.indexOf(sel.value) < 0) ids = multi ? ids.concat(sel.value) : [sel.value];
     setIds(box, ids);
     changed(box);
+    // בורר עם חיפוש (js-combo, חלון ההתאמה): השדה מתרוקן אחרי הבחירה — החשבונית כבר תגית למעלה.
+    var ci = box.querySelector('.combo-input');
+    if (ci) ci.value = '';
   });
   document.addEventListener('click', function (e) {
     var x = e.target && e.target.closest ? e.target.closest('.cx-inv-x') : null;

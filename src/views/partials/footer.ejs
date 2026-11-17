@@ -499,7 +499,8 @@
         if (e.key === 'ArrowDown') { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, shown.length - 1); paint(); }
         else if (e.key === 'ArrowUp') { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); paint(); }
         else if (e.key === 'Enter') { if (activeIdx >= 0 && shown[activeIdx]) { e.preventDefault(); setVal(shown[activeIdx]); pop.hidden = true; } }
-        else if (e.key === 'Escape') { pop.hidden = true; }
+        // Escape סוגר רק את הרשימה — לא את חלון ה-<dialog> שהבורר יושב בו (חלון ההתאמה, 17/11).
+        else if (e.key === 'Escape') { e.preventDefault(); pop.hidden = true; }
       });
       pop.addEventListener('mousedown', function(e){ var t = e.target.closest ? e.target.closest('.combo-opt') : null; if (!t) return; e.preventDefault(); setVal(shown[+t.dataset.i]); pop.hidden = true; });
       input.addEventListener('blur', function(){ setTimeout(function(){

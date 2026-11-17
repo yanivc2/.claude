@@ -2,7 +2,7 @@ import { getExecutor, tx } from '../db/adapter.js';
 import { NotFoundError, RuleError } from '../lib/errors.js';
 import { scopeClause, scopeWhere, normalizeScope } from '../lib/scope.js';
 import { logAction } from './audit.js';
-import { parseInvoiceIds, encodeInvoiceIds, likeInvoiceId, cashExpenseInvoiceIdsReady } from './cashExpenseInvoices.js';
+import { parseInvoiceIds, encodeInvoiceIds, likeInvoiceId, cashExpenseInvoiceIdsReady, rowInvoiceIds } from './cashExpenseInvoices.js';
 import { rankInvoices, invoiceCombos, suppliersMentioned } from '../lib/cashInvoiceMatch.js';
 import { resolveEmployeeId } from '../lib/employeeName.js';
 
@@ -336,7 +336,10 @@ export async function withMatchCandidates(rows, scope = null, storeId = null, x 
   let nearby = [];
   if (forInvoices.length) {
     const { listPayable } = await import('./invoices.js');
-    const all = await listPayable(scope, x);
+    // פתוחות לתשלום + **ששולמו במזומן ועוד לא הותאמו** (בעלים 17/11) — ראה cashPaidUnmatched.
+    const open = await listPayable(scope, x);
+    const seen = new Set(open.map((r) => Number(r.id)));
+    const all = open.concat((await cashPaidUnmatched(scope, x)).filter((r) => !seen.has(Number(r.id))));
     payable = storeId ? all.filter((r) => Number(r.store_id) === Number(storeId)) : all;
     nearby = await invoicesNearDates(forInvoices.map((r) => r.expense_date), scope, storeId, x);
   }
@@ -356,6 +359,50 @@ export async function withMatchCandidates(rows, scope = null, storeId = null, x 
       supplierCheck: supplierCheckFor(r, supplierNames, nearby, candidates),
     };
   }));
+}
+
+/**
+ * חשבוניות ש**שולמו במזומן** (תשלום method='cash' שאינו מבוטל) ועדיין לא הותאמו לאף הוצאת מזומן מקופה.
+ *
+ * בעלים 17/11: "הרעיון מאחורי המרקורים הוא לבצע התאמה בין מה ששולם במזומן מהקופות ונרשם ידנית על דף
+ * לבין החשבונית". מי שמזין חשבונית ובוחר "אמצעי תשלום: מזומן" יוצר תשלום שמסמן אותה "שולמה" — וזה בדיוק
+ * הכסף שיצא מהקופה. הרשימה הייתה רק חשבוניות פתוחות, ולכן דווקא החשבונית הנכונה לא הופיעה (גלוברנדס
+ * ₪1,541.70 מול "סיגריות" ₪1,541.70 של אותו יום). חשבונית ששולמה בצ׳ק/העברה **לא** נכנסת — כסף שיצא
+ * מהבנק אינו הכסף שיצא מהקופה, והתאמה כזו הייתה סופרת אותו פעמיים. 120 הימים האחרונים.
+ * @returns {Array} חשבוניות בצורת listPayable, עם `paidCash: true`
+ */
+async function cashPaidUnmatched(scope, x) {
+  const { addDaysIso, israelToday } = await import('../lib/loginHours.js');
+  const sc = scopeWhere(scope, 'i.company_id', 'i.store_id');
+  const rows = await x.many(
+    `SELECT i.*, s.name AS supplier_name, st.name AS store_name
+       FROM invoices i
+       JOIN suppliers s ON s.id = i.supplier_id
+       JOIN stores st ON st.id = i.store_id
+       JOIN payment_lines pl ON pl.invoice_id = i.id
+       JOIN payments p ON p.id = pl.payment_id
+      WHERE p.method = 'cash' AND p.status <> 'voided' AND i.status = 'paid' AND i.invoice_date >= ?${sc.sql}
+      ORDER BY i.invoice_date DESC, i.id DESC`,
+    [addDaysIso(israelToday(), -120), ...sc.params],
+  );
+  if (!rows.length) return [];
+  // כבר הותאמה להוצאת מזומן (דוח Z או סגירת Z, כולל הוצאה ששילמה כמה חשבוניות) — לא מציעים שוב.
+  const linked = new Set();
+  const cols = (await cashExpenseInvoiceIdsReady(x)) ? 'invoice_id, invoice_ids' : 'invoice_id';
+  for (const t of ['z_expenses', 'z_closing_expenses']) {
+    for (const r of await x.many(`SELECT ${cols} FROM ${t} WHERE invoice_id IS NOT NULL`, [])) {
+      for (const id of rowInvoiceIds(r)) linked.add(Number(id));
+    }
+  }
+  const out = [];
+  const seen = new Set();
+  for (const r of rows) {
+    const id = Number(r.id);
+    if (seen.has(id) || linked.has(id)) continue; // תשלום מפוצל = כמה שורות לאותה חשבונית
+    seen.add(id);
+    out.push({ ...r, paidCash: true });
+  }
+  return out;
 }
 
 /**

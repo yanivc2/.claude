@@ -46,22 +46,33 @@ const dayGap = (a, b) => {
   return Number.isFinite(d) ? d : 999;
 };
 
+/** "כמעט אותו סכום" — עד ₪1 (באגורות). עיגול בקופה: ₪1,684.00 שולמו על חשבונית של ₪1,683.99 (בעלים 17/11). */
+export const NEAR_AGOROT = 100;
+
 /**
- * מדרג את החשבוניות הפתוחות להוצאה אחת: ★ אותו סכום → הספק מוזכר בשם → קרבת תאריך → חדש יותר.
- * @returns {Array} אותן חשבוניות עם `sameAmount`, `nameMatch`, `gap`
+ * מדרג את החשבוניות להוצאה אחת. 🔴 **הסכום הקרוב ביותר ראשון** (בעלים 17/11: "הכי חשוב שהתוצאות הראשונות
+ * יהיו הסכומים הכי קרובים לסכום ששולם במזומן") — ★ אותו סכום הוא פשוט הפרש 0. בשוויון: הספק מוזכר בשם →
+ * קרבת תאריך → חדש יותר. מעבר ל-`limit` נשמרות גם חשבוניות של ספק שבשם ומיום ה-Z (±2), כדי שסכום שונה
+ * (תשלום חלקי, צירוף) לא ייחתך מהרשימה.
+ * @returns {Array} אותן חשבוניות עם `sameAmount`, `nearAmount`, `diff` (אגורות, מוחלט), `nameMatch`, `gap`
  */
 export function rankInvoices(expense, invoices, limit = 60) {
   const target = Number(expense?.amount) || 0;
   const date = expense?.expense_date || null;
-  const scored = (invoices || []).map((r) => ({
-    ...r,
-    sameAmount: Number(r.total_amount) === target,
-    nameMatch: mentionsSupplier(expense, r.supplier_name),
-    gap: dayGap(r.invoice_date, date),
-  }));
-  scored.sort((a, b) => (b.sameAmount - a.sameAmount) || (b.nameMatch - a.nameMatch) || (a.gap - b.gap)
+  const scored = (invoices || []).map((r) => {
+    const diff = Math.abs(Number(r.total_amount) - target);
+    return {
+      ...r,
+      diff,
+      sameAmount: diff === 0,
+      nearAmount: diff > 0 && diff <= NEAR_AGOROT,
+      nameMatch: mentionsSupplier(expense, r.supplier_name),
+      gap: dayGap(r.invoice_date, date),
+    };
+  });
+  scored.sort((a, b) => (a.diff - b.diff) || (b.nameMatch - a.nameMatch) || (a.gap - b.gap)
     || String(b.invoice_date || '').localeCompare(String(a.invoice_date || '')));
-  return scored.slice(0, limit);
+  return scored.filter((r, i) => i < limit || r.nameMatch || r.gap <= 2);
 }
 
 /**

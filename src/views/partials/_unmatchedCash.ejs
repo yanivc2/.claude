@@ -96,7 +96,7 @@
                 <p class="muted" style="margin:0 0 .6rem; font-size:12px">
                   <%= e.payer_name || '' %><%= e.purpose ? ' · ' + e.purpose : '' %> · <strong><%= formatIls(e.amount) %></strong>
                   · <%= formatDate(e.expense_date) %>
-                  <br /><%= _isSal ? 'הצ׳ק שיותאם יבוטל, אחרת ייפרע בבנק וישולם אותו שכר פעמיים.' : 'אפשר לבחור כמה חשבוניות — גם של ספקים שונים. ★ = אותו סכום, ≈ = הספק שבשם.' %>
+                  <br /><%= _isSal ? 'הצ׳ק שיותאם יבוטל, אחרת ייפרע בבנק וישולם אותו שכר פעמיים.' : 'אפשר לבחור כמה חשבוניות — גם של ספקים שונים. הסכום הקרוב ביותר ראשון. ★ = אותו סכום, ≈ = הספק שבשם, 💵 = כבר סומנה "שולמה במזומן".' %>
                 </p>
                 <% if (!e.candidates || !e.candidates.length) { %>
                   <p class="muted" style="margin:0 0 .6rem">
@@ -132,14 +132,17 @@
                      // חשבוניות: אפשר לבחור **כמה** (גם של ספקים שונים — "משלמת טרה וקולה יחד"), והסכום שנבחר
                      // מוצג מול סכום ההוצאה. בחירה מראש: חשבונית אחת בסכום זהה, ואם אין — צירוף יחיד.
                      var _same = e.candidates.filter(function(c){ return c.sameAmount; });
+                     // עד ₪1 הפרש (עיגול בקופה — בעלים 17/11: 1,684.00 מול 1,683.99) — נבחרת מראש כשהיא היחידה.
+                     var _near = e.candidates.filter(function(c){ return c.nearAmount; });
                      var _combos = e.combos || [];
-                     var _pre = _same.length ? String(_same[0].id) : (_combos.length === 1 ? _combos[0].ids.join(',') : '');
+                     var _pre = _same.length ? String(_same[0].id) : (_near.length === 1 ? String(_near[0].id) : (_combos.length === 1 ? _combos[0].ids.join(',') : ''));
                      var _checks = e.supplierCheck || []; %>
                   <p class="muted" style="margin:0 0 .5rem; font-size:12px">
                     <% if (_same.length === 1) { %>נמצאה חשבונית אחת בדיוק באותו סכום — כבר נבחרה. לחץ "התאם" לאישור.
                     <% } else if (_same.length > 1) { %>נמצאו <%= _same.length %> באותו סכום (★) — הראשונה נבחרה.
+                    <% } else if (_near.length === 1) { %>נמצאה חשבונית בסכום כמעט זהה (הפרש <%= formatIls(_near[0].diff) %>) — כבר נבחרה. לחץ "התאם" לאישור.
                     <% } else if (_combos.length) { %>אין חשבונית בודדת באותו סכום — אבל יש <strong>צירוף</strong> של חשבוניות מאותם ימים שסכומו שווה בדיוק:
-                    <% } else { %>אין חשבונית באותו סכום. הרשימה מתחילה בספק שמופיע בשם ובחשבוניות מיום ה-Z; אפשר לבחור כמה.<% } %>
+                    <% } else { %>אין חשבונית באותו סכום. הרשימה מתחילה בסכום הקרוב ביותר; אפשר לחפש בשם ספק, מספר או סכום, ולבחור כמה.<% } %>
                   </p>
                   <% _combos.forEach(function(cb){ %>
                     <button type="button" class="btn btn-secondary small cxm-combo" data-ids="<%= cb.ids.join(',') %>" style="display:block;width:100%;text-align:start;margin:0 0 .35rem;white-space:normal">
@@ -160,10 +163,12 @@
                     <div class="cx-inv-box cxm-box" data-multi="1" data-target="<%= Number(e.amount) %>">
                       <input type="hidden" name="invoice_ids" class="cx-inv-ids" value="<%= _pre %>" />
                       <div class="cx-inv-chips"></div>
-                      <select class="cx-inv" aria-label="הוסף חשבונית" style="width:100%">
+                      <%# js-combo = חיפוש במלל (בעלים 17/11: "אין אפשרות לחפש במלל?") — ספק, מספר, סכום. הסדר: הסכום
+                          הקרוב ביותר ראשון (rankInvoices). 💵 = חשבונית שכבר סומנה "שולמה במזומן" — בדיוק הכסף מהקופה. %>
+                      <select class="cx-inv js-combo" aria-label="הוסף חשבונית" style="width:100%" data-combo-ph="➕ הוסף חשבונית — הקלד ספק, מספר או סכום">
                         <option value="">➕ הוסף חשבונית</option>
                         <% e.candidates.forEach(function(c){ %>
-                          <option value="<%= c.id %>" data-amount="<%= Number(c.total_amount) %>"><%= c.sameAmount ? '★ ' : c.nameMatch ? '≈ ' : '' %><%= c.supplier_name || '' %> #<%= c.invoice_number || c.id %> · <%= formatIls(c.total_amount) %> · <%= formatDate(c.invoice_date) %></option>
+                          <option value="<%= c.id %>" data-amount="<%= Number(c.total_amount) %>"><%= c.sameAmount ? '★ ' : c.nameMatch ? '≈ ' : '' %><%= c.paidCash ? '💵 ' : '' %><%= c.supplier_name || '' %> #<%= c.invoice_number || c.id %> · <%= formatIls(c.total_amount) %> · <%= formatDate(c.invoice_date) %><%= (!c.sameAmount && c.diff <= 10000) ? ' · הפרש ' + formatIls(c.diff) : '' %><%= c.paidCash ? ' · שולמה במזומן' : '' %></option>
                         <% }); %>
                       </select>
                     </div>
