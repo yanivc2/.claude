@@ -55,8 +55,11 @@ test('paid by check: not offered, and the dialog says it was paid from the bank 
   assert.equal(ck.invoices[0].payments[0].method, 'check');
   assert.deepEqual(ck.invoices[0].matchedTo, []);
   const html = await page();
-  assert.match(html, /#62353 שולמה מהבנק —\s*<a href="\/payments\/\d+">צ׳ק 70707<\/a> [\d/]+ \(עוד לא נפרע\)/);
-  assert.match(html, /זה תשלום כפול, או שאמצעי התשלום נרשם בטעות/);
+  // בעלים 17/11: "חשבונית מס' X ע"ס Y ש"ח מתאריך Z עבור <ספק>", ומתחתיה באותו גודל וצבע "שולמה בצ׳ק מס' X לתאריך Y"
+  assert.match(html, /ℹ️ חשבונית מס' <a href="\/invoices\/\d+">62353<\/a> ע"ס 843\.00 ש"ח מתאריך [\d/]+ עבור <strong>טרה<\/strong>/);
+  assert.match(html, /שולמה בצ׳ק מס(&#39;|') <a href="\/payments\/\d+">70707<\/a> לתאריך [\d/]+ \(הצ׳ק עוד לא נפרע\)\.\s*לכן אינה ברשימה: התשלום יצא מהבנק, לא מהקופה\./);
+  assert.ok(!/שולמה מהבנק —/.test(html), 'the orange "שולמה מהבנק" line the owner could not read is gone');
+  assert.ok(!/<div class="cx-why"[^>]*color/.test(html), 'both lines in the same color');
 });
 
 test('paid in cash and already matched to another expense: it names that Z, and says this one is likely a duplicate', async () => {
@@ -72,8 +75,8 @@ test('paid in cash and already matched to another expense: it names that Z, and 
   assert.equal(ck.invoices[0].matchedTo[0].id, first);
   assert.equal(ck.invoices[0].matchedTo[0].z_number, '2207');
   const html = await page();
-  assert.match(html, /#62353 <strong>כבר הותאמה להוצאת מזומן אחרת<\/strong>:\s*<a href="\/reports\/zreports\/\d+">Z 2207<\/a>/);
-  assert.match(html, /ההוצאה הזו כפולה: סמן אותה "✓ טופל"/);
+  assert.match(html, /שולמה <a href="\/payments\/\d+">במזומן<\/a> בתאריך [\d/]+\.\s*כבר הותאמה להוצאת מזומן <a href="\/reports\/zreports\/\d+">ב-Z 2207 מתאריך [\d/]+ ע"ס 843\.00 ש"ח<\/a>/);
+  assert.match(html, /השורה הזו כפולה: סמן אותה "✓ טופל"/);
 });
 
 test('a voided payment is not a reason: the explanation lists only live payments', async () => {
@@ -85,4 +88,13 @@ test('a voided payment is not a reason: the explanation lists only live payments
   const row = await rowFor(await expense(84300));
   const ck = row.supplierCheck.find((k) => k.supplier === 'טרה');
   assert.deepEqual(ck.invoices[0].payments, []);
+});
+
+test('a cleared check says so, with the date the bank cleared it', async () => {
+  const { x, inv, expense, page } = await world();
+  const terra = await inv('62353', 84300, 'check');
+  const p = await x.one('SELECT payment_id FROM payment_lines WHERE invoice_id = ?', [terra.id]);
+  await x.run("UPDATE payments SET status = 'cleared', cleared_date = ? WHERE id = ?", [day, p.payment_id]);
+  await expense(84300);
+  assert.match(await page(), /שולמה בצ׳ק מס(&#39;|') <a href="\/payments\/\d+">70707<\/a> לתאריך [\d/]+ \(נפרע בבנק ב-[\d/]+\)/);
 });

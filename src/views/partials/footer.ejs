@@ -441,15 +441,21 @@
   (function () {
     function norm(s){ return (s == null ? '' : String(s)).trim().toLowerCase(); }
     function esc(s){ return String(s).replace(/[&<>]/g, function(c){ return { '&':'&amp;','<':'&lt;','>':'&gt;' }[c]; }); }
-    // match = plain substring, OR every whitespace token is a substring, OR chars appear in order.
-    function matches(text, q){
-      var h = norm(text), n = norm(q);
-      if (!n) return true;
-      if (h.indexOf(n) !== -1) return true;
+    // ההתאמה מדורגת, והמתאים ביותר ראשון (בעלים 17/11: "לפי הסכום הקרוב ביותר ולפי המלל המתאים ביותר"):
+    //   0 = מתחיל מילה · 1 = רצף בתוך מילה · 2 = כל המילים שהוקלדו · 3 = האותיות לפי הסדר · −1 = לא מתאים.
+    // בתוך כל דרגה — סדר הרשימה המקורי (בחלון ההתאמה: הסכום הקרוב ביותר ראשון; ברוב הבוררים: א-ב).
+    // ₪ ופסיקים לא נחשבים, כדי ש-"6790" ימצא את "₪6,790.00".
+    function normx(s){ return norm(s).replace(/[₪,]/g, ''); }
+    function tier(text, q){
+      var h = normx(text), n = normx(q);
+      if (!n) return 0;
+      var at = h.indexOf(n);
+      if (at === 0 || (at > 0 && /[\s#·(/★≈-]/.test(h.charAt(at - 1)))) return 0;
+      if (at > 0) return 1;
       var toks = n.split(/\s+/).filter(Boolean);
-      if (toks.length > 1 && toks.every(function(t){ return h.indexOf(t) !== -1; })) return true;
+      if (toks.length > 1 && toks.every(function(t){ return h.indexOf(t) !== -1; })) return 2;
       var i = 0; for (var j = 0; j < h.length && i < n.length; j++) { if (h.charAt(j) === n.charAt(i)) i++; }
-      return i === n.length;
+      return i === n.length ? 3 : -1;
     }
 
     function enhance(sel){
@@ -485,7 +491,10 @@
       function paint(){ Array.prototype.forEach.call(pop.children, function(c){ if (c.dataset.i != null) c.classList.toggle('active', +c.dataset.i === activeIdx); });
         var a = pop.querySelector('.combo-opt.active'); if (a) a.scrollIntoView({ block: 'nearest' }); }
       function render(q){
-        shown = opts.filter(function(o){ return o.v !== '' && !o.disabled && matches(o.t, q); });
+        shown = opts.map(function(o, i){ return { o: o, i: i, r: (o.v !== '' && !o.disabled) ? tier(o.t, q) : -1 }; })
+          .filter(function(x){ return x.r >= 0; })
+          .sort(function(a, b){ return a.r - b.r || a.i - b.i; })
+          .map(function(x){ return x.o; });
         activeIdx = shown.length ? 0 : -1;
         pop.innerHTML = shown.length
           ? shown.map(function(o, i){ return '<div class="combo-opt" data-i="' + i + '">' + esc(o.t) + '</div>'; }).join('')

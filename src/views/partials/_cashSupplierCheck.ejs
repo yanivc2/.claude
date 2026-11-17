@@ -1,26 +1,46 @@
-<%# לכל ספק שההוצאה מזכירה: אין לו חשבונית סביב היום (⚠️ לא הוזנה), או שיש אבל היא לא ברשימה — ואם "כבר
-    שולמה", **איך** (zreports.js#paidHow; בעלים 17/11, ₪843 לטרה): מהבנק = לא מוצעת (הייתה נרשמת פעמיים);
-    במזומן שכבר הותאם = ההוצאה הזו כנראה כפולה. מוצג גם כשאין אף חשבונית פתוחה — אז זה ההסבר היחיד. %>
+<%# לכל ספק שההוצאה מזכירה: אין לו חשבונית סביב היום (⚠️ לא הוזנה), או שיש אבל היא לא ברשימה — ואז **מה היא**
+    ו**איך שולמה**, במשפט של הבעלים (17/11): "חשבונית מס' X ע"ס Y ש"ח מתאריך Z עבור <ספק>" ומתחתיה, באותו גודל
+    ובאותו צבע, "שולמה בצ׳ק מס' X לתאריך Y". קודם היה כאן "⚠️ #52452 שולמה מהבנק — … לכן היא לא מוצעת … תשלום
+    כפול" בכתום, והבעלים שאל "מה זה אומר? מה שולם? איך זה שולם אם הצ׳ק עדיין לא נפרע? מה הסכום? עבור מי?".
+    התשלומים וההתאמות — zreports.js#paidHow. מוצג גם כשאין אף חשבונית פתוחה — אז זה ההסבר היחיד. %>
+<% var _ils = function (a) { return (Number(a || 0) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+   // [לפני הקישור, הקישור (מספר הצ׳ק / אמצעי התשלום), אחריו] — רק המזהה צבוע כקישור, השאר בצבע השורה.
+   var _how = function (p) {
+     var d = p.payment_date ? formatDate(p.payment_date) : '';
+     if (p.method === 'check') return ['שולמה בצ׳ק מס\' ', p.check_number || '—', (d ? ' לתאריך ' + d : '')
+       + (p.status === 'cleared' ? ' (נפרע בבנק' + (p.cleared_date ? ' ב-' + formatDate(p.cleared_date) : '') + ')' : ' (הצ׳ק עוד לא נפרע)')];
+     if (p.method === 'transfer') return ['שולמה ', 'בהעברה בנקאית', (p.reference ? ' (אסמכתא ' + p.reference + ')' : '') + (d ? ' בתאריך ' + d : '')];
+     if (p.method === 'credit') return ['שולמה ', 'באשראי', d ? ' בתאריך ' + d : ''];
+     if (p.method === 'standing_order') return ['שולמה ', 'בהוראת קבע', d ? ' בתאריך ' + d : ''];
+     if (p.method === 'batch') return ['שולמה ', 'במקבץ' + (p.batch_number ? ' ' + p.batch_number : ''), d ? ' בתאריך ' + d : ''];
+     if (p.method === 'cash') return ['שולמה ', 'במזומן', d ? ' בתאריך ' + d : ''];
+     return ['', 'שולמה', d ? ' בתאריך ' + d : ''];
+   }; %>
 <% (checks || []).forEach(function(ck){ %>
   <% if (ck.status === 'missing') { %>
     <p style="margin:.2rem 0 .4rem; font-size:12px; color:var(--color-bad)">⚠️ לא נמצאה חשבונית של <strong><%= ck.supplier %></strong> סביב <%= formatDate(e.expense_date) %> — כנראה לא הוזנה. ביום הזנת ה-Z צריכה להיות מוזנת חשבונית מתאימה.</p>
   <% } else if (ck.status === 'notOpen') { %>
-    <p style="margin:.2rem 0 .4rem; font-size:12px">ℹ️ יש חשבונית של <strong><%= ck.supplier %></strong> מאותם ימים, אבל היא <strong>לא פתוחה לתשלום</strong> ולכן אינה ברשימה:
-      <% ck.invoices.forEach(function(iv, ii){ %><%= ii ? ' · ' : '' %><a href="/invoices/<%= iv.id %>">#<%= iv.invoice_number || iv.id %></a> <%= formatIls(iv.total_amount) %> (<%= iv.status === 'paid' ? 'כבר שולמה' : iv.status === 'on_hold' ? 'מוחזקת' : iv.status %>)<% }); %>
-    </p>
-    <%# "כבר שולמה" — איך (בעלים 17/11, ₪843 לטרה): בבנק = לא מוצעת (הייתה נרשמת פעמיים); במזומן
-        שכבר הותאם = ההוצאה הזו כנראה כפולה. zreports.js#paidHow. %>
-    <% ck.invoices.forEach(function(iv){ if (iv.status !== 'paid' || (!(iv.payments || []).length && !(iv.matchedTo || []).length)) return;
-         var _bank = (iv.payments || []).filter(function(p){ return p.method !== 'cash'; }); %>
-      <% if ((iv.matchedTo || []).length) { %>
-        <p style="margin:0 0 .4rem; font-size:12px; color:var(--color-warn)">⚠️ #<%= iv.invoice_number || iv.id %> <strong>כבר הותאמה להוצאת מזומן אחרת</strong>:
-          <% iv.matchedTo.forEach(function(m, mi){ %><%= mi ? ' · ' : '' %><a href="<%= m.source === 'zclosing' ? '/zclosing/' + m.ref_id : '/reports/zreports/' + m.ref_id %>">Z <%= m.z_number %></a> <%= formatDate(m.expense_date) %> <%= formatIls(m.amount) %><% }); %>
-          — אם זה אותו כסף, ההוצאה הזו כפולה: סמן אותה "✓ טופל". אם שולמו שתי חשבוניות — הזן את השנייה.</p>
-      <% } else if (_bank.length) { %>
-        <p style="margin:0 0 .4rem; font-size:12px; color:var(--color-warn)">⚠️ #<%= iv.invoice_number || iv.id %> שולמה מהבנק —
-          <% _bank.forEach(function(p, pi){ %><%= pi ? ' · ' : '' %><a href="/payments/<%= p.id %>"><%= methodLabel(p.method) %><%= p.check_number ? ' ' + p.check_number : '' %></a> <%= formatDate(p.payment_date) %><%= p.status === 'cleared' ? ' (נפרע)' : p.method === 'check' ? ' (עוד לא נפרע)' : '' %><% }); %>.
-          לכן היא לא מוצעת למזומן מהקופה (הייתה נרשמת פעמיים). אם הכסף באמת יצא מהקופה — זה תשלום כפול, או שאמצעי התשלום נרשם בטעות: בדוק את התשלום.</p>
-      <% } %>
+    <% ck.invoices.forEach(function(iv){
+         var _pays = iv.payments || [], _bank = _pays.filter(function(p){ return p.method !== 'cash'; }), _m = iv.matchedTo || []; %>
+      <div class="cx-why" style="margin:.2rem 0 .5rem; font-size:12px">
+        <div>ℹ️ חשבונית מס' <a href="/invoices/<%= iv.id %>"><%= iv.invoice_number || iv.id %></a> ע"ס <%= _ils(iv.total_amount) %> ש"ח<%= iv.invoice_date ? ' מתאריך ' + formatDate(iv.invoice_date) : '' %> עבור <strong><%= iv.supplier_name || ck.supplier %></strong></div>
+        <div>
+          <% if (iv.status === 'paid' && _pays.length) { %>
+            <% _pays.forEach(function(p, pi){ var h = _how(p); %><%= pi ? ' · ' : '' %><%= h[0] %><a href="/payments/<%= p.id %>"><%= h[1] %></a><%= h[2] %><% }); %>.
+            <% if (_m.length) { %>
+              כבר הותאמה להוצאת מזומן <% _m.forEach(function(m, mi){ %><%= mi ? ' · ' : '' %><a href="<%= m.source === 'zclosing' ? '/zclosing/' + m.ref_id : '/reports/zreports/' + m.ref_id %>">ב-Z <%= m.z_number %> מתאריך <%= formatDate(m.expense_date) %> ע"ס <%= _ils(m.amount) %> ש"ח</a><% }); %> — אם זה אותו כסף, השורה הזו כפולה: סמן אותה "✓ טופל".
+            <% } else if (_bank.length) { %>
+              לכן אינה ברשימה: התשלום יצא מהבנק, לא מהקופה.
+            <% } %>
+          <% } else if (iv.status === 'paid') { %>
+            סומנה כשולמה — לכן אינה ברשימה.
+          <% } else if (iv.status === 'on_hold') { %>
+            מוחזקת (לא פתוחה לתשלום) — לכן אינה ברשימה.
+          <% } else { %>
+            עוד לא אושרה לתשלום — לכן אינה ברשימה.
+          <% } %>
+        </div>
+      </div>
     <% }); %>
   <% } %>
 <% }); %>

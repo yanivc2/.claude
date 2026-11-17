@@ -394,7 +394,7 @@ async function paidHow(ids, x) {
   const pids = [...new Set(lines.map((l) => Number(l.payment_id)))];
   const pays = pids.length
     ? await x.many(
-      `SELECT id, method, check_number, reference, payment_date, status FROM payments
+      `SELECT id, method, check_number, reference, batch_number, payment_date, status, cleared_date FROM payments
         WHERE id IN (${marks(pids)}) AND status <> 'voided' ORDER BY payment_date, id`, pids)
     : [];
   const byId = new Map(pays.map((p) => [Number(p.id), p]));
