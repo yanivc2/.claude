@@ -139,6 +139,8 @@
     <div><label>תווי קניה</label><input name="drawer_vouchers" class="dr" inputmode="decimal" value="<%= sh(z.drawer_vouchers) %>" /><small class="muted">זיכוי קניות עובדים מההקפה שלהם באמצעות תווי קניה</small></div>
 
     <div><label>הקפה</label><input name="drawer_hakafa" class="dr" inputmode="decimal" value="<%= sh(z.drawer_hakafa) %>" /></div>
+    <%# "סה"כ מגירה" באותה שורה של הקפה, משמאלה (בעלים 17/11; עד ·378 ישב בהצהרה על הפקדה). %>
+    <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
   </div>
 
   <%# חלון ההזנה. הוא בתוך הטופס, ולכן השורות נשלחות כרגיל — <dialog> אינו מוציא את התוכן מה-form. %>
@@ -211,16 +213,16 @@
         <% }); %>
       </div>
     </div>
-    <%# "סה"כ מגירה" מעל "סה"כ הופקד" (בעלים 08/11). ✓ ירוק + כותרת ירוקה ל"סה"כ הופקד" כשההפקדה שווה
-        לסכום שאמור להיות בשקית — אותו חישוב של "חוסר / יתרה" (תשובת הבעלים), לא סה"כ המגירה: בשקית יש רק מזומן. %>
+    <%# "סה"כ סכום להפקדה" מעל "סה"כ הופקד" (בעלים 17/11 — במקום "סה"כ מגירה", שעבר לשורת ההקפה): מזומן מגירה
+        − הוצאות במזומן (תשובת הבעלים; בלי צ׳ק) = depositBase. ✓ ירוק + כותרת ירוקה ל"סה"כ הופקד" כשההפקדה שווה לו. %>
     <div class="zdep-total">
-      <div><label>סה"כ מגירה *</label><input id="drawer_total" readonly value="₪0.00" /><small class="muted">חובה — סכום רכיבי המגירה</small></div>
+      <div><label>סה"כ סכום להפקדה</label><input id="dep_expected" readonly value="₪0.00" /><small class="muted">מזומן מגירה − הוצאות במזומן</small></div>
       <div><label id="dep_total_label"><span class="z-tick" hidden>✓ </span>סה"כ הופקד</label><input id="dep_total" readonly value="₪0.00" /></div>
     </div>
     <div class="actions">
       <button type="button" class="btn btn-secondary" onclick="depAdd()">➕ הוספת שקית הפקדה</button>
     </div>
-    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">הפקדה − (מזומן − (צ'ק + הוצאות במזומן))</small></div>
+    <div><label>חוסר / יתרה</label><input id="dep_recon" readonly value="—" /><small class="muted">סכום להפקדה − הופקד: חוסר באדום, יתרה בירוק</small></div>
   </div>
 
   <%# שמירה דביקה. הכפתור היה בתחתית טופס ארוך (מגירה · אשראי · הוצאות · הפקדה), חלקו בתוך
@@ -250,19 +252,20 @@
   function depDeclared(){
     return Array.prototype.some.call(depBags.querySelectorAll('.dep-amt'), function(i){ return i.value.trim() !== ''; });
   }
-  // חוסר/יתרה = סכום ההפקדה − (מזומן − (צ'ק + סה"כ הוצאות במזומן)).
-  // הפקידו פחות ממה שהיה אמור להגיע לשקית → חוסר (− אדום); הפקידו יותר → יתרה (+ ירוק).
-  // 🔴 צ'ק אינו כסף בשקית ולכן מופחת מהמזומן (הגדרת הבעלים); הקפה, תווי קניה ואשראי לא נכנסים.
-  // 🔴 ההוצאות מופחתות ולא מתווספות: כסף שיצא מהקופה כהוצאה כבר אינו בה ולא יכול להגיע לשקית.
-  // חייב להישאר זהה ל-services/zreports.js#depositBase/depositDiff.
+  // "סה"כ סכום להפקדה" = מזומן מגירה − סה"כ הוצאות במזומן (בעלים 17/11: "מזומן − הוצאות" — בלי צ׳ק).
+  // חוסר/יתרה = סכום להפקדה מול סה"כ הופקד: הפקידו פחות → חוסר (אדום); הפקידו יותר → יתרה (ירוק).
+  // 🔴 צ׳ק, הקפה, תווי קניה ואשראי לא נכנסים. ההוצאות מופחתות ולא מתווספות: כסף שיצא מהקופה כהוצאה
+  // כבר אינו בה ולא יכול להגיע לשקית. חייב להישאר זהה ל-services/zreports.js#depositBase/depositDiff.
   function drawerCash(){ return num(form.querySelector('input[name="drawer_cash"]')); }
-  function nonCash(){ return ['drawer_check'].reduce(function(t, k){ var el = form.querySelector('input[name="' + k + '"]'); return t + (el ? num(el) : 0); }, 0); }
+  function depExpected(){ return drawerCash() - cxSum(); }
   function recalcDepRecon(){
     if (!depReconEl) return;
     var totalEl = document.getElementById('dep_total');
     if (totalEl) totalEl.value = fmt(depSum());
+    var expEl = document.getElementById('dep_expected');
+    if (expEl) expEl.value = fmt(depExpected());
     if (!depDeclared()) { depReconEl.value = '—'; depReconEl.style.color = ''; markOk('dep_total_label', false); return; }
-    var diff = depSum() - (drawerCash() - (nonCash() + cxSum()));
+    var diff = depSum() - depExpected();
     markOk('dep_total_label', Math.round(diff*100) === 0);
     if (Math.round(diff*100) === 0) { depReconEl.value = 'תואם'; depReconEl.style.color = 'var(--color-ok)'; }
     else if (diff > 0) { depReconEl.value = 'יתרה ' + fmt(diff); depReconEl.style.color = 'var(--color-ok)'; }

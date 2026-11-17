@@ -172,8 +172,8 @@ export async function cashReconciliation(zReportId, x = getExecutor()) {
   const deposit = bags.length ? bags.reduce((n, b) => n + (Number(b.amount) || 0), 0) : (zr.deposit_amount || 0);
   const expenses = await expensesTotal(zReportId, x);
   const cash = zr.drawer_cash || 0;
-  const nonCash = zr.drawer_check || 0; // צ׳ק בלבד — הקפה לא בנוסחה (בעלים, 2026-10-12)
-  return { cash, nonCash, deposit, expenses, hasDeposit, expected: depositBase(zr, expenses), diff: depositDiff(zr, expenses, deposit) };
+  // צ׳ק, הקפה, תווי קניה ואשראי לא בנוסחה (בעלים: הקפה 12/10, צ׳ק 17/11) — depositBase.
+  return { cash, deposit, expenses, hasDeposit, expected: depositBase(zr, expenses), diff: depositDiff(zr, expenses, deposit) };
 }
 
 /**
@@ -937,14 +937,14 @@ export async function cashPaymentsForInvoice(invoiceId, x = getExecutor()) {
 }
 
 /**
- * כמה מזומן **אמור** להגיע לשקית:
- *   מזומן (דוח מגירה) − (צ׳ק + סה"כ הוצאות במזומן)
+ * כמה מזומן **אמור** להגיע לשקית — "סה"כ סכום להפקדה" בטופס:
+ *   מזומן (דוח מגירה) − סה"כ הוצאות במזומן
  *
- * 🔴 זו ההגדרה של הבעלים (2026-10-04, עודכנה 2026-10-12), והיא מחליפה את "מזומן − הוצאות". בדוח
- * המגירה של הקופה צ׳ק **אינו כסף שנמצא בשקית**, ולכן הוא מופחת מהמזומן יחד עם ההוצאות.
+ * 🔴 ההגדרה של הבעלים, **עודכנה 17/11 (·379): בלי הצ׳ק** (תשובת הבעלים: "מזומן − הוצאות"). מ-04/10 עד
+ * 17/11 גם הצ׳ק הופחת ("מזומן − (צ׳ק + הוצאות)"); עכשיו `drawer_check` לא משנה את המספר.
  * 🔴 **תווי קניה והקפה לא נכנסים** — הבעלים הוציא את שניהם מהנוסחה במפורש (תווי קניה ב-04/10,
  * הקפה ב-12/10: "החישוב הנכון ללא הקפה"). השדות נשארים בטופס; הם רק לא חלק מהחישוב.
- * דוגמה: מזומן 90,737.90 − (0 + 4,170.55) = 86,567.35 אמור להגיע לשקית; הופקד 86,371.00 → חוסר 196.35.
+ * דוגמה: מזומן 90,737.90 − 4,170.55 = 86,567.35 אמור להגיע לשקית; הופקד 86,371.00 → חוסר 196.35.
  *
  * 🔴 אשראי **לא** נכנס: הוא אף פעם לא היה מזומן. וההוצאות **מופחתות**, לא מתווספות (כסף שיצא
  * כהוצאה כבר אינו בקופה) — החיבור הקודם ניפח את ההפרש בכפל ההוצאות.
@@ -958,7 +958,7 @@ export async function cashPaymentsForInvoice(invoiceId, x = getExecutor()) {
  */
 export function depositBase(zr, expenses = 0) {
   const n = (v) => Number(v) || 0;
-  return n(zr?.drawer_cash) - (n(zr?.drawer_check) + n(expenses));
+  return n(zr?.drawer_cash) - n(expenses);
 }
 
 /**

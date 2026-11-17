@@ -19,11 +19,12 @@ test('both rubrics are always open — plain sections, no <details> toggle', () 
 });
 
 // פריסת הבעלים (2026-10-04, עודכנה 08/11). ב-RTL הילד הראשון בכל זוג ברשת הוא הימני.
-test('drawer layout: credit | expenses, cash | check, credit-drawer | vouchers, hakafa', () => {
+test('drawer layout: credit | expenses, cash | check, credit-drawer | vouchers, hakafa | drawer total', () => {
   const grid = view.slice(view.indexOf('<div class="zdrawer">'), view.indexOf('<%# חלון ההזנה.'));
+  // owner 17/11: "סה"כ מגירה" back in the drawer grid, on the הקפה row (its left cell)
   const order = ['id="cc-panel"', 'id="cx-panel"', 'name="drawer_cash"', 'name="drawer_check"',
-    'name="drawer_credit"', 'name="drawer_vouchers"', 'name="drawer_hakafa"'];
-  assert.ok(!grid.includes('id="drawer_total"'), 'סה"כ מגירה moved to the deposit declaration (owner 08/11)');
+    'name="drawer_credit"', 'name="drawer_vouchers"', 'name="drawer_hakafa"', 'id="drawer_total"'];
+  assert.ok(grid.trimEnd().endsWith('</div>'));
   const at = order.map((k) => grid.indexOf(k));
   at.forEach((p, i) => assert.ok(p > 0, `${order[i]} is inside the drawer grid`));
   for (let i = 1; i < at.length; i++) assert.ok(at[i] > at[i - 1], `${order[i - 1]} before ${order[i]}`);
@@ -35,17 +36,19 @@ test('drawer layout: credit | expenses, cash | check, credit-drawer | vouchers, 
   }
 });
 
-test('deposit: bags | drawer total over deposited total on the last bag row, then add button | gap', () => {
+test('deposit: bags | amount-to-deposit over deposited total on the last bag row, then add button | gap', () => {
   const a = view.indexOf('<div class="zdep-layout">');
   assert.ok(a > 0);
   const bags = view.indexOf('<div id="dep-bags">', a);
   const add = view.indexOf('onclick="depAdd()"', a);
-  const drawer = view.indexOf('id="drawer_total"', a);
+  const expected = view.indexOf('id="dep_expected"', a);
   const tot = view.indexOf('id="dep_total"', a);
   const gap = view.indexOf('id="dep_recon"', a);
-  assert.ok(bags < drawer && drawer < tot && tot < add && add < gap, '[bags | drawer total + deposited] then [add button | gap] — RTL pairs');
+  assert.ok(bags < expected && expected < tot && tot < add && add < gap, '[bags | amount to deposit + deposited] then [add button | gap] — RTL pairs');
   const cell = view.slice(view.indexOf('<div class="zdep-total">', a), add);
-  assert.ok(cell.includes('id="drawer_total"') && cell.includes('id="dep_total"'), 'one cell, סה"כ מגירה above סה"כ הופקד (owner 08/11)');
+  assert.ok(cell.includes('<label>סה"כ סכום להפקדה</label>') && cell.includes('id="dep_total"'), 'one cell, סה"כ סכום להפקדה above סה"כ הופקד (owner 17/11)');
+  assert.ok(!cell.includes('id="drawer_total"'), 'סה"כ מגירה left the deposit declaration (owner 17/11)');
+  assert.match(view, /<small class="muted">סכום להפקדה − הופקד: חוסר באדום, יתרה בירוק<\/small>/);
   const css = fs.readFileSync(path.join(process.cwd(), 'src/public/nocturne.css'), 'utf8');
   assert.match(css, /\.zdep-layout > \.zdep-total \{[^}]*align-self: end/, 'the total sits on the last bag row as bags are added');
   assert.match(css, /\.zpanel-body \{[^}]*max-height: \d+px; overflow-y: auto/, 'both rubrics share one max height');
@@ -90,6 +93,6 @@ test('green titles with a tick on the right: credit drawer matches the cards, de
   assert.match(view, /markOk\('drawer_credit_label', ccMatches\(\) && Math\.round\(num\(creditEl\)\*100\) !== 0\)/,
     'credit: matches the cards and is not just two empty fields');
   // deposit: the same test as "תואם" in חוסר / יתרה — the bag amount, never the whole drawer (owner's answer)
-  assert.match(view, /var diff = depSum\(\) - \(drawerCash\(\) - \(nonCash\(\) \+ cxSum\(\)\)\);\s*markOk\('dep_total_label', Math\.round\(diff\*100\) === 0\);/);
+  assert.match(view, /var diff = depSum\(\) - depExpected\(\);\s*markOk\('dep_total_label', Math\.round\(diff\*100\) === 0\);/);
   assert.match(view, /markOk\('dep_total_label', false\); return;/, 'no deposit declared → no tick');
 });
