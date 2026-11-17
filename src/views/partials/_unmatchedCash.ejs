@@ -102,6 +102,7 @@
                   <p class="muted" style="margin:0 0 .6rem">
                     <%= _isSal ? 'אין צ׳קי שכר פתוחים להתאמה. הזן אותם בדף עובדים ומשכורות.' : 'אין חשבוניות פתוחות לתשלום.' %>
                   </p>
+                  <% if (!_isSal) { %><%- include('_cashSupplierCheck', { checks: e.supplierCheck || [], e: e }) %><% } %>
                   <div class="actions"><a class="btn btn-secondary" href="<%= _isSal ? '/employees' : '/invoices' %>">פתח את הדף</a>
                     <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">סגור</button></div>
                 <% } else if (_isSal) { var _same = e.candidates.filter(function(c){ return c.sameAmount; }); %>
@@ -150,15 +151,7 @@
                       ★ <% cb.items.forEach(function(c, ci){ %><%= ci ? ' + ' : '' %><bdi><%= c.supplier_name || '' %> #<%= c.invoice_number || c.id %> (<%= formatIls(c.total_amount) %>)</bdi><% }); %> = <%= formatIls(e.amount) %>
                     </button>
                   <% }); %>
-                  <% _checks.forEach(function(ck){ %>
-                    <% if (ck.status === 'missing') { %>
-                      <p style="margin:.2rem 0 .4rem; font-size:12px; color:var(--color-bad)">⚠️ לא נמצאה חשבונית של <strong><%= ck.supplier %></strong> סביב <%= formatDate(e.expense_date) %> — כנראה לא הוזנה. ביום הזנת ה-Z צריכה להיות מוזנת חשבונית מתאימה.</p>
-                    <% } else if (ck.status === 'notOpen') { %>
-                      <p style="margin:.2rem 0 .4rem; font-size:12px">ℹ️ יש חשבונית של <strong><%= ck.supplier %></strong> מאותם ימים, אבל היא <strong>לא פתוחה לתשלום</strong> ולכן אינה ברשימה:
-                        <% ck.invoices.forEach(function(iv, ii){ %><%= ii ? ' · ' : '' %><a href="/invoices/<%= iv.id %>">#<%= iv.invoice_number || iv.id %></a> <%= formatIls(iv.total_amount) %> (<%= iv.status === 'paid' ? 'כבר שולמה' : iv.status === 'on_hold' ? 'מוחזקת' : iv.status %>)<% }); %>
-                      </p>
-                    <% } %>
-                  <% }); %>
+                  <%- include('_cashSupplierCheck', { checks: _checks, e: e }) %>
                   <form method="post" action="/cash-expenses/<%= e.source %>/<%= e.id %>/match-invoice" data-keep-scroll
                         onsubmit="if(!this.querySelector('.cx-inv-ids').value){ alert('בחר לפחות חשבונית אחת'); return false; }">
                     <input type="hidden" name="return_to" value="<%= _returnTo %>" />

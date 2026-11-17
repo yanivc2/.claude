@@ -1,0 +1,26 @@
+<%# לכל ספק שההוצאה מזכירה: אין לו חשבונית סביב היום (⚠️ לא הוזנה), או שיש אבל היא לא ברשימה — ואם "כבר
+    שולמה", **איך** (zreports.js#paidHow; בעלים 17/11, ₪843 לטרה): מהבנק = לא מוצעת (הייתה נרשמת פעמיים);
+    במזומן שכבר הותאם = ההוצאה הזו כנראה כפולה. מוצג גם כשאין אף חשבונית פתוחה — אז זה ההסבר היחיד. %>
+<% (checks || []).forEach(function(ck){ %>
+  <% if (ck.status === 'missing') { %>
+    <p style="margin:.2rem 0 .4rem; font-size:12px; color:var(--color-bad)">⚠️ לא נמצאה חשבונית של <strong><%= ck.supplier %></strong> סביב <%= formatDate(e.expense_date) %> — כנראה לא הוזנה. ביום הזנת ה-Z צריכה להיות מוזנת חשבונית מתאימה.</p>
+  <% } else if (ck.status === 'notOpen') { %>
+    <p style="margin:.2rem 0 .4rem; font-size:12px">ℹ️ יש חשבונית של <strong><%= ck.supplier %></strong> מאותם ימים, אבל היא <strong>לא פתוחה לתשלום</strong> ולכן אינה ברשימה:
+      <% ck.invoices.forEach(function(iv, ii){ %><%= ii ? ' · ' : '' %><a href="/invoices/<%= iv.id %>">#<%= iv.invoice_number || iv.id %></a> <%= formatIls(iv.total_amount) %> (<%= iv.status === 'paid' ? 'כבר שולמה' : iv.status === 'on_hold' ? 'מוחזקת' : iv.status %>)<% }); %>
+    </p>
+    <%# "כבר שולמה" — איך (בעלים 17/11, ₪843 לטרה): בבנק = לא מוצעת (הייתה נרשמת פעמיים); במזומן
+        שכבר הותאם = ההוצאה הזו כנראה כפולה. zreports.js#paidHow. %>
+    <% ck.invoices.forEach(function(iv){ if (iv.status !== 'paid' || (!(iv.payments || []).length && !(iv.matchedTo || []).length)) return;
+         var _bank = (iv.payments || []).filter(function(p){ return p.method !== 'cash'; }); %>
+      <% if ((iv.matchedTo || []).length) { %>
+        <p style="margin:0 0 .4rem; font-size:12px; color:var(--color-warn)">⚠️ #<%= iv.invoice_number || iv.id %> <strong>כבר הותאמה להוצאת מזומן אחרת</strong>:
+          <% iv.matchedTo.forEach(function(m, mi){ %><%= mi ? ' · ' : '' %><a href="<%= m.source === 'zclosing' ? '/zclosing/' + m.ref_id : '/reports/zreports/' + m.ref_id %>">Z <%= m.z_number %></a> <%= formatDate(m.expense_date) %> <%= formatIls(m.amount) %><% }); %>
+          — אם זה אותו כסף, ההוצאה הזו כפולה: סמן אותה "✓ טופל". אם שולמו שתי חשבוניות — הזן את השנייה.</p>
+      <% } else if (_bank.length) { %>
+        <p style="margin:0 0 .4rem; font-size:12px; color:var(--color-warn)">⚠️ #<%= iv.invoice_number || iv.id %> שולמה מהבנק —
+          <% _bank.forEach(function(p, pi){ %><%= pi ? ' · ' : '' %><a href="/payments/<%= p.id %>"><%= methodLabel(p.method) %><%= p.check_number ? ' ' + p.check_number : '' %></a> <%= formatDate(p.payment_date) %><%= p.status === 'cleared' ? ' (נפרע)' : p.method === 'check' ? ' (עוד לא נפרע)' : '' %><% }); %>.
+          לכן היא לא מוצעת למזומן מהקופה (הייתה נרשמת פעמיים). אם הכסף באמת יצא מהקופה — זה תשלום כפול, או שאמצעי התשלום נרשם בטעות: בדוק את התשלום.</p>
+      <% } %>
+    <% }); %>
+  <% } %>
+<% }); %>

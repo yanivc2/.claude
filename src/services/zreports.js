@@ -347,7 +347,7 @@ export async function withMatchCandidates(rows, scope = null, storeId = null, x 
   const supplierNames = forInvoices.length
     ? (await x.many('SELECT name FROM suppliers', [])).map((r) => r.name).filter(Boolean)
     : [];
-  return Promise.all(list.map(async (r) => {
+  const out = await Promise.all(list.map(async (r) => {
     if (isPettyExpense(r)) return { ...r, petty: true, candidates: [] };
     if (isSal(r)) return { ...r, petty: false, candidates: await salaryMatchCandidates(r.amount, scope, storeId, 40, x) };
     const candidates = rankInvoices(r, payable, 60);
@@ -359,6 +359,65 @@ export async function withMatchCandidates(rows, scope = null, storeId = null, x 
       supplierCheck: supplierCheckFor(r, supplierNames, nearby, candidates),
     };
   }));
+  // "כבר שולמה" — **איך**, כדי שההודעה תאמר למה החשבונית לא ברשימה ולא רק שהיא לא שם.
+  const paidIds = [];
+  for (const r of out) for (const ck of r.supplierCheck || []) {
+    if (ck.status === 'notOpen') for (const iv of ck.invoices) if (iv.status === 'paid') paidIds.push(Number(iv.id));
+  }
+  if (paidIds.length) {
+    const how = await paidHow(paidIds, x);
+    for (const r of out) for (const ck of r.supplierCheck || []) {
+      if (ck.status !== 'notOpen') continue;
+      ck.invoices = ck.invoices.map((iv) => (how.has(Number(iv.id)) ? { ...iv, ...how.get(Number(iv.id)) } : iv));
+    }
+  }
+  return out;
+}
+
+/**
+ * איך שולמה חשבונית שאינה ברשימת ההתאמה — התשלומים החיים שלה, והוצאות המזומן שכבר הותאמו אליה.
+ *
+ * בעלים 17/11 (צילום): ₪843 לטרה מהקופה, וחשבונית #62353 של טרה ב-₪843 מאותו יום "כבר שולמה" — והחלון
+ * לא אמר למה אינה ברשימה. שתי סיבות אפשריות, ולכל אחת פעולה אחרת:
+ *   • שולמה בצ׳ק/העברה/אשראי — כסף מהבנק. התאמה למזומן מהקופה הייתה רושמת אותה פעמיים, ולכן היא לא
+ *     מוצעת; אם הכסף באמת יצא מהקופה, זה תשלום כפול או אמצעי תשלום שנרשם בטעות — בודקים את התשלום.
+ *   • שולמה במזומן וכבר הותאמה להוצאת מזומן אחרת — ההוצאה הזו כנראה כפולה (או שיש חשבונית נוספת).
+ * שאילתות של טבלה אחת עם IN (ולא IN על טבלה מצורפת — pg-mem, ראה CLAUDE.md).
+ * @returns {Map<number, {payments:Array, matchedTo:Array}>}
+ */
+async function paidHow(ids, x) {
+  const uniq = [...new Set(ids.map(Number))];
+  const out = new Map(uniq.map((id) => [id, { payments: [], matchedTo: [] }]));
+  if (!uniq.length) return out;
+  const marks = (a) => a.map(() => '?').join(',');
+  const lines = await x.many(`SELECT invoice_id, payment_id FROM payment_lines WHERE invoice_id IN (${marks(uniq)})`, uniq);
+  const pids = [...new Set(lines.map((l) => Number(l.payment_id)))];
+  const pays = pids.length
+    ? await x.many(
+      `SELECT id, method, check_number, reference, payment_date, status FROM payments
+        WHERE id IN (${marks(pids)}) AND status <> 'voided' ORDER BY payment_date, id`, pids)
+    : [];
+  const byId = new Map(pays.map((p) => [Number(p.id), p]));
+  for (const l of lines) {
+    const p = byId.get(Number(l.payment_id));
+    const o = out.get(Number(l.invoice_id));
+    if (p && o && !o.payments.some((q) => Number(q.id) === Number(p.id))) o.payments.push(p);
+  }
+  const cols = (await cashExpenseInvoiceIdsReady(x)) ? 'e.invoice_id, e.invoice_ids' : 'e.invoice_id';
+  for (const [source, sql] of [
+    ['zreport', `SELECT e.id, e.expense_date, e.amount, ${cols}, z.z_number, z.id AS ref_id
+                   FROM z_expenses e JOIN z_reports z ON z.id = e.z_report_id WHERE e.invoice_id IS NOT NULL`],
+    ['zclosing', `SELECT e.id, e.expense_date, e.amount, ${cols}, zc.z_number, zc.id AS ref_id
+                    FROM z_closing_expenses e JOIN z_closings zc ON zc.id = e.closing_id WHERE e.invoice_id IS NOT NULL`],
+  ]) {
+    for (const r of await x.many(sql, [])) {
+      for (const id of rowInvoiceIds(r)) {
+        const o = out.get(Number(id));
+        if (o) o.matchedTo.push({ source, id: Number(r.id), ref_id: Number(r.ref_id), z_number: r.z_number, expense_date: r.expense_date, amount: Number(r.amount) });
+      }
+    }
+  }
+  return out;
 }
 
 /**
