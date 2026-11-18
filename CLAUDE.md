@@ -136,7 +136,8 @@ happen only at merge. So:
   its day and that wins). **Sales = "סה"כ מכירה (כולל הקפה)"**, never "פדיון (כולל ת.חוב)" (debts paid = earlier sales). `services/revenueReports.js`
   upserts one row per store/day (`revenue_reports`). Email ingestion: `POST /ingest/revenue-report`
   (mounted BEFORE `currentUser`), fed hourly by a **Gmail Apps Script** the owner copies ready-made from
-  `/reconciliation/revenue-intake` (`lib/revenueIngestScript.js`). Secret = `REVENUE_INGEST_SECRET` env, else
+  `/reconciliation/revenue-intake` (`lib/revenueIngestScript.js`; the same script also posts the POS "מכר יומי" PDF to
+  `POST /ingest/item-sales` — ג'חנון/פרחים beside a cash expense, INDEX.md · 🛒). Secret = `REVENUE_INGEST_SECRET` env, else
   **derived from `SESSION_SECRET`** (`lib/revenueIngest.js`; neither = 503). Store = POS branch name in the
   subject matched to exactly ONE store (else 422 + alert — never guessed); day = POS file stamp / send time.
 - **Open Banking (Financy):** `POST /reconciliation/sync` pulls bank movements straight into

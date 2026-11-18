@@ -14,6 +14,9 @@ import { webhookSecret } from '../lib/telegramBot.js';
 import { revenueIngestSecret, reportDateFrom, pickReportFile, resolveStoreByBranch, branchFromSubject, storeTitleConflict } from '../lib/revenueIngest.js';
 import { decodeFileName } from '../lib/decodeText.js';
 import { handleTelegramUpdate } from '../services/telegramApprovals.js';
+import { parseItemSalesPdf } from '../lib/itemSalesReport.js';
+import { importItemSales } from '../services/itemSales.js';
+import { looksLikePdf } from '../lib/pdfGrid.js';
 
 // Machine ingestion for the nightly "דוח פדיון" email. A small Apps Script in the owner's Gmail
 // (lib/revenueIngestScript.js — the owner copies it, ready-made, from /reconciliation/revenue-intake)
@@ -117,6 +120,64 @@ router.post('/revenue-report', (req, res) => {
       const last = rows[rows.length - 1];
       await notify(revenueNotice(store.name, inserted, updated, last, detailsSaved), { kind: 'revenue', link: '/reports/profitability' });
       return res.json({ ok: true, store: store.name, date: reportDate, dateFrom, inserted, updated, days: rows.length, detailsSaved });
+    } catch (err) {
+      return res.status(500).json({ ok: false, error: err.message });
+    }
+  });
+});
+
+// 🛒 דוח "מכר יומי" של הקופה (בפינק: "פינק מכר יומי.pdf") — אותו סקריפט ג'ימייל, אותו סוד, אותו זיהוי חנות
+// מהנושא. נשמרים רק הפריטים שבמעקב (ג'חנון, פרחים — lib/trackedItems.js); המכר מוצג ליד הוצאת מזומן.
+//   POST /ingest/item-sales?subject=<POS subject>&file_name=<name>   (or ?store=<id>)
+// הצלחה שקטה (דוח כל לילה — התראה כל לילה היא רעש); דוח שלא נקרא / של כמה ימים / של חנות לא מזוהה → 422 + התראה.
+// טבלאות חסרות (לפני "עדכן מסד נתונים") → 503, והסקריפט ינסה שוב בשעה הבאה.
+router.post('/item-sales', (req, res) => {
+  upload(req, res, async (uploadErr) => {
+    try {
+      const secret = revenueIngestSecret();
+      if (!secret) return res.status(503).json({ ok: false, error: 'ingest disabled (no secret)' });
+      const given = Buffer.from(String(req.get('x-ingest-secret') || req.query.secret || ''));
+      const want = Buffer.from(secret);
+      if (given.length !== want.length || !timingSafeEqual(given, want)) return res.status(401).json({ ok: false, error: 'bad secret' });
+      if (uploadErr) return res.status(400).json({ ok: false, error: 'upload failed' });
+
+      const x = getExecutor();
+      const files = (req.files || []).map((f) => ({ ...f, originalname: decodeFileName(f.originalname) || f.originalname }));
+      const file = files.find((f) => looksLikePdf(f.buffer));
+      if (!file) return res.status(400).json({ ok: false, error: 'no PDF attachment' });
+
+      const branch = branchFromSubject(req.query.subject);
+      const branchName = String(req.query.branch_name || branch.name || '').trim();
+      let store;
+      const storeId = Number(req.query.store);
+      if (storeId) {
+        store = await x.one('SELECT id, name FROM stores WHERE id = ?', [storeId]);
+        if (!store) return res.status(404).json({ ok: false, error: 'store not found' });
+      } else {
+        store = resolveStoreByBranch(await x.many('SELECT id, name FROM stores', []), branchName);
+        if (!store) {
+          await notify(
+            `⚠️ <b>דוח מכר יומי לא נקלט</b>\nהדוח של סניף ${branch.no || '?'} "${branchName || 'ללא שם'}" בקופה לא תואם לשם של אף חנות במערכת.`,
+            { link: '/reconciliation/revenue-intake' },
+          );
+          return res.status(422).json({ ok: false, error: 'branch does not match a single store', branch: branchName });
+        }
+      }
+
+      const parsed = await parseItemSalesPdf(file.buffer);
+      if (parsed.error) {
+        await notify(`⚠️ <b>דוח מכר יומי לא נקלט</b>\n${store.name}: ${parsed.error.startsWith('period') ? 'הדוח מכסה יותר מיום אחד — נקלט רק דוח של יום.' : 'הקובץ לא נקרא כדוח מכירות פריטים.'}`,
+          { link: '/reconciliation/revenue-intake' });
+        return res.status(422).json({ ok: false, error: parsed.error });
+      }
+      let result;
+      try {
+        result = await importItemSales(store.id, parsed, file.originalname, x);
+      } catch (err) {
+        if (err.code === 'SCHEMA') return res.status(503).json({ ok: false, error: err.message });
+        throw err;
+      }
+      return res.json({ ok: true, store: store.name, date: result.date, replaced: result.replaced, groups: result.groups, warnings: parsed.warnings });
     } catch (err) {
       return res.status(500).json({ ok: false, error: err.message });
     }

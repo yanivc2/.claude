@@ -226,6 +226,31 @@ CREATE TABLE IF NOT EXISTS revenue_periods (
   UNIQUE (store_id, date_from, date_to)
 );
 
+-- 🛒 מכר פריטים נבחרים מדוח "מכר יומי" של הקופה (בעלים 17/11: ליד הוצאת מזומן לג'חנון / לפרחים בפינק —
+-- מכר שישי+שבת+ראשון שלפני ההוצאה). רק הפריטים שבמעקב (lib/trackedItems.js), לא כל הדוח.
+-- pos_item_reports = הדוח של היום הגיע (גם בלי אף פריט במעקב: 0 ולא "חסר").
+CREATE TABLE IF NOT EXISTS pos_item_reports (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id     INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  report_date  TEXT NOT NULL,                    -- 'YYYY-MM-DD' (יום אחד — "מתאריך" של הדוח)
+  file_name    TEXT,
+  total_sales  INTEGER,                          -- agorot — "סה"כ שורות" (כולל מע"מ)
+  imported_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+  UNIQUE (store_id, report_date)
+);
+CREATE TABLE IF NOT EXISTS pos_item_sales (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_id     INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+  sale_date    TEXT NOT NULL,
+  item_group   TEXT NOT NULL,                    -- jachnun | flowers (lib/trackedItems.js)
+  item_code    TEXT NOT NULL,                    -- הברקוד בקופה
+  item_name    TEXT,
+  qty          INTEGER NOT NULL DEFAULT 0,
+  sales        INTEGER NOT NULL DEFAULT 0,       -- agorot — "סה"כ" (כולל מע"מ, אחרי הנחה)
+  UNIQUE (store_id, sale_date, item_code)
+);
+CREATE INDEX IF NOT EXISTS ix_pos_item_sales_day ON pos_item_sales(store_id, sale_date);
+
 -- §4 invoices -------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS invoices (
   id                 INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,0 +1,11 @@
+<%# 🛒 ליד סכום הוצאת המזומן (בעלים 17/11: "לייד הסכום שנרשם כהוצאת מזומן"): כשההוצאה היא לג'חנון או לפרחים —
+    מכר שישי+שבת+ראשון שלפניה, מדוח "מכר יומי" של הקופה (services/itemSales.js#withItemSales). יום בלי דוח נאמר
+    בקול ("חסר דוח") ולא נספר כ-0. הפירוט ליום — בריחוף. %>
+<% if (typeof s !== 'undefined' && s) { %>
+  <div class="cx-sales" style="font-size:11px; font-weight:normal; margin-top:2px"
+       title="<%= s.days.map(function(d){ return d.label + ': ' + (d.missing ? 'חסר דוח' : d.qty + ' יח׳ · ' + formatIls(d.sales)); }).join(' · ') %>">
+    <%# הטווח מבודד LTR — בלי זה "13/11–15/11" מתהפך בשורה עברית (נמדד בדפדפן). %>
+    <%= s.icon %> מכר <%= s.label %> שישי–ראשון <bdi dir="ltr" style="white-space:nowrap"><%= s.from %>–<%= s.to %></bdi>: <strong><%= s.qty %> יח׳ · <%= formatIls(s.sales) %></strong>
+    <% if (s.missing.length) { %><span style="color:var(--color-warn)"> · חסר דוח: <bdi dir="ltr" style="white-space:nowrap"><%= s.missing.map(function(d){ return formatDate(d); }).join(', ') %></bdi></span><% } %>
+  </div>
+<% } %>

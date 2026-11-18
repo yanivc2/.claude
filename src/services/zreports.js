@@ -5,6 +5,7 @@ import { logAction } from './audit.js';
 import { parseInvoiceIds, encodeInvoiceIds, likeInvoiceId, cashExpenseInvoiceIdsReady, rowInvoiceIds } from './cashExpenseInvoices.js';
 import { rankInvoices, invoiceCombos, suppliersMentioned } from '../lib/cashInvoiceMatch.js';
 import { resolveEmployeeId } from '../lib/employeeName.js';
+import { withItemSales } from './itemSales.js';
 
 // Daily register (Z) close (priority 2). daily_total ("יומי Z") feeds the profitability report;
 // the drawer breakdown (cash/check/credit/hakafa/vouchers) sums to drawer_total ("סה"כ מגירה").
@@ -687,7 +688,8 @@ export async function unmatchedCashExpenses(scope = null, limit = 30, storeId = 
     out.push(r);
     if (out.length >= limit) break;
   }
-  return out;
+  // 🛒 ג'חנון / פרחים: מכר שישי–ראשון שלפני ההוצאה, ליד הסכום (services/itemSales.js).
+  return withItemSales(out, x);
 }
 
 /**
@@ -815,10 +817,10 @@ export async function settledCashExpenses(scope = null, limit = 30, storeId = nu
   const scC = scopeWhere(scope, 'st.company_id', 'zc.store_id');
   const stR = storeId ? ' AND z.store_id = ?' : '';
   const stC = storeId ? ' AND zc.store_id = ?' : '';
-  return x.many(
+  const rows = await x.many(
     `SELECT * FROM (
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
-              e.settled_at, e.created_at, st.name AS store_name, z.z_number, 'zreport' AS source, z.id AS ref_id,
+              e.settled_at, e.created_at, z.store_id AS store_id, st.name AS store_name, z.z_number, 'zreport' AS source, z.id AS ref_id,
               u.name AS settled_by_name, NULL AS by_first, NULL AS by_last
          FROM z_expenses e
          JOIN z_reports z ON z.id = e.z_report_id
@@ -827,7 +829,7 @@ export async function settledCashExpenses(scope = null, limit = 30, storeId = nu
         WHERE e.settled_at IS NOT NULL${scR.sql}${stR}
        UNION ALL
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type,
-              e.settled_at, e.created_at, st.name AS store_name, zc.z_number, 'zclosing' AS source, zc.id AS ref_id,
+              e.settled_at, e.created_at, zc.store_id AS store_id, st.name AS store_name, zc.z_number, 'zclosing' AS source, zc.id AS ref_id,
               u.name AS settled_by_name, zc.employee_first AS by_first, zc.employee_last AS by_last
          FROM z_closing_expenses e
          JOIN z_closings zc ON zc.id = e.closing_id
@@ -838,6 +840,7 @@ export async function settledCashExpenses(scope = null, limit = 30, storeId = nu
      ORDER BY u.settled_at DESC, u.id DESC LIMIT ?`,
     [...scR.params, ...(storeId ? [storeId] : []), ...scC.params, ...(storeId ? [storeId] : []), limit],
   );
+  return withItemSales(rows, x);
 }
 
 /**
@@ -861,12 +864,12 @@ export async function matchedCashExpenses(scope = null, limit = 20, storeId = nu
   const rows = await x.many(
     `SELECT * FROM (
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type, e.created_at,
-              e.invoice_id, ${ids} AS invoice_ids, st.name AS store_name, z.z_number, 'zreport' AS source, z.id AS ref_id
+              e.invoice_id, ${ids} AS invoice_ids, z.store_id AS store_id, st.name AS store_name, z.z_number, 'zreport' AS source, z.id AS ref_id
          FROM z_expenses e JOIN z_reports z ON z.id = e.z_report_id JOIN stores st ON st.id = z.store_id
         WHERE e.amount > 0 AND (e.invoice_id IS NOT NULL${inList(salR)})${scR.sql}${stR}
        UNION ALL
        SELECT e.id, e.expense_date, e.payer_name, e.purpose, e.amount, e.description_type, e.created_at,
-              e.invoice_id, ${ids} AS invoice_ids, st.name AS store_name, zc.z_number, 'zclosing' AS source, zc.id AS ref_id
+              e.invoice_id, ${ids} AS invoice_ids, zc.store_id AS store_id, st.name AS store_name, zc.z_number, 'zclosing' AS source, zc.id AS ref_id
          FROM z_closing_expenses e JOIN z_closings zc ON zc.id = e.closing_id JOIN stores st ON st.id = zc.store_id
         WHERE e.amount > 0 AND (e.invoice_id IS NOT NULL${inList(salC)})${scC.sql}${stC}
      ) u
@@ -893,7 +896,7 @@ export async function matchedCashExpenses(scope = null, limit = 20, storeId = nu
       )) sal.set(`${src}|${Number(r.eid)}`, r);
     } catch { /* טבלה/עמודה שטרם נוצרה */ }
   }
-  return rows.map((r) => {
+  return withItemSales(rows.map((r) => {
     const list = parseInvoiceIds(r.invoice_ids).length ? parseInvoiceIds(r.invoice_ids) : parseInvoiceIds(r.invoice_id);
     const matchedTo = list.map((id) => {
       const i = invs.get(Number(id));
@@ -905,7 +908,7 @@ export async function matchedCashExpenses(scope = null, limit = 20, storeId = nu
         label: `צ׳ק שכר${sp.reference ? ' ' + sp.reference : ''} · ${((sp.first_name || '') + ' ' + (sp.last_name || '')).trim()}`, href: '/employees' });
     }
     return { ...r, matchedTo };
-  });
+  }), x);
 }
 
 /** מזהי ההוצאות שצ׳ק שכר נקשר אליהן (עמודה אחת לכל מקור). טבלה שטרם נוצרה → ריק. */

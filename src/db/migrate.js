@@ -40,6 +40,7 @@ export function migrate(db) {
   migrateSalaryCashMatch(db);
   migrateBankSyncJobs(db);
   migrateArnona(db);
+  migrateItemSales(db);
 }
 
 // "דוח פדיון" — nightly per-store revenue (sales + credit clearing).
@@ -819,6 +820,31 @@ function migrateBankSyncJobs(db) {
 // 🏛️ חשבון ארנונה (בעלים 29/10): doc_type 'arnona' + מס׳ נכס / מס׳ מסלקה / תקופה. SQLite לא משנה CHECK
 // במקום, ולכן הטבלה נבנית מחדש — מה-SQL הקיים שלה (כולל כל עמודה שמיגרציה הוסיפה), רק עם הערך החדש,
 // ואז האינדקסים חוזרים כמו שהיו. 🔴 קודם ה-CHECK ואחר כך העמודות: `arnonaReady` שואלת על העמודות.
+// 🛒 מכר פריטים מדוח "מכר יומי" (ג'חנון/פרחים ליד הוצאת המזומן) — ראה schema.sql.
+function migrateItemSales(db) {
+  db.exec(`CREATE TABLE IF NOT EXISTS pos_item_reports (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    store_id     INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    report_date  TEXT NOT NULL,
+    file_name    TEXT,
+    total_sales  INTEGER,
+    imported_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%d %H:%M:%S','now')),
+    UNIQUE (store_id, report_date)
+  );`);
+  db.exec(`CREATE TABLE IF NOT EXISTS pos_item_sales (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    store_id     INTEGER NOT NULL REFERENCES stores(id) ON DELETE CASCADE,
+    sale_date    TEXT NOT NULL,
+    item_group   TEXT NOT NULL,
+    item_code    TEXT NOT NULL,
+    item_name    TEXT,
+    qty          INTEGER NOT NULL DEFAULT 0,
+    sales        INTEGER NOT NULL DEFAULT 0,
+    UNIQUE (store_id, sale_date, item_code)
+  );`);
+  db.exec('CREATE INDEX IF NOT EXISTS ix_pos_item_sales_day ON pos_item_sales(store_id, sale_date);');
+}
+
 function migrateArnona(db) {
   const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='invoices'").get();
   if (!row) return;

@@ -68,7 +68,7 @@
               <%= e.purpose || '' %>
             <% } else { %><%= e.purpose || '—' %><% } %>
           </td>
-          <td data-label="סכום" class="right"><%= formatIls(e.amount) %></td>
+          <td data-label="סכום" class="right"><%= formatIls(e.amount) %><%- include('_cashItemSales', { s: e.itemSales }) %></td>
           <td data-label="פעולה" class="no-print">
             <div class="cx-acts">
             <%# 💬 וואטסאפ — לכל שורה: "נסעו במונית ולא הביאו חשבונית — אסביר שבפעם הבאה זה לא ישולם". %>
@@ -215,7 +215,7 @@
                 </td>
                 <td><%= e.payer_name || '—' %></td>
                 <td><%= e.purpose || '—' %></td>
-                <td class="right"><%= formatIls(e.amount) %></td>
+                <td class="right"><%= formatIls(e.amount) %><%- include('_cashItemSales', { s: e.itemSales }) %></td>
                 <%# מי סימן ומתי — סימון ידני הוא החלטה של אדם, ולכן הוא נושא שם. %>
                 <% var _pend = ((typeof pendingSettle !== 'undefined' && pendingSettle) || []).indexOf(e.source + '|' + e.id) >= 0; %>
                 <td class="muted" style="font-size:12px">
@@ -256,7 +256,7 @@
                 <div class="muted" style="font-size:11px"><%= e.store_name ? e.store_name + ' · ' : '' %><%= e.source === 'zclosing' ? 'סגירת Z' : 'דוח Z' %></div></td>
               <td><%= formatDate(e.expense_date) %></td>
               <td><%= [e.payer_name, e.purpose].filter(Boolean).join(' · ') || '—' %></td>
-              <td class="right"><%= formatIls(e.amount) %></td>
+              <td class="right"><%= formatIls(e.amount) %><%- include('_cashItemSales', { s: e.itemSales }) %></td>
               <td><% e.matchedTo.forEach(function(m, mi){ %><%= mi ? ' · ' : '' %><a href="<%= m.href %>"><bdi><%= m.label %></bdi></a><% }); %></td>
             </tr>
           <% }); %>
